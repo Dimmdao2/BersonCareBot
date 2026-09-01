@@ -16,7 +16,7 @@ import {
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorStatCard } from './analytics/clients/DoctorStatCard';
-import { ExerciseCommentPreviewItemContent } from './comments/ExerciseCommentPreviewItem';
+import { ExerciseCommentPreviewListRow } from './comments/ExerciseCommentPreviewItem';
 import type {
   TodayDashboardData,
   TodayUnreadConversationItem,
@@ -96,17 +96,6 @@ function PendingTestModalItem({ item }: { item: TodayPendingProgramTestItem }) {
         {item.instanceTitle} · {item.stageTitle}
       </p>
       <p className={`${doctorDnaFlatListMetaClass} mt-0.5`}>{item.submittedAtLabel}</p>
-    </Link>
-  );
-}
-
-function ExerciseCommentModalItem({ item }: { item: TodayExerciseCommentAttentionItem }) {
-  return (
-    <Link
-      href={item.href}
-      className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} block`}
-    >
-      <ExerciseCommentPreviewItemContent item={item} />
     </Link>
   );
 }
@@ -229,7 +218,7 @@ export function DoctorTodayLeftKpiRow({
         showCount={false}
         desktopPresentation="right-sheet"
         items={exerciseCommentItems}
-        renderItem={(item) => <ExerciseCommentModalItem item={item} />}
+        renderItem={(item) => <ExerciseCommentPreviewListRow item={item} />}
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Нет новых комментариев по упражнениям
@@ -246,7 +235,11 @@ export function DoctorTodayLeftKpiRow({
         showCount={false}
         desktopPresentation="right-sheet"
         items={unreadConversations}
-        renderItem={(item) => <UnreadConversationModalItem item={item} />}
+        renderItem={(item) => (
+          <li>
+            <UnreadConversationModalItem item={item} />
+          </li>
+        )}
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Нет непрочитанных сообщений.{' '}
@@ -266,7 +259,11 @@ export function DoctorTodayLeftKpiRow({
         showCount={false}
         desktopPresentation="right-sheet"
         items={pendingProgramTests}
-        renderItem={(item) => <PendingTestModalItem item={item} />}
+        renderItem={(item) => (
+          <li>
+            <PendingTestModalItem item={item} />
+          </li>
+        )}
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Нет тестов, ожидающих проверки
@@ -298,20 +295,22 @@ export function DoctorTodayLeftKpiRow({
         }
         items={attentionTasks}
         renderItem={(task) => (
-          <TaskRow
-            as="div"
-            task={task}
-            displayIana={displayIana}
-            patientDisplayName={
-              task.patientUserId ? taskPatientNames[task.patientUserId] : undefined
-            }
-            dueToday={isSpecialistTaskDueOnDate(task, todayIso, displayIana)}
-            canMutate={tasksAvailable}
-            onOpen={(selected) => {
-              setKpiModal(null);
-              setSelectedTaskId(selected.id);
-            }}
-          />
+          <li>
+            <TaskRow
+              as="div"
+              task={task}
+              displayIana={displayIana}
+              patientDisplayName={
+                task.patientUserId ? taskPatientNames[task.patientUserId] : undefined
+              }
+              dueToday={isSpecialistTaskDueOnDate(task, todayIso, displayIana)}
+              canMutate={tasksAvailable}
+              onOpen={(selected) => {
+                setKpiModal(null);
+                setSelectedTaskId(selected.id);
+              }}
+            />
+          </li>
         )}
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">

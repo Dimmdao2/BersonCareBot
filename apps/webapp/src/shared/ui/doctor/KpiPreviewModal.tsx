@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useState } from 'react';
+import { cloneElement, type ComponentPropsWithoutRef, type ReactElement, type ReactNode, useState } from 'react';
 import { DoctorModal, type DoctorModalDesktopPresentation } from './DoctorModal';
 import { Button } from './primitives/button';
 import { Input } from './primitives/input';
@@ -26,8 +26,11 @@ export type KpiPreviewModalProps<T> = {
   headerAction?: ReactNode;
   /** List of entities to display */
   items: T[];
-  /** Renderer for each item */
-  renderItem: (item: T) => ReactNode;
+  /**
+   * Renderer for each item. It owns the canonical direct `<li>` child of the
+   * modal list; this modal only owns the list container and its scroll area.
+   */
+  renderItem: (item: T) => ReactElement<ComponentPropsWithoutRef<'li'>>;
   /** Optional: enable client-side text search */
   searchPlaceholder?: string;
   searchPredicate?: (item: T, query: string) => boolean;
@@ -163,8 +166,8 @@ export function KpiPreviewModal<T>({
         ) : (
           <DoctorDnaFlatList>
             {filtered.map((item, idx) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: renderItem is opaque
-              <li key={idx}>{renderItem(item)}</li>
+              // biome-ignore lint/suspicious/noArrayIndexKey: caller owns the row, modal owns its stable list position
+              cloneElement(renderItem(item), { key: idx })
             ))}
           </DoctorDnaFlatList>
         )}
