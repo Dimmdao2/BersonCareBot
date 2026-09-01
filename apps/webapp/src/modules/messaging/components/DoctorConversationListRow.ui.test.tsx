@@ -29,7 +29,8 @@ describe('DoctorConversationListRow', () => {
     expect(row).toHaveAttribute('href', '/app/doctor/communications?conversation=conversation-1');
     expect(row).toHaveClass('flex');
     expect(row).not.toHaveClass('block');
-    expect(row).toHaveTextContent('Дмитрий: Нужна помощь');
+    expect(row).toHaveTextContent('Нужна помощь');
+    expect(row).not.toHaveTextContent('Дмитрий: Нужна помощь');
     expect(row).toHaveTextContent('1');
     expect(screen.getAllByText('Берсон Дмитрий')).toHaveLength(1);
   });
@@ -40,5 +41,13 @@ describe('DoctorConversationListRow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Берсон Дмитрий/ }));
     expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it('labels only the doctor as the sender in the message preview', () => {
+    render(
+      <DoctorConversationListRow conversation={{ ...conversation, lastSenderRole: 'admin' }} />,
+    );
+
+    expect(screen.getByRole('button')).toHaveTextContent('Вы: Нужна помощь');
   });
 });

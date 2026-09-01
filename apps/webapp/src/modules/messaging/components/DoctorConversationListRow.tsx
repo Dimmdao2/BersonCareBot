@@ -10,6 +10,7 @@ import {
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
+  doctorDnaFlatListSecondaryClass,
   doctorDnaFlatListSelectedPrimaryClass,
   doctorDnaFlatListUnreadTextClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
@@ -57,13 +58,6 @@ function formatConversationTime(value: string, timeZone: string): string {
   return `${dayMonth} · ${time}`;
 }
 
-function getSenderPrefix(conversation: DoctorConversationListRowData): string {
-  if (conversation.lastSenderRole === 'admin') return 'Вы';
-  return (
-    conversation.firstName || (conversation.displayName.split(' ')[0] ?? '').trim() || 'Пациент'
-  );
-}
-
 export function DoctorConversationListRow({
   conversation,
   displayIana = 'Europe/Moscow',
@@ -106,18 +100,11 @@ export function DoctorConversationListRow({
           <p
             className={cn(
               'mt-0.5 truncate',
-              doctorDnaFlatListMetaClass,
+              doctorDnaFlatListSecondaryClass,
               conversation.unreadFromUserCount > 0 && doctorDnaFlatListUnreadTextClass,
             )}
           >
-            <span
-              className={cn(
-                'font-medium text-foreground/80',
-                conversation.unreadFromUserCount > 0 && doctorDnaFlatListUnreadTextClass,
-              )}
-            >
-              {getSenderPrefix(conversation)}:
-            </span>{' '}
+            {conversation.lastSenderRole === 'admin' ? <span>Вы: </span> : null}
             {conversation.lastMessageText}
           </p>
         ) : null}
