@@ -1,6 +1,10 @@
 import { reportSaasIsolationEventBestEffort } from '@/infra/saasIsolationReporterRuntime';
 import { getCurrentWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import type { SaasIsolationSourceOperation } from '@/modules/operator-health/saasIsolationDiagnostics';
+import {
+  classifySaasIsolationFailure,
+  type SaasIsolationTelemetryEventClass,
+} from '@bersoncare/error-tracking';
 
 function currentSourceOperation(): SaasIsolationSourceOperation {
   return getCurrentWebappDbOperationFamily() ?? 'webapp_db_request';
@@ -8,15 +12,10 @@ function currentSourceOperation(): SaasIsolationSourceOperation {
 
 export function classifyPostgresIsolationDenial(
   error: unknown,
-): 'rls_denial' | 'role_pool_mismatch' | null {
+): SaasIsolationTelemetryEventClass | null {
   if (typeof error !== 'object' || error === null) return null;
-  const value = error as { code?: unknown; message?: unknown };
-  if (value.code !== '42501' || typeof value.message !== 'string') return null;
-  if (/row-level security|row level security|policy/i.test(value.message)) return 'rls_denial';
-  if (/permission denied for (table|schema|sequence|function|relation)/i.test(value.message)) {
-    return 'role_pool_mismatch';
-  }
-  return null;
+  if ((error as { code?: unknown }).code !== '42501') return null;
+  return classifySaasIsolationFailure(error);
 }
 
 export async function reportPrincipalSetupFailure(error: unknown): Promise<void> {
