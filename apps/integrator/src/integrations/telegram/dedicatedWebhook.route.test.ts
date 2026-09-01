@@ -61,6 +61,40 @@ describe('dedicated Telegram inbound ownership', () => {
     expect(handleIncomingEvent).toHaveBeenCalledOnce();
     expect(seenOrganizations).toEqual([ORGANIZATION_ID]);
   });
+
+  it('keeps the dedicated route without mounting the platform webhook in long-polling mode', async () => {
+    const app = Fastify({ logger: false });
+    apps.push(app);
+    await registerTelegramWebhookRoutes(app, {
+      eventGateway: {
+        handleIncomingEvent: vi.fn(async () => ({ status: 'accepted' as const })),
+      } as unknown as EventGateway,
+      setupProviderSurface: false,
+      registerPlatformWebhook: false,
+      resolveDedicatedClinicBotOrganization: async () => ORGANIZATION_ID,
+    });
+
+    const payload = {
+      update_id: 1,
+      message: {
+        message_id: 1,
+        text: 'help',
+        from: { id: 42 },
+        chat: { id: 42 },
+      },
+    };
+    const [platform, dedicated] = await Promise.all([
+      app.inject({ method: 'POST', url: '/webhook/telegram', payload }),
+      app.inject({
+        method: 'POST',
+        url: `/webhook/telegram/dedicated/${FINGERPRINT}`,
+        payload,
+      }),
+    ]);
+
+    expect(platform.statusCode).toBe(404);
+    expect(dedicated.statusCode).toBe(200);
+  });
 });
 
 describe('platform Telegram webhook authentication', () => {

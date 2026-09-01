@@ -169,8 +169,18 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   const telegramRuntimeConfig = await getTelegramRuntimeConfig();
   if (env.NODE_ENV !== 'development' && telegramRuntimeConfig.mode === 'long_polling') {
     // RU-isolated host: Telegram cannot reach us inbound — pull updates via
-    // getUpdates instead of a webhook. Non-fatal, fire-and-forget; NO webhook route.
+    // getUpdates instead of a webhook. Dedicated clinic bots still receive
+    // their own webhooks because they are separate bot instances.
     startTelegramLongPolling(telegramWebhookDeps);
+    if (deps.registerTelegramWebhookRoutes) {
+      app.register(async (instance) => {
+        await deps.registerTelegramWebhookRoutes?.(instance, {
+          ...telegramWebhookDeps,
+          setupProviderSurface: false,
+          registerPlatformWebhook: false,
+        });
+      });
+    }
   } else if (deps.registerTelegramWebhookRoutes) {
     app.register(async (instance) => {
       await deps.registerTelegramWebhookRoutes?.(instance, telegramWebhookDeps);
