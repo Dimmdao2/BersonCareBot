@@ -1,4 +1,5 @@
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { sql, type SQL } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import {
   CONTACTS,
@@ -43,15 +44,16 @@ type ListRow = {
   event_label: string | null;
 };
 
-function sqlExcludeUsers(excludedUserIds: string[], baseParams: unknown[], userIdExpr: string) {
+/**
+ * Optional `<> ALL(...)` exclusion predicate. `userIdExpr` is a caller-owned column
+ * identifier and stays raw; the excluded id list is bound as one `uuid[]` parameter.
+ */
+function sqlExcludeUsers(excludedUserIds: string[], userIdExpr: string): SQL {
   if (excludedUserIds.length === 0) {
-    return { andSql: '', params: baseParams };
+    return sql``;
   }
-  const idx = baseParams.length + 1;
-  return {
-    andSql: ` AND (${userIdExpr} IS NULL OR ${userIdExpr} <> ALL($${idx}::uuid[]))`,
-    params: [...baseParams, excludedUserIds],
-  };
+  const userId = sql.raw(userIdExpr);
+  return sql` AND (${userId} IS NULL OR ${userId} <> ALL(${sql.param(excludedUserIds)}::uuid[]))`;
 }
 
 function mapRow(row: ListRow): DoctorAnalyticsMetricAccountItem {
@@ -97,13 +99,10 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
 
       const queryByMetric = async (metricKey: DoctorAnalyticsMetricKey): Promise<ListRow[]> => {
         if (metricKey === 'appointments_past_visits') {
-          const ex = sqlExcludeUsers(
-            excluded,
-            [orgId, start, endExclusive, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
-            canonicalUser,
-          );
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const ex = sqlExcludeUsers(excluded, canonicalUser);
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
                COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
@@ -113,25 +112,21 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
-             WHERE a.organization_id = $1::uuid
-               AND a.start_at >= $2::timestamptz
-               AND a.start_at < $3::timestamptz
+             WHERE a.organization_id = ${orgId}::uuid
+               AND a.start_at >= ${start}::timestamptz
+               AND a.start_at < ${endExclusive}::timestamptz
                AND a.start_at < now()
-               AND a.status <> ALL($4::text[])${CANONICAL_PURGED_FILTER_SQL}${ex.andSql}
+               AND a.status <> ALL(${sql.param([...CANCELLED_BE_STATUSES])}::text[])${sql.raw(CANONICAL_PURGED_FILTER_SQL)}${ex}
              ORDER BY a.start_at DESC, user_id ASC
-             LIMIT $5::int OFFSET $6::int`,
-            ex.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'appointments_cancelled_visits') {
-          const ex = sqlExcludeUsers(
-            excluded,
-            [orgId, start, endExclusive, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
-            canonicalUser,
-          );
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const ex = sqlExcludeUsers(excluded, canonicalUser);
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
                COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
@@ -141,25 +136,21 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
-             WHERE a.organization_id = $1::uuid
-               AND a.start_at >= $2::timestamptz
-               AND a.start_at < $3::timestamptz
-               AND a.status = ANY($4::text[])${CANONICAL_PURGED_FILTER_SQL}
-             ${ex.andSql}
+             WHERE a.organization_id = ${orgId}::uuid
+               AND a.start_at >= ${start}::timestamptz
+               AND a.start_at < ${endExclusive}::timestamptz
+               AND a.status = ANY(${sql.param([...CANCELLED_BE_STATUSES])}::text[])${sql.raw(CANONICAL_PURGED_FILTER_SQL)}
+             ${ex}
              ORDER BY a.start_at DESC, user_id ASC
-             LIMIT $5::int OFFSET $6::int`,
-            ex.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'appointments_bookings_created') {
-          const ex = sqlExcludeUsers(
-            excluded,
-            [orgId, start, endExclusive, safeLimit + 1, safeOffset],
-            canonicalUser,
-          );
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const ex = sqlExcludeUsers(excluded, canonicalUser);
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
                COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
@@ -169,24 +160,20 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
-             WHERE a.organization_id = $1::uuid
-               AND a.created_at >= $2::timestamptz
-               AND a.created_at < $3::timestamptz${CANONICAL_PURGED_FILTER_SQL}
-             ${ex.andSql}
+             WHERE a.organization_id = ${orgId}::uuid
+               AND a.created_at >= ${start}::timestamptz
+               AND a.created_at < ${endExclusive}::timestamptz${sql.raw(CANONICAL_PURGED_FILTER_SQL)}
+             ${ex}
              ORDER BY a.created_at DESC, user_id ASC
-             LIMIT $4::int OFFSET $5::int`,
-            ex.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'appointments_cancellation_actions') {
-          const ex = sqlExcludeUsers(
-            excluded,
-            [orgId, start, endExclusive, safeLimit + 1, safeOffset],
-            canonicalUser,
-          );
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const ex = sqlExcludeUsers(excluded, canonicalUser);
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
                COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
@@ -197,24 +184,20 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
-             WHERE c.organization_id = $1::uuid
-               AND c.created_at >= $2::timestamptz
-               AND c.created_at < $3::timestamptz${CANONICAL_PURGED_FILTER_SQL}
-             ${ex.andSql}
+             WHERE c.organization_id = ${orgId}::uuid
+               AND c.created_at >= ${start}::timestamptz
+               AND c.created_at < ${endExclusive}::timestamptz${sql.raw(CANONICAL_PURGED_FILTER_SQL)}
+             ${ex}
              ORDER BY c.created_at DESC, user_id ASC
-             LIMIT $4::int OFFSET $5::int`,
-            ex.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'appointments_reschedule_actions') {
-          const ex = sqlExcludeUsers(
-            excluded,
-            [orgId, start, endExclusive, safeLimit + 1, safeOffset],
-            canonicalUser,
-          );
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const ex = sqlExcludeUsers(excluded, canonicalUser);
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
                COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
@@ -225,246 +208,242 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
-             WHERE r.organization_id = $1::uuid
-               AND r.created_at >= $2::timestamptz
-               AND r.created_at < $3::timestamptz
-             ${ex.andSql}
+             WHERE r.organization_id = ${orgId}::uuid
+               AND r.created_at >= ${start}::timestamptz
+               AND r.created_at < ${endExclusive}::timestamptz
+             ${ex}
              ORDER BY r.created_at DESC, user_id ASC
-             LIMIT $4::int OFFSET $5::int`,
-            ex.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'clients_total') {
-          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const clientEx = sqlExcludeUsers(excluded, 'pu.id');
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                pu.id::text AS user_id,
-               ${FIO.displayName} AS display_name,
-               ${CONTACTS.phoneNormalized} AS phone_normalized,
+               ${sql.raw(FIO.displayName)} AS display_name,
+               ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
-             ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_LATERALS}
+             ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+             ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-             ${clientEx.andSql}
+             ${clientEx}
              ORDER BY display_name ASC, pu.id ASC
-             LIMIT $1::int OFFSET $2::int`,
-            clientEx.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'clients_phone_only') {
-          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const clientEx = sqlExcludeUsers(excluded, 'pu.id');
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                pu.id::text AS user_id,
-               ${FIO.displayName} AS display_name,
-               ${CONTACTS.phoneNormalized} AS phone_normalized,
+               ${sql.raw(FIO.displayName)} AS display_name,
+               ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
-             ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_LATERALS}
+             ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+             ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND ${CONTACTS_HAS_PHONE}
-               AND ${CONTACTS.emailVerifiedAt} IS NULL
-               AND NOT ${sqlActiveMessengerBinding('pu.id')}
-             ${clientEx.andSql}
+               AND ${sql.raw(CONTACTS_HAS_PHONE)}
+               AND ${sql.raw(CONTACTS.emailVerifiedAt)} IS NULL
+               AND NOT ${sql.raw(sqlActiveMessengerBinding('pu.id'))}
+             ${clientEx}
              ORDER BY display_name ASC, pu.id ASC
-             LIMIT $1::int OFFSET $2::int`,
-            clientEx.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'clients_app_guests') {
-          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const clientEx = sqlExcludeUsers(excluded, 'pu.id');
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                pu.id::text AS user_id,
-               ${FIO.displayName} AS display_name,
-               ${CONTACTS.phoneNormalized} AS phone_normalized,
+               ${sql.raw(FIO.displayName)} AS display_name,
+               ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
-             ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_LATERALS}
+             ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+             ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND ${CONTACTS_NO_PHONE}
-               AND ${CONTACTS.emailVerifiedAt} IS NULL
-               AND NOT ${sqlActiveMessengerBinding('pu.id')}
-             ${clientEx.andSql}
+               AND ${sql.raw(CONTACTS_NO_PHONE)}
+               AND ${sql.raw(CONTACTS.emailVerifiedAt)} IS NULL
+               AND NOT ${sql.raw(sqlActiveMessengerBinding('pu.id'))}
+             ${clientEx}
              ORDER BY display_name ASC, pu.id ASC
-             LIMIT $1::int OFFSET $2::int`,
-            clientEx.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'clients_segment_telegram_only') {
-          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const clientEx = sqlExcludeUsers(excluded, 'pu.id');
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                pu.id::text AS user_id,
-               ${FIO.displayName} AS display_name,
-               ${CONTACTS.phoneNormalized} AS phone_normalized,
+               ${sql.raw(FIO.displayName)} AS display_name,
+               ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
-             ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_LATERALS}
+             ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+             ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND ${sqlActiveTelegramBinding('pu.id')}
-               AND NOT ${sqlActiveMaxBinding('pu.id')}
-               AND ${CONTACTS.emailVerifiedAt} IS NULL
-             ${clientEx.andSql}
+               AND ${sql.raw(sqlActiveTelegramBinding('pu.id'))}
+               AND NOT ${sql.raw(sqlActiveMaxBinding('pu.id'))}
+               AND ${sql.raw(CONTACTS.emailVerifiedAt)} IS NULL
+             ${clientEx}
              ORDER BY display_name ASC, pu.id ASC
-             LIMIT $1::int OFFSET $2::int`,
-            clientEx.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'clients_segment_max_only') {
-          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const clientEx = sqlExcludeUsers(excluded, 'pu.id');
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                pu.id::text AS user_id,
-               ${FIO.displayName} AS display_name,
-               ${CONTACTS.phoneNormalized} AS phone_normalized,
+               ${sql.raw(FIO.displayName)} AS display_name,
+               ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
-             ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_LATERALS}
+             ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+             ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND ${sqlActiveMaxBinding('pu.id')}
-               AND NOT ${sqlActiveTelegramBinding('pu.id')}
-               AND ${CONTACTS.emailVerifiedAt} IS NULL
-             ${clientEx.andSql}
+               AND ${sql.raw(sqlActiveMaxBinding('pu.id'))}
+               AND NOT ${sql.raw(sqlActiveTelegramBinding('pu.id'))}
+               AND ${sql.raw(CONTACTS.emailVerifiedAt)} IS NULL
+             ${clientEx}
              ORDER BY display_name ASC, pu.id ASC
-             LIMIT $1::int OFFSET $2::int`,
-            clientEx.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'clients_segment_email_only') {
-          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const clientEx = sqlExcludeUsers(excluded, 'pu.id');
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                pu.id::text AS user_id,
-               ${FIO.displayName} AS display_name,
-               ${CONTACTS.phoneNormalized} AS phone_normalized,
+               ${sql.raw(FIO.displayName)} AS display_name,
+               ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
-             ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_LATERALS}
+             ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+             ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND ${CONTACTS.emailVerifiedAt} IS NOT NULL
-               AND ${CONTACTS_NO_PHONE}
-               AND NOT ${sqlActiveMessengerBinding('pu.id')}
-             ${clientEx.andSql}
+               AND ${sql.raw(CONTACTS.emailVerifiedAt)} IS NOT NULL
+               AND ${sql.raw(CONTACTS_NO_PHONE)}
+               AND NOT ${sql.raw(sqlActiveMessengerBinding('pu.id'))}
+             ${clientEx}
              ORDER BY display_name ASC, pu.id ASC
-             LIMIT $1::int OFFSET $2::int`,
-            clientEx.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'clients_segment_telegram_email') {
-          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const clientEx = sqlExcludeUsers(excluded, 'pu.id');
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                pu.id::text AS user_id,
-               ${FIO.displayName} AS display_name,
-               ${CONTACTS.phoneNormalized} AS phone_normalized,
+               ${sql.raw(FIO.displayName)} AS display_name,
+               ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
-             ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_LATERALS}
+             ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+             ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND ${CONTACTS.emailVerifiedAt} IS NOT NULL
-               AND ${sqlActiveTelegramBinding('pu.id')}
-               AND NOT ${sqlActiveMaxBinding('pu.id')}
-             ${clientEx.andSql}
+               AND ${sql.raw(CONTACTS.emailVerifiedAt)} IS NOT NULL
+               AND ${sql.raw(sqlActiveTelegramBinding('pu.id'))}
+               AND NOT ${sql.raw(sqlActiveMaxBinding('pu.id'))}
+             ${clientEx}
              ORDER BY display_name ASC, pu.id ASC
-             LIMIT $1::int OFFSET $2::int`,
-            clientEx.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'clients_segment_max_email') {
-          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const clientEx = sqlExcludeUsers(excluded, 'pu.id');
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                pu.id::text AS user_id,
-               ${FIO.displayName} AS display_name,
-               ${CONTACTS.phoneNormalized} AS phone_normalized,
+               ${sql.raw(FIO.displayName)} AS display_name,
+               ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
-             ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_LATERALS}
+             ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+             ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND ${CONTACTS.emailVerifiedAt} IS NOT NULL
-               AND ${sqlActiveMaxBinding('pu.id')}
-               AND NOT ${sqlActiveTelegramBinding('pu.id')}
-             ${clientEx.andSql}
+               AND ${sql.raw(CONTACTS.emailVerifiedAt)} IS NOT NULL
+               AND ${sql.raw(sqlActiveMaxBinding('pu.id'))}
+               AND NOT ${sql.raw(sqlActiveTelegramBinding('pu.id'))}
+             ${clientEx}
              ORDER BY display_name ASC, pu.id ASC
-             LIMIT $1::int OFFSET $2::int`,
-            clientEx.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'clients_segment_phone_email_no_messenger') {
-          const clientEx = sqlExcludeUsers(excluded, [safeLimit + 1, safeOffset], 'pu.id');
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const clientEx = sqlExcludeUsers(excluded, 'pu.id');
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                pu.id::text AS user_id,
-               ${FIO.displayName} AS display_name,
-               ${CONTACTS.phoneNormalized} AS phone_normalized,
+               ${sql.raw(FIO.displayName)} AS display_name,
+               ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
-             ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_LATERALS}
+             ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+             ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND ${CONTACTS.emailVerifiedAt} IS NOT NULL
-               AND ${CONTACTS_HAS_PHONE}
-               AND NOT ${sqlActiveMessengerBinding('pu.id')}
-             ${clientEx.andSql}
+               AND ${sql.raw(CONTACTS.emailVerifiedAt)} IS NOT NULL
+               AND ${sql.raw(CONTACTS_HAS_PHONE)}
+               AND NOT ${sql.raw(sqlActiveMessengerBinding('pu.id'))}
+             ${clientEx}
              ORDER BY display_name ASC, pu.id ASC
-             LIMIT $1::int OFFSET $2::int`,
-            clientEx.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'registrations') {
-          const ex = sqlExcludeUsers(
-            excluded,
-            [start, endExclusive, safeLimit + 1, safeOffset],
-            canonicalUser,
-          );
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const ex = sqlExcludeUsers(excluded, canonicalUser);
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
                COALESCE(ui_pcanon.display_name, pcanon.display_name) AS display_name,
                pcanon.phone_normalized,
@@ -473,24 +452,20 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              FROM platform_users pu
              INNER JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE pu.role = 'client'
-               AND pu.created_at >= $1::timestamptz
-               AND pu.created_at < $2::timestamptz
-               AND NOT (pu.merged_at IS NOT NULL AND pu.merged_at >= $1::timestamptz AND pu.merged_at < $2::timestamptz)
-             ${ex.andSql}
+               AND pu.created_at >= ${start}::timestamptz
+               AND pu.created_at < ${endExclusive}::timestamptz
+               AND NOT (pu.merged_at IS NOT NULL AND pu.merged_at >= ${start}::timestamptz AND pu.merged_at < ${endExclusive}::timestamptz)
+             ${ex}
              ORDER BY pu.created_at DESC, user_id ASC
-             LIMIT $3::int OFFSET $4::int`,
-            ex.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'registrations_merges') {
-          const ex = sqlExcludeUsers(
-            excluded,
-            [start, endExclusive, safeLimit + 1, safeOffset],
-            canonicalUser,
-          );
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const ex = sqlExcludeUsers(excluded, canonicalUser);
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
                COALESCE(ui_pcanon.display_name, pcanon.display_name) AS display_name,
                pcanon.phone_normalized,
@@ -500,23 +475,19 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              INNER JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE pu.merged_into_id IS NOT NULL
                AND pu.merged_at IS NOT NULL
-               AND pu.merged_at >= $1::timestamptz
-               AND pu.merged_at < $2::timestamptz
-             ${ex.andSql}
+               AND pu.merged_at >= ${start}::timestamptz
+               AND pu.merged_at < ${endExclusive}::timestamptz
+             ${ex}
              ORDER BY pu.merged_at DESC, user_id ASC
-             LIMIT $3::int OFFSET $4::int`,
-            ex.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'registrations_combined') {
-          const ex = sqlExcludeUsers(
-            excluded,
-            [start, endExclusive, safeLimit + 1, safeOffset],
-            'q.user_id::uuid',
-          );
-          const r = await runWebappPgText<ListRow>(
-            `SELECT * FROM (
+          const ex = sqlExcludeUsers(excluded, 'q.user_id::uuid');
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT * FROM (
                SELECT
                  COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
                  COALESCE(ui_pcanon.display_name, pcanon.display_name) AS display_name,
@@ -526,9 +497,9 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                FROM platform_users pu
                INNER JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
                WHERE pu.role = 'client'
-                 AND pu.created_at >= $1::timestamptz
-                 AND pu.created_at < $2::timestamptz
-                 AND NOT (pu.merged_at IS NOT NULL AND pu.merged_at >= $1::timestamptz AND pu.merged_at < $2::timestamptz)
+                 AND pu.created_at >= ${start}::timestamptz
+                 AND pu.created_at < ${endExclusive}::timestamptz
+                 AND NOT (pu.merged_at IS NOT NULL AND pu.merged_at >= ${start}::timestamptz AND pu.merged_at < ${endExclusive}::timestamptz)
                UNION ALL
                SELECT
                  COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
@@ -540,25 +511,21 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                INNER JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
                WHERE pu.merged_into_id IS NOT NULL
                  AND pu.merged_at IS NOT NULL
-                 AND pu.merged_at >= $1::timestamptz
-                 AND pu.merged_at < $2::timestamptz
+                 AND pu.merged_at >= ${start}::timestamptz
+                 AND pu.merged_at < ${endExclusive}::timestamptz
              ) q
-             WHERE 1=1${ex.andSql}
+             WHERE 1=1${ex}
              ORDER BY q.event_at DESC, q.user_id ASC
-             LIMIT $3::int OFFSET $4::int`,
-            ex.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'today_appointments_today') {
           const { from, to } = localDayRangeBoundsIso('today', iana);
-          const ex = sqlExcludeUsers(
-            excluded,
-            [orgId, from, to, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
-            canonicalUser,
-          );
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const ex = sqlExcludeUsers(excluded, canonicalUser);
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
                COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
@@ -568,13 +535,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
-             WHERE a.organization_id = $1::uuid
-               AND a.start_at >= $2::timestamptz
-               AND a.start_at <= $3::timestamptz
-               AND a.status <> ALL($4::text[])${CANONICAL_PURGED_FILTER_SQL}${ex.andSql}
+             WHERE a.organization_id = ${orgId}::uuid
+               AND a.start_at >= ${from}::timestamptz
+               AND a.start_at <= ${to}::timestamptz
+               AND a.status <> ALL(${sql.param([...CANCELLED_BE_STATUSES])}::text[])${sql.raw(CANONICAL_PURGED_FILTER_SQL)}${ex}
              ORDER BY a.start_at DESC, user_id ASC
-             LIMIT $5::int OFFSET $6::int`,
-            ex.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
@@ -583,13 +549,10 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             { kind: 'range', range: 'week' },
             iana,
           );
-          const ex = sqlExcludeUsers(
-            excluded,
-            [orgId, from, toExclusive, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
-            canonicalUser,
-          );
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const ex = sqlExcludeUsers(excluded, canonicalUser);
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
                COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
@@ -599,24 +562,20 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
-             WHERE a.organization_id = $1::uuid
-               AND a.start_at >= $2::timestamptz
-               AND a.start_at < $3::timestamptz
-               AND a.status <> ALL($4::text[])${CANONICAL_PURGED_FILTER_SQL}${ex.andSql}
+             WHERE a.organization_id = ${orgId}::uuid
+               AND a.start_at >= ${from}::timestamptz
+               AND a.start_at < ${toExclusive}::timestamptz
+               AND a.status <> ALL(${sql.param([...CANCELLED_BE_STATUSES])}::text[])${sql.raw(CANONICAL_PURGED_FILTER_SQL)}${ex}
              ORDER BY a.start_at DESC, user_id ASC
-             LIMIT $5::int OFFSET $6::int`,
-            ex.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'today_cancellations_30d') {
-          const ex = sqlExcludeUsers(
-            excluded,
-            [orgId, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
-            canonicalUser,
-          );
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const ex = sqlExcludeUsers(excluded, canonicalUser);
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
                COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
@@ -626,12 +585,11 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
-             WHERE a.organization_id = $1::uuid
-               AND a.status = ANY($2::text[])
-               AND a.updated_at >= NOW() - interval '30 days'${CANONICAL_PURGED_FILTER_SQL}${ex.andSql}
+             WHERE a.organization_id = ${orgId}::uuid
+               AND a.status = ANY(${sql.param([...CANCELLED_BE_STATUSES])}::text[])
+               AND a.updated_at >= NOW() - interval '30 days'${sql.raw(CANONICAL_PURGED_FILTER_SQL)}${ex}
              ORDER BY a.updated_at DESC, user_id ASC
-             LIMIT $3::int OFFSET $4::int`,
-            ex.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
@@ -641,101 +599,90 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
         ) {
           const channel =
             metricKey === 'clients_messenger_bot_blocked_telegram' ? 'telegram' : 'max';
-          const clientEx = sqlExcludeUsers(excluded, [channel, safeLimit + 1, safeOffset], 'pu.id');
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const clientEx = sqlExcludeUsers(excluded, 'pu.id');
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                pu.id::text AS user_id,
-               ${FIO.displayName} AS display_name,
-               ${CONTACTS.phoneNormalized} AS phone_normalized,
+               ${sql.raw(FIO.displayName)} AS display_name,
+               ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
                ucb.bot_blocked_at::text AS event_at,
                'Бот заблокирован'::text AS event_label
              FROM platform_users pu
-             ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_LATERALS}
+             ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+             ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
              INNER JOIN user_channel_bindings ucb
                ON ucb.user_id = pu.id
-              AND ucb.channel_code = $1::text
+              AND ucb.channel_code = ${channel}::text
               AND ucb.bot_blocked_at IS NOT NULL
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-             ${clientEx.andSql}
+             ${clientEx}
              ORDER BY ucb.bot_blocked_at DESC NULLS LAST, pu.id ASC
-             LIMIT $2::int OFFSET $3::int`,
-            clientEx.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'notif_reminders_sent' || metricKey === 'notif_reminders_failed') {
           const status = metricKey === 'notif_reminders_sent' ? 'sent' : 'failed';
           const eventLabel = metricKey === 'notif_reminders_sent' ? 'Отправлено' : 'Ошибка';
-          const ex = sqlExcludeUsers(
-            excluded,
-            [notifHours, status, safeLimit + 1, safeOffset],
-            'rr.platform_user_id',
-          );
+          const ex = sqlExcludeUsers(excluded, 'rr.platform_user_id');
           // Track D (#987): the rule's owner is `rr.platform_user_id`. The removed
           // `LEFT JOIN platform_users pu ON <retired public id>` was the pre-canonical fallback;
           // the cutover migration backfills and `NOT NULL`s the owner column.
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                rr.platform_user_id::text AS user_id,
                COALESCE(ui_pcanon.display_name, pcanon.display_name) AS display_name,
                pcanon.phone_normalized,
                MAX(roh.occurred_at)::text AS event_at,
-               '${eventLabel}'::text AS event_label
+               ${eventLabel}::text AS event_label
              FROM reminder_occurrence_history roh
              INNER JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
              INNER JOIN platform_users pcanon
                ON pcanon.id = rr.platform_user_id
-             WHERE roh.occurred_at >= (NOW() - ($1::integer * interval '1 hour'))
-               AND roh.status = $2::text
-               AND rr.platform_user_id IS NOT NULL${ex.andSql}
+             WHERE roh.occurred_at >= (NOW() - (${notifHours}::integer * interval '1 hour'))
+               AND roh.status = ${status}::text
+               AND rr.platform_user_id IS NOT NULL${ex}
              GROUP BY 1, 2, 3
              ORDER BY MAX(roh.occurred_at) DESC, user_id ASC
-             LIMIT $3::int OFFSET $4::int`,
-            ex.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'notif_push_opened') {
-          const ex = sqlExcludeUsers(
-            excluded,
-            [notifHours, safeLimit + 1, safeOffset],
-            'e.user_id',
-          );
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const ex = sqlExcludeUsers(excluded, 'e.user_id');
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                e.user_id::text AS user_id,
-               ${FIO.displayName} AS display_name,
-               ${CONTACTS.phoneNormalized} AS phone_normalized,
+               ${sql.raw(FIO.displayName)} AS display_name,
+               ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
                MAX(e.occurred_at)::text AS event_at,
                'Push open'::text AS event_label
              FROM product_analytics_events_recent e
              INNER JOIN platform_users pu ON pu.id = e.user_id
-             ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_LATERALS}
+             ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+             ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
              WHERE e.event_type = 'push_open'
                AND e.user_id IS NOT NULL
-               AND e.occurred_at >= (NOW() - ($1::integer * interval '1 hour'))${ex.andSql}
-             GROUP BY e.user_id, ${FIO.displayName}, ${CONTACTS.phoneNormalized}
+               AND e.occurred_at >= (NOW() - (${notifHours}::integer * interval '1 hour'))${ex}
+             GROUP BY e.user_id, ${sql.raw(FIO.displayName)}, ${sql.raw(CONTACTS.phoneNormalized)}
              ORDER BY MAX(e.occurred_at) DESC, e.user_id ASC
-             LIMIT $2::int OFFSET $3::int`,
-            ex.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey === 'subscribers_total') {
-          const clientEx = sqlExcludeUsers(
-            excluded,
-            [endExclusive, safeLimit + 1, safeOffset],
-            'pu.id',
-          );
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
+          const clientEx = sqlExcludeUsers(excluded, 'pu.id');
+          const r = await runWebappSql<ListRow>(
+            getWebappSqlDb(),
+            sql`SELECT
                pu.id::text AS user_id,
-               ${FIO.displayName} AS display_name,
-               ${CONTACTS.phoneNormalized} AS phone_normalized,
+               ${sql.raw(FIO.displayName)} AS display_name,
+               ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
                s.first_at::text AS event_at,
                'Первая привязка канала'::text AS event_label
              FROM (
@@ -746,32 +693,28 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                GROUP BY ucb.user_id
              ) s
              INNER JOIN platform_users pu ON pu.id = s.user_id
-             ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_LATERALS}
+             ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+             ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND s.first_at < $1::timestamptz
-             ${clientEx.andSql}
+               AND s.first_at < ${endExclusive}::timestamptz
+             ${clientEx}
              ORDER BY s.first_at DESC, pu.id ASC
-             LIMIT $2::int OFFSET $3::int`,
-            clientEx.params,
+             LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
           );
           return r.rows;
         }
         if (metricKey !== 'subscribers_delta') {
           throw new Error('unsupported_metric');
         }
-        const clientEx = sqlExcludeUsers(
-          excluded,
-          [start, endExclusive, safeLimit + 1, safeOffset],
-          'pu.id',
-        );
-        const r = await runWebappPgText<ListRow>(
-          `           SELECT
+        const clientEx = sqlExcludeUsers(excluded, 'pu.id');
+        const r = await runWebappSql<ListRow>(
+          getWebappSqlDb(),
+          sql`           SELECT
              pu.id::text AS user_id,
-             ${FIO.displayName} AS display_name,
-             ${CONTACTS.phoneNormalized} AS phone_normalized,
+             ${sql.raw(FIO.displayName)} AS display_name,
+             ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
              s.first_at::text AS event_at,
              'Первая привязка канала'::text AS event_label
            FROM (
@@ -782,16 +725,15 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              GROUP BY ucb.user_id
            ) s
            INNER JOIN platform_users pu ON pu.id = s.user_id
-           ${USER_IDENTITY_FIO_JOIN}
-           ${USER_CONTACTS_PRIMARY_LATERALS}
+           ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+           ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
            WHERE pu.role = 'client'
              AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false
-             AND s.first_at >= $1::timestamptz
-             AND s.first_at < $2::timestamptz${clientEx.andSql}
+             AND s.first_at >= ${start}::timestamptz
+             AND s.first_at < ${endExclusive}::timestamptz${clientEx}
            ORDER BY s.first_at DESC, pu.id ASC
-           LIMIT $3::int OFFSET $4::int`,
-          clientEx.params,
+           LIMIT ${safeLimit + 1}::int OFFSET ${safeOffset}::int`,
         );
         return r.rows;
       };
