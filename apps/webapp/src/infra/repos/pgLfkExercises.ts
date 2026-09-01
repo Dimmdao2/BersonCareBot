@@ -29,7 +29,7 @@ import type {
   UpdateExerciseInput,
 } from '@/modules/lfk-exercises/types';
 import { mediaFiles } from '../../../db/schema/schema';
-import { eq, sql } from 'drizzle-orm';
+import { type SQL, eq, sql } from 'drizzle-orm';
 import {
   EMPTY_EXERCISE_USAGE_SNAPSHOT,
   EXERCISE_USAGE_DETAIL_LIMIT,
@@ -177,14 +177,6 @@ function mapExerciseRow(row: ExerciseDbRow, media: ExerciseMedia[]): Exercise {
     updatedAt: toIsoStringSafe(row.updated_at),
     media,
   };
-}
-
-async function txPgText<T>(
-  tx: WebappSqlTransactionExecutor,
-  queryText: string,
-  values: readonly unknown[] = [],
-) {
-  return runWebappPgText<T>(queryText, values, tx);
 }
 
 /**
@@ -760,24 +752,14 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       const regionIds = mergeExerciseRegionRefIds(input.regionRefId, input.regionRefIds ?? null);
       const legacyRegion = regionIds[0] ?? null;
       const { row, exId } = await runWebappTransaction(async (tx) => {
-        const ins = await txPgText<ExerciseDbRow>(
+        const ins = await runWebappSql<ExerciseDbRow>(
           tx,
-          `INSERT INTO lfk_exercises (
+          sql`INSERT INTO lfk_exercises (
              owner_kind, organization_id, catalog_scope, title, description, region_ref_id, load_type, difficulty_1_10, contraindications, tags, created_by, updated_at
            )
-           VALUES ('organization', ${ORG_ID_EXPR}, 'catalog', $1, $2, $3, $4, $5, $6, $7, $8, now())
+           VALUES ('organization', ${sql.raw(ORG_ID_EXPR)}, 'catalog', ${input.title}, ${input.description ?? null}, ${legacyRegion}, ${input.loadType ?? null}, ${input.difficulty1_10 ?? null}, ${input.contraindications ?? null}, ${sql.param(input.tags ?? null)}, ${createdBy}, now())
            RETURNING id, owner_kind, catalog_scope, title, description, region_ref_id, load_type, difficulty_1_10,
                      contraindications, tags, is_archived, created_by, created_at, updated_at`,
-          [
-            input.title,
-            input.description ?? null,
-            legacyRegion,
-            input.loadType ?? null,
-            input.difficulty1_10 ?? null,
-            input.contraindications ?? null,
-            input.tags ?? null,
-            createdBy,
-          ],
         );
         const insRow = ins.rows[0]!;
         const newExId = insRow.id;
@@ -785,11 +767,10 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         if (input.media?.length) {
           let order = 0;
           for (const m of input.media) {
-            await txPgText(
+            await runWebappSql(
               tx,
-              `INSERT INTO lfk_exercise_media (owner_kind, organization_id, exercise_id, media_url, media_type, sort_order)
-               VALUES ('organization', ${ORG_ID_EXPR}, $1, $2, $3, $4)`,
-              [newExId, m.mediaUrl, m.mediaType, m.sortOrder ?? order],
+              sql`INSERT INTO lfk_exercise_media (owner_kind, organization_id, exercise_id, media_url, media_type, sort_order)
+               VALUES ('organization', ${sql.raw(ORG_ID_EXPR)}, ${newExId}, ${m.mediaUrl}, ${m.mediaType}, ${m.sortOrder ?? order})`,
             );
             order += 1;
           }
@@ -805,22 +786,20 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     async update(id: string, input: UpdateExerciseInput): Promise<Exercise | null> {
       requireOrganizationPrincipal();
       const touched = await runWebappTransaction(async (tx) => {
-        const cur = await txPgText<{ id: string }>(
+        const cur = await runWebappSql<{ id: string }>(
           tx,
-          `SELECT id FROM lfk_exercises
-            WHERE id = $1
+          sql`SELECT id FROM lfk_exercises
+            WHERE id = ${id}
               AND catalog_scope = 'catalog'
-              AND organization_id = ${ORG_ID_EXPR}`,
-          [id],
+              AND organization_id = ${sql.raw(ORG_ID_EXPR)}`,
         );
         if (!cur.rows[0]) return false;
 
-        const sets: string[] = ['updated_at = now()'];
-        const vals: unknown[] = [];
-        let n = 1;
+        // Column names come from this function's own literals, never from input, so they stay
+        // raw; every assigned value is bound.
+        const sets: SQL[] = [sql`updated_at = now()`];
         const add = (col: string, v: unknown) => {
-          sets.push(`${col} = $${n++}`);
-          vals.push(v);
+          sets.push(sql`${sql.raw(col)} = ${v}`);
         };
 
         if (input.title !== undefined) add('title', input.title);
@@ -840,14 +819,12 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           add('contraindications', input.contraindications);
         if (input.tags !== undefined) add('tags', input.tags);
 
-        vals.push(id);
-        await txPgText(
+        await runWebappSql(
           tx,
-          `UPDATE lfk_exercises SET ${sets.join(', ')}
-            WHERE id = $${n}
+          sql`UPDATE lfk_exercises SET ${sql.join(sets, sql`, `)}
+            WHERE id = ${id}
               AND catalog_scope = 'catalog'
-              AND organization_id = ${ORG_ID_EXPR}`,
-          vals,
+              AND organization_id = ${sql.raw(ORG_ID_EXPR)}`,
         );
 
         if (regionPatch !== null) {
@@ -855,20 +832,18 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         }
 
         if (input.media !== undefined && input.media !== null) {
-          await txPgText(
+          await runWebappSql(
             tx,
-            `DELETE FROM lfk_exercise_media
-              WHERE exercise_id = $1
-                AND organization_id = ${ORG_ID_EXPR}`,
-            [id],
+            sql`DELETE FROM lfk_exercise_media
+              WHERE exercise_id = ${id}
+                AND organization_id = ${sql.raw(ORG_ID_EXPR)}`,
           );
           let order = 0;
           for (const m of input.media) {
-            await txPgText(
+            await runWebappSql(
               tx,
-              `INSERT INTO lfk_exercise_media (owner_kind, organization_id, exercise_id, media_url, media_type, sort_order)
-               VALUES ('organization', ${ORG_ID_EXPR}, $1, $2, $3, $4)`,
-              [id, m.mediaUrl, m.mediaType, m.sortOrder ?? order],
+              sql`INSERT INTO lfk_exercise_media (owner_kind, organization_id, exercise_id, media_url, media_type, sort_order)
+               VALUES ('organization', ${sql.raw(ORG_ID_EXPR)}, ${id}, ${m.mediaUrl}, ${m.mediaType}, ${m.sortOrder ?? order})`,
             );
             order += 1;
           }

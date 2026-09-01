@@ -9,8 +9,9 @@ import { getPool } from '@/infra/db/client';
 import {
   getWebappSqlDb,
   runWebappNamedRoot,
-  runWebappPgText,
+  runWebappSql,
   runWebappTransaction,
+  webappSqlFromPgText,
   type WebappSqlTransactionExecutor,
 } from '@/infra/db/runWebappSql';
 import { upsertOpenConflictLog } from '@/infra/adminAuditLog';
@@ -34,7 +35,11 @@ function mergeDbClientFromTx(tx: WebappSqlTransactionExecutor): PlatformMergeDbC
       queryText: string,
       values: unknown[] = [],
     ) {
-      const r = await runWebappPgText<R>(queryText, values, tx);
+      // `@bersoncare/platform-merge` is shared with the integrator and so cannot depend on the
+      // webapp's Drizzle port: it builds typed `sql` fragments and hands this client the `$n` text
+      // its own dialect compiled. Nothing here is hand-numbered — `webappSqlFromPgText` only puts
+      // that machine-generated text back on the Drizzle `execute` channel.
+      const r = await runWebappSql<R>(tx, webappSqlFromPgText(queryText, values));
       return { rows: r.rows, rowCount: r.rowCount };
     },
   };

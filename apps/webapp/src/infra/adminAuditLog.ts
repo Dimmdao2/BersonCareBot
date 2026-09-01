@@ -21,14 +21,6 @@ import { logger } from '@/infra/logging/logger';
 
 const DEFAULT_ORGANIZATION_ID = 'a0000000-0000-4000-8000-000000000001';
 
-function txPgText<T = unknown>(
-  client: PoolClient,
-  queryText: string,
-  values: readonly unknown[] = [],
-) {
-  return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
-}
-
 export function currentAuditOrganizationId(): string {
   return getCurrentDbPrincipalOrganizationId() ?? DEFAULT_ORGANIZATION_ID;
 }
@@ -242,17 +234,16 @@ export async function upsertOpenConflictLog(
 
   try {
     const insertedFirst = await withPoolTransaction(pool, async (client) => {
-      const existing = await txPgText<{
+      const existing = await runWebappSql<{
         id: string;
         details: Record<string, unknown>;
         repeat_count: number;
       }>(
-        client,
-        `SELECT id, details, repeat_count
+        getWebappSqlFromPgClient(client),
+        sql`SELECT id, details, repeat_count
          FROM admin_audit_log
-         WHERE conflict_key = $1 AND resolved_at IS NULL
+         WHERE conflict_key = ${conflictKey} AND resolved_at IS NULL
          FOR UPDATE`,
-        [conflictKey],
       );
 
       if (existing.rows.length > 0) {
@@ -262,15 +253,14 @@ export async function upsertOpenConflictLog(
           ...baseDetails,
           seenEventTypes: mergeSeenEventTypes(row.details.seenEventTypes, incomingSeenEventTypes),
         };
-        await txPgText(
-          client,
-          `UPDATE admin_audit_log
-           SET details = $2::jsonb,
-               status = $3,
-               repeat_count = $4 + 1,
+        await runWebappSql(
+          getWebappSqlFromPgClient(client),
+          sql`UPDATE admin_audit_log
+           SET details = ${JSON.stringify(mergedDetails)}::jsonb,
+               status = ${status},
+               repeat_count = ${row.repeat_count} + 1,
                last_seen_at = now()
-           WHERE id = $1::uuid`,
-          [row.id, JSON.stringify(mergedDetails), status, row.repeat_count],
+           WHERE id = ${row.id}::uuid`,
         );
         return false;
       }
@@ -280,36 +270,26 @@ export async function upsertOpenConflictLog(
         seenEventTypes: incomingSeenEventTypes,
       };
       try {
-        await txPgText(
-          client,
-          `INSERT INTO admin_audit_log
+        await runWebappSql(
+          getWebappSqlFromPgClient(client),
+          sql`INSERT INTO admin_audit_log
              (organization_id, actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
-           VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb, $7, 1, now())`,
-          [
-            organizationId,
-            input.actorId,
-            action,
-            input.targetId ?? null,
-            conflictKey,
-            JSON.stringify(firstDetails),
-            status,
-          ],
+           VALUES (${organizationId}::uuid, ${input.actorId}::uuid, ${action}, ${input.targetId ?? null}, ${conflictKey}, ${JSON.stringify(firstDetails)}::jsonb, ${status}, 1, now())`,
         );
         return true;
       } catch (err) {
         if (!isPgUniqueViolation(err)) throw err;
         // Race-safe fallback: another tx inserted open row with same conflict_key.
-        const collision = await txPgText<{
+        const collision = await runWebappSql<{
           id: string;
           details: Record<string, unknown>;
           repeat_count: number;
         }>(
-          client,
-          `SELECT id, details, repeat_count
+          getWebappSqlFromPgClient(client),
+          sql`SELECT id, details, repeat_count
            FROM admin_audit_log
-           WHERE conflict_key = $1 AND resolved_at IS NULL
+           WHERE conflict_key = ${conflictKey} AND resolved_at IS NULL
            FOR UPDATE`,
-          [conflictKey],
         );
         if (collision.rows.length === 0) throw err;
         const row = collision.rows[0]!;
@@ -318,15 +298,14 @@ export async function upsertOpenConflictLog(
           ...baseDetails,
           seenEventTypes: mergeSeenEventTypes(row.details.seenEventTypes, incomingSeenEventTypes),
         };
-        await txPgText(
-          client,
-          `UPDATE admin_audit_log
-           SET details = $2::jsonb,
-               status = $3,
-               repeat_count = $4 + 1,
+        await runWebappSql(
+          getWebappSqlFromPgClient(client),
+          sql`UPDATE admin_audit_log
+           SET details = ${JSON.stringify(mergedDetails)}::jsonb,
+               status = ${status},
+               repeat_count = ${row.repeat_count} + 1,
                last_seen_at = now()
-           WHERE id = $1::uuid`,
-          [row.id, JSON.stringify(mergedDetails), status, row.repeat_count],
+           WHERE id = ${row.id}::uuid`,
         );
         return false;
       }
