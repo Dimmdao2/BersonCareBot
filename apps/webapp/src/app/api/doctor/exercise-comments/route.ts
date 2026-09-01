@@ -24,7 +24,7 @@ import type { TodayExerciseCommentAttentionItem } from '@/app/app/doctor/loadDoc
 import { formatDateTimeRu } from '@/app/app/doctor/doctorTodayFormat';
 import { patientProgramInstanceHref } from '@/app/app/doctor/patients/patientProgramInstanceHref';
 
-const PAGE_SIZE = 30;
+const DEFAULT_PAGE_SIZE = 30;
 
 export async function GET(request: Request) {
   const gate = await requireDoctorWorkspaceApiContext();
@@ -33,6 +33,10 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const cursorParam = searchParams.get('cursor');
   const q = searchParams.get('q')?.trim() ?? '';
+  const limitParam = Number.parseInt(searchParams.get('limit') ?? '', 10);
+  const pageSize = Number.isFinite(limitParam)
+    ? Math.min(DEFAULT_PAGE_SIZE, Math.max(1, limitParam))
+    : DEFAULT_PAGE_SIZE;
   // "all" mode: full history (answered + unanswered) for ALL doctor's patients (no on-support gate).
   // "unread" mode: legacy path — only on-support patients with latest=patient unread filter.
   const mode = searchParams.get('mode') === 'unread' ? 'unread' : 'all';
@@ -86,7 +90,7 @@ export async function GET(request: Request) {
               patientUserIds: visiblePatientUserIds,
               viewerUserId,
               organizationId,
-              limit: PAGE_SIZE + 1,
+              limit: pageSize + 1,
               cursor,
             }),
           );
@@ -107,14 +111,14 @@ export async function GET(request: Request) {
         patientUserIds,
         viewerUserId,
         organizationId,
-        limit: PAGE_SIZE + 1,
+        limit: pageSize + 1,
         cursor,
       }),
     );
   }
 
-  const hasMoreRaw = rows.length > PAGE_SIZE;
-  const pageRows = rows.slice(0, PAGE_SIZE);
+  const hasMoreRaw = rows.length > pageSize;
+  const pageRows = rows.slice(0, pageSize);
 
   let items: TodayExerciseCommentAttentionItem[] = pageRows.map((row) => ({
     patientUserId: row.patientUserId,

@@ -289,7 +289,7 @@ export function DoctorSupportInbox({
     : allList;
 
   if (loading) {
-    return <DoctorPanelLoading className={cn('h-full', className)} />;
+    return <DoctorPanelLoading className="h-full" />;
   }
 
   const selectedConv = selectedId

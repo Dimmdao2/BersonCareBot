@@ -377,14 +377,7 @@ export function DoctorTodayDashboard({
       <DoctorModal
         open={mobileModal === 'support'}
         onClose={() => setMobileModal(null)}
-        title={
-          <span>
-            Сопровождение
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              {data.onSupportPeopleCount}
-            </span>
-          </span>
-        }
+        title="Сопровождение"
         size="lg"
         bodyClassName={isMobile ? 'px-0' : undefined}
         desktopPresentation="right-sheet"

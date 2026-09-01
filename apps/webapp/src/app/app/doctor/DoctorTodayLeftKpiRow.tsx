@@ -209,13 +209,17 @@ export function DoctorTodayLeftKpiRow({
             tooltip="Открытые задачи."
             tone={attentionTasks.length > 0 ? 'warning' : 'neutral'}
             className={attentionTasks.length > 0 ? attentionKpiBackgroundClass : undefined}
-            onClick={() => {
-              if (isDesktopViewport) {
-                router.push(routePaths.doctorTasks);
-                return;
-              }
-              setKpiModal('tasks');
-            }}
+            onClick={
+              (attentionTasks.length > 0 ? attentionTasks.length : tasksTotal) > 0
+                ? () => {
+                    if (isDesktopViewport) {
+                      router.push(routePaths.doctorTasks);
+                      return;
+                    }
+                    setKpiModal('tasks');
+                  }
+                : undefined
+            }
             valueClassName={
               attentionTasks.length > 0 ? attentionKpiValueClass : 'text-foreground/75'
             }
@@ -266,6 +270,7 @@ export function DoctorTodayLeftKpiRow({
         onClose={() => setKpiModal(null)}
         title="Тесты к проверке"
         count={pendingProgramTestsTotal}
+        showCount={false}
         desktopPresentation="right-sheet"
         items={pendingProgramTests}
         renderItem={(item) => <PendingTestModalItem item={item} />}

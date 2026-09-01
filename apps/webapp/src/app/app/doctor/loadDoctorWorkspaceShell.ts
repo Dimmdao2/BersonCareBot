@@ -9,8 +9,6 @@ import {
   cabinetLifecycleWarningMessages,
 } from '@/app-layer/guards/cabinetAccessGate';
 import { resolveCabinetAccessRequestLocal } from '@/app-layer/guards/cabinetAccessRequestLocal';
-import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
-import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import {
   ACCESS_NOTIFICATION_VARIABLES,
@@ -23,8 +21,6 @@ import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 import { getPatientMaintenanceConfig } from '@/modules/system-settings/patientMaintenance';
 import { sessionMatchesTestAccountIdentifiers } from '@/config/testAccounts';
-import { loadDoctorExerciseCommentsForTab } from './comments/loadDoctorExerciseCommentsForTab';
-import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority';
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (
@@ -52,7 +48,6 @@ export type DoctorWorkspaceShellData = {
   cmsEnabled: boolean;
   patientHomeTodayEnabled: boolean;
   specialistTasksEnabled: boolean;
-  navigationAttention: { unreadExerciseComments: boolean; overdueTasks: boolean };
   canRenderClinicalChildren: boolean;
   maintenance: { enabled: boolean; message: string };
 };
@@ -186,35 +181,6 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     telegramId: session.user.bindings.telegramId,
     maxId: session.user.bindings.maxId,
   });
-  const navigationAttention =
-    workspaceAccess.canAccessClinicalWorkspace
-      ? await withDoctorWorkspacePrincipal(workspaceAccess, async () => {
-          const audience = await loadDoctorAnalyticsAudience();
-          const [commentFeed, openTasks] = await Promise.all([
-            loadDoctorExerciseCommentsForTab(
-              {
-                doctorClientsPort: deps.doctorClientsPort,
-                programItemDiscussion: deps.programItemDiscussion,
-              },
-              {
-                viewerUserId: session.user.userId,
-                organizationId,
-                excludedUserIds: audience?.excludedUserIds ?? [],
-                visibilityActor: workspaceAccess,
-              },
-              { limit: 1 },
-            ),
-            specialistTasksVisibility.specialistNavigation
-              ? deps.specialistTasks.listForOwner({ ownerUserId: session.user.userId })
-              : Promise.resolve([]),
-          ]);
-          return {
-            unreadExerciseComments: commentFeed.items.length > 0,
-            overdueTasks: openTasks.some(isSpecialistTaskOverdue),
-          };
-        }).catch(() => ({ unreadExerciseComments: false, overdueTasks: false }))
-      : { unreadExerciseComments: false, overdueTasks: false };
-
   return {
     workspaceAccess,
     session,
@@ -227,7 +193,6 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     cmsEnabled: cmsVisibility.specialistNavigation,
     patientHomeTodayEnabled: patientHomeTodayVisibility.specialistNavigation,
     specialistTasksEnabled: specialistTasksVisibility.specialistNavigation,
-    navigationAttention,
     canRenderClinicalChildren,
     maintenance: {
       enabled: maintenance.enabled && session.user.role !== 'admin' && !isTestAccount,
