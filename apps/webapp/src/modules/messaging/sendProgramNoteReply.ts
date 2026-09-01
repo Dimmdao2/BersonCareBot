@@ -37,7 +37,7 @@ export function createSendProgramNoteReply(deps: {
   supportCommunication: PatientInboundChatPort;
   discussion: ProgramItemDiscussionService;
   resolveProgramNoteReplyContext: (stageItemId: string) => Promise<ProgramNoteReplyContext | null>;
-  notifyPatientOfDoctorReply?: (params: NotifyPatientDoctorReplyParams) => Promise<void>;
+  notifyPatientOfDoctorReply: (params: NotifyPatientDoctorReplyParams) => Promise<void>;
 }) {
   return async function sendProgramNoteReply(
     input: SendProgramNoteReplyInput,
@@ -88,7 +88,7 @@ export function createSendProgramNoteReply(deps: {
       createdAt,
     });
 
-    if (supportMessage.created && deps.notifyPatientOfDoctorReply) {
+    if (supportMessage.created) {
       await deps.notifyPatientOfDoctorReply({
         organizationId: ctx.organizationId,
         platformUserId,

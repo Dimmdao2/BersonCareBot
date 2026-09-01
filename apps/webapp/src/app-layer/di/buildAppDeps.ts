@@ -1400,6 +1400,7 @@ const sendProgramNoteReply = createSendProgramNoteReply({
   supportCommunication: supportCommunicationPort,
   discussion: programItemDiscussionService,
   resolveProgramNoteReplyContext,
+  notifyPatientOfDoctorReply: notifyPatientDoctorReply,
 });
 
 const notifyDoctorOfPatientMessageImpl = async (input: {

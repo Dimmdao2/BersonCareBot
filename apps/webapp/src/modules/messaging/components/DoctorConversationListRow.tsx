@@ -102,17 +102,6 @@ export function DoctorConversationListRow({
             {formatConversationTime(conversation.lastMessageAt, displayIana)}
           </span>
         </div>
-        {hasStructuredName ? (
-          <p
-            className={cn(
-              'truncate',
-              doctorDnaFlatListMetaClass,
-              conversation.unreadFromUserCount > 0 && doctorDnaFlatListUnreadTextClass,
-            )}
-          >
-            {conversation.displayName}
-          </p>
-        ) : null}
         {conversation.lastMessageText ? (
           <p
             className={cn(

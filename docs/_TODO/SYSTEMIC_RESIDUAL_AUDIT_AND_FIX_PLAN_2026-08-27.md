@@ -55,7 +55,11 @@
   "admin_reply:|admin_reply_continue:|admin_close_dialog:|support/admin-reply|applySupportAdminReply|program_reply|webapp\\.programNote\\.replyBegin|program-note/reply-begin|programNoteStageItemId|programNoteReplyState|#pn:"
   apps packages docs/ARCHITECTURE docs/README.md` → пусто; `pnpm --dir apps/integrator typecheck` и
   `pnpm --dir apps/webapp typecheck` → PASS. Рабочий `sendProgramNoteReply` из кабинета сохранён; будущее меню,
-  Telegram Mini App и MAX не изменялись.
+  Telegram Mini App и MAX не изменялись. Финальный независимый аудит нашёл одну регрессию проводки: ответ врача
+  из обсуждения программы сохранялся, но пациент не получал уведомление. Ведущий вернул только действующую
+  `notifyPatientOfDoctorReply` в `createSendProgramNoteReply` и сделал зависимость обязательной, поэтому повторное
+  снятие проводки теперь ломает typecheck; старые callback/M2M-ответы через бота не возвращены. Доказано:
+  `pnpm --dir apps/webapp typecheck` — PASS.
 - [x] **W7 — подключить реально существующие тесты к CI.** Тесты media-worker не запускаются GitHub Actions, а
   тесты error-tracking не запускаются ни GitHub, ни локальным full CI. Три `*.unit.test.tsx` ошибочно попадают в
   fast-project вместо unit. Исправить wiring и видимость project-класса; не менять продукт под старые UI-тесты.
