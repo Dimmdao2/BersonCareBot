@@ -16,10 +16,11 @@ pnpm test:webapp:fast -- --reporter=verbose 2>&1 | tee /tmp/webapp-fast-verbose.
 VITEST_SHARD=1/3 pnpm test:webapp:fast -- --reporter=verbose 2>&1 | tee /tmp/webapp-fast-shard1.log
 ```
 
-In-process (после прогона на `main` в CI можно снять аналогично):
+Поведенческий набор (projects `unit`+`route`+`ui`, job `test-webapp-behavior` в GHA — гоняется на каждом push и PR,
+не только на `main`):
 
 ```bash
-pnpm test:webapp:inprocess -- --reporter=verbose 2>&1 | tee /tmp/webapp-inprocess-verbose.log
+pnpm test:webapp:behavior -- --reporter=verbose 2>&1 | tee /tmp/webapp-behavior-verbose.log
 ```
 
 Разбор «кто дольше всех» — по выводу `Duration` у файлов в логе или через `rg` по паттерну Vitest.
@@ -31,6 +32,6 @@ pnpm test:webapp:inprocess -- --reporter=verbose 2>&1 | tee /tmp/webapp-inproces
 | _TBD_      | GHA ubuntu-latest | `test-webapp-core` shard 1/3 |               | Заполнить по первому зелёному прогону после merge |
 | _TBD_      | GHA               | shard 2/3                    |               |                                                   |
 | _TBD_      | GHA               | shard 3/3                    |               |                                                   |
-| _TBD_      | GHA               | `test-webapp-inprocess` (×3) |               | Только `push` → `main`                            |
+| _TBD_      | GHA               | `test-webapp-behavior`       |               | Каждый push и PR, не только `main`                |
 
 Кэш Vitest: `apps/webapp/node_modules/.vite` и `node_modules/.experimental-vitest-cache` (см. `vitest.config.ts`); в GHA ключ кэша включает **номер шарда**, чтобы не конфликтовать при параллельной записи.
