@@ -33,6 +33,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
+  DoctorDnaFlatList,
   doctorDnaFlatListClass,
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
@@ -325,7 +326,7 @@ export function PatientTabRecords({
           onClose={() => setVisitsModalOpen(false)}
           title={`Визиты: ${completedCount}`}
           size="lg"
-          bodyClassName="px-0"
+          bodyVariant="list"
           desktopPresentation="right-sheet"
         >
           <div className="flex justify-end px-4 pb-2">
@@ -342,7 +343,7 @@ export function PatientTabRecords({
           ) : historyList.length === 0 ? (
             <DoctorEmptyState>Визитов нет</DoctorEmptyState>
           ) : (
-            <ul className={doctorDnaFlatListClass}>
+            <DoctorDnaFlatList>
               {historyList.map((appt) => (
                 <li key={appt.id} className={`${doctorDnaFlatListRowClass} justify-between`}>
                   <span className="flex min-w-0 flex-1 flex-col">
@@ -384,7 +385,7 @@ export function PatientTabRecords({
                   </span>
                 </li>
               ))}
-            </ul>
+            </DoctorDnaFlatList>
           )}
         </DoctorModal>
       </section>

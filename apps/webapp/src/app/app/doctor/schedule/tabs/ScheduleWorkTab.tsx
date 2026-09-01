@@ -1297,7 +1297,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           variant="outline"
           className={cn(
             'size-8',
-            !allBranchesSelected && 'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5',
+            !allBranchesSelected &&
+              'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5',
           )}
           onClick={() => setBranchPickerOpen(true)}
           aria-label="Выбрать филиалы"
@@ -1347,7 +1348,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           variant="outline"
           className={cn(
             'size-8',
-            multiSelectEnabled && 'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5',
+            multiSelectEnabled &&
+              'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5',
           )}
           onClick={() => setMultiSelectEnabled((enabled) => !enabled)}
           aria-pressed={multiSelectEnabled}
@@ -1813,9 +1815,9 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         onClose={() => setMonthPickerOpen(false)}
         title="Выбрать месяц"
         size="sm"
-        bodyClassName="p-0"
+        bodyVariant="list"
       >
-        <div className="max-h-[60dvh] overflow-y-auto py-1" role="listbox">
+        <div className="py-1" role="listbox">
           {monthChoices.map((choice) => {
             const active = choice.year === viewYear && choice.month === viewMonth;
             return (

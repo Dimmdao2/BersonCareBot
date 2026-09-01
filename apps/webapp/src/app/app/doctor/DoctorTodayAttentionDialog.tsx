@@ -6,13 +6,20 @@ import { useEffect, useRef, useState } from 'react';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
-import { doctorInlineLinkClass, doctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
+import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
+import {
+  DoctorDnaFlatList,
+  DoctorDnaFlatListRow,
+  doctorDnaFlatListMetaClass,
+  doctorDnaFlatListPrimaryClass,
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { DoctorConversationListRow } from '@/modules/messaging/components/DoctorConversationListRow';
 import { cn } from '@/lib/utils';
 import { sendDoctorProgramDiscussionReply } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/doctorProgramDiscussionReply';
 import type { TodayPendingProgramTestItem } from './mapPendingProgramTestsForToday';
 import { markDoctorProgramDiscussionRead } from './doctorProgramDiscussionMarkRead';
 import type { TodayExerciseCommentAttentionItem } from './loadDoctorExerciseCommentAttention';
-import { ExerciseCommentPreviewItemContent } from './comments/ExerciseCommentPreviewItem';
+import { ExerciseCommentPreviewListRow } from './comments/ExerciseCommentPreviewItem';
 import type { TodayUnreadConversationItem } from './loadDoctorTodayDashboard';
 
 export type DoctorTodayAttentionKind = 'messages' | 'pendingTests' | 'exerciseComments';
@@ -136,71 +143,63 @@ function ExerciseCommentAttentionRow(props: {
   const actionVisible = touchEnabled && !supportsHover ? touchActionVisible : false;
 
   return (
-    <li
-      className={cn('group/row relative flex flex-col gap-1', doctorSectionItemClass)}
-      onClick={() => {
-        if (!touchEnabled || supportsHover) return;
-        if (ignoreTapRef.current) {
-          ignoreTapRef.current = false;
-          return;
-        }
-        setTouchActionVisible((prev) => !prev);
+    <ExerciseCommentPreviewListRow
+      item={item}
+      listItemProps={{
+        className: 'flex flex-col gap-1',
+        onClick: () => {
+          if (!touchEnabled || supportsHover) return;
+          if (ignoreTapRef.current) {
+            ignoreTapRef.current = false;
+            return;
+          }
+          setTouchActionVisible((prev) => !prev);
+        },
+      }}
+      previewProps={{
+        className: 'max-w-[min(100%,30rem)]',
+        onTouchStart: touchEnabled
+          ? (event) => {
+              const touch = event.touches[0];
+              if (!touch) return;
+              touchDragRef.current = {
+                startX: touch.clientX,
+                startY: touch.clientY,
+                acted: false,
+              };
+            }
+          : undefined,
+        onTouchMove: touchEnabled
+          ? (event) => {
+              const state = touchDragRef.current;
+              const touch = event.touches[0];
+              if (!state || !touch || state.acted) return;
+              const dx = touch.clientX - state.startX;
+              const dy = touch.clientY - state.startY;
+              if (Math.abs(dy) > 28) return;
+              if (dx <= -48) {
+                state.acted = true;
+                ignoreTapRef.current = true;
+                openReplyComposer();
+              } else if (dx >= 48) {
+                state.acted = true;
+                ignoreTapRef.current = true;
+                void markRead();
+              }
+            }
+          : undefined,
+        onTouchEnd: touchEnabled
+          ? () => {
+              touchDragRef.current = null;
+            }
+          : undefined,
+        onTouchCancel: touchEnabled
+          ? () => {
+              touchDragRef.current = null;
+            }
+          : undefined,
       }}
     >
-      <div
-        className="max-w-[min(100%,30rem)]"
-        onTouchStart={
-          touchEnabled
-            ? (event) => {
-                const touch = event.touches[0];
-                if (!touch) return;
-                touchDragRef.current = {
-                  startX: touch.clientX,
-                  startY: touch.clientY,
-                  acted: false,
-                };
-              }
-            : undefined
-        }
-        onTouchMove={
-          touchEnabled
-            ? (event) => {
-                const state = touchDragRef.current;
-                const touch = event.touches[0];
-                if (!state || !touch || state.acted) return;
-                const dx = touch.clientX - state.startX;
-                const dy = touch.clientY - state.startY;
-                if (Math.abs(dy) > 28) return;
-                if (dx <= -48) {
-                  state.acted = true;
-                  ignoreTapRef.current = true;
-                  openReplyComposer();
-                } else if (dx >= 48) {
-                  state.acted = true;
-                  ignoreTapRef.current = true;
-                  void markRead();
-                }
-              }
-            : undefined
-        }
-        onTouchEnd={
-          touchEnabled
-            ? () => {
-                touchDragRef.current = null;
-              }
-            : undefined
-        }
-        onTouchCancel={
-          touchEnabled
-            ? () => {
-                touchDragRef.current = null;
-              }
-            : undefined
-        }
-      >
-        <ExerciseCommentPreviewItemContent item={item} />
-      </div>
-
       <div
         className={cn(
           'absolute right-2 bottom-2 flex items-center gap-1 transition-opacity',
@@ -273,7 +272,7 @@ function ExerciseCommentAttentionRow(props: {
         </Link>
         {actionError ? <p className="text-xs text-destructive">{actionError}</p> : null}
       </div>
-    </li>
+    </ExerciseCommentPreviewListRow>
   );
 }
 
@@ -292,133 +291,113 @@ export function DoctorTodayAttentionDialog({
   onExerciseCommentResolved,
 }: Props) {
   const title = kind ? TITLES[kind] : '';
-  const exerciseCommentsOpen = kind === 'exerciseComments';
   return (
     <DoctorModal
       open={open}
       onClose={() => onOpenChange(false)}
       title={title}
       size="lg"
-      bodyClassName={
-        exerciseCommentsOpen
-          ? 'overscroll-contain px-0 pt-0 pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-          : undefined
-      }
+      bodyVariant="list"
     >
-      <div className={exerciseCommentsOpen ? 'px-4 pb-4' : undefined}>
-        {kind === 'messages' ? (
-          <>
-            {unreadTotal > 0 ? (
-              <p className="mb-2 text-xs text-muted-foreground">
-                Всего непрочитанных: {unreadTotal}
-              </p>
-            ) : null}
-            {unreadConversations.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.messages}</p>
-            ) : (
-              <ul className="m-0 list-none space-y-2 p-0">
-                {unreadConversations.map((c) => (
-                  <li key={c.conversationId} className={doctorSectionItemClass}>
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <p className="font-medium text-foreground">{c.displayName}</p>
-                      <span className="tabular-nums rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium">
-                        {c.unreadFromUserCount}
-                      </span>
-                    </div>
-                    {c.phoneNormalized ? (
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        Тел.: {c.phoneNormalized}
-                      </p>
-                    ) : null}
-                    <p className="mt-1 text-xs text-muted-foreground">{c.lastMessageAtLabel}</p>
-                    {c.lastMessagePreview ? (
-                      <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-muted-foreground">
-                        {c.lastMessagePreview}
-                      </p>
-                    ) : null}
-                    <p className="mt-2">
-                      <Link href={c.href} className={doctorInlineLinkClass}>
-                        Открыть сообщения
-                      </Link>
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="mt-3">
-              <Link href="/app/doctor/messages" className={`${doctorInlineLinkClass} text-sm`}>
-                Открыть все сообщения
-              </Link>
+      {kind === 'messages' ? (
+        <>
+          {unreadTotal > 0 ? (
+            <p className="px-4 pt-3 pb-2 text-xs text-muted-foreground">
+              Всего непрочитанных: {unreadTotal}
             </p>
-          </>
-        ) : null}
+          ) : null}
+          {unreadConversations.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-muted-foreground">{EMPTY_MESSAGES.messages}</p>
+          ) : (
+            <DoctorDnaFlatList>
+              {unreadConversations.map((c) => (
+                <li key={c.conversationId}>
+                  <DoctorConversationListRow
+                    conversation={{
+                      conversationId: c.conversationId,
+                      displayName: c.displayName,
+                      phoneNormalized: c.phoneNormalized,
+                      lastMessageAt: c.lastMessageAt,
+                      lastMessageText: c.lastMessagePreview ?? c.lastMessageText,
+                      lastSenderRole: c.lastSenderRole,
+                      unreadFromUserCount: c.unreadFromUserCount,
+                    }}
+                    href={c.href}
+                  />
+                </li>
+              ))}
+            </DoctorDnaFlatList>
+          )}
+          <p className="px-4 pt-3 pb-4">
+            <Link href="/app/doctor/messages" className={`${doctorInlineLinkClass} text-sm`}>
+              Открыть все сообщения
+            </Link>
+          </p>
+        </>
+      ) : null}
 
-        {kind === 'pendingTests' ? (
-          <>
-            {pendingProgramTestsTotal > 0 ? (
-              <p className="mb-2 text-xs text-muted-foreground">
-                Попыток без оценки: {pendingProgramTestsTotal}
-              </p>
-            ) : null}
-            {pendingProgramTests.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.pendingTests}</p>
-            ) : (
-              <ul className="m-0 list-none space-y-2 p-0">
-                {pendingProgramTests.map((item) => (
-                  <li key={item.attemptId} className={doctorSectionItemClass}>
-                    <p className="font-medium text-foreground">{item.patientDisplayName}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
+      {kind === 'pendingTests' ? (
+        <>
+          {pendingProgramTestsTotal > 0 ? (
+            <p className="px-4 pt-3 pb-2 text-xs text-muted-foreground">
+              Попыток без оценки: {pendingProgramTestsTotal}
+            </p>
+          ) : null}
+          {pendingProgramTests.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-muted-foreground">{EMPTY_MESSAGES.pendingTests}</p>
+          ) : (
+            <DoctorDnaFlatList>
+              {pendingProgramTests.map((item) => (
+                <DoctorDnaFlatListRow key={item.attemptId} className="items-start">
+                  <div className="min-w-0 flex-1">
+                    <p className={doctorDnaFlatListPrimaryClass}>{item.patientDisplayName}</p>
+                    <p className={`${doctorDnaFlatListMetaClass} mt-0.5`}>
                       {item.instanceTitle} · {item.stageTitle}
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className={`${doctorDnaFlatListMetaClass} mt-0.5`}>
                       {item.submittedAtLabel} · без оценки: {item.pendingCount}
                     </p>
-                    <p className="mt-2">
-                      <Link href={item.href} className={doctorInlineLinkClass}>
-                        Оценить
-                      </Link>
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {pendingProgramTestsTruncated ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Показаны первые {pendingProgramTests.length} из {pendingProgramTestsTotal}
-              </p>
-            ) : null}
-          </>
-        ) : null}
+                  </div>
+                  <Link href={item.href} className={`${doctorInlineLinkClass} shrink-0 text-sm`}>
+                    Оценить
+                  </Link>
+                </DoctorDnaFlatListRow>
+              ))}
+            </DoctorDnaFlatList>
+          )}
+          {pendingProgramTestsTruncated ? (
+            <p className="px-4 pt-2 pb-4 text-xs text-muted-foreground">
+              Показаны первые {pendingProgramTests.length} из {pendingProgramTestsTotal}
+            </p>
+          ) : null}
+        </>
+      ) : null}
 
-        {exerciseCommentsOpen ? (
-          <>
-            {exerciseCommentAttentionTotal > 0 ? (
-              <p className="pt-3 pb-2 text-xs text-muted-foreground">
-                Новых комментариев: {exerciseCommentAttentionTotal}
-              </p>
-            ) : null}
-            {exerciseCommentAttentionItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.exerciseComments}</p>
-            ) : (
-              <ul className="m-0 list-none space-y-2 p-0">
-                {exerciseCommentAttentionItems.map((item) => (
-                  <ExerciseCommentAttentionRow
-                    key={item.stageItemId}
-                    item={item}
-                    onResolved={onExerciseCommentResolved}
-                  />
-                ))}
-              </ul>
-            )}
-            {exerciseCommentAttentionTruncated ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Показаны первые {exerciseCommentAttentionItems.length} из{' '}
-                {exerciseCommentAttentionTotal}
-              </p>
-            ) : null}
-          </>
-        ) : null}
-      </div>
+      {kind === 'exerciseComments' ? (
+        <>
+          {exerciseCommentAttentionItems.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-muted-foreground">
+              {EMPTY_MESSAGES.exerciseComments}
+            </p>
+          ) : (
+            <DoctorDnaFlatList>
+              {exerciseCommentAttentionItems.map((item) => (
+                <ExerciseCommentAttentionRow
+                  key={item.stageItemId}
+                  item={item}
+                  onResolved={onExerciseCommentResolved}
+                />
+              ))}
+            </DoctorDnaFlatList>
+          )}
+          {exerciseCommentAttentionTruncated ? (
+            <p className="px-4 pt-2 pb-4 text-xs text-muted-foreground">
+              Показаны первые {exerciseCommentAttentionItems.length} из{' '}
+              {exerciseCommentAttentionTotal}
+            </p>
+          ) : null}
+        </>
+      ) : null}
     </DoctorModal>
   );
 }

@@ -54,6 +54,7 @@ import { formatPatientPackageLongLabel } from '@/modules/memberships/display';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
+  DoctorDnaFlatList,
   doctorDnaFlatListClass,
   doctorDnaFlatListClickableClass,
   doctorDnaFlatListMetaClass,
@@ -727,17 +728,17 @@ function buildSsrSeedData(
     : buildSymptomSeries(
         complaints,
         visits.map((v) => ({
-      id: v.id,
-      date: v.date,
-      type: v.type,
-      dynamics: v.dynamics?.map((d) => ({
-        id: d.id,
-        label: d.label,
-        from: d.from,
-        to: d.to,
-        note: d.note,
-        priority: d.priority,
-      })),
+          id: v.id,
+          date: v.date,
+          type: v.type,
+          dynamics: v.dynamics?.map((d) => ({
+            id: d.id,
+            label: d.label,
+            from: d.from,
+            to: d.to,
+            note: d.note,
+            priority: d.priority,
+          })),
         })),
       );
 
@@ -1440,11 +1441,7 @@ export function PatientTabOverview({
         expectedDurationDays: displayStage.expectedDurationDays ?? null,
       })
     : null;
-  const calendarGrid = buildCalendarGrid(
-    data?.calendarDays ?? [],
-    calYear,
-    calMonth,
-  );
+  const calendarGrid = buildCalendarGrid(data?.calendarDays ?? [], calYear, calMonth);
   const tasksNeedAttention =
     data?.tasks.some((task) => {
       if (isSpecialistTaskOverdue(task)) return true;
@@ -1563,7 +1560,7 @@ export function PatientTabOverview({
           ? 'flex flex-col gap-2.5'
           : isOverviewComposition
             ? 'grid grid-cols-2 items-start gap-2.5'
-          : 'grid grid-cols-1 items-start gap-2.5 md:grid-cols-2',
+            : 'grid grid-cols-1 items-start gap-2.5 md:grid-cols-2',
       )}
     >
       {/* ===== LEFT COLUMN ===== */}
@@ -1702,36 +1699,37 @@ export function PatientTabOverview({
               isOverviewComposition && 'order-2 col-span-2',
             )}
           >
-          <div className="flex items-center justify-between flex-wrap gap-1.5 mb-1">
-            <span className={doctorSectionTitleClass}>Динамика симптомов</span>
-            {!isLoading && data?.symptomSeries && data.symptomSeries.length > 0 && (
-              <span className="flex gap-2.5 items-center">
-                {data.symptomSeries.filter((series) => series.points.length >= 2).map((s) => (
-                  <span
-                    key={s.name}
-                    className="flex items-center gap-1 text-xs text-muted-foreground"
-                  >
-                    <span
-                      className="w-2.5 h-2.5 rounded-sm flex-none"
-                      style={{ background: s.color }}
-                    />
-                    {s.name}
-                  </span>
-                ))}
-              </span>
+            <div className="flex items-center justify-between flex-wrap gap-1.5 mb-1">
+              <span className={doctorSectionTitleClass}>Динамика симптомов</span>
+              {!isLoading && data?.symptomSeries && data.symptomSeries.length > 0 && (
+                <span className="flex gap-2.5 items-center">
+                  {data.symptomSeries
+                    .filter((series) => series.points.length >= 2)
+                    .map((s) => (
+                      <span
+                        key={s.name}
+                        className="flex items-center gap-1 text-xs text-muted-foreground"
+                      >
+                        <span
+                          className="w-2.5 h-2.5 rounded-sm flex-none"
+                          style={{ background: s.color }}
+                        />
+                        {s.name}
+                      </span>
+                    ))}
+                </span>
+              )}
+            </div>
+            {isLoading && (
+              <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка данных…</p>
             )}
-          </div>
-          {isLoading && (
-            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка данных…</p>
-          )}
-          {!isLoading &&
-            data?.symptomSeries &&
-            data.symptomSeries.some((s) => s.points.length >= 2) && (
-              <SymptomChart series={data.symptomSeries} />
-            )}
+            {!isLoading &&
+              data?.symptomSeries &&
+              data.symptomSeries.some((s) => s.points.length >= 2) && (
+                <SymptomChart series={data.symptomSeries} />
+              )}
           </div>
         ) : null}
-
       </div>
 
       {/* ===== RIGHT COLUMN ===== */}
@@ -1751,7 +1749,7 @@ export function PatientTabOverview({
             onClose={() => setNotesModalOpen(false)}
             title={`Заметки: ${data?.notes.length ?? 0}`}
             size="lg"
-            bodyClassName="px-0"
+            bodyVariant="list"
             desktopPresentation="right-sheet"
           >
             <div className="flex justify-end px-4 pb-2">
@@ -1773,12 +1771,14 @@ export function PatientTabOverview({
             ) : data?.notesStatus === 'error' ? (
               <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить заметки.</p>
             ) : data?.notes.length ? (
-              <ul className={doctorDnaFlatListClass}>
+              <DoctorDnaFlatList>
                 {[...data.notes]
                   .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
                   .map((note) => (
                     <li key={note.id} className={`${doctorDnaFlatListRowClass} justify-between`}>
-                      <span className={`${doctorDnaFlatListPrimaryClass} min-w-0 whitespace-pre-wrap`}>
+                      <span
+                        className={`${doctorDnaFlatListPrimaryClass} min-w-0 whitespace-pre-wrap`}
+                      >
                         {note.text}
                       </span>
                       <span className={`${doctorDnaFlatListMetaClass} shrink-0 tabular-nums`}>
@@ -1786,7 +1786,7 @@ export function PatientTabOverview({
                       </span>
                     </li>
                   ))}
-              </ul>
+              </DoctorDnaFlatList>
             ) : (
               <DoctorEmptyState>Заметок нет</DoctorEmptyState>
             )}
@@ -1847,7 +1847,7 @@ export function PatientTabOverview({
               onClose={() => setTasksModalOpen(false)}
               title={`Задачи: ${data?.tasks.length ?? 0}`}
               size="lg"
-              bodyClassName="px-0"
+              bodyVariant="list"
               desktopPresentation="right-sheet"
             >
               {specialistTasksAvailable ? (
@@ -1871,7 +1871,7 @@ export function PatientTabOverview({
               ) : data?.tasksStatus === 'error' ? (
                 <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить задачи.</p>
               ) : data?.tasks.length ? (
-                <ul className={doctorDnaFlatListClass}>
+                <DoctorDnaFlatList>
                   {data.tasks.map((task) => {
                     const isOverdue = task.dueAt ? new Date(task.dueAt) < new Date() : false;
                     return (
@@ -1902,7 +1902,7 @@ export function PatientTabOverview({
                       </li>
                     );
                   })}
-                </ul>
+                </DoctorDnaFlatList>
               ) : (
                 <DoctorEmptyState>Задач нет</DoctorEmptyState>
               )}
@@ -1992,62 +1992,66 @@ export function PatientTabOverview({
         {/* Сообщения */}
         {!isComposed ? (
           <div className={doctorSectionCardClass}>
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className={doctorSectionTitleClass}>Сообщения</span>
-            {totalMessageUnread > 0 && (
-              <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0 text-[10px] font-semibold text-destructive">
-                {totalMessageUnread} новых
-              </span>
-            )}
-            <Button
-              variant="ghost"
-              onClick={() => onTabSwitch?.('karta')}
-              className="ml-auto h-auto p-0 text-xs text-muted-foreground hover:text-primary hover:bg-transparent"
-            >
-              вся переписка →
-            </Button>
-          </div>
-
-          {isLoading && (
-            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка сообщений…</p>
-          )}
-          {!isLoading && data?.messagesStatus === 'error' && (
-            <p className="text-xs text-destructive py-1">Не удалось загрузить сообщения.</p>
-          )}
-          {!isLoading && data?.messagesStatus === 'ok' && data.messages.length === 0 && (
-            <p className="text-xs text-muted-foreground py-2">Сообщений нет.</p>
-          )}
-          {!isLoading && data?.messagesStatus === 'ok' && data.messages.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              {[...data.messages]
-                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                .slice(0, 5)
-                .map((msg) => {
-                  const isUnread = !msg.readAt && msg.senderRole !== 'admin';
-                  const isPatient = msg.senderRole !== 'admin';
-                  return (
-                    <div
-                      key={msg.id}
-                      className={cn(
-                        doctorBodyTextClass,
-                        'flex gap-1.5 items-start rounded-lg px-2.5 py-1.5',
-                        isUnread
-                          ? 'border border-primary bg-primary/5'
-                          : 'border border-border bg-muted/10',
-                        !isPatient && 'text-muted-foreground',
-                      )}
-                    >
-                      <span className="flex-1 min-w-0">
-                        <strong>{isPatient ? 'Пациент' : 'Вы'}:</strong> {msg.text}
-                      </span>
-                      <span className={cn(doctorMetaTextClass, 'whitespace-nowrap ml-auto pl-1.5')}>
-                        {fmtDateMsgShort(msg.createdAt)}
-                      </span>
-                    </div>
-                  );
-                })}
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className={doctorSectionTitleClass}>Сообщения</span>
+              {totalMessageUnread > 0 && (
+                <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0 text-[10px] font-semibold text-destructive">
+                  {totalMessageUnread} новых
+                </span>
+              )}
+              <Button
+                variant="ghost"
+                onClick={() => onTabSwitch?.('karta')}
+                className="ml-auto h-auto p-0 text-xs text-muted-foreground hover:text-primary hover:bg-transparent"
+              >
+                вся переписка →
+              </Button>
             </div>
-          )}
+
+            {isLoading && (
+              <p className="text-xs text-muted-foreground animate-pulse py-2">
+                Загрузка сообщений…
+              </p>
+            )}
+            {!isLoading && data?.messagesStatus === 'error' && (
+              <p className="text-xs text-destructive py-1">Не удалось загрузить сообщения.</p>
+            )}
+            {!isLoading && data?.messagesStatus === 'ok' && data.messages.length === 0 && (
+              <p className="text-xs text-muted-foreground py-2">Сообщений нет.</p>
+            )}
+            {!isLoading && data?.messagesStatus === 'ok' && data.messages.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {[...data.messages]
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                  .slice(0, 5)
+                  .map((msg) => {
+                    const isUnread = !msg.readAt && msg.senderRole !== 'admin';
+                    const isPatient = msg.senderRole !== 'admin';
+                    return (
+                      <div
+                        key={msg.id}
+                        className={cn(
+                          doctorBodyTextClass,
+                          'flex gap-1.5 items-start rounded-lg px-2.5 py-1.5',
+                          isUnread
+                            ? 'border border-primary bg-primary/5'
+                            : 'border border-border bg-muted/10',
+                          !isPatient && 'text-muted-foreground',
+                        )}
+                      >
+                        <span className="flex-1 min-w-0">
+                          <strong>{isPatient ? 'Пациент' : 'Вы'}:</strong> {msg.text}
+                        </span>
+                        <span
+                          className={cn(doctorMetaTextClass, 'whitespace-nowrap ml-auto pl-1.5')}
+                        >
+                          {fmtDateMsgShort(msg.createdAt)}
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         ) : null}
       </div>

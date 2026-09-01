@@ -48,7 +48,7 @@ function TodayMiniCalendarShellFallback({
     <DoctorSection
       id="doctor-today-mini-calendar"
       className={cn(
-        fillHeight && 'h-full min-h-0 overflow-y-auto',
+        fillHeight && 'h-full min-h-0',
         flushChrome && 'rounded-none border-0 bg-transparent p-0',
       )}
     >
