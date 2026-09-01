@@ -2,7 +2,7 @@
 
 Captured **2026-08-05** on DEV/TEST host `151.241.228.122` against live `https://test.bersoncare.ru` (curl → `127.0.0.1` + `Host`/`Origin`). Baseline for workstream `doctor-loading-performance`; compare after later slices against these numbers.
 
-Related: fetch inventory [`DOCTOR_LOADING_FETCH_INVENTORY.md`](./DOCTOR_LOADING_FETCH_INVENTORY.md), plan `.cursor/plans/doctor-loading-performance_e024544d.plan.md`.
+Related: fetch inventory [`DOCTOR_LOADING_FETCH_INVENTORY.md`](./DOCTOR_LOADING_FETCH_INVENTORY.md), historical plan `.cursor/plans/archive/doctor-loading-performance_e024544d.plan.md`.
 
 ---
 

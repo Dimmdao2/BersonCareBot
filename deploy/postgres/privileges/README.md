@@ -84,6 +84,6 @@ login-render получает их из env во время применения
 ## Связанные документы
 
 - [`SCHEME.md`](../../../docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/SCHEME.md) — действующая архитектура слоя;
-- [`PLAN.md`](../../../docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/PLAN.md) — актуальный статус и внешние live-гейты;
-- [`ACCESS_MODEL.md`](../../../docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/ACCESS_MODEL.md) — смысл ролей и дверей;
-- [`AUDIT_LOG.md`](../../../docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/AUDIT_LOG.md) — история findings и исправлений.
+- [`PLAN.md`](../../../docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/PLAN.md) — актуальный статус и внешние live-гейты.
+
+Промежуточные модели, findings и audit logs удалены из checkout; история остаётся в Git.

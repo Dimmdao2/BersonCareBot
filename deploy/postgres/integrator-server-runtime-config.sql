@@ -396,7 +396,7 @@ $delivery_audit_acl_scrub$;
 REVOKE ALL ON FUNCTION app.record_global_email_delivery_attempt(
   text, text, text, text, text, integer, text, jsonb, timestamptz
 ) FROM PUBLIC, app_staff, app_patient, app_worker;
--- Track D (docs/_TODO/runs/briefs/TRACK_D_LOGIN_DELIVERY_CAPABILITIES_BRIEF.md): reset the
+-- Track D (WORK_ORDER §3.4): reset the
 -- remaining new capabilities exactly as strictly as the ones above, since CREATE OR REPLACE
 -- preserves an existing function ACL across replays. (A third one, `read_integrator_auth_channel_
 -- setting`, was retired with `user.phone.link` — identity cleanup 2026-08-26 — and removed here.)

@@ -13,8 +13,7 @@ import { expect, it, vi } from 'vitest';
  *
  * What breaks without this: the job runs on schedule and every tick fails at the first query, so the
  * journals it was built to prune grow forever. `app.context_nonce_ledger` alone took the TEST
- * database to 1.3 GB at ~630k rows/day before the manual cleanup recorded in
- * docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/16-journal-retention.md. The declaration's own
+ * database to 1.3 GB at ~630k rows/day before the initial cleanup. The declaration's own
  * comments record this exact failure twice before (`billing.saas_renewal.tick` and the operator
  * alert staff-push audience), each time discovered only after the job had silently done nothing.
  *

@@ -16,7 +16,7 @@
 --     `idx_reminder_occurrence_history_status_planned_at (status, planned_at)`, so the branch reads
 --     an index it did not have to invent.
 --     The BRANCH is added here; the WINDOW is not chosen here. No owner data policy names a retention
---     period for reminder history — `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/16-journal-retention.md`
+--     period for reminder history — current lifecycle registry intentionally leaves this owner gate explicit
 --     "Правила хранения" predates the consolidation and does not list this table, and the formal
 --     retention matrix of PR-03 is still an open owner checkbox. The caller therefore refuses to run
 --     this target until the owner names the number (see

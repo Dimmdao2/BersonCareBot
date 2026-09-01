@@ -1,8 +1,8 @@
 import type { JournalRetentionPort } from '@/modules/db-retention/ports';
 
 /**
- * Recorded windows: docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/16-journal-retention.md
- * "Правила хранения". Every target here goes through the one existing chokepoint
+ * Recorded windows are declared alongside the exhaustive lifecycle registry. Every target here goes through
+ * the one existing chokepoint
  * (`app.prune_retention_target` / the dedicated `app.prune_context_nonce_ledger` root) — no parallel
  * prune mechanism, no per-table service. The DB capability arrives via `JournalRetentionPort`
  * (injected by the caller through `buildAppDeps()`), not by importing infra directly.
@@ -16,8 +16,8 @@ export const NOTIFICATION_DELIVERY_ATTEMPTS_RETENTION_DAYS_DEFAULT = 180;
 /**
  * `message_log` holds the doctor→patient message TEXT plus its delivery error. The recorded policy
  * already names this class: journals carrying the content of a message sent to a person keep 90 days
- * (`integrator.delivery_attempt_logs`, `public.support_delivery_events` — evidence/16 "Правила
- * хранения"). Placing the table in the class the policy defines; no new policy is invented here.
+ * (`integrator.delivery_attempt_logs`, `public.support_delivery_events`). Placing the table in the class the
+ * policy defines; no new policy is invented here.
  */
 export const MESSAGE_LOG_RETENTION_DAYS_DEFAULT = 90;
 

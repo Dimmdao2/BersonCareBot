@@ -1,5 +1,10 @@
 # MAX vs Telegram — capability matrix
 
+> **Product boundary 01.09.2026:** таблица ниже описывает возможности протокола и адаптера, а не включённые
+> функции продукта. Текущий Mini App SDK намеренно удалён. Если Mini App вернётся, это отдельная поверхность
+> записи на приём; бот не создаёт аккаунты. Действующий продуктовый канон —
+> `docs/_TODO/TELEGRAM_MAX_MINIAPP_AND_MENU_2026-08-19.md`.
+
 This document records which Telegram mechanics are **fully supported**, **partially supported**, or **not supported** in the MAX integration, and the chosen fallback where applicable.
 
 Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https://core.telegram.org/bots/api).

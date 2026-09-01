@@ -7,8 +7,7 @@
  * the production relation census would read its table names as callsites.)
  *
  * The defect this closes is not "one table was forgotten". It is that the retention policy of
- * 2026-08-08 was written from the tables that were BIG at that moment
- * (`docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/16-journal-retention.md`), so a small-but-growing
+ * 2026-08-08 was written from the tables that were BIG at that moment, so a small-but-growing
  * store — `message_log` (§E1), the consolidated `reminder_occurrence_history` (§C3) — could be added,
  * wired to a live writer, and never appear in any policy at all. Nothing in the build noticed.
  *
@@ -246,8 +245,7 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     // the raw uuid turns up inside free text (`correlationId`, `callback_data`, message bodies) —
     // so the metadata scrub is textual over the whole document, not a key drop.
     //
-    // OWNER DIRECTIVE (brief `docs/_TODO/runs/briefs/FIX_EXHAUSTIVE_LIFECYCLE_SEMANTICS_2026-08-28.md`,
-    // finding 1), which ANSWERS and retires `OQ-DELIVERY-ATTEMPT-USER-PURGE`: strip the person from
+    // OWNER DIRECTIVE recorded in the current lifecycle contract: strip the person from
     // all three surfaces and KEEP the non-identifying delivery outcome until its own 180-day sweep.
     // That is the safe default the census recommended, and the policy already decided for
     // `product_analytics_events_recent` — keep the aggregate, drop the person. It is NOT a delete:

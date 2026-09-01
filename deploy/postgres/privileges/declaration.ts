@@ -11,8 +11,8 @@
  *   класса и стены, гранты/отзывы с одной строкой причины, ссылки `defect`/`code`/`gate`. Всё, что
  *   выводится (стена по классу, RLS по стене, ACTIVE, владелец migrator, маркер GAP G2), НЕ пишется
  *   построчно — его достраивает `expandTables`, а отклонение без причины ОТКАЗЫВАЕТ при загрузке.
- *   Полные тексты дефектов — `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/FINDINGS_TABLES.md` (ссылка —
- *   массив `defect`), решения владельца — `docs/OWNER_DECISIONS.md` (см. OWNER_DECISIONS_CANON).
+ *   Решения владельца — `docs/OWNER_DECISIONS.md` (см. OWNER_DECISIONS_CANON); текущий статус —
+ *   `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/PLAN.md`. Массив `defect` хранит стабильные provenance IDs.
  *
  * Провенанс (FACTS §0): каждое значение прослеживается до переписи (`evidence/13 §N`), классификации
  *   (`evidence/14 часть N`, `FINDINGS_TABLES Дn/Иn/Оn`), документа диспозиции (`evidence/15|16|18`)
@@ -5332,7 +5332,7 @@ const REV10_CONTEXT = {
     // Владелец 19.08: «уборка — это одинаковое действие, и не хочется плодить дубли»,
     // «закрытый список — супер».
     // Track D final cutover (#987), §C: 5 branches added on top of the owner's 08-08 four —
-    // docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/16-journal-retention.md "Правила хранения",
+    // Current lifecycle contract: deploy/postgres/privileges/journal-lifecycle-registry.ts,
     // the still-live, still-unpruned journals (context_nonce_ledger excluded — separate root below,
     // its ACL grants nothing but its own owner; delivery_attempt_logs/message_retry_jobs/
     // projection_outbox excluded — already dropped by earlier Track D migrations).

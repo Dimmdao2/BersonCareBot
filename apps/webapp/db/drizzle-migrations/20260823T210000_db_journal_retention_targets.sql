@@ -2,8 +2,7 @@
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-VERIFY: SELECT position('idempotency_keys' in pg_get_functiondef(to_regprocedure('app.prune_retention_target(text,integer,boolean)'))) > 0
--- Track D final cutover (#987), §C: connect the recorded retention windows
--- (docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/16-journal-retention.md, "Правила хранения") to
+-- Track D final cutover (#987), §C: connect the recorded retention windows to
 -- automatic cleanup through the existing chokepoints instead of a parallel prune mechanism.
 --
 -- `app.prune_retention_target` already prunes 4 closed-list targets for `app_seam_retention_sweep_owner`

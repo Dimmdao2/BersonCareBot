@@ -55,7 +55,7 @@ npx tsx scripts/check-max.ts
 
 - Перед новой отправкой `reminder_dispatch` в MAX выполняется **best-effort** `message.delete` по `maxMessageId` из прошлого успешного лога той же rule (см. `reminders.delivery.staleMessengerMessage`, `deleteBeforeSendMessageId` в очереди).
 - После успешной отправки в `user_reminder_delivery_logs.payload_json` пишется **`maxMessageId`** (строка `body.mid` от API).
-- ~~Free-text skip (`reminders.skip.applyFreeText`)~~ — handler удалён решением владельца (D21a, 2026-07-31): свободный текст после «Пропустить» причиной больше не считается, состояние ожидания причины никогда не выставляется. MAX по-прежнему кладёт **`replyToMessageId`** в нормализованный payload (из `message.link` с `type: "reply"`), но потребителя у этого поля сейчас нет. Разбор — `docs/_TODO/runs/integrator-cleanup/D21A_AUDIT.md`.
+- ~~Free-text skip (`reminders.skip.applyFreeText`)~~ — handler удалён решением владельца (D21a, 2026-07-31): свободный текст после «Пропустить» причиной больше не считается, состояние ожидания причины никогда не выставляется. MAX по-прежнему кладёт **`replyToMessageId`** в нормализованный payload (из `message.link` с `type: "reply"`), но потребителя у этого поля сейчас нет. Датированный разбор `D21A_AUDIT.md` удалён из рабочего дерева после закрытия этапа и остаётся в истории Git.
 - Интент **`message.delete`** в MAX: при отсутствии `message_id` адаптер **не бросает** исключение; при отказе API после валидного id — см. ключи в таблице выше (`max deleteMessage failed`, `max_reminder_stale_message_delete_*`).
 - Ограничения MAX (окно редактирования ~24h, права) могут приводить к отказу edit/delete: это **не** должно ломать enqueue следующей доставки; полный перечень ключей — в таблице выше.
 

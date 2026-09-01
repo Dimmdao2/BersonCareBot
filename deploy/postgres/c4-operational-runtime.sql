@@ -557,7 +557,7 @@ REVOKE ALL ON FUNCTION app.record_operator_delivery_attempt(text, text, text, uu
 GRANT EXECUTE ON FUNCTION app.record_operator_delivery_attempt(text, text, text, uuid, text, text, integer, text, text, timestamp with time zone)
   TO app_operational_delivery_worker;
 
--- Track D (docs/_TODO/runs/briefs/TRACK_D_LOGIN_DELIVERY_CAPABILITIES_BRIEF.md): the reclaim/
+-- Track D (WORK_ORDER §3.4): the reclaim/
 -- retention/dead-letter thresholds worker tick reads must never carry SMTP/provider secrets or
 -- any other settings key — a single-purpose argless capability, exclusive to this worker role.
 CREATE OR REPLACE FUNCTION app.read_outgoing_delivery_reclaim_config()

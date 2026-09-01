@@ -18,7 +18,7 @@ todos:
     status: completed
   - id: patient-card-runtime
     content: Исправить messages continuation, patient-IANA calendar и progressive patient-card stream с изоляцией widget failures
-    status: completed
+    status: pending
   - id: test-integrity
     content: Убрать ложные тесты, подключить db-principal tests к CI и закрыть все три Gitleaks findings
     status: completed
@@ -27,7 +27,7 @@ todos:
     status: completed
   - id: test-runtime
     content: Задеплоить ровно CI/security-green executable SHA на TEST и пройти health, wake, role/browser/error acceptance
-    status: completed
+    status: pending
   - id: metrics-closeout
     content: Снять сопоставимые p50/p95/request/bundle, профилировать только повторно провалившиеся маршруты и закрыть evidence commit
     status: completed
@@ -39,11 +39,11 @@ isProject: false
 ## 0. Authority, границы и источник правды
 
 - **Этот closure-план — единственный execution authority для открытой части workstream.** Старый
-  [`doctor-loading-performance_e024544d.plan.md`](/home/dev/.cursor/plans/doctor-loading-performance_e024544d.plan.md)
+  [`doctor-loading-performance_e024544d.plan.md`](archive/doctor-loading-performance_e024544d.plan.md)
   остаётся источником исходных требований и evidence завершённых Stage 0–3, но не вторым активным чек-листом.
 - Owner authority: команда 2026-08-05 «закрыть всё» и подтверждённые findings из
   [Doctor-loading audit transcript](bf710216-f40d-4f8f-a0b9-4cc69ea69861). Identity oracle дополнительно закреплён в
-  [`D20_LEVEL1_TESTS_REPORT.md`](docs/_TODO/runs/integrator-cleanup/D20_LEVEL1_TESTS_REPORT.md#две-находки-которые-тесты-сделали-по-дороге-я-закрепил-факт-и-вынес-расхождение-сюда).
+  историческим D20 level-1 отчётом, удалённым из рабочего дерева и доступным в истории Git.
 - Repo rules: `AGENTS.md` §5, §9–§12, §16–§17, §21–§22, §24. Host/TEST authority:
   [`SERVER CONVENTIONS.md`](docs/ARCHITECTURE/SERVER%20CONVENTIONS.md) и
   [`HOST_DEPLOY_README.md`](deploy/HOST_DEPLOY_README.md#тест-деплой-на-151x-feat--test).
@@ -66,7 +66,7 @@ isProject: false
   `patient-card-progressive: completed` пометить `УСТАРЕЛО/ЗАМЕНЕНО` из-за DL-MSG/DL-TZ/DL-STREAM.
   `route-rollout` не переоткрывать целиком: завершённые Stage 2/3 оставить evidence, дефекты расписания вести
   атомарными DL-SCH. `db-profile` closed evidence-only (§10 baseline); `test-rollout` closed owner Safari 2026-08-05.
-  Evidence: `doctor-loading-performance_e024544d.plan.md` forward-link; `test-rollout`/`db-profile` completed.
+  Evidence: archived `doctor-loading-performance_e024544d.plan.md` forward-link; `test-rollout`/`db-profile` completed.
 - [x] **DL-AUTH-03** В том же commit добавить в этот план устойчивую ссылку на audit transcript и проверить, что
   нет второго активного doctor-loading checklist. Frontmatter todo остаётся `pending`, пока открыт хоть один его
   body-checkbox.

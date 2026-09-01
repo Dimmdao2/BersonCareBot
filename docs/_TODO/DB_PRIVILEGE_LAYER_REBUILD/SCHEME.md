@@ -3,10 +3,11 @@
 Authority: [`OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), «Права БД, роли и стены», затем [`PLAN.md`](PLAN.md).
 Это целевой исполняемый контракт; фактическое состояние и незакрытые проверки перечислены только в `PLAN.md`.
 
-> **REVISION 11 ПРИМЕНЕНА НА DEV.** Declaration, generator и generated artifacts синхронизированы с отдельным
+> **REVISION 11 ПРИМЕНЕНА НА DEV И TEST.** Declaration, generator и generated artifacts синхронизированы с отдельным
 > `<env>_webapp_global_admin` login/certificate/pool при прежних двух software ports, одним target за запуск и
-> универсальной birth wall каждой managed table. DEV прошла initial cutover и базовые positive/полные catalog
-> negative controls; полная смысловая live matrix ещё открыта в `PLAN.md`. На TEST/PROD revision 11 не применялась.
+> универсальной birth wall каждой managed table. Named DEV и TEST прошли declaration/reconcile, catalog checks,
+> mTLS и живую матрицу ролей. На PROD revision 11 не применялась; внешние owner-operated и PROD gates перечислены
+> только в верхнем чек-листе `PLAN.md`.
 > Exact mTLS/context/typed-args/A→I части revision 10 сохранены без изменения.
 
 ## 1. Две двери: mTLS до SQL
