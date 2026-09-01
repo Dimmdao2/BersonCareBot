@@ -6,7 +6,7 @@ afterEach(cleanup);
 
 const conversation = {
   conversationId: 'conversation-1',
-  displayName: 'Берсон Дмитрий',
+  displayName: 'Берсон Дмитрий Юрьевич',
   firstName: 'Дмитрий',
   lastName: 'Берсон',
   lastMessageAt: '2026-08-31T18:14:00.000Z',
@@ -33,6 +33,7 @@ describe('DoctorConversationListRow', () => {
     expect(row).not.toHaveTextContent('Дмитрий: Нужна помощь');
     expect(row).toHaveTextContent('1');
     expect(screen.getAllByText('Берсон Дмитрий')).toHaveLength(1);
+    expect(row).not.toHaveTextContent('Юрьевич');
   });
 
   it('uses the same row content for the selectable communications list', () => {

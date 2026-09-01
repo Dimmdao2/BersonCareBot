@@ -20,7 +20,9 @@ describe('loadDoctorAllCommentPatients specialist visibility', () => {
         listClients: vi.fn(async () => [
           {
             userId: VISIBLE_PATIENT_ID,
-            displayName: 'Visible patient',
+            displayName: 'Natasha Shalina',
+            firstName: 'Наташа',
+            lastName: 'Шалина',
             phone: null,
             bindings: {},
             isOnSupport: false,
@@ -52,7 +54,7 @@ describe('loadDoctorAllCommentPatients specialist visibility', () => {
     expect(result).toEqual([
       expect.objectContaining({
         patientUserId: VISIBLE_PATIENT_ID,
-        displayName: 'Visible patient',
+        displayName: 'Шалина Наташа',
         unreadCount: 1,
       }),
     ]);
