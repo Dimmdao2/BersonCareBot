@@ -192,6 +192,18 @@ are not a finding.
 This is a defect in the current product independent of encryption, caused by the list being hand-maintained
 instead of derived from the registry. It belongs in the same change (§6, step 7).
 
+**CLOSED 2026-09-02 (`#1071`), independent of the encryption cutover below.** `SYSTEM_SETTING_REGISTRY` now
+carries a typed `secretAudit` policy per key (`registry.ts`) instead of the two hand-maintained sets;
+`redactSettingValueForAudit` (`auditRedaction.ts`) derives from it and is the single function both
+`pgSystemSettings.ts`'s ledger writes and `admin/settings/route.ts`'s audit log line call (the route's
+duplicate `auditValueForLog`/`redactWebPushVapidForAudit` were deleted). `web_push_vapid.privateKey`,
+`booking_payment_providers` and `saas_billing_payment_provider` provider secrets are now redacted in both;
+an unrecognized/malformed secret shape fails closed to `[REDACTED]` rather than passing through. A registry
+census test (`auditRedaction.unit.test.ts`) pins the exact classification of all 31 `secret_envelope` keys
+(19 `whole_value`, 4 `object_field`, 2 `domain_redactor`, 6 `none` — the public identifiers of §1.1, left
+`secret_envelope`-labeled and unclassified as secret rather than relabeled, per the owner-gated scope split
+below). This closes the redaction gap only; the envelope is still plaintext at rest until §6 ships.
+
 ---
 
 ## 2. Adversaries covered and not covered
@@ -498,11 +510,13 @@ Each step is independently deployable; the ordering is chosen so that rollback i
      reset or DEV refresh from a live PROD dump imports PROD ciphertext under a key TEST/DEV does not hold.
    The TEST-reset SMTP snapshot gate needs no change to its own logic (§1.3), but re-run it once on TEST to
    confirm that in practice, alongside the generalized snapshot from §4.1a.
-7. **Backfill and close the audit gap.** Run the rewrap job over existing rows (counts, idempotent, resumable) —
-   note its effect on the materialization fingerprint (§1.5 item 5). In the same change, extend audit redaction
-   to `web_push_vapid`, `booking_payment_providers` and `saas_billing_payment_provider`, and **derive both
-   redaction sets from the registry** instead of the hand-maintained lists — a hand list is what produced this
-   gap twice already (2026-07-27 and 2026-07-28, per the module's own comments).
+7. **Backfill.** Run the rewrap job over existing rows (counts, idempotent, resumable) — note its effect on the
+   materialization fingerprint (§1.5 item 5). **The audit-redaction half of this step shipped early and
+   independently (`#1071`, 2026-09-02, closed — see §1.8): `web_push_vapid`, `booking_payment_providers` and
+   `saas_billing_payment_provider` are now redacted in `system_settings_audit`, and the redaction policy is
+   derived from `SYSTEM_SETTING_REGISTRY` instead of a hand-maintained list** — a hand list is what produced
+   this gap twice already (2026-07-27 and 2026-07-28, per the module's own comments). What remains for this
+   step at cutover is only the rewrap job itself (encrypting the already-redaction-safe rows).
 8. **Proof that a dump without the KEK reveals nothing** — obtained without creating any database, as
    `AGENTS.md` §1b.3a requires:
    a. `SELECT key, scope, organization_id, value_json FROM public.system_settings WHERE key = ANY(<the 25 keys>)` on

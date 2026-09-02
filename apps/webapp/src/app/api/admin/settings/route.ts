@@ -4,11 +4,7 @@
  * Guard: branch on the platform.operations capability. Global platform configuration uses
  * the dedicated platform principal and clinic managers keep the organization-scoped path.
  */
-import {
-  isPasswordBearingSettingKey,
-  isSecretValueSettingKey,
-  redactSettingValueForAudit,
-} from '@/modules/system-settings/auditRedaction';
+import { redactSettingValueForAudit } from '@/modules/system-settings/auditRedaction';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -41,10 +37,7 @@ import {
   VIDEO_PRESIGN_TTL_MIN_SEC,
 } from '@/modules/media/videoPresignTtlConstants';
 import { coerceAdminBooleanSetting } from '@/modules/system-settings/coerceAdminBooleanSetting';
-import {
-  isValidSaasBillingPaymentProviderFiscalSettings,
-  redactSaasBillingPaymentProviderValue,
-} from '@/modules/saas-billing/settings';
+import { isValidSaasBillingPaymentProviderFiscalSettings } from '@/modules/saas-billing/settings';
 import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
@@ -221,10 +214,14 @@ const batchBodySchema = z.object({
     .min(1),
 });
 
-// Список скалярных секретов живёт в одном месте — `modules/system-settings/auditRedaction`.
-// Раньше он был здесь и закрывал только строку лога, а долговечный журнал изменений не закрывал
-// никто: независимый аудит 28.07 нашёл `vk_id_client_secret` в `system_settings_audit` как есть.
-// Два списка расходятся молча, поэтому список теперь один и общий с журналом.
+// Redaction policy (что считается секретом и как его прятать) живёт в одном месте —
+// `SYSTEM_SETTING_REGISTRY[key].secretAudit` (`modules/system-settings/registry.ts`), которую читает
+// `redactSettingValueForAudit`. Раньше здесь и в `auditRedaction.ts` были два независимых
+// hand-maintained списка ключей: аудит 28.07 нашёл `vk_id_client_secret` в `system_settings_audit`
+// как есть (лог редактировал, журнал — нет), а аудит #1071 (2026-09-02) нашёл `web_push_vapid`,
+// `booking_payment_providers` и `saas_billing_payment_provider` в журнале как есть (ни один из двух
+// списков их не знал). Лог-строка ниже и журнал (`pgSystemSettings.ts`) теперь вызывают одну и ту же
+// функцию на одних и тех же registry-производных правилах, так что второй раз это разойтись не может.
 
 /** Patient-home editorial controls are owner content controls, not ordinary clinic-management settings. */
 const OWNER_ONLY_PATIENT_HOME_KEYS = new Set<string>([
@@ -325,49 +322,6 @@ const PROMO_ENTITLEMENT_SETTING_KEYS = new Set([
 ]);
 
 const CUSTOM_DOMAIN_ENTITLEMENT_SETTING_KEYS = new Set<string>([ORG_CUSTOM_DOMAIN_HOSTNAME_KEY]);
-
-function redactWebPushVapidForAudit(envelope: unknown): unknown {
-  if (envelope === null || typeof envelope !== 'object') return envelope;
-  if (!('value' in envelope)) return envelope;
-  const inner = (envelope as Record<string, unknown>).value;
-  if (inner === null || typeof inner !== 'object' || Array.isArray(inner)) return envelope;
-  const o = { ...(inner as Record<string, unknown>) };
-  if ('privateKey' in o) {
-    const p = typeof o.privateKey === 'string' ? o.privateKey.trim() : '';
-    (o as Record<string, unknown>).privateKey = p.length > 0 ? '[REDACTED]' : '';
-  }
-  return { ...(envelope as Record<string, unknown>), value: o };
-}
-
-function auditValueForLog(key: string, value: unknown): unknown {
-  if (isSecretValueSettingKey(key)) return '[REDACTED]';
-  if (isPasswordBearingSettingKey(key)) return redactSettingValueForAudit(key, value);
-  if (key === 'web_push_vapid') return redactWebPushVapidForAudit(value);
-  if (key === 'booking_payment_providers') {
-    const parsed = value;
-    if (parsed !== null && typeof parsed === 'object' && 'value' in (parsed as object)) {
-      const inner = (parsed as Record<string, unknown>).value;
-      if (inner !== null && typeof inner === 'object' && !Array.isArray(inner)) {
-        const o = { ...(inner as Record<string, unknown>) };
-        if (Array.isArray(o.providers)) {
-          o.providers = (o.providers as unknown[]).map((item) => {
-            if (item === null || typeof item !== 'object') return item;
-            const p = { ...(item as Record<string, unknown>) };
-            if (typeof p.webhookSecret === 'string' && p.webhookSecret.trim())
-              p.webhookSecret = '[REDACTED]';
-            if (typeof p.apiKey === 'string' && p.apiKey.trim()) p.apiKey = '[REDACTED]';
-            return p;
-          });
-        }
-        return { value: o };
-      }
-    }
-  }
-  if (key === 'saas_billing_payment_provider') {
-    return redactSaasBillingPaymentProviderValue(value);
-  }
-  return value;
-}
 
 type SettingsApiContext =
   | {
@@ -512,8 +466,8 @@ export async function PATCH(request: Request) {
         });
         console.info('[admin-settings audit]', {
           key: row.key,
-          oldValue: auditValueForLog(row.key, oldSetting?.valueJson ?? null),
-          newValue: auditValueForLog(row.key, row.valueJson),
+          oldValue: redactSettingValueForAudit(row.key, oldSetting?.valueJson ?? null),
+          newValue: redactSettingValueForAudit(row.key, row.valueJson),
           updatedBy: session.user.userId,
           timestamp: new Date().toISOString(),
         });
@@ -925,8 +879,8 @@ export async function PATCH(request: Request) {
       : await deps.systemSettings.getSetting(parsed.data.key, settingScope, { organizationId });
   console.info('[admin-settings audit]', {
     key: parsed.data.key,
-    oldValue: auditValueForLog(parsed.data.key, oldSetting?.valueJson ?? null),
-    newValue: auditValueForLog(parsed.data.key, normalizedValue),
+    oldValue: redactSettingValueForAudit(parsed.data.key, oldSetting?.valueJson ?? null),
+    newValue: redactSettingValueForAudit(parsed.data.key, normalizedValue),
     updatedBy: session.user.userId,
     timestamp: new Date().toISOString(),
   });

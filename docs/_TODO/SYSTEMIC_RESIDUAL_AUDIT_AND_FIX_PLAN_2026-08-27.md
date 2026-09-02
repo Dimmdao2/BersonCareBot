@@ -209,10 +209,12 @@
   `git mv` в `docs/archive/2026-07-testsuite-rebuild/` (свой README) — ни один не имел входящих ссылок из активного
   канона/скриптов (проверено `grep` по `AGENTS.md`/`README.md`/`CLAUDE.md`/`scripts/*.mjs`), только из других
   архивных run-briefs.
-- [ ] **W10 — пересобрать A→B snapshot из окончательной schema B.** Безопасный
-  `pnpm run check:prod-to-target-cutover` остановился до любых изменений БД: `schema-pre.sql`,
-  `schema-post.sql` и `ledgers-and-baseline.sql` расходятся с текущей named DEV. Snapshot обновляется один раз
-  после W1–W9 и снова проверяется тем же entrypoint; историческая цепочка миграций не проигрывается.
+- [x] **W10 — пересобрать A→B snapshot из окончательной schema B.** Named DEV сначала прошёл rollback-only
+  `bash deploy/host/migrate-dev.sh --preflight`, затем штатный owner-aware `--execute`: единственная pending
+  forward-миграция применена, declaration reconcile и catalog audit завершились `PASS`. После этого
+  `pnpm run refresh:prod-to-target-cutover` пересобрал три tracked schema-B artifact, а
+  `pnpm run check:prod-to-target-cutover` подтвердил `ok` для `schema-pre.sql`, `schema-post.sql` и
+  `ledgers-and-baseline.sql`. Историческая migration chain и одноразовая база не использовались.
 
 ### План одного системного исправляющего прохода
 
