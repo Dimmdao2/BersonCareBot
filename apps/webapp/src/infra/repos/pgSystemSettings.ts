@@ -2,7 +2,6 @@ import { redactSettingValueForAudit } from '@/modules/system-settings/auditRedac
 import {
   getWebappSqlDb,
   runWebappNamedRoot,
-  runWebappPgText,
   runWebappSql,
   runWebappTransaction,
 } from '@/infra/db/runWebappSql';
@@ -130,21 +129,21 @@ export async function readSystemSettingInnerValueByScopes(
   if (scopes.length === 0) return null;
   const organizationId = options.organizationId?.trim() || null;
   const r = organizationId
-    ? await runWebappPgText<SystemSettingValueRow>(
-        `SELECT DISTINCT ON (scope) scope, organization_id, value_json
+    ? await runWebappSql<SystemSettingValueRow>(
+        getWebappSqlDb(),
+        sql`SELECT DISTINCT ON (scope) scope, organization_id, value_json
            FROM system_settings
-          WHERE key = $1
-            AND scope = ANY($2::text[])
-            AND (organization_id = $3::uuid OR organization_id IS NULL)
+          WHERE key = ${key}
+            AND scope = ANY(${sql.param([...scopes])}::text[])
+            AND (organization_id = ${organizationId}::uuid OR organization_id IS NULL)
           ORDER BY scope, organization_id IS NULL ASC`,
-        [key, [...scopes], organizationId],
       )
-    : await runWebappPgText<SystemSettingValueRow>(
-        `SELECT scope, organization_id, value_json
+    : await runWebappSql<SystemSettingValueRow>(
+        getWebappSqlDb(),
+        sql`SELECT scope, organization_id, value_json
            FROM system_settings
-          WHERE key = $1 AND scope = ANY($2::text[])
+          WHERE key = ${key} AND scope = ANY(${sql.param([...scopes])}::text[])
             AND organization_id IS NULL`,
-        [key, [...scopes]],
       );
   for (const scope of scopes) {
     const row = r.rows.find((candidate) => candidate.scope === scope);
@@ -197,9 +196,9 @@ export async function readAdminSystemSettingInnerValue(
   }
   const principal = getCurrentDbPrincipal();
   if (
-    principal?.kind === 'infra'
-    && isWebappLockedMediaCronSource(principal.source)
-    && MEDIA_WORKER_RUNTIME_SETTING_KEYS.has(key)
+    principal?.kind === 'infra' &&
+    isWebappLockedMediaCronSource(principal.source) &&
+    MEDIA_WORKER_RUNTIME_SETTING_KEYS.has(key)
   ) {
     return readMediaWorkerRuntimeSettingInnerValue(key as MediaWorkerRuntimeSettingKey);
   }
@@ -223,12 +222,12 @@ export async function readExactOrganizationAdminSystemSettingString(
 ): Promise<string | null> {
   const normalizedOrganizationId = organizationId.trim();
   if (!normalizedOrganizationId) return null;
-  const result = await runWebappPgText<SystemSettingValueRow>(
-    `SELECT scope, organization_id, value_json
+  const result = await runWebappSql<SystemSettingValueRow>(
+    getWebappSqlDb(),
+    sql`SELECT scope, organization_id, value_json
        FROM system_settings
-      WHERE key = $1 AND scope = 'admin' AND organization_id = $2::uuid
+      WHERE key = ${key} AND scope = 'admin' AND organization_id = ${normalizedOrganizationId}::uuid
       LIMIT 1`,
-    [key, normalizedOrganizationId],
   );
   return systemSettingInnerValueToString(parseSettingEnvelopeValue(result.rows[0]?.value_json));
 }
@@ -246,9 +245,9 @@ export async function readAdminSystemSettingBoolean(
 }
 
 export async function readPublicConfigBoolean(key: string): Promise<boolean | null> {
-  const result = await runWebappPgText<{ value: boolean | null }>(
-    'SELECT app.get_public_config_bool($1) AS value',
-    [key],
+  const result = await runWebappSql<{ value: boolean | null }>(
+    getWebappSqlDb(),
+    sql`SELECT app.get_public_config_bool(${key}) AS value`,
   );
   return result.rows[0]?.value ?? null;
 }
@@ -287,7 +286,9 @@ export async function readSaasBillingPaymentProviderValue(): Promise<unknown | n
     );
     return result.rows[0]?.value_json ?? null;
   }
-  throw new Error('SaaS billing payment provider requires bootstrap, clinic billing, or platform principal');
+  throw new Error(
+    'SaaS billing payment provider requires bootstrap, clinic billing, or platform principal',
+  );
 }
 
 /**
@@ -299,41 +300,38 @@ export async function readSaasBillingPaymentProviderValue(): Promise<unknown | n
 export async function readPublicAuthChannelConfigured(
   channel: PublicAuthChannelCapability,
 ): Promise<boolean> {
-  const result = await runWithDbBootstrapPrincipal(
-    { source: 'webapp-public-smtp-config' },
-    () => {
-      switch (channel) {
-        case 'email':
-          return runWebappNamedRoot<{ configured: boolean | null }>(
-            getWebappSqlDb(),
-            'app.is_smtp_outbound_configured()',
-            [],
-            sql`SELECT app.is_smtp_outbound_configured() AS configured`,
-          );
-        case 'sms':
-          return runWebappNamedRoot<{ configured: boolean | null }>(
-            getWebappSqlDb(),
-            'app.is_sms_provider_configured()',
-            [],
-            sql`SELECT app.is_sms_provider_configured() AS configured`,
-          );
-        case 'telegram':
-          return runWebappNamedRoot<{ configured: boolean | null }>(
-            getWebappSqlDb(),
-            'app.is_telegram_login_configured()',
-            [],
-            sql`SELECT app.is_telegram_login_configured() AS configured`,
-          );
-        case 'max':
-          return runWebappNamedRoot<{ configured: boolean | null }>(
-            getWebappSqlDb(),
-            'app.is_max_bot_configured()',
-            [],
-            sql`SELECT app.is_max_bot_configured() AS configured`,
-          );
-      }
-    },
-  );
+  const result = await runWithDbBootstrapPrincipal({ source: 'webapp-public-smtp-config' }, () => {
+    switch (channel) {
+      case 'email':
+        return runWebappNamedRoot<{ configured: boolean | null }>(
+          getWebappSqlDb(),
+          'app.is_smtp_outbound_configured()',
+          [],
+          sql`SELECT app.is_smtp_outbound_configured() AS configured`,
+        );
+      case 'sms':
+        return runWebappNamedRoot<{ configured: boolean | null }>(
+          getWebappSqlDb(),
+          'app.is_sms_provider_configured()',
+          [],
+          sql`SELECT app.is_sms_provider_configured() AS configured`,
+        );
+      case 'telegram':
+        return runWebappNamedRoot<{ configured: boolean | null }>(
+          getWebappSqlDb(),
+          'app.is_telegram_login_configured()',
+          [],
+          sql`SELECT app.is_telegram_login_configured() AS configured`,
+        );
+      case 'max':
+        return runWebappNamedRoot<{ configured: boolean | null }>(
+          getWebappSqlDb(),
+          'app.is_max_bot_configured()',
+          [],
+          sql`SELECT app.is_max_bot_configured() AS configured`,
+        );
+    }
+  });
   return result.rows[0]?.configured === true;
 }
 
@@ -352,58 +350,45 @@ async function upsertWithAudit(
 ): Promise<SystemSettingRow> {
   // 1. Read the current value (old state, NULL if first-set)
   const prevResult = organizationId
-    ? await runWebappPgText<{ value_json: unknown }>(
-        `SELECT value_json FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id = $3::uuid`,
-        [key, scope, organizationId],
+    ? await runWebappSql<{ value_json: unknown }>(
         tx,
+        sql`SELECT value_json FROM system_settings WHERE key = ${key} AND scope = ${scope} AND organization_id = ${organizationId}::uuid`,
       )
-    : await runWebappPgText<{ value_json: unknown }>(
-        `SELECT value_json FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id IS NULL`,
-        [key, scope],
+    : await runWebappSql<{ value_json: unknown }>(
         tx,
+        sql`SELECT value_json FROM system_settings WHERE key = ${key} AND scope = ${scope} AND organization_id IS NULL`,
       );
   const oldValueJson = prevResult.rows[0]?.value_json ?? null;
 
   // 2. Upsert the new value
   const r = organizationId
-    ? await runWebappPgText<SystemSettingRow>(
-        `INSERT INTO system_settings (key, scope, organization_id, value_json, updated_at, updated_by)
-         VALUES ($1, $2, $3::uuid, $4::jsonb, now(), $5)
+    ? await runWebappSql<SystemSettingRow>(
+        tx,
+        sql`INSERT INTO system_settings (key, scope, organization_id, value_json, updated_at, updated_by)
+         VALUES (${key}, ${scope}, ${organizationId}::uuid, ${JSON.stringify(valueJson)}::jsonb, now(), ${updatedBy})
          ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL DO UPDATE
            SET value_json = EXCLUDED.value_json,
                updated_at = now(),
                updated_by = EXCLUDED.updated_by
          RETURNING key, scope, organization_id, value_json, updated_at, updated_by`,
-        [key, scope, organizationId, JSON.stringify(valueJson), updatedBy],
-        tx,
       )
-    : await runWebappPgText<SystemSettingRow>(
-        `INSERT INTO system_settings (key, scope, value_json, updated_at, updated_by)
-         VALUES ($1, $2, $3::jsonb, now(), $4)
+    : await runWebappSql<SystemSettingRow>(
+        tx,
+        sql`INSERT INTO system_settings (key, scope, value_json, updated_at, updated_by)
+         VALUES (${key}, ${scope}, ${JSON.stringify(valueJson)}::jsonb, now(), ${updatedBy})
          ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
            SET value_json = EXCLUDED.value_json,
                updated_at = now(),
                updated_by = EXCLUDED.updated_by
          RETURNING key, scope, organization_id, value_json, updated_at, updated_by`,
-        [key, scope, JSON.stringify(valueJson), updatedBy],
-        tx,
       );
 
   // 3. Write audit row (same tx — both or neither)
-  await runWebappPgText(
-    `INSERT INTO system_settings_audit
-       (key, scope, organization_id, old_value_json, new_value_json, changed_by, source)
-     VALUES ($1, $2, $3::uuid, $4::jsonb, $5::jsonb, $6, $7)`,
-    [
-      key,
-      scope,
-      organizationId,
-      oldValueJson !== null ? JSON.stringify(redactSettingValueForAudit(key, oldValueJson)) : null,
-      JSON.stringify(redactSettingValueForAudit(key, valueJson)),
-      updatedBy,
-      'system_settings_repo',
-    ],
+  await runWebappSql(
     tx,
+    sql`INSERT INTO system_settings_audit
+       (key, scope, organization_id, old_value_json, new_value_json, changed_by, source)
+     VALUES (${key}, ${scope}, ${organizationId}::uuid, ${oldValueJson !== null ? JSON.stringify(redactSettingValueForAudit(key, oldValueJson)) : null}::jsonb, ${JSON.stringify(redactSettingValueForAudit(key, valueJson))}::jsonb, ${updatedBy}, ${'system_settings_repo'})`,
   );
 
   return r.rows[0]!;
@@ -416,21 +401,19 @@ async function exactRowUpdatedAtForCompareAndSwap(
   tx: WebappSqlExecutor,
 ): Promise<string | null> {
   const identity = `${organizationId ?? 'global'}:${scope}:${key}`;
-  await runWebappPgText('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [identity], tx);
+  await runWebappSql(tx, sql`SELECT pg_advisory_xact_lock(hashtextextended(${identity}, 0))`);
   const current = organizationId
-    ? await runWebappPgText<{ updated_at: Date | string }>(
-        `SELECT updated_at FROM system_settings
-          WHERE key = $1 AND scope = $2 AND organization_id = $3::uuid
-          FOR UPDATE`,
-        [key, scope, organizationId],
+    ? await runWebappSql<{ updated_at: Date | string }>(
         tx,
+        sql`SELECT updated_at FROM system_settings
+          WHERE key = ${key} AND scope = ${scope} AND organization_id = ${organizationId}::uuid
+          FOR UPDATE`,
       )
-    : await runWebappPgText<{ updated_at: Date | string }>(
-        `SELECT updated_at FROM system_settings
-          WHERE key = $1 AND scope = $2 AND organization_id IS NULL
-          FOR UPDATE`,
-        [key, scope],
+    : await runWebappSql<{ updated_at: Date | string }>(
         tx,
+        sql`SELECT updated_at FROM system_settings
+          WHERE key = ${key} AND scope = ${scope} AND organization_id IS NULL
+          FOR UPDATE`,
       );
   return current.rows[0] ? toIsoStringSafe(current.rows[0].updated_at) : null;
 }
@@ -443,9 +426,9 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       options: SystemSettingsReadOptions = {},
     ): Promise<SystemSetting | null> {
       if (
-        getCurrentDbPrincipal()?.kind === 'patient'
-        && scope === 'admin'
-        && CURRENT_PATIENT_BOOKING_PAYMENT_SETTING_KEYS.has(key)
+        getCurrentDbPrincipal()?.kind === 'patient' &&
+        scope === 'admin' &&
+        CURRENT_PATIENT_BOOKING_PAYMENT_SETTING_KEYS.has(key)
       ) {
         const result = await runWebappNamedRoot<{ value_json: unknown | null }>(
           getWebappSqlDb(),
@@ -466,30 +449,30 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       }
       if (getCurrentDbPrincipal()?.kind === 'patient' && CURRENT_PATIENT_UI_SETTING_KEYS.has(key)) {
         const result = await runWithWebappDbOperationFamily('patient_ui_config', () =>
-          runWebappPgText<SystemSettingRow>(
-            `SELECT key, scope, organization_id, value_json, updated_at, updated_by
-               FROM app.read_current_patient_ui_setting($1, $2)`,
-            [key, scope],
+          runWebappSql<SystemSettingRow>(
+            getWebappSqlDb(),
+            sql`SELECT key, scope, organization_id, value_json, updated_at, updated_by
+               FROM app.read_current_patient_ui_setting(${key}, ${scope})`,
           ),
         );
         return result.rows[0] ? rowToSetting(result.rows[0]) : null;
       }
       const organizationId = options.organizationId?.trim() || null;
       const r = organizationId
-        ? await runWebappPgText<SystemSettingRow>(
-            `SELECT key, scope, organization_id, value_json, updated_at, updated_by
+        ? await runWebappSql<SystemSettingRow>(
+            getWebappSqlDb(),
+            sql`SELECT key, scope, organization_id, value_json, updated_at, updated_by
              FROM system_settings
-             WHERE key = $1
-               AND scope = $2
-               AND (organization_id = $3::uuid OR organization_id IS NULL)
+             WHERE key = ${key}
+               AND scope = ${scope}
+               AND (organization_id = ${organizationId}::uuid OR organization_id IS NULL)
              ORDER BY organization_id IS NULL ASC
              LIMIT 1`,
-            [key, scope, organizationId],
           )
-        : await runWebappPgText<SystemSettingRow>(
-            `SELECT key, scope, organization_id, value_json, updated_at, updated_by
-             FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id IS NULL`,
-            [key, scope],
+        : await runWebappSql<SystemSettingRow>(
+            getWebappSqlDb(),
+            sql`SELECT key, scope, organization_id, value_json, updated_at, updated_by
+             FROM system_settings WHERE key = ${key} AND scope = ${scope} AND organization_id IS NULL`,
           );
       if (!r.rows[0]) return null;
       return rowToSetting(r.rows[0]);
@@ -512,18 +495,18 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
     ): Promise<SystemSetting[]> {
       const organizationId = options.organizationId?.trim() || null;
       const r = organizationId
-        ? await runWebappPgText<SystemSettingRow>(
-            `SELECT DISTINCT ON (key) key, scope, organization_id, value_json, updated_at, updated_by
+        ? await runWebappSql<SystemSettingRow>(
+            getWebappSqlDb(),
+            sql`SELECT DISTINCT ON (key) key, scope, organization_id, value_json, updated_at, updated_by
              FROM system_settings
-             WHERE scope = $1
-               AND (organization_id = $2::uuid OR organization_id IS NULL)
+             WHERE scope = ${scope}
+               AND (organization_id = ${organizationId}::uuid OR organization_id IS NULL)
              ORDER BY key, organization_id IS NULL ASC`,
-            [scope, organizationId],
           )
-        : await runWebappPgText<SystemSettingRow>(
-            `SELECT key, scope, organization_id, value_json, updated_at, updated_by
-             FROM system_settings WHERE scope = $1 AND organization_id IS NULL ORDER BY key`,
-            [scope],
+        : await runWebappSql<SystemSettingRow>(
+            getWebappSqlDb(),
+            sql`SELECT key, scope, organization_id, value_json, updated_at, updated_by
+             FROM system_settings WHERE scope = ${scope} AND organization_id IS NULL ORDER BY key`,
           );
       return r.rows.map(rowToSetting);
     },
@@ -587,28 +570,18 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       return runWebappTransaction(async (tx) => {
         const organizationId = options.organizationId?.trim() || null;
         const deleted = organizationId
-          ? await runWebappPgText<{ value_json: unknown }>(
-              `DELETE FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id = $3::uuid RETURNING value_json`,
-              [key, scope, organizationId],
+          ? await runWebappSql<{ value_json: unknown }>(
               tx,
+              sql`DELETE FROM system_settings WHERE key = ${key} AND scope = ${scope} AND organization_id = ${organizationId}::uuid RETURNING value_json`,
             )
-          : await runWebappPgText<{ value_json: unknown }>(
-              `DELETE FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id IS NULL RETURNING value_json`,
-              [key, scope],
+          : await runWebappSql<{ value_json: unknown }>(
               tx,
+              sql`DELETE FROM system_settings WHERE key = ${key} AND scope = ${scope} AND organization_id IS NULL RETURNING value_json`,
             );
         if (!deleted.rows[0]) return false;
-        await runWebappPgText(
-          `INSERT INTO system_settings_audit (key, scope, organization_id, old_value_json, new_value_json, changed_by, source) VALUES ($1, $2, $3::uuid, $4::jsonb, NULL, $5, $6)`,
-          [
-            key,
-            scope,
-            organizationId,
-            JSON.stringify(redactSettingValueForAudit(key, deleted.rows[0].value_json)),
-            updatedBy,
-            'system_settings_repo_delete',
-          ],
+        await runWebappSql(
           tx,
+          sql`INSERT INTO system_settings_audit (key, scope, organization_id, old_value_json, new_value_json, changed_by, source) VALUES (${key}, ${scope}, ${organizationId}::uuid, ${JSON.stringify(redactSettingValueForAudit(key, deleted.rows[0].value_json))}::jsonb, NULL, ${updatedBy}, ${'system_settings_repo_delete'})`,
         );
         return true;
       });

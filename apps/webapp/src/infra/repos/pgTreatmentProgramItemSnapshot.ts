@@ -1,4 +1,4 @@
-/** Wave 3 phase 15C — catalog media preview lookup via `runWebappPgText`. */
+/** Catalog media preview lookup. */
 import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import {

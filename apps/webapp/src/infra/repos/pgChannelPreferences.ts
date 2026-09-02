@@ -1,5 +1,5 @@
 /**
- * Wave 3 phase 14D — domain SQL via `runWebappPgText`; Class C TX on `setPreferredAuthChannel`.
+ * Wave 3 phase 14D — domain SQL via typed Drizzle fragments; Class C TX on `setPreferredAuthChannel`.
  */
 import { sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
@@ -8,10 +8,11 @@ import {
   getWebappSqlDb,
   getWebappSqlFromPgClient,
   runWebappNamedRoot,
-  runWebappPgText,
+  runWebappSql,
 } from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import type { BroadcastNotificationPrefsFlags } from '@/modules/doctor-broadcasts/ports';
+import { platformUserMatchSql } from '@/infra/repos/platformUserMatchSql';
 import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
 import {
   assertChannelAllowedForPreferredAuth,
@@ -21,18 +22,6 @@ import type { ChannelCode, ChannelPreference } from '@/modules/channel-preferenc
 import type { PoolClient } from 'pg';
 
 const CODES: ChannelCode[] = ['telegram', 'max', 'vk', 'sms', 'email', 'web_push'];
-
-function userMatchSql(paramIndex: number): string {
-  return `(platform_user_id = $${paramIndex}::uuid OR (platform_user_id IS NULL AND user_id = $${paramIndex}::text))`;
-}
-
-function txPgText<T = unknown>(
-  client: PoolClient,
-  queryText: string,
-  values: readonly unknown[] = [],
-) {
-  return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
-}
 
 function rowToPreference(row: {
   channel_code: string;
@@ -52,15 +41,15 @@ function rowToPreference(row: {
 
 export const pgChannelPreferencesPort: ChannelPreferencesPort = {
   async getPreferences(userId) {
-    const result = await runWebappPgText<{
+    const result = await runWebappSql<{
       channel_code: string;
       is_enabled_for_messages: boolean;
       is_enabled_for_notifications: boolean;
       is_preferred_for_auth: boolean;
     }>(
-      `SELECT channel_code, is_enabled_for_messages, is_enabled_for_notifications, is_preferred_for_auth
-       FROM user_channel_preferences WHERE ${userMatchSql(1)}`,
-      [userId],
+      getWebappSqlDb(),
+      sql`SELECT channel_code, is_enabled_for_messages, is_enabled_for_notifications, is_preferred_for_auth
+       FROM user_channel_preferences WHERE ${platformUserMatchSql(null, userId)}`,
     );
     const byCode = new Map<string, ChannelPreference>();
     for (const row of result.rows) {
@@ -106,33 +95,27 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
       return rowToPreference(row);
     }
     const now = new Date();
-    await runWebappPgText(
-      `INSERT INTO user_channel_preferences (
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`INSERT INTO user_channel_preferences (
          user_id, platform_user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, updated_at
        )
-       VALUES ($1::text, $1::uuid, $2, $3, $4, $5)
+       VALUES (${params.userId}::text, ${params.userId}::uuid, ${params.channelCode}, ${params.isEnabledForMessages}, ${params.isEnabledForNotifications}, ${now})
        ON CONFLICT (user_id, channel_code) DO UPDATE SET
          platform_user_id = COALESCE(user_channel_preferences.platform_user_id, EXCLUDED.platform_user_id),
          is_enabled_for_messages = EXCLUDED.is_enabled_for_messages,
          is_enabled_for_notifications = EXCLUDED.is_enabled_for_notifications,
          updated_at = EXCLUDED.updated_at`,
-      [
-        params.userId,
-        params.channelCode,
-        params.isEnabledForMessages,
-        params.isEnabledForNotifications,
-        now,
-      ],
     );
-    const result = await runWebappPgText<{
+    const result = await runWebappSql<{
       channel_code: string;
       is_enabled_for_messages: boolean;
       is_enabled_for_notifications: boolean;
       is_preferred_for_auth: boolean;
     }>(
-      `SELECT channel_code, is_enabled_for_messages, is_enabled_for_notifications, is_preferred_for_auth
-       FROM user_channel_preferences WHERE ${userMatchSql(1)} AND channel_code = $2`,
-      [params.userId, params.channelCode],
+      getWebappSqlDb(),
+      sql`SELECT channel_code, is_enabled_for_messages, is_enabled_for_notifications, is_preferred_for_auth
+       FROM user_channel_preferences WHERE ${platformUserMatchSql(null, params.userId)} AND channel_code = ${params.channelCode}`,
     );
     return rowToPreference(result.rows[0]!);
   },
@@ -146,16 +129,16 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     }
     if (platformUserIds.length === 0) return out;
 
-    const result = await runWebappPgText<{
+    const result = await runWebappSql<{
       platform_user_id: string;
       channel_code: string;
       is_enabled_for_notifications: boolean;
     }>(
-      `SELECT platform_user_id, channel_code, is_enabled_for_notifications
+      getWebappSqlDb(),
+      sql`SELECT platform_user_id, channel_code, is_enabled_for_notifications
        FROM user_channel_preferences
-       WHERE platform_user_id = ANY($1::uuid[])
+       WHERE platform_user_id = ANY(${sql.param(platformUserIds)}::uuid[])
          AND channel_code = ANY(ARRAY['telegram'::text, 'max'::text, 'sms'::text])`,
-      [platformUserIds],
     );
     for (const row of result.rows) {
       const cur = out.get(row.platform_user_id);
@@ -205,25 +188,23 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     const pool = getPool();
     const now = new Date();
     await withPoolTransaction(pool, async (client) => {
-      await txPgText(
-        client,
-        `UPDATE user_channel_preferences SET is_preferred_for_auth = false WHERE ${userMatchSql(1)}`,
-        [userId],
+      await runWebappSql(
+        getWebappSqlFromPgClient(client),
+        sql`UPDATE user_channel_preferences SET is_preferred_for_auth = false WHERE ${platformUserMatchSql(null, userId)}`,
       );
       if (channelCode == null) {
         return;
       }
-      await txPgText(
-        client,
-        `INSERT INTO user_channel_preferences (
+      await runWebappSql(
+        getWebappSqlFromPgClient(client),
+        sql`INSERT INTO user_channel_preferences (
            user_id, platform_user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, is_preferred_for_auth, updated_at
          )
-         VALUES ($1::text, $1::uuid, $2, true, true, true, $3)
+         VALUES (${userId}::text, ${userId}::uuid, ${channelCode}, true, true, true, ${now})
          ON CONFLICT (user_id, channel_code) DO UPDATE SET
            platform_user_id = COALESCE(user_channel_preferences.platform_user_id, EXCLUDED.platform_user_id),
            is_preferred_for_auth = true,
            updated_at = EXCLUDED.updated_at`,
-        [userId, channelCode, now],
       );
     });
   },

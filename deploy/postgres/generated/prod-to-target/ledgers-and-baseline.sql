@@ -34,18 +34,35 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (747
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (750, '4ef5d3b79b07752c515de3961cceacd3851e87d2ed28425f17fd936d72eb155d', 1800000105000, '20260822T121000_the_specialist_task_reminder_generation_gets_a_named_root');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (697, '5a2c9214a434af91cf39734334f75796431aa396659ba37d29b11302694bdd8b', 1800000096000, '20260822T110000_the_email_verify_root_demotes_the_previous_primary');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (819, 'd53aec1b19f0d698a9758b6d14bbb54adede893e64dc245ef408e3f9b9de6c53', 1800000127000, '20260823T043206_deliver_c4_mail_profile_tenant_binding');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1448, '540e95c913e92dd5fc849b6711890e53d0b3847bb48c3145ad54430b468692de', 1800000166000, '20260827T183500_journal_retention_covers_reminder_history_and_message_log');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1449, 'f1a9a4e396dfaf319122a9f4596bf4be0dc254308faab01c0b60a3935dcf8bc2', 1800000167000, '20260827T184500_delivery_health_reads_success_from_canonical_queue');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1450, '3f34a52bb8e991494c1d08a19c71bf015aea560c017bfc417b2a1f935f1c1a53', 1800000168000, '20260827T185000_operator_delivery_queue_health_exposes_confirmed_by_channel');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1451, '7099d5b83596a461107efa10a13f21b7623d5af4ad667968f8ee9831d45aff30', 1800000169000, '20260827T205400_hosted_video_covers_live_in_our_storage');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1452, '66c3de317745686e0af0d2141266b970a95ee9d3dd92605f11fd309bad694b4b', 1800000170000, '20260828T000247_close_operator_push_and_media_capability_gaps');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1453, '2f025a133f6cebcffbbea38aeec0643a7440d24f41a08ceef06c901217d6475a', 1800000171000, '20260828T011302_make_media_purge_one_leased_database_door');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1454, '7709a24427777811f68c90f5ce5946f1885cf569a43ae917a28b3819691f67f4', 1800000172000, '20260828T085822_anonymise_audit_actors_on_account_delete');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1455, '01dcb41e28792f1571bb13f37b54820f0f7ba8cbc6ac44627cb2b96988685de0', 1800000173000, '20260828T092521_deliver_cron_isolation_operations');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1456, 'eb63467323fc719ddac25c1aec1e0d3c9d0a6134196f89ce39cb315626261782', 1800000174000, '20260828T131900_organization_purge_reaches_every_named_class');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1457, '6cf5175b6815dc5b4dda49167b8d18ba181242c40ad83d06e380bc9f1c5252ed', 1800000175000, '20260828T160000_reminder_rules_belong_to_the_canonical_person');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1458, 'c8fdf48da3eca05a0f810babbd2fb5dca249c736c6a4279de53256405a80728d', 1800000176000, '20260828T170000_retire_public_integrator_identity');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1460, 'd06dde0a6ca51c0313bd1ccc26ddf102a87d5574b41ad35fdc0220d578b79118', 1800000177000, '20260828T165000_disable_unowned_reminder_rules');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1462, '69ae23c1f21a5c92e9733117f01b8e7799fee260214f37dac4882d34959fc500', 1800000178000, '20260828T171000_sync_curated_health_with_background_job_manifest');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (629, 'b301d1dab844a86f624943881ecf999d689bddcb32ad8c440409cee2905edc8f', 1800000075000, '20260820T100444_direct_public_write_retries');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (630, '21700c35b550f6ca3fcf59a1a6589c02f882962645ee895f28abc60d984e7c23', 1800000076000, '20260820T112313_reminder_occurrence_delivery_capability');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (631, '24385d07cae4fb9b7504135dc80d9446d5a43d2a34a894997baa8ecfaed412cc', 1800000077000, '20260820T114223_appointment_bound_patient_payments');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (632, 'e3972e0e3c0a93eb00ec6600a75a065b01d4f4ab3e19f5b996b9b47d525063ce', 1800000078000, '20260820T122628_direct_public_write_retry_org_invariant');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (634, '63aedb1f4c3eabb3b4e8459da305a0a8c4dc8a596dfcb07b11f6b9f35e17d76b', 1800000079000, '20260820T175432_paid_period_global_access_authority');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (636, 'd7bbe891be7ac15b895ec6ed7aa3c6b884a005c6032705dd17b4cfdea1106109', 1800000080000, '20260820T185707_the_delivery_journal_accepts_a_nonqueue_attempt');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1476, '08ece7ed8eb65abf3f27580516e2f4a8082ae230c19b8389bd7dde54ff5e02c5', 1800000182000, '20260829T053839_list_configured_custom_domain_hostnames');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1477, 'd6d4920559345df49307652e295be4a0ec0eaf2ff88270dcd72714ca15a31005', 1800000183000, '20260829T125604_delivery_backlog_age_starts_when_delivery_is_due');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (643, '99098bff2eef013ff3b12ece21196820dbf3c544987bbd47406f75e550f0f708', 1800000083000, '20260821T002100_move_outgoing_delivery_retention_to_producer_root');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (645, 'ff3a4320be5e89f1a4c58a0ef77933e64a19729e399a3c3fbc5f9102ab7e4065', 1800000084000, '20260821T003000_cut_over_delivery_attempt_history');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (647, 'd2c07f2853a96dc0d5662b855bf0390c33f0f5ccc4ef2a11206bcb8a93afcbf9', 1800000085000, '20260821T025935_restore_reference_catalog_baselines');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1013, '061e9fe147b3aa6fcef557cb9bd63353a7bf9032325e1ab9873946934db9c90b', 1800000149000, '20260824T154700_derive_public_oauth_availability_at_read');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (791, '40069ca47c4a5bd05472d15e34c6256c80728022d4dc8a6df8754ba5df4f69b4', 1800000121000, '20260823T010000_patient_subdomain_slug_and_custom_domain_uniqueness');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (795, '369ae3b27840483769d4f6c584f6ffce2ce74a55f541bfb00516d042086ce864', 1800000123000, '20260823T010000_mail_profile_reaches_auth_delivery');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1481, '26387213a61ed0c78745774528d128cd53654f9f541e78f0bde2ca78929f3f60', 1800000184000, '20260901T231600_a_downgraded_capability_reads_its_own_tariff_policy');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1023, 'c11dc2bfca8bc3ad942cec0db1c60381b9e85e3d1a129fccd5d48bf90e6066aa', 1800000152000, '20260825T084524_close_live_acceptance_runtime_roots');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (753, '576063bd82ab82be3765a11111c3c1833ec0c2baf8b12aa2cdf6900e9a72ed2d', 1800000106000, '20260822T130000_the_integrator_roots_name_the_integrator_role');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (756, 'd165498d35a804641a9f736a2005aecd8dd150f61604b88aab5bd38b36e2757d', 1800000107000, '20260822T130000_the_registration_resend_door_finds_the_unconfirmed_draft');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (677, '7ffa1e6e18b532035989e12bc2059e93ab49a103e3cee4b81f4eba93867c8471', 1800000089000, '20260821T070000_pre_session_find_session_user_by_phone');
@@ -57,9 +74,18 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (687
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (689, '8663be928c0f706a7723a5b2b11ea7d658d2beda0fe57bc77f96a7204d501046', 1800000095000, '20260822T100000_pre_session_email_and_signup_roots_accept_their_named_context');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (816, 'f36466a1f9169999da104e4b7ab7e14823549919361a2afee0d07fb8c1a62cf8', 1800000125000, '20260823T021426_broadcast_drafts_belong_to_doctor_and_clinic');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (817, '21882a904500c65dc7948e8d07f8e19ba68c3f917ed1b64d6163f397b4433202', 1800000126000, '20260823T023138_pre_session_default_auth_otp_channel');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1025, '3b7932ec362c02639a7ca900c51336dba2751d98cba812c75ad296803b6b33d2', 1800000153000, '20260825T124133_make_patient_archive_clinic_scoped');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1027, '7ed143f49f4d03bc6a3593419dae040ff0aa01369571c66f543baac28165e0b6', 1800000154000, '20260825T124849_blocked_accounts_cannot_enter_by_phone_or_messenger');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1029, '95844a607f9314deb2ec33b2748a2f9b472091ac35f9a5912de84ce3066beacc', 1800000155000, '20260825T125238_blocked_account_cannot_create_public_booking');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (829, 'c4fc774b7c7f30109f57d05fd1432a5785277d09578f64ddfddbbf0206a3a678', 1800000128000, '20260823T030000_integrator_tenant_role_reaches_delivery_roots');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (830, '04a951d2b04c0ef99dea79192e8386498457b2ddab8ceb5f178f8e7e3253cf46', 1800000129000, '20260823T035715_clinic_platform_integration_availability_door');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (831, 'fcc98677f8fea4aae5fd22e332325e413ee2285887aa4e9de94bb1df46766954', 1800000130000, '20260823T101403_align_organization_slug_claims_with_address_policy');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1111, 'd9a54d7d1aca7510430a9acd4a133cf8f2c152eee1800748aa93d5b8e1c90cc5', 1800000158000, '20260826T012325_cancelled_appointment_reminders_are_not_failures');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1112, 'ee1f2698b682604f406c70ac7b264479d144f3773d2e27ac476cc60c6b1e7d7b', 1800000159000, '20260826T073517_materialize_patient_reminders_by_canonical_user');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1113, 'a327e0b135c0514edbc8ec2911680579f92e66a20a0c39d892ca526906da67d9', 1800000160000, '20260826T091635_allow_staff_to_cancel_patient_reminder_occurrences');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1114, '9f884d180be2c9f7f9646e9acc8430388dd14d41a9dc8751a4629ac5846eb4c4', 1800000161000, '20260826T115100_fix_lfk_child_owner_trigger_record_shape');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1115, 'c89dd63bb350dc3deaf20cebbf7d9e49b15265a9d54fcef03a554afcb21226a4', 1800000162000, '20260826T140000_platform_support_and_public_booking_merge_doors');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1116, '3e6cf697ae00dc99e2244b144c42afcf602c45f5397b7e535c6c566a0d1d527b', 1800000163000, '20260826T141536_retire_user_phone_link_named_roots');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (585, '228d8d4d652bca0248b084e6d69d5ee59dca3c8eb6108f9eca339f38de4c49dd', 1800000060000, '20260819T180713_a_lifetime_allowance_counted_by_join_is_not_lifetime');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (587, 'ba4a69129732ff76f639cf0459697fcf9e13b59a3a77069c0fe7496880492b9f', 1800000053000, '20260819T170216_a_public_visitor_becomes_a_client_when_identified');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (588, 'efdb857d09bcf0f22b53737b36fa639cbb09a49099e4f45f67568c6e47426914', 1800000055000, '20260819T163536_a_failed_public_booking_must_not_leave_a_client');
@@ -70,8 +96,11 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (641
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (653, '592a26046f44465bd0e9bd5a59aa1839e0e6a8b78ee17c84d246d4c4f9cb447d', 1800000086000, '20260821T040000_cut_over_canonical_contacts');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (654, '09ca1666e98a9172155163d63a23a82bd123f699881a832f89a15b39bdd0ac9a', 1800000087000, '20260821T050000_add_vk_messenger_settings');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1007, '29a1663ceefbbcac5b8270bae3691cf6a2cb8b8523249ca5c459ce8908ace437', 1800000148000, '20260824T150500_derive_public_sms_fallback_at_read');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1020, '367bed59416bee23e8c8ccf784708b50ea92024b4c0a156f434567820526dc46', 1800000151000, '20260824T182946_seed_doctor_today_preferences_fallback');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (682, '40d77e5fc76e8202f9372d9dd4af17d080d3ed7a883728a3126acf656037dc10', 1800000092000, '20260821T100000_platform_integration_availability_gains_vk');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (799, '17d0e6ec0a216a9b354f6df3f567744c38b3886387227dc231ddcbc5cff34a3a', 1800000124000, '20260823T002500_pre_session_login_uses_two_named_doors');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1035, '3dc759d8c5dd47cafeb6919407f983e5f68bec7e868bf5de65a247960cfcbe2a', 1800000156000, '20260825T175916_seed_booking_runtime_defaults');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1036, 'ecc2932a88418bf0b6d1e4ebc2033eeb3fc0d0955fb64545ccee75163f048a80', 1800000157000, '20260825T184132_restore_archived_relationship_after_failed_booking');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (845, '807984946ec25b302d3586426e25dea46f145485febcdab99a26e36b12fc2913', 1800000131000, '20260823T064034_patient_brand_has_one_name_and_one_accent');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (846, '530f28acb69073d49efdb78b5730bfeeb88e0e191c10e7993897e1446f41aab8', 1800000132000, '20260823T093000_channel_identity_root_becomes_lookup_only');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (774, '6d1dd051889c15424ebebdc2c37a5e5cdef02963efecbb6a8a1a53ea1466db89', 1800000114000, '20260822T190000_the_incoming_recipient_door_opens_for_the_integrator_principal');
@@ -86,6 +115,8 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (918
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (919, 'b9c6d2ecffc877baf753cb102f7a31ec6d0324b165b99baadb74659d831cdde9', 1800000140000, '20260823T200000_retire_support_delivery_events_and_content_access_grant_retry');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (920, '7f0f69c3aaf40222d9fbd920106c9aba94085d0b5836527c26dcd51eb7fde28e', 1800000141000, '20260823T210000_db_journal_retention_targets');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (921, '1a4679655489500b12ae877c5776d29baa6cb6b2a3b2b0e75054cd528a1cb5b4', 1800000142000, '20260823T220000_consolidate_reminder_occurrence_stores');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1117, '0b959b25b4a6c2d30dfadc1c4803297ec9e4b6a15e210bcb9ccfe3ac5a237814', 1800000164000, '20260826T170000_limit_notification_delivery_attempts_to_provider_failures');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1118, '0cbb3a3f74b6ee662881c092898d1736aceb51eb04a5327cb0c28f80802eeb30', 1800000165000, '20260826T215857_move_environment_modes_out_of_system_settings');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (658, '7d11b93eb91304089c6f557d847c86809252db9a6bad5f3ddd3383fa81eb1871', 1800000088000, '20260821T060000_close_saas_isolation_test_scenario_definer_seam');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (785, 'bd37eed68c2b2fc5a5973a3d2564d4fa6221853398e134828bae891470372317', 1800000116000, '20260822T200000_patient_demographics_leave_the_actor_root');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (619, '7f78a9b99869994799081d8cd17282adc0e7850d818509201353a57b85bf1091', 1800000071000, '20260819T204355_a_seat_invoice_is_not_cancelled_it_is_reissued');
@@ -104,6 +135,9 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (999
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1000, '8565cd58a9af4aa4b1d22f7c6156000c1bb0e81ffc4683056691cd4f59ba1bd4', 1800000145000, '20260824T053353_reconcile_clinic_delivery_credential_root');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1001, 'c79b5199030bed7b364fd88a0b0cbe30ef0454e79ce0c00fae49cabbef606899', 1800000146000, '20260824T064008_apply_surface_auth_owner_defaults');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1002, '84361b42faaae27c4544fcd0e343ccfd3d10e92c02b3df2f8cbc31fb76d8e5b9', 1800000147000, '20260824T120000_make_system_settings_single_root');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1465, '2baf6e2d603cd3e5da5904ec084e884088025dcb7c584d795ad2c03b7ba88509', 1800000179000, '20260828T222317_operator_health_digest_reads_one_bounded_window');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1471, 'cc53b0c200bf2d2d16bfd08dbde628442919584791ac8916bcdda8b7f4bdcf18', 1800000180000, '20260829T010431_operator_health_digest_names_incident_direction');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1472, 'b33391e86230d4c3c2f25755206cb555a59078d9bf858c9df14b195c7af8e168', 1800000181000, '20260829T031736_resolve_provider_incidents_after_delivery');
 
 
 --
@@ -167,7 +201,7 @@ INSERT INTO public.saas_trial_policy (key, duration_days, start_event, post_tria
 -- Name: __drizzle_migrations_id_seq; Type: SEQUENCE SET; Schema: drizzle; Owner: -
 --
 
-SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 1017, true);
+SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 1481, true);
 
 
 --

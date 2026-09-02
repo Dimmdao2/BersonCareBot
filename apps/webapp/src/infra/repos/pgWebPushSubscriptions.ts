@@ -1,5 +1,5 @@
 /**
- * Wave 3 phase 14D — domain SQL via `runWebappPgText`; Class C TX on `saveSubscription`.
+ * Domain SQL as typed Drizzle fragments; Class C TX on `saveSubscription`.
  */
 import { sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
@@ -8,7 +8,7 @@ import {
   getWebappSqlDb,
   getWebappSqlFromPgClient,
   runWebappNamedRoot,
-  runWebappPgText,
+  runWebappSql,
 } from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import type {
@@ -18,14 +18,6 @@ import type {
 import type { PoolClient } from 'pg';
 
 const MAX_SUBSCRIPTIONS_PER_USER = 5;
-
-function txPgText<T = unknown>(
-  client: PoolClient,
-  queryText: string,
-  values: readonly unknown[] = [],
-) {
-  return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
-}
 
 function rowToPayload(row: {
   endpoint: string;
@@ -77,29 +69,27 @@ export function createPgWebPushSubscriptionsPort(): WebPushSubscriptionsPort {
       const pool = getPool();
       const ua = options?.userAgent?.trim() || null;
       await withPoolTransaction(pool, async (client) => {
-        await txPgText(
-          client,
-          `INSERT INTO user_web_push_subscriptions (user_id, endpoint, p256dh, auth, user_agent, updated_at)
-           VALUES ($1::uuid, $2, $3, $4, $5, now())
+        await runWebappSql(
+          getWebappSqlFromPgClient(client),
+          sql`INSERT INTO user_web_push_subscriptions (user_id, endpoint, p256dh, auth, user_agent, updated_at)
+           VALUES (${userId}::uuid, ${subscription.endpoint}, ${subscription.keys.p256dh}, ${subscription.keys.auth}, ${ua}, now())
            ON CONFLICT (endpoint) DO UPDATE SET
              user_id = EXCLUDED.user_id,
              p256dh = EXCLUDED.p256dh,
              auth = EXCLUDED.auth,
              user_agent = EXCLUDED.user_agent,
              updated_at = now()`,
-          [userId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, ua],
         );
-        await txPgText(
-          client,
-          `DELETE FROM user_web_push_subscriptions u
-           WHERE u.user_id = $1::uuid
+        await runWebappSql(
+          getWebappSqlFromPgClient(client),
+          sql`DELETE FROM user_web_push_subscriptions u
+           WHERE u.user_id = ${userId}::uuid
              AND u.id NOT IN (
                SELECT id FROM user_web_push_subscriptions
-               WHERE user_id = $1::uuid
+               WHERE user_id = ${userId}::uuid
                ORDER BY updated_at DESC, created_at DESC
-               LIMIT $2
+               LIMIT ${MAX_SUBSCRIPTIONS_PER_USER}
              )`,
-          [userId, MAX_SUBSCRIPTIONS_PER_USER],
         );
       });
     },
@@ -109,9 +99,9 @@ export function createPgWebPushSubscriptionsPort(): WebPushSubscriptionsPort {
         await removeCurrentPatientSubscription(endpoint);
         return;
       }
-      await runWebappPgText(
-        `DELETE FROM user_web_push_subscriptions WHERE user_id = $1::uuid AND endpoint = $2`,
-        [userId, endpoint],
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`DELETE FROM user_web_push_subscriptions WHERE user_id = ${userId}::uuid AND endpoint = ${endpoint}`,
       );
     },
 
@@ -125,23 +115,24 @@ export function createPgWebPushSubscriptionsPort(): WebPushSubscriptionsPort {
         );
         return;
       }
-      await runWebappPgText(`DELETE FROM user_web_push_subscriptions WHERE user_id = $1::uuid`, [
-        userId,
-      ]);
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`DELETE FROM user_web_push_subscriptions WHERE user_id = ${userId}::uuid`,
+      );
     },
 
     async hasAnyForUserId(userId) {
-      const res = await runWebappPgText(
-        `SELECT 1 FROM user_web_push_subscriptions WHERE user_id = $1::uuid LIMIT 1`,
-        [userId],
+      const res = await runWebappSql(
+        getWebappSqlDb(),
+        sql`SELECT 1 FROM user_web_push_subscriptions WHERE user_id = ${userId}::uuid LIMIT 1`,
       );
       return res.rows.length > 0;
     },
 
     async listActiveByUserId(userId) {
-      const res = await runWebappPgText<{ endpoint: string; p256dh: string; auth: string }>(
-        `SELECT endpoint, p256dh, auth FROM user_web_push_subscriptions WHERE user_id = $1::uuid`,
-        [userId],
+      const res = await runWebappSql<{ endpoint: string; p256dh: string; auth: string }>(
+        getWebappSqlDb(),
+        sql`SELECT endpoint, p256dh, auth FROM user_web_push_subscriptions WHERE user_id = ${userId}::uuid`,
       );
       return res.rows.map(rowToPayload);
     },
@@ -150,9 +141,9 @@ export function createPgWebPushSubscriptionsPort(): WebPushSubscriptionsPort {
       if (getCurrentDbPrincipal()?.kind === 'patient') {
         return removeCurrentPatientSubscription(endpoint);
       }
-      const res = await runWebappPgText(
-        `DELETE FROM user_web_push_subscriptions WHERE user_id = $1::uuid AND endpoint = $2`,
-        [userId, endpoint],
+      const res = await runWebappSql(
+        getWebappSqlDb(),
+        sql`DELETE FROM user_web_push_subscriptions WHERE user_id = ${userId}::uuid AND endpoint = ${endpoint}`,
       );
       return (res.rowCount ?? 0) > 0;
     },

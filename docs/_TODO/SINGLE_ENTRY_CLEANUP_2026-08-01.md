@@ -169,16 +169,14 @@
          и после независимого FAIL ловит три найденных alias/computed обхода. Current exact check:
          `rg -l '\.query\s*(?:<[^>]+>)?\s*\(' apps/media-worker/src --glob '*.ts' --glob '!**/*.test.ts' |
          rg -v '/(runMediaWorkerSql|withClient)\.ts$' | wc -l` → `0`.
-   - [ ] **Отдельно остаётся SQL как текст, но работа УЖЕ НАЧАТА.** Порт исполняет legacy `$1..$n`, а не
-         построитель; census и несколько Drizzle-конверсий приземлены. Исторический AST-замер из удалённого
-         run-artifact давал webapp
-         `{candidateFiles:71, invocationFiles:70, semanticCalls:509}` против исходных `88/87/557`.
-         ⚠️ **ФАКТ УСТАРЕЛ 2026-08-23:** последняя зафиксированная независимая сверка этой же команды дала
-         `{candidateFiles:72, invocationFiles:71, semanticCalls:513}`
-         (рабочий audit-artifact от 02.08 остаётся в истории Git). Числа выше исторические; перед любым новым
-         slice census нужно измерить заново, не брать их как scope.
-         Это другой большой объём; переводить небольшими целыми пользовательскими путями и не считать пункт 1
-         закрытым, пока категория «чистить» не дошла до нуля.
+   - [x] **SQL-текст внутри разрешённого DB-порта вычищен целыми пользовательскими путями.** Цепочка W5
+         `8508e0b2a`…`480e28a12`, независимый audit `31aabd1d0` и correction `addf1dfb4`: production-вызовов
+         `runWebappPgText`/`runPgPoolPgText` нет (`rg -n 'run(Webapp|PgPool)PgText' apps/webapp/src
+         --glob '!**/*.test.*' | wc -l` → `0`), сами мёртвые exports удалены. `node scripts/check-db-chokepoint.mjs`
+         и `node scripts/check-no-new-raw-sql.mjs` проходят; второй сообщает `production debt: 0`. AST-гейт
+         отдельно запрещает возврат hand-numbered `$n` в `infra/repos/**`, оставляя typed Drizzle fragments.
+         Audit-fix также закрыл два найденных поведенческих разрыва: запись массива тегов упражнения и
+         совпадение preview/apply meaningful-data guard; targeted evidence — 43 файла / 202 теста, typecheck и lint.
 2. **Ч7 — ЗАКРЫТО** land `c6b844bbc`, migrations `0300`–`0303`: значения настроек живут в базе,
    глобальное принуждение 2FA удалено, добровольный enrolled-factor guard сохранён.
 3. **Ч5 — закрыт на фактическом остатке после повторного замера** (`e4fd27bb6`; прежние числа 22 и 12

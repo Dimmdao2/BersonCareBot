@@ -1,5 +1,6 @@
 /**
- * Wave 3 phase 13C — domain SQL via `runWebappPgText`; canonical helpers still accept `getPool()`.
+ * Domain SQL as typed Drizzle fragments through `runWebappSql`; canonical helpers still accept
+ * `getPool()`.
  */
 import { getPool } from '@/infra/db/client';
 import { getDrizzle } from '@/app-layer/db/drizzle';
@@ -7,10 +8,10 @@ import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import {
   getWebappSqlDb,
   runWebappNamedRoot,
-  runWebappPgText,
+  runWebappSql,
   runWebappTransaction,
 } from '@/infra/db/runWebappSql';
-import { and, countDistinct, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { type SQL, and, countDistinct, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
 import type { ChannelBindings } from '@/shared/types/session';
 import type {
@@ -81,23 +82,19 @@ function rowToBindings(
 }
 
 function appendSqlOrganizationEnrollment(
-  input: { sql: string; params: unknown[] },
+  input: SQL,
   userColumn: string,
   organizationId?: string,
-): { sql: string; params: unknown[] } {
+): SQL {
   if (!organizationId) return input;
-  const params = [...input.params, organizationId];
-  return {
-    sql: `${input.sql}
+  return sql`${input}
       AND EXISTS (
         SELECT 1
         FROM org_enrollments oe_scope
-        WHERE oe_scope.platform_user_id = ${userColumn}
-          AND oe_scope.organization_id = $${params.length}::uuid
+        WHERE oe_scope.platform_user_id = ${sql.raw(userColumn)}
+          AND oe_scope.organization_id = ${organizationId}::uuid
           AND oe_scope.status = 'active'
-      )`,
-    params,
-  };
+      )`;
 }
 
 function sqlClientActivePredicate(organizationId?: string): string {
@@ -106,25 +103,17 @@ function sqlClientActivePredicate(organizationId?: string): string {
   return organizationId ? 'TRUE' : 'COALESCE(pu.is_archived, false) = false';
 }
 
-function appendSqlOrganizationColumn(
-  input: { sql: string; params: unknown[] },
-  columnSql: string,
-  organizationId?: string,
-): { sql: string; params: unknown[] } {
+function appendSqlOrganizationColumn(input: SQL, columnSql: string, organizationId?: string): SQL {
   if (!organizationId) return input;
-  const params = [...input.params, organizationId];
-  return {
-    sql: `${input.sql} AND ${columnSql} = $${params.length}::uuid`,
-    params,
-  };
+  return sql`${input} AND ${sql.raw(columnSql)} = ${organizationId}::uuid`;
 }
 
 function appendSqlPatientVisibility(
-  input: { sql: string; params: unknown[] },
+  input: SQL,
   userColumn: string,
   organizationId: string | undefined,
   actor: PatientVisibilityActor | undefined,
-): { sql: string; params: unknown[] } {
+): SQL {
   if (!organizationId) return input;
   if (!actor) throw new Error('patient_visibility_actor_required');
   return buildPatientVisibilityPredicate(input, userColumn, organizationId, actor);
@@ -264,24 +253,18 @@ async function loadClientMembershipMetrics(
 }
 
 /**
- * `${alias}.organization_id = $n::uuid`, binding `organizationId` onto the caller's mutable
- * `params` array at the position it lands (mirrors `appendSqlOrganizationColumn` above, which
- * does the same for a `{sql, params}` pair already built — this variant exists because the
- * three call sites below interpolate the predicate into a template literal *before* the base
- * query is wrapped as `{sql, params}`, so `params` is threaded in by reference instead).
- * Was `sqlLiteralUuid()` — a hand-escaped `'…'::uuid` literal glued into the query text; not
- * exploitable (quotes were escaped and the `::uuid` cast rejects non-UUID text) but it invited
- * the same shortcut for a value without that cast. See
+ * `<alias>.organization_id = <bound>::uuid`, or `TRUE` platform-wide. The alias is caller-owned
+ * and stays raw; the organization id is bound. It used to push onto a mutable `params` array
+ * shared with the enclosing query, because the predicate was interpolated into the query text
+ * before that text was wrapped as `{sql, params}` — fragments compose directly, so the array is
+ * gone. Was `sqlLiteralUuid()` before that — a hand-escaped `'…'::uuid` literal glued into the
+ * query text; not exploitable (quotes were escaped and the `::uuid` cast rejects non-UUID text)
+ * but it invited the same shortcut for a value without that cast. See
  * `docs/_TODO/TEXT_SQL_TO_BUILDER_PLAN_2026-08-19.md` §0.3.
  */
-function canonicalAppointmentOrgPredicate(
-  alias: string,
-  organizationId: string | undefined,
-  params: unknown[],
-): string {
-  if (!organizationId) return 'TRUE';
-  params.push(organizationId);
-  return `${alias}.organization_id = $${params.length}::uuid`;
+function canonicalAppointmentOrgPredicate(alias: string, organizationId: string | undefined): SQL {
+  if (!organizationId) return sql`TRUE`;
+  return sql`${sql.raw(alias)}.organization_id = ${organizationId}::uuid`;
 }
 
 export function createPgDoctorClientsPort(): DoctorClientsPort {
@@ -295,46 +278,46 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
       const excluded = audience?.excludedUserIds ?? [];
       const organizationId = filters.organizationId ?? null;
-      const listBaseParams: unknown[] = [];
-      let listBase = `SELECT pu.id, ${FIO_SELECT}, ${CONTACTS.phoneNormalized} AS phone_normalized, pu.created_at, ${CONTACTS.email} AS email, ${CONTACTS.emailNormalized} AS email_normalized, ${CONTACTS.emailVerifiedAt} AS email_verified_at
+      let listBase = sql`SELECT pu.id, ${sql.raw(FIO_SELECT)}, ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized, pu.created_at, ${sql.raw(CONTACTS.email)} AS email, ${sql.raw(CONTACTS.emailNormalized)} AS email_normalized, ${sql.raw(CONTACTS.emailVerifiedAt)} AS email_verified_at
          FROM platform_users pu
-         ${USER_IDENTITY_FIO_JOIN}
-         ${USER_CONTACTS_PRIMARY_LATERALS}
+         ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+         ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
          WHERE pu.role = 'client' AND pu.merged_into_id IS NULL`;
       if (organizationId) {
-        listBaseParams.push(organizationId);
-        listBase += ` AND EXISTS (
+        // The enrollment-status set is chosen from these three literals here, never from input.
+        const enrollmentStatuses = sql.raw(
+          filters.archivedOnly === true
+            ? "= 'archived'"
+            : filters.includeArchived === true
+              ? "IN ('invited', 'active', 'archived')"
+              : "IN ('invited', 'active')",
+        );
+        listBase = sql`${listBase} AND EXISTS (
           SELECT 1
           FROM org_enrollments oe
           WHERE oe.platform_user_id = pu.id
-            AND oe.organization_id = $${listBaseParams.length}::uuid
-            AND oe.status ${
-              filters.archivedOnly === true
-                ? "= 'archived'"
-                : filters.includeArchived === true
-                  ? "IN ('invited', 'active', 'archived')"
-                  : "IN ('invited', 'active')"
-            }
+            AND oe.organization_id = ${organizationId}::uuid
+            AND oe.status ${enrollmentStatuses}
         )`;
       } else {
-        listBase += filters.archivedOnly === true
-          ? ` AND COALESCE(pu.is_archived, false) = true`
-          : ` AND COALESCE(pu.is_archived, false) = false`;
+        listBase =
+          filters.archivedOnly === true
+            ? sql`${listBase} AND COALESCE(pu.is_archived, false) = true`
+            : sql`${listBase} AND COALESCE(pu.is_archived, false) = false`;
       }
       // Apply userIds restriction when caller provides a specific set (e.g. conversations route).
       let listBaseWithUserIds = listBase;
       if (filters.userIds !== undefined && filters.userIds.length > 0) {
-        listBaseParams.push(filters.userIds);
-        listBaseWithUserIds = `${listBase} AND pu.id = ANY($${listBaseParams.length}::uuid[])`;
+        listBaseWithUserIds = sql`${listBase} AND pu.id = ANY(${sql.param(filters.userIds)}::uuid[])`;
       }
-      const listQ = appendSqlExcludeUserIds(listBaseWithUserIds, 'pu.id', excluded, listBaseParams);
+      const listQ = appendSqlExcludeUserIds(listBaseWithUserIds, 'pu.id', excluded);
       const visibleListQ = appendSqlPatientVisibility(
         listQ,
         'pu.id',
         organizationId ?? undefined,
         filters.visibilityActor,
       );
-      const clientRows = await runWebappPgText<{
+      const clientRows = await runWebappSql<{
         id: string;
         display_name: string | null;
         first_name: string | null;
@@ -345,16 +328,16 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         email: string | null;
         email_verified_at: string | null;
       }>(
-        `${visibleListQ.sql}
+        getWebappSqlDb(),
+        sql`${visibleListQ}
          ORDER BY display_name, id`,
-        visibleListQ.params,
       );
       if (clientRows.rows.length === 0) return [];
 
       const userIds = clientRows.rows.map((r) => r.id);
-      const bindingsRows = await runWebappPgText(
-        `SELECT user_id, channel_code, external_id, bot_blocked_at FROM user_channel_bindings WHERE user_id = ANY($1::uuid[])`,
-        [userIds],
+      const bindingsRows = await runWebappSql(
+        getWebappSqlDb(),
+        sql`SELECT user_id, channel_code, external_id, bot_blocked_at FROM user_channel_bindings WHERE user_id = ANY(${sql.param(userIds)}::uuid[])`,
       );
       const bindingsByUser = new Map<
         string | number,
@@ -382,14 +365,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         pwaActivityRows,
         webPushRows,
       ] = await Promise.all([
-        runWebappPgText<{
+        runWebappSql<{
           user_id: string;
           history_count: number;
           last_appointment_at: Date | string | null;
           active_count: number;
           visited_month_count: number;
         }>(
-          `WITH clinical_visit_agg AS (
+          getWebappSqlDb(),
+          sql`WITH clinical_visit_agg AS (
                SELECT
                  cv.patient_user_id,
                  COUNT(*)::int AS history_count,
@@ -400,8 +384,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                      AND cv.visited_at <= NOW()
                  )::int AS visited_month_count
                FROM clinical_visit cv
-               WHERE cv.patient_user_id = ANY($1::uuid[])
-                 AND ($2::uuid IS NULL OR cv.organization_id = $2::uuid)
+               WHERE cv.patient_user_id = ANY(${sql.param(userIds)}::uuid[])
+                 AND (${organizationId}::uuid IS NULL OR cv.organization_id = ${organizationId}::uuid)
                  AND cv.canonical_appointment_id IS NULL
                GROUP BY cv.patient_user_id
              )
@@ -410,26 +394,26 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                (
                  COUNT(DISTINCT bea.id) FILTER (
                    WHERE bea.deleted_at IS NULL
-                     AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
-                     AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
+                     AND bea.status NOT IN (${sql.raw(CANONICAL_CANCELLED_STATUS_SQL)})
+                     AND (${organizationId}::uuid IS NULL OR bea.organization_id = ${organizationId}::uuid)
                  )::int + COALESCE(cva.history_count, 0)
                )::int AS history_count,
                GREATEST(
                  MAX(bea.start_at) FILTER (
                    WHERE bea.deleted_at IS NULL
-                     AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+                     AND bea.status NOT IN (${sql.raw(CANONICAL_CANCELLED_STATUS_SQL)})
                      AND bea.start_at IS NOT NULL
                      AND bea.start_at <= NOW()
-                     AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
+                     AND (${organizationId}::uuid IS NULL OR bea.organization_id = ${organizationId}::uuid)
                  ),
                  cva.last_visit_at
                ) AS last_appointment_at,
                COUNT(DISTINCT bea.id) FILTER (
                  WHERE bea.deleted_at IS NULL
-                   AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+                   AND bea.status NOT IN (${sql.raw(CANONICAL_CANCELLED_STATUS_SQL)})
                    AND bea.start_at IS NOT NULL
                    AND bea.start_at >= NOW()
-                   AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
+                   AND (${organizationId}::uuid IS NULL OR bea.organization_id = ${organizationId}::uuid)
                )::int AS active_count,
                (
                  COUNT(DISTINCT bea.id) FILTER (
@@ -438,24 +422,24 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                      AND bea.start_at >= date_trunc('month', NOW())
                      AND bea.start_at < date_trunc('month', NOW()) + interval '1 month'
                      AND bea.start_at < NOW()
-                     AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
-                     AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
+                     AND bea.status NOT IN (${sql.raw(CANONICAL_CANCELLED_STATUS_SQL)})
+                     AND (${organizationId}::uuid IS NULL OR bea.organization_id = ${organizationId}::uuid)
                  )::int + COALESCE(cva.visited_month_count, 0)
                )::int AS visited_month_count
              FROM platform_users pu
              LEFT JOIN be_appointments bea ON bea.platform_user_id = pu.id
              LEFT JOIN clinical_visit_agg cva ON cva.patient_user_id = pu.id
-             WHERE pu.id = ANY($1::uuid[])
+             WHERE pu.id = ANY(${sql.param(userIds)}::uuid[])
              GROUP BY pu.id, cva.history_count, cva.last_visit_at, cva.visited_month_count`,
-          [userIds, organizationId],
         ),
         loadClientEventMetrics(userIds, organizationId),
-        runWebappPgText<{
+        runWebappSql<{
           user_id: string;
           conversation_count: number;
           unread_count: number;
         }>(
-          `SELECT
+          getWebappSqlDb(),
+          sql`SELECT
                sc.platform_user_id::text AS user_id,
                COUNT(DISTINCT sc.id)::int AS conversation_count,
                COUNT(m.id) FILTER (
@@ -464,27 +448,27 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                )::int AS unread_count
              FROM support_conversations sc
              LEFT JOIN support_conversation_messages m ON m.conversation_id = sc.id
-             WHERE sc.platform_user_id = ANY($1::uuid[])
-               AND ($2::uuid IS NULL OR sc.organization_id = $2::uuid)
+             WHERE sc.platform_user_id = ANY(${sql.param(userIds)}::uuid[])
+               AND (${organizationId}::uuid IS NULL OR sc.organization_id = ${organizationId}::uuid)
              GROUP BY sc.platform_user_id`,
-          [userIds, organizationId],
         ),
-        runWebappPgText<{ patient_user_id: string; instance_id: string }>(
-          `SELECT DISTINCT ON (patient_user_id)
+        runWebappSql<{ patient_user_id: string; instance_id: string }>(
+          getWebappSqlDb(),
+          sql`SELECT DISTINCT ON (patient_user_id)
                patient_user_id,
                id AS instance_id
              FROM treatment_program_instances
-             WHERE patient_user_id = ANY($1::uuid[])
+             WHERE patient_user_id = ANY(${sql.param(userIds)}::uuid[])
                AND status = 'active'
                AND assignment_source = 'doctor'
-               AND ($2::uuid IS NULL OR organization_id = $2::uuid)
+               AND (${organizationId}::uuid IS NULL OR organization_id = ${organizationId}::uuid)
              ORDER BY patient_user_id, updated_at DESC NULLS LAST`,
-          [userIds, organizationId],
         ),
         listOnSupportPatientUserIds(organizationId ?? undefined),
         filters.viewerUserId
-          ? runWebappPgText<{ patient_user_id: string; unread_comments_count: number }>(
-              `WITH active_items AS (
+          ? runWebappSql<{ patient_user_id: string; unread_comments_count: number }>(
+              getWebappSqlDb(),
+              sql`WITH active_items AS (
                    SELECT
                      tpi.patient_user_id,
                      tpsi.id AS stage_item_id
@@ -493,8 +477,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                    INNER JOIN treatment_program_instance_stage_items tpsi ON tpsi.stage_id = tps.id
                    WHERE tpi.status = 'active'
                      AND tpi.assignment_source = 'doctor'
-                     AND tpi.patient_user_id = ANY($1::uuid[])
-                     AND ($3::uuid IS NULL OR tpi.organization_id = $3::uuid)
+                     AND tpi.patient_user_id = ANY(${sql.param(userIds)}::uuid[])
+                     AND (${organizationId}::uuid IS NULL OR tpi.organization_id = ${organizationId}::uuid)
                      AND tpsi.status = 'active'
                      AND tpsi.item_type = 'exercise'
                  ),
@@ -519,40 +503,39 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                  INNER JOIN latest_by_item ON latest_by_item.instance_stage_item_id = ai.stage_item_id
                  LEFT JOIN program_item_discussion_reads r
                    ON r.instance_stage_item_id = ai.stage_item_id
-                  AND r.patient_user_id = $2::uuid
+                  AND r.patient_user_id = ${filters.viewerUserId}::uuid
                  GROUP BY ai.patient_user_id`,
-              [userIds, filters.viewerUserId, organizationId],
             )
           : Promise.resolve({
               rows: [] as { patient_user_id: string; unread_comments_count: number }[],
             }),
         loadClientMembershipMetrics(userIds, organizationId),
         // no_show_count from booking profile
-        runWebappPgText<{ user_id: string; no_show_count: number }>(
-          `SELECT
+        runWebappSql<{ user_id: string; no_show_count: number }>(
+          getWebappSqlDb(),
+          sql`SELECT
                platform_user_id::text AS user_id,
                COALESCE(no_show_count, 0)::int AS no_show_count
              FROM be_patient_booking_profiles
-             WHERE platform_user_id = ANY($1::uuid[])
-               AND ($2::uuid IS NULL OR organization_id = $2::uuid)`,
-          [userIds, organizationId],
+             WHERE platform_user_id = ANY(${sql.param(userIds)}::uuid[])
+               AND (${organizationId}::uuid IS NULL OR organization_id = ${organizationId}::uuid)`,
         ),
-        runWebappPgText<{ user_id: string }>(
-          `SELECT DISTINCT pah.user_id::text AS user_id
+        runWebappSql<{ user_id: string }>(
+          getWebappSqlDb(),
+          sql`SELECT DISTINCT pah.user_id::text AS user_id
              FROM product_analytics_user_hourly pah
-             WHERE pah.user_id = ANY($1::uuid[])
+             WHERE pah.user_id = ANY(${sql.param(userIds)}::uuid[])
                AND pah.entry_channel = 'pwa'`,
-          [userIds],
         ),
-        runWebappPgText<{ user_id: string }>(
-          `SELECT DISTINCT s.user_id::text AS user_id
+        runWebappSql<{ user_id: string }>(
+          getWebappSqlDb(),
+          sql`SELECT DISTINCT s.user_id::text AS user_id
              FROM user_web_push_subscriptions s
              LEFT JOIN user_channel_preferences p
                ON p.platform_user_id = s.user_id
               AND p.channel_code = 'web_push'
-             WHERE s.user_id = ANY($1::uuid[])
+             WHERE s.user_id = ANY(${sql.param(userIds)}::uuid[])
                AND COALESCE(p.is_enabled_for_notifications, true) = true`,
-          [userIds],
         ),
       ]);
 
@@ -727,7 +710,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
 
-      const rows = await runWebappPgText<{
+      const rows = await runWebappSql<{
         internal_id: string;
         id: string;
         record_at: Date | string | null;
@@ -741,7 +724,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         package_display_number: number | null;
         has_visit_record: boolean;
       }>(
-        `SELECT
+        getWebappSqlDb(),
+        sql`SELECT
            bea.id::text AS internal_id,
            bea.id::text AS id,
            bea.start_at AS record_at,
@@ -765,11 +749,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
          LEFT JOIN be_clinic_services svc ON svc.id = bea.service_id
          LEFT JOIN be_package_usages u ON u.id::text = bea.package_usage_ref
          LEFT JOIN be_patient_packages pp ON pp.id = u.patient_package_id
-         WHERE bea.platform_user_id = $1::uuid
+         WHERE bea.platform_user_id = ${canonicalId}::uuid
            AND bea.deleted_at IS NULL
-           AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
+           AND (${organizationId ?? null}::uuid IS NULL OR bea.organization_id = ${organizationId ?? null}::uuid)
          ORDER BY bea.start_at DESC`,
-        [canonicalId, organizationId ?? null],
       );
 
       const now = Date.now();
@@ -827,7 +810,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
 
       // Fetch identity
-      const userRow = await runWebappPgText<{
+      const userRow = await runWebappSql<{
         id: string;
         display_name: string | null;
         first_name: string | null;
@@ -842,44 +825,44 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         birth_date: string | null;
         gender: string | null;
       }>(
-        `SELECT pu.id, ${FIO_SELECT}, ${CONTACTS.phoneNormalized} AS phone_normalized, ${CONTACTS.email} AS email, ${CONTACTS.emailNormalized} AS email_normalized, ${CONTACTS.emailVerifiedAt} AS email_verified_at,
+        getWebappSqlDb(),
+        sql`SELECT pu.id, ${sql.raw(FIO_SELECT)}, ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized, ${sql.raw(CONTACTS.email)} AS email, ${sql.raw(CONTACTS.emailNormalized)} AS email_normalized, ${sql.raw(CONTACTS.emailVerifiedAt)} AS email_verified_at,
                 COALESCE(pu.is_blocked, false) AS is_blocked,
                 COALESCE(pu.is_archived, false) AS is_archived,
                 pu.role,
                 clinical_profile.birth_date::text AS birth_date,
                 clinical_profile.gender
          FROM platform_users pu
-         ${USER_IDENTITY_FIO_JOIN}
+         ${sql.raw(USER_IDENTITY_FIO_JOIN)}
          LEFT JOIN doctor_patient_support clinical_profile
            ON clinical_profile.patient_user_id = pu.id
-         ${USER_CONTACTS_PRIMARY_LATERALS}
-         WHERE pu.id = $1::uuid`,
-        [canonicalId],
+         ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
+         WHERE pu.id = ${canonicalId}::uuid`,
       );
       const ur = userRow.rows[0];
       if (!ur || ur.role !== 'client') return null;
 
       // Fetch channel bindings
-      const bindingsRows = await runWebappPgText<{
+      const bindingsRows = await runWebappSql<{
         channel_code: string;
         external_id: string;
         bot_blocked_at: string | null;
       }>(
-        `SELECT channel_code, external_id, bot_blocked_at FROM user_channel_bindings WHERE user_id = $1::uuid`,
-        [canonicalId],
+        getWebappSqlDb(),
+        sql`SELECT channel_code, external_id, bot_blocked_at FROM user_channel_bindings WHERE user_id = ${canonicalId}::uuid`,
       );
       const bindings = rowToBindings(bindingsRows.rows);
 
       // Есть ли переписка: хотя бы одно сообщение в любой беседе пациента
       // (даёт открыть чат даже без привязанного Telegram/MAX-канала).
-      const conversationRow = await runWebappPgText<{ has_conversation: boolean }>(
-        `SELECT EXISTS (
+      const conversationRow = await runWebappSql<{ has_conversation: boolean }>(
+        getWebappSqlDb(),
+        sql`SELECT EXISTS (
            SELECT 1
            FROM support_conversations sc
            JOIN support_conversation_messages m ON m.conversation_id = sc.id
-           WHERE sc.platform_user_id = $1::uuid
+           WHERE sc.platform_user_id = ${canonicalId}::uuid
          ) AS has_conversation`,
-        [canonicalId],
       );
       const hasConversation = conversationRow.rows[0]?.has_conversation ?? false;
 
@@ -887,17 +870,17 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const supportProfile = await getClientSupportProfile(canonicalId);
 
       // Lifetime no-show counter from booking profile
-      const noShowRows = await runWebappPgText<{ no_show_count: string }>(
-        `SELECT COALESCE(no_show_count, 0)::text AS no_show_count
+      const noShowRows = await runWebappSql<{ no_show_count: string }>(
+        getWebappSqlDb(),
+        sql`SELECT COALESCE(no_show_count, 0)::text AS no_show_count
          FROM be_patient_booking_profiles
-         WHERE platform_user_id = $1::uuid
+         WHERE platform_user_id = ${canonicalId}::uuid
          LIMIT 1`,
-        [canonicalId],
       );
       const noShowCount = parseInt(noShowRows.rows[0]?.no_show_count ?? '0', 10);
 
       // Fetch appointment stats
-      const apptRows = await runWebappPgText<{
+      const apptRows = await runWebappSql<{
         total_visits: string;
         cancellations_count: string;
         reschedules_count: string;
@@ -905,36 +888,36 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         next_appt_at: string | null;
         first_visit_at: string | null;
       }>(
-        `SELECT
+        getWebappSqlDb(),
+        sql`SELECT
            COUNT(DISTINCT bea.id) FILTER (
-             WHERE bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+             WHERE bea.status NOT IN (${sql.raw(CANONICAL_CANCELLED_STATUS_SQL)})
                AND bea.start_at IS NOT NULL
                AND bea.start_at < NOW()
            )::text AS total_visits,
            COUNT(DISTINCT bea.id) FILTER (
-             WHERE bea.status IN (${CANONICAL_CANCELLED_STATUS_SQL})
+             WHERE bea.status IN (${sql.raw(CANONICAL_CANCELLED_STATUS_SQL)})
            )::text AS cancellations_count,
            COUNT(DISTINCT r.id)::text AS reschedules_count,
            MAX(bea.start_at) FILTER (
-             WHERE bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+             WHERE bea.status NOT IN (${sql.raw(CANONICAL_CANCELLED_STATUS_SQL)})
                AND bea.start_at IS NOT NULL
                AND bea.start_at < NOW()
            ) AS last_visit_at,
            MIN(bea.start_at) FILTER (
-             WHERE bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+             WHERE bea.status NOT IN (${sql.raw(CANONICAL_CANCELLED_STATUS_SQL)})
                AND bea.start_at IS NOT NULL
                AND bea.start_at >= NOW()
            ) AS next_appt_at,
            MIN(bea.start_at) FILTER (
-             WHERE bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+             WHERE bea.status NOT IN (${sql.raw(CANONICAL_CANCELLED_STATUS_SQL)})
                AND bea.start_at IS NOT NULL
                AND bea.start_at < NOW()
            ) AS first_visit_at
          FROM be_appointments bea
          LEFT JOIN be_appointment_reschedules r ON r.appointment_id = bea.id
-         WHERE bea.platform_user_id = $1::uuid
+         WHERE bea.platform_user_id = ${canonicalId}::uuid
            AND bea.deleted_at IS NULL`,
-        [canonicalId],
       );
       const appt = apptRows.rows[0];
 
@@ -943,17 +926,17 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const reschedulesCount = parseInt(appt?.reschedules_count ?? '0', 10);
 
       // Fetch latest clinical_visit for this patient (for visitType + city)
-      const clinicalVisitRow = await runWebappPgText<{
+      const clinicalVisitRow = await runWebappSql<{
         visited_at: string;
         visit_type: string;
         location: string | null;
       }>(
-        `SELECT visited_at, visit_type, location
+        getWebappSqlDb(),
+        sql`SELECT visited_at, visit_type, location
          FROM clinical_visit
-         WHERE patient_user_id = $1::uuid
+         WHERE patient_user_id = ${canonicalId}::uuid
          ORDER BY visited_at DESC
          LIMIT 1`,
-        [canonicalId],
       );
       const latestClinical = clinicalVisitRow.rows[0] ?? null;
 
@@ -1057,15 +1040,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const excluded = audience?.excludedUserIds ?? [];
       const organizationId = audience?.organizationId;
 
-      const clientActivePredicate = sqlClientActivePredicate(organizationId);
-      const totalBase = `SELECT COUNT(*)::text AS c FROM platform_users pu WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND ${clientActivePredicate}`;
+      const clientActivePredicate = sql.raw(sqlClientActivePredicate(organizationId));
+      const totalBase = sql`SELECT COUNT(*)::text AS c FROM platform_users pu WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND ${clientActivePredicate}`;
       const totalQ = appendSqlOrganizationEnrollment(
-        appendSqlExcludeUserIds(totalBase, 'pu.id', excluded, []),
+        appendSqlExcludeUserIds(totalBase, 'pu.id', excluded),
         'pu.id',
         organizationId,
       );
 
-      const supportBase = `SELECT COUNT(*)::text AS c
+      const supportBase = sql`SELECT COUNT(*)::text AS c
            FROM doctor_patient_support dps
            INNER JOIN platform_users pu ON pu.id = dps.patient_user_id
            WHERE dps.on_support = true
@@ -1074,7 +1057,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND ${clientActivePredicate}`;
       const supportQ = appendSqlOrganizationColumn(
         appendSqlOrganizationEnrollment(
-          appendSqlExcludeUserIds(supportBase, 'pu.id', excluded, []),
+          appendSqlExcludeUserIds(supportBase, 'pu.id', excluded),
           'pu.id',
           organizationId,
         ),
@@ -1082,13 +1065,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         organizationId,
       );
 
-      const visitedParams: unknown[] = [];
-      const visitedOrgPredicate = canonicalAppointmentOrgPredicate(
-        'bea',
-        organizationId,
-        visitedParams,
-      );
-      const visitedBase = `SELECT COUNT(DISTINCT pu.id)::text AS c
+      const visitedOrgPredicate = canonicalAppointmentOrgPredicate('bea', organizationId);
+      const visitedBase = sql`SELECT COUNT(DISTINCT pu.id)::text AS c
            FROM platform_users pu
            INNER JOIN be_appointments bea ON bea.platform_user_id = pu.id
            WHERE pu.role = 'client'
@@ -1098,17 +1076,17 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND bea.start_at >= date_trunc('month', NOW())
              AND bea.start_at < date_trunc('month', NOW()) + interval '1 month'
              AND bea.start_at < NOW()
-             AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+             AND bea.status NOT IN (${sql.raw(CANONICAL_CANCELLED_STATUS_SQL)})
              AND bea.deleted_at IS NULL
              AND ${visitedOrgPredicate}`;
       const visitedQ = appendSqlOrganizationEnrollment(
-        appendSqlExcludeUserIds(visitedBase, 'pu.id', excluded, visitedParams),
+        appendSqlExcludeUserIds(visitedBase, 'pu.id', excluded),
         'pu.id',
         organizationId,
       );
 
       // «С программой»: хотя бы одна активная treatment_program_instances (doctor-assigned)
-      const withProgramBase = `SELECT COUNT(DISTINCT pu.id)::text AS c
+      const withProgramBase = sql`SELECT COUNT(DISTINCT pu.id)::text AS c
            FROM platform_users pu
            INNER JOIN treatment_program_instances tpi ON tpi.patient_user_id = pu.id
            WHERE pu.role = 'client'
@@ -1118,7 +1096,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND tpi.assignment_source = 'doctor'`;
       const withProgramQ = appendSqlOrganizationColumn(
         appendSqlOrganizationEnrollment(
-          appendSqlExcludeUserIds(withProgramBase, 'pu.id', excluded, []),
+          appendSqlExcludeUserIds(withProgramBase, 'pu.id', excluded),
           'pu.id',
           organizationId,
         ),
@@ -1129,29 +1107,20 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       // Legacy aggregate remains the source for past/future appointment segments.
       // UI-4b event and membership metrics are loaded through Drizzle below.
       // Один агрегирующий запрос на платформных клиентов
-      const aggParams: unknown[] = [];
-      const aggPastOrgPredicate = canonicalAppointmentOrgPredicate(
-        'bea',
-        organizationId,
-        aggParams,
-      );
-      const aggFutureOrgPredicate = canonicalAppointmentOrgPredicate(
-        'bea',
-        organizationId,
-        aggParams,
-      );
-      const aggBase = `SELECT
+      const aggPastOrgPredicate = canonicalAppointmentOrgPredicate('bea', organizationId);
+      const aggFutureOrgPredicate = canonicalAppointmentOrgPredicate('bea', organizationId);
+      const aggBase = sql`SELECT
            pu.id,
            COUNT(DISTINCT bea.id) FILTER (
              WHERE bea.deleted_at IS NULL
-               AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+               AND bea.status NOT IN (${sql.raw(CANONICAL_CANCELLED_STATUS_SQL)})
                AND bea.start_at IS NOT NULL
                AND bea.start_at < NOW()
                AND ${aggPastOrgPredicate}
            )::int AS past_count,
            COUNT(DISTINCT bea.id) FILTER (
              WHERE bea.deleted_at IS NULL
-               AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+               AND bea.status NOT IN (${sql.raw(CANONICAL_CANCELLED_STATUS_SQL)})
                AND bea.start_at IS NOT NULL
                AND bea.start_at >= NOW()
                AND ${aggFutureOrgPredicate}
@@ -1162,7 +1131,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            AND pu.merged_into_id IS NULL
            AND ${clientActivePredicate}`;
       const aggQ = appendSqlOrganizationEnrollment(
-        appendSqlExcludeUserIds(aggBase, 'pu.id', excluded, aggParams),
+        appendSqlExcludeUserIds(aggBase, 'pu.id', excluded),
         'pu.id',
         organizationId,
       );
@@ -1198,16 +1167,17 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         audience?.visibilityActor,
       );
 
+      const db = getWebappSqlDb();
       const [totalR, supportR, visitedR, withProgramR, aggR] = await Promise.all([
-        runWebappPgText<{ c: string }>(visibleTotalQ.sql, visibleTotalQ.params),
-        runWebappPgText<{ c: string }>(visibleSupportQ.sql, visibleSupportQ.params),
-        runWebappPgText<{ c: string }>(visibleVisitedQ.sql, visibleVisitedQ.params),
-        runWebappPgText<{ c: string }>(visibleWithProgramQ.sql, visibleWithProgramQ.params),
-        runWebappPgText<{
+        runWebappSql<{ c: string }>(db, visibleTotalQ),
+        runWebappSql<{ c: string }>(db, visibleSupportQ),
+        runWebappSql<{ c: string }>(db, visibleVisitedQ),
+        runWebappSql<{ c: string }>(db, visibleWithProgramQ),
+        runWebappSql<{
           id: string;
           past_count: number;
           future_count: number;
-        }>(`${visibleAggQ.sql} GROUP BY pu.id`, visibleAggQ.params),
+        }>(db, sql`${visibleAggQ} GROUP BY pu.id`),
       ]);
 
       const eligibleUserIds = aggR.rows.map((row) => row.id);
@@ -1256,9 +1226,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async getPatientClientIdentity(userId: string): Promise<ClientIdentity | null> {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
-      const roleRow = await runWebappPgText<{ role: string }>(
-        `SELECT role FROM platform_users WHERE id = $1::uuid`,
-        [canonicalId],
+      const roleRow = await runWebappSql<{ role: string }>(
+        getWebappSqlDb(),
+        sql`SELECT role FROM platform_users WHERE id = ${canonicalId}::uuid`,
       );
       if (!roleRow.rows[0] || roleRow.rows[0].role !== 'client') return null;
       return this.getClientIdentity(userId);
@@ -1272,24 +1242,21 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
       const visibleIdentityQuery = buildPatientVisibilityPredicate(
-        {
-          sql: `SELECT pu.id, oe.status AS enrollment_status
+        sql`SELECT pu.id, oe.status AS enrollment_status
          FROM platform_users pu
          INNER JOIN org_enrollments oe
            ON oe.platform_user_id = pu.id
-          AND oe.organization_id = $2::uuid
-         WHERE pu.id = $1::uuid
+          AND oe.organization_id = ${organizationId}::uuid
+         WHERE pu.id = ${canonicalId}::uuid
            AND pu.role = 'client'
            AND oe.status IN ('invited', 'active', 'archived')`,
-          params: [canonicalId, organizationId],
-        },
         'pu.id',
         organizationId,
         actor,
       );
-      const membershipRow = await runWebappPgText<{ id: string; enrollment_status: string }>(
-        visibleIdentityQuery.sql,
-        visibleIdentityQuery.params,
+      const membershipRow = await runWebappSql<{ id: string; enrollment_status: string }>(
+        getWebappSqlDb(),
+        visibleIdentityQuery,
       );
       if (!membershipRow.rows[0]) return null;
       const identity = await this.getClientIdentity(canonicalId);
@@ -1299,9 +1266,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     },
 
     async getPlatformUserRole(userId: string): Promise<string | null> {
-      const roleRow = await runWebappPgText<{ role: string }>(
-        `SELECT role FROM platform_users WHERE id = $1::uuid`,
-        [userId],
+      const roleRow = await runWebappSql<{ role: string }>(
+        getWebappSqlDb(),
+        sql`SELECT role FROM platform_users WHERE id = ${userId}::uuid`,
       );
       return roleRow.rows[0]?.role ?? null;
     },
@@ -1309,17 +1276,17 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
-      const userRow = await runWebappPgText(
-        `SELECT pu.id, ${FIO.displayName} AS display_name, ${CONTACTS.phoneNormalized} AS phone_normalized, pu.created_at,
-                ${FIO.firstName} AS first_name, ${FIO.lastName} AS last_name, ${CONTACTS.email} AS email, ${CONTACTS.emailVerifiedAt} AS email_verified_at,
+      const userRow = await runWebappSql(
+        getWebappSqlDb(),
+        sql`SELECT pu.id, ${sql.raw(FIO.displayName)} AS display_name, ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized, pu.created_at,
+                ${sql.raw(FIO.firstName)} AS first_name, ${sql.raw(FIO.lastName)} AS last_name, ${sql.raw(CONTACTS.email)} AS email, ${sql.raw(CONTACTS.emailVerifiedAt)} AS email_verified_at,
                 COALESCE(pu.is_blocked, false) AS is_blocked,
                 pu.blocked_reason,
                 COALESCE(pu.is_archived, false) AS is_archived
          FROM platform_users pu
-         ${USER_IDENTITY_FIO_JOIN}
-         ${USER_CONTACTS_PRIMARY_LATERALS}
-         WHERE pu.id = $1`,
-        [canonicalId],
+         ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+         ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
+         WHERE pu.id = ${canonicalId}`,
       );
       if (userRow.rows.length === 0) return null;
       const r = userRow.rows[0] as {
@@ -1335,9 +1302,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         blocked_reason: string | null;
         is_archived: boolean;
       };
-      const bindingsRows = await runWebappPgText(
-        'SELECT channel_code, external_id, created_at FROM user_channel_bindings WHERE user_id = $1',
-        [canonicalId],
+      const bindingsRows = await runWebappSql(
+        getWebappSqlDb(),
+        sql`SELECT channel_code, external_id, created_at FROM user_channel_bindings WHERE user_id = ${canonicalId}`,
       );
       const bindings = rowToBindings(
         bindingsRows.rows as { channel_code: string; external_id: string }[],
@@ -1372,9 +1339,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     },
 
     async isClientMessagingBlocked(userId: string): Promise<boolean> {
-      const r = await runWebappPgText<{ b: boolean }>(
-        `SELECT COALESCE(is_blocked, false) AS b FROM platform_users WHERE id = $1`,
-        [userId],
+      const r = await runWebappSql<{ b: boolean }>(
+        getWebappSqlDb(),
+        sql`SELECT COALESCE(is_blocked, false) AS b FROM platform_users WHERE id = ${userId}`,
       );
       return Boolean(r.rows[0]?.b);
     },
@@ -1386,40 +1353,80 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       actorId: string;
     }): Promise<void> {
       if (params.blocked) {
-        const result = await runWebappPgText(
-          `UPDATE platform_users SET
+        const result = await runWebappSql(
+          getWebappSqlDb(),
+          sql`UPDATE platform_users SET
              is_blocked = true,
              session_epoch = session_epoch + CASE WHEN COALESCE(is_blocked, false) THEN 0 ELSE 1 END,
              blocked_at = now(),
-             blocked_reason = $2,
-             blocked_by = $3::uuid,
+             blocked_reason = ${params.reason},
+             blocked_by = ${params.actorId}::uuid,
              updated_at = now()
-           WHERE id = $1::uuid AND role = 'client'`,
-          [params.userId, params.reason, params.actorId],
+           WHERE id = ${params.userId}::uuid AND role = 'client'`,
         );
         if ((result.rowCount ?? 0) !== 1) throw new Error('patient_not_available');
       } else {
-        const result = await runWebappPgText(
-          `UPDATE platform_users SET
+        const result = await runWebappSql(
+          getWebappSqlDb(),
+          sql`UPDATE platform_users SET
              is_blocked = false,
              blocked_at = NULL,
              blocked_reason = NULL,
              blocked_by = NULL,
              updated_at = now()
-           WHERE id = $1::uuid AND role = 'client'`,
-          [params.userId],
+           WHERE id = ${params.userId}::uuid AND role = 'client'`,
         );
         if ((result.rowCount ?? 0) !== 1) throw new Error('patient_not_available');
       }
     },
 
     async applyPlatformSupportAccountAction(input): Promise<{ changed: boolean }> {
-      const args: [string, string, string | null, boolean | null, string | null, string | null, string | null, string | null, string | null] =
+      const args: [
+        string,
+        string,
+        string | null,
+        boolean | null,
+        string | null,
+        string | null,
+        string | null,
+        string | null,
+        string | null,
+      ] =
         input.action === 'set_blocked'
-          ? ['set_blocked', input.userId, input.actorId, input.blocked, input.reason, null, null, null, null]
+          ? [
+              'set_blocked',
+              input.userId,
+              input.actorId,
+              input.blocked,
+              input.reason,
+              null,
+              null,
+              null,
+              null,
+            ]
           : input.action === 'revoke_contact'
-            ? ['revoke_contact', input.userId, null, null, null, input.contactKind, input.valueNormalized, null, null]
-            : ['revoke_channel_binding', input.userId, null, null, null, null, null, input.channelCode, input.externalId];
+            ? [
+                'revoke_contact',
+                input.userId,
+                null,
+                null,
+                null,
+                input.contactKind,
+                input.valueNormalized,
+                null,
+                null,
+              ]
+            : [
+                'revoke_channel_binding',
+                input.userId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                input.channelCode,
+                input.externalId,
+              ];
 
       const result = await runWebappNamedRoot<{ changed: boolean }>(
         getWebappSqlDb(),
@@ -1468,38 +1475,35 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       userId: string,
       names: { firstName?: string | null; lastName?: string | null; patronymic?: string | null },
     ): Promise<void> {
-      const sets: string[] = [];
-      const params: unknown[] = [userId];
-      let firstNameExpr = 'first_name';
-      let lastNameExpr = 'last_name';
-      let patronymicExpr = 'patronymic';
+      // `display_name` is recomputed from the values this statement is about to write, so each
+      // name expression is either the incoming bound value or the column left untouched.
+      const sets: SQL[] = [];
+      let firstNameExpr = sql`first_name`;
+      let lastNameExpr = sql`last_name`;
+      let patronymicExpr = sql`patronymic`;
       if (names.firstName !== undefined) {
-        params.push(names.firstName);
-        sets.push(`first_name = $${params.length}`);
-        firstNameExpr = `$${params.length}::text`;
+        firstNameExpr = sql`${names.firstName}::text`;
+        sets.push(sql`first_name = ${names.firstName}`);
       }
       if (names.lastName !== undefined) {
-        params.push(names.lastName);
-        sets.push(`last_name = $${params.length}`);
-        lastNameExpr = `$${params.length}::text`;
+        lastNameExpr = sql`${names.lastName}::text`;
+        sets.push(sql`last_name = ${names.lastName}`);
       }
       if (names.patronymic !== undefined) {
-        params.push(names.patronymic);
-        sets.push(`patronymic = $${params.length}`);
-        patronymicExpr = `$${params.length}::text`;
+        patronymicExpr = sql`${names.patronymic}::text`;
+        sets.push(sql`patronymic = ${names.patronymic}`);
       }
       if (sets.length === 0) return;
-      sets.push(`display_name = COALESCE(NULLIF(concat_ws(' ',
+      sets.push(sql`display_name = COALESCE(NULLIF(concat_ws(' ',
           ${lastNameExpr},
           ${firstNameExpr},
           ${patronymicExpr}
         ), ''), '')`);
       await runWebappTransaction(async (tx) => {
-        await runWebappPgText(
-          `UPDATE platform_users SET ${sets.join(', ')}, updated_at = now()
-           WHERE id = $1::uuid AND role = 'client'`,
-          params,
+        await runWebappSql(
           tx,
+          sql`UPDATE platform_users SET ${sql.join(sets, sql`, `)}, updated_at = now()
+           WHERE id = ${userId}::uuid AND role = 'client'`,
         );
         await syncUserIdentityFioMirrorWebapp(tx, userId);
       });
@@ -1525,18 +1529,17 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     }) {
       const excluded = audience?.excludedUserIds ?? [];
       const organizationId = audience?.organizationId;
-      const clientActivePredicate = sqlClientActivePredicate(organizationId);
-      const contactParams: unknown[] = [];
+      const clientActivePredicate = sql.raw(sqlClientActivePredicate(organizationId));
       const appointmentOrgFilter = organizationId
-        ? `AND ${canonicalAppointmentOrgPredicate('bea', organizationId, contactParams)}`
-        : '';
-      const base = `SELECT
-           ${sqlActiveTelegramBinding('pu.id')} AS has_telegram,
-           ${sqlActiveMaxBinding('pu.id')} AS has_max,
-           ${sqlMessengerBotBlocked('pu.id', 'telegram')} AS telegram_bot_blocked,
-           ${sqlMessengerBotBlocked('pu.id', 'max')} AS max_bot_blocked,
-           (${CONTACTS.emailVerifiedAt} IS NOT NULL) AS has_verified_email,
-           ${CONTACTS_HAS_PHONE} AS has_phone,
+        ? sql`AND ${canonicalAppointmentOrgPredicate('bea', organizationId)}`
+        : sql``;
+      const base = sql`SELECT
+           ${sql.raw(sqlActiveTelegramBinding('pu.id'))} AS has_telegram,
+           ${sql.raw(sqlActiveMaxBinding('pu.id'))} AS has_max,
+           ${sql.raw(sqlMessengerBotBlocked('pu.id', 'telegram'))} AS telegram_bot_blocked,
+           ${sql.raw(sqlMessengerBotBlocked('pu.id', 'max'))} AS max_bot_blocked,
+           (${sql.raw(CONTACTS.emailVerifiedAt)} IS NOT NULL) AS has_verified_email,
+           ${sql.raw(CONTACTS_HAS_PHONE)} AS has_phone,
            EXISTS(
              SELECT 1
              FROM be_appointments bea
@@ -1545,12 +1548,12 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                ${appointmentOrgFilter}
            ) AS has_appointment
          FROM platform_users pu
-         ${USER_CONTACTS_PRIMARY_LATERALS}
+         ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
          WHERE pu.role = 'client'
            AND pu.merged_into_id IS NULL
            AND ${clientActivePredicate}`;
       const q = appendSqlOrganizationEnrollment(
-        appendSqlExcludeUserIds(base, 'pu.id', excluded, contactParams),
+        appendSqlExcludeUserIds(base, 'pu.id', excluded),
         'pu.id',
         organizationId,
       );
@@ -1560,7 +1563,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         organizationId,
         audience?.visibilityActor,
       );
-      const rows = await runWebappPgText<{
+      const rows = await runWebappSql<{
         has_telegram: boolean;
         has_max: boolean;
         telegram_bot_blocked: boolean;
@@ -1568,7 +1571,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         has_verified_email: boolean;
         has_phone: boolean;
         has_appointment: boolean;
-      }>(visibleQ.sql, visibleQ.params);
+      }>(getWebappSqlDb(), visibleQ);
       const breakdown = emptyClientContactBreakdown();
       for (const row of rows.rows) {
         accumulateClientContactBreakdown(breakdown, {

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
 
 /**
  * Правило владельца 19.08, дословно: «я запретил бронировать имя и slug клиники до момента создания
@@ -10,10 +11,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * нигде не занимается, и что перехваченное имя возвращается ошибкой ИМЕНИ.
  */
 
-const runWebappPgText = vi.fn();
+const runWebappSql = vi.fn();
 
 vi.mock('@/infra/db/runWebappSql', () => ({
-  runWebappPgText: (...args: unknown[]) => runWebappPgText(...args),
+  getWebappSqlDb: () => ({}),
+  runWebappNamedRoot: vi.fn(),
+  runWebappSql: (...args: unknown[]) => runWebappSql(...args),
   runWebappTransaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({}),
 }));
 
@@ -28,16 +31,18 @@ const intent = {
 };
 
 function invokedSql(): string {
-  return runWebappPgText.mock.calls.map((call) => String(call[0])).join('\n');
+  return runWebappSql.mock.calls
+    .map((call) => drizzleSqlFragmentToPgQuery(call[1]).sql)
+    .join('\n');
 }
 
 beforeEach(() => {
-  runWebappPgText.mockReset();
+  runWebappSql.mockReset();
 });
 
 describe('имя клиники не занимается до создания аккаунта', () => {
   it('создание намерения не трогает пространство имён адресов', async () => {
-    runWebappPgText.mockResolvedValue({ rows: [] });
+    runWebappSql.mockResolvedValue({ rows: [] });
 
     await createPgOrganizationProvisioningPort().createSpecialistSignupIntent(intent);
 
@@ -51,7 +56,7 @@ describe('имя клиники не занимается до создания 
   });
 
   it('перехваченное имя — ошибка ИМЕНИ, а не общий отказ регистрации', async () => {
-    runWebappPgText.mockResolvedValue({
+    runWebappSql.mockResolvedValue({
       rows: [
         {
           ok: false,
@@ -75,7 +80,7 @@ describe('имя клиники не занимается до создания 
   });
 
   it('провал провижининга без причины не выдаёт себя за занятое имя', async () => {
-    runWebappPgText.mockResolvedValue({
+    runWebappSql.mockResolvedValue({
       rows: [
         {
           ok: false,

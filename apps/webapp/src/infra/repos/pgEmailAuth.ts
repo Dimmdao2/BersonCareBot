@@ -1,10 +1,11 @@
+import { sql } from 'drizzle-orm';
 import type { QueryResultRow } from 'pg';
 import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
 import {
-  runWebappPgText,
-  runWebappNamedRoot,
-  runWebappTransaction,
   getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappSql,
+  runWebappTransaction,
   webappSqlFromPgText,
   type WebappSqlTransactionExecutor,
 } from '@/infra/db/runWebappSql';
@@ -49,16 +50,22 @@ export async function startEmailChallengeInDb(params: {
   code: string;
   mailProfile: MailProfileRequest;
 }): Promise<{ challengeId: string | null; retryAfterSeconds: number }> {
-  const profileArgs =
+  const profile =
     params.mailProfile.kind === 'platform'
-      ? [params.mailProfile.kind, params.mailProfile.senderDisplayName, null, null, null]
-      : [
-          params.mailProfile.kind,
-          null,
-          params.mailProfile.organizationId,
-          params.mailProfile.clinicName,
-          params.mailProfile.platformName,
-        ];
+      ? {
+          kind: params.mailProfile.kind,
+          senderDisplayName: params.mailProfile.senderDisplayName,
+          organizationId: null,
+          clinicName: null,
+          platformName: null,
+        }
+      : {
+          kind: params.mailProfile.kind,
+          senderDisplayName: null,
+          organizationId: params.mailProfile.organizationId,
+          clinicName: params.mailProfile.clinicName,
+          platformName: params.mailProfile.platformName,
+        };
   const args = [
     params.userId,
     params.email,
@@ -66,10 +73,12 @@ export async function startEmailChallengeInDb(params: {
     params.expiresAt,
     params.purpose,
     params.code,
-    ...profileArgs,
+    profile.kind,
+    profile.senderDisplayName,
+    profile.organizationId,
+    profile.clinicName,
+    profile.platformName,
   ];
-  const query = `SELECT challenge_id::text, retry_after_seconds
-    FROM app.email_auth_start_challenge($1::uuid, $2, $3, $4::bigint, $5, $6, $7, $8, $9::uuid, $10, $11)`;
   const result = await runWebappNamedRoot<{
     challenge_id: string | null;
     retry_after_seconds: number | string;
@@ -77,7 +86,8 @@ export async function startEmailChallengeInDb(params: {
     getWebappSqlDb(),
     'app.email_auth_start_challenge(uuid,text,text,bigint,text,text,text,text,uuid,text,text)',
     args,
-    webappSqlFromPgText(query, args),
+    sql`SELECT challenge_id::text, retry_after_seconds
+    FROM app.email_auth_start_challenge(${params.userId}::uuid, ${params.email}, ${params.codeHash}, ${params.expiresAt}::bigint, ${params.purpose}, ${params.code}, ${profile.kind}, ${profile.senderDisplayName}, ${profile.organizationId}::uuid, ${profile.clinicName}, ${profile.platformName})`,
   );
   const row = result.rows[0];
   if (!row) throw new Error('email_auth_start_challenge_empty_result');
@@ -93,7 +103,11 @@ function mergeDbClientFromTx(tx: WebappSqlTransactionExecutor): PlatformMergeDbC
       queryText: string,
       values: unknown[] = [],
     ) {
-      const result = await runWebappPgText<R>(queryText, values, tx);
+      // `@bersoncare/platform-merge` is shared with the integrator and so cannot depend on the
+      // webapp's Drizzle port: it builds typed `sql` fragments and hands this client the `$n` text
+      // its own dialect compiled. Nothing here is hand-numbered — `webappSqlFromPgText` only puts
+      // that machine-generated text back on the Drizzle `execute` channel.
+      const result = await runWebappSql<R>(tx, webappSqlFromPgText(queryText, values));
       return { rows: result.rows, rowCount: result.rowCount };
     },
   };
@@ -103,9 +117,9 @@ export async function findEmailSendCooldown(
   userId: string,
   emailNormalized: string,
 ): Promise<Date | null> {
-  const cooldown = await runWebappPgText<{ last_sent_at: Date | string }>(
-    'SELECT last_sent_at FROM app.email_auth_find_email_send_cooldown($1::uuid, $2)',
-    [userId, emailNormalized],
+  const cooldown = await runWebappSql<{ last_sent_at: Date | string }>(
+    getWebappSqlDb(),
+    sql`SELECT last_sent_at FROM app.email_auth_find_email_send_cooldown(${userId}::uuid, ${emailNormalized})`,
   );
   const raw = cooldown.rows[0]?.last_sent_at;
   if (!raw) return null;
@@ -119,9 +133,7 @@ export async function deleteEmailChallengesForUser(userId: string): Promise<void
     getWebappSqlDb(),
     'app.email_auth_delete_email_challenges_for_user(uuid)',
     [userId],
-    webappSqlFromPgText('SELECT app.email_auth_delete_email_challenges_for_user($1::uuid)', [
-      userId,
-    ]),
+    sql`SELECT app.email_auth_delete_email_challenges_for_user(${userId}::uuid)`,
   );
 }
 
@@ -133,57 +145,57 @@ export async function insertEmailChallenge(params: {
   purpose: EmailChallengePurpose;
   code: string;
 }): Promise<{ challengeId: string; deliveryToken: string }> {
-  const ins = await runWebappPgText<{ id: string }>(
-    `SELECT app.email_auth_insert_email_challenge($1::uuid, $2, $3, $4::bigint)::text AS id`,
-    [params.userId, params.email, params.codeHash, params.expiresAt],
+  const ins = await runWebappSql<{ id: string }>(
+    getWebappSqlDb(),
+    sql`SELECT app.email_auth_insert_email_challenge(${params.userId}::uuid, ${params.email}, ${params.codeHash}, ${params.expiresAt}::bigint)::text AS id`,
   );
   const challengeId = ins.rows[0]!.id;
   // C-2 step 4: purpose is stamped via a SEPARATE, NEW accessor rather than a 5th insert argument --
   // app.email_auth_insert_email_challenge's 4-arg signature is pinned by exact arg-type list across
   // deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql's GRANT/REVOKE lines (see migration
   // 0249's header). This runs in the same request, immediately after the row exists.
-  await runWebappPgText('SELECT app.email_auth_set_email_challenge_purpose($1::uuid, $2)', [
-    challengeId,
-    params.purpose,
-  ]);
+  await runWebappSql(
+    getWebappSqlDb(),
+    sql`SELECT app.email_auth_set_email_challenge_purpose(${challengeId}::uuid, ${params.purpose})`,
+  );
   // The legacy separate-insert helper still stamps the plaintext code and mints its ownership token.
   // The active request path uses startEmailChallengeInDb, which creates the challenge and enqueues
   // delivery atomically without these intermediate fields.
-  const codeIns = await runWebappPgText<{ delivery_token: string }>(
-    'SELECT app.email_auth_set_email_challenge_delivery_code($1::uuid, $2) AS delivery_token',
-    [challengeId, params.code],
+  const codeIns = await runWebappSql<{ delivery_token: string }>(
+    getWebappSqlDb(),
+    sql`SELECT app.email_auth_set_email_challenge_delivery_code(${challengeId}::uuid, ${params.code}) AS delivery_token`,
   );
   const deliveryToken = codeIns.rows[0]!.delivery_token;
   return { challengeId, deliveryToken };
 }
 
 export async function deleteEmailChallengeById(challengeId: string): Promise<void> {
-  await runWebappPgText('SELECT app.email_auth_delete_email_challenge_by_id($1::uuid)', [
-    challengeId,
-  ]);
+  await runWebappSql(
+    getWebappSqlDb(),
+    sql`SELECT app.email_auth_delete_email_challenge_by_id(${challengeId}::uuid)`,
+  );
 }
 
 export async function upsertEmailSendCooldown(
   userId: string,
   emailNormalized: string,
 ): Promise<void> {
-  await runWebappPgText(`SELECT app.email_auth_upsert_email_send_cooldown($1::uuid, $2)`, [
-    userId,
-    emailNormalized,
-  ]);
+  await runWebappSql(
+    getWebappSqlDb(),
+    sql`SELECT app.email_auth_upsert_email_send_cooldown(${userId}::uuid, ${emailNormalized})`,
+  );
 }
 
 export async function findEmailChallengeForConfirm(
   challengeId: string,
   userId: string,
 ): Promise<EmailChallengeRow | null> {
-  const query = `SELECT id::text, email, code_hash, expires_at::text, attempts::text, purpose
-     FROM app.email_auth_find_email_challenge_for_confirm($1::uuid, $2::uuid)`;
   const row = await runWebappNamedRoot<EmailChallengeRow>(
     getWebappSqlDb(),
     'app.email_auth_find_email_challenge_for_confirm(uuid,uuid)',
     [challengeId, userId],
-    webappSqlFromPgText(query, [challengeId, userId]),
+    sql`SELECT id::text, email, code_hash, expires_at::text, attempts::text, purpose
+     FROM app.email_auth_find_email_challenge_for_confirm(${challengeId}::uuid, ${userId}::uuid)`,
   );
   return row.rows[0] ?? null;
 }
@@ -201,10 +213,7 @@ export async function incrementEmailChallengeAttempts(challengeId: string): Prom
     getWebappSqlDb(),
     'app.email_auth_increment_email_challenge_attempts(uuid)',
     [challengeId],
-    webappSqlFromPgText(
-      'SELECT attempts FROM app.email_auth_increment_email_challenge_attempts($1::uuid)',
-      [challengeId],
-    ),
+    sql`SELECT attempts FROM app.email_auth_increment_email_challenge_attempts(${challengeId}::uuid)`,
   );
   const row = r.rows[0];
   return row ? Number(row.attempts) : null;
@@ -215,10 +224,7 @@ export async function findEmailOwnerConflict(userId: string, email: string): Pro
     getWebappSqlDb(),
     'app.email_auth_find_email_owner_conflict(uuid,text)',
     [userId, email],
-    webappSqlFromPgText('SELECT app.email_auth_find_email_owner_conflict($1::uuid, $2) AS conflict', [
-      userId,
-      email,
-    ]),
+    sql`SELECT app.email_auth_find_email_owner_conflict(${userId}::uuid, ${email}) AS conflict`,
   );
   return Boolean(conflict.rows[0]?.conflict);
 }
@@ -243,7 +249,7 @@ export async function verifyUserEmail(userId: string, email: string): Promise<vo
     getWebappSqlDb(),
     'app.email_auth_verify_user_email(uuid,text)',
     [userId, email],
-    webappSqlFromPgText('SELECT app.email_auth_verify_user_email($1::uuid, $2)', [userId, email]),
+    sql`SELECT app.email_auth_verify_user_email(${userId}::uuid, ${email})`,
   );
 }
 
@@ -267,23 +273,22 @@ export async function claimVerifiedEmail(
   try {
     return await runWithDbOrganizationPrincipal(organizationId, () =>
       runWebappTransaction(async (tx) => {
-        const users = await runWebappPgText<{
+        const users = await runWebappSql<{
           id: string;
           email_normalized: string | null;
           merged_into_id: string | null;
           role: string;
         }>(
-          `SELECT pu.id::text, email.value_normalized AS email_normalized,
+          tx,
+          sql`SELECT pu.id::text, email.value_normalized AS email_normalized,
                   pu.merged_into_id::text, pu.role::text
          FROM platform_users pu
          LEFT JOIN user_contacts email ON email.platform_user_id = pu.id
            AND email.contact_kind = 'email' AND email.is_primary = true
-         WHERE pu.id = $1::uuid
-            OR (email.value_normalized = $2 AND pu.merged_into_id IS NULL)
+         WHERE pu.id = ${userId}::uuid
+            OR (email.value_normalized = ${emailNormalized} AND pu.merged_into_id IS NULL)
          ORDER BY pu.id
          FOR UPDATE OF pu`,
-          [userId, emailNormalized],
-          tx,
         );
         const current = users.rows.find((row) => row.id === userId);
         if (!current || current.merged_into_id || current.role !== 'client') {
@@ -307,10 +312,9 @@ export async function claimVerifiedEmail(
           'email_bind',
           { mergeContext: { source: 'email_confirmation' } },
         );
-        await runWebappPgText(
-          'SELECT app.email_auth_verify_user_email($1::uuid, $2)',
-          [userId, email],
+        await runWebappSql(
           tx,
+          sql`SELECT app.email_auth_verify_user_email(${userId}::uuid, ${email})`,
         );
         return { ok: true, merged: true };
       }),
@@ -331,10 +335,10 @@ export async function findEmailChallengeForConsume(
   challengeId: string,
   userId: string,
 ): Promise<EmailChallengeCodeRow | null> {
-  const row = await runWebappPgText<EmailChallengeCodeRow>(
-    `SELECT id::text, code_hash, expires_at::text, attempts::text, purpose
-     FROM app.email_auth_find_email_challenge_for_consume($1::uuid, $2::uuid)`,
-    [challengeId, userId],
+  const row = await runWebappSql<EmailChallengeCodeRow>(
+    getWebappSqlDb(),
+    sql`SELECT id::text, code_hash, expires_at::text, attempts::text, purpose
+     FROM app.email_auth_find_email_challenge_for_consume(${challengeId}::uuid, ${userId}::uuid)`,
   );
   return row.rows[0] ?? null;
 }
@@ -343,10 +347,10 @@ export async function findLatestEmailChallengeForUser(
   userId: string,
   nowSec: number,
 ): Promise<EmailChallengeCodeRow | null> {
-  const row = await runWebappPgText<EmailChallengeCodeRow>(
-    `SELECT id::text, code_hash, expires_at::text, attempts::text, purpose
-     FROM app.email_auth_find_latest_email_challenge_for_user($1::uuid, $2::bigint)`,
-    [userId, nowSec],
+  const row = await runWebappSql<EmailChallengeCodeRow>(
+    getWebappSqlDb(),
+    sql`SELECT id::text, code_hash, expires_at::text, attempts::text, purpose
+     FROM app.email_auth_find_latest_email_challenge_for_user(${userId}::uuid, ${nowSec}::bigint)`,
   );
   return row.rows[0] ?? null;
 }
@@ -355,10 +359,10 @@ export async function findLatestPendingEmailChallengeForUser(
   userId: string,
   nowSec: number,
 ): Promise<EmailChallengeRow | null> {
-  const row = await runWebappPgText<EmailChallengeRow>(
-    `SELECT id::text, email, code_hash, expires_at::text, attempts::text, purpose
-     FROM app.email_auth_find_latest_pending_email_challenge_for_user($1::uuid, $2::bigint)`,
-    [userId, nowSec],
+  const row = await runWebappSql<EmailChallengeRow>(
+    getWebappSqlDb(),
+    sql`SELECT id::text, email, code_hash, expires_at::text, attempts::text, purpose
+     FROM app.email_auth_find_latest_pending_email_challenge_for_user(${userId}::uuid, ${nowSec}::bigint)`,
   );
   return row.rows[0] ?? null;
 }
@@ -372,12 +376,11 @@ export async function findLatestPendingEmailChallengeForUser(
 export async function findEmailOtpLock(
   userId: string,
 ): Promise<{ locked_until: string | number } | null> {
-  const query = 'SELECT locked_until FROM app.email_auth_find_email_otp_lock($1::uuid)';
   const row = await runWebappNamedRoot<{ locked_until: string | number }>(
     getWebappSqlDb(),
     'app.email_auth_find_email_otp_lock(uuid)',
     [userId],
-    webappSqlFromPgText(query, [userId]),
+    sql`SELECT locked_until FROM app.email_auth_find_email_otp_lock(${userId}::uuid)`,
   );
   return row.rows[0] ?? null;
 }
@@ -388,24 +391,22 @@ export async function findEmailOtpLock(
  * inside a single `INSERT ... ON CONFLICT DO UPDATE` -- see that function's comment for the formula.
  */
 export async function registerEmailOtpLockout(userId: string): Promise<number> {
-  const query = 'SELECT locked_until FROM app.email_auth_register_email_otp_lockout($1::uuid)';
   const r = await runWebappNamedRoot<{ locked_until: string | number }>(
     getWebappSqlDb(),
     'app.email_auth_register_email_otp_lockout(uuid)',
     [userId],
-    webappSqlFromPgText(query, [userId]),
+    sql`SELECT locked_until FROM app.email_auth_register_email_otp_lockout(${userId}::uuid)`,
   );
   return Number(r.rows[0]!.locked_until);
 }
 
 /** NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification. */
 export async function resetEmailOtpLockout(userId: string): Promise<void> {
-  const query = 'SELECT app.email_auth_reset_email_otp_lockout($1::uuid)';
   await runWebappNamedRoot(
     getWebappSqlDb(),
     'app.email_auth_reset_email_otp_lockout(uuid)',
     [userId],
-    webappSqlFromPgText(query, [userId]),
+    sql`SELECT app.email_auth_reset_email_otp_lockout(${userId}::uuid)`,
   );
 }
 

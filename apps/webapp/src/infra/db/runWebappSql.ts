@@ -111,30 +111,17 @@ export function webappSqlFromPgText(queryText: string, values: readonly unknown[
 }
 
 /**
- * Legacy `$1..$n` queries (Class B transport) on the unified Drizzle `execute`
- * channel. PostgreSQL arrays (`ANY($1::uuid[])`, `&& $1::text[]`) bind correctly
- * because `webappSqlFromPgText` wraps each value in `sql.param(...)`.
- *
- * NOTE: Drizzle's node-postgres `execute` returns `timestamp/timestamptz/date/
- * interval` columns as RAW STRINGS (it overrides the pg type parsers), not `Date`.
- * Normalize such fields with `toIsoStringSafe` / `nullableToIsoStringSafe` from
- * `@/shared/lib/toIsoStringSafe` when mapping rows.
+ * Typed Drizzle fragment on a bare `pg` pool/client (integrator purge pool, isolation-telemetry
+ * pool, legacy pool arguments). The fragment is compiled to `$n` text + params by the Drizzle
+ * dialect, so values are bound by Drizzle exactly as on the `execute` channel above; only the
+ * transport differs, because these call sites own a pool that is deliberately outside the
+ * request-scoped Drizzle port.
  */
-export async function runWebappPgText<T = unknown>(
-  queryText: string,
-  values: readonly unknown[] = [],
-  db: WebappSqlExecutor = getWebappSqlDb(),
-): Promise<WebappQueryResult<T>> {
-  return runWebappSql<T>(db, webappSqlFromPgText(queryText, values));
-}
-
-/** Class B transport: compile `sql` fragment → `pool.query` (integrator purge pool, legacy pool args). */
-export async function runPgPoolPgText<T extends QueryResultRow = QueryResultRow>(
+export async function runPgPoolSql<T extends QueryResultRow = QueryResultRow>(
   pool: Pick<Pool, 'query'>,
-  queryText: string,
-  values: readonly unknown[] = [],
+  fragment: SQL,
 ): Promise<WebappQueryResult<T>> {
-  const { sql: text, params } = pgDialect.sqlToQuery(webappSqlFromPgText(queryText, values));
+  const { sql: text, params } = pgDialect.sqlToQuery(fragment);
   const r = await pool.query<T>(text, params);
   const out: WebappQueryResult<T> = { rows: r.rows ?? [] };
   if (typeof r.rowCount === 'number') {

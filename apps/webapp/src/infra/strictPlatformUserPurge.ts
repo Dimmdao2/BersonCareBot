@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
 import { env } from '@/config/env';
@@ -5,7 +6,7 @@ import { isS3MediaEnabled } from '@/config/env';
 import { writeAuditLog } from '@/infra/adminAuditLog';
 import { getPool } from '@/infra/db/client';
 import { startPoolTransaction } from '@/infra/db/withClient';
-import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { runPgPoolSql } from '@/infra/db/runWebappSql';
 import { pgAdvisoryXactLock } from '@/infra/db/pgAdvisoryLock';
 import {
   PurgeIdentityRootConflictError,
@@ -64,14 +65,13 @@ type RunOpts = {
 };
 
 async function loadUserRow(pool: Pool, id: string): Promise<PurgePlatformUserRow | null> {
-  const userRes = await runPgPoolPgText<PurgePlatformUserRow>(
+  const userRes = await runPgPoolSql<PurgePlatformUserRow>(
     pool,
-    `SELECT pu.id,
+    sql`SELECT pu.id,
             (SELECT uc.value_normalized FROM user_contacts uc
              WHERE uc.platform_user_id = pu.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1) AS phone_normalized,
             pu.role
-     FROM platform_users pu WHERE pu.id = $1`,
-    [id],
+     FROM platform_users pu WHERE pu.id = ${id}`,
   );
   return userRes.rows[0] ?? null;
 }
@@ -139,9 +139,7 @@ async function runPostCommitArtifactCleanup(
         artifact.mediaFiles.some((m) => Boolean(m.s3Key));
       for (const m of artifact.mediaFiles) {
         try {
-          const r = await runPgPoolPgText(pool, `DELETE FROM media_files WHERE id = $1::uuid`, [
-            m.id,
-          ]);
+          const r = await runPgPoolSql(pool, sql`DELETE FROM media_files WHERE id = ${m.id}::uuid`);
           if ((r.rowCount ?? 0) > 0) details.mediaRowsDeleted += 1;
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -165,9 +163,7 @@ async function runPostCommitArtifactCleanup(
     for (const m of artifact.mediaFiles) {
       if (!m.s3Key || keyOk.get(m.s3Key) === true) {
         try {
-          const r = await runPgPoolPgText(pool, `DELETE FROM media_files WHERE id = $1::uuid`, [
-            m.id,
-          ]);
+          const r = await runPgPoolSql(pool, sql`DELETE FROM media_files WHERE id = ${m.id}::uuid`);
           if ((r.rowCount ?? 0) > 0) details.mediaRowsDeleted += 1;
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);

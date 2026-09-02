@@ -2,7 +2,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import {
   getWebappSqlDb,
   runWebappNamedRoot,
-  runWebappPgText,
+  runWebappSql,
   runWebappTransaction,
 } from '@/infra/db/runWebappSql';
 import type {
@@ -76,16 +76,9 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
     async createSpecialistSignupIntent(input) {
       try {
         await runWebappTransaction(async (tx) => {
-          await runWebappPgText(
-            `SELECT app.create_specialist_signup_intent($1::uuid, $2, $3, $4, $5)`,
-            [
-              input.challengeId,
-              input.emailNormalized,
-              input.organizationTitle,
-              input.specialistFullName,
-              input.organizationSlug,
-            ],
+          await runWebappSql(
             tx,
+            sql`SELECT app.create_specialist_signup_intent(${input.challengeId}::uuid, ${input.emailNormalized}, ${input.organizationTitle}, ${input.specialistFullName}, ${input.organizationSlug})`,
           );
         });
       } catch (error) {
@@ -96,8 +89,9 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
 
     async getPendingSpecialistSignupIntent({ userId, challengeId }) {
       return runWebappTransaction(async (tx) => {
-        const result = await runWebappPgText<SpecialistSignupIntentDbRow>(
-          `SELECT
+        const result = await runWebappSql<SpecialistSignupIntentDbRow>(
+          tx,
+          sql`SELECT
              id::text,
              user_id::text,
              challenge_id::text,
@@ -109,9 +103,7 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
              provisioned_organization_id::text,
              provisioned_specialist_id::text,
              provisioned_membership_id::text
-           FROM app.get_pending_specialist_signup_intent($1::uuid, $2::uuid)`,
-          [userId, challengeId],
-          tx,
+           FROM app.get_pending_specialist_signup_intent(${userId}::uuid, ${challengeId}::uuid)`,
         );
         return result.rows[0] ? mapIntentDbRow(result.rows[0]) : null;
       });
@@ -141,14 +133,13 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
 
     async getLatestSpecialistSignupIntentForUser() {
       return runWebappTransaction(async (tx) => {
-        const result = await runWebappPgText<SpecialistSignupIntentDbRow>(
-          `SELECT id::text, user_id::text, challenge_id::text, email_normalized,
+        const result = await runWebappSql<SpecialistSignupIntentDbRow>(
+          tx,
+          sql`SELECT id::text, user_id::text, challenge_id::text, email_normalized,
                   organization_title, organization_slug, specialist_full_name, status,
                   provisioned_organization_id::text, provisioned_specialist_id::text,
                   provisioned_membership_id::text
            FROM app.get_latest_specialist_signup_intent_for_user()`,
-          [],
-          tx,
         );
         return result.rows[0] ? mapIntentDbRow(result.rows[0]) : null;
       });
@@ -157,10 +148,9 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
     async replacePendingSpecialistSignupChallenge({ challengeId, organizationSlug }) {
       try {
         return await runWebappTransaction(async (tx) => {
-          const result = await runWebappPgText<{ replaced: boolean }>(
-            'SELECT app.replace_pending_specialist_signup_challenge($1::uuid, $2::text) AS replaced',
-            [challengeId, organizationSlug],
+          const result = await runWebappSql<{ replaced: boolean }>(
             tx,
+            sql`SELECT app.replace_pending_specialist_signup_challenge(${challengeId}::uuid, ${organizationSlug}::text) AS replaced`,
           );
           return result.rows[0]?.replaced === true;
         });
@@ -173,13 +163,13 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
     async provisionSpecialistOwner({ challengeId }) {
       try {
         return await runWebappTransaction(async (tx) => {
-          const result = await runWebappPgText<{
+          const result = await runWebappSql<{
             ok: boolean;
             code: string | null;
             organization_id: string | null;
             specialist_id: string | null;
             membership_id: string | null;
-          }>('SELECT * FROM app.provision_specialist_owner($1::uuid)', [challengeId], tx);
+          }>(tx, sql`SELECT * FROM app.provision_specialist_owner(${challengeId}::uuid)`);
           const row = result.rows[0];
           if (!row) {
             throw new Error('specialist_signup_provision_insert_failed');

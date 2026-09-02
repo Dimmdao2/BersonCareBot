@@ -181,6 +181,47 @@ function isGuardedLayerFile(rel) {
   return rel.endsWith('/route.ts') || rel.endsWith('/page.tsx') || rel.endsWith('/actions.ts');
 }
 
+function isReposDoorFile(rel) {
+  return rel.startsWith('apps/webapp/src/infra/repos/');
+}
+
+/** Literal text of a string/template node, or null for anything dynamic (identifiers, `sql` tag args, …). */
+function staticLiteralText(node) {
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
+  if (ts.isTemplateExpression(node)) {
+    return node.head.text + node.templateSpans.map((span) => span.literal.text).join('');
+  }
+  return null;
+}
+
+/**
+ * AST gate for `infra/repos/**`: that layer legitimately holds hundreds of Drizzle `sql`\`...\`
+ * fragments, so it cannot use the blanket `countLayerRawSqlMatches` ban `isGuardedLayerFile` uses.
+ * What must never come back there (W5 audit F3, `runWebappPgText`/`runPgPoolPgText`, deleted) is a
+ * hand-numbered `$n` placeholder baked into a STATIC string/template literal passed as a call
+ * argument — the fingerprint of Class B text transport regardless of what the wrapper is named.
+ * A tagged `sql\`...\`` template is a `TaggedTemplateExpression`, a different AST node, never a
+ * call argument, so legitimate fragments are structurally exempt without an allowlist.
+ */
+function inspectHandNumberedRawSqlLiterals(rel, src) {
+  const sourceFile = ts.createSourceFile(rel, src, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+  const offenders = [];
+  const visit = (node) => {
+    if (ts.isCallExpression(node)) {
+      for (const arg of node.arguments) {
+        const text = staticLiteralText(arg);
+        if (text && /\$\d+\b/.test(text)) {
+          offenders.push(`${rel} (hand-numbered "$n" literal in a call argument)`);
+          break;
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return offenders;
+}
+
 function countLayerRawSqlMatches(src) {
   return countRuntimeMatches(
     src,
@@ -195,11 +236,13 @@ function collectOffenders(files) {
   const callbackQueryOffenders = [];
   const roleSwitchOffenders = [];
   const mediaWorkerDbDoorOffenders = [];
+  const handNumberedSqlOffenders = [];
 
   for (const abs of files) {
     const rel = relative(repoRoot, abs).replace(/\\/g, '/');
     const src = readFileSync(abs, 'utf8');
     if (rel.startsWith('apps/media-worker/src/')) mediaWorkerDbDoorOffenders.push(...inspectMediaWorkerDbDoors(rel, src));
+    if (isReposDoorFile(rel)) handNumberedSqlOffenders.push(...inspectHandNumberedRawSqlLiterals(rel, src));
     const poolCount = countRuntimeMatches(src, /\bnew\s+(?:pg\.)?(?:Pg)?Pool\b/);
     if (
       poolCount > 0 &&
@@ -241,6 +284,7 @@ function collectOffenders(files) {
     callbackQueryOffenders,
     roleSwitchOffenders,
     mediaWorkerDbDoorOffenders,
+    handNumberedSqlOffenders,
   };
 }
 
@@ -315,6 +359,25 @@ if (process.argv.includes('--self-test')) {
     'apps/media-worker/src/control.ts',
     'export async function command() { return fetch(new URL("/api/internal/media-worker/control", "http://127.0.0.1")); }',
   ).length === 0;
+  const handNumberedSqlCases = [
+    'pool.query("SELECT * FROM x WHERE id = $1", [id]);',
+    'runWebappPgText("UPDATE x SET a = $1 WHERE id = $2", [a, id]);',
+    'client.query(`DELETE FROM x WHERE id = $1`, [id]);',
+  ];
+  const handNumberedSqlCasesRejected = handNumberedSqlCases.every(
+    (source, index) =>
+      inspectHandNumberedRawSqlLiterals(
+        `apps/webapp/src/infra/repos/self-test-${index}.ts`,
+        source,
+      ).length > 0,
+  );
+  // Negative control: a legitimate Drizzle `sql` fragment is a TaggedTemplateExpression, never a
+  // call argument, so it must NOT trip the gate even though it interpolates a bound value.
+  const legitimateSqlFragmentAccepted =
+    inspectHandNumberedRawSqlLiterals(
+      'apps/webapp/src/infra/repos/self-test-legit.ts',
+      'runWebappSql(tx, sql`SELECT * FROM x WHERE id = ${id}`);',
+    ).length === 0;
   if (
     poolOffenders.length === 1 &&
     connectOffenders.length === 1 &&
@@ -323,7 +386,9 @@ if (process.argv.includes('--self-test')) {
     roleSwitchOffenders.length === 1 &&
     mediaWorkerPoolInjected &&
     mediaDoorCasesRejected &&
-    canonicalHttpClientAccepted
+    canonicalHttpClientAccepted &&
+    handNumberedSqlCasesRejected &&
+    legitimateSqlFragmentAccepted
   ) {
     console.log('check-db-chokepoint self-test: OK');
     process.exit(0);
@@ -345,6 +410,7 @@ const {
   callbackQueryOffenders,
   roleSwitchOffenders,
   mediaWorkerDbDoorOffenders,
+  handNumberedSqlOffenders,
 } = collectOffenders(files);
 
 printOffenders('new Pool outside the two runtime port factories or explicit deploy-only provider:', poolOffenders);
@@ -353,6 +419,7 @@ printOffenders('raw SQL in guarded layers outside S5 allowlist:', layerRawSqlOff
 printOffenders('callback-form query outside the promise DB chokepoint:', callbackQueryOffenders);
 printOffenders('runtime role switching outside packages/db-principal:', roleSwitchOffenders);
 printOffenders('media-worker DB dependency/import door:', mediaWorkerDbDoorOffenders);
+printOffenders('hand-numbered "$n" raw SQL literal in infra/repos (Class B text transport is gone — use a Drizzle sql fragment):', handNumberedSqlOffenders);
 
 if (
   poolOffenders.length > 0 ||
@@ -360,7 +427,8 @@ if (
   layerRawSqlOffenders.length > 0 ||
   callbackQueryOffenders.length > 0 ||
   roleSwitchOffenders.length > 0 ||
-  mediaWorkerDbDoorOffenders.length > 0
+  mediaWorkerDbDoorOffenders.length > 0 ||
+  handNumberedSqlOffenders.length > 0
 ) {
   process.exit(1);
 }

@@ -9,10 +9,12 @@ vi.mock('@/infra/db/runWebappSql', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/infra/db/runWebappSql')>();
   return {
     ...actual,
-    runWebappPgText: queryMock,
+    getWebappSqlDb: () => ({}),
+    runWebappSql: queryMock,
   };
 });
 
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
 import { pgPatientBookingsPort } from './pgPatientBookings';
 
 /** Moscow wall 11:00 → UTC (STAGE_8 / MASTER_PLAN). */
@@ -23,7 +25,7 @@ describe('Stage 8 timezone contract (webapp PG repos)', () => {
     queryMock.mockReset();
   });
 
-  it('S8.T02: patient_bookings — createPending binds slot_start ($6) to canonical ISO', async () => {
+  it('S8.T02: patient_bookings — createPending binds slot_start to the canonical ISO', async () => {
     const slotEnd = '2026-04-07T09:00:00.000Z';
     queryMock
       .mockResolvedValueOnce({ rowCount: 0 })
@@ -75,10 +77,11 @@ describe('Stage 8 timezone contract (webapp PG repos)', () => {
       priceMinorSnapshot: null,
     });
     expect(queryMock).toHaveBeenCalledTimes(4);
-    const params = queryMock.mock.calls[3][1] as unknown[];
-    expect(params[5]).toBe(STAGE8_EXPECTED_MOSCOW_UTC_ISO);
-    const sql = queryMock.mock.calls[3][0] as string;
-    expect(sql).toContain('patient_bookings');
-    expect(sql).toContain('slot_start');
+    const insert = drizzleSqlFragmentToPgQuery(queryMock.mock.calls[3]![1]);
+    expect(insert.sql).toContain('patient_bookings');
+    expect(insert.sql).toContain('slot_start');
+    // The canonical instant travels as a bound value, never spliced into the statement text.
+    expect(insert.values).toContain(STAGE8_EXPECTED_MOSCOW_UTC_ISO);
+    expect(insert.sql).not.toContain(STAGE8_EXPECTED_MOSCOW_UTC_ISO);
   });
 });

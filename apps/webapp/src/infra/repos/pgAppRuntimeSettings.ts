@@ -1,9 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  runWebappPgText,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import type {
   RuntimeConfigAudience,
   RuntimeSettingRow,
@@ -45,17 +41,15 @@ function runtimeScope(
 ): SystemSettingScope | null {
   const definition = SYSTEM_SETTING_REGISTRY[key as SystemSettingKey];
   if (
-    definition
-    && definition.storage === 'runtime'
-    && allowedAudiences.includes(definition.audience)
+    definition &&
+    definition.storage === 'runtime' &&
+    allowedAudiences.includes(definition.audience)
   ) {
     return definition.scope;
   }
 
   const projectionSource = Object.values(SYSTEM_SETTING_REGISTRY).find(
-    (candidate) =>
-      candidate.clientSerialization === 'derived'
-      && candidate.safeProjection === key,
+    (candidate) => candidate.clientSerialization === 'derived' && candidate.safeProjection === key,
   );
   return projectionSource && allowedAudiences.includes('public') ? 'admin' : null;
 }
@@ -119,15 +113,10 @@ export function createPgAppRuntimeSettingsPort(): RuntimeSettingsRepository {
         return result.rows[0] ? toRuntimeSetting(result.rows[0]) : null;
       }
       const result = await runWithWebappDbOperationFamily(input.operationFamily, () =>
-        runWebappPgText<RuntimeSettingDbRow>(
-          `SELECT key, scope, organization_id, audience, value_json
-             FROM app.read_authenticated_runtime_setting($1, $2, $3::uuid, $4::boolean)`,
-          [
-            input.key,
-            input.scope,
-            input.organizationId,
-            input.allowGlobalFallback !== false,
-          ],
+        runWebappSql<RuntimeSettingDbRow>(
+          getWebappSqlDb(),
+          sql`SELECT key, scope, organization_id, audience, value_json
+             FROM app.read_authenticated_runtime_setting(${input.key}, ${input.scope}, ${input.organizationId}::uuid, ${input.allowGlobalFallback !== false}::boolean)`,
         ),
       );
       return result.rows[0] ? toRuntimeSetting(result.rows[0]) : null;

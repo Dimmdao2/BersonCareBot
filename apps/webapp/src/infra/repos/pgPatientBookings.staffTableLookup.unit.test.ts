@@ -9,7 +9,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
-  runWebappPgText: vi.fn(),
+  runWebappSql: vi.fn(),
   select: vi.fn(),
 }));
 
@@ -20,7 +20,7 @@ vi.mock('@/app-layer/db/drizzle', () => ({ getDrizzle: () => ({ select: fakes.se
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: vi.fn(),
   runWebappNamedRoot: vi.fn(),
-  runWebappPgText: fakes.runWebappPgText,
+  runWebappSql: fakes.runWebappSql,
 }));
 
 import { pgPatientBookingsPort } from './pgPatientBookings';
@@ -116,7 +116,7 @@ describe('pgPatientBookings staff table lookup (SELECT * removed, finding 0.2)',
     expect(chain.from).toHaveBeenCalledWith(patientBookings);
     expect(chain.limit).toHaveBeenCalledWith(1);
     expect(record).toEqual(EXPECTED_RECORD);
-    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
   });
 
   it('getById filters by id only and maps the schema row', async () => {
@@ -127,7 +127,7 @@ describe('pgPatientBookings staff table lookup (SELECT * removed, finding 0.2)',
 
     expect(chain.from).toHaveBeenCalledWith(patientBookings);
     expect(record).toEqual(EXPECTED_RECORD);
-    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
   });
 
   it('getByCanonicalAppointmentId filters by canonical_appointment_id and maps the schema row', async () => {
@@ -138,7 +138,7 @@ describe('pgPatientBookings staff table lookup (SELECT * removed, finding 0.2)',
 
     expect(chain.from).toHaveBeenCalledWith(patientBookings);
     expect(record).toEqual(EXPECTED_RECORD);
-    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
   });
 
   it('no matching row → null, same as an empty raw-SQL result set before', async () => {

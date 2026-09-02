@@ -8,7 +8,8 @@ import {
   runWithDbStaffPrincipal,
 } from '@bersoncare/db-principal';
 import { createWebappPoolProvider } from './webappPoolProvider';
-import { runPgPoolPgText } from './runWebappSql';
+import { sql } from 'drizzle-orm';
+import { runPgPoolSql } from './runWebappSql';
 import {
   createWebappPortContextRuntimeConfig,
   type PortCapabilityDescriptor,
@@ -148,7 +149,7 @@ describe('webapp port-context runtime', () => {
 
     const result = await runWithDbStaffPrincipal(
       { organizationId: ORG, platformUserId: USER },
-      () => runPgPoolPgText(pool, 'SELECT exact_client'),
+      () => runPgPoolSql(pool, sql`SELECT exact_client`),
     );
 
     expect(result.rows[0]).toHaveProperty('client');
@@ -199,7 +200,7 @@ describe('webapp port-context runtime', () => {
 
     await runWithDbStaffPrincipal(
       { organizationId: ORG, platformUserId: USER },
-      () => runPgPoolPgText(pool, 'SELECT exact_client'),
+      () => runPgPoolSql(pool, sql`SELECT exact_client`),
     );
 
     expect(resolverQueries).toEqual([
@@ -221,7 +222,7 @@ describe('webapp port-context runtime', () => {
     });
     await expect(
       runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () =>
-        runPgPoolPgText(pool, 'SELECT failure'),
+        runPgPoolSql(pool, sql`SELECT failure`),
       ),
     ).rejects.toThrow('clear failed');
     expect(log).toContain('ROLLBACK');
@@ -302,7 +303,7 @@ describe('webapp port-context runtime', () => {
     });
 
     await runWithDbPlatformPrincipal({ platformUserId: USER }, () =>
-      runPgPoolPgText(pool, 'SELECT platform_settings'),
+      runPgPoolSql(pool, sql`SELECT platform_settings`),
     );
 
     expect(selectedUrls).toEqual(['postgresql://global-admin/app']);
@@ -425,7 +426,7 @@ describe('webapp port-context runtime', () => {
     });
     await expect(
       runWithDbPatientPrincipal({ platformUserId: USER }, () =>
-        runPgPoolPgText(pool, 'SELECT must_not_run'),
+        runPgPoolSql(pool, sql`SELECT must_not_run`),
       ),
     ).resolves.toBeDefined();
     expect(log).toContain('SELECT must_not_run');
@@ -472,7 +473,7 @@ describe('webapp port-context runtime', () => {
           functionIdentity: named.functionIdentity!,
           typedArgs: [portTypedArg('uuid', USER)],
         },
-        () => runPgPoolPgText(pool, 'SELECT app.read_staff_profile($1::uuid)', [USER]),
+        () => runPgPoolSql(pool, sql`SELECT app.read_staff_profile(${USER}::uuid)`),
       ),
     );
     expect(installs).toHaveLength(2);
@@ -547,7 +548,7 @@ describe('webapp port-context runtime', () => {
       },
     });
     await runWithDbPatientPrincipal({ platformUserId: USER }, () =>
-      runPgPoolPgText(pool, 'SELECT patient_reads_own_row'),
+      runPgPoolSql(pool, sql`SELECT patient_reads_own_row`),
     );
 
     // Две поездки за личностью и одна установка человеческого контекста.
@@ -604,7 +605,7 @@ describe('webapp port-context runtime', () => {
       },
     });
     await runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () =>
-      runPgPoolPgText(pool, 'SELECT staff_reads_own_org'),
+      runPgPoolSql(pool, sql`SELECT staff_reads_own_org`),
     );
     expect(kindsAsked).toEqual(['actor']);
     expect(installs[1]?.[6]).toBe(OPAQUE_USER);
@@ -636,7 +637,7 @@ describe('webapp port-context runtime', () => {
           end: async () => undefined,
         }) as unknown as Pool,
     });
-    await expect(runPgPoolPgText(pool, 'SELECT 1')).rejects.toThrow(
+    await expect(runPgPoolSql(pool, sql`SELECT 1`)).rejects.toThrow(
       'A webapp principal is required',
     );
     expect(connects).toBe(0);
@@ -805,7 +806,7 @@ describe('webapp port-context runtime', () => {
       }),
     ).rejects.toThrow('certificate rejected');
     await runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () =>
-      runPgPoolPgText(provider, 'SELECT after_failed_rotation'),
+      runPgPoolSql(provider, sql`SELECT after_failed_rotation`),
     );
     expect(created[0]?.queries).toContain('SELECT after_failed_rotation');
     expect(created[0]?.endCalls).toBe(0);

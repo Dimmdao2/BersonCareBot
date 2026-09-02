@@ -1,5 +1,6 @@
+import { sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
-import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { runPgPoolSql } from '@/infra/db/runWebappSql';
 import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 
 const EMPTY = 'Имя не указано';
@@ -12,13 +13,12 @@ export async function fetchMergePartyDisplayLabels(
   targetId: string,
   duplicateId: string,
 ): Promise<{ targetDisplayName: string; duplicateDisplayName: string }> {
-  const r = await runPgPoolPgText<{ id: string; display_name: string | null }>(
+  const r = await runPgPoolSql<{ id: string; display_name: string | null }>(
     pool,
-    `SELECT pu.id::text AS id, ${FIO.displayName} AS display_name
+    sql`SELECT pu.id::text AS id, ${sql.raw(FIO.displayName)} AS display_name
      FROM platform_users pu
-     ${USER_IDENTITY_FIO_JOIN}
-     WHERE pu.id IN ($1::uuid, $2::uuid)`,
-    [targetId, duplicateId],
+     ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+     WHERE pu.id IN (${targetId}::uuid, ${duplicateId}::uuid)`,
   );
   const norm = (s: string | null | undefined) => {
     const t = s?.trim() ?? '';

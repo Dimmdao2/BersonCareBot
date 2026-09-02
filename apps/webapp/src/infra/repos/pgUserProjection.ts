@@ -9,8 +9,8 @@ import { nullableToIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import {
   getWebappSqlDb,
   getWebappSqlFromPgClient,
-  runWebappSql,
   runWebappNamedRoot,
+  runWebappSql,
   type WebappSqlExecutor,
 } from '@/infra/db/runWebappSql';
 import { MergeConflictError } from '@/infra/repos/platformUserMergeErrors';
@@ -38,11 +38,7 @@ import {
 } from '@/infra/repos/pgAdminClientProfileConflicts';
 import type { UserProjectionPort } from '@/modules/identity/ports';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-import {
-  platformUsers,
-  userContacts,
-  userNotificationTopics,
-} from '../../../db/schema/schema';
+import { platformUsers, userContacts, userNotificationTopics } from '../../../db/schema/schema';
 
 function txExecutor(client: PoolClient): WebappSqlExecutor {
   return getWebappSqlFromPgClient(client);
@@ -135,10 +131,22 @@ export const pgUserProjectionPort: UserProjectionPort = {
       }
       if (params.email !== undefined) {
         for (const row of updated) {
-          await mutateCanonicalUserContactsWebapp(client, row.id, params.email?.trim()
-            ? [{ action: 'upsert', kind: 'email', valueNormalized: params.email.trim().toLowerCase(),
-                isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' }]
-            : [{ action: 'remove', kind: 'email' }]);
+          await mutateCanonicalUserContactsWebapp(
+            client,
+            row.id,
+            params.email?.trim()
+              ? [
+                  {
+                    action: 'upsert',
+                    kind: 'email',
+                    valueNormalized: params.email.trim().toLowerCase(),
+                    isPrimary: true,
+                    confirmedAt: null,
+                    sourceOrigin: 'direct',
+                  },
+                ]
+              : [{ action: 'remove', kind: 'email' }],
+          );
         }
       }
     });
@@ -276,15 +284,21 @@ export const pgUserProjectionPort: UserProjectionPort = {
     if (email == null || email.trim() === '') {
       return { ok: false as const, reason: 'already_empty' as const };
     }
-    await mutateCanonicalUserContactsWebapp(db, platformUserId, [{ action: 'remove', kind: 'email' }]);
+    await mutateCanonicalUserContactsWebapp(db, platformUserId, [
+      { action: 'remove', kind: 'email' },
+    ]);
     return { ok: true as const };
   },
 
   async patchAdminClientProfile({ platformUserId, patch }) {
     const pool = getPool();
 
-    if (patch.firstName === undefined && patch.lastName === undefined
-      && patch.email === undefined && patch.phoneNormalized === undefined) {
+    if (
+      patch.firstName === undefined &&
+      patch.lastName === undefined &&
+      patch.email === undefined &&
+      patch.phoneNormalized === undefined
+    ) {
       return { ok: false as const, reason: 'nothing_to_update' as const };
     }
 
@@ -342,24 +356,37 @@ export const pgUserProjectionPort: UserProjectionPort = {
           await syncUserIdentityFioMirrorWebapp(client, platformUserId);
         }
 
-        if (
-          patch.phoneNormalized !== undefined ||
-          patch.email !== undefined
-        ) {
+        if (patch.phoneNormalized !== undefined || patch.email !== undefined) {
           const mutations = [];
           if (patch.phoneNormalized !== undefined) {
             const phone = patch.phoneNormalized?.trim();
-            mutations.push(phone
-              ? { action: 'upsert' as const, kind: 'phone' as const, valueNormalized: phone,
-                  isPrimary: true, confirmedAt: new Date().toISOString(), sourceOrigin: 'direct' as const }
-              : { action: 'remove' as const, kind: 'phone' as const });
+            mutations.push(
+              phone
+                ? {
+                    action: 'upsert' as const,
+                    kind: 'phone' as const,
+                    valueNormalized: phone,
+                    isPrimary: true,
+                    confirmedAt: new Date().toISOString(),
+                    sourceOrigin: 'direct' as const,
+                  }
+                : { action: 'remove' as const, kind: 'phone' as const },
+            );
           }
           if (patch.email !== undefined) {
             const email = patch.email?.trim().toLowerCase();
-            mutations.push(email
-              ? { action: 'upsert' as const, kind: 'email' as const, valueNormalized: email,
-                  isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' as const }
-              : { action: 'remove' as const, kind: 'email' as const });
+            mutations.push(
+              email
+                ? {
+                    action: 'upsert' as const,
+                    kind: 'email' as const,
+                    valueNormalized: email,
+                    isPrimary: true,
+                    confirmedAt: null,
+                    sourceOrigin: 'direct' as const,
+                  }
+                : { action: 'remove' as const, kind: 'email' as const },
+            );
           }
           await mutateCanonicalUserContactsWebapp(client, platformUserId, mutations);
         }

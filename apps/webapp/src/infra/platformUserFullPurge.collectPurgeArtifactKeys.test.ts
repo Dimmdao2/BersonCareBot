@@ -5,15 +5,17 @@
  * the named-DEV full-purge flow.
  */
 import { describe, expect, it, vi } from 'vitest';
+import type { SQL } from 'drizzle-orm';
 import type { PoolClient } from 'pg';
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
 
-const { runPurgeClientPgText } = vi.hoisted(() => ({
-  runPurgeClientPgText: vi.fn(),
+const { runPurgeClientSql } = vi.hoisted(() => ({
+  runPurgeClientSql: vi.fn(),
 }));
 
 vi.mock('@/infra/platformUserPurgeSql', () => ({
-  runPurgeClientPgText,
-  runPurgePoolPgText: vi.fn(),
+  runPurgeClientSql,
+  runPurgePoolSql: vi.fn(),
 }));
 
 import { collectPurgeArtifactKeys } from './platformUserFullPurge';
@@ -41,8 +43,8 @@ function mockRows(queryText: string): { rows: unknown[] } {
 
 describe('collectPurgeArtifactKeys — patient_files', () => {
   it('collects patient_files s3 keys and folds media-linked ones into mediaFiles', async () => {
-    runPurgeClientPgText.mockImplementation((_client: PoolClient, queryText: string) =>
-      Promise.resolve(mockRows(queryText)),
+    runPurgeClientSql.mockImplementation((_client: PoolClient, fragment: SQL) =>
+      Promise.resolve(mockRows(drizzleSqlFragmentToPgQuery(fragment).sql)),
     );
 
     const artifact = await collectPurgeArtifactKeys(fakeClient, USER_ID);
@@ -65,7 +67,8 @@ describe('collectPurgeArtifactKeys — patient_files', () => {
   });
 
   it('does not duplicate a media row already collected by the uploaded_by query', async () => {
-    runPurgeClientPgText.mockImplementation((_client: PoolClient, queryText: string) => {
+    runPurgeClientSql.mockImplementation((_client: PoolClient, fragment: SQL) => {
+      const queryText = drizzleSqlFragmentToPgQuery(fragment).sql;
       if (queryText.includes('online_intake_attachments')) return Promise.resolve({ rows: [] });
       if (queryText.includes('FROM media_files')) {
         return Promise.resolve({ rows: [{ id: 'shared-id', s3_key: 'patient-files/x/f.pdf' }] });

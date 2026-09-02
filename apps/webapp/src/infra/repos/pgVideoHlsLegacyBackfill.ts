@@ -1,6 +1,7 @@
+import { sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { getPool } from '@/infra/db/client';
-import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { runPgPoolSql } from '@/infra/db/runWebappSql';
 import {
   legacyHlsBackfillCandidateWhereClause,
   mediaReadableSql,
@@ -38,31 +39,26 @@ export function createPgVideoHlsLegacyBackfillReadRepo(
   return {
     async fetchBatch(opts) {
       const coreWhere = legacyHlsBackfillCandidateWhereClause('m', opts.includeFailed);
-      const r = await runPgPoolPgText<VideoHlsLegacyBackfillCandidateRow>(
+      const r = await runPgPoolSql<VideoHlsLegacyBackfillCandidateRow>(
         pool,
-        `SELECT m.id::text AS id, m.size_bytes::text AS size_bytes
+        sql`SELECT m.id::text AS id, m.size_bytes::text AS size_bytes
          FROM media_files m
-         WHERE ${coreWhere}
-           AND ($1::uuid IS NULL OR m.id > $1::uuid)
-           AND ($2::timestamptz IS NULL OR m.created_at < $2::timestamptz)
+         WHERE ${sql.raw(coreWhere)}
+           AND (${opts.cursorAfterMediaId}::uuid IS NULL OR m.id > ${opts.cursorAfterMediaId}::uuid)
+           AND (${opts.cutoffCreatedBefore ? opts.cutoffCreatedBefore.toISOString() : null}::timestamptz IS NULL OR m.created_at < ${opts.cutoffCreatedBefore ? opts.cutoffCreatedBefore.toISOString() : null}::timestamptz)
          ORDER BY m.id ASC
-         LIMIT $3::int`,
-        [
-          opts.cursorAfterMediaId,
-          opts.cutoffCreatedBefore ? opts.cutoffCreatedBefore.toISOString() : null,
-          opts.batchSize,
-        ],
+         LIMIT ${opts.batchSize}::int`,
       );
       return r.rows;
     },
 
     async loadHistogram() {
-      const r = await runPgPoolPgText<VideoHlsLegacyStatusHistogramRow>(
+      const r = await runPgPoolSql<VideoHlsLegacyStatusHistogramRow>(
         pool,
-        `SELECT COALESCE(m.video_processing_status::text, '(null)') AS status, COUNT(*)::text AS count
+        sql`SELECT COALESCE(m.video_processing_status::text, '(null)') AS status, COUNT(*)::text AS count
          FROM media_files m
          WHERE m.mime_type ILIKE 'video/%'
-           AND ${mediaReadableSql('m')}
+           AND ${sql.raw(mediaReadableSql('m'))}
          GROUP BY 1
          ORDER BY 1`,
       );
@@ -70,12 +66,12 @@ export function createPgVideoHlsLegacyBackfillReadRepo(
     },
 
     async loadFailedReasons() {
-      const r = await runPgPoolPgText<VideoHlsLegacyFailedReasonRow>(
+      const r = await runPgPoolSql<VideoHlsLegacyFailedReasonRow>(
         pool,
-        `SELECT m.video_processing_error, COUNT(*)::text AS count
+        sql`SELECT m.video_processing_error, COUNT(*)::text AS count
          FROM media_files m
          WHERE m.mime_type ILIKE 'video/%'
-           AND ${mediaReadableSql('m')}
+           AND ${sql.raw(mediaReadableSql('m'))}
            AND m.video_processing_status = 'failed'
          GROUP BY 1
          ORDER BY COUNT(*) DESC

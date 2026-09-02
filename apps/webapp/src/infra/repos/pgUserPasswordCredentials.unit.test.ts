@@ -5,14 +5,14 @@ const fakes = vi.hoisted(() => ({
   db: { execute: vi.fn() },
   getWebappSqlDb: vi.fn(),
   runWebappNamedRoot: vi.fn(),
-  runWebappPgText: vi.fn(),
+  runWebappSql: vi.fn(),
   runWebappTransaction: vi.fn(),
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: fakes.getWebappSqlDb,
   runWebappNamedRoot: fakes.runWebappNamedRoot,
-  runWebappPgText: fakes.runWebappPgText,
+  runWebappSql: fakes.runWebappSql,
   runWebappTransaction: fakes.runWebappTransaction,
 }));
 

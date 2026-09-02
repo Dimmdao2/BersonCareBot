@@ -1,5 +1,6 @@
+import { sql } from 'drizzle-orm';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import type {
   PatientMaintenanceAppointment,
   PatientMaintenanceHistoryPort,
@@ -36,8 +37,9 @@ export function createPgPatientMaintenanceHistoryPort(): PatientMaintenanceHisto
   return {
     async listCurrentPatientHistory() {
       const result = await runWithWebappDbOperationFamily('patient_booking_history', () =>
-        runWebappPgText<PatientMaintenanceHistoryRow>(
-          'SELECT * FROM app.read_current_patient_appointment_history()',
+        runWebappSql<PatientMaintenanceHistoryRow>(
+          getWebappSqlDb(),
+          sql`SELECT * FROM app.read_current_patient_appointment_history()`,
         ),
       );
       return result.rows.map(mapRow);
