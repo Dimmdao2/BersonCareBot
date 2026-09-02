@@ -266,6 +266,12 @@ port-context cutover. `initial-cutover.mjs` checks that
 installs that exact generated artifact in one transaction and runs catalog closure. No manual grant or separate
 strict-finalizer command is part of this path.
 
+While TEST writers are still stopped, the wrapper also restores the permanent owner-login contract from
+`AGENTS.md` §1a: the doctor, global administrator and existing patient receive the published TEST password. The
+patient is resolved by the already-preserved primary phone when its TEST-only e-mail is absent from the PROD dump;
+the helper may restore only that exact e-mail contact and refuses every database except `bersoncarebot_test`.
+Passwords and hashes are never printed.
+
 Cleanup is not best-effort. The wrapper must fail visibly if cleanup fails, and must assert after cleanup:
 
 - runtime owner has `rolbypassrls=false`;
