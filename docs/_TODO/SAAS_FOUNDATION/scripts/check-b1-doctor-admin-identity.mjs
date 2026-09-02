@@ -143,20 +143,39 @@ WITH constants AS (
     'a0000000-0000-4000-8000-000000000001'::uuid AS expected_org_id
 ),
 doctor_live AS (
-  SELECT pu.id, pu.role, pu.email_normalized, pu.is_archived
-  FROM public.platform_users pu, constants c
-  WHERE pu.phone_normalized = c.doctor_phone AND pu.merged_into_id IS NULL
+  SELECT pu.id, pu.role, email_contact.value_normalized AS email_normalized, pu.is_archived
+  FROM public.platform_users pu
+  JOIN public.user_contacts phone_contact
+    ON phone_contact.platform_user_id = pu.id
+   AND phone_contact.contact_kind = 'phone'
+   AND phone_contact.is_primary = true
+  LEFT JOIN public.user_contacts email_contact
+    ON email_contact.platform_user_id = pu.id
+   AND email_contact.contact_kind = 'email'
+   AND email_contact.is_primary = true
+  CROSS JOIN constants c
+  WHERE phone_contact.value_normalized = c.doctor_phone AND pu.merged_into_id IS NULL
 ),
 legacy_email_admin AS (
   SELECT pu.id
-  FROM public.platform_users pu, constants c
+  FROM public.platform_users pu
+  JOIN public.user_identity identity_profile ON identity_profile.platform_user_id = pu.id
+  JOIN public.user_contacts email_contact
+    ON email_contact.platform_user_id = pu.id
+   AND email_contact.contact_kind = 'email'
+   AND email_contact.is_primary = true
+  CROSS JOIN constants c
   WHERE pu.role = 'admin'
-    AND pu.display_name = 'Дмитрий Берсон'
-    AND pu.email = c.admin_email
-    AND pu.email_normalized = c.admin_email
-    AND pu.phone_normalized IS NULL
+    AND identity_profile.display_name = 'Дмитрий Берсон'
+    AND email_contact.value_normalized = c.admin_email
     AND pu.merged_into_id IS NULL
     AND pu.is_archived IS FALSE
+    AND NOT EXISTS (
+      SELECT 1 FROM public.user_contacts phone_contact
+      WHERE phone_contact.platform_user_id = pu.id
+        AND phone_contact.contact_kind = 'phone'
+        AND phone_contact.is_primary = true
+    )
     AND NOT EXISTS (SELECT 1 FROM public.user_channel_bindings b WHERE b.user_id = pu.id)
     AND NOT EXISTS (SELECT 1 FROM public.user_oauth_bindings b WHERE b.user_id = pu.id)
     AND NOT EXISTS (SELECT 1 FROM public.user_password_credentials c WHERE c.user_id = pu.id)
@@ -186,8 +205,20 @@ facts AS (
     ),
     'legacyEmailDerivedAdminRows', (SELECT count(*) FROM legacy_email_admin),
     'clientHasDoctorEmail', EXISTS (
-      SELECT 1 FROM public.platform_users pu, constants c
-      WHERE pu.phone_normalized = c.client_phone AND pu.merged_into_id IS NULL AND pu.email_normalized = c.doctor_email
+      SELECT 1
+      FROM public.platform_users pu
+      JOIN public.user_contacts phone_contact
+        ON phone_contact.platform_user_id = pu.id
+       AND phone_contact.contact_kind = 'phone'
+       AND phone_contact.is_primary = true
+      JOIN public.user_contacts email_contact
+        ON email_contact.platform_user_id = pu.id
+       AND email_contact.contact_kind = 'email'
+       AND email_contact.is_primary = true
+      CROSS JOIN constants c
+      WHERE phone_contact.value_normalized = c.client_phone
+        AND pu.merged_into_id IS NULL
+        AND email_contact.value_normalized = c.doctor_email
     ),
     'adminPhonesGlobalValue', COALESCE((SELECT value_json FROM admin_phone_setting), 'null'::jsonb)
   ) AS value
