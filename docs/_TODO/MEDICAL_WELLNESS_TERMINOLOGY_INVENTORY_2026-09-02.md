@@ -2,18 +2,20 @@
 
 Подготовка к решению владельца по плану
 [`MEDICAL_WELLNESS_TERMINOLOGY_MODE_2026-09-02.md`](MEDICAL_WELLNESS_TERMINOLOGY_MODE_2026-09-02.md).
-Готовит MWT-01 (инвентарь), MWT-02 (матрица), MWT-03 (устройство механизма) к закрытию — все три
-остаются `[ ]` в плане до независимого повторного аудита этой редакции (см. §8). MWT-04 — открыт: §7 —
-лист развилок, на которые нужен ответ владельца до реализации.
+Закрывает исследовательские MWT-01 (инвентарь), MWT-02 (матрица), MWT-03 (устройство механизма):
+два независимых audit-pass сформировали F1-F4/N1-N2 kill-set, а лид проверил bounded correction по
+тем же находкам. MWT-04 остаётся открыт: §7 — лист развилок, на которые нужен ответ владельца до реализации.
 
 Оракул: решение владельца 02.09.2026 — «переключение должно действовать **системно**, а не как набор
 независимых настроек отдельных полей» и «до реализации нужен полный инвентарь видимых терминов».
 
 Код продукта, миграции, БД, env, UI и тесты этой веткой не менялись.
 
-**Correction-pass 02.09.2026** по независимому аудиту
+**Correction-pass 02.09.2026** по независимым аудитам
 [`runs/MEDICAL_WELLNESS_TERMINOLOGY_MWT01_04_INDEPENDENT_AUDIT_2026-09-02.md`](runs/MEDICAL_WELLNESS_TERMINOLOGY_MWT01_04_INDEPENDENT_AUDIT_2026-09-02.md)
-(вердикт FAIL, `dc0491aec`): закрывает весь kill-set F1-F4 этого аудита. Что изменилось по существу —
+(`dc0491aec`) и
+[`runs/MEDICAL_WELLNESS_TERMINOLOGY_MWT01_04_INDEPENDENT_REAUDIT_2026-09-02.md`](runs/MEDICAL_WELLNESS_TERMINOLOGY_MWT01_04_INDEPENDENT_REAUDIT_2026-09-02.md)
+(`6c81a7596`): закрывает F1-F4 первого аудита и N1-N2 повторного. Что изменилось по существу —
 см. §2.5 (пропуски инвентаря), §3 (legal больше не заявлен нейтральным), §4 (14 пунктов перенесены из
 «однозначных» в owner-packet, добавлены новые понятия из повторного прохода), §5.3/§5.4 (пакет
 `packages/terminology` вместо `apps/webapp/src/modules/terminology`, exact-org капабилити для
@@ -131,13 +133,13 @@ rg -n --no-heading -g '!**/*.test.*' -g '!**/*.spec.*' \
 | 6 | Публичный лендинг и legal | 20 | `components/landing/**`, `app/page.tsx`, `app/legal/**` |
 | 7 | Глобальный админ / платформа | 19 | `app/app/(global-admin)/**`, `packages/platform-merge/src/messengerBindAuditPresentation.ts` |
 | 8 | Публичная запись / auth / join | 16 | `app/[clinicSlug]/**`, `app/book/**`, `app/join/**`, `shared/ui/auth/**` |
-| 9 | Уведомления / письма / web-push | 15 | `modules/web-push/pushNotificationCopy.ts`, `modules/patient-booking/patientMessageText.ts`, `sendBookingConfirmationEmail.ts`, `modules/notif-templates/notifTemplatesService.ts` |
+| 9 | Уведомления / письма / web-push | 15 | `modules/web-push/pushNotificationCopy.ts`, `modules/reminders/materializePatientReminderDeliveries.ts`, `modules/patient-booking/patientMessageText.ts`, `sendBookingConfirmationEmail.ts`, `modules/notif-templates/notifTemplatesService.ts` |
 | 10 | Шаблоны ботов (TG / MAX, файлы) | 13 | `apps/integrator/src/content/{telegram,max}/{user,admin}/templates.json`, `menu.json` |
 | 11 | Runtime-копия интегратора | 11 | `apps/integrator/src/integrations/bersoncare/bookingLifecycleRoute.ts:227-270` |
-| 12 | Seed / миграции (тексты в БД) | 8 | `apps/webapp/db/drizzle-migrations/20260821T025935_restore_reference_catalog_baselines.sql` |
+| 12 | Baseline / seed / миграции | 8 | SQL baseline + `modules/{recommendations,references,tests,lfk-exercises}/**` и `infra/repos/inMemoryReferences.ts`; четыре синхронных кодовых владельца перечислены в §2.3 |
 | 13 | Копия ошибок API-роутов | 4 | `app/api/**/route.ts` |
 
-### 2.3. Тексты, живущие в БД (кода на них нет — их надо считать отдельно)
+### 2.3. Тексты baseline в БД и коде
 
 | Источник | Что содержит | Владелец строки |
 | --- | --- | --- |
@@ -164,7 +166,13 @@ rg -n --no-heading -g '!**/*.test.*' -g '!**/*.spec.*' \
 | `symptom_type` | Тип симптома | нет | Общее самочувствие, Самочувствие после разминки, Боль, Жжение, Онемение, Слабость, Напряжение, Отёк, Ограничение подвижности, Дефицит двигательного контроля, Кинезиофобия, Тревожность, Паническая атака, Утомляемость, Стресс, Покалывания, Тиннитус (шум в ушах), Головокружение |
 | `visit_manipulation` | **Манипуляции визита** | **да** | (пусто в baseline) |
 
-Источник: `apps/webapp/db/drizzle-migrations/20260821T025935_restore_reference_catalog_baselines.sql`.
+Источник данных: `apps/webapp/db/drizzle-migrations/20260821T025935_restore_reference_catalog_baselines.sql`.
+Параллельные platform-owned fallback/seed-источники: `modules/recommendations/recommendationDomain.ts`
+(`RECOMMENDATION_TYPE_SEED_V1`), `modules/tests/clinicalTestAssessmentKind.ts`
+(`CLINICAL_ASSESSMENT_KIND_SEED_V1`), `modules/lfk-exercises/exerciseLoadTypeReference.ts`
+(`EXERCISE_LOAD_TYPE_SEED_V1`) и `infra/repos/inMemoryReferences.ts` (категории и позиции). Их JSDoc
+требует синхронизировать SQL + константу + in-memory reference в одном изменении. Это не архивный дубль:
+`recommendationDomainTitle()` вызывается production-пикером программ при пустом справочнике клиники.
 
 ### 2.4. Что НЕ считается пользовательским текстом (и почему)
 
@@ -250,9 +258,10 @@ rg -n 'результаты обследований|МРТ|рентген|ос�
 `telegram/user/templates.json:75` — `"bookingMenu.online": "💻 Онлайн-консультация"`. Эти файлы уже
 названы в Q6 как файловые/одноарендаторские (пример из того же файла: «Адреса приема: Москва,
 Красносельский тупик, д. 5» — конкретный адрес одной клиники, зашитый в общий шаблон) — это разрыв
-мультиарендности шире терминологии, Q6 рекомендует пометить и не чинить внутри MWT. Эта правка **не
-меняет вывод Q6**, она добавляет точный список строк внутри уже названного разрыва, потому что F1
-требует манифест, а не размытую ссылку на файл.
+мультиарендности шире терминологии, Q6 рекомендует пометить и не чинить внутри MWT. Но фраза «бады и
+лекарства» имеет ещё одного независимого владельца: `modules/reminders/materializePatientReminderDeliveries.ts:41,123`
+формирует platform-owned дефолт доставки для TG/MAX/VK/email/web-push. Файловая копия остаётся в Q6;
+webapp-копия входит в общий слой как D26. Смешивать эти две обязанности нельзя.
 
 **F. Собственный смысловой поиск — новое понятие вне текущей матрицы: категории файлов пациента.**
 
@@ -296,6 +305,15 @@ rg -ln 'программ. лечени' apps/webapp/src/app/app/doctor
   «Как решать, что делать» п.6) — не включается в инвентарь, помечен здесь как проверенный, а не
   пропущенный.
 
+**H. Повторный аудит — platform-owned напоминание про лекарства и кодовые baseline.**
+
+Смысловой проход по `apps/webapp/src/modules/**` нашёл два класса, которые агрегатная строка §2.2
+скрывала: D26 (`materializePatientReminderDeliveries.ts`) и четыре исполняемых кодовых источника
+baseline (§2.3). Повторный exact/semantic проход после их добавления не нашёл нового класса, который
+меняет матрицу: emergency-копия уходит в CMS (класс B), web-push «Реабилитация» уже D22,
+treatment-program ошибки уже перечислены в §6.2, а `appointmentReminderMaterialization.ts` использует
+грамматическую форму `person.*`.
+
 ---
 
 ## 3. MWT-01 · Три класса текста
@@ -307,7 +325,8 @@ rg -ln 'программ. лечени' apps/webapp/src/app/app/doctor
 Куда попадает: поверхности 1, 2, 3, 4, 5, 6, 7, 8 из §2.2 плюс дефолты уведомлений
 (`notifTemplatesService.ts:44-53`), push-копия (`pushNotificationCopy.ts`), PWA-манифесты,
 `doctorScreenTitles.ts`, `doctorNavLinks.ts`, `help-content/canonicalSlugs.ts`,
-`patient-home/blockEditorMetadata.ts`.
+`patient-home/blockEditorMetadata.ts`, `materializePatientReminderDeliveries.ts` и кодовые fallback-seed
+из §2.3.
 
 Объём: подавляющее большинство видимых строк из §2.2 — то, что не попало в класс B (клиника/CMS-
 контент, §2.3) и не попало в класс C ниже. Точная доля не приводится отдельным числом — см. §2.1 про
@@ -334,7 +353,9 @@ rg -ln 'программ. лечени' apps/webapp/src/app/app/doctor
 их переименовывает, архивирует и дополняет (`ReferencesPort.saveCatalog`, `updateItem`,
 `insertItemStaff`). Значит переключение режима **не может** переписать уже засеянные строки — оно
 может влиять только на то, **какой baseline получает новая клиника**, и на **заголовки категорий**,
-если те останутся платформенными. Это ключевая развилка §7.
+если те останутся платформенными. При этом четыре кодовых fallback/seed из §2.3 остаются классом A:
+они рендерятся из платформенного кода и обязаны переключаться/синхронизироваться отдельно от уже
+засеянных строк клиники. Это ключевая развилка §7.
 
 ### Класс C — юридически или клинически обязательный текст, не смягчать без решения
 
@@ -385,13 +406,13 @@ rg -ln 'программ. лечени' apps/webapp/src/app/app/doctor
 | 6 | `person.backToList` | К пациентам | К клиентам | `PatientCardClient.tsx:451,550` | (б) — грамматическая форма №1 |
 | 11 | `test.clinical` | Клинический тест | Функциональный тест | 9 узлов, см. §5.4 | (a) — прямая цитата владельца 02.09.2026 |
 | 12 | `test.clinical.plural` | Клинические тесты | Функциональные тесты | меню, `clinical-tests/page.tsx:100`, `doctorScreenTitles.ts` | (б) — грамматическая форма №11 |
-| 13 | `assessment.kind` | Виды оценки (клинические тесты) | Виды оценки (функциональные тесты) | заголовок категории справочника | (б) — №11 встроено в заголовок категории, остальной текст не меняется |
+| 13 | `assessment.kind` | Виды оценки (клинические тесты) | Виды оценки (функциональные тесты) | SQL baseline + `infra/repos/inMemoryReferences.ts:46` + `modules/tests/clinicalTestAssessmentKind.ts` | (б) — №11 встроено в заголовок категории, остальной текст не меняется |
 
 ### 4.2. Спорные — нужен выбор владельца (это и есть содержание MWT-04)
 
-25 пунктов. D1-D11 — из первого прохода (без изменений, кроме файловых списков там, где §2.5 их
+26 пунктов. D1-D11 — из первого прохода (без изменений, кроме файловых списков там, где §2.5 их
 расширила). D12-D22 — перенесены из §4.1 по правилу выше. D23-D25 — новые понятия, найденные в
-correction-pass (§2.5). Рекомендация всюду — предложение агента, не решение; Q8 (§7) требует ответа
+первом correction-pass (§2.5). D26 найден повторным аудитом. Рекомендация всюду — предложение агента, не решение; Q8 (§7) требует ответа
 по каждому пункту, включая D11 (там ответ уже дан замером — раздела нет).
 
 | # | `TermKey` | Медицинский | Варианты для оздоровительного | Почему выбор нужен |
@@ -421,6 +442,7 @@ correction-pass (§2.5). Рекомендация всюду — предлож�
 | D23 | `visit.exam` | Осмотр (поле визита) | (а) Осмотр — оставить, слово используется и в бытовом/спортивном контексте («осмотр перед тренировкой») · (б) Наблюдения · (в) Заметки по состоянию | Новое понятие, §2.5-A. `NewVisitPanel.tsx:1253,1403`, `PatientTabKarta.tsx:972` — поле визита наравне с D13/D6/D5. **Рекомендация: (а)** — единственный кандидат в матрице, где медицинское слово можно оставить без замены. |
 | D24 | `history.trauma` | Травмы и операции | (а) оставить «Травмы и операции» — факт применим в обоих режимах · (б) История травм · (в) Перенесённые травмы | Новое понятие, §2.5-B. `PatientTabKarta.tsx:1955`, подсекция анамнеза наравне с D10. **Рекомендация: (а)** по той же логике, что D23. |
 | D25 | `file.category` | Выписка / Снимок / Анализ (из 5 категорий файлов пациента) | (а) Документ / Фото / Результат теста · (б) оставить как есть, это название типа вложения, не диагноз · (в) Выписка → Документ, Снимок → Фото, Анализ → Результат | Новое понятие, §2.5-F. `modules/patient-files/ports.ts:8-14`, `PatientTabFiles.tsx:96-103`. Категории — служебная классификация вложения, а не клинический вывод; риск ниже, чем у D12-D22, но слова медицинские (выписка/снимок/анализ), решение всё равно нужно. **Рекомендация: (в).** |
+| D26 | `reminder.medication` | Напоминание: бады и лекарства | (а) Напоминание: добавки и препараты · (б) Напоминание о приёме средств · (в) оставить как есть | Platform-owned дефолт `modules/reminders/materializePatientReminderDeliveries.ts:41,123`, живой для категории `supplements_medication` и всех каналов доставки. Файловая TG/MAX-копия решается отдельно в Q6. **Рекомендация: (б)** — не обещает медицинское назначение и покрывает добавки/препараты одним понятием. |
 
 ### 4.3. Что в матрицу НЕ входит и почему
 
@@ -624,7 +646,7 @@ classification-`CASE WHEN` на строке ~141) чтение вернёт `NU
 | --- | --- |
 | `packages/terminology/package.json` | `@bersoncare/terminology`, `workspace:*`, собирается по прецеденту `packages/platform-merge` (F3) |
 | `packages/terminology/src/types.ts` | `TermKey`, `Terms`, `TerminologyMode` |
-| `packages/terminology/src/terms.ts` | словарь пар (§4.1 + решённое из §4.2, все D1-D25) |
+| `packages/terminology/src/terms.ts` | словарь пар (§4.1 + решённое из §4.2, все D1-D26) |
 | `packages/terminology/src/resolve.ts` | `resolveTerms(mode)` |
 | `packages/terminology/src/mode.ts` | `resolveTerminologyMode(rawSetting)` — чистая, принимает уже прочитанную строку |
 | `packages/terminology/src/index.ts` | публичный реэкспорт |
@@ -653,11 +675,12 @@ classification-`CASE WHEN` на строке ~141) чтение вернёт `NU
 | `patients/[userId]/tabs/PatientTabFiles.tsx:96-103`, `modules/patient-files/ports.ts:8-14` | D25 — категории файлов |
 | `app/app/doctor/clinical-tests/**`, `treatment-program-templates/**`, `courses/**`, `exercises/**`, `clients/**`, `test-sets/**`, `lfk-templates/**`, `recommendations/**`, `clients/adminMergeAccountsLogic.ts:262` | D8, D16, §4.1 №11-12 (`test.clinical`) — расширенный файловый список §2.5-G |
 | `modules/treatment-program/{service,instance-service,progress-service,stage-semantics,patient-program-actions}.ts`, `infra/repos/inMemoryTreatmentProgram*.ts`, `pgTreatmentProgram*.ts` | тексты ошибок класса A |
+| `modules/reminders/materializePatientReminderDeliveries.ts` | D26 — platform-owned дефолт «бады и лекарства» для всех каналов |
 | `apps/integrator/src/infra/db/repos/notifTemplatePort.ts` (`getNotifTemplate` +`organizationId` параметр), `apps/integrator/src/infra/db/publicSystemSettings.ts`, `apps/integrator/src/integrations/bersoncare/bookingLifecycleRoute.ts:931` (прокидка `payload.organizationId`), `modules/notif-templates/notifTemplatesService.ts:44-53`, `modules/patient-booking/patientMessageText.ts`, `modules/web-push/pushNotificationCopy.ts` | D7 в каналах + exact-org капабилити интегратора (§5.4) |
 | `modules/help-content/canonicalSlugs.ts:50-78`, `modules/patient-home/blockEditorMetadata.ts`, `shared/lib/pwa/{patient,staff}PwaManifest.ts` | D7, D17 |
 | `components/landing/**`, `app/page.tsx` | лендинг — **см. §7-Q3**, это не арендаторская поверхность |
 | `shared/ui/auth/RoleLoginPortalHeader.tsx` | `/app` role login — тенантлес, провайдер не монтируется, см. §7-Q9 |
-| `apps/webapp/db/drizzle-migrations/…reference_catalog_baselines` | новая версия baseline — **см. §7-Q1** |
+| SQL baseline + `modules/recommendations/recommendationDomain.ts` + `modules/tests/clinicalTestAssessmentKind.ts` + `modules/lfk-exercises/exerciseLoadTypeReference.ts` + `infra/repos/inMemoryReferences.ts` | Q1: синхронно менять DB baseline и все platform fallback/seed-источники; уже засеянные clinic-owned позиции не переписывать |
 
 ### 6.3. Acceptance matrix (MWT-06)
 
@@ -679,6 +702,7 @@ classification-`CASE WHEN` на строке ~141) чтение вернёт `NU
 | 11 | Пациент, письмо + `.ics` | тема, тело, `SUMMARY` | нейтрально | **не меняется** (нейтральны уже сейчас) |
 | 12 | Пациент, web-push | «Запись на приём», перенос, отмена | Приём | по D7 |
 | 13 | Уведомления записи (email/TG/MAX/SMS) | дефолтные `notif_template:*` | текущие | по D7 — **с режимом ТОЙ организации через exact-org капабилити интегратора** (§5.4) |
+| 13a | Напоминания лекарств/добавок (TG/MAX/VK/email/web-push) | platform default `supplements_medication` | Напоминание: бады и лекарства | по D26; файловые TG/MAX-шаблоны отдельно проверяются по Q6 |
 | 14 | Публичная запись `/[clinicSlug]/booking` | «Этот специалист больше не принимает записи» | как есть | как есть |
 | 14a | Публичная запись `/book/**` (не `[clinicSlug]`) | «Очный приём», «Онлайн-приём», «Реабилитация онлайн» | Приём | по D7; провайдер монтируется после `resolvePublicOrganizationBySlugRsc`, не в `app/book/layout.tsx` (§5.4, §2.5-C) |
 | 15 | Вход `/app` (role login), до выбора роли/организации | «Вход для специалистов» / «Войти как пациент» | Пациент | **не переключается** — тенантлес-поверхность, провайдер не монтируется (Q9) |
@@ -699,13 +723,16 @@ classification-`CASE WHEN` на строке ~141) чтение вернёт `NU
 ## 7. MWT-04 · Что нужно от владельца (открыто)
 
 Матрица §4.1 (9 пунктов после F2-коррекции — §4.1) вопросов не требует: это либо прямая цитата
-владельца, либо то, что уже делает сегодняшняя живая настройка. Всё остальное — 25 пунктов D1-D25 в
+владельца, либо то, что уже делает сегодняшняя живая настройка. Всё остальное — 26 пунктов D1-D26 в
 §4.2 — требует ответа, каждый по отдельности (Q8 ниже), плюс девять развилок, где продукт получается
 разный между поверхностями.
 
 **Q1. Справочники — что делает режим с baseline.** Заголовки категорий («Диагноз», «Манипуляции
-визита», «Виды оценки (клинические тесты)») — платформенные, но **позиции копируются в клинику при
-провижининге** и дальше принадлежат ей. Варианты:
+визита», «Виды оценки (клинические тесты)») — платформенные. Позиции копируются в клинику при
+провижининге и дальше принадлежат ей, но четыре platform-owned fallback/seed-источника (§2.3)
+исполняются и после провижининга. Любой вариант меняет не один SQL-файл, а согласованный набор:
+SQL baseline + соответствующую typed-константу + `inMemoryReferences.ts`; production fallback
+`recommendationDomainTitle()` тоже обязан видеть выбранный режим. Варианты:
 (а) режим меняет только **заголовки категорий**, позиции у всех одинаковы;
 (б) заводим **вторую версию baseline** — новая wellness-клиника засевается своим набором, уже
 засеянные клиники не трогаем;
@@ -755,7 +782,7 @@ classification-`CASE WHEN` на строке ~141) чтение вернёт `NU
 Прежняя редакция просила ответ только по D1, D2, D4, D6, D7, D8 — D3, D5, D9, D10 молча оставались
 «рекомендация без запроса подтверждения», и целых 14 пунктов из бывших «однозначных» (§4.1) не
 запрашивались вовсе. Список теперь полный, единый и требует явного ответа по **каждой** строке —
-«да, рекомендация» / другой вариант из (а)/(б)/(в) / свой:
+«да, рекомендация» / другой вариант из (а)/(б)/(в) / свой. Всего D1-D26:
 
 | D-пункт | Что решаем | Самое широкое по объёму? |
 | --- | --- | --- |
@@ -784,6 +811,7 @@ classification-`CASE WHEN` на строке ~141) чтение вернёт `NU
 | D23 visit.exam | Осмотр (поле визита) → ? | новое, §2.5-A |
 | D24 history.trauma | Травмы и операции → ? | новое, §2.5-B |
 | D25 file.category | Выписка / Снимок / Анализ → ? | новое, §2.5-F |
+| D26 reminder.medication | «Бады и лекарства» → ? | все каналы platform-owned reminder delivery; файловая копия отдельно Q6 |
 
 **Q9. Тенантлес-вход `/app` (role login), до выбора роли и организации (F3-коррекция, было
 пропущено).** `RoleLoginPortalHeader.tsx` показывает «Войти как пациент» / «Войти как специалист» на
@@ -799,13 +827,11 @@ classification-`CASE WHEN` на строке ~141) чтение вернёт `NU
 
 ## 8. Что этой веткой НЕ сделано
 
-- **MWT-01, MWT-02, MWT-03 намеренно оставлены `[ ]` в плане**, хотя этот проход закрывает весь
-  kill-set независимого аудита F1-F4. Правило владельца («ложная запись о готовности опаснее
-  незакрытого разрыва») и правило оркестрации («независимый адверсарный аудит перед приёмкой») здесь
-  сильнее желания закрыть чекбокс: это self-correction того же агентского прохода без свежей
-  независимой проверки. Закрывать их — задача следующего независимого аудита этой редакции, не этого
-  прохода.
-- MWT-04 не закрыт: §7 — лист из девяти развилок (Q1-Q9) и полной матрицы D1-D25 (Q8), ответов
+- **MWT-01, MWT-02, MWT-03 закрыты только как research/design.** Первый audit дал F1-F4, повторный
+  подтвердил F2-F4 и добавил N1-N2; лид своим bounded correction добавил D26 и все исполняемые
+  baseline/fallback-источники, повторил semantic/exact проход модулей и проверил матрицы D/Q `26/26`.
+  Третий blind-аудит той же поверхности не запускался по AGENTS.md §24.5–§24.6.
+- MWT-04 не закрыт: §7 — лист из девяти развилок (Q1-Q9) и полной матрицы D1-D26 (Q8), ответов
   владельца ещё нет.
 - MWT-05 (реализация) и MWT-06 (приёмка) не начинались — по границе запуска в план-файле.
 - Продуктовый код, миграции, БД, env, UI и тесты не менялись этим проходом.
