@@ -28,6 +28,7 @@ BEGIN
         ('integrator', 'user_reminder_occurrences'),
         ('integrator', 'user_reminder_delivery_logs'),
         ('public', 'reminder_occurrence_history'),
+        ('public', 'reminder_rules'),
         ('public', 'reference_categories'),
         ('public', 'reference_items'),
         ('drizzle', '__drizzle_migrations'),
@@ -623,9 +624,95 @@ SELECT id, category_id, code, title, sort_order, is_active, meta_json, created_a
        deleted_at, current_setting('bcb.cutover.canonical_organization_id')::uuid
 FROM cutover_source_public.reference_items;
 
-UPDATE public.reminder_rules
-SET organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
-WHERE organization_id IS NULL;
+-- The current schema requires a canonical person immediately. Copy every owned source rule
+-- through the already-proven merge map. Source orphans are exactly the class retired by
+-- 20260828T165000 + 20260828T170000: no platform user and no occurrence history.
+INSERT INTO public.reminder_rules (
+  id, organization_id, integrator_rule_id, platform_user_id, category, is_enabled,
+  schedule_type, timezone, interval_minutes, window_start_minute, window_end_minute,
+  days_mask, content_mode, updated_at, created_at, linked_object_type, linked_object_id,
+  custom_title, custom_text, reminder_intent, schedule_data, display_title,
+  display_description, quiet_hours_start_minute, quiet_hours_end_minute,
+  notification_topic_code
+)
+SELECT
+  source.id,
+  current_setting('bcb.cutover.canonical_organization_id')::uuid,
+  source.integrator_rule_id,
+  identity_map.canonical_id,
+  source.category,
+  source.is_enabled,
+  source.schedule_type,
+  source.timezone,
+  source.interval_minutes,
+  source.window_start_minute,
+  source.window_end_minute,
+  source.days_mask,
+  source.content_mode,
+  source.updated_at,
+  source.created_at,
+  source.linked_object_type,
+  source.linked_object_id,
+  source.custom_title,
+  source.custom_text,
+  source.reminder_intent,
+  source.schedule_data,
+  source.display_title,
+  source.display_description,
+  source.quiet_hours_start_minute,
+  source.quiet_hours_end_minute,
+  source.notification_topic_code
+FROM cutover_source_public.reminder_rules source
+LEFT JOIN LATERAL (
+  SELECT min(candidate.id) AS id
+  FROM cutover_source_public.platform_users candidate
+  WHERE source.platform_user_id IS NULL
+    AND candidate.integrator_user_id = source.integrator_user_id
+    AND candidate.merged_into_id IS NULL
+  HAVING count(*) = 1
+) source_user ON true
+JOIN cutover_platform_user_canonical_map identity_map
+  ON identity_map.source_id = coalesce(source.platform_user_id, source_user.id);
+
+DO $canonical_reminder_rule_gate$
+DECLARE violations bigint;
+BEGIN
+  SELECT count(*) INTO violations
+  FROM cutover_source_public.reminder_rules source
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.reminder_rules target
+    WHERE target.id = source.id
+  )
+    AND (
+      source.platform_user_id IS NOT NULL
+      OR EXISTS (
+        SELECT 1 FROM cutover_source_public.platform_users source_user
+        WHERE source_user.integrator_user_id = source.integrator_user_id
+          AND source_user.merged_into_id IS NULL
+      )
+      OR EXISTS (
+        SELECT 1 FROM cutover_source_public.reminder_occurrence_history history
+        WHERE history.integrator_rule_id = source.integrator_rule_id
+      )
+    );
+  IF violations <> 0 THEN
+    RAISE EXCEPTION 'reminder rules with a canonical owner or history were not copied: %', violations;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.reminder_rules target
+    LEFT JOIN cutover_source_public.reminder_rules source ON source.id = target.id
+    LEFT JOIN cutover_platform_user_canonical_map identity_map
+      ON identity_map.source_id = source.platform_user_id
+    WHERE source.id IS NULL
+       OR target.organization_id IS NULL
+       OR (source.platform_user_id IS NOT NULL
+           AND target.platform_user_id IS DISTINCT FROM identity_map.canonical_id)
+  ) THEN
+    RAISE EXCEPTION 'canonical reminder rule scope drift';
+  END IF;
+END
+$canonical_reminder_rule_gate$;
 
 SELECT json_build_object(
   'status', 'pass',
@@ -637,6 +724,14 @@ SELECT json_build_object(
   ),
   'reminderRulesWithoutOrganization', (
     SELECT count(*) FROM public.reminder_rules WHERE organization_id IS NULL
+  ),
+  'reminderRulesCopied', (
+    SELECT count(*) FROM public.reminder_rules
+  ),
+  'ownerlessHistorylessRulesRetired', (
+    SELECT count(*)
+    FROM cutover_source_public.reminder_rules source
+    WHERE NOT EXISTS (SELECT 1 FROM public.reminder_rules target WHERE target.id = source.id)
   )
 )::text AS result
 \gset cutover_d08_
