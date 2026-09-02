@@ -171,11 +171,13 @@ INSERT INTO cutover_source_relation_disposition VALUES
   ('integrator.content_access_grants', 'intentionally_retire', 'dead integrator authorization mirror'),
   ('integrator.conversation_messages', 'transform', 'canonical public support history already copied'),
   ('integrator.conversations', 'transform', 'canonical public support conversations already copied'),
+  ('integrator.delivery_attempt_logs', 'transform', 'public.notification_delivery_attempts below'),
   ('integrator.identities', 'transform', 'public.user_channel_bindings and user_identity'),
   ('integrator.mailing_logs', 'intentionally_retire', 'retired duplicate mailing domain'),
   ('integrator.mailing_topics', 'intentionally_retire', 'retired duplicate mailing domain'),
   ('integrator.mailings', 'intentionally_retire', 'retired duplicate mailing domain'),
   ('integrator.message_drafts', 'transform', 'public.support_conversations.pending_message_drafts below'),
+  ('integrator.projection_outbox', 'intentionally_retire', 'terminal compatibility projection queue'),
   ('integrator.question_messages', 'transform', 'canonical public support history already copied'),
   ('integrator.rubitime_api_throttle', 'intentionally_retire', 'retired provider throttle state'),
   ('integrator.rubitime_booking_profiles', 'intentionally_retire', 'retired provider catalog'),
@@ -207,6 +209,7 @@ INSERT INTO cutover_source_relation_disposition VALUES
   ('public.booking_specialists', 'intentionally_retire', 'canonical be_* booking catalog already copied'),
   ('public.branches', 'intentionally_retire', 'canonical be_* booking catalog already copied'),
   ('public.clinical_test_measure_kinds', 'intentionally_retire', 'empty retired duplicate catalog'),
+  ('public.integrator_push_outbox', 'intentionally_retire', 'terminal retired reminder-rule M2M queue'),
   ('public.mailing_logs_webapp', 'intentionally_retire', 'retired duplicate mailing domain'),
   ('public.mailing_topics_webapp', 'intentionally_retire', 'retired duplicate mailing domain'),
   ('public.reminder_delivery_events', 'intentionally_retire', 'duplicate of integrator.user_reminder_delivery_logs; outgoing_delivery_queue is canonical'),
@@ -215,6 +218,7 @@ INSERT INTO cutover_source_relation_disposition VALUES
   ('public.user_email_setup_tokens', 'intentionally_retire', 'replaced by password setup OTP challenges'),
   ('public.user_pins', 'intentionally_retire', 'retired PIN path'),
   ('public.user_subscriptions_webapp', 'intentionally_retire', 'retired duplicate mailing domain'),
+  ('public.support_delivery_events', 'intentionally_retire', 'unreachable duplicate support delivery journal'),
   ('public.webapp_schema_migrations', 'intentionally_retire', 'historical emergency-runner ledger removed by B0'),
   ('public.webapp_reminder_occurrences', 'transform', 'public.reminder_occurrence_history below');
 
@@ -289,6 +293,27 @@ BEGIN
   END IF;
 END
 $source_only_disposition_gate$;
+
+-- A queue can disappear only after every row is terminal. These checks deliberately inspect the
+-- source snapshot rather than trusting the migration-time census written into an old plan.
+DO $retired_compatibility_queue_terminal_gate$
+DECLARE violations bigint;
+BEGIN
+  SELECT count(*) INTO violations
+  FROM cutover_source_integrator.projection_outbox
+  WHERE status NOT IN ('done', 'cancelled');
+  IF violations <> 0 THEN
+    RAISE EXCEPTION 'projection compatibility queue still has nonterminal rows: %', violations;
+  END IF;
+
+  SELECT count(*) INTO violations
+  FROM cutover_source_public.integrator_push_outbox
+  WHERE status NOT IN ('done', 'cancelled');
+  IF violations <> 0 THEN
+    RAISE EXCEPTION 'reminder-rule M2M queue still has nonterminal rows: %', violations;
+  END IF;
+END
+$retired_compatibility_queue_terminal_gate$;
 
 SELECT json_build_object(
   'status', 'pass',
@@ -924,6 +949,116 @@ SELECT json_build_object(
 )::text AS result
 \gset cutover_d12_
 SELECT :'cutover_d12_result'::json AS cutover_step_d12_reminder_delivery_logs;
+
+-- Preserve the legacy generic message-attempt audit in the surviving operator attempt journal.
+-- The source predates tenant columns; this PROD snapshot is the single canonical organization that
+-- the whole A→B transition establishes. IDs and metadata match the forward migration exactly.
+\echo '=== CUTOVER STEP D12B/24: carry legacy delivery-attempt history ==='
+INSERT INTO public.notification_delivery_attempts (
+  id, organization_id, created_at, intent_type, channel, status, reason, event_id, metadata
+)
+SELECT
+  (
+    substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 1, 8) || '-' ||
+    substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 9, 4) || '-' ||
+    substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 13, 4) || '-' ||
+    substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 17, 4) || '-' ||
+    substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 21, 12)
+  )::uuid,
+  current_setting('bcb.cutover.canonical_organization_id')::uuid,
+  legacy.occurred_at,
+  legacy.intent_type,
+  legacy.channel,
+  legacy.status,
+  legacy.reason,
+  legacy.intent_event_id,
+  jsonb_build_object(
+    'attempt', legacy.attempt,
+    'correlationId', legacy.correlation_id,
+    'payload', legacy.payload_json,
+    'source', 'legacy_delivery_attempt_logs_cutover',
+    'legacySource', 'integrator.delivery_attempt_logs',
+    'legacyId', legacy.id
+  )
+FROM cutover_source_integrator.delivery_attempt_logs legacy
+ON CONFLICT (id) DO NOTHING;
+
+DO $legacy_delivery_attempt_history_gate$
+DECLARE
+  source_rows bigint;
+  target_rows bigint;
+  distinct_source_ids bigint;
+  support_rows_without_attempt bigint;
+BEGIN
+  SELECT count(*) INTO source_rows FROM cutover_source_integrator.delivery_attempt_logs;
+  SELECT count(*), count(DISTINCT metadata->>'legacyId')
+  INTO target_rows, distinct_source_ids
+  FROM public.notification_delivery_attempts
+  WHERE metadata->>'legacySource' = 'integrator.delivery_attempt_logs';
+
+  IF target_rows <> source_rows OR distinct_source_ids <> source_rows THEN
+    RAISE EXCEPTION 'legacy delivery-attempt count/provenance drift: source %, target %, distinct %',
+      source_rows, target_rows, distinct_source_ids;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM cutover_source_integrator.delivery_attempt_logs legacy
+    LEFT JOIN public.notification_delivery_attempts target
+      ON target.id = (
+        substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 1, 8) || '-' ||
+        substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 9, 4) || '-' ||
+        substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 13, 4) || '-' ||
+        substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 17, 4) || '-' ||
+        substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 21, 12)
+      )::uuid
+    WHERE target.id IS NULL
+       OR target.organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid
+       OR target.created_at IS DISTINCT FROM legacy.occurred_at
+       OR target.intent_type IS DISTINCT FROM legacy.intent_type
+       OR target.channel IS DISTINCT FROM legacy.channel
+       OR target.status IS DISTINCT FROM legacy.status
+       OR target.reason IS DISTINCT FROM legacy.reason
+       OR target.event_id IS DISTINCT FROM legacy.intent_event_id
+  ) THEN
+    RAISE EXCEPTION 'legacy delivery-attempt field parity drift';
+  END IF;
+
+  SELECT count(*) INTO support_rows_without_attempt
+  FROM cutover_source_public.support_delivery_events support
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM cutover_source_integrator.delivery_attempt_logs legacy
+    WHERE legacy.intent_event_id IS NOT DISTINCT FROM support.integrator_intent_event_id
+      AND legacy.correlation_id IS NOT DISTINCT FROM support.correlation_id
+      AND legacy.channel IS NOT DISTINCT FROM support.channel_code
+      AND legacy.status IS NOT DISTINCT FROM support.status
+      AND legacy.attempt IS NOT DISTINCT FROM support.attempt
+      AND legacy.reason IS NOT DISTINCT FROM support.reason
+      AND legacy.payload_json IS NOT DISTINCT FROM support.payload_json
+      AND legacy.occurred_at IS NOT DISTINCT FROM support.occurred_at
+  );
+  IF support_rows_without_attempt <> 0 THEN
+    RAISE EXCEPTION 'support delivery journal has facts absent from preserved attempt history: %',
+      support_rows_without_attempt;
+  END IF;
+END
+$legacy_delivery_attempt_history_gate$;
+
+SELECT json_build_object(
+  'status', 'pass',
+  'sourceRows', (SELECT count(*) FROM cutover_source_integrator.delivery_attempt_logs),
+  'rowsPreserved', (
+    SELECT count(*) FROM public.notification_delivery_attempts
+    WHERE metadata->>'legacySource' = 'integrator.delivery_attempt_logs'
+  ),
+  'duplicateSupportRowsRetired', (
+    SELECT count(*) FROM cutover_source_public.support_delivery_events
+  ),
+  'fieldMismatches', 0
+)::text AS result
+\gset cutover_d12b_
+SELECT :'cutover_d12b_result'::json AS cutover_step_d12b_legacy_delivery_attempts;
 
 -- Calendar sync memory follows the canonical appointment mapping. Unmapped stale provider rows
 -- have no surviving appointment and are intentionally not copied.
