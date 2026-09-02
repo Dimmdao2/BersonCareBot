@@ -213,7 +213,8 @@ SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 1484, true);
 
 -- Generated from SYSTEM_SETTING_REGISTRY. Existing source values always win.
 INSERT INTO public.system_settings (key, scope, organization_id, value_json, updated_at, updated_by)
-VALUES
+SELECT seed.key, seed.scope, seed.organization_id, seed.value_json, seed.updated_at, seed.updated_by
+FROM (VALUES
   ('admin_emails', 'admin', NULL, '{"value":[]}'::jsonb, statement_timestamp(), NULL),
   ('admin_incident_alert_config', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
   ('admin_max_ids', 'admin', NULL, '{"value":[]}'::jsonb, statement_timestamp(), NULL),
@@ -326,7 +327,13 @@ VALUES
   ('yandex_oauth_client_id', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
   ('yandex_oauth_client_secret', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
   ('yandex_oauth_redirect_uri', 'admin', NULL, '{"value":[]}'::jsonb, statement_timestamp(), NULL)
-ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;
+) AS seed(key, scope, organization_id, value_json, updated_at, updated_by)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.system_settings existing
+  WHERE existing.key = seed.key
+    AND existing.scope = seed.scope
+    AND existing.organization_id IS NOT DISTINCT FROM seed.organization_id
+);
 
 DO $target_global_system_settings_gate$
 DECLARE missing_keys text;
