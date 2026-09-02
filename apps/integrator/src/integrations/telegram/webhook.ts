@@ -24,6 +24,10 @@ import type { TelegramWebhookBodyValidated } from './schema.js';
 import type { ResolveMessengerStaffAdmin } from '../../kernel/contracts/index.js';
 import { recordIntegrationWebhookOutcome } from '../../infra/operatorIncident/recordIntegrationWebhookOutcome.js';
 import { isWebhookSecretValid } from '../common/webhookSecretCompare.js';
+import {
+  forwardDedicatedBotInbound,
+  type DedicatedBotInboundForwardDeps,
+} from '../common/clinicBotInboundForward.js';
 
 type WebhookOutcomeInput = Parameters<typeof recordIntegrationWebhookOutcome>[0];
 
@@ -136,6 +140,11 @@ export type TelegramWebhookDeps = {
   ) => Promise<string | null>;
   /** Exact dedicated bot-instance binding; never falls back to enrollment/default organization. */
   resolveDedicatedClinicBotOrganization?: (credentialFingerprint: string) => Promise<string | null>;
+  /**
+   * Direct forwarding of free-form inbound text to the chat the clinic named. Wired ONLY for the
+   * dedicated clinic bot route — the platform webhook and long-polling never get it.
+   */
+  dedicatedBotInboundForward?: DedicatedBotInboundForwardDeps;
 };
 
 function getSourceTelegramExternalId(body: TelegramWebhookBodyValidated): string | null {
@@ -452,6 +461,25 @@ export async function registerTelegramWebhookRoutes(
           detail: 'body validation failed',
         });
         return reply.code(200).send({ ok: false, error: 'Invalid webhook body' });
+      }
+      // Прямая пересылка входящего в чат клиники (owner 20.08). Идёт до продуктового пайплайна и
+      // не влияет на его результат: пересылка — отдельное действие клиники, а не ответ бота.
+      if (deps.dedicatedBotInboundForward) {
+        const incoming = mapBodyToIncoming(parseResult.data);
+        if (incoming) {
+          await runWithOrganizationPrincipal(organizationId, () =>
+            forwardDedicatedBotInbound(
+              {
+                channel: 'telegram',
+                organizationId,
+                incoming,
+                eventId,
+                correlationId,
+              },
+              deps.dedicatedBotInboundForward!,
+            ),
+          );
+        }
       }
       const outcome = await processTelegramUpdate(parseResult.data, deps, {
         correlationId,

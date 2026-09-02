@@ -28,6 +28,25 @@ export type RequestSurface = 'staff' | 'platform_admin' | 'patient_default' | 'p
 
 export type EffectivePatientBrand = AnonymousPatientBrand;
 
+/**
+ * Public identity of the clinic's OWN Telegram/MAX bot on a branded patient surface.
+ *
+ * `ready` — the clinic declared its bot, the live channel probe confirmed it and the public
+ * handle is present, so its deep links must use that bot.
+ * `declared_invalid` — the clinic declared its own bot, but its exact identity is not usable
+ * (probe never passed, handle missing/garbled). Owner 20.08: a declared clinic bot is the clinic's
+ * channel, so this NEVER falls back to the platform bot silently — the request refuses instead.
+ * Absent key — the clinic has no bot of its own on that platform: common Therapysto applies.
+ */
+export type ClinicMessengerBotSurface =
+  | Readonly<{ status: 'ready'; publicId: string }>
+  | Readonly<{ status: 'declared_invalid' }>;
+
+export type ClinicMessengerBots = Readonly<{
+  telegram?: ClinicMessengerBotSurface;
+  max?: ClinicMessengerBotSurface;
+}>;
+
 export type ResolvedSurface = Readonly<{
   surface: RequestSurface;
   publicOrigin: string;
@@ -36,6 +55,8 @@ export type ResolvedSurface = Readonly<{
   /** One org setting decides whether its branded root opens the common patient entry immediately. */
   skipPublicCardAtRoot?: boolean;
   effectivePatientBrand?: EffectivePatientBrand;
+  /** Branded surface only: the clinic's own bot identity per platform (see the type doc). */
+  clinicMessengerBots?: ClinicMessengerBots;
   authPolicy: SurfaceAuthPolicy;
 }>;
 
@@ -49,6 +70,12 @@ export type TenantSurfaceLookupResult =
       /** Trusted organization provenance of the projected brand before its id is stripped. */
       effectivePatientBrandOrganizationId: string;
       effectivePatientBrand: EffectivePatientBrand;
+      /**
+       * Public half of the clinic's per-org bot configuration. The lookup seam owns the read
+       * (it is the only anonymous-request place with an organization-scoped DB principal); this
+       * resolver only sanitizes and forwards it.
+       */
+      clinicMessengerBots?: ClinicMessengerBots;
     }>
   | Readonly<{ status: 'unknown' | 'duplicate' | 'inactive' }>;
 
@@ -157,6 +184,34 @@ function requestPlatformHost(requestOrigin: URL, staffOrigin: URL): string {
 }
 
 /** Strip every management/internal field before a brand can enter the request header. */
+/** Same safe public-handle alphabet Telegram usernames and MAX nicknames share. */
+const CLINIC_BOT_PUBLIC_ID_RE = /^[A-Za-z0-9_]{3,64}$/;
+
+/**
+ * Fails CLOSED per platform: anything present but unrecognized becomes `declared_invalid`, never
+ * silently disappears into the platform-bot default. Only an absent key means «no own bot».
+ */
+function sanitizeClinicMessengerBots(value: unknown): ClinicMessengerBots | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value !== 'object' || Array.isArray(value)) return { telegram: { status: 'declared_invalid' }, max: { status: 'declared_invalid' } };
+  const record = value as Record<string, unknown>;
+  const entry = (raw: unknown): ClinicMessengerBotSurface | undefined => {
+    if (raw === undefined) return undefined;
+    if (raw !== null && typeof raw === 'object' && !Array.isArray(raw)) {
+      const candidate = raw as Record<string, unknown>;
+      const publicId = typeof candidate.publicId === 'string' ? candidate.publicId.trim() : '';
+      if (candidate.status === 'ready' && CLINIC_BOT_PUBLIC_ID_RE.test(publicId)) {
+        return { status: 'ready', publicId };
+      }
+    }
+    return { status: 'declared_invalid' };
+  };
+  const telegram = entry(record.telegram);
+  const max = entry(record.max);
+  if (!telegram && !max) return undefined;
+  return { ...(telegram ? { telegram } : {}), ...(max ? { max } : {}) };
+}
+
 function sanitizeEffectivePatientBrand(value: unknown): EffectivePatientBrand | null {
   if (!value || typeof value !== 'object') return null;
   const candidate = value as Partial<EffectivePatientBrand>;
@@ -254,6 +309,7 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
     return null;
   }
 
+  const clinicMessengerBots = sanitizeClinicMessengerBots(tenant.clinicMessengerBots);
   return {
     surface: 'patient_branded',
     publicOrigin,
@@ -261,6 +317,7 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
     clinicSlug: clinicSlug.slug,
     skipPublicCardAtRoot: tenant.skipPublicCardAtRoot === true,
     effectivePatientBrand,
+    ...(clinicMessengerBots ? { clinicMessengerBots } : {}),
     authPolicy,
   };
 };
@@ -330,18 +387,22 @@ export function readResolvedSurface(headers: Pick<Headers, 'get'>): ResolvedSurf
       ) {
         return null;
       }
+      const { clinicMessengerBots: rawClinicMessengerBots, ...withoutBots } = candidate;
+      const clinicMessengerBots = sanitizeClinicMessengerBots(rawClinicMessengerBots);
       return {
-        ...candidate,
+        ...withoutBots,
         authPolicy,
         clinicSlug: clinicSlug.slug,
         skipPublicCardAtRoot: candidate.skipPublicCardAtRoot === true,
         effectivePatientBrand,
+        ...(clinicMessengerBots ? { clinicMessengerBots } : {}),
       } as ResolvedSurface;
     } else if (
       candidate.organizationId ||
       candidate.clinicSlug ||
       candidate.skipPublicCardAtRoot !== undefined ||
-      candidate.effectivePatientBrand
+      candidate.effectivePatientBrand ||
+      candidate.clinicMessengerBots
     ) {
       return null;
     }

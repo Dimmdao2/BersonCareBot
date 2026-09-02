@@ -31,12 +31,18 @@ export function parseClinicDeliveryReadiness(valueJson: unknown): ClinicDelivery
   return PENDING;
 }
 
+/**
+ * Rewrites ONLY the readiness sibling. Every other sibling of `value` survives — the dedicated
+ * bot keys keep their public half (`botPublicId`, `inboundForwarding`) here, so a live channel
+ * probe cannot silently erase the clinic's forwarding настройки.
+ */
 export function withClinicDeliveryReadiness(
   valueJson: unknown,
   readiness: ClinicDeliveryReadiness,
-): { value: unknown; deliveryReadiness: ClinicDeliveryReadiness } {
+): { value: unknown; deliveryReadiness: ClinicDeliveryReadiness } & Record<string, unknown> {
   const current = envelope(valueJson);
   return {
+    ...(current ?? {}),
     value: current && 'value' in current ? current.value : valueJson,
     deliveryReadiness: readiness,
   };

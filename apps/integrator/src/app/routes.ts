@@ -10,7 +10,10 @@ import { createDbPort } from '../infra/db/client.js';
 import { createMessengerStaffIdsResolver } from '../infra/db/messengerStaffIds.js';
 import { resolveActiveOrganizationIdForChannel } from '../infra/db/repos/platformUserByChannel.js';
 import { resolveDedicatedClinicBotOrganization } from '../infra/db/clinicDedicatedBotBindings.js';
-import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDeliveryCredentials.js';
+import {
+  createClinicBotInboundForwardingResolver,
+  createClinicDeliveryCredentialResolver,
+} from '../infra/db/clinicDeliveryCredentials.js';
 import { env, integratorWebhookSecret } from '../config/env.js';
 import { startTelegramLongPolling } from '../integrations/telegram/longPolling.js';
 import type { AppDeps } from './di.js';
@@ -161,6 +164,14 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   const resolveMessengerStaffAdmin = createMessengerStaffIdsResolver(createDbPort());
   const getAppBaseUrlForWebhooks = async (): Promise<string> => env.APP_BASE_URL;
 
+  // Одна прикладная механика пересылки на обе платформы: адресация получателя различается внутри
+  // самого action, продуктовой ветки «а для MAX иначе» нет (owner 20.08).
+  const dedicatedBotInboundForward = {
+    dispatchPort: deps.dispatchPort,
+    resolveInboundForwarding: createClinicBotInboundForwardingResolver(createDbPort()),
+    idempotencyPort: deps.idempotencyPort,
+  };
+
   const telegramWebhookDeps = {
     eventGateway: deps.eventGateway,
     resolveOrganizationIdForMessengerIdentity,
@@ -168,6 +179,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     resolveMessengerStaffAdmin,
     resolveDedicatedClinicBotOrganization: resolveDedicatedTelegramBotOrganization,
     setupProviderSurface: env.NODE_ENV !== 'development',
+    dedicatedBotInboundForward,
   };
   const telegramRuntimeConfig = await getTelegramRuntimeConfig();
   if (env.NODE_ENV !== 'development' && telegramRuntimeConfig.mode === 'long_polling') {
@@ -199,6 +211,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
         resolveDedicatedClinicBotOrganization: resolveDedicatedMaxBotOrganization,
         setupProviderSurface: env.NODE_ENV !== 'development',
         resolveDedicatedClinicBotApiKey: createResolveDedicatedClinicMaxApiKey(),
+        dedicatedBotInboundForward,
       });
     });
   }

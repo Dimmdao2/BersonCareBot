@@ -814,7 +814,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/webapp/src/modules/clinic-directory/ports.ts",
       "apps/webapp/src/modules/org-branding/ports.ts",
       "apps/webapp/src/modules/org-entitlements/ports.ts",
-      "apps/webapp/src/modules/saas-billing/ports.ts"
+      "apps/webapp/src/modules/saas-billing/ports.ts",
+      "apps/integrator/src/infra/db/clinicSenderName.ts"
     ],
     "grants": [
       {
@@ -859,6 +860,17 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "id",
           "is_active"
+        ]
+      },
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "is_active",
+          "title"
         ]
       },
       {
