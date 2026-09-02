@@ -13,6 +13,12 @@
 [`2026-08-infrastructure-security-consolidation/README.md`](2026-08-infrastructure-security-consolidation/README.md).
 Исполняемый канон — [`docs/_TODO/INFRASTRUCTURE_SECURITY_PLAN.md`](../_TODO/INFRASTRUCTURE_SECURITY_PLAN.md).
 
+## 2026-08 — Therapysto branding evidence
+
+Промежуточные handoff, scope snapshots, коррекции и независимые аудиты завершённой кодовой части перенесены в
+[`2026-08-therapysto-branding-evidence/README.md`](2026-08-therapysto-branding-evidence/README.md). Актуальный
+план и продуктовые исследования остаются в `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/`.
+
 ## 2026-07 — уборка планов (`2026-07-plans/`)
 
 35 планов из `docs/_TODO/`, закрытых, вытесненных или отменённых владельцем, перенесены сюда 29.07 с

@@ -11,8 +11,12 @@
 Реально остались: отдельное доменное включение (DNS/TLS/proxy/env, BersonCare как первый живой branded tenant и
 smoke новых patient/staff поверхностей), второй фактор специалиста
 `F2c` после переезда и общий с Track D живой provider-gate телефона/кода/доставки `TPB-12`. Остальная кодовая
-часть принята; точный независимый verdict — `E3_FINAL_IMPLEMENTATION_AUDIT_2026-08-24.md` (`PASS` для принятого
-product scope, но не для перечисленных runtime/provider gates).
+часть принята; точный независимый verdict —
+[`E3_FINAL_IMPLEMENTATION_AUDIT_2026-08-24.md`](../../archive/2026-08-therapysto-branding-evidence/E3_FINAL_IMPLEMENTATION_AUDIT_2026-08-24.md)
+(`PASS` для принятого product scope, но не для перечисленных runtime/provider gates). Остальные упоминаемые ниже
+датированные audit/evidence-файлы хранятся в том же
+[архиве исполнения](../../archive/2026-08-therapysto-branding-evidence/README.md); они не являются активными
+планами.
 
 **Owner boundary 28.08:** доменные чекбоксы ниже намеренно остаются `[ ]`, а не считаются дефектом текущего TEST:
 владелец сохранил действующую схему `test.bersoncare.ru` до отдельной команды на cutover. Подготовка и проверка
@@ -701,7 +705,7 @@ Checkbox закрывается только доказательством, у�
   `apps/webapp/src/config/surfaceRoutes.ts` («путь запроса → поверхность») применяется в единственной точке —
   `generateMetadata` корневого `apps/webapp/src/app/layout.tsx` — сразу на metadata/manifest/icons и на видимое
   имя через тот же `PlatformProvider`; девять прежних `export const metadata = staffPwaLayoutMetadata` удалены.
-  Доказательство: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/CORRECTION_STAGE_A_ROUND3_2026-08-22.md` —
+  Доказательство: `docs/archive/2026-08-therapysto-branding-evidence/CORRECTION_STAGE_A_ROUND3_2026-08-22.md` —
   живой обход всех 149 маршрутов дерева на dev-сервере, 0 расхождений; проверка под тремя сессиями владельца;
   `PATIENT_APP_NAME=QA-Renamed` не переопределяет staff-имя (`QA-Renamed`×0 на staff-маршрутах).
 - [x] `A2b` **Остаток `A2`:** legal-страницы и остальной невыполненный периметр (patient mail становится
