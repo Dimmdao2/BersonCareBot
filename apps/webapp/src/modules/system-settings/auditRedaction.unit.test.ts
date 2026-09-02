@@ -4,6 +4,15 @@ import { redactAdminSettingsForClient } from './webPushVapidRuntime';
 import { ALLOWED_KEYS, SYSTEM_SETTING_REGISTRY } from './registry';
 import type { SystemSetting } from './types';
 
+const PUBLIC_OAUTH_IDENTIFIER_KEYS = [
+  'apple_oauth_client_id',
+  'apple_oauth_key_id',
+  'apple_oauth_team_id',
+  'google_client_id',
+  'vk_id_application_id',
+  'yandex_oauth_client_id',
+] as const;
+
 describe('integration credential audit redaction', () => {
   it.each([
     'max_bot_api_key',
@@ -63,6 +72,16 @@ describe('integration credential audit redaction', () => {
       expect(redactSettingValueForAudit('web_push_vapid', null)).toBeNull();
     });
 
+    it('fails closed when a VAPID envelope has an unrecognized secret-bearing object shape', () => {
+      const unknownSecret = 'vapid-private-under-an-unknown-field-5b4c';
+      const result = redactSettingValueForAudit('web_push_vapid', {
+        value: { publicKey: 'pub-key-abc', signingPrivateKey: unknownSecret },
+      });
+
+      expect(result).toBe('[REDACTED]');
+      expect(JSON.stringify(result)).not.toContain(unknownSecret);
+    });
+
     it('redacts every provider secret field for booking_payment_providers', () => {
       const webhookSecret = 'whsec_do-not-leak-4c19';
       const apiKey = 'ak_live_do-not-leak-9f31';
@@ -117,6 +136,31 @@ describe('integration credential audit redaction', () => {
         },
       });
     });
+
+    it.each(['booking_payment_providers', 'saas_billing_payment_provider'] as const)(
+      'fails closed for unknown-provider credential fields in %s',
+      (key) => {
+        const unknownSecret = 'future-provider-client-secret-c67a';
+        const knownSecret = 'future-provider-api-key-8f31';
+        const result = redactSettingValueForAudit(key, {
+          value: {
+            defaultProviderId: 'future-pay',
+            providers: [
+              {
+                id: 'future-pay',
+                label: 'Future Pay',
+                enabled: true,
+                clientSecret: unknownSecret,
+                apiKey: knownSecret,
+              },
+            ],
+          },
+        });
+
+        expect(JSON.stringify(result)).not.toContain(unknownSecret);
+        expect(JSON.stringify(result)).not.toContain(knownSecret);
+      },
+    );
   });
 
   describe('fails closed on a malformed or missing secret shape', () => {
@@ -139,6 +183,37 @@ describe('integration credential audit redaction', () => {
         '[REDACTED]',
       );
     });
+
+    it.each(PUBLIC_OAUTH_IDENTIFIER_KEYS)(
+      'keeps a normal %s visible but rejects an object carrying a neighboring credential',
+      (key) => {
+        const publicIdentifier = `${key}-public-id`;
+        expect(redactSettingValueForAudit(key, { value: publicIdentifier })).toEqual({
+          value: publicIdentifier,
+        });
+
+        const neighboringSecret = `${key}-neighboring-client-secret`;
+        const malformed = redactSettingValueForAudit(key, {
+          value: { clientId: publicIdentifier, clientSecret: neighboringSecret },
+        });
+        expect(malformed).toBe('[REDACTED]');
+        expect(JSON.stringify(malformed)).not.toContain(neighboringSecret);
+      },
+    );
+
+    it.each(['smtp_outbound', 'clinic_smtp_outbound', 'operator_health_imap'])(
+      'redacts the password while retaining public connection metadata for %s',
+      (key) => {
+        const password = `${key}-password-do-not-leak`;
+        const result = redactSettingValueForAudit(key, {
+          value: { host: 'mail.example.test', password },
+        });
+        expect(result).toEqual({
+          value: { host: 'mail.example.test', password: '[REDACTED]' },
+        });
+        expect(JSON.stringify(result)).not.toContain(password);
+      },
+    );
   });
 
   describe('registry census (#1071 §6 step 7)', () => {
@@ -160,16 +235,7 @@ describe('integration credential audit redaction', () => {
       const noneKeys = SECRET_ENVELOPE_KEYS.filter(
         (key) => SYSTEM_SETTING_REGISTRY[key].secretAudit.kind === 'none',
       ).sort();
-      expect(noneKeys).toEqual(
-        [
-          'apple_oauth_client_id',
-          'apple_oauth_key_id',
-          'apple_oauth_team_id',
-          'google_client_id',
-          'vk_id_application_id',
-          'yandex_oauth_client_id',
-        ].sort(),
-      );
+      expect(noneKeys).toEqual([...PUBLIC_OAUTH_IDENTIFIER_KEYS].sort());
     });
 
     it('classifies exactly the 19 scalar secrets as whole_value', () => {
@@ -177,6 +243,9 @@ describe('integration credential audit redaction', () => {
         (key) => SYSTEM_SETTING_REGISTRY[key].secretAudit.kind === 'whole_value',
       );
       expect(wholeValueKeys.length).toBe(19);
+      for (const key of wholeValueKeys) {
+        expect(redactSettingValueForAudit(key, { value: `${key}-secret` })).toBe('[REDACTED]');
+      }
     });
 
     it('classifies exactly the 4 password-bearing composites as object_field', () => {

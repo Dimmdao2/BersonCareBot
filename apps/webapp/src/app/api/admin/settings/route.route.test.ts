@@ -306,12 +306,26 @@ describe('global-admin settings HTTP boundary', () => {
       ok: true,
       ctx: { session: doctorSession, organizationId, membershipRole: 'owner' },
     });
+    const oldSecretApiKey = 'ak_old-do-not-leak-this-2d11';
     const secretApiKey = 'ak_live_do-not-leak-this-9f31';
     const bodyValue = {
       enabled: true,
       defaultProviderId: 'yookassa',
       providers: [{ id: 'yookassa', label: 'ЮKassa', enabled: true, apiKey: secretApiKey }],
     };
+    fakes.getSetting.mockResolvedValue({
+      key: 'booking_payment_providers',
+      scope: 'admin',
+      organizationId,
+      valueJson: {
+        value: {
+          ...bodyValue,
+          providers: [{ ...bodyValue.providers[0], apiKey: oldSecretApiKey }],
+        },
+      },
+      updatedAt: '2026-09-01T00:00:00.000Z',
+      updatedBy: doctorSession.user.userId,
+    });
     fakes.updateSetting.mockResolvedValue({
       key: 'booking_payment_providers',
       scope: 'admin',
@@ -327,6 +341,7 @@ describe('global-admin settings HTTP boundary', () => {
     expect(response.status).toBe(200);
     const auditCall = infoSpy.mock.calls.find(([label]) => label === '[admin-settings audit]');
     expect(auditCall).toBeDefined();
+    expect(JSON.stringify(auditCall)).not.toContain(oldSecretApiKey);
     expect(JSON.stringify(auditCall)).not.toContain(secretApiKey);
     // Route log line and durable ledger (`pgSystemSettings.ts`) call the same shared redactor.
     expect(auditCall?.[1]).toMatchObject({
