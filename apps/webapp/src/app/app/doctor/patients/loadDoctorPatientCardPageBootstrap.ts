@@ -114,7 +114,15 @@ export type DoctorPatientCardTabBootstrap = {
       title: string;
       status: string;
       soldAt?: string | null;
+      validFrom: string | null;
       validUntil: string | null;
+      createdAt: string;
+      priceMinor: number;
+      currency: string;
+      paidAmountMinor: number | null;
+      paidCurrency: string | null;
+      paymentIntentId: string | null;
+      paymentRef: string | null;
       balance: {
         items: Array<{
           quantityInitial: number;
@@ -188,7 +196,15 @@ function shapePackages(
     title: pkg.title,
     status: pkg.status,
     soldAt: pkg.soldAt ?? null,
+    validFrom: pkg.validFrom ?? null,
     validUntil: pkg.validUntil ?? null,
+    createdAt: pkg.createdAt,
+    priceMinor: pkg.priceMinor,
+    currency: pkg.currency,
+    paidAmountMinor: pkg.paidAmountMinor,
+    paidCurrency: pkg.paidCurrency,
+    paymentIntentId: pkg.paymentIntentId,
+    paymentRef: pkg.paymentRef,
     balance: {
       items: pkg.balance.items.map((item) => ({
         quantityInitial: item.quantityInitial,

@@ -792,6 +792,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           internalId: row.internal_id ?? null,
           dateTime: row.record_at ? new Date(row.record_at).toISOString() : '',
           status,
+          isLateCancellation: row.status === 'late_cancellation',
           serviceName: (row.service_title && row.service_title.trim()) || null,
           location: row.branch_name ?? null,
           durationMin,

@@ -779,6 +779,7 @@ function PatientCardTabPanels({
   const [selectedVisitAppointmentId, setSelectedVisitAppointmentId] = useState<string | null>(null);
   const [mobilePane, setMobilePane] = useState<'master' | 'detail'>('master');
   const appointments = unwrapBootstrapEnvelope(tab.initialAppointments) ?? [];
+  const packages = unwrapBootstrapEnvelope(tab.initialPackages) ?? [];
 
   return (
     <>
@@ -800,7 +801,7 @@ function PatientCardTabPanels({
               selectTab('karta');
             }}
             initialAppointments={appointments}
-            initialPackages={[]}
+            initialPackages={packages}
             membershipsVisible={membershipsVisible}
             membershipMutationsAllowed={membershipMutationsAllowed}
           />

@@ -239,6 +239,8 @@ export type PatientAppointmentItem = {
    * other non-cancelled past/future slots → 'completed' / 'upcoming'.
    */
   status: 'completed' | 'rescheduled' | 'canceled' | 'upcoming';
+  /** True only for the canonical late_cancellation status. */
+  isLateCancellation?: boolean;
   /** Тип/услуга из canonical service title. */
   serviceName: string | null;
   /** Локация/филиал из canonical branch title. */

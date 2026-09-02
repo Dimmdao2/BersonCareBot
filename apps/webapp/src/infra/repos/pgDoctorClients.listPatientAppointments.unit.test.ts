@@ -80,4 +80,22 @@ describe('pgDoctorClients.listPatientAppointments', () => {
       }),
     ]);
   });
+
+  it('preserves the canonical late-cancellation marker for patient-card summaries', async () => {
+    fakes.runWebappSql.mockImplementation((_db: unknown, fragment: SQL) => {
+      const result = executeAgainstFakeCatalog(_db, fragment);
+      return {
+        rows: result.rows.map((row) => ({ ...row, status: 'late_cancellation' })),
+      };
+    });
+
+    await expect(
+      createPgDoctorClientsPort().listPatientAppointments(PATIENT_ID, ORGANIZATION_ID),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        status: 'canceled',
+        isLateCancellation: true,
+      }),
+    ]);
+  });
 });

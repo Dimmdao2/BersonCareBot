@@ -27,6 +27,10 @@ type Props = {
   className?: string;
   valueClassName?: string;
   testId?: string;
+  valuePlacement?: 'responsive' | 'inline';
+  actionIcon?: ReactNode;
+  actionLabel?: string;
+  onActionClick?: () => void;
 };
 
 export function DoctorStatCard({
@@ -43,6 +47,10 @@ export function DoctorStatCard({
   className,
   valueClassName,
   testId,
+  valuePlacement = 'responsive',
+  actionIcon,
+  actionLabel,
+  onActionClick,
 }: Props) {
   const shellClass = cn(
     tone === 'warning' ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
@@ -61,23 +69,68 @@ export function DoctorStatCard({
   const hintNode = hint ? (
     <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p>
   ) : null;
-  const inner = (
-    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-1.5 md:block">
-      {label}
-      <div className="col-start-2 flex items-baseline justify-end gap-0.5 md:mt-0.5 md:w-full md:justify-start md:gap-1">
-        {valueNode}
-        {secondaryValue !== undefined ? (
-          <div className="flex items-baseline gap-0.5 font-semibold tabular-nums text-foreground/75">
-            <span aria-hidden className="text-sm font-normal text-muted-foreground">
-              /
-            </span>
-            <span className={doctorInlineMetricValueClass}>{secondaryValue}</span>
-          </div>
-        ) : null}
-      </div>
-      {hint ? <div className="col-span-full">{hintNode}</div> : null}
+  const metric = (
+    <div className="flex items-baseline gap-0.5">
+      {valueNode}
+      {secondaryValue !== undefined ? (
+        <div className="flex items-baseline gap-0.5 font-semibold tabular-nums text-foreground/75">
+          <span aria-hidden className="text-sm font-normal text-muted-foreground">
+            /
+          </span>
+          <span className={doctorInlineMetricValueClass}>{secondaryValue}</span>
+        </div>
+      ) : null}
     </div>
   );
+  const inner =
+    valuePlacement === 'inline' ? (
+      <div className="w-full min-w-0">
+        <div className="flex items-baseline gap-2">
+          {label}
+          {metric}
+        </div>
+        {hintNode}
+      </div>
+    ) : (
+      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-1.5 md:block">
+        {label}
+        <div className="col-start-2 flex items-baseline justify-end gap-0.5 md:mt-0.5 md:w-full md:justify-start md:gap-1">
+          {metric}
+        </div>
+        {hint ? <div className="col-span-full">{hintNode}</div> : null}
+      </div>
+    );
+
+  if (actionIcon && actionLabel && onActionClick) {
+    return (
+      <article
+        className={cn(shellClass, 'grid grid-cols-[minmax(0,1fr)_auto] overflow-hidden p-0')}
+      >
+        <Button
+          id={id}
+          type="button"
+          variant="ghost"
+          className={cn(
+            doctorInteractiveSurfaceButtonClass,
+            'w-full justify-start rounded-none p-2.5 text-left',
+          )}
+          onClick={onClick}
+          data-testid={testId}
+        >
+          {inner}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-full min-w-11 rounded-none border-l border-border/60 px-3 text-muted-foreground hover:bg-muted/50 hover:text-primary"
+          aria-label={actionLabel}
+          onClick={onActionClick}
+        >
+          {actionIcon}
+        </Button>
+      </article>
+    );
+  }
 
   let trigger: ReactElement;
 

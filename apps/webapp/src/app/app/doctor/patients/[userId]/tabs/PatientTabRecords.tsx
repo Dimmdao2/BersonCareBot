@@ -32,6 +32,8 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { DoctorModalSummaryBar } from '@/shared/ui/doctor/DoctorModalSummaryBar';
 import {
   DoctorDnaFlatList,
   doctorDnaFlatListClass,
@@ -72,6 +74,7 @@ interface DisplayAppointment {
   patientPackageId?: string | null;
   packageTitle?: string | null;
   packageDisplayNumber?: number | null;
+  isLateCancellation?: boolean;
 }
 
 /** Маппинг PatientAppointmentItem → DisplayAppointment. */
@@ -96,6 +99,7 @@ function mapRealToDisplay(item: PatientAppointmentItem): DisplayAppointment {
     patientPackageId: item.patientPackageId ?? null,
     packageTitle: item.packageTitle ?? null,
     packageDisplayNumber: item.packageDisplayNumber ?? null,
+    isLateCancellation: item.isLateCancellation === true,
   };
 }
 
@@ -116,6 +120,32 @@ function fmtWeekday(iso: string): string {
   return d
     .toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow', weekday: 'short' })
     .replace('.', '');
+}
+
+function formatNextAppointment(appointment: DisplayAppointment | undefined): string | undefined {
+  if (!appointment?.date || !appointment.time) return undefined;
+  const target = new Date(`${appointment.date}T00:00:00`);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.round((target.getTime() - today.getTime()) / 86_400_000);
+  const dayLabel =
+    days === 0
+      ? 'сегодня'
+      : days === 1
+        ? 'завтра'
+        : days > 1 && days <= 7
+          ? `через ${days} ${days >= 2 && days <= 4 ? 'дня' : 'дней'}`
+          : fmtDate(appointment.date).slice(0, 5);
+  return `${dayLabel}, ${appointment.time}`;
+}
+
+function formatMoney(amountMinor: number | null | undefined, currency: string | null | undefined) {
+  if (amountMinor == null) return '—';
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: currency || 'RUB',
+    maximumFractionDigits: amountMinor % 100 === 0 ? 0 : 2,
+  }).format(amountMinor / 100);
 }
 
 /** Dispatch custom event to switch PatientCardClient to a different tab. */
@@ -159,6 +189,13 @@ function StatusChip({
     return (
       <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-destructive/10 text-destructive">
         отмена ⚠
+      </span>
+    );
+  }
+  if (status === 'upcoming') {
+    return (
+      <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-primary">
+        запланирована
       </span>
     );
   }
@@ -214,6 +251,9 @@ export function PatientTabRecords({
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
   const [highlightedPackageId, setHighlightedPackageId] = useState<string | null>(null);
   const [visitsModalOpen, setVisitsModalOpen] = useState(false);
+  const [membershipModalOpen, setMembershipModalOpen] = useState(false);
+  const [membershipSessions, setMembershipSessions] = useState<PackageSession[] | null>(null);
+  const [membershipSessionsError, setMembershipSessionsError] = useState(false);
 
   // Real appointments fetch. Track the userId the loaded state belongs to so we
   // can derive «loading» when the prop changes — instead of resetting state
@@ -283,6 +323,74 @@ export function PatientTabRecords({
     header?.reschedulesCount ?? historyList.filter((a) => a.status === 'rescheduled').length;
   const totalRecords = completedCount + cancelsCount + reschedulesCount;
   const firstVisitDate = header?.firstVisitDate;
+  const lateCancellationsCount = historyList.filter((a) => a.isLateCancellation).length;
+
+  const activePackages = useMemo(
+    () => (initialPackages ?? []).filter((pkg) => isActivePackageStatus(pkg.status)),
+    [initialPackages],
+  );
+  const activePackageSummaries = activePackages.map((pkg) => {
+    const totals = packageTotals(pkg);
+    const startedLinkedAppointments = displayList.filter((appointment) => {
+      if (appointment.patientPackageId !== pkg.id || !appointment.isPackage) return false;
+      const startsAt = new Date(`${appointment.date}T${appointment.time || '00:00'}`).getTime();
+      return Number.isFinite(startsAt) && startsAt <= Date.now();
+    }).length;
+    return {
+      pkg,
+      total: totals.totalSessions,
+      used: Math.max(
+        startedLinkedAppointments,
+        Math.max(0, totals.totalSessions - totals.remainingSessions),
+      ),
+    };
+  });
+  const membershipTotals = activePackageSummaries.reduce(
+    (result, summary) => ({
+      total: result.total + summary.total,
+      used: result.used + summary.used,
+    }),
+    { total: 0, used: 0 },
+  );
+  const membershipValidUntil = activePackages
+    .map((pkg) => pkg.validUntil)
+    .filter((value): value is string => Boolean(value))
+    .sort()[0];
+
+  useEffect(() => {
+    if (!membershipModalOpen || activePackages.length === 0) return;
+    let active = true;
+    setMembershipSessions(null);
+    setMembershipSessionsError(false);
+    void Promise.all(
+      activePackages.map(async (pkg) => {
+        const response = await fetch(
+          `/api/doctor/booking-engine/patient-packages/${pkg.id}/sessions?includePast=true`,
+          { credentials: 'include' },
+        );
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        const data = (await response.json()) as { sessions?: PackageSession[] };
+        return (data.sessions ?? []).filter((session) => {
+          if (session.linkage === 'consumed' || session.linkage === 'penalty') return true;
+          return (
+            session.linkage === 'reserved' && new Date(session.startsAt).getTime() <= Date.now()
+          );
+        });
+      }),
+    )
+      .then((groups) => {
+        if (!active) return;
+        setMembershipSessions(groups.flat().sort((a, b) => b.startsAt.localeCompare(a.startsAt)));
+      })
+      .catch(() => {
+        if (!active) return;
+        setMembershipSessions([]);
+        setMembershipSessionsError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [membershipModalOpen, activePackages]);
 
   const hasNoShows = historyList.some((a) => a.status === 'no_show');
   const cancelsHistory = historyList.filter(
@@ -292,59 +400,54 @@ export function PatientTabRecords({
   if (compositionMode === 'master') {
     return (
       <section aria-label="Записи">
-        <button
-          type="button"
-          className={cn(
-            doctorInteractiveSurfaceButtonClass,
-            doctorStatCardShellClass,
-            doctorStatCardInteractiveClass,
-            'flex w-full flex-col gap-2.5 text-left',
-          )}
-          onClick={() => setVisitsModalOpen(true)}
-          aria-haspopup="dialog"
-        >
-          <span className="flex w-full items-baseline justify-between gap-3">
-            <span className="flex items-baseline gap-2 text-foreground">
-              <span className="text-sm font-semibold">Визитов:</span>
-              <span className={doctorMetricValueClass}>{completedCount}</span>
-            </span>
-            {nextAppointment ? (
-              <span className="shrink-0 text-xs text-muted-foreground">
-                Следующий: {fmtDate(nextAppointment.date).slice(0, 5)}, {nextAppointment.time}
-              </span>
-            ) : null}
-          </span>
-          <span className="grid w-full grid-cols-3 gap-2 text-xs font-normal text-foreground">
-            <span>Будущих {upcomingList.length}</span>
-            <span className="text-center">Отмен {cancelsCount}</span>
-            <span className="text-right">Переносов {reschedulesCount}</span>
-          </span>
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <DoctorStatCard
+            id="patient-overview-visits"
+            title="Визитов"
+            value={completedCount}
+            hint={formatNextAppointment(nextAppointment)}
+            onClick={() => setVisitsModalOpen(true)}
+          />
+          <DoctorStatCard
+            id="patient-overview-membership"
+            title={activePackages.length > 0 ? 'Абонемент' : 'Без абонемента'}
+            value={
+              activePackages.length > 0
+                ? `${membershipTotals.used} из ${membershipTotals.total}`
+                : ''
+            }
+            hint={
+              membershipValidUntil ? `до ${fmtDate(membershipValidUntil.slice(0, 10))}` : undefined
+            }
+            onClick={() => setMembershipModalOpen(true)}
+          />
+        </div>
 
         <DoctorModal
           open={visitsModalOpen}
           onClose={() => setVisitsModalOpen(false)}
-          title={`Визиты: ${completedCount}`}
+          title="Визиты"
           size="lg"
           bodyVariant="list"
           desktopPresentation="right-sheet"
         >
-          <div className="flex justify-end px-4 pb-2">
-            <Button type="button" size="sm" onClick={openNewVisit}>
-              Добавить
-            </Button>
-          </div>
+          <DoctorModalSummaryBar className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
+            <span>Отмен {cancelsCount}</span>
+            <span>Переносов {reschedulesCount}</span>
+            <span>Поздних отмен {lateCancellationsCount}</span>
+            <span>Будущих {upcomingList.length}</span>
+          </DoctorModalSummaryBar>
           {isLoading ? (
             <p className="animate-pulse px-4 py-2 text-sm text-muted-foreground">
               Загрузка записей…
             </p>
           ) : fetchError ? (
             <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить записи.</p>
-          ) : historyList.length === 0 ? (
+          ) : displayList.length === 0 ? (
             <DoctorEmptyState>Визитов нет</DoctorEmptyState>
           ) : (
             <DoctorDnaFlatList>
-              {historyList.map((appt) => (
+              {displayList.map((appt) => (
                 <li key={appt.id} className={`${doctorDnaFlatListRowClass} justify-between`}>
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className={`${doctorDnaFlatListPrimaryClass} truncate`}>
@@ -385,6 +488,87 @@ export function PatientTabRecords({
                   </span>
                 </li>
               ))}
+            </DoctorDnaFlatList>
+          )}
+        </DoctorModal>
+
+        <DoctorModal
+          open={membershipModalOpen}
+          onClose={() => setMembershipModalOpen(false)}
+          title="Абонемент"
+          size="lg"
+          bodyVariant="list"
+          desktopPresentation="right-sheet"
+        >
+          {activePackages.length > 0 ? (
+            <DoctorModalSummaryBar>
+              {activePackageSummaries.map(({ pkg, used, total }) => (
+                <div
+                  key={pkg.id}
+                  className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4"
+                >
+                  <span className="font-medium">{pkg.title}</span>
+                  <span>
+                    Использовано {used} из {total}
+                  </span>
+                  <span>
+                    {formatMoney(
+                      pkg.paidAmountMinor ?? pkg.priceMinor,
+                      pkg.paidCurrency ?? pkg.currency,
+                    )}
+                  </span>
+                  <span>{pkg.paymentIntentId || pkg.paymentRef ? 'Онлайн' : 'Наличные'}</span>
+                  <span>
+                    {pkg.soldAt || pkg.createdAt
+                      ? `Куплен ${fmtDate((pkg.soldAt ?? pkg.createdAt ?? '').slice(0, 10))}`
+                      : 'Дата покупки —'}
+                  </span>
+                  <span className="col-span-2 text-muted-foreground sm:col-span-4">
+                    {pkg.validUntil
+                      ? `Действует до ${fmtDate(pkg.validUntil.slice(0, 10))}`
+                      : 'Без ограничения срока'}
+                  </span>
+                </div>
+              ))}
+            </DoctorModalSummaryBar>
+          ) : null}
+          {activePackages.length === 0 ? (
+            <DoctorEmptyState>Активного абонемента нет</DoctorEmptyState>
+          ) : membershipSessions === null ? (
+            <DoctorPanelLoading className="min-h-32" label="Загрузка сеансов" />
+          ) : membershipSessionsError ? (
+            <p className="px-4 py-3 text-sm text-destructive">Не удалось загрузить сеансы.</p>
+          ) : membershipSessions.length === 0 ? (
+            <DoctorEmptyState>Списанных сеансов нет</DoctorEmptyState>
+          ) : (
+            <DoctorDnaFlatList>
+              {membershipSessions.map((session) => {
+                const startsAt = new Date(session.startsAt);
+                return (
+                  <li
+                    key={`${session.appointmentId}-${session.startsAt}`}
+                    className={doctorDnaFlatListRowClass}
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className={`${doctorDnaFlatListPrimaryClass} truncate`}>
+                        {session.serviceTitle}
+                      </span>
+                      <span className={`${doctorDnaFlatListMetaClass} truncate`}>
+                        {[
+                          session.branchTitle,
+                          session.linkage === 'penalty' ? 'Списано за отмену' : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    </span>
+                    <span className={`${doctorDnaFlatListMetaClass} shrink-0 tabular-nums`}>
+                      {fmtDate(session.startsAt.slice(0, 10))} ·{' '}
+                      {startsAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </li>
+                );
+              })}
             </DoctorDnaFlatList>
           )}
         </DoctorModal>
@@ -692,7 +876,15 @@ export type ApiPackage = {
   title: string;
   status: string;
   soldAt?: string | null;
+  validFrom?: string | null;
   validUntil: string | null;
+  createdAt?: string | null;
+  priceMinor?: number | null;
+  currency?: string | null;
+  paidAmountMinor?: number | null;
+  paidCurrency?: string | null;
+  paymentIntentId?: string | null;
+  paymentRef?: string | null;
   balance?: { items: ApiPackageItemBalance[] } | null;
   /** Items with service info from PatientPackageRecord.items. */
   items?: Array<{ serviceId: string; quantityInitial: number; sortOrder: number }> | null;
@@ -705,8 +897,11 @@ type ConsumeSession = {
 };
 
 type PackageSession = {
+  appointmentId: string;
   linkage: string;
   startsAt: string;
+  branchTitle?: string | null;
+  serviceTitle: string;
   isPast?: boolean;
 };
 

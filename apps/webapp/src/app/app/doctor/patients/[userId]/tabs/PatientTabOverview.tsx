@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FilePlus2, StickyNotePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientSupportPanel';
@@ -1738,16 +1738,23 @@ export function PatientTabOverview({
         <section className={cn(isComposed && 'order-1')} aria-label="Заметки">
           <DoctorStatCard
             id="patient-overview-notes"
-            title="Заметок:"
+            title="Заметок"
             value={data?.notes.length ?? 0}
             onClick={() => setNotesModalOpen(true)}
+            valuePlacement="inline"
+            actionIcon={<FilePlus2 className="size-5" aria-hidden />}
+            actionLabel="Добавить заметку"
+            onActionClick={() => {
+              setNoteText('');
+              setNoteFormOpen(true);
+            }}
             className="h-full"
           />
 
           <DoctorModal
             open={notesModalOpen}
             onClose={() => setNotesModalOpen(false)}
-            title={`Заметки: ${data?.notes.length ?? 0}`}
+            title="Заметки"
             size="lg"
             bodyVariant="list"
             desktopPresentation="right-sheet"
@@ -1834,18 +1841,25 @@ export function PatientTabOverview({
           >
             <DoctorStatCard
               id="patient-overview-tasks"
-              title="Задач:"
+              title="Задач"
               value={data?.tasks.length ?? 0}
               tone={tasksNeedAttention ? 'warning' : 'neutral'}
               valueClassName={tasksNeedAttention ? 'text-destructive' : undefined}
               onClick={() => setTasksModalOpen(true)}
+              valuePlacement="inline"
+              actionIcon={<StickyNotePlus className="size-5" aria-hidden />}
+              actionLabel="Добавить задачу"
+              onActionClick={() => {
+                setEditingTask(null);
+                setTaskFormOpen(true);
+              }}
               className="h-full"
             />
 
             <DoctorModal
               open={tasksModalOpen}
               onClose={() => setTasksModalOpen(false)}
-              title={`Задачи: ${data?.tasks.length ?? 0}`}
+              title="Задачи"
               size="lg"
               bodyVariant="list"
               desktopPresentation="right-sheet"

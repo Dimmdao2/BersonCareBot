@@ -119,10 +119,104 @@ describe('patient records tab — a refused load is not a visit history', () => 
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Визитов:\s*1/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Визитов\s*1/ }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Открыть' }));
     expect(openNotes).toHaveBeenCalledWith('appointment-with-visit');
     expect(createVisit).not.toHaveBeenCalled();
+  });
+
+  it('counts a linked session from its start time and opens it in the membership history', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      respondWith({
+        ok: true,
+        sessions: [
+          {
+            appointmentId: 'consumed-appointment',
+            startsAt: '2026-08-20T10:00:00.000Z',
+            endsAt: '2026-08-20T11:00:00.000Z',
+            status: 'completed',
+            branchTitle: 'Точка Здоровья',
+            serviceTitle: 'Сеанс ЛФК',
+            linkage: 'reserved',
+            isPast: true,
+          },
+        ],
+      }),
+    );
+
+    render(
+      <PatientTabRecords
+        userId={patientId}
+        compositionMode="master"
+        initialAppointments={[
+          {
+            id: 'consumed-appointment',
+            internalId: 'consumed-appointment',
+            dateTime: '2026-08-20T10:00:00.000Z',
+            status: 'completed',
+            serviceName: 'Сеанс ЛФК',
+            location: 'Точка Здоровья',
+            durationMin: 60,
+            isPackage: true,
+            patientPackageId: 'package-1',
+          },
+        ]}
+        initialPackages={[
+          {
+            id: 'package-1',
+            title: 'ЛФК 4 занятия',
+            status: 'active',
+            soldAt: '2026-08-01T10:00:00.000Z',
+            validUntil: '2026-10-01T00:00:00.000Z',
+            priceMinor: 1200000,
+            currency: 'RUB',
+            paidAmountMinor: 1200000,
+            paidCurrency: 'RUB',
+            paymentIntentId: 'payment-1',
+            balance: {
+              items: [
+                {
+                  quantityInitial: 4,
+                  remaining: 2,
+                  displayRemaining: 4,
+                },
+              ],
+            },
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Абонемент\s*1 из 4/ }));
+    expect(await screen.findByText('ЛФК 4 занятия')).toBeInTheDocument();
+    expect(screen.getByText('Онлайн')).toBeInTheDocument();
+    expect(await screen.findByText('Сеанс ЛФК')).toBeInTheDocument();
+  });
+
+  it('shows visit totals in the fixed modal summary without putting a count in its title', async () => {
+    const lateCancellation = {
+      id: 'late-cancellation',
+      internalId: 'late-cancellation',
+      dateTime: '2026-08-19T10:00:00.000Z',
+      status: 'canceled',
+      isLateCancellation: true,
+      serviceName: 'Консультация',
+      location: 'Клиника',
+      durationMin: 60,
+    } satisfies PatientAppointmentItem;
+
+    render(
+      <PatientTabRecords
+        userId={patientId}
+        compositionMode="master"
+        initialAppointments={[lateCancellation]}
+        initialPackages={[]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Визитов\s*0/ }));
+    expect(await screen.findByRole('dialog', { name: 'Визиты' })).toBeInTheDocument();
+    expect(screen.getByText('Поздних отмен 1')).toBeInTheDocument();
   });
 });
