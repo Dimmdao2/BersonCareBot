@@ -19,6 +19,8 @@ import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy
 import { PasskeySection } from './PasskeySection';
 import { AuthOtpChannelPreference, type AuthOtpOption } from './AuthOtpChannelPreference';
 import type { OtpUiChannel } from '@/modules/auth/otpChannelUi';
+import { getPendingEmailChallenge } from '@/modules/auth/emailAuth';
+import { DiaryDataPurgeSection } from './DiaryDataPurgeSection';
 
 const AUTH_OTP_CHANNEL_ORDER: readonly OtpUiChannel[] = ['telegram', 'max', 'email', 'sms'];
 const AUTH_OTP_CHANNEL_LABEL: Record<OtpUiChannel, string> = {
@@ -32,12 +34,20 @@ const AUTH_OTP_CHANNEL_LABEL: Record<OtpUiChannel, string> = {
 export default async function PatientProfilePage() {
   const session = await requirePatientAccess(routePaths.profile);
   const deps = buildAppDeps();
-  const [supportContactHref, emailFields, authChannelPolicy, passkeyEnabled, patientFio] = await Promise.all([
+  const [
+    supportContactHref,
+    emailFields,
+    authChannelPolicy,
+    passkeyEnabled,
+    patientFio,
+    pendingEmailChange,
+  ] = await Promise.all([
     getSupportContactUrl(),
     deps.userProjection.getProfileEmailFields(session.user.userId),
     getAuthChannelPolicy(),
     isIndependentAuthMethodEnabled('passkey'),
     deps.userProjection.getCurrentPatientFio(),
+    getPendingEmailChallenge(session.user.userId, 'patient_email_change'),
   ]);
   const emailVerified = Boolean(emailFields.emailVerifiedAt);
   const channelCards = await deps.channelPreferences.getChannelCards(
@@ -83,6 +93,7 @@ export default async function PatientProfilePage() {
           fallbackDisplayName={fallbackDisplayName}
           initialEmail={emailFields.email}
           emailVerified={emailVerified}
+          pendingEmailChange={pendingEmailChange}
         />
 
         <section className={patientSectionSurfaceClass}>
@@ -137,6 +148,11 @@ export default async function PatientProfilePage() {
               Расписание
             </Link>
           </div>
+        </section>
+
+        <section className={patientSectionSurfaceClass}>
+          <h2 className={patientSectionTitleClass}>Данные и конфиденциальность</h2>
+          <DiaryDataPurgeSection phoneMasked={session.user.phone ?? null} />
         </section>
 
         {passkeyEnabled ? (

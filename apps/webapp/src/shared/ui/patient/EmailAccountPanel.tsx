@@ -13,6 +13,8 @@ const PATIENT_EMAIL_INPUT_ID = 'patient-email-panel-address';
 type Props = {
   initialEmail: string | null;
   emailVerified: boolean;
+  /** A patient-owned, admin-started email change awaiting the code from its new address. */
+  pendingEmailChange?: { email: string; expiresAt: string } | null;
   supportContactHref?: string;
   /**
    * Секция страницы уже имеет заголовок «Email» — не дублировать подпись и верхний разделитель
@@ -29,12 +31,13 @@ type Props = {
 export function EmailAccountPanel({
   initialEmail,
   emailVerified,
+  pendingEmailChange = null,
   supportContactHref,
   embeddedInTitledSection = false,
   layout = 'default',
 }: Props) {
   const router = useRouter();
-  const [emailStep, setEmailStep] = useState<'view' | 'enter' | 'code'>('view');
+  const [emailStep, setEmailStep] = useState<'view' | 'enter' | 'code' | 'adminCode'>('view');
   const [emailDraft, setEmailDraft] = useState('');
   const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
   const [emailRetrySec, setEmailRetrySec] = useState(60);
@@ -195,6 +198,22 @@ export function EmailAccountPanel({
         <p className="text-destructive text-sm">{emailStartError}</p>
       ) : null}
 
+      {emailStep === 'view' && pendingEmailChange ? (
+        <div
+          className={cn(
+            'flex flex-col gap-2',
+            layout === 'profileHero' && 'border-t border-[var(--patient-border)] pt-4',
+          )}
+        >
+          <p className={patientMutedTextClass}>
+            Администратор отправил код для смены email на {pendingEmailChange.email}.
+          </p>
+          <Button type="button" variant="outline" onClick={() => setEmailStep('adminCode')}>
+            Ввести код
+          </Button>
+        </div>
+      ) : null}
+
       {emailStep === 'enter' ? (
         <div
           className={cn(
@@ -303,6 +322,44 @@ export function EmailAccountPanel({
               setEmailStep('enter');
               setEmailChallengeId(null);
             }}
+          />
+        </div>
+      ) : null}
+
+      {emailStep === 'adminCode' && pendingEmailChange ? (
+        <div
+          className={layout === 'profileHero' ? 'border-t border-[var(--patient-border)] pt-4' : ''}
+        >
+          <OtpCodeForm
+            challengeId="patient-email-change"
+            supportContactHref={supportContactHref}
+            description={`Введите код, отправленный на ${pendingEmailChange.email}.`}
+            submitLabel="Подтвердить смену email"
+            onConfirm={async (code) => {
+              const res = await fetch('/api/patient/email-change/confirm', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ code }),
+              });
+              const data = (await res.json().catch(() => ({}))) as {
+                ok?: boolean;
+                message?: string;
+                error?: string;
+                retryAfterSeconds?: number;
+              };
+              if (data.ok) {
+                setEmailStep('view');
+                refresh();
+                return { ok: true as const };
+              }
+              return {
+                ok: false as const,
+                message: data.message ?? 'Ошибка',
+                code: data.error,
+                retryAfterSeconds: data.retryAfterSeconds,
+              };
+            }}
+            onBack={() => setEmailStep('view')}
           />
         </div>
       ) : null}
