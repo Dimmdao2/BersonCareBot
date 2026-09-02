@@ -960,9 +960,7 @@ SELECT :'cutover_d12_result'::json AS cutover_step_d12_reminder_delivery_logs;
 -- The source predates tenant columns; this PROD snapshot is the single canonical organization that
 -- the whole A→B transition establishes. IDs and metadata match the forward migration exactly.
 \echo '=== CUTOVER STEP D12B/24: carry legacy delivery-attempt history ==='
-INSERT INTO public.notification_delivery_attempts (
-  id, organization_id, created_at, intent_type, channel, status, reason, event_id, metadata
-)
+CREATE TEMP TABLE cutover_legacy_delivery_attempt_rows ON COMMIT DROP AS
 SELECT
   (
     substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 1, 8) || '-' ||
@@ -970,14 +968,14 @@ SELECT
     substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 13, 4) || '-' ||
     substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 17, 4) || '-' ||
     substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 21, 12)
-  )::uuid,
-  current_setting('bcb.cutover.canonical_organization_id')::uuid,
-  legacy.occurred_at,
+  )::uuid AS id,
+  current_setting('bcb.cutover.canonical_organization_id')::uuid AS organization_id,
+  legacy.occurred_at AS created_at,
   legacy.intent_type,
   legacy.channel,
   legacy.status,
   legacy.reason,
-  legacy.intent_event_id,
+  legacy.intent_event_id AS event_id,
   jsonb_build_object(
     'attempt', legacy.attempt,
     'correlationId', legacy.correlation_id,
@@ -985,9 +983,32 @@ SELECT
     'source', 'legacy_delivery_attempt_logs_cutover',
     'legacySource', 'integrator.delivery_attempt_logs',
     'legacyId', legacy.id
-  )
-FROM cutover_source_integrator.delivery_attempt_logs legacy
-ON CONFLICT (id) DO NOTHING;
+  ) AS metadata
+FROM cutover_source_integrator.delivery_attempt_logs legacy;
+
+CREATE UNIQUE INDEX cutover_legacy_delivery_attempt_rows_id_uidx
+  ON cutover_legacy_delivery_attempt_rows (id);
+ANALYZE cutover_legacy_delivery_attempt_rows;
+
+DO $legacy_delivery_attempt_id_collision_gate$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM cutover_legacy_delivery_attempt_rows legacy
+    JOIN public.notification_delivery_attempts target
+      ON target.id = legacy.id
+  ) THEN
+    RAISE EXCEPTION 'legacy delivery-attempt deterministic id collides with canonical history';
+  END IF;
+END
+$legacy_delivery_attempt_id_collision_gate$;
+
+INSERT INTO public.notification_delivery_attempts (
+  id, organization_id, created_at, intent_type, channel, status, reason, event_id, metadata
+)
+SELECT
+  id, organization_id, created_at, intent_type, channel, status, reason, event_id, metadata
+FROM cutover_legacy_delivery_attempt_rows;
 
 DO $legacy_delivery_attempt_history_gate$
 DECLARE
@@ -1009,41 +1030,36 @@ BEGIN
 
   IF EXISTS (
     SELECT 1
-    FROM cutover_source_integrator.delivery_attempt_logs legacy
+    FROM cutover_legacy_delivery_attempt_rows legacy
     LEFT JOIN public.notification_delivery_attempts target
-      ON target.id = (
-        substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 1, 8) || '-' ||
-        substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 9, 4) || '-' ||
-        substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 13, 4) || '-' ||
-        substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 17, 4) || '-' ||
-        substr(md5('integrator.delivery_attempt_logs:' || legacy.id::text), 21, 12)
-      )::uuid
+      ON target.id = legacy.id
     WHERE target.id IS NULL
-       OR target.organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid
-       OR target.created_at IS DISTINCT FROM legacy.occurred_at
+       OR target.organization_id IS DISTINCT FROM legacy.organization_id
+       OR target.created_at IS DISTINCT FROM legacy.created_at
        OR target.intent_type IS DISTINCT FROM legacy.intent_type
        OR target.channel IS DISTINCT FROM legacy.channel
        OR target.status IS DISTINCT FROM legacy.status
        OR target.reason IS DISTINCT FROM legacy.reason
-       OR target.event_id IS DISTINCT FROM legacy.intent_event_id
+       OR target.event_id IS DISTINCT FROM legacy.event_id
+       OR target.metadata IS DISTINCT FROM legacy.metadata
   ) THEN
     RAISE EXCEPTION 'legacy delivery-attempt field parity drift';
   END IF;
 
   SELECT count(*) INTO support_rows_without_attempt
-  FROM cutover_source_public.support_delivery_events support
-  WHERE NOT EXISTS (
-    SELECT 1
+  FROM (
+    SELECT md5(jsonb_build_array(
+      support.integrator_intent_event_id, support.correlation_id, support.channel_code,
+      support.status, support.attempt, support.reason, support.payload_json, support.occurred_at
+    )::text) AS signature
+    FROM cutover_source_public.support_delivery_events support
+    EXCEPT ALL
+    SELECT md5(jsonb_build_array(
+      legacy.intent_event_id, legacy.correlation_id, legacy.channel,
+      legacy.status, legacy.attempt, legacy.reason, legacy.payload_json, legacy.occurred_at
+    )::text) AS signature
     FROM cutover_source_integrator.delivery_attempt_logs legacy
-    WHERE legacy.intent_event_id IS NOT DISTINCT FROM support.integrator_intent_event_id
-      AND legacy.correlation_id IS NOT DISTINCT FROM support.correlation_id
-      AND legacy.channel IS NOT DISTINCT FROM support.channel_code
-      AND legacy.status IS NOT DISTINCT FROM support.status
-      AND legacy.attempt IS NOT DISTINCT FROM support.attempt
-      AND legacy.reason IS NOT DISTINCT FROM support.reason
-      AND legacy.payload_json IS NOT DISTINCT FROM support.payload_json
-      AND legacy.occurred_at IS NOT DISTINCT FROM support.occurred_at
-  );
+  ) unmatched_support;
   IF support_rows_without_attempt <> 0 THEN
     RAISE EXCEPTION 'support delivery journal has facts absent from preserved attempt history: %',
       support_rows_without_attempt;
@@ -1391,14 +1407,16 @@ INSERT INTO public.user_identity (
   created_at, updated_at
 )
 SELECT
-  user_row.id,
+  identity_map.canonical_id,
   user_row.first_name,
   user_row.last_name,
   user_row.patronymic,
   COALESCE(user_row.display_name, ''),
   user_row.created_at,
   user_row.updated_at
-FROM public.platform_users user_row
+FROM cutover_source_public.platform_users user_row
+JOIN cutover_platform_user_canonical_map identity_map
+  ON identity_map.source_id = user_row.id
 WHERE user_row.merged_into_id IS NULL
 ;
 
@@ -1420,46 +1438,64 @@ SELECT json_build_object(
 \gset cutover_d17_
 SELECT :'cutover_d17_result'::json AS cutover_step_d17_identity_profiles;
 
--- D15b/7a: patient-subject demographics leave the actor root.  The ordinary common-column copy
--- cannot carry source-only actor columns, so this explicit transform preserves them in the
--- already-existing tenant-walled clinical profile.
-INSERT INTO public.doctor_patient_support AS clinical_profile (
-  organization_id, patient_user_id, height_cm, weight_kg, gender, birth_date, updated_at
-)
+-- D15b/7a: patient-subject demographics leave the actor root. The target constraints are installed
+-- only after the data stage, so use explicit update/insert branches instead of ON CONFLICT.
+CREATE TEMP TABLE cutover_patient_demographics ON COMMIT DROP AS
 SELECT
-  COALESCE(
-    existing_profile.organization_id,
-    (
-      SELECT enrollment.organization_id
-      FROM public.org_enrollments AS enrollment
-      WHERE enrollment.platform_user_id = source_person.id
-        AND enrollment.status IN ('active', 'invited')
-      ORDER BY (enrollment.status = 'active') DESC, enrollment.organization_id
-      LIMIT 1
-    )
-  ),
-  source_person.id,
+  identity_map.canonical_id AS patient_user_id,
   source_person.height_cm,
   source_person.weight_kg,
   source_person.gender,
-  source_person.birth_date,
-  now()
+  source_person.birth_date
 FROM cutover_source_public.platform_users AS source_person
-LEFT JOIN public.doctor_patient_support AS existing_profile
-  ON existing_profile.patient_user_id = source_person.id
+JOIN cutover_platform_user_canonical_map identity_map
+  ON identity_map.source_id = source_person.id
 WHERE source_person.role = 'client'
   AND (
     source_person.height_cm IS NOT NULL
     OR source_person.weight_kg IS NOT NULL
     OR source_person.gender IS NOT NULL
     OR source_person.birth_date IS NOT NULL
-  )
-ON CONFLICT (patient_user_id) DO UPDATE SET
-  height_cm = EXCLUDED.height_cm,
-  weight_kg = EXCLUDED.weight_kg,
-  gender = EXCLUDED.gender,
-  birth_date = EXCLUDED.birth_date,
-  updated_at = EXCLUDED.updated_at;
+  );
+
+DO $cutover_patient_demographics_uniqueness_gate$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM cutover_patient_demographics
+    GROUP BY patient_user_id
+    HAVING count(*) > 1
+  ) THEN
+    RAISE EXCEPTION 'multiple source demographic rows resolve to one canonical patient';
+  END IF;
+END
+$cutover_patient_demographics_uniqueness_gate$;
+
+UPDATE public.doctor_patient_support clinical_profile
+SET height_cm = source.height_cm,
+    weight_kg = source.weight_kg,
+    gender = source.gender,
+    birth_date = source.birth_date,
+    updated_at = statement_timestamp()
+FROM cutover_patient_demographics source
+WHERE clinical_profile.patient_user_id = source.patient_user_id;
+
+INSERT INTO public.doctor_patient_support (
+  organization_id, patient_user_id, height_cm, weight_kg, gender, birth_date, updated_at
+)
+SELECT
+  current_setting('bcb.cutover.canonical_organization_id')::uuid,
+  source.patient_user_id,
+  source.height_cm,
+  source.weight_kg,
+  source.gender,
+  source.birth_date,
+  statement_timestamp()
+FROM cutover_patient_demographics source
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.doctor_patient_support existing
+  WHERE existing.patient_user_id = source.patient_user_id
+);
 
 DO $cutover_d17_patient_demographics$
 DECLARE
@@ -1487,7 +1523,7 @@ BEGIN
          count(gender) AS gender_count,
          count(birth_date) AS birth_count
     INTO v_before
-  FROM cutover_source_public.platform_users;
+  FROM cutover_patient_demographics;
   SELECT count(height_cm) AS height_count,
          count(weight_kg) AS weight_count,
          count(gender) AS gender_count,
@@ -1506,15 +1542,17 @@ INSERT INTO public.user_contacts (
   source_origin, created_at, updated_at
 )
 SELECT
-  user_row.id,
+  identity_map.canonical_id,
   'phone',
   user_row.phone_normalized,
   true,
   user_row.patient_phone_trust_at,
-  'platform_users',
+  'direct',
   user_row.created_at,
   user_row.updated_at
-FROM public.platform_users user_row
+FROM cutover_source_public.platform_users user_row
+JOIN cutover_platform_user_canonical_map identity_map
+  ON identity_map.source_id = user_row.id
 WHERE user_row.merged_into_id IS NULL
   AND user_row.phone_normalized IS NOT NULL
 ;
@@ -1524,15 +1562,17 @@ INSERT INTO public.user_contacts (
   source_origin, created_at, updated_at
 )
 SELECT
-  user_row.id,
+  identity_map.canonical_id,
   'email',
   user_row.email_normalized,
   true,
   user_row.email_verified_at,
-  'platform_users',
+  'direct',
   user_row.created_at,
   user_row.updated_at
-FROM public.platform_users user_row
+FROM cutover_source_public.platform_users user_row
+JOIN cutover_platform_user_canonical_map identity_map
+  ON identity_map.source_id = user_row.id
 WHERE user_row.merged_into_id IS NULL
   AND user_row.email_normalized IS NOT NULL
 ;

@@ -508,8 +508,9 @@ The atomic A → B transition also owns these fail-closed data gates:
   are never a migration mechanism;
 - the three legacy reminder occurrence stores are folded into one `reminder_occurrence_history` table. Finalized
   history is enriched from the operational occurrence, still-actionable web-push rows are preserved, and every row
-  receives the canonical person from its surviving rule after messenger identities have been materialized. The two
-  equivalent delivery-result journals are parity-checked and retired without creating another copy;
+  receives the canonical person from its surviving rule after messenger identities have been materialized. Rules
+  are resolved to their canonical owner before copy; an ownerless rule may be retired only when it has no occurrence
+  history. The two equivalent delivery-result journals are parity-checked and retired without creating another copy;
 - live subject/ownership UUID references named `platform_user_id`, `patient_user_id`, `user_id`, `owner_user_id`, or
   `doctor_user_id` are discovered from the copied target catalog and canonicalized through the complete merge graph.
   Unique channel-preference collisions keep the latest complete state per canonical user/channel; first-playback
@@ -524,8 +525,14 @@ The atomic A → B transition also owns these fail-closed data gates:
 - `integrator.delivery_attempt_logs` and `public.media_playback_stats_hourly` have an organization discriminator in
   schema B and tenant-aware privilege/RLS declarations. Every copied fresh-dump row is assigned the canonical
   organization, and source/target counts plus zero wrong/NULL attribution are checked before and after source removal.
-  Clinic delivery-attempt writes preserve their supplied organization; genuinely global/pre-login future audit may
-  remain honestly `NULL`. Media aggregate writes key their upsert by organization, hour, and delivery;
+  Every legacy delivery-attempt fact is preserved in the canonical attempt history with deterministic identity and
+  field parity. The support-delivery journal must be an exact subset of that history and is retired as a duplicate;
+  terminal projection/outbox rows are retired only after proving that no actionable row remains. Clinic
+  delivery-attempt writes preserve their supplied organization; genuinely global/pre-login future audit may remain
+  honestly `NULL`. Media aggregate writes key their upsert by organization, hour, and delivery;
+- source scalar phone/email values are normalized into `user_contacts` through the canonical identity map without
+  printing personal values. Patient demographics move into the existing tenant-scoped clinical profile; the data
+  stage uses an explicit update/insert split because target uniqueness constraints are installed only after copy;
 - every source-only relation must appear in the reviewed `transform` / `intentionally_retire` registry in
   `prod-to-target-cutover-data.sql`. A new unexplained source-only class and a stale registry entry both abort the
   transaction; there is no manual row patch or silent generic-copy skip;
