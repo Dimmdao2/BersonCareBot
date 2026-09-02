@@ -2544,8 +2544,6 @@ DECLARE
   v_delivery jsonb;
   v_existing public.reminder_occurrence_history%ROWTYPE;
   v_topic_code text;
-  v_integrator_user_id text;
-  v_integrator_user_id_bigint bigint;
   v_category text;
   v_event_id text;
   v_channel text;
@@ -2585,14 +2583,13 @@ BEGIN
     RAISE EXCEPTION 'too many patient reminder deliveries' USING ERRCODE = '22023';
   END IF;
 
-  SELECT rule.notification_topic_code, rule.integrator_user_id::text, rule.category, rule.integrator_user_id
-  INTO v_topic_code, v_integrator_user_id, v_category, v_integrator_user_id_bigint
+  SELECT rule.notification_topic_code, rule.category
+  INTO v_topic_code, v_category
   FROM public.reminder_rules AS rule
   WHERE rule.integrator_rule_id = p_rule_id
     AND rule.organization_id = v_org
     AND rule.platform_user_id = p_platform_user_id
     AND rule.is_enabled = true
-    AND rule.integrator_user_id IS NOT NULL
     AND rule.notification_topic_code IS NOT NULL
     AND EXISTS (
       SELECT 1 FROM public.org_enrollments AS enrollment
@@ -2613,11 +2610,11 @@ BEGIN
   END IF;
 
   INSERT INTO public.reminder_occurrence_history (
-    organization_id, integrator_occurrence_id, integrator_rule_id, integrator_user_id,
+    organization_id, integrator_occurrence_id, integrator_rule_id,
     platform_user_id, occurrence_key, category, status, planned_at,
     delivery_generation, created_at, updated_at
   ) VALUES (
-    v_org, p_occurrence_id, p_rule_id, v_integrator_user_id_bigint,
+    v_org, p_occurrence_id, p_rule_id,
     p_platform_user_id, p_occurrence_key, v_category, 'planned', p_planned_at,
     p_delivery_generation, statement_timestamp(), statement_timestamp()
   ) ON CONFLICT (occurrence_key) DO NOTHING;
@@ -2698,7 +2695,6 @@ BEGIN
        OR jsonb_typeof(v_intent #> '{meta,eventId}') IS DISTINCT FROM 'string'
        OR jsonb_typeof(v_intent #> '{meta,occurredAt}') IS DISTINCT FROM 'string'
        OR jsonb_typeof(v_intent #> '{meta,source}') IS DISTINCT FROM 'string'
-       OR jsonb_typeof(v_intent #> '{meta,userId}') IS DISTINCT FROM 'string'
        OR jsonb_typeof(v_intent #> '{meta,outboundMessageClass}') IS DISTINCT FROM 'string'
        OR jsonb_typeof(v_intent #> '{meta,outboundCapability}') IS DISTINCT FROM 'string'
        OR jsonb_typeof(v_intent_payload -> 'recipient') IS DISTINCT FROM 'object'
@@ -2709,7 +2705,6 @@ BEGIN
        OR pg_catalog.length(v_intent #>> '{meta,occurredAt}') NOT BETWEEN 20 AND 40
        OR (v_intent #>> '{meta,occurredAt}')::timestamptz IS NULL
        OR v_intent #>> '{meta,source}' IS DISTINCT FROM v_channel
-       OR v_intent #>> '{meta,userId}' IS DISTINCT FROM v_integrator_user_id
        OR v_intent #>> '{meta,outboundMessageClass}' IS DISTINCT FROM 'routine_product'
        OR v_intent #>> '{meta,outboundCapability}' IS DISTINCT FROM
           (CASE WHEN v_channel = 'web_push' THEN 'app_push' ELSE 'essential_delivery' END)
@@ -3417,7 +3412,6 @@ CREATE FUNCTION app.create_current_patient_reminder_rule(p_rule_id text, p_paylo
 DECLARE
   v_org uuid := app.current_org_id();
   v_patient uuid := app.current_patient_user_id();
-  v_integrator_user_id bigint;
   v_row public.reminder_rules%ROWTYPE;
   v_payload jsonb := p_payload_text::jsonb;
 BEGIN
@@ -3428,18 +3422,15 @@ BEGIN
                       AND e.status = 'active') THEN
     RAISE EXCEPTION 'current_patient_reminder_rule_rejected' USING ERRCODE = 'P0001';
   END IF;
-  SELECT u.integrator_user_id INTO v_integrator_user_id
-  FROM public.platform_users u
-  WHERE u.id = v_patient AND u.merged_into_id IS NULL AND u.role = 'client';
   INSERT INTO public.reminder_rules (
-    integrator_rule_id, organization_id, platform_user_id, integrator_user_id,
+    integrator_rule_id, organization_id, platform_user_id,
     category, is_enabled, schedule_type, timezone, interval_minutes,
     window_start_minute, window_end_minute, days_mask, content_mode,
     linked_object_type, linked_object_id, custom_title, custom_text,
     schedule_data, reminder_intent, display_title, display_description,
     quiet_hours_start_minute, quiet_hours_end_minute, notification_topic_code, updated_at
   ) VALUES (
-    btrim(p_rule_id), v_org, v_patient, v_integrator_user_id,
+    btrim(p_rule_id), v_org, v_patient,
     v_payload->>'category', (v_payload->>'enabled')::boolean,
     v_payload->>'scheduleType', v_payload->>'timezone',
     (v_payload->>'intervalMinutes')::integer,
@@ -5184,17 +5175,18 @@ BEGIN
     END IF;
   END IF;
 
-  IF TG_TABLE_NAME = 'lfk_exercise_media'
-     AND NEW.media_url ~ '^/api/media/[0-9a-fA-F-]{36}$' THEN
-    media_id := substring(NEW.media_url FROM '^/api/media/([0-9a-fA-F-]{36})$')::uuid;
-    SELECT owner_kind, organization_id
-      INTO media_kind, media_org
-      FROM public.media_files
-     WHERE id = media_id;
-    IF media_kind IS NULL
-       OR media_kind IS DISTINCT FROM NEW.owner_kind
-       OR media_org IS DISTINCT FROM NEW.organization_id THEN
-      RAISE EXCEPTION 'lfk_media_owner_mismatch' USING ERRCODE = '23514';
+  IF TG_TABLE_NAME = 'lfk_exercise_media' THEN
+    IF NEW.media_url ~ '^/api/media/[0-9a-fA-F-]{36}$' THEN
+      media_id := substring(NEW.media_url FROM '^/api/media/([0-9a-fA-F-]{36})$')::uuid;
+      SELECT owner_kind, organization_id
+        INTO media_kind, media_org
+        FROM public.media_files
+       WHERE id = media_id;
+      IF media_kind IS NULL
+         OR media_kind IS DISTINCT FROM NEW.owner_kind
+         OR media_org IS DISTINCT FROM NEW.organization_id THEN
+        RAISE EXCEPTION 'lfk_media_owner_mismatch' USING ERRCODE = '23514';
+      END IF;
     END IF;
   END IF;
 
@@ -5631,6 +5623,7 @@ CREATE FUNCTION app.enroll_current_patient_in_public_booking_clinic(p_organizati
 DECLARE
   v_patient uuid := app.current_patient_user_id();
   v_status text;
+  v_attempt_started_at timestamptz := clock_timestamp();
 BEGIN
   PERFORM app.require_accepted_context('app_seam_public_booking_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'booking.public-client.enroll', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg]), 'app.enroll_current_patient_in_public_booking_clinic(uuid,text)'::regprocedure);
 
@@ -5638,7 +5631,6 @@ BEGIN
     RAISE EXCEPTION 'public booking enrollment context unavailable' USING ERRCODE = '42501';
   END IF;
 
-  -- Канал проверяет сама дверь: вызывающий его называет, но дверь ему не верит.
   IF p_confirmation_channel IS NULL
      OR p_confirmation_channel NOT IN (
        'public_booking_phone_otp',
@@ -5665,9 +5657,6 @@ BEGIN
   FOR UPDATE;
 
   IF v_status IS NULL THEN
-    -- Владелец 19.08 (§33.2): запись сама по себе не расходует оплаченное число клиентов. Единственная
-    -- проверка (`app.assert_org_patient_count_quota_available`) остаётся у писателя карточек персонала —
-    -- эта дверь её больше не зовёт.
     INSERT INTO public.org_enrollments (
       organization_id, platform_user_id, status, portal_activated_at, portal_activated_via
     )
@@ -5683,10 +5672,25 @@ BEGIN
     IF v_status IS NULL OR v_status NOT IN ('invited', 'active') THEN
       RAISE EXCEPTION 'public booking client relationship denied' USING ERRCODE = '42501';
     END IF;
-    RETURN jsonb_build_object('status', v_status, 'effect', 'created');
+    RETURN jsonb_build_object(
+      'status', v_status,
+      'effect', 'created',
+      'attemptStartedAt', v_attempt_started_at
+    );
   END IF;
 
-  -- Уже выписанный или архивный клиент обратно не открывается: это отказ, а не тихое воскрешение.
+  IF v_status = 'archived' THEN
+    UPDATE public.org_enrollments AS enrollment
+    SET status = 'active'
+    WHERE enrollment.organization_id = p_organization_id
+      AND enrollment.platform_user_id = v_patient;
+    RETURN jsonb_build_object(
+      'status', 'active',
+      'effect', 'reactivated',
+      'attemptStartedAt', v_attempt_started_at
+    );
+  END IF;
+
   IF v_status NOT IN ('invited', 'active') THEN
     RAISE EXCEPTION 'public booking client relationship denied' USING ERRCODE = '42501';
   END IF;
@@ -5698,10 +5702,18 @@ BEGIN
         portal_activated_via = COALESCE(enrollment.portal_activated_via, p_confirmation_channel)
     WHERE enrollment.organization_id = p_organization_id
       AND enrollment.platform_user_id = v_patient;
-    RETURN jsonb_build_object('status', 'active', 'effect', 'activated');
+    RETURN jsonb_build_object(
+      'status', 'active',
+      'effect', 'activated',
+      'attemptStartedAt', v_attempt_started_at
+    );
   END IF;
 
-  RETURN jsonb_build_object('status', v_status, 'effect', 'unchanged');
+  RETURN jsonb_build_object(
+    'status', v_status,
+    'effect', 'unchanged',
+    'attemptStartedAt', v_attempt_started_at
+  );
 END;
 $_$;
 
@@ -5714,41 +5726,16 @@ CREATE FUNCTION app.ensure_current_patient_support_conversation() RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
-DECLARE
-  v_org uuid := app.current_org_id();
-  v_patient uuid := app.current_patient_user_id();
-  v_key text := 'webapp:organization:' || v_org::text || ':platform:' || v_patient::text;
-  v_row public.support_conversations%ROWTYPE;
+DECLARE v_org uuid:=app.current_org_id(); v_patient uuid:=app.current_patient_user_id(); v_key text:='webapp:organization:'||v_org::text||':platform:'||v_patient::text; v_row public.support_conversations%ROWTYPE;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_patient_self_actions_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'patient.support-conversation.ensure', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.ensure_current_patient_support_conversation()'::regprocedure);
-  IF v_org IS NULL OR v_patient IS NULL OR NOT EXISTS (
-    SELECT 1 FROM public.org_enrollments e
-    WHERE e.organization_id = v_org AND e.platform_user_id = v_patient AND e.status = 'active'
-  ) THEN
-    RAISE EXCEPTION 'current_patient_support_conversation_rejected' USING ERRCODE = 'P0001';
-  END IF;
-  SELECT c.* INTO v_row FROM public.support_conversations c
-  WHERE c.organization_id = v_org AND c.platform_user_id = v_patient
-    AND c.source = 'webapp' AND c.admin_scope = 'support'
-  ORDER BY (c.integrator_conversation_id = v_key) DESC, c.created_at ASC LIMIT 1;
+  IF v_org IS NULL OR v_patient IS NULL OR NOT EXISTS(SELECT 1 FROM public.org_enrollments e WHERE e.organization_id=v_org AND e.platform_user_id=v_patient AND e.status='active') THEN RAISE EXCEPTION 'current_patient_support_conversation_rejected' USING ERRCODE='P0001'; END IF;
+  SELECT c.* INTO v_row FROM public.support_conversations c WHERE c.organization_id=v_org AND c.platform_user_id=v_patient AND c.source='webapp' AND c.admin_scope='support' ORDER BY(c.integrator_conversation_id=v_key)DESC,c.created_at LIMIT 1;
   IF FOUND THEN RETURN to_jsonb(v_row); END IF;
-  INSERT INTO public.support_conversations (
-    organization_id, integrator_conversation_id, platform_user_id, integrator_user_id,
-    source, admin_scope, status, opened_at, last_message_at
-  ) VALUES (
-    v_org, v_key, v_patient, NULL, 'webapp', 'support', 'open',
-    statement_timestamp(), statement_timestamp()
-  ) ON CONFLICT (integrator_conversation_id) DO UPDATE
-    SET organization_id = EXCLUDED.organization_id,
-        platform_user_id = EXCLUDED.platform_user_id,
-        updated_at = statement_timestamp()
-    WHERE support_conversations.organization_id = v_org
-      AND support_conversations.platform_user_id = v_patient
-  RETURNING * INTO v_row;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'current_patient_support_conversation_conflict' USING ERRCODE = 'P0001';
-  END IF;
-  RETURN to_jsonb(v_row);
+  INSERT INTO public.support_conversations(organization_id,integrator_conversation_id,platform_user_id,source,admin_scope,status,opened_at,last_message_at)
+  VALUES(v_org,v_key,v_patient,'webapp','support','open',statement_timestamp(),statement_timestamp()) ON CONFLICT(integrator_conversation_id) DO UPDATE SET organization_id=EXCLUDED.organization_id,platform_user_id=EXCLUDED.platform_user_id,updated_at=statement_timestamp()
+  WHERE support_conversations.organization_id=v_org AND support_conversations.platform_user_id=v_patient RETURNING * INTO v_row;
+  IF NOT FOUND THEN RAISE EXCEPTION 'current_patient_support_conversation_conflict' USING ERRCODE='P0001'; END IF; RETURN to_jsonb(v_row);
 END
 $$;
 
@@ -5992,6 +5979,22 @@ SELECT uc.platform_user_id AS user_id, bool_or(uc.is_primary) AS matched_primary
     AND uc.confirmed_at IS NOT NULL
     AND pu.merged_into_id IS NULL
   GROUP BY uc.platform_user_id
+$$;
+
+
+--
+-- Name: get_current_patient_default_auth_otp_channel(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.get_current_patient_default_auth_otp_channel() RETURNS text
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'patient.default-auth-channel.read', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.get_current_patient_default_auth_otp_channel()'::regprocedure);
+
+  RETURN app_ext.read_default_auth_otp_channel(app.current_patient_user_id());
+END
 $$;
 
 
@@ -6368,6 +6371,16 @@ CREATE FUNCTION app.guard_organization_slug_claim_mutation() RETURNS trigger
     SET search_path TO 'pg_catalog'
     AS $$
 BEGIN
+  -- organization released: the clinic row is gone and the FK nulled the reference. The claim stays
+  -- exactly as it was in every other respect, so the public slug it holds cannot be taken over.
+  IF TG_OP = 'UPDATE'
+     AND OLD.organization_id IS NOT NULL
+     AND NEW.organization_id IS NULL
+     AND NEW.kind IS NOT DISTINCT FROM OLD.kind
+     AND NEW.slug IS NOT DISTINCT FROM OLD.slug
+  THEN
+    RETURN NEW;
+  END IF;
   IF TG_OP = 'DELETE' AND OLD.kind IN ('current', 'alias') THEN
     RAISE EXCEPTION 'durable organization slug claims cannot be deleted';
   END IF;
@@ -6405,6 +6418,28 @@ CREATE FUNCTION app.guard_organization_slug_rename_event_mutation() RETURNS trig
     SET search_path TO 'pg_catalog'
     AS $$
 BEGIN
+  -- organization released / actor released: identity links only, everything recorded stays put.
+  IF TG_OP = 'UPDATE'
+     AND NEW.id IS NOT DISTINCT FROM OLD.id
+     AND NEW.initiated_by IS NOT DISTINCT FROM OLD.initiated_by
+     AND NEW.previous_slug IS NOT DISTINCT FROM OLD.previous_slug
+     AND NEW.next_slug IS NOT DISTINCT FROM OLD.next_slug
+     AND NEW.created_at IS NOT DISTINCT FROM OLD.created_at
+     AND (
+       (OLD.organization_id IS NOT NULL AND NEW.organization_id IS NULL)
+       OR NEW.organization_id IS NOT DISTINCT FROM OLD.organization_id
+     )
+     AND (
+       (OLD.actor_platform_user_id IS NOT NULL AND NEW.actor_platform_user_id IS NULL)
+       OR NEW.actor_platform_user_id IS NOT DISTINCT FROM OLD.actor_platform_user_id
+     )
+     AND (
+       NEW.organization_id IS DISTINCT FROM OLD.organization_id
+       OR NEW.actor_platform_user_id IS DISTINCT FROM OLD.actor_platform_user_id
+     )
+  THEN
+    RETURN NEW;
+  END IF;
   RAISE EXCEPTION 'organization slug rename audit is append-only';
 END
 $$;
@@ -6582,257 +6617,6 @@ BEGIN
   VALUES (database_id, pg_backend_pid(), pg_current_xact_id(), cap.capability_id, session_user, cap.port, p_claims.target_role, p_claims.context_class, p_claims.purpose, p_claims.function_identity, p_claims.typed_args_hash, p_claims.actor_ref, p_claims.subject_ref, p_claims.organization_id, p_claims.integrator_user_id, p_claims.request_id);
 EXCEPTION WHEN unique_violation THEN RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'port context already installed for transaction';
 END $_$;
-
-
---
--- Name: integrator_bind_bootstrap_channel_phone(text, text, text, uuid); Type: FUNCTION; Schema: app; Owner: -
---
-
-CREATE FUNCTION app.integrator_bind_bootstrap_channel_phone(p_channel_code text, p_external_id text, p_phone_normalized text, p_preferred_platform_user_id uuid) RETURNS TABLE(platform_user_id uuid, applied boolean, failure_code text, counterparty_platform_user_id uuid)
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'pg_catalog', 'app', 'public', 'pg_temp'
-    AS $_$
-#variable_conflict use_column
-DECLARE
-  v_source_user_id uuid;
-  v_target_user_id uuid;
-  v_phone_owner_id uuid;
-  v_preferred_user_id uuid;
-  v_next_id uuid;
-  v_depth integer;
-  v_owner_ids uuid[];
-  v_source_is_empty boolean;
-  v_target_phone text;
-  v_lock_channel bigint;
-  v_lock_phone bigint;
-  v_counterparty_user_id uuid;
-BEGIN
-  PERFORM app.require_accepted_context('app_seam_phone_binding_owner'::name, 'app_integrator_resolver'::name, 'integrator'::app.port_context_class, 'integrator.bootstrap-phone-bind', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($4))::app.port_typed_arg]), 'app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)'::regprocedure);
-
-  IF p_channel_code NOT IN ('telegram', 'max') THEN
-    RAISE EXCEPTION 'integrator_bootstrap_phone_channel_invalid' USING ERRCODE = '22023';
-  END IF;
-  IF p_external_id IS NULL OR btrim(p_external_id) = ''
-     OR p_phone_normalized IS NULL OR btrim(p_phone_normalized) = '' THEN
-    RAISE EXCEPTION 'integrator_bootstrap_phone_input_required' USING ERRCODE = '22023';
-  END IF;
-
-  v_lock_channel := hashtextextended(
-    'integrator-channel-identity:' || p_channel_code || ':' || p_external_id, 0
-  );
-  v_lock_phone := hashtextextended('integrator-phone-identity:' || p_phone_normalized, 0);
-  PERFORM pg_advisory_xact_lock(least(v_lock_channel, v_lock_phone));
-  IF v_lock_phone <> v_lock_channel THEN
-    PERFORM pg_advisory_xact_lock(greatest(v_lock_channel, v_lock_phone));
-  END IF;
-
-  SELECT binding.user_id
-    INTO v_source_user_id
-    FROM public.user_channel_bindings AS binding
-   WHERE binding.channel_code = p_channel_code
-     AND binding.external_id = p_external_id;
-  IF v_source_user_id IS NULL THEN
-    RETURN QUERY SELECT NULL::uuid, false, 'no_channel_binding'::text, NULL::uuid;
-    RETURN;
-  END IF;
-
-  v_depth := 0;
-  LOOP
-    SELECT person.merged_into_id INTO v_next_id
-      FROM public.platform_users AS person
-     WHERE person.id = v_source_user_id;
-    EXIT WHEN NOT FOUND OR v_next_id IS NULL OR v_depth >= 32;
-    v_source_user_id := v_next_id;
-    v_depth := v_depth + 1;
-  END LOOP;
-
-  SELECT array_agg(DISTINCT owner_id ORDER BY owner_id)
-    INTO v_owner_ids
-    FROM (
-      SELECT contact.platform_user_id AS owner_id
-        FROM public.user_contacts AS contact
-       WHERE contact.contact_kind = 'phone'
-         AND contact.value_normalized = p_phone_normalized
-    ) AS owners;
-
-  IF coalesce(array_length(v_owner_ids, 1), 0) > 1 THEN
-    SELECT candidate_owner_id INTO v_counterparty_user_id
-      FROM unnest(v_owner_ids) AS candidate_owner_id
-     WHERE candidate_owner_id IS DISTINCT FROM v_source_user_id
-     LIMIT 1;
-    RETURN QUERY SELECT v_source_user_id, false, 'phone_owned_by_other_user'::text,
-                        v_counterparty_user_id;
-    RETURN;
-  END IF;
-  v_phone_owner_id := v_owner_ids[1];
-  IF v_phone_owner_id IS NOT NULL THEN
-    v_depth := 0;
-    LOOP
-      SELECT person.merged_into_id INTO v_next_id
-        FROM public.platform_users AS person
-       WHERE person.id = v_phone_owner_id;
-      EXIT WHEN NOT FOUND OR v_next_id IS NULL OR v_depth >= 32;
-      v_phone_owner_id := v_next_id;
-      v_depth := v_depth + 1;
-    END LOOP;
-  END IF;
-
-  v_preferred_user_id := p_preferred_platform_user_id;
-  IF v_preferred_user_id IS NOT NULL THEN
-    v_depth := 0;
-    LOOP
-      SELECT person.merged_into_id INTO v_next_id
-        FROM public.platform_users AS person
-       WHERE person.id = v_preferred_user_id;
-      IF NOT FOUND THEN
-        RETURN QUERY SELECT v_source_user_id, false, 'merge_blocked_ambiguous_candidates'::text,
-                            nullif(v_preferred_user_id, v_source_user_id);
-        RETURN;
-      END IF;
-      EXIT WHEN v_next_id IS NULL OR v_depth >= 32;
-      v_preferred_user_id := v_next_id;
-      v_depth := v_depth + 1;
-    END LOOP;
-  END IF;
-
-  IF v_phone_owner_id IS NOT NULL AND v_preferred_user_id IS NOT NULL
-     AND v_phone_owner_id <> v_preferred_user_id THEN
-    RETURN QUERY SELECT v_source_user_id, false, 'phone_owned_by_other_user'::text,
-                        nullif(v_phone_owner_id, v_source_user_id);
-    RETURN;
-  END IF;
-
-  v_target_user_id := coalesce(v_preferred_user_id, v_phone_owner_id, v_source_user_id);
-  SELECT contact.value_normalized INTO v_target_phone
-    FROM public.platform_users AS person
-    LEFT JOIN public.user_contacts AS contact
-      ON contact.platform_user_id = person.id
-     AND contact.contact_kind = 'phone'
-     AND contact.is_primary = true
-   WHERE person.id = v_target_user_id AND person.merged_into_id IS NULL;
-  IF NOT FOUND THEN
-    RETURN QUERY SELECT v_source_user_id, false, 'merge_blocked_ambiguous_candidates'::text,
-                        nullif(v_target_user_id, v_source_user_id);
-    RETURN;
-  END IF;
-  IF v_target_phone IS NOT NULL AND v_target_phone <> p_phone_normalized THEN
-    RETURN QUERY SELECT v_source_user_id, false, 'merge_blocked_distinct_real_users'::text,
-                        nullif(v_target_user_id, v_source_user_id);
-    RETURN;
-  END IF;
-
-  IF v_target_user_id <> v_source_user_id THEN
-    SELECT
-      source.integrator_user_id IS NULL
-      AND identity.first_name IS NULL
-      AND identity.last_name IS NULL
-      AND identity.patronymic IS NULL
-      AND NOT EXISTS (
-        SELECT 1
-        FROM public.doctor_patient_support AS clinical_profile
-        WHERE clinical_profile.patient_user_id = source.id
-          AND (clinical_profile.height_cm IS NOT NULL
-            OR clinical_profile.weight_kg IS NOT NULL
-            OR clinical_profile.gender IS NOT NULL
-            OR clinical_profile.birth_date IS NOT NULL)
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM public.user_contacts AS contact
-         WHERE contact.platform_user_id = source.id
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM public.user_phone_history AS history
-         WHERE history.platform_user_id = source.id
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM public.org_enrollments AS enrollment
-         WHERE enrollment.platform_user_id = source.id
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM public.be_organization_members AS member
-         WHERE member.platform_user_id = source.id
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM public.user_channel_bindings AS other_binding
-         WHERE other_binding.user_id = source.id
-           AND (other_binding.channel_code, other_binding.external_id)
-             IS DISTINCT FROM (p_channel_code, p_external_id)
-      )
-      INTO v_source_is_empty
-      FROM public.platform_users AS source
-      INNER JOIN public.user_identity AS identity ON identity.platform_user_id = source.id
-     WHERE source.id = v_source_user_id
-       AND source.merged_into_id IS NULL;
-
-    IF coalesce(v_source_is_empty, false) IS NOT TRUE THEN
-      RETURN QUERY SELECT v_source_user_id, false, 'merge_blocked_distinct_real_users'::text,
-                          nullif(v_target_user_id, v_source_user_id);
-      RETURN;
-    END IF;
-
-    UPDATE public.user_channel_bindings
-       SET user_id = v_target_user_id
-     WHERE user_id = v_source_user_id
-       AND channel_code = p_channel_code
-       AND external_id = p_external_id;
-
-    INSERT INTO public.user_channel_preferences AS preferences (
-      user_id, platform_user_id, channel_code,
-      is_enabled_for_messages, is_enabled_for_notifications, updated_at
-    ) VALUES (
-      v_target_user_id::text, v_target_user_id, p_channel_code, true, true, now()
-    )
-    ON CONFLICT (platform_user_id, channel_code) DO UPDATE SET
-      is_enabled_for_messages = true,
-      is_enabled_for_notifications = true,
-      updated_at = EXCLUDED.updated_at;
-
-    DELETE FROM public.user_channel_preferences
-     WHERE platform_user_id = v_source_user_id
-       AND channel_code = p_channel_code;
-
-    UPDATE public.platform_users
-       SET merged_into_id = v_target_user_id,
-           updated_at = now()
-     WHERE id = v_source_user_id
-       AND merged_into_id IS NULL;
-  END IF;
-
-  UPDATE public.user_phone_history
-     SET valid_to = now()
-   WHERE platform_user_id = v_target_user_id
-     AND valid_to IS NULL
-     AND phone_normalized <> p_phone_normalized;
-
-  INSERT INTO public.user_phone_history (
-    platform_user_id, phone_normalized, valid_from, valid_to, source
-  ) VALUES (
-    v_target_user_id, p_phone_normalized, now(), NULL, 'messenger'
-  )
-  ON CONFLICT DO NOTHING;
-
-  UPDATE public.platform_users
-     SET updated_at = now()
-   WHERE id = v_target_user_id
-     AND merged_into_id IS NULL;
-
-  INSERT INTO public.user_contacts (
-    platform_user_id, contact_kind, value_normalized,
-    is_primary, confirmed_at, source_origin, updated_at
-  ) VALUES (
-    v_target_user_id, 'phone', p_phone_normalized,
-    true, now(), 'direct', now()
-  )
-  ON CONFLICT (value_normalized) WHERE contact_kind = 'phone'
-  DO UPDATE SET
-    is_primary = true,
-    confirmed_at = EXCLUDED.confirmed_at,
-    source_origin = EXCLUDED.source_origin,
-    updated_at = EXCLUDED.updated_at;
-
-  RETURN QUERY SELECT v_target_user_id, true, NULL::text, NULL::uuid;
-END
-$_$;
 
 
 --
@@ -7111,149 +6895,65 @@ $_$;
 -- Name: integrator_read_platform_user_delivery_identity(text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.integrator_read_platform_user_delivery_identity(p_user_key text) RETURNS TABLE(phone_normalized text, integrator_user_id text)
+CREATE FUNCTION app.integrator_read_platform_user_delivery_identity(p_platform_user_id text) RETURNS TABLE(phone_normalized text)
     LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
     SET search_path TO 'pg_catalog', 'app', 'public', 'pg_temp'
     AS $_$
-DECLARE
-  v_org uuid;
-  v_key text;
-  v_current uuid;
-  v_next uuid;
-  v_depth integer := 0;
+DECLARE v_org uuid; v_user uuid; v_next uuid; v_depth integer:=0;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_integrator_request'::name, 'tenant_service'::app.port_context_class, 'integrator.platform-user-delivery-identity.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.integrator_read_platform_user_delivery_identity(text)'::regprocedure);
-
-  v_org := app.current_org_id();
-  IF v_org IS NULL THEN
-    RAISE EXCEPTION 'integrator_platform_user_delivery_identity_principal_required' USING ERRCODE = '42501';
-  END IF;
-
-  v_key := coalesce(pg_catalog.btrim(p_user_key), '');
-  IF v_key = '' THEN
-    RETURN;
-  END IF;
-
-  -- Ключ вызывающего — либо `platform_users.id`, либо `integrator_user_id`: обе формы жили в двух
-  -- прежних читателях, и дверь принимает обе, а не заводит вторую.
-  SELECT platform_user.id
-    INTO v_current
-    FROM public.platform_users AS platform_user
-   WHERE (platform_user.id::text = v_key
-          OR (v_key ~ '^[0-9]+$' AND platform_user.integrator_user_id::text = v_key))
-     AND (EXISTS (SELECT 1 FROM public.be_organization_members AS tenant_staff
-                   WHERE tenant_staff.platform_user_id = platform_user.id
-                     AND tenant_staff.organization_id = v_org
-                     AND tenant_staff.status = 'active')
-          OR EXISTS (SELECT 1 FROM public.org_enrollments AS tenant_patient
-                      WHERE tenant_patient.platform_user_id = platform_user.id
-                        AND tenant_patient.organization_id = v_org
-                        AND tenant_patient.status = 'active'))
-   ORDER BY (platform_user.merged_into_id IS NULL) DESC, platform_user.id
-   LIMIT 1;
-  IF v_current IS NULL THEN
-    RETURN;
-  END IF;
-
+  v_org:=app.current_org_id();
+  IF v_org IS NULL THEN RAISE EXCEPTION 'integrator_platform_user_delivery_identity_principal_required' USING ERRCODE='42501'; END IF;
+  IF p_platform_user_id !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN RETURN; END IF;
+  -- SECURITY DEFINER обходит RLS, поэтому КАЖДОЕ чтение `platform_users` здесь несёт предикат
+  -- арендатора само: строка видна только тому, чья клиника числит этого человека сотрудником или
+  -- клиентом. Прежняя рекурсивная CTE читала таблицу без этого предиката.
+  SELECT platform_user.id INTO v_user FROM public.platform_users AS platform_user
+   WHERE platform_user.id=p_platform_user_id::uuid
+     AND (EXISTS(SELECT 1 FROM public.be_organization_members AS tenant_staff WHERE tenant_staff.platform_user_id=platform_user.id AND tenant_staff.organization_id=v_org AND tenant_staff.status='active')
+       OR EXISTS(SELECT 1 FROM public.org_enrollments AS tenant_patient WHERE tenant_patient.platform_user_id=platform_user.id AND tenant_patient.organization_id=v_org AND tenant_patient.status='active'));
+  IF v_user IS NULL THEN RETURN; END IF;
   LOOP
-    EXIT WHEN v_depth >= 5;
-    SELECT platform_user.merged_into_id
-      INTO v_next
-      FROM public.platform_users AS platform_user
-     WHERE platform_user.id = v_current
-       AND (EXISTS (SELECT 1 FROM public.be_organization_members AS tenant_staff
-                     WHERE tenant_staff.platform_user_id = platform_user.id
-                       AND tenant_staff.organization_id = v_org
-                       AND tenant_staff.status = 'active')
-            OR EXISTS (SELECT 1 FROM public.org_enrollments AS tenant_patient
-                        WHERE tenant_patient.platform_user_id = platform_user.id
-                          AND tenant_patient.organization_id = v_org
-                          AND tenant_patient.status = 'active'))
-     LIMIT 1;
+    EXIT WHEN v_depth>=5;
+    SELECT platform_user.merged_into_id INTO v_next FROM public.platform_users AS platform_user
+     WHERE platform_user.id=v_user
+       AND (EXISTS(SELECT 1 FROM public.be_organization_members AS tenant_staff WHERE tenant_staff.platform_user_id=platform_user.id AND tenant_staff.organization_id=v_org AND tenant_staff.status='active')
+         OR EXISTS(SELECT 1 FROM public.org_enrollments AS tenant_patient WHERE tenant_patient.platform_user_id=platform_user.id AND tenant_patient.organization_id=v_org AND tenant_patient.status='active'));
     EXIT WHEN v_next IS NULL;
-    v_current := v_next;
-    v_depth := v_depth + 1;
+    v_user:=v_next;
+    v_depth:=v_depth+1;
   END LOOP;
-
-  -- Строка возвращается и без телефона: прежний вызывающий отличал «человека нет» от «телефона нет»,
-  -- и это различие сохраняется.
-  RETURN QUERY
-  SELECT (SELECT contact.value_normalized
-            FROM public.user_contacts AS contact
-           WHERE contact.platform_user_id = platform_user.id
-             AND contact.contact_kind = 'phone'
-             AND contact.is_primary
-           LIMIT 1),
-         platform_user.integrator_user_id::text
-    FROM public.platform_users AS platform_user
-   WHERE platform_user.id = v_current
-   LIMIT 1;
+  RETURN QUERY SELECT contact.value_normalized FROM public.user_contacts AS contact
+   WHERE contact.platform_user_id=v_user AND contact.contact_kind='phone' AND contact.is_primary LIMIT 1;
 END
 $_$;
 
 
 --
--- Name: integrator_record_notification_delivery_attempt(uuid, text, text, text, text, text, text, text, integer, text, text, text, text, text); Type: FUNCTION; Schema: app; Owner: -
+-- Name: integrator_record_notification_delivery_attempt(uuid, text, text, text, text, text, text, integer, text, text, text, text, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.integrator_record_notification_delivery_attempt(p_organization_id uuid, p_user_id text, p_integrator_user_id text, p_topic_code text, p_intent_type text, p_channel text, p_status text, p_reason text, p_provider_status_code integer, p_event_id text, p_occurrence_id text, p_recipient_ref text, p_error_message text, p_metadata text) RETURNS void
+CREATE FUNCTION app.integrator_record_notification_delivery_attempt(p_organization_id uuid, p_user_id text, p_topic_code text, p_intent_type text, p_channel text, p_status text, p_reason text, p_provider_status_code integer, p_event_id text, p_occurrence_id text, p_recipient_ref text, p_error_message text, p_metadata text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $_$
-DECLARE
-  v_user_id uuid;
+DECLARE v_user_id uuid;
 BEGIN
-  PERFORM app.require_accepted_context('app_seam_delivery_scope_owner'::name, 'app_integrator_request'::name, 'tenant_service'::app.port_context_class, 'integrator.notification-delivery-attempt.record', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($7))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($8))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($9))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($10))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($11))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($12))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($13))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($14))::app.port_typed_arg]), 'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,text,integer,text,text,text,text,text)'::regprocedure);
-
-  IF app.current_org_id() IS NULL THEN
-    RAISE EXCEPTION 'integrator_notification_delivery_attempt_principal_required'
-      USING ERRCODE = '42501';
-  END IF;
-  IF p_organization_id IS DISTINCT FROM app.current_org_id() THEN
-    RAISE EXCEPTION 'integrator_notification_delivery_attempt_principal_mismatch'
-      USING ERRCODE = '42501';
-  END IF;
-
+  PERFORM app.require_accepted_context('app_seam_delivery_scope_owner'::name, 'app_integrator_request'::name, 'tenant_service'::app.port_context_class, 'integrator.notification-delivery-attempt.record', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($7))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($8))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($9))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($10))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($11))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($12))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($13))::app.port_typed_arg]), 'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,integer,text,text,text,text,text)'::regprocedure);
+  IF p_status IS DISTINCT FROM 'failed' THEN RAISE EXCEPTION 'notification_delivery_attempt_must_be_failed_provider_attempt' USING ERRCODE='22023'; END IF;
+  IF app.current_org_id() IS NULL THEN RAISE EXCEPTION 'integrator_notification_delivery_attempt_principal_required' USING ERRCODE='42501'; END IF;
+  IF p_organization_id IS DISTINCT FROM app.current_org_id() THEN RAISE EXCEPTION 'integrator_notification_delivery_attempt_principal_mismatch' USING ERRCODE='42501'; END IF;
   v_user_id := p_user_id::uuid;
-
-  -- rev10_tenant_insert_120, дословно.
   IF v_user_id IS NOT NULL
-    AND NOT EXISTS (
-      SELECT 1 FROM public.be_organization_members AS tenant_staff
-      WHERE tenant_staff.platform_user_id = v_user_id
-        AND tenant_staff.organization_id = p_organization_id
-        AND tenant_staff.status = 'active'
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM public.org_enrollments AS tenant_patient
-      WHERE tenant_patient.platform_user_id = v_user_id
-        AND tenant_patient.organization_id = p_organization_id
-        AND tenant_patient.status = 'active'
-    )
-  THEN
-    RAISE EXCEPTION 'integrator_notification_delivery_attempt_user_outside_organization'
-      USING ERRCODE = '42501';
-  END IF;
-
+    AND NOT EXISTS (SELECT 1 FROM public.be_organization_members AS tenant_staff WHERE tenant_staff.platform_user_id=v_user_id AND tenant_staff.organization_id=p_organization_id AND tenant_staff.status='active')
+    AND NOT EXISTS (SELECT 1 FROM public.org_enrollments AS tenant_patient WHERE tenant_patient.platform_user_id=v_user_id AND tenant_patient.organization_id=p_organization_id AND tenant_patient.status='active')
+  THEN RAISE EXCEPTION 'integrator_notification_delivery_attempt_user_outside_organization' USING ERRCODE='42501'; END IF;
   INSERT INTO public.notification_delivery_attempts (
-    organization_id,
-    user_id, integrator_user_id, topic_code, intent_type, channel, status, reason,
+    organization_id, user_id, topic_code, intent_type, channel, status, reason,
     provider_status_code, event_id, occurrence_id, recipient_ref, error_message, metadata
   ) VALUES (
-    p_organization_id,
-    v_user_id,
-    p_integrator_user_id,
-    p_topic_code,
-    p_intent_type,
-    p_channel,
-    p_status,
-    p_reason,
-    p_provider_status_code,
-    p_event_id,
-    p_occurrence_id::uuid,
-    p_recipient_ref,
-    p_error_message,
-    p_metadata::jsonb
+    p_organization_id, v_user_id, p_topic_code, p_intent_type, p_channel, p_status, p_reason,
+    p_provider_status_code, p_event_id, p_occurrence_id::uuid, p_recipient_ref, p_error_message, p_metadata::jsonb
   );
 END
 $_$;
@@ -7781,6 +7481,39 @@ $_$;
 
 
 --
+-- Name: list_configured_custom_domain_hostnames(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.list_configured_custom_domain_hostnames() RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  hostnames jsonb;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_settings_runtime_owner'::name, 'app_worker'::name, 'service'::app.port_context_class, 'health.custom-domain.list', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.list_configured_custom_domain_hostnames()'::regprocedure);
+
+  SELECT COALESCE(
+    jsonb_agg(
+      lower(btrim(setting.value_json ->> 'value'))
+      ORDER BY lower(btrim(setting.value_json ->> 'value'))
+    ),
+    '[]'::jsonb
+  )
+  INTO hostnames
+  FROM public.system_settings AS setting
+  WHERE setting.key = 'org_custom_domain_hostname'
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NOT NULL
+    AND jsonb_typeof(setting.value_json -> 'value') = 'string'
+    AND btrim(setting.value_json ->> 'value') <> '';
+
+  RETURN hostnames;
+END
+$$;
+
+
+--
 -- Name: list_google_calendar_probe_organization_ids(); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -7831,36 +7564,71 @@ $_$;
 
 
 --
--- Name: list_operator_alert_staff_push_recipients(); Type: FUNCTION; Schema: app; Owner: -
+-- Name: list_operator_web_push_recipients(text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.list_operator_alert_staff_push_recipients() RETURNS jsonb
+CREATE FUNCTION app.list_operator_web_push_recipients(p_audience text) RETURNS jsonb
     LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
     SET search_path TO 'pg_catalog'
-    AS $$
+    AS $_$
 DECLARE
   v_result jsonb;
 BEGIN
-  PERFORM app.require_accepted_context('app_seam_telemetry_operator_owner'::name, 'app_worker'::name, 'service'::app.port_context_class, 'notifications.staff-push-audience.read', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.list_operator_alert_staff_push_recipients()'::regprocedure);
+  PERFORM app.require_accepted_context('app_seam_telemetry_operator_owner'::name, 'app_worker'::name, 'service'::app.port_context_class, 'notifications.operator-push-audience.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.list_operator_web_push_recipients(text)'::regprocedure);
 
-  -- Ровно тот предикат, который стоял в drizzle-запросе: ДЕЙСТВУЮЩЕЕ членство, роль персонала,
-  -- не слитая учётка. Пара «человек ↔ клиника» возвращается целиком: веб-пуш операторского
-  -- алерта адресуется в контексте конкретной клиники, и схлопнуть её до списка людей нельзя.
+  IF p_audience NOT IN ('staff', 'global_admin') THEN
+    RAISE EXCEPTION 'unsupported operator web-push audience'
+      USING ERRCODE = '22023';
+  END IF;
+
+  WITH candidates AS (
+    SELECT staff_user.id AS user_id, member.organization_id
+      FROM public.be_organization_members AS member
+      JOIN public.platform_users AS staff_user
+        ON staff_user.id = member.platform_user_id
+     WHERE p_audience = 'staff'
+       AND member.status = 'active'
+       AND staff_user.role IN ('doctor', 'admin')
+       AND staff_user.is_archived = false
+       AND staff_user.is_blocked = false
+       AND staff_user.merged_into_id IS NULL
+    UNION ALL
+    SELECT global_admin.id AS user_id, NULL::uuid AS organization_id
+      FROM public.platform_users AS global_admin
+     WHERE p_audience = 'global_admin'
+       AND global_admin.role = 'admin'
+       AND global_admin.is_archived = false
+       AND global_admin.is_blocked = false
+       AND global_admin.merged_into_id IS NULL
+  ), eligible AS (
+    SELECT candidate.user_id, candidate.organization_id
+      FROM candidates AS candidate
+     WHERE NOT EXISTS (
+       SELECT 1
+         FROM public.user_channel_preferences AS preference
+        WHERE preference.channel_code = 'web_push'
+          AND preference.is_enabled_for_notifications = false
+          AND (
+            preference.platform_user_id = candidate.user_id
+            OR (preference.platform_user_id IS NULL AND preference.user_id = candidate.user_id::text)
+          )
+     )
+       AND EXISTS (
+         SELECT 1
+           FROM public.user_web_push_subscriptions AS subscription
+          WHERE subscription.user_id = candidate.user_id
+       )
+  )
   SELECT COALESCE(jsonb_agg(DISTINCT jsonb_build_object(
-           'userId', staff_user.id,
-           'organizationId', member.organization_id
+           'userId', eligible.user_id,
+           'organizationId', eligible.organization_id
          )), '[]'::jsonb)
     INTO v_result
-    FROM public.be_organization_members AS member
-    JOIN public.platform_users AS staff_user
-      ON staff_user.id = member.platform_user_id
-   WHERE member.status = 'active'
-     AND staff_user.role IN ('doctor', 'admin')
-     AND staff_user.merged_into_id IS NULL;
+    FROM eligible;
 
   RETURN v_result;
 END
-$$;
+$_$;
 
 
 --
@@ -8189,16 +7957,10 @@ $$;
 CREATE FUNCTION app.list_web_push_reminder_organization_ids(p_now timestamp with time zone) RETURNS TABLE(organization_id uuid)
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public'
-    AS $$SELECT app.require_attested_context_for_roles('app_seam_reminder_materialization_owner'::name, ARRAY['app_operational_scheduler'::name]::name[]);
-SELECT DISTINCT rr.organization_id
-  FROM public.reminder_rules rr
-  JOIN public.platform_users pu ON pu.id = rr.platform_user_id
-  WHERE rr.integrator_user_id IS NULL
-    AND rr.platform_user_id IS NOT NULL
-    AND rr.organization_id IS NOT NULL
-    AND rr.is_enabled = true
-    AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= p_now)
-  ORDER BY rr.organization_id
+    AS $$
+SELECT app.require_attested_context_for_roles('app_seam_reminder_materialization_owner'::name, ARRAY['app_operational_scheduler'::name]::name[]);
+SELECT DISTINCT rule.organization_id FROM public.reminder_rules rule JOIN public.platform_users patient ON patient.id=rule.platform_user_id
+WHERE rule.organization_id IS NOT NULL AND rule.is_enabled=true AND (patient.reminder_muted_until IS NULL OR patient.reminder_muted_until<=p_now) ORDER BY rule.organization_id
 $$;
 
 
@@ -9897,21 +9659,32 @@ CREATE FUNCTION app.patient_cancel_pending_reminder_occurrences(p_rule_id text) 
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE
-  v_patient_user_id uuid := app.current_patient_user_id();
+  v_target_role name := pg_catalog.current_setting('role', true)::name;
+  v_patient_user_id uuid;
   v_org_id uuid := app.current_org_id();
   v_deleted integer := 0;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_reminder_patient_owner'::name, ARRAY['app_patient'::name]::name[]);
+  PERFORM app.require_attested_context_for_roles('app_seam_reminder_patient_owner'::name, ARRAY['app_patient'::name, 'app_staff'::name]::name[]);
 
-  IF v_patient_user_id IS NULL OR v_org_id IS NULL THEN RETURN 0; END IF;
+  IF v_org_id IS NULL THEN RETURN 0; END IF;
+  IF v_target_role = 'app_patient'::name THEN
+    v_patient_user_id := app.current_patient_user_id();
+    IF v_patient_user_id IS NULL THEN RETURN 0; END IF;
+  END IF;
+
   DELETE FROM public.reminder_occurrence_history AS occurrence
   USING public.reminder_rules AS rule
   WHERE occurrence.integrator_rule_id = p_rule_id
     AND occurrence.integrator_rule_id = rule.integrator_rule_id
-    AND occurrence.platform_user_id = v_patient_user_id
     AND occurrence.organization_id = v_org_id
-    AND rule.platform_user_id = v_patient_user_id
     AND rule.organization_id = v_org_id
+    AND (
+      v_target_role = 'app_staff'::name
+      OR (
+        occurrence.platform_user_id = v_patient_user_id
+        AND rule.platform_user_id = v_patient_user_id
+      )
+    )
     AND occurrence.status IN ('planned', 'queued');
   GET DIAGNOSTICS v_deleted = ROW_COUNT;
   RETURN v_deleted;
@@ -9920,257 +9693,86 @@ $$;
 
 
 --
--- Name: patient_disable_reminder_messenger_topic(text, text); Type: FUNCTION; Schema: app; Owner: -
+-- Name: patient_disable_reminder_messenger_topic(uuid, text, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.patient_disable_reminder_messenger_topic(p_integrator_occurrence_id text, p_messenger_channel text) RETURNS TABLE(persisted boolean, paragraphs jsonb)
+CREATE FUNCTION app.patient_disable_reminder_messenger_topic(p_platform_user_id uuid, p_integrator_occurrence_id text, p_messenger_channel text) RETURNS TABLE(persisted boolean, paragraphs jsonb)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
-    AS $$
-DECLARE
-  v_integrator_user_id bigint := app.current_integrator_user_id();
-  v_org_id uuid := app.current_org_id();
-  v_platform_user_id uuid;
-  v_topic_code text;
-  v_label text;
-  v_active_labels text[] := ARRAY[]::text[];
-  v_list_csv text;
+    AS $_$
+DECLARE v_org uuid:=app.current_org_id(); v_actor uuid; v_topic text; v_label text;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_reminder_patient_owner'::name, ARRAY['app_patient'::name]::name[]);
-
-  IF p_messenger_channel NOT IN ('telegram', 'max')
-     OR v_integrator_user_id IS NULL OR v_org_id IS NULL THEN RETURN; END IF;
-  v_label := CASE p_messenger_channel WHEN 'telegram' THEN 'Telegram' ELSE 'MAX' END;
-
-  SELECT patient.id INTO v_platform_user_id
-  FROM public.platform_users AS patient
-  WHERE patient.integrator_user_id = v_integrator_user_id
-    AND EXISTS (
-      SELECT 1 FROM public.org_enrollments AS enrollment
-      WHERE enrollment.platform_user_id = patient.id
-        AND enrollment.organization_id = v_org_id
-        AND enrollment.status = 'active'
-    )
-  LIMIT 1;
-  IF v_platform_user_id IS NULL THEN RETURN; END IF;
-
-  SELECT
-    COALESCE(
-      NULLIF(btrim(rule.notification_topic_code), ''),
-      CASE
-        WHEN rule.category = 'water' THEN NULL
-        WHEN lower(COALESCE(rule.reminder_intent, '')) = 'warmup' THEN 'warmup_reminders'
-        WHEN lower(COALESCE(rule.reminder_intent, '')) IN ('exercises', 'stretch', 'generic') THEN 'training_reminders'
-        WHEN rule.linked_object_type IN ('rehab_program', 'treatment_program_item', 'lfk_complex', 'content_page', 'content_section') THEN 'training_reminders'
-        WHEN btrim(occurrence.category) = 'warmup' THEN 'warmup_reminders'
-        WHEN btrim(occurrence.category) IN ('exercise', 'breathing') THEN 'training_reminders'
-        ELSE NULL
-      END
-    )
-  INTO v_topic_code
-  FROM public.reminder_occurrence_history AS occurrence
-  INNER JOIN public.reminder_rules AS rule
-    ON rule.integrator_rule_id = occurrence.integrator_rule_id
-  WHERE occurrence.integrator_occurrence_id = p_integrator_occurrence_id
-    AND occurrence.integrator_user_id = v_integrator_user_id
-    AND occurrence.organization_id = v_org_id
-    AND rule.organization_id = v_org_id;
+  PERFORM app.require_accepted_context('app_seam_reminder_patient_owner'::name, 'app_integrator_request'::name, 'integrator'::app.port_context_class, 'reminder.topic.disable', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg]), 'app.patient_disable_reminder_messenger_topic(uuid,text,text)'::regprocedure);
+  IF pg_has_role(session_user,'app_patient','MEMBER') AND NOT pg_has_role(session_user,'app_integrator_request','MEMBER') THEN v_actor:=app.current_patient_user_id(); IF p_platform_user_id IS DISTINCT FROM v_actor THEN RETURN; END IF;
+  ELSIF pg_has_role(session_user,'app_integrator_request','MEMBER') AND NOT pg_has_role(session_user,'app_patient','MEMBER') THEN v_actor:=p_platform_user_id;
+  ELSE RAISE EXCEPTION 'unambiguous reminder callback login required' USING ERRCODE='42501'; END IF;
+  IF p_messenger_channel NOT IN ('telegram','max') OR v_org IS NULL OR v_actor IS NULL OR NOT EXISTS (SELECT 1 FROM public.org_enrollments e WHERE e.organization_id=v_org AND e.platform_user_id=v_actor AND e.status='active') THEN RETURN; END IF;
+  SELECT COALESCE(NULLIF(btrim(r.notification_topic_code),''),CASE WHEN r.category='water' THEN NULL WHEN lower(COALESCE(r.reminder_intent,''))='warmup' THEN 'warmup_reminders' ELSE 'training_reminders' END)
+  INTO v_topic FROM public.reminder_occurrence_history h JOIN public.reminder_rules r ON r.integrator_rule_id=h.integrator_rule_id
+  WHERE h.integrator_occurrence_id=p_integrator_occurrence_id AND h.platform_user_id=v_actor AND h.organization_id=v_org AND r.organization_id=v_org FOR UPDATE OF h;
   IF NOT FOUND THEN RETURN; END IF;
-
-  IF v_topic_code IS NULL THEN
-    persisted := false;
-    paragraphs := jsonb_build_array(
-      format('Хорошо — для этого типа напоминаний канал (%s) пока не настраивается через темы уведомлений.', v_label),
-      'Откройте «Настроить каналы уведомлений» ниже, если хотите управлять напоминаниями в приложении.',
-      'Очень рекомендую поставить мобильное приложение — там все удобнее и работают push уведомления.'
-    );
-    RETURN NEXT;
-    RETURN;
-  END IF;
-
-  INSERT INTO public.user_notification_topic_channels AS preference
-    (user_id, topic_code, channel_code, is_enabled, updated_at)
-  VALUES (v_platform_user_id, v_topic_code, p_messenger_channel, false, statement_timestamp())
-  ON CONFLICT (user_id, topic_code, channel_code) DO UPDATE
-    SET is_enabled = false, updated_at = EXCLUDED.updated_at;
-
-  IF v_topic_code NOT IN ('warmup_reminders', 'training_reminders')
-     AND EXISTS (
-       SELECT 1 FROM public.user_web_push_subscriptions AS subscription
-       WHERE subscription.user_id = v_platform_user_id
-     )
-     AND NOT EXISTS (
-       SELECT 1 FROM public.user_channel_preferences AS preference
-       WHERE preference.platform_user_id = v_platform_user_id
-         AND preference.channel_code = 'web_push'
-         AND preference.is_enabled_for_notifications = false
-     )
-     AND NOT EXISTS (
-       SELECT 1 FROM public.user_notification_topic_channels AS preference
-       WHERE preference.user_id = v_platform_user_id
-         AND preference.topic_code = v_topic_code
-         AND preference.channel_code = 'web_push'
-         AND preference.is_enabled = false
-     ) THEN
-    v_active_labels := array_append(v_active_labels, 'Push');
-  END IF;
-  FOREACH v_label IN ARRAY ARRAY['telegram', 'max'] LOOP
-    IF EXISTS (
-      SELECT 1 FROM public.user_channel_bindings AS binding
-      WHERE binding.user_id = v_platform_user_id AND binding.channel_code = v_label
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM public.user_channel_preferences AS preference
-      WHERE preference.platform_user_id = v_platform_user_id
-        AND preference.channel_code = v_label
-        AND preference.is_enabled_for_notifications = false
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM public.user_notification_topic_channels AS preference
-      WHERE preference.user_id = v_platform_user_id
-        AND preference.topic_code = v_topic_code
-        AND preference.channel_code = v_label
-        AND preference.is_enabled = false
-    ) THEN
-      v_active_labels := array_append(v_active_labels, CASE v_label WHEN 'telegram' THEN 'Telegram' ELSE 'MAX' END);
-    END IF;
-  END LOOP;
-  IF v_topic_code NOT IN ('warmup_reminders', 'training_reminders')
-     AND EXISTS (
-       SELECT 1 FROM public.user_contacts AS contact
-       WHERE contact.platform_user_id = v_platform_user_id
-         AND contact.contact_kind = 'email'
-         AND NULLIF(btrim(contact.value_normalized), '') IS NOT NULL
-         AND contact.confirmed_at IS NOT NULL
-     )
-     AND NOT EXISTS (
-       SELECT 1 FROM public.user_channel_preferences AS preference
-       WHERE preference.platform_user_id = v_platform_user_id
-         AND preference.channel_code = 'email'
-         AND preference.is_enabled_for_notifications = false
-     )
-     AND NOT EXISTS (
-       SELECT 1 FROM public.user_notification_topic_channels AS preference
-       WHERE preference.user_id = v_platform_user_id
-         AND preference.topic_code = v_topic_code
-         AND preference.channel_code = 'email'
-         AND preference.is_enabled = false
-     ) THEN
-    v_active_labels := array_append(v_active_labels, 'Email');
-  END IF;
-
-  v_list_csv := array_to_string(v_active_labels, ', ');
-  IF array_length(v_active_labels, 1) = 2 THEN
-    v_list_csv := v_active_labels[1] || ' и ' || v_active_labels[2];
-  ELSIF array_length(v_active_labels, 1) > 2 THEN
-    v_list_csv := array_to_string(v_active_labels[1:array_length(v_active_labels, 1) - 1], ', ')
-      || ' и ' || v_active_labels[array_length(v_active_labels, 1)];
-  END IF;
-  persisted := true;
-  paragraphs := jsonb_build_array(
-    format('Хорошо, отключаю напоминания в боте (%s).', CASE p_messenger_channel WHEN 'telegram' THEN 'Telegram' ELSE 'MAX' END),
-    CASE WHEN COALESCE(v_list_csv, '') <> ''
-      THEN format('Сейчас остаются активными напоминания в %s.', v_list_csv)
-      ELSE 'Сейчас не осталось активных каналов для напоминаний.' END,
-    'Очень рекомендую поставить мобильное приложение — там все удобнее и работают push уведомления.'
-  );
-  RETURN NEXT;
+  v_label:=CASE p_messenger_channel WHEN 'telegram' THEN 'Telegram' ELSE 'MAX' END;
+  IF v_topic IS NULL THEN persisted:=false; paragraphs:=jsonb_build_array(format('Для этого типа напоминаний канал %s не настраивается через темы.',v_label)); RETURN NEXT; RETURN; END IF;
+  INSERT INTO public.user_notification_topic_channels AS preference(user_id,topic_code,channel_code,is_enabled,updated_at)
+  VALUES(v_actor,v_topic,p_messenger_channel,false,statement_timestamp()) ON CONFLICT(user_id,topic_code,channel_code) DO UPDATE SET is_enabled=false,updated_at=EXCLUDED.updated_at;
+  persisted:=true; paragraphs:=jsonb_build_array(format('Хорошо, отключаю напоминания в боте (%s).',v_label),'Другие разрешённые каналы остаются активными.'); RETURN NEXT;
 END
-$$;
+$_$;
 
 
 --
--- Name: patient_done_reminder_occurrence(text); Type: FUNCTION; Schema: app; Owner: -
+-- Name: patient_done_reminder_occurrence(uuid, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.patient_done_reminder_occurrence(p_integrator_occurrence_id text) RETURNS TABLE(done_at timestamp with time zone, first_done_for_occurrence boolean, day_done_count integer, day_sent_total integer, day_fully_done boolean)
+CREATE FUNCTION app.patient_done_reminder_occurrence(p_platform_user_id uuid, p_integrator_occurrence_id text) RETURNS TABLE(done_at timestamp with time zone, first_done_for_occurrence boolean, day_done_count integer, day_sent_total integer, day_fully_done boolean)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
-    AS $$
+    AS $_$
 DECLARE
-  v_patient_user_id uuid;
-  v_integrator_user_id bigint;
-  v_org_id uuid;
-  v_platform_user_id uuid;
+  v_org uuid := app.current_org_id();
+  v_actor uuid;
   v_occurred_at timestamptz;
   v_existing_done_at timestamptz;
   v_timezone text;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_reminder_patient_owner'::name, ARRAY['app_integrator_request'::name, 'app_patient'::name]::name[]);
-
-  v_org_id := app.current_org_id();
-  IF pg_has_role(session_user, 'app_patient', 'MEMBER')
-     AND NOT pg_has_role(session_user, 'app_integrator_request', 'MEMBER') THEN
-    v_patient_user_id := app.current_patient_user_id();
-  ELSIF pg_has_role(session_user, 'app_integrator_request', 'MEMBER')
-        AND NOT pg_has_role(session_user, 'app_patient', 'MEMBER') THEN
-    v_integrator_user_id := app.current_integrator_user_id();
+  PERFORM app.require_accepted_context('app_seam_reminder_patient_owner'::name, 'app_integrator_request'::name, 'integrator'::app.port_context_class, 'reminder.occurrence.done', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg]), 'app.patient_done_reminder_occurrence(uuid,text)'::regprocedure);
+  IF pg_has_role(session_user, 'app_patient', 'MEMBER') AND NOT pg_has_role(session_user, 'app_integrator_request', 'MEMBER') THEN
+    v_actor := app.current_patient_user_id();
+    IF p_platform_user_id IS DISTINCT FROM v_actor THEN RETURN; END IF;
+  ELSIF pg_has_role(session_user, 'app_integrator_request', 'MEMBER') AND NOT pg_has_role(session_user, 'app_patient', 'MEMBER') THEN
+    v_actor := p_platform_user_id;
   ELSE
-    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'unambiguous reminder callback login required';
+    RAISE EXCEPTION 'unambiguous reminder callback login required' USING ERRCODE = '42501';
   END IF;
-
-  IF v_org_id IS NULL THEN RETURN; END IF;
-  IF v_patient_user_id IS NOT NULL THEN
-    v_platform_user_id := v_patient_user_id;
-  ELSIF v_integrator_user_id IS NOT NULL THEN
-    SELECT patient.id INTO v_platform_user_id
-    FROM public.platform_users AS patient
-    WHERE patient.integrator_user_id = v_integrator_user_id
-      AND EXISTS (
-        SELECT 1 FROM public.org_enrollments AS enrollment
-        WHERE enrollment.platform_user_id = patient.id
-          AND enrollment.organization_id = v_org_id AND enrollment.status = 'active'
-      )
-    LIMIT 1;
-  ELSE RETURN;
-  END IF;
-
-  SELECT h.done_at, COALESCE(h.sent_at, h.planned_at)
-  INTO v_existing_done_at, v_occurred_at
-  FROM public.reminder_occurrence_history AS h
-  WHERE h.integrator_occurrence_id = p_integrator_occurrence_id
-    AND h.platform_user_id = v_platform_user_id
-    AND h.organization_id = v_org_id
+  IF v_org IS NULL OR v_actor IS NULL OR NOT EXISTS (
+    SELECT 1 FROM public.org_enrollments e WHERE e.organization_id = v_org AND e.platform_user_id = v_actor AND e.status = 'active'
+  ) THEN RETURN; END IF;
+  SELECT h.done_at, COALESCE(h.sent_at, h.planned_at) INTO v_existing_done_at, v_occurred_at
+  FROM public.reminder_occurrence_history h
+  WHERE h.integrator_occurrence_id = p_integrator_occurrence_id AND h.platform_user_id = v_actor AND h.organization_id = v_org
   FOR UPDATE;
   IF NOT FOUND THEN RETURN; END IF;
-
   first_done_for_occurrence := v_existing_done_at IS NULL;
+  done_at := COALESCE(v_existing_done_at, statement_timestamp());
   IF first_done_for_occurrence THEN
-    done_at := statement_timestamp();
-    UPDATE public.reminder_occurrence_history
-    SET done_at = done_at,
-        occurred_at = COALESCE(occurred_at, v_occurred_at),
-        updated_at = statement_timestamp()
-    WHERE integrator_occurrence_id = p_integrator_occurrence_id
-      AND platform_user_id = v_platform_user_id
-      AND organization_id = v_org_id;
-  ELSE
-    done_at := v_existing_done_at;
+    UPDATE public.reminder_occurrence_history h SET done_at = patient_done_reminder_occurrence.done_at,
+      occurred_at = COALESCE(h.occurred_at, v_occurred_at), updated_at = statement_timestamp()
+    WHERE h.integrator_occurrence_id = p_integrator_occurrence_id AND h.platform_user_id = v_actor AND h.organization_id = v_org;
   END IF;
-
-  SELECT setting.value_json ->> 'value' INTO v_timezone
-  FROM public.system_settings AS setting
-  WHERE setting.key = 'app_display_timezone' AND setting.scope = 'admin'
-    AND setting.organization_id IS NULL
-  LIMIT 1;
-  IF v_timezone IS NULL OR NOT EXISTS (
-    SELECT 1 FROM pg_timezone_names WHERE name = v_timezone
-  ) THEN RAISE EXCEPTION 'app_display_timezone_unavailable'; END IF;
-
-  SELECT
-    COUNT(*) FILTER (WHERE h2.status = 'sent')::integer,
-    COUNT(*) FILTER (WHERE h2.status = 'sent' AND h2.done_at IS NOT NULL)::integer
-  INTO day_sent_total, day_done_count
-  FROM public.reminder_occurrence_history AS h2
-  WHERE h2.platform_user_id = v_platform_user_id
-    AND h2.organization_id = v_org_id
-    AND (COALESCE(h2.occurred_at, h2.sent_at, h2.planned_at) AT TIME ZONE v_timezone)::date =
-        (v_occurred_at AT TIME ZONE v_timezone)::date;
-  day_fully_done := first_done_for_occurrence AND day_sent_total > 0
-    AND day_done_count = day_sent_total;
+  SELECT setting.value_json ->> 'value' INTO v_timezone FROM public.system_settings setting
+  WHERE setting.key = 'app_display_timezone' AND setting.scope = 'admin' AND setting.organization_id IS NULL LIMIT 1;
+  IF v_timezone IS NULL OR NOT EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = v_timezone) THEN
+    RAISE EXCEPTION 'app_display_timezone_unavailable';
+  END IF;
+  SELECT COUNT(*) FILTER (WHERE h.status = 'sent')::integer,
+         COUNT(*) FILTER (WHERE h.status = 'sent' AND h.done_at IS NOT NULL)::integer
+  INTO day_sent_total, day_done_count FROM public.reminder_occurrence_history h
+  WHERE h.platform_user_id = v_actor AND h.organization_id = v_org
+    AND (COALESCE(h.occurred_at, h.sent_at, h.planned_at) AT TIME ZONE v_timezone)::date = (v_occurred_at AT TIME ZONE v_timezone)::date;
+  day_fully_done := first_done_for_occurrence AND day_sent_total > 0 AND day_done_count = day_sent_total;
   RETURN NEXT;
 END
-$$;
+$_$;
 
 
 --
@@ -10181,253 +9783,67 @@ CREATE FUNCTION app.patient_reminder_materialization_fingerprint(p_occurrence_id
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
-  SELECT md5(jsonb_build_object(
-    'occurrence', jsonb_build_array(
-      occurrence.integrator_rule_id, occurrence.organization_id, occurrence.platform_user_id,
-      occurrence.delivery_generation, occurrence.planned_at
-    ),
-    'rule', jsonb_build_array(
-      rule.integrator_rule_id, rule.organization_id, rule.platform_user_id, rule.integrator_user_id,
-      rule.is_enabled, rule.notification_topic_code, rule.reminder_intent, rule.linked_object_type,
-      rule.linked_object_id, rule.custom_title, rule.custom_text, rule.display_title, rule.updated_at
-    ),
-    'patient', jsonb_build_array(
-      patient.reminder_muted_until, patient_email.value_normalized,
-      patient_email.confirmed_at, patient_email.updated_at, patient.updated_at
-    ),
-    'bindings', COALESCE((
-      SELECT jsonb_agg(jsonb_build_array(
-        binding.channel_code, binding.external_id, binding.bot_blocked_at, binding.created_at
-      ) ORDER BY binding.channel_code, binding.external_id)
-      FROM public.user_channel_bindings AS binding
-      WHERE binding.user_id = occurrence.platform_user_id
-        AND binding.channel_code = p_channel
-    ), '[]'::jsonb),
-    'channelPreference', COALESCE((
-      SELECT jsonb_agg(jsonb_build_array(
-        preference.channel_code, preference.is_enabled_for_notifications, preference.updated_at
-      ) ORDER BY preference.channel_code)
-      FROM public.user_channel_preferences AS preference
-      WHERE preference.platform_user_id = occurrence.platform_user_id
-        AND preference.channel_code = p_channel
-    ), '[]'::jsonb),
-    'topic', COALESCE((
-      SELECT jsonb_agg(jsonb_build_array(topic.topic_code, topic.is_enabled, topic.updated_at))
-      FROM public.user_notification_topics AS topic
-      WHERE topic.user_id = occurrence.platform_user_id
-        AND topic.topic_code = delivery.payload_json ->> 'topicCode'
-    ), '[]'::jsonb),
-    'topicChannel', COALESCE((
-      SELECT jsonb_agg(jsonb_build_array(
-        preference.topic_code, preference.channel_code, preference.is_enabled, preference.updated_at
-      ))
-      FROM public.user_notification_topic_channels AS preference
-      WHERE preference.user_id = occurrence.platform_user_id
-        AND preference.topic_code = delivery.payload_json ->> 'topicCode'
-        AND preference.channel_code = p_channel
-    ), '[]'::jsonb),
-    'webPushSubscriptions', CASE WHEN p_channel = 'web_push' THEN COALESCE((
-      SELECT jsonb_agg(jsonb_build_array(
-        subscription.endpoint, subscription.p256dh, subscription.auth, subscription.updated_at
-      ) ORDER BY subscription.endpoint)
-      FROM public.user_web_push_subscriptions AS subscription
-      WHERE subscription.user_id = occurrence.platform_user_id
-    ), '[]'::jsonb) ELSE '[]'::jsonb END,
-    'providerSettings', COALESCE((
-      SELECT jsonb_agg(jsonb_build_array(
-        setting.key, setting.scope, setting.organization_id, setting.value_json, setting.updated_at
-      ) ORDER BY setting.key, setting.scope, setting.organization_id NULLS FIRST)
-      FROM public.system_settings AS setting
-      WHERE (p_channel = 'web_push' AND setting.key = 'web_push_vapid' AND setting.scope = 'admin')
-         OR (p_channel = 'email' AND setting.key = 'smtp_outbound' AND setting.scope = 'admin')
-    ), '[]'::jsonb)
-  )::text)
-  FROM public.reminder_occurrence_history AS occurrence
-  INNER JOIN public.reminder_rules AS rule
-    ON rule.integrator_rule_id = occurrence.integrator_rule_id
-   AND rule.organization_id = occurrence.organization_id
-   AND rule.platform_user_id = occurrence.platform_user_id
-  INNER JOIN public.platform_users AS patient ON patient.id = occurrence.platform_user_id
-  LEFT JOIN public.user_contacts AS patient_email
-    ON patient_email.platform_user_id = patient.id
-   AND patient_email.contact_kind = 'email'
-   AND patient_email.is_primary = true
-  INNER JOIN public.outgoing_delivery_queue AS delivery
-    ON delivery.event_id = concat(
-      'rem:', occurrence.integrator_occurrence_id, ':g', occurrence.delivery_generation::text, ':', p_channel
-    )
-   AND delivery.kind = 'reminder_dispatch'
-   AND delivery.organization_id = occurrence.organization_id
-  WHERE occurrence.integrator_occurrence_id = p_occurrence_id
+SELECT md5(jsonb_build_object('occurrence',jsonb_build_array(h.integrator_rule_id,h.organization_id,h.platform_user_id,h.delivery_generation,h.planned_at),
+  'rule',jsonb_build_array(r.integrator_rule_id,r.organization_id,r.platform_user_id,r.is_enabled,r.notification_topic_code,r.reminder_intent,r.linked_object_type,r.linked_object_id,r.custom_title,r.custom_text,r.display_title,r.updated_at),
+  'patient',jsonb_build_array(patient.reminder_muted_until,patient.updated_at),'channel',p_channel)::text)
+FROM public.reminder_occurrence_history h JOIN public.reminder_rules r ON r.integrator_rule_id=h.integrator_rule_id JOIN public.platform_users patient ON patient.id=h.platform_user_id
+WHERE h.integrator_occurrence_id=p_occurrence_id AND h.organization_id=r.organization_id AND h.platform_user_id=r.platform_user_id
 $$;
 
 
 --
--- Name: patient_reminder_notification_settings(text, text); Type: FUNCTION; Schema: app; Owner: -
+-- Name: patient_reminder_notification_settings(uuid, text, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.patient_reminder_notification_settings(p_messenger_channel text, p_toggle_topic_code text) RETURNS TABLE(topics jsonb, new_state boolean)
+CREATE FUNCTION app.patient_reminder_notification_settings(p_platform_user_id uuid, p_messenger_channel text, p_toggle_topic_code text) RETURNS TABLE(topics jsonb, new_state boolean)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
-    AS $$
-DECLARE
-  v_integrator_user_id bigint := app.current_integrator_user_id();
-  v_org_id uuid := app.current_org_id();
-  v_platform_user_id uuid;
+    AS $_$
+DECLARE v_org uuid:=app.current_org_id(); v_actor uuid;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_reminder_patient_owner'::name, ARRAY['app_patient'::name]::name[]);
-
-  IF p_messenger_channel NOT IN ('telegram', 'max')
-     OR v_integrator_user_id IS NULL OR v_org_id IS NULL THEN RETURN; END IF;
-  SELECT patient.id INTO v_platform_user_id
-  FROM public.platform_users AS patient
-  WHERE patient.integrator_user_id = v_integrator_user_id
-    AND EXISTS (
-      SELECT 1 FROM public.org_enrollments AS enrollment
-      WHERE enrollment.platform_user_id = patient.id
-        AND enrollment.organization_id = v_org_id
-        AND enrollment.status = 'active'
-    )
-  LIMIT 1;
-  IF v_platform_user_id IS NULL THEN RETURN; END IF;
-
+  PERFORM app.require_accepted_context('app_seam_reminder_patient_owner'::name, 'app_integrator_request'::name, 'integrator'::app.port_context_class, 'reminder.notification-settings', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg]), 'app.patient_reminder_notification_settings(uuid,text,text)'::regprocedure);
+  IF pg_has_role(session_user,'app_patient','MEMBER') AND NOT pg_has_role(session_user,'app_integrator_request','MEMBER') THEN v_actor:=app.current_patient_user_id(); IF p_platform_user_id IS DISTINCT FROM v_actor THEN RETURN; END IF;
+  ELSIF pg_has_role(session_user,'app_integrator_request','MEMBER') AND NOT pg_has_role(session_user,'app_patient','MEMBER') THEN v_actor:=p_platform_user_id;
+  ELSE RAISE EXCEPTION 'unambiguous reminder callback login required' USING ERRCODE='42501'; END IF;
+  IF p_messenger_channel NOT IN('telegram','max') OR v_org IS NULL OR v_actor IS NULL OR NOT EXISTS(SELECT 1 FROM public.org_enrollments e WHERE e.organization_id=v_org AND e.platform_user_id=v_actor AND e.status='active') THEN RETURN; END IF;
   IF p_toggle_topic_code IS NOT NULL THEN
-    IF p_toggle_topic_code NOT IN (
-      'warmup_reminders', 'training_reminders', 'appointment_reminders', 'patient_news',
-      'specialist_messages', 'support_messages', 'important_broadcasts'
-    ) THEN RETURN; END IF;
-    INSERT INTO public.user_notification_topic_channels AS preference
-      (user_id, topic_code, channel_code, is_enabled, updated_at)
-    VALUES (v_platform_user_id, p_toggle_topic_code, p_messenger_channel, false, statement_timestamp())
-    ON CONFLICT (user_id, topic_code, channel_code) DO UPDATE
-      SET is_enabled = NOT preference.is_enabled, updated_at = EXCLUDED.updated_at
-    RETURNING is_enabled INTO new_state;
+    IF p_toggle_topic_code NOT IN('warmup_reminders','training_reminders','appointment_reminders','patient_news','specialist_messages','support_messages','important_broadcasts') THEN RETURN; END IF;
+    INSERT INTO public.user_notification_topic_channels AS preference(user_id,topic_code,channel_code,is_enabled,updated_at)
+    VALUES(v_actor,p_toggle_topic_code,p_messenger_channel,false,statement_timestamp()) ON CONFLICT(user_id,topic_code,channel_code) DO UPDATE SET is_enabled=NOT preference.is_enabled,updated_at=EXCLUDED.updated_at RETURNING is_enabled INTO new_state;
   END IF;
-
-  SELECT jsonb_agg(
-    jsonb_build_object('code', definition.code, 'title', definition.title,
-      'isEnabled', COALESCE(preference.is_enabled, true))
-    ORDER BY definition.position
-  )
-  INTO topics
-  FROM (
-    VALUES
-      (1, 'warmup_reminders'::text, 'Напоминания о разминках'::text),
-      (2, 'training_reminders', 'Напоминания о тренировках'),
-      (3, 'appointment_reminders', 'Напоминания о записях'),
-      (4, 'patient_news', 'Новости и уведомления'),
-      (5, 'specialist_messages', 'Сообщения специалиста'),
-      (6, 'support_messages', 'Сообщения поддержки'),
-      (7, 'important_broadcasts', 'Важные рассылки')
-  ) AS definition(position, code, title)
-  LEFT JOIN public.user_notification_topic_channels AS preference
-    ON preference.user_id = v_platform_user_id
-   AND preference.topic_code = definition.code
-   AND preference.channel_code = p_messenger_channel;
+  SELECT jsonb_agg(jsonb_build_object('code',d.code,'title',d.title,'isEnabled',COALESCE(p.is_enabled,true)) ORDER BY d.position) INTO topics
+  FROM (VALUES(1,'warmup_reminders'::text,'Напоминания о разминках'::text),(2,'training_reminders','Напоминания о тренировках'),(3,'appointment_reminders','Напоминания о записях'),(4,'patient_news','Новости и уведомления'),(5,'specialist_messages','Сообщения специалиста'),(6,'support_messages','Сообщения поддержки'),(7,'important_broadcasts','Важные рассылки')) d(position,code,title)
+  LEFT JOIN public.user_notification_topic_channels p ON p.user_id=v_actor AND p.topic_code=d.code AND p.channel_code=p_messenger_channel;
   RETURN NEXT;
 END
-$$;
+$_$;
 
 
 --
--- Name: patient_set_reminder_mute(integer, boolean); Type: FUNCTION; Schema: app; Owner: -
+-- Name: patient_set_reminder_mute(uuid, integer, boolean); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.patient_set_reminder_mute(p_minutes integer, p_until_tomorrow boolean) RETURNS TABLE(muted_until timestamp with time zone)
+CREATE FUNCTION app.patient_set_reminder_mute(p_platform_user_id uuid, p_minutes integer, p_until_tomorrow boolean) RETURNS TABLE(muted_until timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
-    AS $$
-DECLARE
-  v_patient_user_id uuid := app.current_patient_user_id();
-  v_integrator_user_id bigint := app.current_integrator_user_id();
-  v_org_id uuid := app.current_org_id();
-  v_platform_user_id uuid;
-  v_timezone text;
+    AS $_$
+DECLARE v_org uuid:=app.current_org_id(); v_actor uuid; v_timezone text;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_reminder_patient_owner'::name, ARRAY['app_patient'::name]::name[]);
-
-  IF v_org_id IS NULL OR (p_until_tomorrow = (p_minutes IS NOT NULL)) THEN RETURN; END IF;
-  IF NOT p_until_tomorrow AND p_minutes NOT BETWEEN 1 AND 1440 THEN RETURN; END IF;
-  IF v_patient_user_id IS NOT NULL THEN
-    v_platform_user_id := v_patient_user_id;
-  ELSIF v_integrator_user_id IS NOT NULL THEN
-    SELECT patient.id INTO v_platform_user_id
-    FROM public.platform_users AS patient
-    WHERE patient.integrator_user_id = v_integrator_user_id
-      AND EXISTS (
-        SELECT 1 FROM public.org_enrollments AS enrollment
-        WHERE enrollment.platform_user_id = patient.id
-          AND enrollment.organization_id = v_org_id AND enrollment.status = 'active'
-      )
-    LIMIT 1;
-  ELSE RETURN;
-  END IF;
-  IF v_platform_user_id IS NULL OR NOT EXISTS (
-    SELECT 1 FROM public.org_enrollments AS enrollment
-    WHERE enrollment.platform_user_id = v_platform_user_id
-      AND enrollment.organization_id = v_org_id AND enrollment.status = 'active'
-  ) THEN RETURN; END IF;
-
+  PERFORM app.require_accepted_context('app_seam_reminder_patient_owner'::name, 'app_integrator_request'::name, 'integrator'::app.port_context_class, 'reminder.mute', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($2))::app.port_typed_arg, ROW('boolean@1', pg_catalog.boolsend($3))::app.port_typed_arg]), 'app.patient_set_reminder_mute(uuid,integer,boolean)'::regprocedure);
+  IF pg_has_role(session_user,'app_patient','MEMBER') AND NOT pg_has_role(session_user,'app_integrator_request','MEMBER') THEN v_actor:=app.current_patient_user_id(); IF p_platform_user_id IS DISTINCT FROM v_actor THEN RETURN; END IF;
+  ELSIF pg_has_role(session_user,'app_integrator_request','MEMBER') AND NOT pg_has_role(session_user,'app_patient','MEMBER') THEN v_actor:=p_platform_user_id;
+  ELSE RAISE EXCEPTION 'unambiguous reminder callback login required' USING ERRCODE='42501'; END IF;
+  IF v_org IS NULL OR v_actor IS NULL OR p_until_tomorrow=(p_minutes IS NOT NULL) OR (NOT p_until_tomorrow AND p_minutes NOT BETWEEN 1 AND 1440)
+     OR NOT EXISTS (SELECT 1 FROM public.org_enrollments e WHERE e.organization_id=v_org AND e.platform_user_id=v_actor AND e.status='active') THEN RETURN; END IF;
   IF p_until_tomorrow THEN
-    SELECT setting.value_json ->> 'value' INTO v_timezone
-    FROM public.system_settings AS setting
-    WHERE setting.key = 'app_display_timezone'
-      AND setting.scope = 'admin'
-      AND setting.organization_id IS NULL
-    LIMIT 1;
-    IF v_timezone IS NULL OR NOT EXISTS (
-      SELECT 1 FROM pg_timezone_names WHERE name = v_timezone
-    ) THEN RAISE EXCEPTION 'app_display_timezone_unavailable'; END IF;
-    muted_until := (
-      date_trunc('day', statement_timestamp() AT TIME ZONE v_timezone) + interval '1 day'
-    ) AT TIME ZONE v_timezone;
-  ELSE
-    muted_until := statement_timestamp() + make_interval(mins => p_minutes);
-  END IF;
-
-  UPDATE public.platform_users
-  SET reminder_muted_until = muted_until
-  WHERE id = v_platform_user_id;
-  RETURN NEXT;
+    SELECT setting.value_json->>'value' INTO v_timezone FROM public.system_settings setting WHERE setting.key='app_display_timezone' AND setting.scope='admin' AND setting.organization_id IS NULL LIMIT 1;
+    IF v_timezone IS NULL OR NOT EXISTS (SELECT 1 FROM pg_timezone_names WHERE name=v_timezone) THEN RAISE EXCEPTION 'app_display_timezone_unavailable'; END IF;
+    muted_until:=(date_trunc('day',statement_timestamp() AT TIME ZONE v_timezone)+interval '1 day') AT TIME ZONE v_timezone;
+  ELSE muted_until:=statement_timestamp()+make_interval(mins=>p_minutes); END IF;
+  UPDATE public.platform_users SET reminder_muted_until=muted_until WHERE id=v_actor;
+  IF NOT FOUND THEN RETURN; END IF; RETURN NEXT;
 END
-$$;
-
-
---
--- Name: patient_set_reminder_muted_until(timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
---
-
-CREATE FUNCTION app.patient_set_reminder_muted_until(p_muted_until timestamp with time zone) RETURNS TABLE(muted_until timestamp with time zone)
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'pg_catalog'
-    AS $$
-DECLARE
-  v_integrator_user_id bigint := app.current_integrator_user_id();
-  v_org_id uuid := app.current_org_id();
-  v_platform_user_id uuid;
-BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_reminder_patient_owner'::name, ARRAY['app_patient'::name]::name[]);
-
-  IF v_integrator_user_id IS NULL OR v_org_id IS NULL THEN RETURN; END IF;
-  SELECT patient.id INTO v_platform_user_id
-  FROM public.platform_users AS patient
-  WHERE patient.integrator_user_id = v_integrator_user_id
-    AND EXISTS (
-      SELECT 1 FROM public.org_enrollments AS enrollment
-      WHERE enrollment.platform_user_id = patient.id
-        AND enrollment.organization_id = v_org_id
-        AND enrollment.status = 'active'
-    )
-  LIMIT 1;
-  IF v_platform_user_id IS NULL THEN RETURN; END IF;
-
-  UPDATE public.platform_users AS patient
-  SET reminder_muted_until = p_muted_until
-  WHERE patient.id = v_platform_user_id
-  RETURNING patient.reminder_muted_until INTO muted_until;
-  RETURN NEXT;
-END
-$$;
+$_$;
 
 
 --
@@ -10437,70 +9853,25 @@ $$;
 CREATE FUNCTION app.patient_skip_reminder_occurrence(p_platform_user_id uuid, p_integrator_occurrence_id text, p_reason text) RETURNS TABLE(skipped_at timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
-    AS $$
-DECLARE
-  v_patient_user_id uuid;
-  v_integrator_user_id bigint;
-  v_org_id uuid;
-  v_platform_user_id uuid;
-  v_occurred_at timestamptz;
+    AS $_$
+DECLARE v_org uuid := app.current_org_id(); v_actor uuid; v_occurred_at timestamptz;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_reminder_patient_owner'::name, ARRAY['app_integrator_request'::name, 'app_patient'::name]::name[]);
-
-  v_org_id := app.current_org_id();
-  IF pg_has_role(session_user, 'app_patient', 'MEMBER')
-     AND NOT pg_has_role(session_user, 'app_integrator_request', 'MEMBER') THEN
-    v_patient_user_id := app.current_patient_user_id();
-  ELSIF pg_has_role(session_user, 'app_integrator_request', 'MEMBER')
-        AND NOT pg_has_role(session_user, 'app_patient', 'MEMBER') THEN
-    v_integrator_user_id := app.current_integrator_user_id();
-  ELSE
-    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'unambiguous reminder callback login required';
-  END IF;
-
-  IF v_org_id IS NULL THEN RETURN; END IF;
-  IF v_patient_user_id IS NOT NULL THEN
-    IF p_platform_user_id IS DISTINCT FROM v_patient_user_id THEN RETURN; END IF;
-    v_platform_user_id := v_patient_user_id;
-  ELSIF p_platform_user_id IS NULL AND v_integrator_user_id IS NOT NULL THEN
-    SELECT patient.id INTO v_platform_user_id
-    FROM public.platform_users AS patient
-    WHERE patient.integrator_user_id = v_integrator_user_id
-      AND EXISTS (
-        SELECT 1 FROM public.org_enrollments AS enrollment
-        WHERE enrollment.platform_user_id = patient.id
-          AND enrollment.organization_id = v_org_id AND enrollment.status = 'active'
-      )
-    LIMIT 1;
-  ELSE RETURN;
-  END IF;
-
-  SELECT COALESCE(h.sent_at, h.planned_at) INTO v_occurred_at
-  FROM public.reminder_occurrence_history AS h
-  WHERE h.integrator_occurrence_id = p_integrator_occurrence_id
-    AND h.platform_user_id = v_platform_user_id
-    AND h.organization_id = v_org_id
-  FOR UPDATE;
+  PERFORM app.require_accepted_context('app_seam_reminder_patient_owner'::name, 'app_integrator_request'::name, 'integrator'::app.port_context_class, 'reminder.occurrence.skip', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg]), 'app.patient_skip_reminder_occurrence(uuid,text,text)'::regprocedure);
+  IF pg_has_role(session_user, 'app_patient', 'MEMBER') AND NOT pg_has_role(session_user, 'app_integrator_request', 'MEMBER') THEN
+    v_actor := app.current_patient_user_id(); IF p_platform_user_id IS DISTINCT FROM v_actor THEN RETURN; END IF;
+  ELSIF pg_has_role(session_user, 'app_integrator_request', 'MEMBER') AND NOT pg_has_role(session_user, 'app_patient', 'MEMBER') THEN v_actor := p_platform_user_id;
+  ELSE RAISE EXCEPTION 'unambiguous reminder callback login required' USING ERRCODE = '42501'; END IF;
+  IF v_org IS NULL OR v_actor IS NULL OR NOT EXISTS (SELECT 1 FROM public.org_enrollments e WHERE e.organization_id=v_org AND e.platform_user_id=v_actor AND e.status='active') THEN RETURN; END IF;
+  SELECT COALESCE(h.sent_at,h.planned_at) INTO v_occurred_at FROM public.reminder_occurrence_history h
+  WHERE h.integrator_occurrence_id=p_integrator_occurrence_id AND h.platform_user_id=v_actor AND h.organization_id=v_org FOR UPDATE;
   IF NOT FOUND THEN RETURN; END IF;
-
-  UPDATE public.reminder_occurrence_history AS h
-  SET skipped_at = COALESCE(h.skipped_at, statement_timestamp()),
-      skip_reason = NULL,
-      occurred_at = COALESCE(h.occurred_at, v_occurred_at)
-  WHERE h.integrator_occurrence_id = p_integrator_occurrence_id
-    AND h.platform_user_id = v_platform_user_id
-    AND h.organization_id = v_org_id
+  UPDATE public.reminder_occurrence_history h SET skipped_at=COALESCE(h.skipped_at,statement_timestamp()),
+    skip_reason=p_reason, occurred_at=COALESCE(h.occurred_at,v_occurred_at), status='skipped', updated_at=statement_timestamp()
+  WHERE h.integrator_occurrence_id=p_integrator_occurrence_id AND h.platform_user_id=v_actor AND h.organization_id=v_org
   RETURNING h.skipped_at INTO skipped_at;
-  IF skipped_at IS NULL THEN RETURN; END IF;
-
-  UPDATE public.reminder_occurrence_history
-  SET status = 'skipped', updated_at = statement_timestamp()
-  WHERE integrator_occurrence_id = p_integrator_occurrence_id
-    AND platform_user_id = v_platform_user_id
-    AND organization_id = v_org_id;
   RETURN NEXT;
 END
-$$;
+$_$;
 
 
 --
@@ -10510,85 +9881,27 @@ $$;
 CREATE FUNCTION app.patient_snooze_reminder_occurrence(p_platform_user_id uuid, p_integrator_occurrence_id text, p_minutes integer) RETURNS TABLE(snoozed_until timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
-    AS $$
-DECLARE
-  v_patient_user_id uuid;
-  v_integrator_user_id bigint;
-  v_org_id uuid;
-  v_platform_user_id uuid;
-  v_occurred_at timestamptz;
-  v_existing_snoozed_until timestamptz;
-  v_snoozed_until timestamptz;
+    AS $_$
+DECLARE v_org uuid := app.current_org_id(); v_actor uuid; v_existing timestamptz; v_next timestamptz; v_occurred_at timestamptz;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_reminder_patient_owner'::name, ARRAY['app_integrator_request'::name, 'app_patient'::name]::name[]);
-
-  v_org_id := app.current_org_id();
-  IF pg_has_role(session_user, 'app_patient', 'MEMBER')
-     AND NOT pg_has_role(session_user, 'app_integrator_request', 'MEMBER') THEN
-    v_patient_user_id := app.current_patient_user_id();
-  ELSIF pg_has_role(session_user, 'app_integrator_request', 'MEMBER')
-        AND NOT pg_has_role(session_user, 'app_patient', 'MEMBER') THEN
-    v_integrator_user_id := app.current_integrator_user_id();
-  ELSE
-    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'unambiguous reminder callback login required';
-  END IF;
-
-  IF p_minutes NOT BETWEEN 1 AND 720 OR v_org_id IS NULL THEN RETURN; END IF;
-  IF v_patient_user_id IS NOT NULL THEN
-    IF p_platform_user_id IS DISTINCT FROM v_patient_user_id THEN RETURN; END IF;
-    v_platform_user_id := v_patient_user_id;
-  ELSIF p_platform_user_id IS NULL AND v_integrator_user_id IS NOT NULL THEN
-    SELECT patient.id INTO v_platform_user_id
-    FROM public.platform_users AS patient
-    WHERE patient.integrator_user_id = v_integrator_user_id
-      AND EXISTS (
-        SELECT 1 FROM public.org_enrollments AS enrollment
-        WHERE enrollment.platform_user_id = patient.id
-          AND enrollment.organization_id = v_org_id
-          AND enrollment.status = 'active'
-      )
-    LIMIT 1;
-  ELSE RETURN;
-  END IF;
-
-  SELECT h.snoozed_until, COALESCE(h.sent_at, h.planned_at)
-  INTO v_existing_snoozed_until, v_occurred_at
-  FROM public.reminder_occurrence_history AS h
-  WHERE h.integrator_occurrence_id = p_integrator_occurrence_id
-    AND h.platform_user_id = v_platform_user_id
-    AND h.organization_id = v_org_id
-  FOR UPDATE;
+  PERFORM app.require_accepted_context('app_seam_reminder_patient_owner'::name, 'app_integrator_request'::name, 'integrator'::app.port_context_class, 'reminder.occurrence.snooze', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($3))::app.port_typed_arg]), 'app.patient_snooze_reminder_occurrence(uuid,text,integer)'::regprocedure);
+  IF pg_has_role(session_user,'app_patient','MEMBER') AND NOT pg_has_role(session_user,'app_integrator_request','MEMBER') THEN
+    v_actor:=app.current_patient_user_id(); IF p_platform_user_id IS DISTINCT FROM v_actor THEN RETURN; END IF;
+  ELSIF pg_has_role(session_user,'app_integrator_request','MEMBER') AND NOT pg_has_role(session_user,'app_patient','MEMBER') THEN v_actor:=p_platform_user_id;
+  ELSE RAISE EXCEPTION 'unambiguous reminder callback login required' USING ERRCODE='42501'; END IF;
+  IF p_minutes NOT BETWEEN 1 AND 720 OR v_org IS NULL OR v_actor IS NULL OR NOT EXISTS (SELECT 1 FROM public.org_enrollments e WHERE e.organization_id=v_org AND e.platform_user_id=v_actor AND e.status='active') THEN RETURN; END IF;
+  SELECT h.snoozed_until,COALESCE(h.sent_at,h.planned_at) INTO v_existing,v_occurred_at FROM public.reminder_occurrence_history h
+  WHERE h.integrator_occurrence_id=p_integrator_occurrence_id AND h.platform_user_id=v_actor AND h.organization_id=v_org FOR UPDATE;
   IF NOT FOUND THEN RETURN; END IF;
-  IF v_existing_snoozed_until IS NOT NULL THEN
-    snoozed_until := v_existing_snoozed_until;
-    RETURN NEXT;
-    RETURN;
-  END IF;
-
-  v_snoozed_until := statement_timestamp() + make_interval(mins => p_minutes);
-  UPDATE public.reminder_occurrence_history AS h
-  SET snoozed_at = statement_timestamp(),
-      snoozed_until = v_snoozed_until,
-      occurred_at = COALESCE(h.occurred_at, v_occurred_at)
-  WHERE h.integrator_occurrence_id = p_integrator_occurrence_id
-    AND h.platform_user_id = v_platform_user_id
-    AND h.organization_id = v_org_id
-    AND h.skipped_at IS NULL;
-  IF NOT FOUND THEN RETURN; END IF;
-
-  UPDATE public.reminder_occurrence_history
-  SET planned_at = v_snoozed_until,
-      delivery_generation = delivery_generation + 1,
-      status = 'planned', queued_at = NULL, sent_at = NULL, failed_at = NULL,
-      delivery_channel = NULL, delivery_job_id = NULL, error_code = NULL,
-      updated_at = statement_timestamp()
-  WHERE integrator_occurrence_id = p_integrator_occurrence_id
-    AND platform_user_id = v_platform_user_id
-    AND organization_id = v_org_id;
-  snoozed_until := v_snoozed_until;
-  RETURN NEXT;
+  IF v_existing IS NOT NULL THEN snoozed_until:=v_existing; RETURN NEXT; RETURN; END IF;
+  v_next:=statement_timestamp()+make_interval(mins=>p_minutes);
+  UPDATE public.reminder_occurrence_history h SET snoozed_at=statement_timestamp(),snoozed_until=v_next,
+    occurred_at=COALESCE(h.occurred_at,v_occurred_at),planned_at=v_next,delivery_generation=h.delivery_generation+1,
+    status='planned',queued_at=NULL,sent_at=NULL,failed_at=NULL,delivery_channel=NULL,delivery_job_id=NULL,error_code=NULL,updated_at=statement_timestamp()
+  WHERE h.integrator_occurrence_id=p_integrator_occurrence_id AND h.platform_user_id=v_actor AND h.organization_id=v_org AND h.skipped_at IS NULL;
+  IF NOT FOUND THEN RETURN; END IF; snoozed_until:=v_next; RETURN NEXT;
 END
-$$;
+$_$;
 
 
 --
@@ -11139,6 +10452,80 @@ $_$;
 
 
 --
+-- Name: platform_support_account_action(text, uuid, uuid, boolean, text, text, text, text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.platform_support_account_action(p_action text, p_user_id uuid, p_actor_id uuid, p_blocked boolean, p_reason text, p_contact_kind text, p_value_normalized text, p_channel_code text, p_external_id text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_count integer;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_platform_settings'::name, 'platform'::app.port_context_class, 'platform.support-account.action', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($3))::app.port_typed_arg, ROW('boolean@1', pg_catalog.boolsend($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($7))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($8))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($9))::app.port_typed_arg]), 'app.platform_support_account_action(text,uuid,uuid,boolean,text,text,text,text,text)'::regprocedure);
+
+  IF p_action = 'revoke_contact' THEN
+    IF p_contact_kind IS NULL OR p_value_normalized IS NULL THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'revoke_contact requires contact_kind and value_normalized';
+    END IF;
+    DELETE FROM public.user_contacts
+     WHERE platform_user_id = p_user_id
+       AND contact_kind = p_contact_kind
+       AND value_normalized = p_value_normalized;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    RETURN v_count > 0;
+  END IF;
+
+  IF p_action = 'revoke_channel_binding' THEN
+    IF p_channel_code IS NULL OR p_external_id IS NULL THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'revoke_channel_binding requires channel_code and external_id';
+    END IF;
+    DELETE FROM public.user_channel_bindings
+     WHERE user_id = p_user_id
+       AND channel_code = p_channel_code
+       AND external_id = p_external_id;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    RETURN v_count > 0;
+  END IF;
+
+  IF p_action = 'set_blocked' THEN
+    IF p_blocked IS NULL THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'set_blocked requires blocked';
+    END IF;
+    IF p_blocked THEN
+      -- Same session_epoch transition rule as `pgDoctorClients.setClientBlocked`: bump only when the
+      -- account was not already blocked, so re-blocking an already-blocked account is a no-op on the
+      -- epoch (idempotent, does not burn every other live session's cookie a second time for nothing).
+      UPDATE public.platform_users
+         SET is_blocked = true,
+             session_epoch = session_epoch + CASE WHEN COALESCE(is_blocked, false) THEN 0 ELSE 1 END,
+             blocked_at = pg_catalog.now(),
+             blocked_reason = p_reason,
+             blocked_by = p_actor_id,
+             updated_at = pg_catalog.now()
+       WHERE id = p_user_id;
+    ELSE
+      -- No epoch touch on unblock: a cookie minted before the block carries the OLD (lower) epoch and
+      -- stays rejected by the equality check forever, exactly as the owner ruling requires — unblock
+      -- must not revive it. Only a fresh login mints a cookie carrying the current epoch.
+      UPDATE public.platform_users
+         SET is_blocked = false,
+             blocked_at = NULL,
+             blocked_reason = NULL,
+             blocked_by = NULL,
+             updated_at = pg_catalog.now()
+       WHERE id = p_user_id;
+    END IF;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    RETURN v_count > 0;
+  END IF;
+
+  RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'unknown platform_support_account_action';
+END
+$_$;
+
+
+--
 -- Name: pre_session_find_session_user_by_phone(text); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -11156,6 +10543,7 @@ DECLARE
   v_role text;
   v_session_epoch integer;
   v_is_archived boolean;
+  v_is_blocked boolean;
   v_contacts jsonb;
   v_bindings jsonb;
 BEGIN
@@ -11183,8 +10571,10 @@ BEGIN
   END IF;
 
   SELECT holder.role, holder.session_epoch, COALESCE(holder.is_archived, false),
+         COALESCE(holder.is_blocked, false),
          identity.display_name, identity.first_name, identity.last_name, identity.patronymic
-  INTO v_role, v_session_epoch, v_is_archived, v_display_name, v_first_name, v_last_name, v_patronymic
+  INTO v_role, v_session_epoch, v_is_archived, v_is_blocked,
+       v_display_name, v_first_name, v_last_name, v_patronymic
   FROM public.platform_users AS holder
   LEFT JOIN public.user_identity AS identity ON identity.platform_user_id = holder.id
   WHERE holder.id = v_user_id;
@@ -11223,6 +10613,7 @@ BEGIN
     'role', v_role,
     'session_epoch', v_session_epoch,
     'is_archived', v_is_archived,
+    'is_blocked', v_is_blocked,
     'contacts', v_contacts,
     'bindings', v_bindings
   );
@@ -11241,34 +10632,7 @@ CREATE FUNCTION app.pre_session_get_default_auth_otp_channel(p_user_id uuid) RET
 BEGIN
   PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.phone-login.default-channel', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg]), 'app.pre_session_get_default_auth_otp_channel(uuid)'::regprocedure);
 
-  RETURN COALESCE(
-    (
-      SELECT history.confirming_channel
-      FROM public.user_phone_history AS history
-      WHERE history.platform_user_id = p_user_id
-        AND history.valid_to IS NULL
-        AND history.confirming_channel IN ('telegram', 'max', 'email')
-      LIMIT 1
-    ),
-    (
-      SELECT first_verified.code
-      FROM (
-        SELECT binding.channel_code AS code, binding.created_at AS verified_at
-        FROM public.user_channel_bindings AS binding
-        WHERE binding.user_id = p_user_id
-          AND binding.channel_code IN ('telegram', 'max')
-        UNION ALL
-        SELECT 'email' AS code, contact.confirmed_at AS verified_at
-        FROM public.user_contacts AS contact
-        WHERE contact.platform_user_id = p_user_id
-          AND contact.contact_kind = 'email'
-          AND contact.is_primary = true
-          AND contact.confirmed_at IS NOT NULL
-      ) AS first_verified
-      ORDER BY first_verified.verified_at ASC
-      LIMIT 1
-    )
-  );
+  RETURN app_ext.read_default_auth_otp_channel(p_user_id);
 END
 $_$;
 
@@ -11335,6 +10699,7 @@ DECLARE
   v_role text;
   v_session_epoch integer;
   v_is_archived boolean;
+  v_is_blocked boolean;
   v_contacts jsonb;
   v_bindings jsonb;
   v_contact_write_count integer;
@@ -11582,8 +10947,10 @@ BEGIN
   END IF;
 
   SELECT holder.role, holder.session_epoch, COALESCE(holder.is_archived, false),
+         COALESCE(holder.is_blocked, false),
          identity.display_name, identity.first_name, identity.last_name, identity.patronymic
-  INTO v_role, v_session_epoch, v_is_archived, v_display_name, v_first_name, v_last_name, v_patronymic
+  INTO v_role, v_session_epoch, v_is_archived, v_is_blocked,
+       v_display_name, v_first_name, v_last_name, v_patronymic
   FROM public.platform_users AS holder
   LEFT JOIN public.user_identity AS identity ON identity.platform_user_id = holder.id
   WHERE holder.id = v_user_id;
@@ -11618,6 +10985,7 @@ BEGIN
     'role', v_role,
     'session_epoch', v_session_epoch,
     'is_archived', v_is_archived,
+    'is_blocked', v_is_blocked,
     'contacts', v_contacts,
     'bindings', v_bindings
   );
@@ -11644,6 +11012,7 @@ DECLARE
   v_role text;
   v_session_epoch integer;
   v_is_archived boolean;
+  v_is_blocked boolean;
   v_contacts jsonb;
   v_confirmed_at timestamptz;
   v_contact_write_count integer;
@@ -11779,8 +11148,10 @@ BEGIN
     updated_at = now();
 
   SELECT holder.role, holder.session_epoch, COALESCE(holder.is_archived, false),
+         COALESCE(holder.is_blocked, false),
          identity.display_name, identity.first_name, identity.last_name, identity.patronymic
-  INTO v_role, v_session_epoch, v_is_archived, v_display_name, v_first_name, v_last_name, v_patronymic
+  INTO v_role, v_session_epoch, v_is_archived, v_is_blocked,
+       v_display_name, v_first_name, v_last_name, v_patronymic
   FROM public.platform_users AS holder
   LEFT JOIN public.user_identity AS identity ON identity.platform_user_id = holder.id
   WHERE holder.id = v_user_id;
@@ -11807,6 +11178,7 @@ BEGIN
     'role', v_role,
     'session_epoch', v_session_epoch,
     'is_archived', v_is_archived,
+    'is_blocked', v_is_blocked,
     'contacts', v_contacts,
     'bindings', '[]'::jsonb
   );
@@ -11877,6 +11249,257 @@ BEGIN
   );
 END;
 $$;
+
+
+--
+-- Name: process_media_pending_delete_step(text, uuid, integer, uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.process_media_pending_delete_step(p_action text, p_media_id uuid, p_limit integer, p_claim_token uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_claim jsonb;
+  v_deleted bigint;
+  v_deleted_patient_files bigint;
+  v_empty_ids uuid[];
+  v_result jsonb;
+  v_staged_hosted bigint := 0;
+  v_staged_single_put bigint := 0;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_patient_lfk_media_owner'::name, 'app_operational_media_worker'::name, 'service'::app.port_context_class, 'media.pending-delete.step', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($3))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($4))::app.port_typed_arg]), 'app.process_media_pending_delete_step(text,uuid,integer,uuid)'::regprocedure);
+
+  IF p_action = 'stage' THEN
+    IF p_media_id IS NOT NULL OR p_claim_token IS NOT NULL
+       OR p_limit IS NULL OR p_limit < 1 OR p_limit > 50 THEN
+      RAISE EXCEPTION 'media_pending_delete_stage_arguments_invalid' USING ERRCODE = '22023';
+    END IF;
+
+    WITH candidates AS (
+      SELECT cover.id
+        FROM public.media_files AS cover
+       WHERE cover.usage_purpose = 'hosted_video_preview'
+         AND cover.status IN ('ready', 'failed')
+         AND cover.created_at < pg_catalog.now() - interval '1 day'
+         AND NOT EXISTS (
+           SELECT 1
+             FROM public.lfk_exercise_media AS exercise_media
+            WHERE exercise_media.organization_id = cover.organization_id
+              AND exercise_media.media_url = cover.hosted_video_source_url
+         )
+         AND NOT EXISTS (
+           SELECT 1
+             FROM public.treatment_program_instance_stage_items AS instance_item
+            WHERE instance_item.organization_id = cover.organization_id
+              AND pg_catalog.jsonb_path_exists(
+                instance_item.snapshot,
+                '$.media[*] ? ((@.mediaType == "hosted_video" || @.type == "hosted_video") && @.mediaUrl == $url)',
+                pg_catalog.jsonb_build_object('url', pg_catalog.to_jsonb(cover.hosted_video_source_url))
+              )
+         )
+       ORDER BY cover.created_at ASC, cover.id ASC
+       LIMIT p_limit
+       FOR UPDATE OF cover SKIP LOCKED
+    ), staged AS (
+      UPDATE public.media_files AS cover
+         SET status = 'pending_delete',
+             next_attempt_at = NULL,
+             delete_claim_token = NULL
+        FROM candidates
+       WHERE cover.id = candidates.id
+      RETURNING cover.id
+    )
+    SELECT pg_catalog.count(*) INTO v_staged_hosted FROM staged;
+
+    WITH candidates AS (
+      SELECT media.id
+        FROM public.media_files AS media
+       WHERE media.status = 'pending'
+         AND media.created_at < pg_catalog.now() - interval '1 day'
+         AND NOT EXISTS (
+           SELECT 1
+             FROM public.media_upload_sessions AS session
+            WHERE session.media_id = media.id
+         )
+       ORDER BY media.created_at ASC, media.id ASC
+       LIMIT p_limit
+       FOR UPDATE OF media SKIP LOCKED
+    ), staged AS (
+      UPDATE public.media_files AS media
+         SET status = 'pending_delete',
+             next_attempt_at = NULL,
+             delete_claim_token = NULL
+        FROM candidates
+       WHERE media.id = candidates.id
+      RETURNING media.id
+    )
+    SELECT pg_catalog.count(*) INTO v_staged_single_put FROM staged;
+
+    SELECT COALESCE(pg_catalog.array_agg(candidate.id), ARRAY[]::uuid[])
+      INTO v_empty_ids
+      FROM (
+        SELECT media.id
+          FROM public.media_files AS media
+         WHERE (media.s3_key IS NULL OR pg_catalog.btrim(media.s3_key) = '')
+           AND (
+             media.status = 'pending_delete'
+             OR (media.status = 'deleting'
+               AND (media.next_attempt_at IS NULL OR media.next_attempt_at <= pg_catalog.now()))
+           )
+         ORDER BY media.id ASC
+         LIMIT p_limit
+         FOR UPDATE OF media SKIP LOCKED
+      ) AS candidate;
+
+    DELETE FROM public.patient_files AS patient_file
+     WHERE patient_file.media_file_id = ANY(v_empty_ids);
+
+    DELETE FROM public.media_files AS media
+     WHERE media.id = ANY(v_empty_ids)
+       AND (media.s3_key IS NULL OR pg_catalog.btrim(media.s3_key) = '')
+       AND (
+         media.status = 'pending_delete'
+         OR (media.status = 'deleting'
+           AND (media.next_attempt_at IS NULL OR media.next_attempt_at <= pg_catalog.now()))
+       );
+    GET DIAGNOSTICS v_deleted = ROW_COUNT;
+
+    RETURN pg_catalog.jsonb_build_object(
+      'action', 'stage',
+      'stagedCount', v_staged_hosted + v_staged_single_put,
+      'stagedHosted', v_staged_hosted,
+      'stagedSinglePut', v_staged_single_put,
+      'removedEmpty', v_deleted
+    );
+  ELSIF p_action = 'claim' THEN
+    IF p_media_id IS NOT NULL OR p_limit IS NOT NULL OR p_claim_token IS NOT NULL THEN
+      RAISE EXCEPTION 'media_pending_delete_claim_arguments_invalid' USING ERRCODE = '22023';
+    END IF;
+
+    WITH candidate AS (
+      SELECT media.id
+        FROM public.media_files AS media
+       WHERE media.status IN ('pending_delete', 'deleting')
+         AND media.s3_key IS NOT NULL
+         AND pg_catalog.btrim(media.s3_key) <> ''
+         AND (media.next_attempt_at IS NULL OR media.next_attempt_at <= pg_catalog.now())
+       ORDER BY media.id ASC
+       LIMIT 1
+       FOR UPDATE OF media SKIP LOCKED
+    ), leased AS (
+      UPDATE public.media_files AS media
+         SET status = 'deleting',
+             delete_claim_token = pg_catalog.gen_random_uuid(),
+             next_attempt_at = pg_catalog.clock_timestamp() + interval '15 minutes'
+        FROM candidate
+       WHERE media.id = candidate.id
+      RETURNING media.id, media.s3_key, media.preview_sm_key, media.preview_md_key,
+                media.hls_artifact_prefix, media.poster_s3_key,
+                media.hls_master_playlist_s3_key, media.delete_attempts,
+                media.delete_claim_token, media.next_attempt_at
+    )
+    SELECT pg_catalog.jsonb_build_object(
+             'id', leased.id,
+             's3Key', leased.s3_key,
+             'previewSmKey', leased.preview_sm_key,
+             'previewMdKey', leased.preview_md_key,
+             'hlsArtifactPrefix', leased.hls_artifact_prefix,
+             'posterS3Key', leased.poster_s3_key,
+             'hlsMasterPlaylistS3Key', leased.hls_master_playlist_s3_key,
+             'deleteAttempts', leased.delete_attempts,
+             'claimToken', leased.delete_claim_token,
+             'claimUntil', leased.next_attempt_at,
+             'pendingAborts', COALESCE((
+               SELECT pg_catalog.jsonb_agg(
+                        pg_catalog.jsonb_build_object(
+                          's3Key', session.s3_key,
+                          'uploadId', session.upload_id
+                        ) ORDER BY session.id
+                      )
+                 FROM public.media_upload_sessions AS session
+                WHERE session.media_id = leased.id
+                  AND session.upload_id IS NOT NULL
+                  AND pg_catalog.btrim(session.upload_id) <> ''
+                  AND session.status NOT IN ('completed', 'aborted')
+             ), '[]'::jsonb)
+           )
+      INTO v_claim
+      FROM leased;
+
+    RETURN pg_catalog.jsonb_build_object('action', 'claim', 'claim', v_claim);
+  ELSIF p_action = 'retry' THEN
+    IF p_media_id IS NULL OR p_limit IS NOT NULL OR p_claim_token IS NULL THEN
+      RAISE EXCEPTION 'media_pending_delete_retry_arguments_invalid' USING ERRCODE = '22023';
+    END IF;
+
+    WITH retried AS (
+      UPDATE public.media_files AS media
+         SET status = 'pending_delete',
+             delete_attempts = media.delete_attempts + 1,
+             next_attempt_at = pg_catalog.clock_timestamp()
+               + (pg_catalog.least(1440, pg_catalog.power(
+                    2::numeric,
+                    pg_catalog.least(media.delete_attempts + 1, 20)
+                  )) * interval '1 minute'),
+             delete_claim_token = NULL
+       WHERE media.id = p_media_id
+         AND media.status = 'deleting'
+         AND media.delete_claim_token = p_claim_token
+      RETURNING media.delete_attempts, media.next_attempt_at
+    )
+    SELECT pg_catalog.jsonb_build_object(
+             'deleteAttempts', retried.delete_attempts,
+             'nextAttemptAt', retried.next_attempt_at
+           )
+      INTO v_result
+      FROM retried;
+
+    RETURN pg_catalog.jsonb_build_object(
+      'action', 'retry',
+      'retryScheduled', v_result IS NOT NULL,
+      'retry', v_result
+    );
+  ELSIF p_action = 'complete' THEN
+    IF p_media_id IS NULL OR p_limit IS NOT NULL OR p_claim_token IS NULL THEN
+      RAISE EXCEPTION 'media_pending_delete_complete_arguments_invalid' USING ERRCODE = '22023';
+    END IF;
+
+    PERFORM media.id
+      FROM public.media_files AS media
+     WHERE media.id = p_media_id
+       AND media.status = 'deleting'
+       AND media.delete_claim_token = p_claim_token
+     FOR UPDATE OF media;
+
+    IF NOT FOUND THEN
+      RETURN pg_catalog.jsonb_build_object(
+        'action', 'complete',
+        'deleted', false,
+        'deletedPatientFiles', 0
+      );
+    END IF;
+
+    DELETE FROM public.patient_files AS patient_file
+     WHERE patient_file.media_file_id = p_media_id;
+    GET DIAGNOSTICS v_deleted_patient_files = ROW_COUNT;
+
+    DELETE FROM public.media_files AS media
+     WHERE media.id = p_media_id
+       AND media.status = 'deleting'
+       AND media.delete_claim_token = p_claim_token;
+    GET DIAGNOSTICS v_deleted = ROW_COUNT;
+
+    RETURN pg_catalog.jsonb_build_object(
+      'action', 'complete',
+      'deleted', v_deleted = 1,
+      'deletedPatientFiles', v_deleted_patient_files
+    );
+  END IF;
+
+  RAISE EXCEPTION 'unsupported media pending-delete action' USING ERRCODE = '22023';
+END
+$_$;
 
 
 --
@@ -12478,6 +12101,56 @@ BEGIN
         SELECT count(*) INTO affected_count FROM deleted;
       END IF;
 
+    WHEN 'reminder_occurrence_history_terminal' THEN
+      IF p_dry_run THEN
+        SELECT count(*) INTO affected_count
+          FROM (
+            SELECT 1 FROM public.reminder_occurrence_history AS expiring
+             WHERE expiring.status IN ('sent', 'failed', 'skipped')
+               AND expiring.planned_at < cutoff_at
+             LIMIT batch_limit
+          ) AS capped;
+      ELSE
+        WITH victims AS (
+          SELECT expiring.id
+            FROM public.reminder_occurrence_history AS expiring
+           WHERE expiring.status IN ('sent', 'failed', 'skipped')
+             AND expiring.planned_at < cutoff_at
+           LIMIT batch_limit
+        ),
+        deleted AS (
+          DELETE FROM public.reminder_occurrence_history AS target
+           USING victims
+           WHERE target.id = victims.id
+          RETURNING 1
+        )
+        SELECT count(*) INTO affected_count FROM deleted;
+      END IF;
+
+    WHEN 'message_log' THEN
+      IF p_dry_run THEN
+        SELECT count(*) INTO affected_count
+          FROM (
+            SELECT 1 FROM public.message_log AS expiring
+             WHERE expiring.sent_at < cutoff_at
+             LIMIT batch_limit
+          ) AS capped;
+      ELSE
+        WITH victims AS (
+          SELECT expiring.id
+            FROM public.message_log AS expiring
+           WHERE expiring.sent_at < cutoff_at
+           LIMIT batch_limit
+        ),
+        deleted AS (
+          DELETE FROM public.message_log AS target
+           USING victims
+           WHERE target.id = victims.id
+          RETURNING 1
+        )
+        SELECT count(*) INTO affected_count FROM deleted;
+      END IF;
+
     ELSE
       RAISE EXCEPTION 'unknown retention target %', p_target
         USING ERRCODE = '22023';
@@ -12564,7 +12237,7 @@ CREATE FUNCTION app.read_authenticated_runtime_setting(p_key text, p_scope text,
     AS $_$
 DECLARE accepted_org uuid := app.current_org_id();
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_settings_runtime_owner'::name, ARRAY['app_patient'::name]::name[]);
+  PERFORM app.require_attested_context_for_roles('app_seam_settings_runtime_owner'::name, ARRAY['app_patient'::name, 'app_staff'::name]::name[]);
   IF p_scope NOT IN ('admin', 'doctor')
      OR (p_organization_id IS NOT NULL AND p_organization_id IS DISTINCT FROM accepted_org)
      OR NOT (
@@ -12858,6 +12531,7 @@ CREATE FUNCTION app.read_curated_system_health() RETURNS jsonb
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('saas_system_health_owner'::name, ARRAY['saas_telemetry_operator'::name]::name[]);
+
 WITH media_preview AS MATERIALIZED (
   SELECT jsonb_build_object(
     'stalePendingCount', count(*) FILTER (
@@ -12934,6 +12608,31 @@ base AS MATERIALIZED (
     ) AS value
   FROM media_preview, playback_client
 ),
+all_safe_jobs AS MATERIALIZED (
+  SELECT COALESCE(jsonb_agg(
+    jsonb_build_object(
+      'jobKey', job.job_key,
+      'jobFamily', job.job_family,
+      'lastStatus', CASE
+        WHEN job.last_status IN ('success', 'failure') THEN job.last_status
+        ELSE 'unknown'
+      END,
+      'lastFinishedAt', job.last_finished_at,
+      'lastSuccessAt', job.last_success_at,
+      'lastFailureAt', job.last_failure_at,
+      'lastDurationMs', job.last_duration_ms,
+      'safeMeta', COALESCE((
+        SELECT legacy_job->'safeMeta'
+        FROM jsonb_array_elements(COALESCE(base.value->'operatorJobs', '[]'::jsonb)) AS legacy_job
+        WHERE legacy_job->>'jobFamily' = job.job_family
+          AND legacy_job->>'jobKey' = job.job_key
+        LIMIT 1
+      ), '{}'::jsonb)
+    ) ORDER BY job.job_family, job.job_key
+  ), '[]'::jsonb) AS value
+  FROM public.operator_job_status AS job
+  CROSS JOIN base
+),
 channel_diagnostics AS MATERIALIZED (
   SELECT jsonb_object_agg(
     channels.channel,
@@ -12979,7 +12678,12 @@ digest_delivery AS MATERIALIZED (
 )
 SELECT jsonb_set(
   jsonb_set(
-    base.value,
+    jsonb_set(
+      base.value,
+      ARRAY['operatorJobs'],
+      all_safe_jobs.value,
+      true
+    ),
     ARRAY['notificationDelivery', 'byChannel'],
     channel_diagnostics.value,
     false
@@ -12988,7 +12692,7 @@ SELECT jsonb_set(
   COALESCE(to_jsonb(digest_delivery.last_sent_at), 'null'::jsonb),
   true
 )
-FROM base, channel_diagnostics, digest_delivery
+FROM base, all_safe_jobs, channel_diagnostics, digest_delivery
 $$;
 
 
@@ -13208,6 +12912,7 @@ outgoing AS MATERIALIZED (
     'processingCount', count(*) FILTER (WHERE status = 'processing'),
     'reminderProcessingCount', count(*) FILTER (WHERE kind = 'reminder_dispatch' AND status = 'processing'),
     'lastSentAt', max(sent_at),
+    'confirmedSentLast24h', count(*) FILTER (WHERE status = 'sent' AND sent_at >= now() - interval '24 hours'),
     'lastQueueActivityAt', max(updated_at)
   ) AS value
   FROM public.outgoing_delivery_queue
@@ -13238,25 +12943,45 @@ web_push AS MATERIALIZED (
   ) AS value
   FROM public.user_web_push_subscriptions
 ),
-notification_counts AS MATERIALIZED (
+-- Audit §C2: the attempt journal became FAILURE-ONLY (20260826T170000). Counting
+-- `status = 'success'` in it can only ever return zero, so the delivery health card could not show a
+-- healthy channel at all: a completely dead pipeline and a quiet day both rendered as "no data", and
+-- any single failure was the only thing that could move the card. Failures keep coming from the
+-- journal (that is what it now records); the FINAL success fact and the staleness watermark come from
+-- the canonical delivery lifecycle, `public.outgoing_delivery_queue`, which is where a row reaches
+-- `sent`. No success row is written back into the attempt journal and no third journal is created.
+notification_failures AS MATERIALIZED (
   SELECT channel, status, count(*) AS count
   FROM public.notification_delivery_attempts
   WHERE created_at >= now() - interval '24 hours'
     AND channel IN ('telegram','max','web_push','email')
-    AND status IN ('success','failed','skipped')
+    AND status IN ('failed','skipped')
   GROUP BY channel, status
+),
+notification_confirmed AS MATERIALIZED (
+  SELECT channel, count(*) AS count, max(sent_at) AS last_sent_at
+  FROM public.outgoing_delivery_queue
+  WHERE status = 'sent'
+    AND sent_at >= now() - interval '24 hours'
+    AND channel IN ('telegram','max','web_push','email')
+  GROUP BY channel
 ),
 notification_delivery AS MATERIALIZED (
   SELECT jsonb_build_object(
     'windowHours', 24,
-    'totalAttempts24h', COALESCE((SELECT sum(count) FROM notification_counts), 0),
+    'totalAttempts24h', COALESCE((SELECT sum(count) FROM notification_failures), 0),
+    'confirmedDeliveries24h', COALESCE((SELECT sum(count) FROM notification_confirmed), 0),
+    'lastConfirmedDeliveryAt', (SELECT max(last_sent_at) FROM notification_confirmed),
     'byChannel', (
       SELECT jsonb_object_agg(channel, jsonb_build_object(
-        'successCount', COALESCE((SELECT count FROM notification_counts c WHERE c.channel = channels.channel AND c.status = 'success'), 0),
-        'failedCount', COALESCE((SELECT count FROM notification_counts c WHERE c.channel = channels.channel AND c.status = 'failed'), 0),
-        'skippedCount', COALESCE((SELECT count FROM notification_counts c WHERE c.channel = channels.channel AND c.status = 'skipped'), 0),
-        'lastAttemptAt', (SELECT max(created_at) FROM public.notification_delivery_attempts a WHERE a.channel = channels.channel AND a.created_at >= now() - interval '24 hours'),
-        'lastSuccessAt', (SELECT max(created_at) FROM public.notification_delivery_attempts a WHERE a.channel = channels.channel AND a.status = 'success' AND a.created_at >= now() - interval '24 hours'),
+        'successCount', COALESCE((SELECT count FROM notification_confirmed c WHERE c.channel = channels.channel), 0),
+        'failedCount', COALESCE((SELECT count FROM notification_failures c WHERE c.channel = channels.channel AND c.status = 'failed'), 0),
+        'skippedCount', COALESCE((SELECT count FROM notification_failures c WHERE c.channel = channels.channel AND c.status = 'skipped'), 0),
+        'lastAttemptAt', GREATEST(
+          (SELECT max(created_at) FROM public.notification_delivery_attempts a WHERE a.channel = channels.channel AND a.created_at >= now() - interval '24 hours'),
+          (SELECT c.last_sent_at FROM notification_confirmed c WHERE c.channel = channels.channel)
+        ),
+        'lastSuccessAt', (SELECT c.last_sent_at FROM notification_confirmed c WHERE c.channel = channels.channel),
         'lastErrorAt', (SELECT max(created_at) FROM public.notification_delivery_attempts a WHERE a.channel = channels.channel AND a.status IN ('failed','skipped') AND a.created_at >= now() - interval '24 hours'),
         'lastErrorReason', NULL,
         'lastErrorMessage', NULL
@@ -14860,28 +14585,6 @@ $$;
 
 
 --
--- Name: read_integrator_auth_channel_setting(text); Type: FUNCTION; Schema: app; Owner: -
---
-
-CREATE FUNCTION app.read_integrator_auth_channel_setting(p_key text) RETURNS jsonb
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'pg_catalog'
-    AS $_$
-DECLARE value_json jsonb;
-BEGIN
-  PERFORM app.require_accepted_context('app_seam_settings_integrator_owner'::name, 'app_service'::name, 'service'::app.port_context_class, 'config.integrator-auth-channel.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.read_integrator_auth_channel_setting(text)'::regprocedure);
-
-  SELECT setting.value_json INTO value_json
-  FROM public.system_settings AS setting
-  WHERE p_key IN ('auth_email_enabled','auth_sms_enabled','auth_telegram_enabled','auth_max_enabled')
-    AND setting.key = p_key AND setting.scope = 'admin' AND setting.organization_id IS NULL
-  LIMIT 1;
-  RETURN value_json;
-END
-$_$;
-
-
---
 -- Name: read_integrator_clinic_delivery_credential(text, uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -14923,182 +14626,34 @@ $$;
 
 
 --
--- Name: read_integrator_delivery_target_snapshot(uuid, text, text, text, uuid, bigint, text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
+-- Name: read_integrator_delivery_target_snapshot(uuid, text, text, text, uuid, text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.read_integrator_delivery_target_snapshot(p_organization_id uuid, p_phone_normalized text, p_telegram_id text, p_max_id text, p_platform_user_id uuid, p_integrator_user_id bigint, p_topic_code text, p_now timestamp with time zone) RETURNS jsonb
+CREATE FUNCTION app.read_integrator_delivery_target_snapshot(p_organization_id uuid, p_phone_normalized text, p_telegram_id text, p_max_id text, p_platform_user_id uuid, p_topic_code text, p_now timestamp with time zone) RETURNS jsonb
     LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
     SET search_path TO 'pg_catalog'
     AS $_$
-DECLARE
-  v_org uuid := app.current_org_id();
-  v_user_id uuid;
-  v_match_count integer;
-  v_integrator_user_id bigint;
-  v_email text;
-  v_email_verified_at timestamp with time zone;
-  v_reminder_muted_until timestamp with time zone;
-  v_preferences jsonb;
-  v_topic_preferences jsonb;
-  v_bindings jsonb;
-  v_has_web_push boolean;
-  v_topic_master_enabled boolean;
-  v_vapid_configured boolean;
-  v_smtp_configured boolean;
+DECLARE v_org uuid:=app.current_org_id(); v_user uuid; v_count integer; v_email text; v_email_verified timestamptz; v_muted timestamptz; v_preferences jsonb; v_topics jsonb; v_bindings jsonb; v_push boolean; v_topic_enabled boolean; v_vapid boolean; v_smtp boolean;
 BEGIN
-  PERFORM app.require_accepted_context('app_seam_delivery_scope_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'integrator.delivery-targets.read', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($5))::app.port_typed_arg, ROW('bigint@1', pg_catalog.int8send($6))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($7))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($8))::app.port_typed_arg]), 'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone)'::regprocedure);
-
-  IF v_org IS NULL OR p_organization_id IS DISTINCT FROM v_org THEN
-    RAISE EXCEPTION 'delivery target organization mismatch' USING ERRCODE = '42501';
-  END IF;
-
-  -- Разрешение личности. Порядок селекторов — тот же, что был в TypeScript-резолвере:
-  -- platformUserId → phone → telegram → max. Приоритет первого непустого, не «все сразу».
-  IF p_platform_user_id IS NOT NULL THEN
-    SELECT holder.id INTO v_user_id
-    FROM public.platform_users AS holder
-    WHERE holder.id = p_platform_user_id
-      AND holder.merged_into_id IS NULL;
-  ELSIF p_phone_normalized IS NOT NULL AND btrim(p_phone_normalized) <> '' THEN
-    -- `user_contacts` — источник истины по телефону (одна учётка = один телефон). Несколько
-    -- канонических строк на один телефон — это дефект данных, а не пустая аудитория: молча
-    -- выбрать первую значило бы отправить уведомление постороннему.
-    SELECT count(*), (array_agg(contact.platform_user_id))[1]
-    INTO v_match_count, v_user_id
-    FROM public.user_contacts AS contact
-    JOIN public.platform_users AS holder ON holder.id = contact.platform_user_id
-    WHERE contact.contact_kind = 'phone'
-      AND contact.value_normalized = btrim(p_phone_normalized)
-      AND holder.merged_into_id IS NULL;
-    IF v_match_count > 1 THEN
-      RAISE EXCEPTION 'multiple canonical delivery targets for one phone' USING ERRCODE = '22023';
-    END IF;
-    IF v_match_count = 0 THEN
-      v_user_id := NULL;
-    END IF;
-  ELSIF p_telegram_id IS NOT NULL AND btrim(p_telegram_id) <> '' THEN
-    SELECT binding.user_id INTO v_user_id
-    FROM public.user_channel_bindings AS binding
-    JOIN public.platform_users AS holder ON holder.id = binding.user_id
-    WHERE binding.channel_code = 'telegram'
-      AND binding.external_id = btrim(p_telegram_id)
-      AND holder.merged_into_id IS NULL;
-  ELSIF p_max_id IS NOT NULL AND btrim(p_max_id) <> '' THEN
-    SELECT binding.user_id INTO v_user_id
-    FROM public.user_channel_bindings AS binding
-    JOIN public.platform_users AS holder ON holder.id = binding.user_id
-    WHERE binding.channel_code = 'max'
-      AND binding.external_id = btrim(p_max_id)
-      AND holder.merged_into_id IS NULL;
-  ELSE
-    RETURN jsonb_build_object('ok', false, 'code', 'delivery_target_selector_required');
-  END IF;
-
-  IF v_user_id IS NULL THEN
-    RETURN jsonb_build_object('ok', false, 'code', 'delivery_target_not_found');
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM public.org_enrollments AS enrollment
-    WHERE enrollment.organization_id = v_org
-      AND enrollment.platform_user_id = v_user_id
-      AND enrollment.status = 'active'
-  ) THEN
-    RETURN jsonb_build_object('ok', false, 'code', 'delivery_target_outside_organization');
-  END IF;
-
-  SELECT holder.integrator_user_id, email_contact.value_normalized,
-         email_contact.confirmed_at, holder.reminder_muted_until
-  INTO v_integrator_user_id, v_email, v_email_verified_at, v_reminder_muted_until
-  FROM public.platform_users AS holder
-  LEFT JOIN public.user_contacts AS email_contact
-    ON email_contact.platform_user_id = holder.id
-   AND email_contact.contact_kind = 'email'
-   AND email_contact.is_primary = true
-  WHERE holder.id = v_user_id
-    AND holder.is_blocked = false
-    AND holder.is_archived = false;
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object('ok', false, 'code', 'delivery_target_not_found');
-  END IF;
-  IF p_integrator_user_id IS NOT NULL
-     AND v_integrator_user_id IS DISTINCT FROM p_integrator_user_id THEN
-    RETURN jsonb_build_object('ok', false, 'code', 'delivery_target_identity_mismatch');
-  END IF;
-
-  SELECT COALESCE(jsonb_object_agg(binding.channel_code, binding.external_id), '{}'::jsonb)
-  INTO v_bindings
-  FROM public.user_channel_bindings AS binding
-  WHERE binding.user_id = v_user_id
-    AND binding.channel_code IN ('telegram', 'max')
-    AND binding.bot_blocked_at IS NULL;
-
-  SELECT COALESCE(jsonb_agg(jsonb_build_object(
-    'channelCode', preference.channel_code,
-    'isEnabledForMessages', preference.is_enabled_for_messages,
-    'isEnabledForNotifications', preference.is_enabled_for_notifications,
-    'isPreferredForAuth', preference.is_preferred_for_auth
-  ) ORDER BY preference.channel_code), '[]'::jsonb)
-  INTO v_preferences
-  FROM public.user_channel_preferences AS preference
-  WHERE preference.platform_user_id = v_user_id;
-
-  SELECT COALESCE(jsonb_agg(jsonb_build_object(
-    'topicCode', preference.topic_code,
-    'channelCode', preference.channel_code,
-    'isEnabled', preference.is_enabled
-  ) ORDER BY preference.topic_code, preference.channel_code), '[]'::jsonb)
-  INTO v_topic_preferences
-  FROM public.user_notification_topic_channels AS preference
-  WHERE preference.user_id = v_user_id;
-
-  SELECT COALESCE((
-    SELECT topic.is_enabled
-    FROM public.user_notification_topics AS topic
-    WHERE topic.user_id = v_user_id
-      AND topic.topic_code = p_topic_code
-  ), true) INTO v_topic_master_enabled;
-
-  SELECT EXISTS (
-    SELECT 1 FROM public.user_web_push_subscriptions AS subscription
-    WHERE subscription.user_id = v_user_id
-  ) INTO v_has_web_push;
-
-  SELECT EXISTS (
-    SELECT 1 FROM public.system_settings AS setting
-    WHERE setting.key = 'web_push_vapid'
-      AND setting.scope = 'admin'
-      AND setting.organization_id IS NULL
-      AND btrim(COALESCE(setting.value_json #>> '{value,publicKey}', '')) <> ''
-      AND btrim(COALESCE(setting.value_json #>> '{value,privateKey}', '')) <> ''
-  ) INTO v_vapid_configured;
-
-  SELECT EXISTS (
-    SELECT 1 FROM public.system_settings AS setting
-    WHERE setting.key = 'smtp_outbound'
-      AND setting.scope = 'admin'
-      AND setting.organization_id IS NULL
-      AND btrim(COALESCE(setting.value_json #>> '{value,host}', '')) <> ''
-      AND btrim(COALESCE(setting.value_json #>> '{value,user}', '')) <> ''
-      AND btrim(COALESCE(setting.value_json #>> '{value,from}', '')) ~ '^[^[:space:]@]+@[^[:space:]@]+$'
-      AND COALESCE(setting.value_json #>> '{value,port}', '') ~ '^[0-9]+$'
-      AND (setting.value_json #>> '{value,port}')::integer BETWEEN 1 AND 65535
-  ) INTO v_smtp_configured;
-
-  RETURN jsonb_build_object(
-    'ok', true,
-    'platformUserId', v_user_id,
-    'bindings', v_bindings,
-    'channelPreferences', v_preferences,
-    'topicChannelRows', v_topic_preferences,
-    'emailRecipient', NULLIF(btrim(v_email), ''),
-    'emailVerified', v_email_verified_at IS NOT NULL,
-    'muted', v_reminder_muted_until IS NOT NULL AND v_reminder_muted_until > p_now,
-    'topicMasterEnabled', v_topic_master_enabled,
-    'hasWebPushSubscription', v_has_web_push,
-    'vapidConfigured', v_vapid_configured,
-    'smtpConfigured', v_smtp_configured
-  );
+  PERFORM app.require_accepted_context('app_seam_delivery_scope_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'integrator.delivery-targets.read', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($5))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($7))::app.port_typed_arg]), 'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,text,timestamp with time zone)'::regprocedure);
+  IF v_org IS NULL OR p_organization_id IS DISTINCT FROM v_org THEN RAISE EXCEPTION 'delivery target organization mismatch' USING ERRCODE='42501'; END IF;
+  IF p_platform_user_id IS NOT NULL THEN SELECT id INTO v_user FROM public.platform_users WHERE id=p_platform_user_id AND merged_into_id IS NULL;
+  ELSIF NULLIF(btrim(p_phone_normalized),'') IS NOT NULL THEN SELECT count(*),(array_agg(c.platform_user_id))[1] INTO v_count,v_user FROM public.user_contacts c JOIN public.platform_users p ON p.id=c.platform_user_id WHERE c.contact_kind='phone' AND c.value_normalized=btrim(p_phone_normalized) AND p.merged_into_id IS NULL; IF v_count>1 THEN RAISE EXCEPTION 'multiple canonical delivery targets for one phone' USING ERRCODE='22023'; END IF;
+  ELSIF NULLIF(btrim(p_telegram_id),'') IS NOT NULL THEN SELECT b.user_id INTO v_user FROM public.user_channel_bindings b JOIN public.platform_users p ON p.id=b.user_id WHERE b.channel_code='telegram' AND b.external_id=btrim(p_telegram_id) AND p.merged_into_id IS NULL;
+  ELSIF NULLIF(btrim(p_max_id),'') IS NOT NULL THEN SELECT b.user_id INTO v_user FROM public.user_channel_bindings b JOIN public.platform_users p ON p.id=b.user_id WHERE b.channel_code='max' AND b.external_id=btrim(p_max_id) AND p.merged_into_id IS NULL;
+  ELSE RETURN jsonb_build_object('ok',false,'code','delivery_target_selector_required'); END IF;
+  IF v_user IS NULL THEN RETURN jsonb_build_object('ok',false,'code','delivery_target_not_found'); END IF;
+  IF NOT EXISTS(SELECT 1 FROM public.org_enrollments e WHERE e.organization_id=v_org AND e.platform_user_id=v_user AND e.status='active') THEN RETURN jsonb_build_object('ok',false,'code','delivery_target_outside_organization'); END IF;
+  SELECT c.value_normalized,c.confirmed_at,p.reminder_muted_until INTO v_email,v_email_verified,v_muted FROM public.platform_users p LEFT JOIN public.user_contacts c ON c.platform_user_id=p.id AND c.contact_kind='email' AND c.is_primary WHERE p.id=v_user AND p.is_blocked=false AND p.is_archived=false;
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'code','delivery_target_not_found'); END IF;
+  SELECT COALESCE(jsonb_object_agg(b.channel_code,b.external_id),'{}'::jsonb) INTO v_bindings FROM public.user_channel_bindings b WHERE b.user_id=v_user AND b.channel_code IN('telegram','max') AND b.bot_blocked_at IS NULL;
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('channelCode',p.channel_code,'isEnabledForMessages',p.is_enabled_for_messages,'isEnabledForNotifications',p.is_enabled_for_notifications,'isPreferredForAuth',p.is_preferred_for_auth) ORDER BY p.channel_code),'[]'::jsonb) INTO v_preferences FROM public.user_channel_preferences p WHERE p.platform_user_id=v_user;
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('topicCode',p.topic_code,'channelCode',p.channel_code,'isEnabled',p.is_enabled) ORDER BY p.topic_code,p.channel_code),'[]'::jsonb) INTO v_topics FROM public.user_notification_topic_channels p WHERE p.user_id=v_user;
+  SELECT COALESCE((SELECT t.is_enabled FROM public.user_notification_topics t WHERE t.user_id=v_user AND t.topic_code=p_topic_code),true) INTO v_topic_enabled;
+  SELECT EXISTS(SELECT 1 FROM public.user_web_push_subscriptions s WHERE s.user_id=v_user) INTO v_push;
+  SELECT EXISTS(SELECT 1 FROM public.system_settings s WHERE s.key='web_push_vapid' AND s.scope='admin' AND s.organization_id IS NULL AND btrim(COALESCE(s.value_json#>>'{value,publicKey}',''))<>'' AND btrim(COALESCE(s.value_json#>>'{value,privateKey}',''))<>'') INTO v_vapid;
+  SELECT EXISTS(SELECT 1 FROM public.system_settings s WHERE s.key='smtp_outbound' AND s.scope='admin' AND s.organization_id IS NULL AND btrim(COALESCE(s.value_json#>>'{value,host}',''))<>'' AND btrim(COALESCE(s.value_json#>>'{value,user}',''))<>'' AND btrim(COALESCE(s.value_json#>>'{value,from}',''))~'^[^[:space:]@]+@[^[:space:]@]+$') INTO v_smtp;
+  RETURN jsonb_build_object('ok',true,'platformUserId',v_user,'bindings',v_bindings,'channelPreferences',v_preferences,'topicChannelRows',v_topics,'emailRecipient',NULLIF(btrim(v_email),''),'emailVerified',v_email_verified IS NOT NULL,'muted',v_muted IS NOT NULL AND v_muted>p_now,'topicMasterEnabled',v_topic_enabled,'hasWebPushSubscription',v_push,'vapidConfigured',v_vapid,'smtpConfigured',v_smtp);
 END
 $_$;
 
@@ -15432,7 +14987,7 @@ BEGIN
   WITH queue_rows AS (
     SELECT queue.channel AS channel,
            queue.kind AS kind,
-           queue.created_at AS created_at,
+           queue.next_retry_at AS next_retry_at,
            queue.sent_at AS sent_at,
            queue.updated_at AS updated_at,
            (queue.status IN ('pending', 'failed_retryable') AND queue.next_retry_at <= now()) AS is_due,
@@ -15452,7 +15007,7 @@ BEGIN
            count(*) FILTER (WHERE is_blocked_dead) AS blocked_recipient_total,
            count(*) FILTER (WHERE is_processing) AS processing_count,
            count(*) FILTER (WHERE is_confirmed_24h) AS confirmed_sent_last_24h,
-           min(created_at) FILTER (WHERE is_due) AS oldest_due_created_at,
+           min(next_retry_at) FILTER (WHERE is_due) AS oldest_due_at,
            max(sent_at) AS last_sent_at,
            max(updated_at) AS last_queue_activity_at
     FROM queue_rows
@@ -15468,6 +15023,22 @@ BEGIN
   dead_by_kind AS (
     SELECT COALESCE(jsonb_object_agg(kind, n), '{}'::jsonb) AS m
     FROM (SELECT kind, count(*) AS n FROM queue_rows WHERE is_operator_dead GROUP BY kind) AS g
+  ),
+  -- Audit §C2: per-channel CONFIRMED delivery. The attempt journal is failure-only, so this is the
+  -- only place a per-channel success can be counted; the health card reads it from here instead of
+  -- asking a failure journal for successes it can never hold.
+  sent_by_channel AS (
+    SELECT COALESCE(jsonb_object_agg(channel, n), '{}'::jsonb) AS m
+    FROM (SELECT channel, count(*) AS n FROM queue_rows WHERE is_confirmed_24h GROUP BY channel) AS g
+  ),
+  last_sent_by_channel AS (
+    SELECT COALESCE(jsonb_object_agg(channel, last_at), '{}'::jsonb) AS m
+    FROM (
+      SELECT channel, max(sent_at) AS last_at
+      FROM queue_rows
+      WHERE is_confirmed_24h
+      GROUP BY channel
+    ) AS g
   )
   SELECT jsonb_build_object(
     'dueBacklog', totals.due_backlog,
@@ -15477,14 +15048,16 @@ BEGIN
     'blockedRecipientTotal', totals.blocked_recipient_total,
     'processingCount', totals.processing_count,
     'confirmedSentLast24h', totals.confirmed_sent_last_24h,
-    'oldestDueCreatedAt', totals.oldest_due_created_at,
+    'oldestDueCreatedAt', totals.oldest_due_at,
     'lastSentAt', totals.last_sent_at,
     'lastQueueActivityAt', totals.last_queue_activity_at,
     'dueByChannel', due_by_channel.m,
     'dueByKind', due_by_kind.m,
-    'deadByKind', dead_by_kind.m
+    'deadByKind', dead_by_kind.m,
+    'sentByChannel', sent_by_channel.m,
+    'lastSentAtByChannel', last_sent_by_channel.m
   ) INTO snapshot
-  FROM totals, due_by_channel, due_by_kind, dead_by_kind;
+  FROM totals, due_by_channel, due_by_kind, dead_by_kind, sent_by_channel, last_sent_by_channel;
 
   RETURN snapshot;
 END
@@ -15514,6 +15087,81 @@ BEGIN
   RETURN last_sent_at;
 END
 $$;
+
+
+--
+-- Name: read_operator_health_digest_window(timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_operator_health_digest_window(p_window_start timestamp with time zone, p_window_end timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  snapshot jsonb;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_telemetry_operator_owner'::name, 'app_worker'::name, 'service'::app.port_context_class, 'health.digest.window.read', app.hash_port_typed_args(ARRAY[ROW('timestamptz@1', pg_catalog.timestamptz_send($1))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($2))::app.port_typed_arg]), 'app.read_operator_health_digest_window(timestamp with time zone,timestamp with time zone)'::regprocedure);
+
+  IF p_window_start IS NULL OR p_window_end IS NULL OR p_window_end <= p_window_start THEN
+    RAISE EXCEPTION 'operator health digest window is invalid' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT jsonb_build_object(
+    'auditErrorCount', (
+      SELECT count(*)
+      FROM public.admin_audit_log AS audit
+      WHERE audit.created_at >= p_window_start
+        AND audit.created_at < p_window_end
+        AND audit.status = 'error'
+    ),
+    'hadResolveAll', EXISTS (
+      SELECT 1
+      FROM public.admin_audit_log AS audit
+      WHERE audit.created_at >= p_window_start
+        AND audit.created_at < p_window_end
+        AND audit.action = 'operator_incidents_resolve_all'
+    ),
+    'incidentsOpened', COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'direction', incident.direction,
+          'integration', incident.integration,
+          'errorClass', incident.error_class
+        ) ORDER BY incident.opened_at
+      )
+      FROM public.operator_incidents AS incident
+      WHERE incident.opened_at >= p_window_start
+        AND incident.opened_at < p_window_end
+    ), '[]'::jsonb),
+    'incidentsResolved', COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'direction', incident.direction,
+          'integration', incident.integration,
+          'errorClass', incident.error_class
+        ) ORDER BY incident.resolved_at
+      )
+      FROM public.operator_incidents AS incident
+      WHERE incident.resolved_at >= p_window_start
+        AND incident.resolved_at < p_window_end
+    ), '[]'::jsonb),
+    'jobFailures', COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'jobFamily', job.job_family,
+          'jobKey', job.job_key,
+          'lastFailureAt', job.last_failure_at
+        ) ORDER BY job.last_failure_at
+      )
+      FROM public.operator_job_status AS job
+      WHERE job.last_failure_at >= p_window_start
+        AND job.last_failure_at < p_window_end
+    ), '[]'::jsonb)
+  ) INTO snapshot;
+
+  RETURN snapshot;
+END
+$_$;
 
 
 --
@@ -15754,18 +15402,18 @@ $$;
 
 
 --
--- Name: read_patient_reminder_delivery_target_snapshot(uuid, uuid, bigint, text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
+-- Name: read_patient_reminder_delivery_target_snapshot(uuid, uuid, text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.read_patient_reminder_delivery_target_snapshot(p_organization_id uuid, p_platform_user_id uuid, p_integrator_user_id bigint, p_topic_code text, p_now timestamp with time zone) RETURNS jsonb
+CREATE FUNCTION app.read_patient_reminder_delivery_target_snapshot(p_organization_id uuid, p_platform_user_id uuid, p_topic_code text, p_now timestamp with time zone) RETURNS jsonb
     LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
     SET search_path TO 'pg_catalog'
     AS $_$
 DECLARE
   v_org uuid := app.current_org_id();
-  v_patient public.platform_users%ROWTYPE;
   v_patient_email text;
   v_patient_email_confirmed_at timestamptz;
+  v_reminder_muted_until timestamptz;
   v_preferences jsonb;
   v_topic_preferences jsonb;
   v_bindings jsonb;
@@ -15774,8 +15422,7 @@ DECLARE
   v_vapid_configured boolean;
   v_smtp_configured boolean;
 BEGIN
-  PERFORM app.require_accepted_context('app_seam_reminder_materialization_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'reminder.materialization.targets.read', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW('bigint@1', pg_catalog.int8send($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($5))::app.port_typed_arg]), 'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,bigint,text,timestamp with time zone)'::regprocedure);
-
+  PERFORM app.require_accepted_context('app_seam_reminder_materialization_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'reminder.materialization.targets.read', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($4))::app.port_typed_arg]), 'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,text,timestamp with time zone)'::regprocedure);
   IF v_org IS NULL OR p_organization_id IS DISTINCT FROM v_org THEN
     RAISE EXCEPTION 'patient reminder target organization mismatch' USING ERRCODE = '42501';
   END IF;
@@ -15790,11 +15437,8 @@ BEGIN
   ) THEN
     RETURN jsonb_build_object('ok', false, 'code', 'notification_target_outside_organization');
   END IF;
-
-  SELECT patient.integrator_user_id, email_contact.value_normalized,
-         email_contact.confirmed_at, patient.reminder_muted_until
-  INTO v_patient.integrator_user_id, v_patient_email,
-       v_patient_email_confirmed_at, v_patient.reminder_muted_until
+  SELECT email_contact.value_normalized, email_contact.confirmed_at, patient.reminder_muted_until
+  INTO v_patient_email, v_patient_email_confirmed_at, v_reminder_muted_until
   FROM public.platform_users AS patient
   LEFT JOIN public.user_contacts AS email_contact
     ON email_contact.platform_user_id = patient.id
@@ -15804,18 +15448,15 @@ BEGIN
     AND patient.merged_into_id IS NULL
     AND patient.is_blocked = false
     AND patient.is_archived = false;
-  IF NOT FOUND OR (p_integrator_user_id IS NOT NULL
-      AND v_patient.integrator_user_id IS DISTINCT FROM p_integrator_user_id) THEN
+  IF NOT FOUND THEN
     RETURN jsonb_build_object('ok', false, 'code', 'notification_target_identity_mismatch');
   END IF;
-
   SELECT COALESCE(jsonb_object_agg(binding.channel_code, binding.external_id), '{}'::jsonb)
   INTO v_bindings
   FROM public.user_channel_bindings AS binding
   WHERE binding.user_id = p_platform_user_id
     AND binding.channel_code IN ('telegram', 'max', 'vk')
     AND binding.bot_blocked_at IS NULL;
-
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
     'channelCode', preference.channel_code,
     'isEnabledForMessages', preference.is_enabled_for_messages,
@@ -15825,7 +15466,6 @@ BEGIN
   INTO v_preferences
   FROM public.user_channel_preferences AS preference
   WHERE preference.platform_user_id = p_platform_user_id;
-
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
     'topicCode', preference.topic_code,
     'channelCode', preference.channel_code,
@@ -15834,19 +15474,14 @@ BEGIN
   INTO v_topic_preferences
   FROM public.user_notification_topic_channels AS preference
   WHERE preference.user_id = p_platform_user_id;
-
   SELECT COALESCE((
-    SELECT topic.is_enabled
-    FROM public.user_notification_topics AS topic
-    WHERE topic.user_id = p_platform_user_id
-      AND topic.topic_code = p_topic_code
+    SELECT topic.is_enabled FROM public.user_notification_topics AS topic
+    WHERE topic.user_id = p_platform_user_id AND topic.topic_code = p_topic_code
   ), true) INTO v_topic_master_enabled;
-
   SELECT EXISTS (
     SELECT 1 FROM public.user_web_push_subscriptions AS subscription
     WHERE subscription.user_id = p_platform_user_id
   ) INTO v_has_web_push;
-
   SELECT EXISTS (
     SELECT 1 FROM public.system_settings AS setting
     WHERE setting.key = 'web_push_vapid'
@@ -15855,19 +15490,24 @@ BEGIN
       AND btrim(COALESCE(setting.value_json #>> '{value,publicKey}', '')) <> ''
       AND btrim(COALESCE(setting.value_json #>> '{value,privateKey}', '')) <> ''
   ) INTO v_vapid_configured;
-
   SELECT EXISTS (
-    SELECT 1 FROM public.system_settings AS setting
-    WHERE setting.key = 'smtp_outbound'
-      AND setting.scope = 'admin'
-      AND setting.organization_id IS NULL
+    SELECT 1
+    FROM public.system_settings AS setting
+    WHERE setting.scope = 'admin'
+      AND (
+        (setting.key = 'smtp_outbound' AND setting.organization_id IS NULL)
+        OR (
+          setting.key = 'clinic_smtp_outbound'
+          AND setting.organization_id = v_org
+          AND setting.value_json #>> '{deliveryReadiness,status}' = 'enabled'
+        )
+      )
       AND btrim(COALESCE(setting.value_json #>> '{value,host}', '')) <> ''
       AND btrim(COALESCE(setting.value_json #>> '{value,user}', '')) <> ''
       AND btrim(COALESCE(setting.value_json #>> '{value,from}', '')) ~ '^[^[:space:]@]+@[^[:space:]@]+$'
       AND COALESCE(setting.value_json #>> '{value,port}', '') ~ '^[0-9]+$'
       AND (setting.value_json #>> '{value,port}')::integer BETWEEN 1 AND 65535
   ) INTO v_smtp_configured;
-
   RETURN jsonb_build_object(
     'ok', true,
     'bindings', v_bindings,
@@ -15875,7 +15515,7 @@ BEGIN
     'topicChannelRows', v_topic_preferences,
     'emailRecipient', NULLIF(btrim(v_patient_email), ''),
     'emailVerified', v_patient_email_confirmed_at IS NOT NULL,
-    'muted', v_patient.reminder_muted_until IS NOT NULL AND v_patient.reminder_muted_until > p_now,
+    'muted', v_reminder_muted_until IS NOT NULL AND v_reminder_muted_until > p_now,
     'topicMasterEnabled', v_topic_master_enabled,
     'hasWebPushSubscription', v_has_web_push,
     'vapidConfigured', v_vapid_configured,
@@ -15908,7 +15548,6 @@ BEGIN
     'id', rule.integrator_rule_id,
     'organizationId', rule.organization_id,
     'platformUserId', rule.platform_user_id,
-    'integratorUserId', CASE WHEN rule.integrator_user_id IS NULL THEN NULL ELSE rule.integrator_user_id::text END,
     'category', rule.category,
     'isEnabled', rule.is_enabled,
     'scheduleType', rule.schedule_type,
@@ -15954,8 +15593,7 @@ BEGIN
   FROM public.reminder_rules AS rule
   WHERE rule.organization_id = v_org
     AND rule.is_enabled = true
-    AND rule.platform_user_id IS NOT NULL
-    AND rule.integrator_user_id IS NOT NULL;
+    AND rule.platform_user_id IS NOT NULL;
 
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
     'ruleId', occurrence.rule_id,
@@ -18762,7 +18400,6 @@ DECLARE
   v_payload jsonb;
   v_occurrence_id uuid;
   v_topic_code text;
-  v_integrator_user_id text;
   v_user_id uuid;
   v_context_payload jsonb;
 BEGIN
@@ -18802,22 +18439,9 @@ BEGIN
     END IF;
 
     INSERT INTO public.notification_delivery_attempts (
-      created_at,
-      organization_id,
-      intent_type,
-      channel,
-      status,
-      reason,
-      event_id,
-      metadata
+      created_at, organization_id, intent_type, channel, status, reason, event_id, metadata
     ) VALUES (
-      p_occurred_at,
-      p_organization_id,
-      p_intent_type,
-      p_channel,
-      p_status,
-      p_reason,
-      p_intent_event_id,
+      p_occurred_at, p_organization_id, p_intent_type, p_channel, p_status, p_reason, p_intent_event_id,
       jsonb_build_object(
         'attempt', p_attempt,
         'kind', p_intent_type,
@@ -18833,7 +18457,6 @@ BEGIN
 
   v_occurrence_id := NULLIF(v_payload->>'occurrenceId', '')::uuid;
   v_topic_code := NULLIF(v_payload->>'topicCode', '');
-  v_integrator_user_id := NULLIF(v_payload #>> '{intent,meta,userId}', '');
   IF NULLIF(v_payload->>'platformUserId', '') ~
      '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
   THEN
@@ -18841,28 +18464,11 @@ BEGIN
   END IF;
 
   INSERT INTO public.notification_delivery_attempts (
-    organization_id,
-    user_id,
-    integrator_user_id,
-    topic_code,
-    intent_type,
-    channel,
-    status,
-    reason,
-    event_id,
-    occurrence_id,
-    metadata
+    organization_id, user_id, topic_code, intent_type, channel, status, reason, event_id,
+    occurrence_id, metadata
   ) VALUES (
-    v_organization_id,
-    v_user_id,
-    v_integrator_user_id,
-    v_topic_code,
-    v_queue_kind,
-    p_channel,
-    p_status,
-    p_reason,
-    p_intent_event_id,
-    v_occurrence_id,
+    v_organization_id, v_user_id, v_topic_code, v_queue_kind, p_channel, p_status, p_reason,
+    p_intent_event_id, v_occurrence_id,
     jsonb_build_object(
       'attempt', p_attempt,
       'kind', v_queue_kind,
@@ -18923,6 +18529,68 @@ BEGIN
     meta_json = EXCLUDED.meta_json;
 END
 $$;
+
+
+--
+-- Name: record_public_booking_merge_candidates(uuid, uuid, text, uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.record_public_booking_merge_candidates(p_organization_id uuid, p_anchor_user_id uuid, p_contact_name text, p_trigger_appointment_id uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_name text;
+  v_count integer;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_patient_booking_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'booking.public-merge-candidates.record', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($4))::app.port_typed_arg]), 'app.record_public_booking_merge_candidates(uuid,uuid,text,uuid)'::regprocedure);
+
+  IF app.current_org_id() IS NULL THEN
+    RAISE EXCEPTION 'public_booking_merge_candidates_principal_required' USING ERRCODE = '42501';
+  END IF;
+  IF p_organization_id IS DISTINCT FROM app.current_org_id() THEN
+    RAISE EXCEPTION 'public_booking_merge_candidates_principal_mismatch' USING ERRCODE = '42501';
+  END IF;
+
+  v_name := pg_catalog.btrim(COALESCE(p_contact_name, ''));
+  IF pg_catalog.length(v_name) < 2 THEN
+    RETURN 0;
+  END IF;
+
+  WITH candidates AS (
+    SELECT pu.id
+    FROM public.platform_users pu
+    LEFT JOIN public.user_identity ui ON ui.platform_user_id = pu.id
+    LEFT JOIN LATERAL (
+      SELECT uc.value_normalized
+      FROM public.user_contacts uc
+      WHERE uc.platform_user_id = pu.id
+        AND uc.contact_kind = 'phone'
+        AND uc.is_primary = true
+      LIMIT 1
+    ) uc_pri_phone ON true
+    WHERE pu.merged_into_id IS NULL
+      AND pu.role = 'client'
+      AND pu.id <> p_anchor_user_id
+      AND (uc_pri_phone.value_normalized IS NULL OR pg_catalog.btrim(uc_pri_phone.value_normalized) = '')
+      AND lower(pg_catalog.btrim(ui.display_name)) = lower(v_name)
+    LIMIT 5
+  ), inserted AS (
+    INSERT INTO public.patient_merge_candidates (
+      organization_id, anchor_user_id, candidate_user_id, reason, status, trigger_appointment_id, payload
+    )
+    SELECT p_organization_id, p_anchor_user_id, c.id, 'public_booking_phone_collision', 'pending',
+           p_trigger_appointment_id, jsonb_build_object('contactName', v_name)
+    FROM candidates c
+    ON CONFLICT (organization_id, anchor_user_id, candidate_user_id) WHERE status = 'pending'
+      DO NOTHING
+    RETURNING candidate_user_id
+  )
+  SELECT count(*) INTO v_count FROM inserted;
+
+  RETURN v_count;
+END
+$_$;
 
 
 --
@@ -19476,9 +19144,6 @@ DECLARE
   v_current boolean;
   v_inserted integer := 0;
   v_row_count integer;
--- Рукописный ТОЧНЫЙ гейт ниже, по образцу `app.read_patient_reminder_materialization_snapshot`
--- (миграция 0019). Комментарий стоит ВЫШЕ открытия тела намеренно: проверка гейта требует, чтобы за
--- открывающим ключевым словом немедленно следовал вызов `app.require_*`.
 BEGIN
   PERFORM app.require_accepted_context('app_seam_reminder_materialization_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'reminder.appointment-generation.replace', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg]), 'app.replace_appointment_reminder_generation(uuid,uuid,timestamp with time zone,text,text)'::regprocedure);
 
@@ -19505,19 +19170,18 @@ BEGIN
   INTO v_event_ids
   FROM jsonb_array_elements(v_deliveries) AS entry;
 
-  -- Снимается ровно НЕ отправленное намерение прошлого поколения. Отправленная или уже похороненная
-  -- строка — неизменяемое свидетельство, её не трогает никто. Арендатор в условии обязателен:
-  -- владелец шва видит таблицу целиком.
   UPDATE public.outgoing_delivery_queue AS queue
-  SET status = 'dead', dead_at = now(), last_error = p_reason, updated_at = now()
+  SET status = 'dead',
+      dead_at = now(),
+      failure_class = 'reminder_not_dispatched',
+      last_error = p_reason,
+      updated_at = now()
   WHERE queue.kind = 'appointment_reminder'
     AND queue.organization_id = p_organization_id
     AND queue.payload_json ->> 'appointmentId' = p_appointment_id::text
     AND queue.status IN ('pending', 'failed_retryable', 'processing')
     AND NOT (queue.event_id = ANY (v_event_ids));
 
-  -- Напоминания ставятся только живой записи в то же время. Переехавшая или отменённая запись
-  -- получает снятие поколения выше и ни одной новой строки.
   SELECT EXISTS (
     SELECT 1 FROM public.be_appointments AS appointment
     WHERE appointment.id = p_appointment_id
@@ -19557,10 +19221,11 @@ BEGIN
 
     INSERT INTO public.outgoing_delivery_queue AS queue (
       organization_id, event_id, kind, channel, payload_json,
-      status, attempt_count, max_attempts, next_retry_at, last_error, dead_at, priority
+      status, attempt_count, max_attempts, next_retry_at, last_error, dead_at, priority,
+      failure_class
     ) VALUES (
       p_organization_id, v_event_id, 'appointment_reminder', v_channel, v_payload,
-      'pending', 0, v_max_attempts, v_next_retry_at, NULL, NULL, 0
+      'pending', 0, v_max_attempts, v_next_retry_at, NULL, NULL, 0, NULL
     )
     ON CONFLICT (event_id) DO UPDATE
       SET organization_id = excluded.organization_id,
@@ -19573,6 +19238,7 @@ BEGIN
           next_retry_at = excluded.next_retry_at,
           last_error = NULL,
           dead_at = NULL,
+          failure_class = NULL,
           updated_at = now()
       WHERE queue.status IN ('pending', 'failed_retryable');
     GET DIAGNOSTICS v_row_count = ROW_COUNT;
@@ -19760,7 +19426,6 @@ DECLARE
   v_bucket_start timestamptz := date_trunc('hour', clock_timestamp() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
 BEGIN
   PERFORM app.require_attested_context_for_roles('saas_telemetry_owner'::name, ARRAY['app_patient'::name, 'app_staff'::name, 'app_worker'::name]::name[]);
-
   IF p_event_class NOT IN (
     'missing_principal','invalid_signature_or_install','role_pool_mismatch',
     'rls_denial','cleanup_failure','unclassified_background_operation'
@@ -19778,6 +19443,7 @@ BEGIN
     ('worker','worker_outgoing_delivery'), ('scheduler','scheduler_lock'),
     ('scheduler','scheduler_dispatch_tick'), ('media_worker','media_transcode_tick'),
     ('cron','cron_health'), ('cron','cron_media'), ('cron','cron_analytics'),
+    ('cron','cron_maintenance'), ('cron','cron_saas_billing'),
     ('cron','cron_reminders'), ('cron','cron_specialist_tasks')
   ) THEN RAISE EXCEPTION 'invalid_saas_isolation_service_operation' USING ERRCODE = '22023'; END IF;
   IF p_explanation_status NOT IN ('explained','unexplained') THEN
@@ -19790,7 +19456,6 @@ BEGIN
     v_fingerprint, p_event_class, p_source_service, p_source_operation, p_explanation_status
   )
   ON CONFLICT (fingerprint) DO UPDATE SET
-    -- Explanation is conservative: a later unexplained occurrence can downgrade, never auto-upgrade.
     explanation_status = CASE
       WHEN public.saas_isolation_events.explanation_status = 'unexplained'
         OR EXCLUDED.explanation_status = 'unexplained' THEN 'unexplained'
@@ -20125,43 +19790,6 @@ BEGIN
   HAVING pg_catalog.count(DISTINCT enrollment.organization_id) = 1;
 
   RETURN v_organization_id;
-END
-$_$;
-
-
---
--- Name: resolve_active_organization_for_integrator_user_id(bigint); Type: FUNCTION; Schema: app; Owner: -
---
-
-CREATE FUNCTION app.resolve_active_organization_for_integrator_user_id(p_integrator_user_id bigint) RETURNS TABLE(platform_user_id uuid, organization_id uuid)
-    LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
-    SET search_path TO 'pg_catalog', 'app', 'public', 'pg_temp'
-    AS $_$
-BEGIN
-  PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_integrator_resolver'::name, 'integrator'::app.port_context_class, 'integrator.user-organization.resolve', app.hash_port_typed_args(ARRAY[ROW('bigint@1', pg_catalog.int8send($1))::app.port_typed_arg]), 'app.resolve_active_organization_for_integrator_user_id(bigint)'::regprocedure);
-
-  RETURN QUERY
-  WITH active_user_orgs AS (
-    SELECT enrollment.platform_user_id, enrollment.organization_id
-    FROM public.org_enrollments AS enrollment
-    WHERE enrollment.status = 'active'
-    UNION
-    SELECT member.platform_user_id, member.organization_id
-    FROM public.be_organization_members AS member
-    WHERE member.status = 'active'
-  ), matches AS (
-    SELECT DISTINCT platform_user.id AS platform_user_id, active_user_orgs.organization_id
-    FROM public.platform_users AS platform_user
-    INNER JOIN active_user_orgs
-      ON active_user_orgs.platform_user_id = platform_user.id
-    WHERE platform_user.integrator_user_id = p_integrator_user_id
-  )
-  SELECT
-    (array_agg(DISTINCT matches.platform_user_id ORDER BY matches.platform_user_id))[1],
-    (array_agg(DISTINCT matches.organization_id ORDER BY matches.organization_id))[1]
-  FROM matches
-  HAVING count(DISTINCT matches.platform_user_id) = 1
-     AND count(DISTINCT matches.organization_id) = 1;
 END
 $_$;
 
@@ -20693,6 +20321,10 @@ BEGIN
       tariff.quotas,
       tariff.system_access_policy,
       tariff.included_seats,
+      -- §5a 4b.3/4b.4 — the value the owner stored for THIS mechanic on THIS tariff; read
+      -- once here so the `resolved` CTE below can select behaviour by data instead of
+      -- adding a branch.
+      tariff.downgrade_policies,
       entitlement_override.mechanic AS override_mechanic,
       entitlement_override.enabled AS override_enabled,
       tariff.system_access_policy AS policy,
@@ -20800,7 +20432,16 @@ BEGIN
         WHEN period_source = 'paid_period' AND lifecycle = 'blocked' THEN 'disabled'
         WHEN p_mechanic = ANY (ARRAY['patient_card', 'patient_app', 'patient_diaries']) THEN 'full_access'
         WHEN resolved_tariff_id IS NULL THEN 'unconfigured'
-        WHEN NOT mechanic_included THEN 'disabled'
+        -- §5a 4b.3/4b.4: this tariff excludes the mechanic — which final state depends
+        -- on the VALUE this tariff stored for it, not on a mechanic name.
+        -- `disable_immediately` and an unset policy both fail closed to `disabled`
+        -- (unchanged default); `read_only` is the one stored value that keeps read access
+        -- instead.
+        WHEN NOT mechanic_included THEN
+          CASE
+            WHEN downgrade_policies ->> p_mechanic = 'read_only' THEN 'read_only'
+            ELSE 'disabled'
+          END
         -- Period exists and has not run out. This is the ONLY «полный доступ навсегда» left: it
         -- lasts exactly as long as the paid period (or the trial) does. Checked before the policy
         -- so a tariff whose ladder is not configured yet still grants access inside a live period.
@@ -20855,6 +20496,43 @@ BEGIN
   FROM resolved;
 END
 $$;
+
+
+--
+-- Name: resolve_outbound_provider_incidents_after_delivery(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.resolve_outbound_provider_incidents_after_delivery(p_integration text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_resolved integer;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_telemetry_operator_owner'::name, 'app_operational_delivery_worker'::name, 'service'::app.port_context_class, 'health.outbound-provider.recover', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.resolve_outbound_provider_incidents_after_delivery(text)'::regprocedure);
+
+  IF p_integration IS NULL OR p_integration NOT IN (
+    'telegram', 'max', 'vk', 'email', 'smsc', 'web_push'
+  ) THEN
+    RAISE EXCEPTION 'invalid outbound provider integration' USING ERRCODE = '22023';
+  END IF;
+
+  WITH resolved AS (
+    UPDATE public.operator_incidents AS incident
+    SET resolved_at = now(),
+        alert_claim_phase = NULL,
+        alert_claim_token = NULL,
+        alert_claimed_at = NULL
+    WHERE incident.resolved_at IS NULL
+      AND incident.direction = 'outbound_delivery_provider'
+      AND incident.integration = p_integration
+    RETURNING incident.id
+  )
+  SELECT count(*)::integer INTO v_resolved FROM resolved;
+
+  RETURN v_resolved;
+END
+$_$;
 
 
 --
@@ -21098,6 +20776,7 @@ DECLARE
   v_candidates uuid[];
   v_id uuid;
   v_display text;
+  v_is_blocked boolean;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_public_booking_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'booking.public-client.resolve', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('boolean@1', pg_catalog.boolsend($3))::app.port_typed_arg]), 'app.resolve_public_booking_client_by_phone(text,text,boolean)'::regprocedure);
 
@@ -21133,6 +20812,14 @@ BEGIN
     RETURN NULL;
   END IF;
   IF pg_catalog.cardinality(v_candidates) = 1 THEN
+    SELECT COALESCE(person.is_blocked, false)
+    INTO v_is_blocked
+    FROM public.platform_users AS person
+    WHERE person.id = v_candidates[1];
+
+    IF v_is_blocked THEN
+      RETURN NULL;
+    END IF;
     RETURN v_candidates[1];
   END IF;
 
@@ -21662,10 +21349,10 @@ $_$;
 
 
 --
--- Name: revoke_public_booking_enrollment(uuid); Type: FUNCTION; Schema: app; Owner: -
+-- Name: revoke_public_booking_enrollment(uuid, text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.revoke_public_booking_enrollment(p_organization_id uuid) RETURNS jsonb
+CREATE FUNCTION app.revoke_public_booking_enrollment(p_organization_id uuid, p_enrollment_effect text, p_attempt_started_at timestamp with time zone) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $_$
@@ -21676,9 +21363,9 @@ DECLARE
   v_portal_via text;
   v_status text;
 BEGIN
-  PERFORM app.require_accepted_context('app_seam_public_booking_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'booking.public-client.revoke', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg]), 'app.revoke_public_booking_enrollment(uuid)'::regprocedure);
+  PERFORM app.require_accepted_context('app_seam_public_booking_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'booking.public-client.revoke', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($3))::app.port_typed_arg]), 'app.revoke_public_booking_enrollment(uuid,text,timestamp with time zone)'::regprocedure);
 
-  IF v_patient IS NULL OR p_organization_id IS NULL THEN
+  IF v_patient IS NULL OR p_organization_id IS NULL OR p_attempt_started_at IS NULL THEN
     RAISE EXCEPTION 'public booking enrollment context unavailable' USING ERRCODE = '42501';
   END IF;
 
@@ -21692,6 +21379,28 @@ BEGIN
 
   IF v_status IS NULL THEN
     RETURN jsonb_build_object('effect', 'absent');
+  END IF;
+
+  IF p_enrollment_effect = 'reactivated' THEN
+    IF v_status <> 'active' OR EXISTS (
+      SELECT 1 FROM public.be_appointments AS appointment
+      WHERE appointment.organization_id = p_organization_id
+        AND appointment.platform_user_id = v_patient
+        AND appointment.created_at >= p_attempt_started_at
+        AND appointment.deleted_at IS NULL
+    ) THEN
+      RETURN jsonb_build_object('effect', 'kept');
+    END IF;
+
+    UPDATE public.org_enrollments AS enrollment
+    SET status = 'archived'
+    WHERE enrollment.organization_id = p_organization_id
+      AND enrollment.platform_user_id = v_patient;
+    RETURN jsonb_build_object('effect', 'reverted');
+  END IF;
+
+  IF p_enrollment_effect NOT IN ('created', 'activated') THEN
+    RETURN jsonb_build_object('effect', 'kept');
   END IF;
 
   IF v_portal_via IS NULL
@@ -23891,31 +23600,31 @@ BEGIN
         MESSAGE = 'platform port context actor is not a platform administrator';
     END IF;
 
-  -- integrator: у `app_integrator_request` личность — числовой `integrator_user_id`, и связка
-  -- «этот пользователь ↔ эта организация» уже описана в базе — в
-  -- `app.resolve_active_organization_for_integrator_user_id`, которым порт и выбирает организацию.
-  -- Здесь повторяется ЕГО предикат (действующее зачисление ИЛИ действующее членство), чтобы
-  -- принять можно было только то, что резолвер и мог вернуть.  У `app_integrator_resolver`
-  -- личности нет вовсе: это и есть тот вызов, который личность ещё только разрешает; матрица
-  -- классов выше уже требует у него пустые actor/subject/organization/integrator_user_id, так что
-  -- заявки на арендатора он не несёт и подделать ею нечего.
+  -- integrator: у `app_integrator_request` `p_integrator_user_id` — ВНУТРЕННИЙ ключ запроса самого
+  -- интегратора, и ничья публичная личность (Track D, #987: `platform_users.integrator_user_id`
+  -- удалён вместе с резолвером `app.resolve_active_organization_for_integrator_user_id`).  Поэтому
+  -- проверять здесь человека нечем и не нужно: заявка на человека тут больше не приходит.
+  -- Проверяется ровно то, что осталось проверяемым, — что заявленный арендатор СУЩЕСТВУЕТ как
+  -- живая организация (у неё есть хотя бы одно зачисление или членство), и что внутренний ключ и
+  -- организация заявлены оба.  У `app_integrator_resolver` личности нет вовсе: матрица классов выше
+  -- уже требует у него пустые actor/subject/organization/integrator_user_id.
+  --
+  -- Стену «этот человек — клиент этой клиники» держат сами корни: `app_integrator_request` не
+  -- получает реляционного доступа, а каждый его SECURITY DEFINER-корень несёт предикат арендатора
+  -- в теле (гейт `definer-tenant-predicate`).  Возвращать сюда публичный поиск личности значило бы
+  -- завести retired-путь заново под другим именем.
   ELSIF p_context_class = 'integrator' AND p_target_role = 'app_integrator_request' THEN
-    IF NOT EXISTS (
-      SELECT 1 FROM public.platform_users platform_user
-       WHERE platform_user.integrator_user_id = p_integrator_user_id
-         AND (EXISTS (
-               SELECT 1 FROM public.org_enrollments enrollment
-                WHERE enrollment.platform_user_id = platform_user.id
-                  AND enrollment.organization_id = p_organization_id
-                  AND enrollment.status = 'active')
-           OR EXISTS (
-               SELECT 1 FROM public.be_organization_members member
-                WHERE member.platform_user_id = platform_user.id
-                  AND member.organization_id = p_organization_id
-                  AND member.status = 'active'))
-    ) THEN
+    IF p_integrator_user_id IS NULL
+      OR p_organization_id IS NULL
+      OR (NOT EXISTS (
+            SELECT 1 FROM public.org_enrollments enrollment
+             WHERE enrollment.organization_id = p_organization_id)
+        AND NOT EXISTS (
+            SELECT 1 FROM public.be_organization_members member
+             WHERE member.organization_id = p_organization_id))
+    THEN
       RAISE EXCEPTION USING ERRCODE = '42501',
-        MESSAGE = 'port context organization claim is not active for the integrator user';
+        MESSAGE = 'integrator request principal requires a known organization';
     END IF;
 
   -- tenant_service и service: актора нет НИ ОДНОГО — это классы доверенного сервера (фоновые
@@ -23954,6 +23663,45 @@ BEGIN
      AND transaction_id = NEW.transaction_id;
   RETURN NULL;
 END $$;
+
+
+--
+-- Name: read_default_auth_otp_channel(uuid); Type: FUNCTION; Schema: app_ext; Owner: -
+--
+
+CREATE FUNCTION app_ext.read_default_auth_otp_channel(p_user_id uuid) RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT COALESCE(
+    (
+      SELECT history.confirming_channel
+      FROM public.user_phone_history AS history
+      WHERE history.platform_user_id = p_user_id
+        AND history.valid_to IS NULL
+        AND history.confirming_channel IN ('telegram', 'max', 'email')
+      LIMIT 1
+    ),
+    (
+      SELECT first_verified.code
+      FROM (
+        SELECT binding.channel_code AS code, binding.created_at AS verified_at
+        FROM public.user_channel_bindings AS binding
+        WHERE binding.user_id = p_user_id
+          AND binding.channel_code IN ('telegram', 'max')
+        UNION ALL
+        SELECT 'email' AS code, contact.confirmed_at AS verified_at
+        FROM public.user_contacts AS contact
+        WHERE contact.platform_user_id = p_user_id
+          AND contact.contact_kind = 'email'
+          AND contact.is_primary = true
+          AND contact.confirmed_at IS NOT NULL
+      ) AS first_verified
+      ORDER BY first_verified.verified_at ASC
+      LIMIT 1
+    )
+  )
+$$;
 
 
 --
@@ -25754,7 +25502,6 @@ CREATE TABLE public.content_access_grants_webapp (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     integrator_grant_id text NOT NULL,
     platform_user_id uuid,
-    integrator_user_id bigint NOT NULL,
     content_id text NOT NULL,
     purpose text NOT NULL,
     token_hash text,
@@ -26276,11 +26023,14 @@ CREATE TABLE public.media_files (
     organization_id uuid,
     owner_kind text DEFAULT 'organization'::text NOT NULL,
     standard_rendition_at timestamp with time zone,
+    hosted_video_source_url text,
+    delete_claim_token uuid,
+    CONSTRAINT media_files_hosted_video_preview_check CHECK ((((usage_purpose = 'hosted_video_preview'::text) AND (hosted_video_source_url IS NOT NULL) AND (owner_kind = 'organization'::text) AND (organization_id IS NOT NULL)) OR ((usage_purpose IS DISTINCT FROM 'hosted_video_preview'::text) AND (hosted_video_source_url IS NULL)))),
     CONSTRAINT media_files_owner_check CHECK ((((owner_kind = 'organization'::text) AND (organization_id IS NOT NULL)) OR ((owner_kind = 'platform'::text) AND (organization_id IS NULL)))),
     CONSTRAINT media_files_preview_status_check CHECK ((preview_status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text, 'skipped'::text]))),
     CONSTRAINT media_files_size_bytes_check CHECK (((size_bytes >= 0) AND (size_bytes <= '3221225472'::bigint))),
     CONSTRAINT media_files_status_check CHECK ((status = ANY (ARRAY['ready'::text, 'pending'::text, 'deleting'::text, 'pending_delete'::text]))),
-    CONSTRAINT media_files_usage_purpose_check CHECK (((usage_purpose IS NULL) OR (usage_purpose = ANY (ARRAY['program_item_submission'::text])))),
+    CONSTRAINT media_files_usage_purpose_check CHECK (((usage_purpose IS NULL) OR (usage_purpose = ANY (ARRAY['program_item_submission'::text, 'hosted_video_preview'::text])))),
     CONSTRAINT media_files_video_delivery_override_check CHECK (((video_delivery_override IS NULL) OR (video_delivery_override = ANY (ARRAY['mp4'::text, 'hls'::text, 'auto'::text])))),
     CONSTRAINT media_files_video_processing_status_check CHECK (((video_processing_status IS NULL) OR (video_processing_status = ANY (ARRAY['none'::text, 'pending'::text, 'processing'::text, 'ready'::text, 'failed'::text]))))
 );
@@ -26502,7 +26252,6 @@ CREATE TABLE public.notification_delivery_attempts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     user_id uuid,
-    integrator_user_id text,
     topic_code text,
     intent_type text,
     channel text NOT NULL,
@@ -26761,7 +26510,7 @@ CREATE TABLE public.organization_slug_claims (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     slug text NOT NULL,
     kind text NOT NULL,
-    organization_id uuid NOT NULL,
+    organization_id uuid,
     created_by_platform_user_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -26781,7 +26530,7 @@ ALTER TABLE ONLY public.organization_slug_claims FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE public.organization_slug_rename_events (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    organization_id uuid NOT NULL,
+    organization_id uuid,
     actor_platform_user_id uuid,
     previous_slug text NOT NULL,
     next_slug text NOT NULL,
@@ -27318,7 +27067,6 @@ CREATE TABLE public.platform_users (
     role text DEFAULT 'client'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    integrator_user_id bigint,
     first_name text,
     last_name text,
     is_blocked boolean DEFAULT false NOT NULL,
@@ -27595,7 +27343,6 @@ CREATE TABLE public.reminder_occurrence_history (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     integrator_occurrence_id text NOT NULL,
     integrator_rule_id text NOT NULL,
-    integrator_user_id bigint,
     category text NOT NULL,
     status text NOT NULL,
     delivery_channel text,
@@ -27633,8 +27380,7 @@ ALTER TABLE ONLY public.reminder_occurrence_history FORCE ROW LEVEL SECURITY;
 CREATE TABLE public.reminder_rules (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     integrator_rule_id text NOT NULL,
-    platform_user_id uuid,
-    integrator_user_id bigint,
+    platform_user_id uuid NOT NULL,
     category text NOT NULL,
     is_enabled boolean DEFAULT false NOT NULL,
     schedule_type text DEFAULT 'interval_window'::text NOT NULL,
@@ -27894,7 +27640,7 @@ CREATE TABLE public.saas_isolation_events (
     CONSTRAINT saas_isolation_events_explanation_status_check CHECK ((explanation_status = ANY (ARRAY['explained'::text, 'unexplained'::text]))),
     CONSTRAINT saas_isolation_events_lifecycle_status_check CHECK ((lifecycle_status = ANY (ARRAY['active'::text, 'resolved'::text]))),
     CONSTRAINT saas_isolation_events_occurrence_count_check CHECK ((occurrence_count > 0)),
-    CONSTRAINT saas_isolation_events_source_operation_check CHECK ((((((((((((((((((((((((((((source_service = 'webapp'::text) AND (source_operation = 'webapp_db_request'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'webapp_admin_system_health'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'public_auth_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'auth_role_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_runtime_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'public_booking_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_identity_exception_check'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_booking_history'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_product_analytics'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_ui_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_calendar_timezone'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_content_catalog'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_diary'::text))) OR ((source_service = 'integrator'::text) AND (source_operation = 'integrator_http_request'::text))) OR ((source_service = 'integrator'::text) AND (source_operation = 'integrator_projection'::text))) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_queue_drain'::text))) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_projection_delivery'::text))) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_outgoing_delivery'::text))) OR ((source_service = 'scheduler'::text) AND (source_operation = 'scheduler_lock'::text))) OR ((source_service = 'scheduler'::text) AND (source_operation = 'scheduler_dispatch_tick'::text))) OR ((source_service = 'media_worker'::text) AND (source_operation = 'media_transcode_tick'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_health'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_media'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_analytics'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_reminders'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_specialist_tasks'::text)))),
+    CONSTRAINT saas_isolation_events_source_operation_check CHECK ((((((((((((((((((((((((((((((source_service = 'webapp'::text) AND (source_operation = 'webapp_db_request'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'webapp_admin_system_health'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'public_auth_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'auth_role_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_runtime_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'public_booking_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_identity_exception_check'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_booking_history'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_product_analytics'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_ui_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_calendar_timezone'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_content_catalog'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_diary'::text))) OR ((source_service = 'integrator'::text) AND (source_operation = 'integrator_http_request'::text))) OR ((source_service = 'integrator'::text) AND (source_operation = 'integrator_projection'::text))) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_queue_drain'::text))) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_projection_delivery'::text))) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_outgoing_delivery'::text))) OR ((source_service = 'scheduler'::text) AND (source_operation = 'scheduler_lock'::text))) OR ((source_service = 'scheduler'::text) AND (source_operation = 'scheduler_dispatch_tick'::text))) OR ((source_service = 'media_worker'::text) AND (source_operation = 'media_transcode_tick'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_health'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_media'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_analytics'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_maintenance'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_saas_billing'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_reminders'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_specialist_tasks'::text)))),
     CONSTRAINT saas_isolation_events_source_service_check CHECK ((source_service = ANY (ARRAY['webapp'::text, 'integrator'::text, 'worker'::text, 'scheduler'::text, 'media_worker'::text, 'cron'::text])))
 );
 
@@ -28119,7 +27865,6 @@ CREATE TABLE public.support_conversations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     integrator_conversation_id text NOT NULL,
     platform_user_id uuid,
-    integrator_user_id bigint,
     source text NOT NULL,
     admin_scope text NOT NULL,
     status text NOT NULL,
