@@ -28,6 +28,30 @@ export type SystemSettingValueContract =
   | 'structured'
   | 'secret_envelope';
 
+/**
+ * Redaction policy for `system_settings_audit` (and the equivalent admin log line) — the single
+ * source `auditRedaction.ts` reads instead of a hand-maintained key list. `#1071`: an independent
+ * audit found `web_push_vapid`, `booking_payment_providers` and `saas_billing_payment_provider`
+ * carrying live secret material into the durable ledger unredacted, because the old denylist was
+ * maintained by hand and nobody added them. Deriving from this typed field makes "forgot to add a
+ * new secret key" a compile-time-adjacent registry omission instead of a silent leak: every
+ * `secret_envelope` key defaults to `whole_value` (see `restricted()`) unless explicitly downgraded.
+ *
+ * - `none` — not a secret; passes through unredacted (the six public OAuth identifiers).
+ * - `whole_value` — the entire `value` IS the credential (a bare string envelope).
+ * - `object_field` — a composite envelope; only `value.<field>` is a credential.
+ * - `domain_redactor` — a composite envelope whose secret-bearing shape already has a dedicated
+ *   parser/redactor elsewhere (payment provider lists); reuse it instead of a second implementation.
+ */
+export type SystemSettingSecretAuditPolicy =
+  | Readonly<{ kind: 'none' }>
+  | Readonly<{ kind: 'whole_value' }>
+  | Readonly<{ kind: 'object_field'; field: string }>
+  | Readonly<{
+      kind: 'domain_redactor';
+      id: 'booking_payment_providers' | 'saas_billing_payment_provider';
+    }>;
+
 export type SystemSettingDefinition = Readonly<{
   scope: SystemSettingScope;
   storage: SystemSettingStorage;
@@ -39,7 +63,28 @@ export type SystemSettingDefinition = Readonly<{
   defaultValue: string;
   clientSerialization: 'none' | 'raw' | 'redacted' | 'derived';
   safeProjection?: string;
+  secretAudit: SystemSettingSecretAuditPolicy;
 }>;
+
+const AUDIT_NONE: SystemSettingSecretAuditPolicy = { kind: 'none' };
+const AUDIT_WHOLE_VALUE: SystemSettingSecretAuditPolicy = { kind: 'whole_value' };
+
+/** Composite envelope where only `value.<field>` is a credential (e.g. `value.password`). */
+const auditObjectField = (field: string): SystemSettingSecretAuditPolicy => ({
+  kind: 'object_field',
+  field,
+});
+
+/** Composite envelope whose secret shape reuses an existing domain parser/redactor. */
+const auditDomainRedactor = (
+  id: 'booking_payment_providers' | 'saas_billing_payment_provider',
+): SystemSettingSecretAuditPolicy => ({ kind: 'domain_redactor', id });
+
+/** Overrides the derived default — the only way `secret_envelope` escapes `whole_value`. */
+const withSecretAudit = (
+  def: SystemSettingDefinition,
+  secretAudit: SystemSettingSecretAuditPolicy,
+): SystemSettingDefinition => ({ ...def, secretAudit });
 
 const restricted = (
   scope: SystemSettingScope,
@@ -59,6 +104,9 @@ const restricted = (
     defaultValue,
     clientSerialization,
     safeProjection,
+    // Fail-closed default: a new `secret_envelope` key is redacted whole until explicitly
+    // proven public via `withSecretAudit(..., { kind: 'none' })` — see the registry census test.
+    secretAudit: valueContract === 'secret_envelope' ? AUDIT_WHOLE_VALUE : AUDIT_NONE,
   }) as const;
 
 const runtime = (
@@ -77,6 +125,8 @@ const runtime = (
     valueContract,
     defaultValue,
     clientSerialization: audience === 'server' ? 'none' : 'raw',
+    // No runtime-storage key uses `secret_envelope` today (asserted by the registry census test).
+    secretAudit: AUDIT_NONE,
   }) as const;
 
 const surfaceAuthSettingDefinitions = Object.fromEntries(
@@ -316,20 +366,20 @@ export const SYSTEM_SETTING_REGISTRY = {
     '{"physicalPalette":["#2563EB","#16A34A","#F59E0B","#DC2626","#7C3AED"],"online":"#7C3AED"}',
   ),
   booking_payment_enabled: runtime('admin', 'per_org', 'authenticated_client', 'boolean', 'false'),
-  booking_payment_providers: restricted(
-    'admin',
-    'per_org',
-    'secret_envelope',
-    'yookassa',
-    'redacted',
-    'booking_payment_public_config',
+  booking_payment_providers: withSecretAudit(
+    restricted(
+      'admin',
+      'per_org',
+      'secret_envelope',
+      'yookassa',
+      'redacted',
+      'booking_payment_public_config',
+    ),
+    auditDomainRedactor('booking_payment_providers'),
   ),
-  saas_billing_payment_provider: restricted(
-    'admin',
-    'global',
-    'secret_envelope',
-    'yookassa',
-    'redacted',
+  saas_billing_payment_provider: withSecretAudit(
+    restricted('admin', 'global', 'secret_envelope', 'yookassa', 'redacted'),
+    auditDomainRedactor('saas_billing_payment_provider'),
   ),
   booking_lifecycle_notifications: runtime('admin', 'per_org', 'server', 'boolean', 'false'),
   booking_allow_doctor_unlink_past_package_sessions: runtime(
@@ -363,9 +413,15 @@ export const SYSTEM_SETTING_REGISTRY = {
     'false',
   ),
   notifications_topics: runtime('admin', 'per_org', 'authenticated_client', 'structured', '[]'),
-  smtp_outbound: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
+  smtp_outbound: withSecretAudit(
+    restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
+    auditObjectField('password'),
+  ),
   /** Clinic-owned SMTP is used first for essential delivery and exclusively for clinic mailings. */
-  clinic_smtp_outbound: restricted('admin', 'per_org', 'secret_envelope', 'absent', 'redacted'),
+  clinic_smtp_outbound: withSecretAudit(
+    restricted('admin', 'per_org', 'secret_envelope', 'absent', 'redacted'),
+    auditObjectField('password'),
+  ),
   /** Dedicated outbound SMSC credential. The platform credential remains an essential-delivery fallback. */
   clinic_smsc_api_key: restricted('admin', 'per_org', 'secret_envelope', 'absent', 'redacted'),
   /** Dedicated clinic bots are outbound credentials; inbound binding/webhook routing remains S6.5. */
@@ -377,15 +433,27 @@ export const SYSTEM_SETTING_REGISTRY = {
     'redacted',
   ),
   clinic_max_bot_api_key: restricted('admin', 'per_org', 'secret_envelope', 'absent', 'redacted'),
-  clinic_vk_community_access_token: restricted('admin', 'per_org', 'secret_envelope', 'absent', 'redacted'),
-  operator_health_imap: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
-  web_push_vapid: restricted(
+  clinic_vk_community_access_token: restricted(
     'admin',
-    'global',
+    'per_org',
     'secret_envelope',
     'absent',
     'redacted',
-    'web_push_vapid_public_key',
+  ),
+  operator_health_imap: withSecretAudit(
+    restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
+    auditObjectField('password'),
+  ),
+  web_push_vapid: withSecretAudit(
+    restricted(
+      'admin',
+      'global',
+      'secret_envelope',
+      'absent',
+      'redacted',
+      'web_push_vapid_public_key',
+    ),
+    auditObjectField('privateKey'),
   ),
   admin_incident_alert_config: restricted('admin', 'global', 'structured'),
   operator_health_alert_config: restricted('admin', 'global', 'structured'),
@@ -439,13 +507,12 @@ export const SYSTEM_SETTING_REGISTRY = {
     'string',
     'hardcoded fallback',
   ),
-  yandex_oauth_client_id: restricted(
-    'admin',
-    'global',
-    'secret_envelope',
-    'absent',
-    'derived',
-    'oauth_yandex_enabled',
+  // Public OAuth client identifier, not a credential — see the registry census comment above
+  // `withSecretAudit` and `docs/_TODO/runs/INTEGRATION_SECRET_ENCRYPTION_DECISION_PACKET_2026-09-02.md`
+  // §1.1. Left `secret_envelope`-labeled to avoid an unrelated relabel; only the audit policy differs.
+  yandex_oauth_client_id: withSecretAudit(
+    restricted('admin', 'global', 'secret_envelope', 'absent', 'derived', 'oauth_yandex_enabled'),
+    AUDIT_NONE,
   ),
   yandex_oauth_client_secret: restricted(
     'admin',
@@ -463,13 +530,10 @@ export const SYSTEM_SETTING_REGISTRY = {
     'derived',
     'oauth_yandex_enabled',
   ),
-  vk_id_application_id: restricted(
-    'admin',
-    'global',
-    'secret_envelope',
-    'absent',
-    'derived',
-    'oauth_vk_enabled',
+  // Public OAuth application id, not a credential — see the yandex_oauth_client_id comment above.
+  vk_id_application_id: withSecretAudit(
+    restricted('admin', 'global', 'secret_envelope', 'absent', 'derived', 'oauth_vk_enabled'),
+    AUDIT_NONE,
   ),
   vk_id_client_secret: restricted(
     'admin',
@@ -480,15 +544,9 @@ export const SYSTEM_SETTING_REGISTRY = {
     'oauth_vk_enabled',
   ),
   auth_altcha_hmac_secret: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
-  vk_id_redirect_uri: restricted(
-    'admin',
-    'global',
-    'url',
-    'absent',
-    'derived',
-    'oauth_vk_enabled',
-  ),
-  google_client_id: restricted('admin', 'global', 'secret_envelope'),
+  vk_id_redirect_uri: restricted('admin', 'global', 'url', 'absent', 'derived', 'oauth_vk_enabled'),
+  // Public OAuth client identifier, not a credential — see the yandex_oauth_client_id comment above.
+  google_client_id: withSecretAudit(restricted('admin', 'global', 'secret_envelope'), AUDIT_NONE),
   google_client_secret: restricted('admin', 'global', 'secret_envelope'),
   google_redirect_uri: restricted('admin', 'global', 'url'),
   // OAuth application identity is platform-owned; each clinic owns the Google account and
@@ -505,29 +563,18 @@ export const SYSTEM_SETTING_REGISTRY = {
     'derived',
     'oauth_google_enabled',
   ),
-  apple_oauth_client_id: restricted(
-    'admin',
-    'global',
-    'secret_envelope',
-    'absent',
-    'derived',
-    'oauth_apple_enabled',
+  // Public Apple OAuth identifiers, not credentials — see the yandex_oauth_client_id comment above.
+  apple_oauth_client_id: withSecretAudit(
+    restricted('admin', 'global', 'secret_envelope', 'absent', 'derived', 'oauth_apple_enabled'),
+    AUDIT_NONE,
   ),
-  apple_oauth_team_id: restricted(
-    'admin',
-    'global',
-    'secret_envelope',
-    'absent',
-    'derived',
-    'oauth_apple_enabled',
+  apple_oauth_team_id: withSecretAudit(
+    restricted('admin', 'global', 'secret_envelope', 'absent', 'derived', 'oauth_apple_enabled'),
+    AUDIT_NONE,
   ),
-  apple_oauth_key_id: restricted(
-    'admin',
-    'global',
-    'secret_envelope',
-    'absent',
-    'derived',
-    'oauth_apple_enabled',
+  apple_oauth_key_id: withSecretAudit(
+    restricted('admin', 'global', 'secret_envelope', 'absent', 'derived', 'oauth_apple_enabled'),
+    AUDIT_NONE,
   ),
   apple_oauth_private_key: restricted(
     'admin',
