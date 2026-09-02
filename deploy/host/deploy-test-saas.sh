@@ -763,7 +763,15 @@ log "build (install + build + build:webapp + media-worker + assets)"
 sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && export CI=true && \
   pnpm install --frozen-lockfile && \
   rm -rf dist && pnpm build && \
-  rm -rf apps/webapp/.next && pnpm build:webapp && \
+  if [ -L apps/webapp/.next ] || [ -L apps/webapp/.next/cache ]; then \
+    echo 'FATAL: refusing to preserve Next build cache through a symlink' >&2; exit 1; \
+  fi && \
+  if [ -d apps/webapp/.next ]; then \
+    find apps/webapp/.next -mindepth 1 -maxdepth 1 ! -name cache -exec rm -rf -- {} +; \
+  else \
+    mkdir -p apps/webapp/.next; \
+  fi && \
+  pnpm build:webapp && \
   pnpm --dir apps/media-worker build && \
   bash deploy/host/sync-webapp-standalone-assets.sh"
 

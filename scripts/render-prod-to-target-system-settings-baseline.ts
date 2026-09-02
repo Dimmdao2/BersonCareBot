@@ -10,6 +10,14 @@ const EXPLICIT_INITIAL_VALUES: Readonly<Record<string, unknown>> = {
   operator_alert_fallback_email: '',
 };
 
+const REQUIRED_NON_GLOBAL_FALLBACKS = Object.freeze([
+  {
+    key: 'doctor_today_preferences',
+    scope: 'doctor',
+    value: { peopleListMode: 'on_support' },
+  },
+] as const);
+
 function fail(message: string): never {
   throw new Error(`prod-to-target system-settings baseline: ${message}`);
 }
@@ -54,7 +62,22 @@ const rows = entries.map(([key, definition]) => {
   const valueJson = JSON.stringify({ value: parseDefaultValue(key, definition) });
   return `  (${sqlText(key)}, 'admin', NULL, ${sqlText(valueJson)}::jsonb, statement_timestamp(), NULL)`;
 });
-const expectedKeys = entries.map(([key]) => `    (${sqlText(key)})`);
+for (const fallback of REQUIRED_NON_GLOBAL_FALLBACKS) {
+  const definition = SYSTEM_SETTING_REGISTRY[fallback.key];
+  if (!definition || definition.scope !== 'doctor' || definition.ownership !== 'per_org') {
+    fail(`${fallback.key} is not a registered per-organization doctor setting`);
+  }
+  const valueJson = JSON.stringify({ value: fallback.value });
+  rows.push(
+    `  (${sqlText(fallback.key)}, ${sqlText(fallback.scope)}, NULL, ${sqlText(valueJson)}::jsonb, statement_timestamp(), NULL)`,
+  );
+}
+const expectedRows = [
+  ...entries.map(([key]) => `    (${sqlText(key)}, 'admin')`),
+  ...REQUIRED_NON_GLOBAL_FALLBACKS.map(
+    (fallback) => `    (${sqlText(fallback.key)}, ${sqlText(fallback.scope)})`,
+  ),
+];
 
 if (rows.length === 0) fail('registry produced no global rows');
 
@@ -74,22 +97,22 @@ process.stdout.write(
     '    AND existing.organization_id IS NOT DISTINCT FROM seed.organization_id::uuid',
     ');',
     '',
-    'DO $target_global_system_settings_gate$',
+    'DO $target_system_settings_gate$',
     'DECLARE missing_keys text;',
     'BEGIN',
     '  SELECT string_agg(expected.key, comma.value ORDER BY expected.key) INTO missing_keys',
     '  FROM (VALUES',
-    expectedKeys.join(',\n'),
-    '  ) AS expected(key)',
+    expectedRows.join(',\n'),
+    '  ) AS expected(key, scope)',
     "  CROSS JOIN (VALUES (', '::text)) AS comma(value)",
     '  WHERE NOT EXISTS (',
     '    SELECT 1 FROM public.system_settings setting',
-    "    WHERE setting.key = expected.key AND setting.scope = 'admin'",
+    '    WHERE setting.key = expected.key AND setting.scope = expected.scope',
     '      AND setting.organization_id IS NULL',
     '  );',
     "  IF missing_keys IS NOT NULL THEN RAISE EXCEPTION 'missing target global system settings: %', missing_keys; END IF;",
     'END',
-    '$target_global_system_settings_gate$;',
+    '$target_system_settings_gate$;',
     '',
   ].join('\n'),
 );
