@@ -125,7 +125,7 @@ function fmtWeekday(iso: string): string {
 
 function formatNextAppointment(appointment: DisplayAppointment | undefined): string | undefined {
   if (!appointment?.date) return undefined;
-  return `След: ${fmtDate(appointment.date).slice(0, 5)}`;
+  return `Следующ. ${fmtDate(appointment.date).slice(0, 5)}`;
 }
 
 function formatMoney(amountMinor: number | null | undefined, currency: string | null | undefined) {
