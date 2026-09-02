@@ -4,6 +4,7 @@ import type {
 } from '@/modules/messaging/outgoingDeliveryQueuePort';
 import { buildReminderDeepLink } from './buildReminderDeepLink';
 import { reminderOccurrenceTopicCode } from './reminderOccurrenceTopicCode';
+import { buildCustomReminderPushCopy } from '@/modules/web-push/pushNotificationCopy';
 
 export type PatientReminderMaterializationRule = {
   id: string;
@@ -116,15 +117,21 @@ export function materializePatientReminderDeliveries(input: {
   const { rule, occurrence, targets } = input;
   const topicCode = reminderOccurrenceTopicCode(rule, rule.category);
   if (!topicCode) return [];
+  // W17A: customTitle/customText are patient-entered free text (reminder linkedObjectType
+  // 'custom') and may carry medical content. Per docs/OWNER_DECISIONS.md that content never
+  // leaves the app — external channels get the shared neutral copy instead. Non-custom rules
+  // (system/doctor-configured title) are unaffected and keep their generated copy.
+  const hasPatientEnteredText = Boolean(rule.customTitle?.trim() || rule.customText?.trim());
+  const neutralCopy = hasPatientEnteredText ? buildCustomReminderPushCopy() : null;
   const title = (
-    rule.customTitle?.trim() ||
+    neutralCopy?.title ||
     input.linkedTitle?.trim() ||
     rule.displayTitle?.trim() ||
     DEFAULT_TITLES[rule.category] ||
     'Напоминание'
   ).slice(0, 200);
-  const customText = rule.customText?.trim().slice(0, 8000) || '';
-  const body = customText || title;
+  const body = neutralCopy?.body || title;
+  const extraBody = body !== title ? body : '';
   const openUrl = buildReminderDeepLink({
     appBaseUrl: input.appBaseUrl,
     linkedObjectType: rule.linkedObjectType,
@@ -173,7 +180,7 @@ export function materializePatientReminderDeliveries(input: {
       append(channel, targets.telegramId.trim(), {
         recipient: { chatId: targets.telegramId.trim() },
         message: {
-          text: `<b>${escapeHtml(title)}</b>${customText ? `\n\n${escapeHtml(customText)}` : ''}`,
+          text: `<b>${escapeHtml(title)}</b>${extraBody ? `\n\n${escapeHtml(extraBody)}` : ''}`,
         },
         replyMarkup: keyboard,
         parse_mode: 'HTML',
@@ -183,16 +190,19 @@ export function materializePatientReminderDeliveries(input: {
       append(channel, targets.maxId.trim(), {
         recipient: { userId: targets.maxId.trim() },
         message: {
-          text: `<b>${escapeHtml(title)}</b>${customText ? `\n\n${escapeHtml(customText)}` : ''}`,
+          text: `<b>${escapeHtml(title)}</b>${extraBody ? `\n\n${escapeHtml(extraBody)}` : ''}`,
         },
         replyMarkup: keyboard,
         parse_mode: 'HTML',
         delivery: { channels: [channel], maxAttempts: 1, senderScope: 'clinic_if_configured' },
       });
     } else if (channel === 'vk' && targets.vkId?.trim()) {
+      // vk has no button/keyboard surface, so the neutral copy needs the app link inline —
+      // telegram/max already carry it via the keyboard, email appends it below.
+      const vkText = neutralCopy ? `${body}\n\n${openUrl}` : body;
       append(channel, targets.vkId.trim(), {
         recipient: { userId: targets.vkId.trim() },
-        message: { text: body },
+        message: { text: vkText },
         delivery: { channels: [channel], maxAttempts: 1 },
       });
     } else if (channel === 'email' && targets.emailRecipient?.trim()) {
