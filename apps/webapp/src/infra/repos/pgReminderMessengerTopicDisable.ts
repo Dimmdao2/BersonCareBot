@@ -1,5 +1,6 @@
+import { sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
-import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { runPgPoolSql } from '@/infra/db/runWebappSql';
 import type { ReminderRuleForTopicCode } from '@/modules/reminders/reminderOccurrenceTopicCode';
 import type { ChannelBindings } from '@/shared/types/session';
 
@@ -16,22 +17,21 @@ export async function loadReminderRuleForMessengerTopicDisable(
     integratorOccurrenceId: string;
   },
 ): Promise<ReminderRuleForTopicCode | null> {
-  const own = await runPgPoolPgText<{
+  const own = await runPgPoolSql<{
     category: string;
     notification_topic_code: string | null;
     reminder_intent: string | null;
     linked_object_type: string | null;
   }>(
     pool,
-    `SELECT rr.category::text AS category,
+    sql`SELECT rr.category::text AS category,
             rr.notification_topic_code,
             rr.reminder_intent,
             rr.linked_object_type::text AS linked_object_type
        FROM reminder_occurrence_history roh
  INNER JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
-      WHERE roh.integrator_occurrence_id = $1
-        AND roh.platform_user_id = $2::uuid`,
-    [params.integratorOccurrenceId, params.platformUserId],
+      WHERE roh.integrator_occurrence_id = ${params.integratorOccurrenceId}
+        AND roh.platform_user_id = ${params.platformUserId}::uuid`,
   );
   const row = own.rows[0];
   if (!row) return null;
@@ -47,13 +47,12 @@ export async function loadReminderMessengerChannelBindings(
   pool: Pool,
   platformUserId: string,
 ): Promise<ChannelBindings> {
-  const result = await runPgPoolPgText<{ channel_code: string; external_id: string }>(
+  const result = await runPgPoolSql<{ channel_code: string; external_id: string }>(
     pool,
-    `SELECT channel_code, external_id
+    sql`SELECT channel_code, external_id
        FROM user_channel_bindings
-      WHERE user_id = $1::uuid
+      WHERE user_id = ${platformUserId}::uuid
         AND channel_code IN ('telegram', 'max')`,
-    [platformUserId],
   );
   const bindings: ChannelBindings = {};
   for (const row of result.rows) {

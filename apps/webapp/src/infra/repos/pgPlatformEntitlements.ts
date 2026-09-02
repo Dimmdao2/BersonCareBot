@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { runWebappNamedRoot, runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import {
   resolveCommercialAccess,
   type CommercialAccessPaidPeriodInput,
@@ -82,7 +82,8 @@ function toTariff(row: typeof saasTariffs.$inferSelect): Tariff {
 
 function toPaidPeriodPolicy(row: typeof saasPaidPeriodPolicy.$inferSelect): PaidPeriodPolicy {
   return {
-    postPaidPeriodBehavior: row.postPaidPeriodBehavior as PaidPeriodPolicy['postPaidPeriodBehavior'],
+    postPaidPeriodBehavior:
+      row.postPaidPeriodBehavior as PaidPeriodPolicy['postPaidPeriodBehavior'],
     postPaidPeriodTariffId: row.postPaidPeriodTariffId,
     isActive: row.isActive,
   };
@@ -263,9 +264,7 @@ async function startTrialForOrganization(
     await requireActiveTariff(tx, organization.tariffId);
     const startedAt = new Date();
     const endsAt = new Date(startedAt.getTime() + policyRow.durationDays * 86_400_000);
-    const discountEndsAt = new Date(
-      endsAt.getTime() + policyRow.discountWindowDays * 86_400_000,
-    );
+    const discountEndsAt = new Date(endsAt.getTime() + policyRow.discountWindowDays * 86_400_000);
     const [created] = await tx
       .insert(saasOrganizationTrials)
       .values({
@@ -354,7 +353,9 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
             postPaidPeriodTariffId: saasPaidPeriodPolicy.postPaidPeriodTariffId,
           })
           .from(saasPaidPeriodPolicy)
-          .where(and(eq(saasPaidPeriodPolicy.key, 'global'), eq(saasPaidPeriodPolicy.isActive, true)))
+          .where(
+            and(eq(saasPaidPeriodPolicy.key, 'global'), eq(saasPaidPeriodPolicy.isActive, true)),
+          )
           .limit(1);
         const subscriptionPeriodRows = await tx
           .select({
@@ -382,10 +383,7 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
         // `paid_subscription` and `manual` are alternative sources for one effective assignment.
         // Match the mutation path's precedence and keep the first active row per organization.
         const manualTariffByOrg = new Map<string, string>();
-        const scheduledTariffByOrg = new Map<
-          string,
-          { tariffId: string; effectiveAt: string }
-        >();
+        const scheduledTariffByOrg = new Map<string, { tariffId: string; effectiveAt: string }>();
         for (const row of manualSaasBillingRows) {
           if (manualTariffByOrg.has(row.organizationId)) continue;
           manualTariffByOrg.set(row.organizationId, row.tariffId);
@@ -408,9 +406,7 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
               ? {
                   periodEndsAt,
                   postPaidPeriodBehavior: globalPaidPolicy.postPaidPeriodBehavior as
-                    | 'read_only'
-                    | 'blocked'
-                    | 'tariff',
+                    'read_only' | 'blocked' | 'tariff',
                   postPaidPeriodTariffId: globalPaidPolicy.postPaidPeriodTariffId,
                 }
               : null;
@@ -444,10 +440,10 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
     async getOrganizationMechanicUsage(organizationId) {
       assertPlatformOperationsPrincipal();
       const [enforcedUsage, [branchesRow]] = await Promise.all([
-        runWebappPgText<EnforcedQuotaUsageRow>(
-          `SELECT clinic_team_used, files_used
-           FROM app.read_org_enforced_quota_usage($1::uuid)`,
-          [organizationId],
+        runWebappSql<EnforcedQuotaUsageRow>(
+          getWebappSqlDb(),
+          sql`SELECT clinic_team_used, files_used
+           FROM app.read_org_enforced_quota_usage(${organizationId}::uuid)`,
         ),
         getDrizzle()
           .select({ used: sql<number>`count(*)::int` })

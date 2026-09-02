@@ -1,9 +1,6 @@
 import { sql, type Column, type SQL } from 'drizzle-orm';
 import { env } from '@/config/env';
-import {
-  getTestAccountIdentifiers,
-  type TestAccountIdentifiers,
-} from '@/config/testAccounts';
+import { getTestAccountIdentifiers, type TestAccountIdentifiers } from '@/config/testAccounts';
 
 export type AnalyticsAudienceContext = {
   includeTestAccounts: boolean;
@@ -70,21 +67,16 @@ export async function loadAnalyticsAudienceContext(deps: {
   return { includeTestAccounts, excludedUserIds };
 }
 
-/** Raw SQL: `AND column <> ALL($n::uuid[])` when list non-empty. */
+/** Fragment: `AND column <> ALL(...::uuid[])` when list non-empty. */
 export function appendSqlExcludeUserIds(
-  baseSql: string,
+  baseSql: SQL,
   userIdColumn: string,
   excludedUserIds: string[],
-  params: unknown[],
-): { sql: string; params: unknown[] } {
+): SQL {
   if (excludedUserIds.length === 0) {
-    return { sql: baseSql, params };
+    return baseSql;
   }
-  const paramIndex = params.length + 1;
-  return {
-    sql: `${baseSql} AND ${userIdColumn} <> ALL($${paramIndex}::uuid[])`,
-    params: [...params, excludedUserIds],
-  };
+  return sql`${baseSql} AND ${sql.raw(userIdColumn)} <> ALL(${sql.param(excludedUserIds)}::uuid[])`;
 }
 
 /** Drizzle: exclude user id column when list non-empty. */

@@ -1,4 +1,5 @@
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 
 /** Canonical appointment ids soft-deleted by staff/admin delete. */
 export async function loadPurgedCanonicalAppointmentIds(
@@ -6,13 +7,13 @@ export async function loadPurgedCanonicalAppointmentIds(
   appointmentIds: string[],
 ): Promise<Set<string>> {
   if (appointmentIds.length === 0) return new Set();
-  const result = await runWebappPgText<{ id: string }>(
-    `SELECT id::text AS id
+  const result = await runWebappSql<{ id: string }>(
+    getWebappSqlDb(),
+    sql`SELECT id::text AS id
        FROM be_appointments
-      WHERE organization_id = $1::uuid
-        AND id = ANY($2::uuid[])
+      WHERE organization_id = ${organizationId}::uuid
+        AND id = ANY(${sql.param(appointmentIds)}::uuid[])
         AND deleted_at IS NOT NULL`,
-    [organizationId, appointmentIds],
   );
   return new Set(result.rows.map((r) => r.id));
 }

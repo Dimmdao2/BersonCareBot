@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const runWebappSqlMock = vi.hoisted(() => vi.fn());
 const getCurrentDbPrincipalMock = vi.hoisted(() => vi.fn());
 const getDrizzleMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/infra/db/runWebappSql', () => ({
-  runWebappPgText: runWebappPgTextMock,
+  getWebappSqlDb: () => ({}),
+  runWebappSql: runWebappSqlMock,
 }));
 vi.mock('@bersoncare/db-principal', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@bersoncare/db-principal')>()),
@@ -14,6 +15,14 @@ vi.mock('@bersoncare/db-principal', async (importOriginal) => ({
 vi.mock('@/app-layer/db/drizzle', () => ({ getDrizzle: getDrizzleMock }));
 
 import { createPgOrgEntitlementsPort } from './pgOrgEntitlements';
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
+
+/** Text and bound values of the fragment the port last handed to the port function. */
+function lastQuery() {
+  const call = runWebappSqlMock.mock.calls.at(-1);
+  if (!call) throw new Error('no query was executed');
+  return drizzleSqlFragmentToPgQuery(call[1]);
+}
 
 /** Minimal awaitable Drizzle select stub for the platform branch count. */
 function stubSequentialDrizzleSelects(resultsQueue: Array<Array<{ value: number }>>) {
@@ -41,7 +50,7 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
   });
 
   it('reports platform quota usage from the reviewed accessor, never a courses count (courses is a toggle, not a quota)', async () => {
-    runWebappPgTextMock.mockResolvedValue({
+    runWebappSqlMock.mockResolvedValue({
       rows: [{ clinic_team_used: 3, files_used: '12345' }],
     });
     getDrizzleMock.mockReturnValue(stubSequentialDrizzleSelects([[{ value: 2 }]]));
@@ -52,7 +61,7 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
   });
 
   it('§5a stage 6.1 — sums the three-part seat formula and reports every quota number for the caller\'s own organization', async () => {
-    runWebappPgTextMock.mockResolvedValue({
+    runWebappSqlMock.mockResolvedValue({
       rows: [
         {
           organization_id: '11111111-1111-4111-8111-111111111111',
@@ -66,13 +75,11 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
     await expect(
       createPgOrgEntitlementsPort().getOwnQuotaUsage('11111111-1111-4111-8111-111111111111'),
     ).resolves.toEqual({ branches: 2, files: 12345, clinic_team: 5 });
-    expect(runWebappPgTextMock).toHaveBeenCalledWith(
-      expect.stringContaining('app.read_current_org_tariff_transition_usage()'),
-    );
+    expect(lastQuery().sql).toContain('app.read_current_org_tariff_transition_usage()');
   });
 
   it('rejects an own-usage aggregate resolved for a different signed organization', async () => {
-    runWebappPgTextMock.mockResolvedValue({
+    runWebappSqlMock.mockResolvedValue({
       rows: [
         {
           organization_id: '22222222-2222-4222-8222-222222222222',
@@ -95,7 +102,7 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
       organizationId,
       platformUserId: '22222222-2222-4222-8222-222222222222',
     });
-    runWebappPgTextMock.mockResolvedValue({
+    runWebappSqlMock.mockResolvedValue({
       rows: [
         {
           tariff_mechanics: { courses: true },
@@ -137,7 +144,7 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
   });
 
   it('maps the canonical database door result without recomputing lifecycle in TypeScript', async () => {
-    runWebappPgTextMock.mockResolvedValue({
+    runWebappSqlMock.mockResolvedValue({
       rows: [
         {
           state: 'grace',
@@ -166,9 +173,7 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
         nextState: 'read_only',
       },
     });
-    expect(runWebappPgTextMock).toHaveBeenCalledWith(
-      expect.stringContaining('app.resolve_organization_mechanic_access'),
-      ['11111111-1111-4111-8111-111111111111', 'courses'],
-    );
+    expect(lastQuery().sql).toContain('app.resolve_organization_mechanic_access');
+    expect(lastQuery().values).toEqual(['11111111-1111-4111-8111-111111111111', 'courses']);
   });
 });

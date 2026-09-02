@@ -1,7 +1,9 @@
+import { sql, type SQL } from 'drizzle-orm';
 /**
- * Wave 3 phase 14D — domain SQL via `runWebappPgText` (Class B dynamic filters in `buildWhere`).
+ * Domain SQL as typed Drizzle fragments (dynamic filters composed in `buildWhere`).
  */
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
+import { platformUserMatchSql } from '@/infra/repos/platformUserMatchSql';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type {
   MessageLogEntry,
@@ -23,31 +25,21 @@ function normalizePage(
   };
 }
 
-function buildWhere(filters?: MessageLogListFilters): { whereSql: string; values: unknown[] } {
-  const where: string[] = [];
-  const values: unknown[] = [];
+function buildWhere(filters?: MessageLogListFilters): SQL {
+  const where: SQL[] = [];
   if (filters?.userId) {
-    values.push(filters.userId);
-    where.push(
-      `(platform_user_id = $${values.length}::uuid OR (platform_user_id IS NULL AND user_id = $${values.length}::text))`,
-    );
+    where.push(platformUserMatchSql(null, filters.userId));
   }
   if (filters?.category) {
-    values.push(filters.category);
-    where.push(`category = $${values.length}`);
+    where.push(sql`category = ${filters.category}`);
   }
   if (filters?.dateFrom) {
-    values.push(filters.dateFrom);
-    where.push(`sent_at >= $${values.length}::timestamptz`);
+    where.push(sql`sent_at >= ${filters.dateFrom}::timestamptz`);
   }
   if (filters?.dateTo) {
-    values.push(filters.dateTo);
-    where.push(`sent_at <= $${values.length}::timestamptz`);
+    where.push(sql`sent_at <= ${filters.dateTo}::timestamptz`);
   }
-  return {
-    whereSql: where.length > 0 ? `WHERE ${where.join(' AND ')}` : '',
-    values,
-  };
+  return where.length > 0 ? sql`WHERE ${sql.join(where, sql` AND `)}` : sql``;
 }
 
 function mapRows(rows: MessageLogRow[]): MessageLogEntry[] {
@@ -83,7 +75,7 @@ type MessageLogRow = {
 export function createPgMessageLogPort(): MessageLogPort {
   return {
     async append(entry): Promise<MessageLogEntry> {
-      const r = await runWebappPgText<{
+      const r = await runWebappSql<{
         id: string;
         user_id: string;
         platform_user_id: string | null;
@@ -95,20 +87,12 @@ export function createPgMessageLogPort(): MessageLogPort {
         outcome: MessageLogEntry['outcome'];
         error_message: string | null;
       }>(
-        `INSERT INTO message_log (
+        getWebappSqlDb(),
+        sql`INSERT INTO message_log (
            user_id, platform_user_id, sender_id, text, category, channel_bindings_used, outcome, error_message
          )
-         VALUES ($1::text, $1::uuid, $2, $3, $4, $5, $6, $7)
+         VALUES (${entry.userId}::text, ${entry.userId}::uuid, ${entry.senderId}, ${entry.text}, ${entry.category}, ${JSON.stringify(entry.channelBindingsUsed ?? {})}, ${entry.outcome}, ${entry.errorMessage ?? null})
          RETURNING id, user_id, platform_user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message`,
-        [
-          entry.userId,
-          entry.senderId,
-          entry.text,
-          entry.category,
-          JSON.stringify(entry.channelBindingsUsed ?? {}),
-          entry.outcome,
-          entry.errorMessage ?? null,
-        ],
       );
       const row = r.rows[0]!;
       return {
@@ -126,20 +110,18 @@ export function createPgMessageLogPort(): MessageLogPort {
     async listByUser(userId: string, params): Promise<MessageLogListResult> {
       const paging = normalizePage(params?.page, params?.pageSize);
       const where = buildWhere({ userId });
+      const db = getWebappSqlDb();
       const [listRes, countRes] = await Promise.all([
-        runWebappPgText<MessageLogRow>(
-          `SELECT id, user_id, platform_user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message
+        runWebappSql<MessageLogRow>(
+          db,
+          sql`SELECT id, user_id, platform_user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message
            FROM message_log
-           ${where.whereSql}
+           ${where}
            ORDER BY sent_at DESC
-           LIMIT $${where.values.length + 1}
-           OFFSET $${where.values.length + 2}`,
-          [...where.values, paging.pageSize, paging.offset],
+           LIMIT ${paging.pageSize}
+           OFFSET ${paging.offset}`,
         ),
-        runWebappPgText<{ c: string }>(
-          `SELECT COUNT(*)::text AS c FROM message_log ${where.whereSql}`,
-          where.values,
-        ),
+        runWebappSql<{ c: string }>(db, sql`SELECT COUNT(*)::text AS c FROM message_log ${where}`),
       ]);
       return {
         items: mapRows(listRes.rows),
@@ -151,20 +133,18 @@ export function createPgMessageLogPort(): MessageLogPort {
     async listAll(params): Promise<MessageLogListResult> {
       const paging = normalizePage(params?.page, params?.pageSize);
       const where = buildWhere(params?.filters);
+      const db = getWebappSqlDb();
       const [listRes, countRes] = await Promise.all([
-        runWebappPgText<MessageLogRow>(
-          `SELECT id, user_id, platform_user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message
+        runWebappSql<MessageLogRow>(
+          db,
+          sql`SELECT id, user_id, platform_user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message
            FROM message_log
-           ${where.whereSql}
+           ${where}
            ORDER BY sent_at DESC
-           LIMIT $${where.values.length + 1}
-           OFFSET $${where.values.length + 2}`,
-          [...where.values, paging.pageSize, paging.offset],
+           LIMIT ${paging.pageSize}
+           OFFSET ${paging.offset}`,
         ),
-        runWebappPgText<{ c: string }>(
-          `SELECT COUNT(*)::text AS c FROM message_log ${where.whereSql}`,
-          where.values,
-        ),
+        runWebappSql<{ c: string }>(db, sql`SELECT COUNT(*)::text AS c FROM message_log ${where}`),
       ]);
       return {
         items: mapRows(listRes.rows),

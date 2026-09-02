@@ -1,12 +1,10 @@
-import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
+import { sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import {
   findCanonicalUserIdByChannelBinding,
   resolveCanonicalUserId,
 } from '@/infra/repos/pgCanonicalPlatformUser';
-import {
-  CONTACTS,
-  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
-} from '@/infra/repos/userContactsSql';
+import { CONTACTS, USER_CONTACTS_PRIMARY_PHONE_LATERAL } from '@/infra/repos/userContactsSql';
 
 export async function replaceChannelLinkSecret(params: {
   userId: string;
@@ -14,14 +12,14 @@ export async function replaceChannelLinkSecret(params: {
   tokenHash: string;
   expiresAtIso: string;
 }): Promise<void> {
-  await runWebappPgText(
-    `SELECT app.auth_channel_link_replace_secret(
-       $1::uuid,
-       $2::text,
-       $3::text,
-       $4::timestamptz
+  await runWebappSql(
+    getWebappSqlDb(),
+    sql`SELECT app.auth_channel_link_replace_secret(
+       ${params.userId}::uuid,
+       ${params.channelCode}::text,
+       ${params.tokenHash}::text,
+       ${params.expiresAtIso}::timestamptz
      )`,
-    [params.userId, params.channelCode, params.tokenHash, params.expiresAtIso],
   );
 }
 
@@ -29,12 +27,12 @@ export async function loadPlatformPhoneBindingInfo(
   userId: string,
 ): Promise<{ needsPhone: boolean; phoneNormalized?: string }> {
   const canonical = await resolveCanonicalUserId(getWebappSqlDb(), userId);
-  const result = await runWebappPgText<{ phone_normalized: string | null }>(
-    `SELECT ${CONTACTS.phoneNormalized} AS phone_normalized
+  const result = await runWebappSql<{ phone_normalized: string | null }>(
+    getWebappSqlDb(),
+    sql`SELECT ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized
      FROM platform_users pu
-     ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
-     WHERE pu.id = $1::uuid`,
-    [canonical],
+     ${sql.raw(USER_CONTACTS_PRIMARY_PHONE_LATERAL)}
+     WHERE pu.id = ${canonical}::uuid`,
   );
   const phone = result.rows[0]?.phone_normalized;
   const phoneNormalized =
@@ -53,15 +51,15 @@ export async function loadChannelLinkSecretByTokenHash(params: {
   channelCode: 'telegram' | 'max';
   tokenHash: string;
 }): Promise<ChannelLinkSecretRow | null> {
-  const result = await runWebappPgText<{
+  const result = await runWebappSql<{
     id: string;
     user_id: string;
     expires_at: string;
     used_at: string | null;
   }>(
-    `SELECT id::text AS id, user_id::text AS user_id, expires_at, used_at
-     FROM app.auth_channel_link_read_secret($1::text, $2::text)`,
-    [params.channelCode, params.tokenHash],
+    getWebappSqlDb(),
+    sql`SELECT id::text AS id, user_id::text AS user_id, expires_at, used_at
+     FROM app.auth_channel_link_read_secret(${params.channelCode}::text, ${params.tokenHash}::text)`,
   );
   const row = result.rows[0];
   if (!row) return null;
@@ -84,23 +82,24 @@ export async function loadChannelBindingUserId(params: {
     params.externalId,
   );
   if (viaContacts) return viaContacts;
-  const result = await runWebappPgText<{ user_id: string }>(
-    `SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2`,
-    [params.channelCode, params.externalId],
+  const result = await runWebappSql<{ user_id: string }>(
+    getWebappSqlDb(),
+    sql`SELECT user_id FROM user_channel_bindings WHERE channel_code = ${params.channelCode} AND external_id = ${params.externalId}`,
   );
   return result.rows[0]?.user_id ?? null;
 }
 
 export async function markChannelLinkSecretUsed(secretRowId: string): Promise<void> {
-  await runWebappPgText('SELECT app.auth_channel_link_mark_secret_used($1::uuid) AS marked', [
-    secretRowId,
-  ]);
+  await runWebappSql(
+    getWebappSqlDb(),
+    sql`SELECT app.auth_channel_link_mark_secret_used(${secretRowId}::uuid) AS marked`,
+  );
 }
 
 export async function markChannelLinkSecretUsedIfUnused(secretRowId: string): Promise<void> {
-  await runWebappPgText(
-    'SELECT app.auth_channel_link_mark_secret_used_if_unused($1::uuid) AS marked',
-    [secretRowId],
+  await runWebappSql(
+    getWebappSqlDb(),
+    sql`SELECT app.auth_channel_link_mark_secret_used_if_unused(${secretRowId}::uuid) AS marked`,
   );
 }
 
@@ -109,9 +108,9 @@ export async function insertChannelBinding(params: {
   channelCode: 'telegram' | 'max';
   externalId: string;
 }): Promise<void> {
-  await runWebappPgText(
-    `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-     VALUES ($1, $2, $3)`,
-    [params.userId, params.channelCode, params.externalId],
+  await runWebappSql(
+    getWebappSqlDb(),
+    sql`INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
+     VALUES (${params.userId}, ${params.channelCode}, ${params.externalId})`,
   );
 }

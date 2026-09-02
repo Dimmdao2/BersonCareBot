@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 /**
  * Полное удаление клиента из канонического webapp-хранилища.
  * Вызывать только после явного подтверждения (например из API кабинета врача для заархивированных).
@@ -6,11 +7,8 @@
  */
 import type { Pool, PoolClient } from 'pg';
 import { getPool } from '@/infra/db/client';
-import { runPurgeClientPgText, runPurgePoolPgText } from '@/infra/platformUserPurgeSql';
-import {
-  CONTACTS,
-  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
-} from '@/infra/repos/userContactsSql';
+import { runPurgeClientSql, runPurgePoolSql } from '@/infra/platformUserPurgeSql';
+import { CONTACTS, USER_CONTACTS_PRIMARY_PHONE_LATERAL } from '@/infra/repos/userContactsSql';
 
 /** Только цифры; для сопоставления записей по номеру. */
 export function phoneDigits(phone: string): string {
@@ -165,13 +163,15 @@ export const DIARY_TABLES: { table: string; column: string }[] = [
 
 /** Дневники симптомов и ЛФК: порядок как в `pgDiaryPurge` (FK `lfk_complexes.symptom_tracking_id` → `symptom_trackings`). */
 async function deleteSymptomAndLfkDiaryForUser(client: PoolClient, userId: string): Promise<void> {
-  await runPurgeClientPgText(
+  await runPurgeClientSql(
     client,
-    `UPDATE lfk_complexes SET symptom_tracking_id = NULL, updated_at = now() WHERE user_id = $1`,
-    [userId],
+    sql`UPDATE lfk_complexes SET symptom_tracking_id = NULL, updated_at = now() WHERE user_id = ${userId}`,
   );
   for (const { table, column } of DIARY_TABLES) {
-    await runPurgeClientPgText(client, `DELETE FROM ${table} WHERE ${column} = $1`, [userId]);
+    await runPurgeClientSql(
+      client,
+      sql`DELETE FROM ${sql.raw(table)} WHERE ${sql.raw(column)} = ${userId}`,
+    );
   }
 }
 
@@ -193,30 +193,27 @@ async function deletePhoneKeyedWebappRows(
 ): Promise<void> {
   const digs = phoneDigits(phoneNormalized);
 
-  await runPurgeClientPgText(
+  await runPurgeClientSql(
     client,
-    `DELETE FROM phone_otp_locks WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
-    [digs],
+    sql`DELETE FROM phone_otp_locks WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = ${digs}`,
   );
-  await runPurgeClientPgText(
+  await runPurgeClientSql(
     client,
-    `DELETE FROM phone_challenges WHERE regexp_replace(phone, '\\D', '', 'g') = $1`,
-    [digs],
+    sql`DELETE FROM phone_challenges WHERE regexp_replace(phone, '\\D', '', 'g') = ${digs}`,
   );
-  await runPurgeClientPgText(
+  await runPurgeClientSql(
     client,
-    `DELETE FROM message_log
+    sql`DELETE FROM message_log
      WHERE user_id IN (
        SELECT platform_user_id::text FROM user_contacts
        WHERE contact_kind = 'phone'
-         AND regexp_replace(value_normalized, '\\D', '', 'g') = $1
+         AND regexp_replace(value_normalized, '\\D', '', 'g') = ${digs}
      )
         OR platform_user_id IN (
           SELECT platform_user_id FROM user_contacts
           WHERE contact_kind = 'phone'
-            AND regexp_replace(value_normalized, '\\D', '', 'g') = $1
+            AND regexp_replace(value_normalized, '\\D', '', 'g') = ${digs}
         )`,
-    [digs],
   );
 }
 
@@ -229,10 +226,9 @@ async function deletePhoneKeyedWebappRows(
 async function assertNoBlockingIdentityRoot(client: PoolClient, userId: string): Promise<void> {
   const conflicts: string[] = [];
   for (const { table, column, reason } of IDENTITY_ROOT_TABLES) {
-    const res = await runPurgeClientPgText<{ n: string }>(
+    const res = await runPurgeClientSql<{ n: string }>(
       client,
-      `SELECT count(*)::text AS n FROM ${table} WHERE ${column} = $1`,
-      [userId],
+      sql`SELECT count(*)::text AS n FROM ${sql.raw(table)} WHERE ${sql.raw(column)} = ${userId}`,
     );
     if (Number.parseInt(res.rows[0]?.n ?? '0', 10) > 0) {
       conflicts.push(`${table}.${column}: ${reason}`);
@@ -245,79 +241,84 @@ async function anonymisePurgedUserReferences(client: PoolClient, userId: string)
   for (const target of ANONYMISE_ON_PURGE_COLUMNS) {
     const nullColumns = [target.column, ...(target.alsoNullColumns ?? [])];
     const scrubColumns = target.scrubJsonColumns ?? [];
-    const assignments = [
-      ...nullColumns.map((col) => `${col} = CASE WHEN ${col}::text = $1 THEN NULL ELSE ${col} END`),
-      // The uuid appears inside string VALUES of the document (correlation ids, callback data,
-      // message bodies), never as structure, so a textual replacement keeps the document valid and
-      // reaches every nesting depth without guessing a key path.
-      ...scrubColumns.map(
-        (col) => `${col} = replace(${col}::text, $1, '${PURGED_USER_JSON_TOKEN}')::jsonb`,
-      ),
-    ].join(', ');
-    const matches = [
-      ...nullColumns.map((col) => `${col}::text = $1`),
-      ...scrubColumns.map((col) => `position($1 in ${col}::text) > 0`),
-    ].join(' OR ');
-    await runPurgeClientPgText(
+    const assignments = sql.join(
+      [
+        ...nullColumns.map((col) => {
+          const c = sql.raw(col);
+          return sql`${c} = CASE WHEN ${c}::text = ${userId} THEN NULL ELSE ${c} END`;
+        }),
+        // The uuid appears inside string VALUES of the document (correlation ids, callback data,
+        // message bodies), never as structure, so a textual replacement keeps the document valid and
+        // reaches every nesting depth without guessing a key path.
+        ...scrubColumns.map((col) => {
+          const c = sql.raw(col);
+          return sql`${c} = replace(${c}::text, ${userId}, ${PURGED_USER_JSON_TOKEN})::jsonb`;
+        }),
+      ],
+      sql`, `,
+    );
+    const matches = sql.join(
+      [
+        ...nullColumns.map((col) => sql`${sql.raw(col)}::text = ${userId}`),
+        ...scrubColumns.map((col) => sql`position(${userId} in ${sql.raw(col)}::text) > 0`),
+      ],
+      sql` OR `,
+    );
+    await runPurgeClientSql(
       client,
-      `UPDATE ${target.table} SET ${assignments} WHERE ${matches}`,
-      [userId],
+      sql`UPDATE ${sql.raw(target.table)} SET ${assignments} WHERE ${matches}`,
     );
   }
 }
 
 async function clearPlatformUserDeleteBlockers(client: PoolClient, userId: string): Promise<void> {
   await anonymisePurgedUserReferences(client, userId);
-  await runPurgeClientPgText(
+  await runPurgeClientSql(
     client,
-    `UPDATE platform_users SET blocked_by = NULL WHERE blocked_by = $1`,
-    [userId],
+    sql`UPDATE platform_users SET blocked_by = NULL WHERE blocked_by = ${userId}`,
   );
-  await runPurgeClientPgText(
+  await runPurgeClientSql(
     client,
-    `UPDATE patient_lfk_assignments SET assigned_by = NULL WHERE assigned_by = $1`,
-    [userId],
+    sql`UPDATE patient_lfk_assignments SET assigned_by = NULL WHERE assigned_by = ${userId}`,
   );
-  await runPurgeClientPgText(
+  await runPurgeClientSql(
     client,
-    `DELETE FROM patient_lfk_assignments WHERE patient_user_id = $1`,
-    [userId],
+    sql`DELETE FROM patient_lfk_assignments WHERE patient_user_id = ${userId}`,
   );
-  await runPurgeClientPgText(client, `DELETE FROM online_intake_requests WHERE user_id = $1`, [
-    userId,
-  ]);
-  await runPurgeClientPgText(
+  await runPurgeClientSql(
     client,
-    `UPDATE lfk_complex_templates SET created_by = NULL WHERE created_by = $1`,
-    [userId],
+    sql`DELETE FROM online_intake_requests WHERE user_id = ${userId}`,
   );
-  await runPurgeClientPgText(
+  await runPurgeClientSql(
     client,
-    `UPDATE lfk_exercises SET created_by = NULL WHERE created_by = $1`,
-    [userId],
+    sql`UPDATE lfk_complex_templates SET created_by = NULL WHERE created_by = ${userId}`,
   );
-  await runPurgeClientPgText(
+  await runPurgeClientSql(
     client,
-    `UPDATE system_settings SET updated_by = NULL WHERE updated_by = $1`,
-    [userId],
+    sql`UPDATE lfk_exercises SET created_by = NULL WHERE created_by = ${userId}`,
   );
-  await runPurgeClientPgText(
+  await runPurgeClientSql(
     client,
-    `UPDATE doctor_notes SET author_id = user_id WHERE author_id = $1 AND user_id <> $1`,
-    [userId],
+    sql`UPDATE system_settings SET updated_by = NULL WHERE updated_by = ${userId}`,
+  );
+  await runPurgeClientSql(
+    client,
+    sql`UPDATE doctor_notes SET author_id = user_id WHERE author_id = ${userId} AND user_id <> ${userId}`,
   );
 }
 
 async function deleteContentTablesForUser(client: PoolClient, userId: string): Promise<void> {
   for (const { table, column } of CONTENT_TABLES) {
     if (table === 'doctor_notes') {
-      await runPurgeClientPgText(
+      await runPurgeClientSql(
         client,
-        `DELETE FROM doctor_notes WHERE user_id = $1 OR author_id = $1`,
-        [userId],
+        sql`DELETE FROM doctor_notes WHERE user_id = ${userId} OR author_id = ${userId}`,
       );
     } else {
-      await runPurgeClientPgText(client, `DELETE FROM ${table} WHERE ${column} = $1`, [userId]);
+      await runPurgeClientSql(
+        client,
+        sql`DELETE FROM ${sql.raw(table)} WHERE ${sql.raw(column)} = ${userId}`,
+      );
     }
   }
 }
@@ -342,37 +343,34 @@ export async function collectPurgeArtifactKeys(
   client: PoolClient,
   userId: string,
 ): Promise<PurgeArtifactKeys> {
-  const intakeRes = await runPurgeClientPgText<{ s3_key: string }>(
+  const intakeRes = await runPurgeClientSql<{ s3_key: string }>(
     client,
-    `SELECT a.s3_key
+    sql`SELECT a.s3_key
        FROM online_intake_attachments a
        INNER JOIN online_intake_requests r ON r.id = a.request_id
-      WHERE r.user_id = $1::uuid
+      WHERE r.user_id = ${userId}::uuid
         AND a.s3_key IS NOT NULL`,
-    [userId],
   );
   const intakeS3Keys = intakeRes.rows
     .map((r) => r.s3_key)
     .filter((k): k is string => typeof k === 'string' && k.length > 0);
 
-  const mediaRes = await runPurgeClientPgText<{ id: string; s3_key: string | null }>(
+  const mediaRes = await runPurgeClientSql<{ id: string; s3_key: string | null }>(
     client,
-    `SELECT id::text AS id, s3_key
+    sql`SELECT id::text AS id, s3_key
        FROM media_files
-      WHERE uploaded_by = $1::uuid`,
-    [userId],
+      WHERE uploaded_by = ${userId}::uuid`,
   );
   const mediaFiles = mediaRes.rows.map((r) => ({ id: r.id, s3Key: r.s3_key ?? null }));
 
-  const patientFilesRes = await runPurgeClientPgText<{
+  const patientFilesRes = await runPurgeClientSql<{
     s3_key: string;
     media_file_id: string | null;
   }>(
     client,
-    `SELECT s3_key, media_file_id::text AS media_file_id
+    sql`SELECT s3_key, media_file_id::text AS media_file_id
        FROM patient_files
-      WHERE patient_user_id = $1::uuid`,
-    [userId],
+      WHERE patient_user_id = ${userId}::uuid`,
   );
   const patientFileS3Keys = patientFilesRes.rows
     .map((r) => r.s3_key)
@@ -418,13 +416,16 @@ export async function runWebappPurgeCoreInTransaction(
 
   // `message_log.platform_user_id` is now a `CONTENT_TABLES` row, so only the legacy TEXT column of
   // the same table is left here. The set of deleted rows is exactly what it was.
-  await runPurgeClientPgText(client, `DELETE FROM message_log WHERE user_id = $1::text`, [user.id]);
+  await runPurgeClientSql(client, sql`DELETE FROM message_log WHERE user_id = ${user.id}::text`);
 
   for (const { table, column } of IDENTITY_TABLES) {
-    await runPurgeClientPgText(client, `DELETE FROM ${table} WHERE ${column} = $1`, [user.id]);
+    await runPurgeClientSql(
+      client,
+      sql`DELETE FROM ${sql.raw(table)} WHERE ${sql.raw(column)} = ${user.id}`,
+    );
   }
 
-  await runPurgeClientPgText(client, `DELETE FROM platform_users WHERE id = $1`, [user.id]);
+  await runPurgeClientSql(client, sql`DELETE FROM platform_users WHERE id = ${user.id}`);
 }
 
 /** Mirrors `runStrictPurgePlatformUser` — see `strictPlatformUserPurge.ts`. */
@@ -434,12 +435,7 @@ export type PurgePlatformUserResult =
   | { ok: true; outcome?: StrictPurgeOutcome }
   | {
       ok: false;
-      error:
-        | 'invalid_uuid'
-        | 'not_found'
-        | 'not_client'
-        | 'identity_in_use'
-        | 'transaction_failed';
+      error: 'invalid_uuid' | 'not_found' | 'not_client' | 'identity_in_use' | 'transaction_failed';
     };
 
 /**
@@ -465,13 +461,12 @@ export async function purgePlatformUserByPlatformId(
 }
 
 async function loadPurgeUserRow(db: Pool, id: string): Promise<PurgePlatformUserRow | null> {
-  const userRes = await runPurgePoolPgText<PurgePlatformUserRow>(
+  const userRes = await runPurgePoolSql<PurgePlatformUserRow>(
     db,
-    `SELECT pu.id, ${CONTACTS.phoneNormalized} AS phone_normalized, pu.role
+    sql`SELECT pu.id, ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized, pu.role
      FROM platform_users pu
-     ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
-     WHERE pu.id = $1`,
-    [id],
+     ${sql.raw(USER_CONTACTS_PRIMARY_PHONE_LATERAL)}
+     WHERE pu.id = ${id}`,
   );
   return userRes.rows[0] ?? null;
 }

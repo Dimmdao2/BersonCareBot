@@ -4,15 +4,14 @@ const fakes = vi.hoisted(() => ({
   db: { execute: vi.fn() },
   runWebappNamedRoot: vi.fn(),
   drizzle: { select: vi.fn(), insert: vi.fn(), delete: vi.fn(), transaction: vi.fn(), execute: vi.fn() },
-  runWebappPgText: vi.fn(),
+  runWebappSql: vi.fn(),
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: () => fakes.db,
   getWebappSqlFromPgClient: vi.fn(),
   runWebappNamedRoot: fakes.runWebappNamedRoot,
-  runWebappPgText: fakes.runWebappPgText,
-  runWebappSql: vi.fn(),
+  runWebappSql: fakes.runWebappSql,
   webappSqlFromPgText: vi.fn(),
 }));
 
@@ -141,7 +140,7 @@ it('экран «Приложение» получает числа через �
   expect(args?.[2]).toBe('Europe/Moscow');
   // Прямое чтение телеметрии и `platform_users` под `app_platform_settings` — это 42501 и HTTP 500.
   expect(fakes.drizzle.select).not.toHaveBeenCalled();
-  expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+  expect(fakes.runWebappSql).not.toHaveBeenCalled();
 });
 
 it('за дверь уезжают ИДЕНТИФИКАТОРЫ служебных учёток и правила схлопывания, а не готовые id', async () => {

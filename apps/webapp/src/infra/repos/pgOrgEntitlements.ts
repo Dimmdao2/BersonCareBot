@@ -2,7 +2,7 @@ import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import {
   resolveCommercialAccess,
   type CommercialAccessPaidPeriodInput,
@@ -139,8 +139,9 @@ async function readCurrentPatientSnapshot(
     throw new Error('patient_entitlement_organization_mismatch');
   }
   const result = await runWithWebappDbOperationFamily('patient_ui_config', () =>
-    runWebappPgText<CurrentPatientEntitlementRow>(
-      'SELECT * FROM app.read_current_patient_organization_entitlements()',
+    runWebappSql<CurrentPatientEntitlementRow>(
+      getWebappSqlDb(),
+      sql`SELECT * FROM app.read_current_patient_organization_entitlements()`,
     ),
   );
   return snapshotFromPatientRows(result.rows);
@@ -245,9 +246,7 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
         ? {
             periodEndsAt: subscriptionPeriodRow[0].periodEndsAt,
             postPaidPeriodBehavior: paidPolicyRow[0].postPaidPeriodBehavior as
-              | 'read_only'
-              | 'blocked'
-              | 'tariff',
+              'read_only' | 'blocked' | 'tariff',
             postPaidPeriodTariffId: paidPolicyRow[0].postPaidPeriodTariffId,
           }
         : null;
@@ -299,10 +298,10 @@ async function readSnapshot(organizationId: string): Promise<OrgEntitlementSnaps
 export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
   return {
     async resolveCabinetAccess(organizationId: string) {
-      const result = await runWebappPgText<CabinetAccessRow>(
-        `SELECT state, policy_source, warning
-         FROM app.resolve_organization_cabinet_access($1::uuid)`,
-        [organizationId],
+      const result = await runWebappSql<CabinetAccessRow>(
+        getWebappSqlDb(),
+        sql`SELECT state, policy_source, warning
+         FROM app.resolve_organization_cabinet_access(${organizationId}::uuid)`,
       );
       const row = result.rows[0];
       if (!row) throw new Error('organization_cabinet_access_denied');
@@ -313,10 +312,10 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       };
     },
     async resolveMechanicAccess(organizationId: string, mechanic: OrgMechanic) {
-      const result = await runWebappPgText<MechanicAccessRow>(
-        `SELECT state, policy_source, warning
-         FROM app.resolve_organization_mechanic_access($1::uuid, $2::text)`,
-        [organizationId, mechanic],
+      const result = await runWebappSql<MechanicAccessRow>(
+        getWebappSqlDb(),
+        sql`SELECT state, policy_source, warning
+         FROM app.resolve_organization_mechanic_access(${organizationId}::uuid, ${mechanic}::text)`,
       );
       const row = result.rows[0];
       if (!row) throw new Error('organization_mechanic_access_denied');
@@ -350,17 +349,15 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       // `app_platform_settings` SELECT policy (`be_branches_platform_operations_select` in
       // c5a-platform-operations-runtime.sql), so branches usage needs no SECURITY DEFINER hop.
       const [enforcedUsage, [branchesRow]] = await Promise.all([
-        runWebappPgText<EnforcedQuotaUsageRow>(
-          `SELECT clinic_team_used, files_used
-           FROM app.read_org_enforced_quota_usage($1::uuid)`,
-          [organizationId],
+        runWebappSql<EnforcedQuotaUsageRow>(
+          getWebappSqlDb(),
+          sql`SELECT clinic_team_used, files_used
+           FROM app.read_org_enforced_quota_usage(${organizationId}::uuid)`,
         ),
         getDrizzle()
           .select({ value: sql<number>`count(*)::int` })
           .from(beBranches)
-          .where(
-            and(eq(beBranches.organizationId, organizationId), eq(beBranches.isActive, true)),
-          ),
+          .where(and(eq(beBranches.organizationId, organizationId), eq(beBranches.isActive, true))),
       ]);
       const usage = enforcedUsage.rows[0];
       return {
@@ -372,8 +369,9 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
     async getOwnQuotaUsage(organizationId) {
       // Billing runs under app_clinic_billing, not app_staff. Keep the sensitive source rows behind
       // the existing aggregate seam and let the database derive the signed organization itself.
-      const result = await runWebappPgText<OwnTariffTransitionUsageRow>(
-        `SELECT organization_id, clinic_team_used, files_used, branches_used
+      const result = await runWebappSql<OwnTariffTransitionUsageRow>(
+        getWebappSqlDb(),
+        sql`SELECT organization_id, clinic_team_used, files_used, branches_used
          FROM app.read_current_org_tariff_transition_usage()`,
       );
       const usage = result.rows[0];
@@ -387,9 +385,9 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       };
     },
     async prepareLifecycleNotificationContext(organizationId) {
-      const result = await runWebappPgText<{ payload: Record<string, string | null> }>(
-        `SELECT app.prepare_organization_lifecycle_notification_context($1::uuid) AS payload`,
-        [organizationId],
+      const result = await runWebappSql<{ payload: Record<string, string | null> }>(
+        getWebappSqlDb(),
+        sql`SELECT app.prepare_organization_lifecycle_notification_context(${organizationId}::uuid) AS payload`,
       );
       const payload = result.rows[0]?.payload;
       if (!payload) throw new Error('lifecycle_notification_context_unavailable');

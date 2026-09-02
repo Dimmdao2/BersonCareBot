@@ -335,8 +335,8 @@ export function createPgBookingSchedulingPort(
   return {
     async resolvePublicBookingOrganization({ branchId, serviceId }) {
       // Именованный корень, а не свободный текст: способность порта выбирается по ТОЧНОЙ
-      // идентичности функции и хешу типизированных аргументов. `runWebappPgText` не устанавливает
-      // операцию вовсе, поэтому вызов отвергался до отправки statement'а.
+      // идентичности функции и хешу типизированных аргументов. Обычный `runWebappSql` не
+      // устанавливает операцию вовсе, поэтому вызов отвергался до отправки statement'а.
       const normalizedBranchId = branchId?.trim() || null;
       const normalizedServiceId = serviceId?.trim() || null;
       const result = await runWebappNamedRoot<{ organization_id: string | null }>(

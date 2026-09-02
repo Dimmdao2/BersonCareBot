@@ -7,11 +7,8 @@ import {
   getCurrentDbPrincipal,
   getCurrentDbPrincipalOrganizationId,
 } from '@bersoncare/db-principal';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  runWebappPgText,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
+import { platformUserMatchSql } from '@/infra/repos/platformUserMatchSql';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import {
   type DrizzleTxExecute,
@@ -99,11 +96,6 @@ const TRACKING_SELECT = `id, user_id, platform_user_id, symptom_key, symptom_tit
     symptom_type_ref_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id, stage_ref_id, deleted_at, organization_id`;
 
 /** Match legacy text user_id or canonical platform_user_id (post-merge / backfill). */
-function userMatchSql(tableAlias: string | null, userParamIndex: number): string {
-  const p = tableAlias ? `${tableAlias}.` : '';
-  return `(${p}platform_user_id = $${userParamIndex}::uuid OR (${p}platform_user_id IS NULL AND ${p}user_id = $${userParamIndex}::text))`;
-}
-
 function isPatientPrincipal(): boolean {
   return getCurrentDbPrincipal()?.kind === 'patient';
 }
@@ -149,26 +141,14 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     if (isPatientPrincipal()) throw new Error('patient_self_create_disabled');
     const now = new Date();
     const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
-    const result = await runWebappPgText<SymptomTrackingRow>(
-      `INSERT INTO symptom_trackings (
+    const result = await runWebappSql<SymptomTrackingRow>(
+      getWebappSqlDb(),
+      sql`INSERT INTO symptom_trackings (
          user_id, platform_user_id, organization_id, symptom_key, symptom_title, is_active, updated_at,
          symptom_type_ref_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id, stage_ref_id
        )
-       VALUES ($1::text, $1::uuid, $2::uuid, $3, $4, true, $5, $6, $7, $8, $9, $10, $11)
-       RETURNING ${TRACKING_SELECT}`,
-      [
-        params.userId,
-        organizationId,
-        params.symptomKey ?? null,
-        params.symptomTitle,
-        now,
-        params.symptomTypeRefId ?? null,
-        params.regionRefId ?? null,
-        params.side ?? null,
-        params.diagnosisText ?? null,
-        params.diagnosisRefId ?? null,
-        params.stageRefId ?? null,
-      ],
+       VALUES (${params.userId}::text, ${params.userId}::uuid, ${sql.param(organizationId)}::uuid, ${params.symptomKey ?? null}, ${params.symptomTitle}, true, ${now}, ${params.symptomTypeRefId ?? null}, ${params.regionRefId ?? null}, ${params.side ?? null}, ${params.diagnosisText ?? null}, ${params.diagnosisRefId ?? null}, ${params.stageRefId ?? null})
+       RETURNING ${sql.raw(TRACKING_SELECT)}`,
     );
     return rowToTracking(result.rows[0]);
   },
@@ -182,20 +162,20 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
       });
     }
     const now = new Date();
-    const result = await runWebappPgText<SymptomTrackingRow>(
-      `INSERT INTO symptom_trackings (
+    const result = await runWebappSql<SymptomTrackingRow>(
+      getWebappSqlDb(),
+      sql`INSERT INTO symptom_trackings (
          user_id, platform_user_id, symptom_key, symptom_title, is_active, updated_at,
          symptom_type_ref_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id, stage_ref_id
        )
-       VALUES ($1::text, $1::uuid, 'general_wellbeing', $2, true, $3, $4::uuid, NULL, NULL, NULL, NULL, NULL)
+       VALUES (${params.userId}::text, ${params.userId}::uuid, 'general_wellbeing', ${params.symptomTitle}, true, ${now}, ${params.symptomTypeRefId}::uuid, NULL, NULL, NULL, NULL, NULL)
        ON CONFLICT (platform_user_id) WHERE (
          symptom_key = 'general_wellbeing'
          AND deleted_at IS NULL
          AND platform_user_id IS NOT NULL
        )
        DO UPDATE SET updated_at = symptom_trackings.updated_at
-       RETURNING ${TRACKING_SELECT}`,
-      [params.userId, params.symptomTitle, now, params.symptomTypeRefId],
+       RETURNING ${sql.raw(TRACKING_SELECT)}`,
     );
     return rowToTracking(result.rows[0]);
   },
@@ -209,20 +189,20 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
       });
     }
     const now = new Date();
-    const result = await runWebappPgText<SymptomTrackingRow>(
-      `INSERT INTO symptom_trackings (
+    const result = await runWebappSql<SymptomTrackingRow>(
+      getWebappSqlDb(),
+      sql`INSERT INTO symptom_trackings (
          user_id, platform_user_id, symptom_key, symptom_title, is_active, updated_at,
          symptom_type_ref_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id, stage_ref_id
        )
-       VALUES ($1::text, $1::uuid, 'warmup_feeling', $2, true, $3, $4::uuid, NULL, NULL, NULL, NULL, NULL)
+       VALUES (${params.userId}::text, ${params.userId}::uuid, 'warmup_feeling', ${params.symptomTitle}, true, ${now}, ${params.symptomTypeRefId}::uuid, NULL, NULL, NULL, NULL, NULL)
        ON CONFLICT (platform_user_id) WHERE (
          symptom_key = 'warmup_feeling'
          AND deleted_at IS NULL
          AND platform_user_id IS NOT NULL
        )
        DO UPDATE SET updated_at = symptom_trackings.updated_at
-       RETURNING ${TRACKING_SELECT}`,
-      [params.userId, params.symptomTitle, now, params.symptomTypeRefId],
+       RETURNING ${sql.raw(TRACKING_SELECT)}`,
     );
     return rowToTracking(result.rows[0]);
   },
@@ -232,13 +212,13 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   },
 
   async listTrackings(userId, activeOnly = true) {
-    const result = await runWebappPgText<SymptomTrackingRow>(
-      `SELECT ${TRACKING_SELECT}
+    const result = await runWebappSql<SymptomTrackingRow>(
+      getWebappSqlDb(),
+      sql`SELECT ${sql.raw(TRACKING_SELECT)}
        FROM symptom_trackings t
-       WHERE ${userMatchSql('t', 1)} AND deleted_at IS NULL
-       ${activeOnly ? 'AND is_active = true' : ''}
+       WHERE ${platformUserMatchSql('t', userId)} AND deleted_at IS NULL
+       ${sql.raw(activeOnly ? 'AND is_active = true' : '')}
        ORDER BY updated_at DESC`,
-      [userId],
     );
     return result.rows.map(rowToTracking);
   },
@@ -267,51 +247,34 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
       );
       const row = result.rows[0]?.entry;
       if (!row) throw new Error('current_patient_symptom_entry_rejected');
-      const tracking = await runWebappPgText<{ symptom_title: string }>(
-        `SELECT symptom_title FROM symptom_trackings WHERE id = $1`,
-        [params.trackingId],
+      const tracking = await runWebappSql<{ symptom_title: string }>(
+        getWebappSqlDb(),
+        sql`SELECT symptom_title FROM symptom_trackings WHERE id = ${params.trackingId}`,
       );
       return rowToEntry({ ...row, symptom_title: tracking.rows[0]?.symptom_title });
     }
     const ppcId = params.patientPracticeCompletionId ?? null;
     const result =
       ppcId != null && ppcId !== ''
-        ? await runWebappPgText<SymptomEntryRow>(
-            `INSERT INTO symptom_entries (
+        ? await runWebappSql<SymptomEntryRow>(
+            getWebappSqlDb(),
+            sql`INSERT INTO symptom_entries (
                user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes,
                patient_practice_completion_id
              )
-             VALUES ($1::text, $1::uuid, $2, $3, $4, $5, $6, $7, $8::uuid)
+             VALUES (${params.userId}::text, ${params.userId}::uuid, ${params.trackingId}, ${params.value0_10}, ${params.entryType}, ${recordedAt}, ${params.source}, ${params.notes ?? null}, ${ppcId}::uuid)
              RETURNING id, user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes, created_at`,
-            [
-              params.userId,
-              params.trackingId,
-              params.value0_10,
-              params.entryType,
-              recordedAt,
-              params.source,
-              params.notes ?? null,
-              ppcId,
-            ],
           )
-        : await runWebappPgText<SymptomEntryRow>(
-            `INSERT INTO symptom_entries (user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes)
-             VALUES ($1::text, $1::uuid, $2, $3, $4, $5, $6, $7)
+        : await runWebappSql<SymptomEntryRow>(
+            getWebappSqlDb(),
+            sql`INSERT INTO symptom_entries (user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes)
+             VALUES (${params.userId}::text, ${params.userId}::uuid, ${params.trackingId}, ${params.value0_10}, ${params.entryType}, ${recordedAt}, ${params.source}, ${params.notes ?? null})
              RETURNING id, user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes, created_at`,
-            [
-              params.userId,
-              params.trackingId,
-              params.value0_10,
-              params.entryType,
-              recordedAt,
-              params.source,
-              params.notes ?? null,
-            ],
           );
     const row = result.rows[0]!;
-    const tracking = await runWebappPgText<{ symptom_title: string }>(
-      `SELECT symptom_title FROM symptom_trackings WHERE id = $1`,
-      [params.trackingId],
+    const tracking = await runWebappSql<{ symptom_title: string }>(
+      getWebappSqlDb(),
+      sql`SELECT symptom_title FROM symptom_trackings WHERE id = ${params.trackingId}`,
     );
     return rowToEntry({
       ...row,
@@ -320,40 +283,40 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   },
 
   async listEntries(userId, limit = 50) {
-    const result = await runWebappPgText<SymptomEntryRow>(
-      `SELECT e.id, e.user_id, e.platform_user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
+    const result = await runWebappSql<SymptomEntryRow>(
+      getWebappSqlDb(),
+      sql`SELECT e.id, e.user_id, e.platform_user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
               t.symptom_title
        FROM symptom_entries e
        JOIN symptom_trackings t ON t.id = e.tracking_id
-       WHERE ${userMatchSql('e', 1)} AND t.deleted_at IS NULL
+       WHERE ${platformUserMatchSql('e', userId)} AND t.deleted_at IS NULL
        ORDER BY e.recorded_at DESC
-       LIMIT $2`,
-      [userId, limit],
+       LIMIT ${limit}`,
     );
     return result.rows.map(rowToEntry);
   },
 
   async getTrackingForUser(params) {
-    const result = await runWebappPgText<SymptomTrackingRow>(
-      `SELECT ${TRACKING_SELECT}
+    const result = await runWebappSql<SymptomTrackingRow>(
+      getWebappSqlDb(),
+      sql`SELECT ${sql.raw(TRACKING_SELECT)}
        FROM symptom_trackings
-       WHERE id = $1 AND ${userMatchSql(null, 2)} AND deleted_at IS NULL`,
-      [params.trackingId, params.userId],
+       WHERE id = ${params.trackingId} AND ${platformUserMatchSql(null, params.userId)} AND deleted_at IS NULL`,
     );
     return result.rows[0] ? rowToTracking(result.rows[0]) : null;
   },
 
   async listEntriesForTrackingInRange(params) {
-    const result = await runWebappPgText<SymptomEntryRow>(
-      `SELECT e.id, e.user_id, e.platform_user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
+    const result = await runWebappSql<SymptomEntryRow>(
+      getWebappSqlDb(),
+      sql`SELECT e.id, e.user_id, e.platform_user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
               t.symptom_title
        FROM symptom_entries e
        JOIN symptom_trackings t ON t.id = e.tracking_id
-       WHERE ${userMatchSql('e', 1)} AND e.tracking_id = $2
-         AND e.recorded_at >= $3::timestamptz AND e.recorded_at < $4::timestamptz
+       WHERE ${platformUserMatchSql('e', params.userId)} AND e.tracking_id = ${params.trackingId}
+         AND e.recorded_at >= ${params.fromRecordedAt}::timestamptz AND e.recorded_at < ${params.toRecordedAtExclusive}::timestamptz
          AND t.deleted_at IS NULL
        ORDER BY e.recorded_at ASC`,
-      [params.userId, params.trackingId, params.fromRecordedAt, params.toRecordedAtExclusive],
     );
     return result.rows.map(rowToEntry);
   },
@@ -361,44 +324,42 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   async listEntriesForUserInRange(params) {
     const lim = Math.min(params.limit ?? 500, 2000);
     const tid = params.trackingId?.trim();
-    const result = await runWebappPgText<SymptomEntryRow>(
-      `SELECT e.id, e.user_id, e.platform_user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
+    const result = await runWebappSql<SymptomEntryRow>(
+      getWebappSqlDb(),
+      sql`SELECT e.id, e.user_id, e.platform_user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
               t.symptom_title
        FROM symptom_entries e
        JOIN symptom_trackings t ON t.id = e.tracking_id
-       WHERE ${userMatchSql('e', 1)}
-         AND e.recorded_at >= $2::timestamptz AND e.recorded_at < $3::timestamptz
+       WHERE ${platformUserMatchSql('e', params.userId)}
+         AND e.recorded_at >= ${params.fromRecordedAt}::timestamptz AND e.recorded_at < ${params.toRecordedAtExclusive}::timestamptz
          AND t.deleted_at IS NULL
-         ${tid ? 'AND e.tracking_id = $5::uuid' : ''}
+         ${tid ? sql`AND e.tracking_id = ${tid}::uuid` : sql``}
        ORDER BY e.recorded_at DESC
-       LIMIT $4`,
-      tid
-        ? [params.userId, params.fromRecordedAt, params.toRecordedAtExclusive, lim, tid]
-        : [params.userId, params.fromRecordedAt, params.toRecordedAtExclusive, lim],
+       LIMIT ${lim}`,
     );
     return result.rows.map(rowToEntry);
   },
 
   async minRecordedAtForTracking(params) {
-    const result = await runWebappPgText<{ m: Date | string | null }>(
-      `SELECT MIN(e.recorded_at) AS m
+    const result = await runWebappSql<{ m: Date | string | null }>(
+      getWebappSqlDb(),
+      sql`SELECT MIN(e.recorded_at) AS m
        FROM symptom_entries e
        JOIN symptom_trackings t ON t.id = e.tracking_id
-       WHERE ${userMatchSql('e', 1)} AND e.tracking_id = $2 AND t.deleted_at IS NULL`,
-      [params.userId, params.trackingId],
+       WHERE ${platformUserMatchSql('e', params.userId)} AND e.tracking_id = ${params.trackingId} AND t.deleted_at IS NULL`,
     );
     const m = result.rows[0]?.m;
     return nullableToIsoStringSafe(m);
   },
 
   async getEntryForUser(params) {
-    const result = await runWebappPgText<SymptomEntryRow>(
-      `SELECT e.id, e.user_id, e.platform_user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
+    const result = await runWebappSql<SymptomEntryRow>(
+      getWebappSqlDb(),
+      sql`SELECT e.id, e.user_id, e.platform_user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
               t.symptom_title
        FROM symptom_entries e
        JOIN symptom_trackings t ON t.id = e.tracking_id
-       WHERE e.id = $1 AND ${userMatchSql('e', 2)} AND t.deleted_at IS NULL`,
-      [params.entryId, params.userId],
+       WHERE e.id = ${params.entryId} AND ${platformUserMatchSql('e', params.userId)} AND t.deleted_at IS NULL`,
     );
     return result.rows[0] ? rowToEntry(result.rows[0]) : null;
   },
@@ -427,19 +388,12 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
       if (!result.rows[0]?.entry) throw new Error('current_patient_symptom_entry_not_editable');
       return;
     }
-    await runWebappPgText(
-      `UPDATE symptom_entries e
-       SET value_0_10 = $3, entry_type = $4, recorded_at = $5::timestamptz, notes = $6
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`UPDATE symptom_entries e
+       SET value_0_10 = ${params.value0_10}, entry_type = ${params.entryType}, recorded_at = ${params.recordedAt}::timestamptz, notes = ${params.notes}
        FROM symptom_trackings t
-       WHERE e.id = $2 AND ${userMatchSql('e', 1)} AND e.tracking_id = t.id AND t.deleted_at IS NULL`,
-      [
-        params.userId,
-        params.entryId,
-        params.value0_10,
-        params.entryType,
-        params.recordedAt,
-        params.notes,
-      ],
+       WHERE e.id = ${params.entryId} AND ${platformUserMatchSql('e', params.userId)} AND e.tracking_id = t.id AND t.deleted_at IS NULL`,
     );
   },
 
@@ -456,11 +410,11 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
       }
       return;
     }
-    await runWebappPgText(
-      `DELETE FROM symptom_entries e
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`DELETE FROM symptom_entries e
        USING symptom_trackings t
-       WHERE e.id = $2 AND ${userMatchSql('e', 1)} AND e.tracking_id = t.id AND t.deleted_at IS NULL`,
-      [params.userId, params.entryId],
+       WHERE e.id = ${params.entryId} AND ${platformUserMatchSql('e', params.userId)} AND e.tracking_id = t.id AND t.deleted_at IS NULL`,
     );
   },
 
@@ -473,10 +427,10 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
       });
       return;
     }
-    await runWebappPgText(
-      `UPDATE symptom_trackings SET symptom_title = $3, updated_at = now()
-       WHERE id = $2 AND ${userMatchSql(null, 1)} AND deleted_at IS NULL`,
-      [params.userId, params.trackingId, params.symptomTitle],
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`UPDATE symptom_trackings SET symptom_title = ${params.symptomTitle}, updated_at = now()
+       WHERE id = ${params.trackingId} AND ${platformUserMatchSql(null, params.userId)} AND deleted_at IS NULL`,
     );
   },
 
@@ -489,10 +443,10 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
       });
       return;
     }
-    await runWebappPgText(
-      `UPDATE symptom_trackings SET is_active = $3, updated_at = now()
-       WHERE id = $2 AND ${userMatchSql(null, 1)} AND deleted_at IS NULL`,
-      [params.userId, params.trackingId, params.isActive],
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`UPDATE symptom_trackings SET is_active = ${params.isActive}, updated_at = now()
+       WHERE id = ${params.trackingId} AND ${platformUserMatchSql(null, params.userId)} AND deleted_at IS NULL`,
     );
   },
 
@@ -505,10 +459,10 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
       });
       return;
     }
-    await runWebappPgText(
-      `UPDATE symptom_trackings SET is_active = false, deleted_at = now(), updated_at = now()
-       WHERE id = $2 AND ${userMatchSql(null, 1)} AND deleted_at IS NULL`,
-      [params.userId, params.trackingId],
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`UPDATE symptom_trackings SET is_active = false, deleted_at = now(), updated_at = now()
+       WHERE id = ${params.trackingId} AND ${platformUserMatchSql(null, params.userId)} AND deleted_at IS NULL`,
     );
   },
 };

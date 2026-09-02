@@ -1,3 +1,4 @@
+import { type SQL, sql } from 'drizzle-orm';
 /**
  * UX-05 slice B1 — PostgreSQL implementation of the organization brand publication port
  * (migration 0238_org_brand_publication.sql).
@@ -13,7 +14,8 @@
  * `public.be_organizations`. See the audit note on getCoreContext below.
  */
 import {
-  runWebappPgText,
+  getWebappSqlDb,
+  runWebappSql,
   runWebappTransaction,
   type WebappSqlExecutor,
 } from '@/infra/db/runWebappSql';
@@ -82,7 +84,7 @@ function mapRevision(row: RevisionRow): OrgBrandRevision {
  * owned by an organization (never a platform asset), owned by THIS organization, upload finished,
  * and an image. Anything else leaves `logo_media_ready = false` so presentation degrades.
  */
-const revisionSelectSql = `
+const revisionSelectSql = (organizationId: string, status: OrgBrandRevisionStatus): SQL => sql`
   SELECT
     revision.id::text AS id,
     revision.organization_id::text AS organization_id,
@@ -106,8 +108,8 @@ const revisionSelectSql = `
    AND logo.organization_id = revision.organization_id
    AND logo.status = 'ready'
    AND logo.mime_type LIKE 'image/%'
-  WHERE revision.organization_id = $1::uuid
-    AND revision.status = $2::text
+  WHERE revision.organization_id = ${organizationId}::uuid
+    AND revision.status = ${status}::text
   LIMIT 1
 `;
 
@@ -116,9 +118,10 @@ async function selectRevision(
   status: OrgBrandRevisionStatus,
   db?: WebappSqlExecutor,
 ): Promise<OrgBrandRevision | null> {
-  const { rows } = db
-    ? await runWebappPgText<RevisionRow>(revisionSelectSql, [organizationId, status], db)
-    : await runWebappPgText<RevisionRow>(revisionSelectSql, [organizationId, status]);
+  const { rows } = await runWebappSql<RevisionRow>(
+    db ?? getWebappSqlDb(),
+    revisionSelectSql(organizationId, status),
+  );
   const row = rows[0];
   return row ? mapRevision(row) : null;
 }
@@ -138,11 +141,11 @@ export function createPgOrgBrandingPort(): OrgBrandingPort {
      * fail-closed behaviour is unchanged.
      */
     async getCoreContext(organizationId: string): Promise<CoreOrganizationContext | null> {
-      const { rows } = await runWebappPgText<CoreRow>(
-        `SELECT core.organization_id::text AS organization_id, core.display_name, core.is_active
-         FROM app.read_org_brand_core_context($1::uuid) AS core
+      const { rows } = await runWebappSql<CoreRow>(
+        getWebappSqlDb(),
+        sql`SELECT core.organization_id::text AS organization_id, core.display_name, core.is_active
+         FROM app.read_org_brand_core_context(${organizationId}::uuid) AS core
          LIMIT 1`,
-        [organizationId],
       );
       const row = rows[0];
       if (!row) return null;
@@ -164,11 +167,12 @@ export function createPgOrgBrandingPort(): OrgBrandingPort {
     async saveDraft(input: SaveOrgBrandDraftInput): Promise<OrgBrandRevision> {
       // `uq_org_brand_revisions_draft` is the conflict target: one editable draft per organization.
       // The 0238 trigger rejects a logo that is not owned by this organization.
-      await runWebappPgText(
-        `INSERT INTO public.org_brand_revisions (
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`INSERT INTO public.org_brand_revisions (
            organization_id, status, display_name, patient_app_name, accent_token, logo_media_id,
            created_by_platform_user_id
-         ) VALUES ($1::uuid, 'draft', $2::text, $3::text, $4::text, $5::uuid, $6::uuid)
+         ) VALUES (${input.organizationId}::uuid, 'draft', ${input.displayName}::text, ${input.patientAppName}::text, ${input.accentToken}::text, ${input.logoMediaId}::uuid, ${input.actorPlatformUserId}::uuid)
          ON CONFLICT (organization_id) WHERE status = 'draft'
          DO UPDATE SET
            display_name = EXCLUDED.display_name,
@@ -176,14 +180,6 @@ export function createPgOrgBrandingPort(): OrgBrandingPort {
            accent_token = EXCLUDED.accent_token,
            logo_media_id = EXCLUDED.logo_media_id,
            updated_at = now()`,
-        [
-          input.organizationId,
-          input.displayName,
-          input.patientAppName,
-          input.accentToken,
-          input.logoMediaId,
-          input.actorPlatformUserId,
-        ],
       );
       const draft = await selectRevision(input.organizationId, 'draft');
       if (!draft) throw new Error('org_brand_draft_save_failed');
@@ -197,36 +193,33 @@ export function createPgOrgBrandingPort(): OrgBrandingPort {
       return runWebappTransaction(async (tx) => {
         // Nothing to publish must leave the live revision untouched: lock the draft FIRST, so a
         // publish without a draft can never archive (and thus unpublish) a live brand.
-        const draft = await runWebappPgText<{ id: string }>(
-          `SELECT id::text AS id
-           FROM public.org_brand_revisions
-           WHERE organization_id = $1::uuid AND status = 'draft'
-           FOR UPDATE`,
-          [input.organizationId],
+        const draft = await runWebappSql<{ id: string }>(
           tx,
+          sql`SELECT id::text AS id
+           FROM public.org_brand_revisions
+           WHERE organization_id = ${input.organizationId}::uuid AND status = 'draft'
+           FOR UPDATE`,
         );
         if (draft.rows.length === 0) return null;
 
         // `uq_org_brand_revisions_published` allows only one live revision, and the previous one is
         // retained as history rather than overwritten (§3.8).
-        await runWebappPgText(
-          `UPDATE public.org_brand_revisions
+        await runWebappSql(
+          tx,
+          sql`UPDATE public.org_brand_revisions
            SET status = 'archived',
                archived_at = now(),
-               archived_by_platform_user_id = $2::uuid
-           WHERE organization_id = $1::uuid AND status = 'published'`,
-          [input.organizationId, input.actorPlatformUserId],
-          tx,
+               archived_by_platform_user_id = ${input.actorPlatformUserId}::uuid
+           WHERE organization_id = ${input.organizationId}::uuid AND status = 'published'`,
         );
-        const { rows } = await runWebappPgText<{ id: string }>(
-          `UPDATE public.org_brand_revisions
+        const { rows } = await runWebappSql<{ id: string }>(
+          tx,
+          sql`UPDATE public.org_brand_revisions
            SET status = 'published',
                published_at = now(),
-               published_by_platform_user_id = $2::uuid
-           WHERE organization_id = $1::uuid AND status = 'draft'
+               published_by_platform_user_id = ${input.actorPlatformUserId}::uuid
+           WHERE organization_id = ${input.organizationId}::uuid AND status = 'draft'
            RETURNING id::text AS id`,
-          [input.organizationId, input.actorPlatformUserId],
-          tx,
         );
         if (rows.length === 0) return null;
         return selectRevision(input.organizationId, 'published', tx);
@@ -237,14 +230,14 @@ export function createPgOrgBrandingPort(): OrgBrandingPort {
       organizationId: string;
       actorPlatformUserId: string;
     }): Promise<boolean> {
-      const { rows } = await runWebappPgText<{ id: string }>(
-        `UPDATE public.org_brand_revisions
+      const { rows } = await runWebappSql<{ id: string }>(
+        getWebappSqlDb(),
+        sql`UPDATE public.org_brand_revisions
          SET status = 'archived',
              archived_at = now(),
-             archived_by_platform_user_id = $2::uuid
-         WHERE organization_id = $1::uuid AND status = 'published'
+             archived_by_platform_user_id = ${input.actorPlatformUserId}::uuid
+         WHERE organization_id = ${input.organizationId}::uuid AND status = 'published'
          RETURNING id::text AS id`,
-        [input.organizationId, input.actorPlatformUserId],
       );
       return rows.length > 0;
     },

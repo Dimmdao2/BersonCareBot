@@ -3,8 +3,9 @@ import type { MessengerPhoneBindDb } from '@bersoncare/platform-merge';
 import {
   getWebappSqlDb,
   getWebappSqlFromPgClient,
-  runWebappPgText,
+  runWebappSql,
   type WebappSqlExecutor,
+  webappSqlFromPgText,
 } from '@/infra/db/runWebappSql';
 import { startPoolTransaction } from '@/infra/db/withClient';
 
@@ -21,11 +22,13 @@ export type MessengerPhoneBindTransaction = {
 /**
  * Единственный переходник между портом вебаппа и `.query`-формой пакета `platform-merge`.
  * Пакет общий с интегратором и поэтому не может зависеть от drizzle-порта вебаппа; всё, что
- * выполняется, всё равно проходит через `runWebappPgText`.
+ * выполняется, всё равно проходит через `runWebappSql`.
  */
 export function asMessengerPhoneBindDb(db: WebappSqlExecutor): MessengerPhoneBindDb {
   return {
-    query: async (sql, values = []) => runWebappPgText(sql, values, db),
+    // The package compiled this `$n` text from its own typed fragments; see `pgEmailAuth`.
+    query: async (queryText, values = []) =>
+      runWebappSql(db, webappSqlFromPgText(queryText, values)),
   };
 }
 
