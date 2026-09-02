@@ -98,13 +98,7 @@ export const doctorStatCardInteractiveClass =
 
 /** Attached action segment on the right edge of an actionable KPI card. */
 export const doctorStatCardActionSegmentClass =
-  'h-full min-w-11 rounded-none border-l border-primary/30 bg-primary/5 px-3 text-primary hover:bg-primary/15';
-
-/** Keep the attached segment square on the left and equal to the KPI shell radius on the right. */
-export const doctorStatCardActionSegmentStyle = {
-  borderRadius:
-    '0 var(--doctor-kpi-radius, 8px) var(--doctor-kpi-radius, 8px) 0',
-} as const;
+  'h-full min-w-11 rounded-none border-0 border-l border-primary/30 bg-primary/5 px-3 text-primary hover:bg-primary/15';
 
 /** Section subtitle and helper text under headings. */
 export const doctorSectionSubtitleClass = doctorMetaTextClass;

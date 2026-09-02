@@ -6,7 +6,6 @@ import {
   doctorMetricValueClass,
   doctorInteractiveSurfaceButtonClass,
   doctorStatCardActionSegmentClass,
-  doctorStatCardActionSegmentStyle,
   doctorStatCardInteractiveClass,
   doctorStatCardShellClass,
   doctorStatCardShellWarningClass,
@@ -135,7 +134,6 @@ export function DoctorStatCard({
           type="button"
           variant="ghost"
           className={doctorStatCardActionSegmentClass}
-          style={doctorStatCardActionSegmentStyle}
           aria-label={actionLabel}
           onClick={onActionClick}
         >
