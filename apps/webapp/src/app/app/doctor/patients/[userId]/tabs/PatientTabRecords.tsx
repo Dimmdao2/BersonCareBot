@@ -124,20 +124,8 @@ function fmtWeekday(iso: string): string {
 }
 
 function formatNextAppointment(appointment: DisplayAppointment | undefined): string | undefined {
-  if (!appointment?.date || !appointment.time) return undefined;
-  const target = new Date(`${appointment.date}T00:00:00`);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const days = Math.round((target.getTime() - today.getTime()) / 86_400_000);
-  const dayLabel =
-    days === 0
-      ? 'сегодня'
-      : days === 1
-        ? 'завтра'
-        : days > 1 && days <= 7
-          ? `через ${days} ${days >= 2 && days <= 4 ? 'дня' : 'дней'}`
-          : fmtDate(appointment.date).slice(0, 5);
-  return `Следующий: ${dayLabel}, ${appointment.time}`;
+  if (!appointment?.date) return undefined;
+  return `След: ${fmtDate(appointment.date).slice(0, 5)}`;
 }
 
 function formatMoney(amountMinor: number | null | undefined, currency: string | null | undefined) {

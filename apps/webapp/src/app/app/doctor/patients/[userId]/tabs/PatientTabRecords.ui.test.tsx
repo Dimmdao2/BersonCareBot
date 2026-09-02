@@ -262,7 +262,7 @@ describe('patient records tab — a refused load is not a visit history', () => 
       />,
     );
 
-    const nextVisit = screen.getByText(/^Следующий:/);
+    const nextVisit = screen.getByText('След: 01.01');
     expect(nextVisit).toHaveClass('text-sm', 'font-normal', 'text-foreground/80');
   });
 });
