@@ -3,10 +3,8 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { StickyNotePlus } from 'lucide-react';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
-import { Button } from '@/shared/ui/doctor/primitives/button';
 import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorConversationListRow } from '@/modules/messaging/components/DoctorConversationListRow';
 import {
@@ -31,9 +29,7 @@ import {
 } from '@/modules/specialist-tasks/taskPriority';
 import { SpecialistTaskRow as TaskRow } from './clients/SpecialistTaskRow';
 import { SpecialistTaskDetailsDialog } from './clients/SpecialistTaskDetailsDialog';
-import { SpecialistTaskFormDialog } from './clients/SpecialistTaskFormDialog';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
-import { DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS } from '@/shared/ui/doctor/navChrome';
 
 type Props = Pick<
   TodayDashboardData,
@@ -128,7 +124,6 @@ export function DoctorTodayLeftKpiRow({
   // Keep KPI navigation on the same boundary so tablet widths do not open the mobile modal.
   const isDesktopViewport = useViewportMinWidth(768);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [taskCreateOpen, setTaskCreateOpen] = useState(false);
   // SEG-07: items сохраняем локально (список в KpiPreviewModal);
   // total берётся из exerciseCommentsTotalOverride, управляемого DoctorTodayDashboard,
   // чтобы синхронизировать с обработкой комментария в диалоге.
@@ -280,21 +275,6 @@ export function DoctorTodayLeftKpiRow({
         count={attentionTasks.length}
         showCount={false}
         desktopPresentation="right-sheet"
-        headerAction={
-          tasksAvailable ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS}
-              aria-label="Новая задача"
-              title="Новая задача"
-              onClick={() => setTaskCreateOpen(true)}
-            >
-              <StickyNotePlus className="size-[22px]" aria-hidden />
-            </Button>
-          ) : undefined
-        }
         items={attentionTasks}
         renderItem={(task) => (
           <li>
@@ -334,18 +314,6 @@ export function DoctorTodayLeftKpiRow({
         onComplete={onTaskComplete}
         onTaskSaved={onTaskSaved}
       />
-      {tasksAvailable ? (
-        <SpecialistTaskFormDialog
-          open={taskCreateOpen}
-          onOpenChange={setTaskCreateOpen}
-          patientUserId=""
-          editing={null}
-          onSaved={(task, patientDisplayName) => {
-            onTaskSaved(task, patientDisplayName);
-            setTaskCreateOpen(false);
-          }}
-        />
-      ) : null}
     </>
   );
 }

@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, FilePlus2, StickyNotePlus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FilePlus2, ListPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientSupportPanel';
@@ -1847,7 +1847,7 @@ export function PatientTabOverview({
               valueClassName={tasksNeedAttention ? 'text-destructive' : undefined}
               onClick={() => setTasksModalOpen(true)}
               valuePlacement="inline"
-              actionIcon={<StickyNotePlus className="size-5" aria-hidden />}
+              actionIcon={<ListPlus className="size-5" aria-hidden />}
               actionLabel="Добавить задачу"
               onActionClick={() => {
                 setEditingTask(null);
@@ -1874,6 +1874,7 @@ export function PatientTabOverview({
                       setTaskFormOpen(true);
                     }}
                   >
+                    <ListPlus className="size-4" aria-hidden />
                     Добавить
                   </Button>
                 </div>
