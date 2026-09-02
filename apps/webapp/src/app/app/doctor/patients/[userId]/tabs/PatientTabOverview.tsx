@@ -1503,6 +1503,20 @@ export function PatientTabOverview({
     data?.programStartedAt && clientNowIso
       ? elapsedProgramDays(data.programStartedAt, clientNowIso)
       : null;
+  const stageElapsedDays =
+    displayStage?.startedAt && clientNowIso
+      ? elapsedProgramDays(displayStage.startedAt, clientNowIso)
+      : null;
+  const stageTimingLabel =
+    stageElapsedDays != null
+      ? `${formatDaysRu(stageElapsedDays)}${
+          displayStage?.expectedDurationDays != null
+            ? ` (по плану ${formatDaysRu(displayStage.expectedDurationDays)})`
+            : ''
+        }`
+      : !displayStage?.startedAt && displayStage?.expectedDurationDays != null
+        ? `по плану ${formatDaysRu(displayStage.expectedDurationDays)}`
+        : null;
   const programControlIsOverdue =
     programControlDate && clientNowIso
       ? isBeforeCurrentCalendarDay(programControlDate, clientNowIso)
@@ -2019,8 +2033,10 @@ export function PatientTabOverview({
             <div className="flex items-center justify-between gap-2">
               <span className={doctorSectionTitleClass}>Программа ЛФК</span>
               <div className="flex shrink-0 items-center gap-2">
-                {programElapsedDays != null ? (
-                  <span className={doctorMetaTextClass}>{formatDaysRu(programElapsedDays)}</span>
+                {programElapsedDays != null && data?.programStartedAt ? (
+                  <span className={doctorMetaTextClass}>
+                    с {fmtDateShort(data.programStartedAt)} ({formatDaysRu(programElapsedDays)})
+                  </span>
                 ) : null}
                 {(data?.programActivity?.unreadCount ?? 0) > 0 && (
                   <span className="inline-flex shrink-0 items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
@@ -2045,10 +2061,8 @@ export function PatientTabOverview({
                   Этап {displayStageIndex + 1} из {data.programStages.length}
                 </span>
                 <div className="flex items-center gap-3">
-                  {displayStage.expectedDurationDays != null ? (
-                    <span className={doctorMetaTextClass}>
-                      {formatDaysRu(displayStage.expectedDurationDays)}
-                    </span>
+                  {stageTimingLabel ? (
+                    <span className={doctorMetaTextClass}>{stageTimingLabel}</span>
                   ) : null}
                   {programControlDate ? (
                     <span
