@@ -227,6 +227,13 @@
    владельцем `deploy:deploy`/mode `0600` подтверждены; до W10 destructive reset не запускался.
 6. После зелёной TEST-живой приёмки обновить DEV из принятого TEST-состояния отдельным repo-managed действием:
    данные/примеры сохраняются, но TEST runtime credentials, provider delivery и TEST env не переносятся в DEV.
+   **Entrypoint готов, действие ещё не выполнено (02.09.2026).** Канонический вход —
+   `bash deploy/host/refresh-dev-from-test.sh --check`, затем `--execute --confirm-refresh-dev-from-test`;
+   что переносится и что остаётся — `docs/ARCHITECTURE/DB_DUMPS/README.md`. Он оркестрирует существующие
+   примитивы (`dev-owned-settings-policy.mjs` над registry + TEST-overlay, `parse-dev-database-url.mjs`,
+   `generate-cli.mjs --shared-role-baseline`, единственный `reconcile-access.mjs`) и не содержит второго
+   генератора прав, мигратора, реестра секретов или runtime-overlay списка. Живой прогон отложен: он идёт
+   строго после шага 5 — принятого TEST, которого на 02.09 ещё нет. Готовность entrypoint не закрывает W10.
 
 ### Не приняты как отдельные дефекты
 

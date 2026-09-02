@@ -575,8 +575,16 @@ DEV идёт из репо (`pnpm dev` → webapp `:5200` + integrator `:4200`, 
   откатываемой транзакции и не оставляет fixture-сущностей.
 - Pending migrations применяются к существующей DEV-БД только через
   `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute`.
-- TEST→DEV destructive refresh удалён решением владельца 2026-07-30. Обычная разработка не копирует TEST
-  и не пересоздаёт DEV.
+- Обычная разработка не копирует TEST и не пересоздаёт DEV: существующая DEV-БД сохраняется, pending
+  миграции идут через `migrate-dev.sh` выше. Единственное исключение — отдельное owner-gated действие
+  после зелёной живой приёмки TEST: `bash deploy/host/refresh-dev-from-test.sh --check`, затем
+  `--execute --confirm-refresh-dev-from-test`. Оно переносит в DEV принятые данные/примеры и текущую
+  schema B из `bersoncarebot_test` и не переносит TEST env, TEST runtime credentials, provider delivery
+  и TEST channel/test-account allowlists; TEST роли, ACL и владельцы не копируются (`--no-owner
+  --no-acl`), DEV-owned состояние сохраняется и возвращается, права заново раскладывает штатный
+  declaration reconcile. Без явного решения владельца по конкретной приёмке entrypoint не запускают;
+  `--check` ничего не меняет, а прерванный `--execute` откатывается его же `--rollback` из локального
+  снимка DEV.
 - Данные из DEV можно использовать внутри команды агентов для разработки и UX-аудита. Не коммитить DB dumps,
   cookie jars и runtime exports. Запрет реальной доставки из §2 сохраняется независимо от состава DEV-БД.
 

@@ -59,9 +59,16 @@ declaration-owned capability JSON в `.env`/`apps/webapp/.env.dev`; deploy-only 
 BYPASSRLS и постоянных membership. Wrapper не управляет процессами: перед `--execute` оператор отдельно
 координирует единственный DEV server/writer и не поднимает второй Next server.
 
-TEST→DEV destructive refresh и DEV runtime-rehydrate удалены решением владельца 2026-07-30. Обычная разработка
-не копирует TEST, не пересоздаёт DEV и не запускает полный аудит стен. Security/RLS и DB-behavior проверяются
-живым проходом именованного DEV, затем release-gates именованного TEST; отдельной временной PostgreSQL нет.
+Обычная разработка не копирует TEST, не пересоздаёт DEV и не запускает полный аудит стен. Security/RLS и
+DB-behavior проверяются живым проходом именованного DEV, затем release-gates именованного TEST; отдельной
+временной PostgreSQL нет.
+
+Отдельное owner-gated исключение — обновление DEV из **принятого** TEST после зелёной живой приёмки:
+`bash deploy/host/refresh-dev-from-test.sh --check`, затем `--execute --confirm-refresh-dev-from-test`
+(канон и таблица «что переносится / что остаётся» — [`DB_DUMPS/README.md`](./DB_DUMPS/README.md)). Entrypoint
+работает только с двумя существующими именованными базами, не проигрывает историческую цепочку миграций, не
+переносит TEST env/credentials/allowlists и не копирует TEST роли, ACL и владельцев. Он не управляет процессами:
+единственный DEV writer оператор останавливает сам (`pnpm run dev:stop`), иначе wrapper громко отказывает.
 
 **Node:** ≥22 (`nvm use` по `.nvmrc`).
 
