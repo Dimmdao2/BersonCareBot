@@ -186,7 +186,16 @@ function createRuntime({
   for (const directory of [bin, join(root, 'apps/webapp'), join(root, 'deploy/host'), join(root, 'deploy/postgres/privileges')]) {
     mkdirSync(directory, { recursive: true });
   }
-  copyFileSync(refreshPath, join(root, 'deploy/host/refresh-dev-from-test.sh'));
+  const wrapperCopy = join(root, 'deploy/host/refresh-dev-from-test.sh');
+  const lockPath = join(root, 'dev-migrate.lock');
+  copyFileSync(refreshPath, wrapperCopy);
+  const wrapperSource = readFileSync(wrapperCopy, 'utf8');
+  const isolatedWrapperSource = wrapperSource.replace(
+    'HOST_LOCK="/tmp/bcb-dev-migrate.$(id -u).lock"',
+    `HOST_LOCK="${lockPath}"`,
+  );
+  assert.notEqual(isolatedWrapperSource, wrapperSource, 'fixture did not isolate the shared DEV lock');
+  writeFileSync(wrapperCopy, isolatedWrapperSource);
   copyFileSync(parserPath, join(root, 'deploy/host/parse-dev-database-url.mjs'));
   copyFileSync(streamPath, join(root, 'deploy/host/stream-canonical-sql.mjs'));
   writeFileSync(
@@ -306,7 +315,7 @@ exit "\${BCB_TEST_RECONCILE_STATUS:-0}"
     chmodSync(join(bin, command), 0o755);
   }
   chmodSync(join(root, 'deploy/host/migrate-dev.sh'), 0o755);
-  return { root, bin, capture, statePath };
+  return { root, bin, capture, lockPath, statePath };
 }
 
 function runRefresh(runtime, args, env = {}) {
@@ -728,9 +737,9 @@ test('the migration gate is handed this run\'s own held host-lock descriptor', (
   assert.equal(result.status, 0, result.output);
   const line = result.calls.split('\n').find((entry) => entry.startsWith('migrate-dev-lock-fd'));
   assert.ok(line, 'the migration gate was called without an inherited descriptor');
-  assert.match(
+  assert.equal(
     line,
-    /^migrate-dev-lock-fd <\/tmp\/bcb-dev-migrate\.\d+\.lock>$/u,
+    `migrate-dev-lock-fd <${runtime.lockPath}>`,
     'descriptor 9 in the migration gate is not the shared DEV database wrapper lock',
   );
 });

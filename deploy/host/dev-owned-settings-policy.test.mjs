@@ -89,10 +89,6 @@ test('a silently unmatched overlay shape is fatal, never an empty key set', () =
       label: 'UPDATE public.system_settings ... WHERE key = ...',
       sql: overlay.replaceAll('UPDATE public.system_settings SET', 'UPDATE other_table SET'),
     },
-    {
-      label: 'locked_keys TEXT[] := ARRAY[...]',
-      sql: overlay.replaceAll('locked_keys TEXT[] :=', 'other_keys TEXT[] :='),
-    },
   ];
   for (const mutilation of mutilations) {
     assert.throws(

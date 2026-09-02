@@ -104,7 +104,7 @@ function quotedKeys(chunk, label) {
 }
 
 /**
- * Read the TEST deploy's own environment overlay and return every key it owns. Each of the four
+ * Read the TEST deploy's own environment overlay and return every key it owns. Each data-mutation
  * shapes below must still be found: a silently-empty extraction would quietly hand TEST environment
  * policy to DEV, so an unmatched shape is fatal rather than "no keys of that kind".
  */
@@ -152,16 +152,6 @@ export function readTestEnvironmentOwnedKeys(sqlText = null) {
         )) {
           if (!SETTING_KEY_RE.test(match[1])) fail(`UPDATE yielded a non-key: ${match[1]}`);
           found.push(match[1]);
-        }
-        return found;
-      },
-    },
-    {
-      label: 'locked_keys TEXT[] := ARRAY[...]',
-      collect() {
-        const found = [];
-        for (const match of sql.matchAll(/locked_keys\s+TEXT\[\]\s*:=\s*ARRAY\s*\[([^\]]*)\]/giu)) {
-          found.push(...quotedKeys(match[1], 'locked_keys array'));
         }
         return found;
       },

@@ -45,7 +45,16 @@ function createRuntime({ migratorState, rollbackValidationStatus = 0 } = {}) {
   ]) {
     mkdirSync(directory, { recursive: true });
   }
-  copyFileSync(migratePath, join(root, 'deploy/host/migrate-dev.sh'));
+  const wrapperCopy = join(root, 'deploy/host/migrate-dev.sh');
+  const lockPath = join(root, 'dev-migrate.lock');
+  copyFileSync(migratePath, wrapperCopy);
+  const wrapperSource = readFileSync(wrapperCopy, 'utf8');
+  const isolatedWrapperSource = wrapperSource.replace(
+    'HOST_LOCK="/tmp/bcb-dev-migrate.$(id -u).lock"',
+    `HOST_LOCK="${lockPath}"`,
+  );
+  assert.notEqual(isolatedWrapperSource, wrapperSource, 'fixture did not isolate the shared DEV lock');
+  writeFileSync(wrapperCopy, isolatedWrapperSource);
   copyFileSync(parserPath, join(root, 'deploy/host/parse-dev-database-url.mjs'));
   copyFileSync(streamPath, join(root, 'deploy/host/stream-canonical-sql.mjs'));
   writeFileSync(join(root, 'deploy/postgres/privileges/migrate-local.mjs'), '');
@@ -104,7 +113,7 @@ esac
   writeFileSync(join(bin, 'psql'), '#!/usr/bin/env bash\nexit 97\n');
   for (const command of ['node', 'pnpm', 'psql', 'sudo']) chmodSync(join(bin, command), 0o755);
 
-  return { bin, capture, root };
+  return { bin, capture, lockPath, root };
 }
 
 function runWrapper(runtime, mode, extraArgs = []) {
@@ -455,8 +464,6 @@ test('migrate-dev has no implicit mode', () => {
 // inside its own success boundary while already holding this exact host lock.
 // ---------------------------------------------------------------------------
 
-const HOST_LOCK = `/tmp/bcb-dev-migrate.${process.getuid()}.lock`;
-
 function runShell(runtime, script) {
   return spawnSync('bash', ['-c', script], {
     encoding: 'utf8',
@@ -475,7 +482,7 @@ test('--host-lock-fd re-enters on the caller\'s own held descriptor instead of a
   // owns, so the migration runs -- no deadlock and no lock-skipping second runner.
   const result = runShell(
     runtime,
-    `exec 9>"${HOST_LOCK}"; flock -n 9 || exit 90; bash "${wrapperPath(runtime)}" --preflight --host-lock-fd 9`,
+    `exec 9>"${runtime.lockPath}"; flock -n 9 || exit 90; bash "${wrapperPath(runtime)}" --preflight --host-lock-fd 9`,
   );
   assert.notEqual(result.status, 90, 'the test could not take the shared host lock');
   assert.equal(result.status, 0, result.stderr);
@@ -489,7 +496,7 @@ test('--host-lock-fd still refuses when a third party holds the same lock', () =
   // must refuse rather than migrate beside the holder.
   const result = runShell(
     runtime,
-    `( flock -n 8 || exit 90; bash "${wrapperPath(runtime)}" --preflight --host-lock-fd 9 ) 8>"${HOST_LOCK}" 9<"${HOST_LOCK}"`,
+    `( flock -n 8 || exit 90; bash "${wrapperPath(runtime)}" --preflight --host-lock-fd 9 ) 8>"${runtime.lockPath}" 9<"${runtime.lockPath}"`,
   );
   assert.notEqual(result.status, 90, 'the test could not take the shared host lock');
   assert.notEqual(result.status, 0);
@@ -523,7 +530,7 @@ test('--host-lock-fd rejects a value that is not an inheritable descriptor numbe
   }
   const twice = runShell(
     runtime,
-    `exec 9>"${HOST_LOCK}"; flock -n 9 || exit 90; bash "${wrapperPath(runtime)}" --preflight --host-lock-fd 9 --host-lock-fd 9`,
+    `exec 9>"${runtime.lockPath}"; flock -n 9 || exit 90; bash "${wrapperPath(runtime)}" --preflight --host-lock-fd 9 --host-lock-fd 9`,
   );
   assert.notEqual(twice.status, 0);
   assert.match(twice.stderr, /--host-lock-fd may be provided only once/u);
