@@ -24,7 +24,10 @@ import {
 } from '../infra/principal/organizationPrincipal.js';
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { recordOperatorFailureIncident } from '../infra/operatorIncident/reportOperatorFailure.js';
-import { getSmscRuntimeConfig, getTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
+import {
+  getSmscRuntimeConfig,
+  getTelegramRuntimeConfig,
+} from '../infra/adapters/integrationRuntimeConfig.js';
 
 /** Public response shape for the health endpoint. */
 export type HealthResponse = {
@@ -34,7 +37,7 @@ export type HealthResponse = {
 
 function createResolveOrganizationIdForMessengerIdentity(): (
   externalId: string,
-    resource: 'telegram' | 'max' | 'vk',
+  resource: 'telegram' | 'max' | 'vk',
 ) => Promise<string | null> {
   return async (externalId, resource) => {
     try {
@@ -44,7 +47,7 @@ function createResolveOrganizationIdForMessengerIdentity(): (
       );
     } catch (error) {
       reportIntegratorIsolationFailure(error);
-      return null;
+      throw error;
     }
   };
 }
@@ -61,7 +64,7 @@ function createResolveDedicatedClinicBotOrganization(
       );
     } catch (error) {
       reportIntegratorIsolationFailure(error);
-      return null;
+      throw error;
     }
   };
 }

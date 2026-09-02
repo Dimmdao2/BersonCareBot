@@ -1433,8 +1433,6 @@ const integratorSupportBridge = createIntegratorSupportBridge({
       { organizationId, source: 'integrator.support-canonical-write' },
       fn,
     ),
-  notifyDoctorOfPatientMessage: notifyDoctorOfPatientMessageImpl,
-  resolvePatientLabel: resolvePatientLabelForDoctorNotify,
 });
 const patientMessagingService = createPatientMessagingService(supportCommunicationPort, {
   isUserMessagingBlocked: (uid) => doctorClientsPort.isClientMessagingBlocked(uid),

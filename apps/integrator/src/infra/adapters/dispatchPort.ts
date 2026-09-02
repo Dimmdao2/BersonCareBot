@@ -46,6 +46,7 @@ function isPreProviderAdapterFailure(error: unknown): boolean {
   return (
     /^(?:MAX|TELEGRAM|VK)_RUNTIME_CONFIG_UNAVAILABLE$/u.test(message) ||
     /^(?:MAX|TELEGRAM|VK|EMAIL|WEB_PUSH)_PAYLOAD_INVALID(?::|$)/u.test(message) ||
+    message.startsWith('WEB_PUSH_ACCESS_UNAVAILABLE:') ||
     message === 'EMAIL_NOT_CONFIGURED' ||
     message === 'WEB_PUSH_ORGANIZATION_PRINCIPAL_REQUIRED'
   );
@@ -284,9 +285,7 @@ export function createDefaultDispatchPort(deps: {
     options?: ClinicDeliveryCredentialResolveOptions,
   ) => Promise<ClinicDeliveryCredential | null>;
   /** Best-effort health recovery after a provider really accepted a delivery. */
-  onProviderDeliveryConfirmed?: (
-    integrationId: DispatchPlatformIntegrationId,
-  ) => Promise<void>;
+  onProviderDeliveryConfirmed?: (integrationId: DispatchPlatformIntegrationId) => Promise<void>;
 }): DispatchPort {
   return {
     async dispatchOutgoing(

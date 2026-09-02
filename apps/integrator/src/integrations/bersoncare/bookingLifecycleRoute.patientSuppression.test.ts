@@ -50,7 +50,7 @@ function basePayload() {
 
 function fakeWebappEventsPort(): WebappEventsPort {
   return {
-    notifyPatientWebPush: vi.fn(async () => undefined),
+    notifyPatientWebPush: vi.fn(async () => ({ ok: true, status: 200 })),
     materializeAppointmentReminders: vi.fn(async () => ({ ok: true, status: 200 })),
   } as unknown as WebappEventsPort;
 }
@@ -76,7 +76,10 @@ describe('booking.created: кто получает сообщение от ин�
         payload: { ...basePayload(), suppressPatientNotification: true },
       },
       { dispatchOutgoing } as unknown as DispatchPort,
-      { idempotencyPort: createInMemoryIdempotencyPort(), webappEventsPort: fakeWebappEventsPort() },
+      {
+        idempotencyPort: createInMemoryIdempotencyPort(),
+        webappEventsPort: fakeWebappEventsPort(),
+      },
     );
 
     // Пациент (telegram 123) от интегратора ничего не получает — его сообщение уже в очереди.
@@ -90,7 +93,10 @@ describe('booking.created: кто получает сообщение от ин�
     await handleBookingLifecycleEvent(
       { eventType: 'booking.created', idempotencyKey: 'legacy', payload: basePayload() },
       { dispatchOutgoing } as unknown as DispatchPort,
-      { idempotencyPort: createInMemoryIdempotencyPort(), webappEventsPort: fakeWebappEventsPort() },
+      {
+        idempotencyPort: createInMemoryIdempotencyPort(),
+        webappEventsPort: fakeWebappEventsPort(),
+      },
     );
 
     expect(recipientsOf(dispatchOutgoing)).toContain('123');

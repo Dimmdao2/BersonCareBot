@@ -143,7 +143,9 @@ export class BookingLifecycleStepFailure extends Error {
   readonly steps: readonly BookingLifecycleStepName[];
 
   constructor(failures: readonly { step: BookingLifecycleStepName; error: unknown }[]) {
-    super(failures.map((failure) => `${failure.step}: ${errorMessageOf(failure.error)}`).join('; '));
+    super(
+      failures.map((failure) => `${failure.step}: ${errorMessageOf(failure.error)}`).join('; '),
+    );
     this.name = 'BookingLifecycleStepFailure';
     this.steps = failures.map((failure) => failure.step);
   }
@@ -173,7 +175,8 @@ async function runBookingLifecycleSteps(
   const failures: { step: BookingLifecycleStepName; error: unknown }[] = [];
   for (const step of steps) {
     const storageKey = lifecycleDedupStorageKey(key, step.name);
-    if (!(await idempotencyPort.tryAcquire(storageKey, BOOKING_EVENT_DEDUP_TTL_MS / 1000))) continue;
+    if (!(await idempotencyPort.tryAcquire(storageKey, BOOKING_EVENT_DEDUP_TTL_MS / 1000)))
+      continue;
     try {
       await step.run();
     } catch (error) {
@@ -386,7 +389,11 @@ async function sendDoctorMessage(
         outboundMessageClass: 'routine_product',
         outboundCapability: 'essential_delivery',
       },
-      payload: { recipient: { chatId }, message: { text }, delivery: { channels: ['telegram'], maxAttempts: 3 } },
+      payload: {
+        recipient: { chatId },
+        message: { text },
+        delivery: { channels: ['telegram'], maxAttempts: 3 },
+      },
     });
   }
   for (const userId of recipients.max) {
@@ -399,7 +406,11 @@ async function sendDoctorMessage(
         outboundMessageClass: 'routine_product',
         outboundCapability: 'essential_delivery',
       },
-      payload: { recipient: maxUserRecipient(userId), message: { text }, delivery: { channels: ['max'], maxAttempts: 3 } },
+      payload: {
+        recipient: maxUserRecipient(userId),
+        message: { text },
+        delivery: { channels: ['max'], maxAttempts: 3 },
+      },
     });
   }
 }
@@ -516,10 +527,11 @@ export async function scheduleBookingReminders(input: {
   const generationKey = `${input.appointmentId}:${input.slotStartIso}`;
   const result = await input.webappEventsPort.materializeAppointmentReminders({
     body,
-    idempotencyKey: `arm:${generationKey}:${input.cancelPending ? 'cancel' : 'replace'}:${eventKeyHash}`.slice(
-      0,
-      240,
-    ),
+    idempotencyKey:
+      `arm:${generationKey}:${input.cancelPending ? 'cancel' : 'replace'}:${eventKeyHash}`.slice(
+        0,
+        240,
+      ),
   });
   if (!result.ok) {
     // 19.08: отказ материализации тонул в 502 и трёх повторах — напоминания не появлялись, и об
@@ -576,13 +588,12 @@ async function sendBookingWebPush(input: {
     stableKey: input.stableKey,
     ...(input.nowIso ? { nowIso: input.nowIso } : {}),
   });
-  try {
-    await input.webappEventsPort.notifyPatientWebPush({
-      body,
-      idempotencyKey: `pwp:${input.stableKey}`.slice(0, 240),
-    });
-  } catch (err) {
-    logger.warn({ err, stableKey: input.stableKey }, 'booking web push notify failed');
+  const result = await input.webappEventsPort.notifyPatientWebPush({
+    body,
+    idempotencyKey: `pwp:${input.stableKey}`.slice(0, 240),
+  });
+  if (!result.ok) {
+    throw new Error(`BOOKING_WEB_PUSH_NOTIFY_FAILED:${result.status}:${result.error ?? 'unknown'}`);
   }
 }
 
@@ -677,7 +688,10 @@ function bookingLifecycleSteps(input: {
     run: () => trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort),
   };
 
-  const patientMessageStep = (eventId: string, text: () => Promise<string>): BookingLifecycleStep => ({
+  const patientMessageStep = (
+    eventId: string,
+    text: () => Promise<string>,
+  ): BookingLifecycleStep => ({
     name: 'patient_message',
     run: async () => {
       await sendLinkedChannelMessage({
@@ -690,7 +704,10 @@ function bookingLifecycleSteps(input: {
     },
   });
 
-  const doctorMessageStep = (eventId: string, text: () => Promise<string>): BookingLifecycleStep => ({
+  const doctorMessageStep = (
+    eventId: string,
+    text: () => Promise<string>,
+  ): BookingLifecycleStep => ({
     name: 'doctor_message',
     run: async () => {
       await sendDoctorMessage(dispatchPort, await text(), eventId, payload.organizationId);
@@ -788,7 +805,10 @@ function bookingLifecycleSteps(input: {
     if (payload.suppressPatientNotification !== true) {
       steps.push(
         patientMessageStep(`booking-cancelled:${bookingId}`, async () =>
-          resolvePatientMessageText(payload, patientCancelledText(payload, await displayTimeZone())),
+          resolvePatientMessageText(
+            payload,
+            patientCancelledText(payload, await displayTimeZone()),
+          ),
         ),
       );
       const cancelledPushVariant = resolvePatientPushVariant(payload, 'cancelled');
@@ -810,13 +830,19 @@ function bookingLifecycleSteps(input: {
   if (eventType === 'booking.rescheduled') {
     const steps: BookingLifecycleStep[] = [
       patientMessageStep(`booking-rescheduled:${bookingId}`, async () =>
-        resolvePatientMessageText(payload, patientRescheduledText(payload, await displayTimeZone())),
+        resolvePatientMessageText(
+          payload,
+          patientRescheduledText(payload, await displayTimeZone()),
+        ),
       ),
     ];
     if (shouldNotifyDoctor(payload)) {
       steps.push(
         doctorMessageStep(`booking-rescheduled:${bookingId}`, async () =>
-          resolveDoctorMessageText(payload, doctorRescheduledText(payload, await displayTimeZone())),
+          resolveDoctorMessageText(
+            payload,
+            doctorRescheduledText(payload, await displayTimeZone()),
+          ),
         ),
       );
     }

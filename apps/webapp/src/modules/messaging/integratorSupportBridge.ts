@@ -8,17 +8,6 @@ import {
   webappOrganizationConversationId,
   webappPlatformConversationId,
 } from '@/modules/messaging/supportConversationIds';
-import { logger, serializeError } from '@/infra/logging/logger';
-
-export type IntegratorSupportSyncMessageInput = {
-  platformUserId: string;
-  integratorMessageId: string;
-  text: string;
-  source: string;
-  createdAt: string;
-  externalChatId?: string | null;
-  externalMessageId?: string | null;
-};
 
 export type IntegratorSupportStatusInput = {
   integratorConversationId: string;
@@ -47,83 +36,8 @@ export function createIntegratorSupportBridge(deps: {
     verifiedOrganizationId?: string,
   ) => Promise<{ ok: true; organizationId: string } | { ok: false; error: string }>;
   withOrganizationPrincipal: <T>(organizationId: string, fn: () => Promise<T>) => Promise<T>;
-  notifyDoctorOfPatientMessage?: (input: {
-    organizationId: string;
-    platformUserId: string;
-    conversationId: string;
-    messageId: string;
-    messageText: string;
-    patientLabel: string;
-    source: 'webapp' | 'telegram' | 'max';
-  }) => Promise<void>;
-  resolvePatientLabel?: (platformUserId: string) => Promise<string>;
 }) {
   return {
-    async syncUserMessage(
-      input: IntegratorSupportSyncMessageInput,
-    ): Promise<
-      { ok: true; canonicalWrite: IntegratorSupportCanonicalWrite } | { ok: false; error: string }
-    > {
-      const trimmed = input.text.trim();
-      if (!trimmed) return { ok: false, error: 'empty' };
-      const platformUserId = input.platformUserId.trim();
-      if (!platformUserId) return { ok: false, error: 'missing_platform_user' };
-
-      const organization = await deps.resolvePatientOrganization(platformUserId);
-      if (!organization.ok) return organization;
-      const { organizationId } = organization;
-      const { conversationId, messageCreated } = await deps.withOrganizationPrincipal(
-        organizationId,
-        async () => {
-          const { id } = await deps.port.ensureWebappConversationForUser(platformUserId);
-          const appended = await deps.port.appendWebappMessage({
-            conversationId: id,
-            integratorMessageId: input.integratorMessageId,
-            senderRole: 'user',
-            text: trimmed,
-            source: input.source,
-            createdAt: input.createdAt,
-            organizationId,
-            externalChatId: input.externalChatId,
-            externalMessageId: input.externalMessageId,
-          });
-          return { conversationId: id, messageCreated: appended.created };
-        },
-      );
-
-      if (messageCreated && deps.notifyDoctorOfPatientMessage) {
-        const source: 'webapp' | 'telegram' | 'max' =
-          input.source === 'max' ? 'max' : input.source === 'telegram' ? 'telegram' : 'webapp';
-        const patientLabel = deps.resolvePatientLabel
-          ? await deps.resolvePatientLabel(platformUserId).catch(() => '')
-          : '';
-        deps
-          .notifyDoctorOfPatientMessage({
-            organizationId,
-            platformUserId,
-            conversationId,
-            messageId: input.integratorMessageId,
-            messageText: trimmed,
-            patientLabel: patientLabel.trim(),
-            source,
-          })
-          .catch((err: unknown) => {
-            logger.error(
-              { err: serializeError(err) },
-              '[integratorSupportBridge] doctor notify error',
-            );
-          });
-      }
-
-      return {
-        ok: true,
-        canonicalWrite: {
-          conversationId: webappPlatformConversationId(platformUserId),
-          organizationId,
-        },
-      };
-    },
-
     async setStatus(
       input: IntegratorSupportStatusInput,
     ): Promise<

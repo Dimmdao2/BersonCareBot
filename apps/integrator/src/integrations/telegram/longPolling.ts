@@ -93,7 +93,6 @@ async function runLoop(deps: TelegramWebhookDeps): Promise<void> {
     }
 
     for (const update of updates) {
-      offset = update.update_id + 1;
       const correlationId = newCorrelationId();
       const eventId = newEventId('incoming');
       const reqLogger = getRequestLogger(correlationId, { correlationId, eventId });
@@ -113,8 +112,11 @@ async function runLoop(deps: TelegramWebhookDeps): Promise<void> {
             logger: reqLogger,
           });
         });
+        offset = update.update_id + 1;
       } catch (err) {
-        reqLogger.error({ err }, 'Telegram long-polling: update processing failed (skipped)');
+        reqLogger.error({ err }, 'Telegram long-polling: update processing failed; retrying');
+        await sleep(ERROR_BACKOFF_MS);
+        break;
       }
     }
   }

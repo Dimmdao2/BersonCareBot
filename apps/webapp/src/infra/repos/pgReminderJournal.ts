@@ -12,11 +12,7 @@
  * journal-log source to a fact-column source here.
  */
 import { sql } from 'drizzle-orm';
-import {
-  getWebappSqlDb,
-  runWebappSql,
-  runWebappTransaction,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql, runWebappTransaction } from '@/infra/db/runWebappSql';
 import type {
   ReminderJournalEntry,
   ReminderJournalPort,
@@ -160,91 +156,76 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
     },
 
     async recordDone(_platformUserId, integratorOccurrenceId, _displayTimeZone) {
-      try {
-        return await runWebappTransaction(async (tx) => {
-          const result = await runWebappSql<{
-            done_at: string;
-            first_done_for_occurrence: boolean;
-            day_done_count: number;
-            day_sent_total: number;
-            day_fully_done: boolean;
-          }>(
-            tx,
-            sql`SELECT done_at::text, first_done_for_occurrence, day_done_count,
-                       day_sent_total, day_fully_done
-                FROM app.patient_done_reminder_occurrence(${integratorOccurrenceId}::text)`,
-          );
-          const row = result.rows[0];
-          if (!row) {
-            tx.rollback();
-            return { ok: false, error: 'not_found' } as const;
-          }
-          return {
-            ok: true,
-            occurrenceId: integratorOccurrenceId,
-            doneAt: row.done_at,
-            firstDoneForOccurrence: row.first_done_for_occurrence,
-            dayDoneCount: Number(row.day_done_count),
-            daySentTotal: Number(row.day_sent_total),
-            dayFullyDone: row.day_fully_done,
-          };
-        });
-      } catch (err) {
-        console.warn('[pgReminderJournal.recordDone]', err);
-        return { ok: false, error: 'not_found' };
-      }
+      return runWebappTransaction(async (tx) => {
+        const result = await runWebappSql<{
+          done_at: string;
+          first_done_for_occurrence: boolean;
+          day_done_count: number;
+          day_sent_total: number;
+          day_fully_done: boolean;
+        }>(
+          tx,
+          sql`SELECT done_at::text, first_done_for_occurrence, day_done_count,
+                     day_sent_total, day_fully_done
+              FROM app.patient_done_reminder_occurrence(${integratorOccurrenceId}::text)`,
+        );
+        const row = result.rows[0];
+        if (!row) {
+          tx.rollback();
+          return { ok: false, error: 'not_found' } as const;
+        }
+        return {
+          ok: true,
+          occurrenceId: integratorOccurrenceId,
+          doneAt: row.done_at,
+          firstDoneForOccurrence: row.first_done_for_occurrence,
+          dayDoneCount: Number(row.day_done_count),
+          daySentTotal: Number(row.day_sent_total),
+          dayFullyDone: row.day_fully_done,
+        };
+      });
     },
 
     async recordSnooze(platformUserId, integratorOccurrenceId, minutes) {
-      try {
-        return await runWebappTransaction(async (tx) => {
-          const snoozeAction = await runWebappSql<{ snoozed_until: string }>(
-            tx,
-            sql`SELECT snoozed_until::text
-                FROM app.patient_snooze_reminder_occurrence(
-                  ${platformUserId}::uuid,
-                  ${integratorOccurrenceId}::text,
-                  ${minutes}::integer
-                )`,
-          );
-          const snoozedUntil = snoozeAction.rows[0]?.snoozed_until;
-          if (!snoozedUntil) {
-            tx.rollback();
-            return { ok: false, error: 'not_found' } as const;
-          }
+      return runWebappTransaction(async (tx) => {
+        const snoozeAction = await runWebappSql<{ snoozed_until: string }>(
+          tx,
+          sql`SELECT snoozed_until::text
+              FROM app.patient_snooze_reminder_occurrence(
+                ${platformUserId}::uuid,
+                ${integratorOccurrenceId}::text,
+                ${minutes}::integer
+              )`,
+        );
+        const snoozedUntil = snoozeAction.rows[0]?.snoozed_until;
+        if (!snoozedUntil) {
+          tx.rollback();
+          return { ok: false, error: 'not_found' } as const;
+        }
 
-          return { ok: true, occurrenceId: integratorOccurrenceId, snoozedUntil };
-        });
-      } catch (err) {
-        console.warn('[pgReminderJournal.recordSnooze]', err);
-        return { ok: false, error: 'not_found' };
-      }
+        return { ok: true, occurrenceId: integratorOccurrenceId, snoozedUntil };
+      });
     },
 
     async recordSkip(platformUserId, integratorOccurrenceId, _reason) {
-      try {
-        return await runWebappTransaction(async (tx) => {
-          const skipAction = await runWebappSql<{ skipped_at: string }>(
-            tx,
-            sql`SELECT skipped_at::text
-                FROM app.patient_skip_reminder_occurrence(
-                  ${platformUserId}::uuid,
-                  ${integratorOccurrenceId}::text,
-                  NULL::text
-                )`,
-          );
-          const skippedAt = skipAction.rows[0]?.skipped_at;
-          if (!skippedAt) {
-            tx.rollback();
-            return { ok: false, error: 'not_found' } as const;
-          }
+      return runWebappTransaction(async (tx) => {
+        const skipAction = await runWebappSql<{ skipped_at: string }>(
+          tx,
+          sql`SELECT skipped_at::text
+              FROM app.patient_skip_reminder_occurrence(
+                ${platformUserId}::uuid,
+                ${integratorOccurrenceId}::text,
+                NULL::text
+              )`,
+        );
+        const skippedAt = skipAction.rows[0]?.skipped_at;
+        if (!skippedAt) {
+          tx.rollback();
+          return { ok: false, error: 'not_found' } as const;
+        }
 
-          return { ok: true, occurrenceId: integratorOccurrenceId, skippedAt };
-        });
-      } catch (err) {
-        console.warn('[pgReminderJournal.recordSkip]', err);
-        return { ok: false, error: 'not_found' };
-      }
+        return { ok: true, occurrenceId: integratorOccurrenceId, skippedAt };
+      });
     },
   };
 }

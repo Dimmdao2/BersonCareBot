@@ -148,6 +148,30 @@ INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
 
+-- ── 8. Owner clinic receives the reviewed TEST developer tariff ──────────────
+-- A fresh PROD dump can legitimately predate commercial assignment. Keep the product's
+-- tariff-less = blocked rule intact and make only the named TEST clinic suitable for the required
+-- live walkthrough. The tariff itself is part of the reviewed target baseline, not invented here.
+UPDATE public.be_organizations
+SET tariff_id = 'd1156dc6-e71e-4225-ad94-93c9d423c9e1'::uuid,
+    updated_at = statement_timestamp()
+WHERE id = 'a0000000-0000-4000-8000-000000000001'::uuid;
+
+DO $test_owner_clinic_tariff_gate$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.be_organizations organization
+    JOIN public.saas_tariffs tariff ON tariff.id = organization.tariff_id
+    WHERE organization.id = 'a0000000-0000-4000-8000-000000000001'::uuid
+      AND tariff.id = 'd1156dc6-e71e-4225-ad94-93c9d423c9e1'::uuid
+      AND tariff.is_active = true
+  ) THEN
+    RAISE EXCEPTION 'named TEST owner clinic is not assigned the reviewed developer tariff';
+  END IF;
+END
+$test_owner_clinic_tariff_gate$;
+
 -- The TEST settings lock function and trigger are schema-B objects. This data overlay must not replay
 -- their bodies after the snapshot/migrations: object definitions have one owner, while this file only
 -- normalizes TEST data. Retired env-owned keys have no rows after the forward migration, so their names

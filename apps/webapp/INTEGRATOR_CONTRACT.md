@@ -500,12 +500,6 @@ fail-closed конфигурацию из глобального `public.system_
 
 **Headers:** `x-bersoncare-timestamp`, `x-bersoncare-signature`, `x-bersoncare-idempotency-key` (как у других signed M2M).
 
-### `POST /api/integrator/support/sync-user-message`
-
-Входящее сообщение пациента из бота в thread `webapp:platform:{platformUserId}`. После записи в thread — уведомление staff (doctor/admin). **Канон каналов:** [`docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md`](../../docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md) — **Web Push основной**; topics `doctor_patient_messages` / `doctor_patient_program_notes`: по умолчанию **`web_push` → `telegram` → `max`** (при подписке/привязках); матрица `/app/settings`; env `doctor_telegram_ids` / `admin_telegram_ids` — fallback **только** для telegram/max.
-
----
-
 ## Future Extensions
 
 The contract is intentionally narrow so the services can evolve independently.

@@ -360,7 +360,11 @@ export async function registerBersoncareRelayOutboundRoute(
         );
         return reply.code(200).send({ ok: true, status: 'skipped' });
       }
-      if (db && parsed.channel === 'web_push' && dispatchResult.webPushOutcome?.status === 'failed') {
+      if (
+        db &&
+        parsed.channel === 'web_push' &&
+        dispatchResult.webPushOutcome?.status === 'failed'
+      ) {
         const topicCode =
           typeof parsed.metadata?.pushExtras === 'object' && parsed.metadata.pushExtras !== null
             ? String((parsed.metadata.pushExtras as Record<string, unknown>).topicCode ?? '') ||
@@ -387,6 +391,10 @@ export async function registerBersoncareRelayOutboundRoute(
           metadata: dispatchResult.webPushOutcome ?? {},
         });
       }
+      if (parsed.channel === 'web_push' && dispatchResult.webPushOutcome?.status === 'failed') {
+        await idempotencyPort.release?.(dedupKey);
+        return reply.code(502).send({ ok: false, error: 'dispatch_failed' });
+      }
       logger.info(
         {
           channel: parsed.channel,
@@ -395,7 +403,13 @@ export async function registerBersoncareRelayOutboundRoute(
         },
         'relay-outbound: dispatched',
       );
-      return reply.code(200).send({ ok: true, status: 'accepted' });
+      return reply.code(200).send({
+        ok: true,
+        status:
+          parsed.channel === 'web_push' && dispatchResult.webPushOutcome?.status === 'skipped'
+            ? 'skipped'
+            : 'accepted',
+      });
     } catch (err) {
       inFlight.delete(dedupKey);
       await idempotencyPort.release?.(dedupKey);

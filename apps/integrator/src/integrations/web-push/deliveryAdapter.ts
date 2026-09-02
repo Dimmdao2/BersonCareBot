@@ -89,34 +89,6 @@ export function createWebPushDeliveryAdapter(deps: {
         webPushAccessPort.getVapidCredentials(organizationId),
       ]);
 
-      if (!vapid) {
-        logger.warn(
-          { scope: 'web_push', event: 'web_push_vapid_missing', pushUserId },
-          '[web-push] VAPID credentials not configured or unavailable — skipping push',
-        );
-        return {
-          webPushOutcome: {
-            status: 'skipped',
-            reason: 'vapid_missing',
-            delivered: 0,
-            errors: 0,
-            deactivated: 0,
-          },
-        };
-      }
-
-      if (subscriptions === null) {
-        return {
-          webPushOutcome: {
-            status: 'failed',
-            reason: 'subscriptions_unavailable',
-            delivered: 0,
-            errors: 1,
-            deactivated: 0,
-          },
-        };
-      }
-
       if (subscriptions.length === 0) {
         logger.info(
           { scope: 'web_push', event: 'web_push_no_subscriptions', pushUserId },

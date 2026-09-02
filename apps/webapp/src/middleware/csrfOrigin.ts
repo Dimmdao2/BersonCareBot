@@ -14,7 +14,6 @@ export const INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS = [
   '/api/integrator/support/delivery-attempt',
   '/api/integrator/support/question',
   '/api/integrator/support/status',
-  '/api/integrator/support/sync-user-message',
   '/api/integrator/web-push/subscriptions/delete',
 ] as const;
 
@@ -33,11 +32,7 @@ const internalBearerPaths: ReadonlySet<string> = new Set(internalJobBearerCsrfEx
 const unsafeMethods: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 export type CsrfMutationClass =
-  | 'browser'
-  | 'integrator_hmac'
-  | 'internal_bearer'
-  | 'payment_webhook'
-  | 'apple_form_post';
+  'browser' | 'integrator_hmac' | 'internal_bearer' | 'payment_webhook' | 'apple_form_post';
 
 export type CsrfOriginAllowProof =
   | 'safe_method'

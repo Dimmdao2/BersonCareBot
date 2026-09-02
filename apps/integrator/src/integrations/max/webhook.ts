@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { runWithDbBootstrapPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
-import { getRequestLogger, logger, newEventId } from '../../infra/observability/logger.js';
+import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
 import { env } from '../../config/env.js';
 import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import type { EventGateway } from '../../kernel/contracts/index.js';
@@ -54,12 +54,8 @@ async function resolveMaxOrganizationId(
 ): Promise<string | null> {
   const externalId = getSourceMaxExternalId(data);
   if (externalId && deps.resolveOrganizationIdForMessengerIdentity) {
-    try {
-      const perUserOrg = await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'max');
-      if (perUserOrg) return perUserOrg;
-    } catch {
-      // No enrollment/default fallback: a dedicated bot is resolved by its endpoint binding.
-    }
+    const perUserOrg = await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'max');
+    if (perUserOrg) return perUserOrg;
   }
   reqLogger.warn(
     { source: 'max' },
@@ -121,24 +117,10 @@ export async function buildMaxFacts(
     data.callback?.user?.user_id ?? data.message?.sender?.user_id ?? data.user?.user_id;
   const actorId =
     senderUserId != null ? String(senderUserId) : chatId != null ? String(chatId) : '';
-  let dbAdmin = false;
-  if (actorId && resolveMessengerStaffAdmin) {
-    try {
-      dbAdmin = await resolveMessengerStaffAdmin('max', actorId);
-    } catch (err) {
-      // Fail open like every other pre-routing lookup in this file (all try/catch and default), and
-      // mirroring the telegram sibling (telegram/webhook.ts buildAdminFacts): a transient DB/privilege
-      // hiccup here (e.g. the bare bootstrap login role 42501-ing on public.system_settings /
-      // app.current_org_id()) must degrade admin-detection to "not admin", not crash the whole inbound
-      // MAX pipeline. See deploy/postgres/integrator-login-public-identity-grants.sql for why granting
-      // this access is the WRONG fix (it took TEST down) and fail-open in code is the correct one.
-      logger.warn(
-        { err },
-        'buildMaxFacts: resolveMessengerStaffAdmin failed, treating as non-admin',
-      );
-      dbAdmin = false;
-    }
-  }
+  const dbAdmin =
+    actorId && resolveMessengerStaffAdmin
+      ? await resolveMessengerStaffAdmin('max', actorId)
+      : false;
   const isAdmin = dbAdmin;
   return {
     ...(await buildMaxLinks(data, appBaseUrl)),
@@ -170,15 +152,15 @@ export async function registerMaxWebhookRoutes(
       if (!config.enabled) return reply.code(503).send({ ok: false, error: 'Unavailable' });
       const headerSecret = request.headers['x-max-bot-api-secret'];
       if (!isWebhookSecretValid(headerSecret, config.webhookSecret)) {
-          reqLogger.warn('max webhook secret mismatch');
-          recordMaxWebhookOutcome({
-            source: 'max',
-            processedOk: false,
-            httpStatusReturned: 200,
-            errorClass: 'webhook_auth_failed',
-            detail: 'secret mismatch',
-          });
-          return reply.code(200).send({ ok: false, error: 'Forbidden' });
+        reqLogger.warn('max webhook secret mismatch');
+        recordMaxWebhookOutcome({
+          source: 'max',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_auth_failed',
+          detail: 'secret mismatch',
+        });
+        return reply.code(200).send({ ok: false, error: 'Forbidden' });
       }
 
       const parseResult = parseMaxUpdate(request.body);
@@ -251,11 +233,7 @@ export async function registerMaxWebhookRoutes(
       const preRouting = await runWithDbBootstrapPrincipal(
         { source: 'max-webhook:pre-routing' },
         async () => ({
-          facts: await buildMaxFacts(
-            parseResult.data,
-            getAppBaseUrl,
-            resolveMessengerStaffAdmin,
-          ),
+          facts: await buildMaxFacts(parseResult.data, getAppBaseUrl, resolveMessengerStaffAdmin),
           organizationId: await resolveMaxOrganizationId(data, deps, reqLogger),
         }),
       );
@@ -300,11 +278,11 @@ export async function registerMaxWebhookRoutes(
       recordMaxWebhookOutcome({
         source: 'max',
         processedOk: false,
-        httpStatusReturned: 200,
+        httpStatusReturned: 503,
         errorClass: 'webhook_internal_error',
         detail: msg,
       });
-      return reply.code(200).send({ ok: false, error: 'Internal error' });
+      return reply.code(503).send({ ok: false, error: 'Internal error' });
     }
   });
 
@@ -345,14 +323,15 @@ export async function registerMaxWebhookRoutes(
       const preRouting = await runWithDbBootstrapPrincipal(
         { source: 'max-dedicated-webhook:pre-routing' },
         async () => ({
-          facts: await buildMaxFacts(
-            data,
-            deps.getAppBaseUrl,
-            deps.resolveMessengerStaffAdmin,
-          ),
+          facts: await buildMaxFacts(data, deps.getAppBaseUrl, deps.resolveMessengerStaffAdmin),
         }),
       );
-      const event = maxIncomingToEvent({ incoming, correlationId, eventId, facts: preRouting.facts });
+      const event = maxIncomingToEvent({
+        incoming,
+        correlationId,
+        eventId,
+        facts: preRouting.facts,
+      });
       const result = await runWithOrganizationPrincipal(organizationId, () =>
         deps.eventGateway.handleIncomingEvent(event),
       );

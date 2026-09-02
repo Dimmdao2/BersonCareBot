@@ -27,13 +27,31 @@ function signPost(timestamp: string, body: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('base64url');
 }
 
+async function requireAccessConfig(
+  getAppBaseUrl: () => Promise<string>,
+  organizationId: string,
+): Promise<{ baseUrl: string; secret: string }> {
+  try {
+    const [baseUrl, secret] = await Promise.all([
+      getAppBaseUrl(),
+      Promise.resolve(integratorWebhookSecret()),
+    ]);
+    if (!baseUrl || !secret || !organizationId) {
+      throw new Error('missing_runtime_config');
+    }
+    return { baseUrl, secret };
+  } catch (cause) {
+    throw new Error('WEB_PUSH_ACCESS_UNAVAILABLE:runtime_config', { cause });
+  }
+}
+
 async function fetchSignedGet<T>(input: {
   baseUrl: string;
   path: string;
   query: Record<string, string>;
   secret: string;
   parseResponse: (data: Record<string, unknown>) => T | null;
-}): Promise<T | null> {
+}): Promise<T> {
   const { baseUrl, path, query, secret, parseResponse } = input;
   const search = new URLSearchParams(query).toString();
   const url = `${baseUrl.replace(/\/$/, '')}${path}${search ? `?${search}` : ''}`;
@@ -44,14 +62,21 @@ async function fetchSignedGet<T>(input: {
     'X-Bersoncare-Timestamp': timestamp,
     'X-Bersoncare-Signature': signature,
   };
+  let res: Response;
   try {
-    const res = await fetch(url, { method: 'GET', headers });
-    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok || data.ok !== true) return null;
-    return parseResponse(data);
-  } catch {
-    return null;
+    res = await fetch(url, { method: 'GET', headers });
+  } catch (cause) {
+    throw new Error('WEB_PUSH_ACCESS_UNAVAILABLE:network', { cause });
   }
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok || data.ok !== true) {
+    throw new Error(`WEB_PUSH_ACCESS_UNAVAILABLE:http_${res.status}`);
+  }
+  const parsed = parseResponse(data);
+  if (parsed === null) {
+    throw new Error('WEB_PUSH_ACCESS_UNAVAILABLE:invalid_response');
+  }
+  return parsed;
 }
 
 /**
@@ -69,10 +94,8 @@ export function createWebPushAccessPort(deps: {
     async getSubscriptionsForUser(
       pushUserId: string,
       organizationId: string,
-    ): Promise<WebPushSubscriptionPayload[] | null> {
-      const baseUrl = await getAppBaseUrl();
-      const secret = integratorWebhookSecret();
-      if (!baseUrl || !secret || !organizationId) return null;
+    ): Promise<WebPushSubscriptionPayload[]> {
+      const { baseUrl, secret } = await requireAccessConfig(getAppBaseUrl, organizationId);
 
       return fetchSignedGet<WebPushSubscriptionPayload[]>({
         baseUrl,
@@ -81,25 +104,22 @@ export function createWebPushAccessPort(deps: {
         secret,
         parseResponse: (data) => {
           if (!Array.isArray(data.subscriptions)) return null;
-          // Validate and narrow the subscription shape
-          return (data.subscriptions as unknown[]).filter(
-            (sub): sub is WebPushSubscriptionPayload => {
-              if (sub === null || typeof sub !== 'object') return false;
-              const s = sub as Record<string, unknown>;
-              if (typeof s.endpoint !== 'string') return false;
-              if (typeof s.keys !== 'object' || s.keys === null) return false;
-              const k = s.keys as Record<string, unknown>;
-              return typeof k.p256dh === 'string' && typeof k.auth === 'string';
-            },
-          );
+          const subscriptions = data.subscriptions as unknown[];
+          const valid = subscriptions.every((sub): sub is WebPushSubscriptionPayload => {
+            if (sub === null || typeof sub !== 'object') return false;
+            const s = sub as Record<string, unknown>;
+            if (typeof s.endpoint !== 'string') return false;
+            if (typeof s.keys !== 'object' || s.keys === null) return false;
+            const k = s.keys as Record<string, unknown>;
+            return typeof k.p256dh === 'string' && typeof k.auth === 'string';
+          });
+          return valid ? subscriptions : null;
         },
       });
     },
 
-    async getVapidCredentials(organizationId: string): Promise<VapidCredentials | null> {
-      const baseUrl = await getAppBaseUrl();
-      const secret = integratorWebhookSecret();
-      if (!baseUrl || !secret || !organizationId) return null;
+    async getVapidCredentials(organizationId: string): Promise<VapidCredentials> {
+      const { baseUrl, secret } = await requireAccessConfig(getAppBaseUrl, organizationId);
 
       return fetchSignedGet<VapidCredentials>({
         baseUrl,

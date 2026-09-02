@@ -60,7 +60,7 @@ function fakeWebappEventsPort(): WebappEventsPort & {
   materializeAppointmentReminders: ReturnType<typeof vi.fn>;
 } {
   return {
-    notifyPatientWebPush: vi.fn(async () => undefined),
+    notifyPatientWebPush: vi.fn(async () => ({ ok: true, status: 200 })),
     materializeAppointmentReminders: vi.fn(async () => ({ ok: true, status: 200 })),
   } as unknown as WebappEventsPort & {
     notifyPatientWebPush: ReturnType<typeof vi.fn>;
@@ -133,7 +133,9 @@ describe('D14(1): webapp decides whether to cancel pending reminders', () => {
       dispatchPort,
       { idempotencyPort: createInMemoryIdempotencyPort(), webappEventsPort },
     );
-    expect(JSON.parse(webappEventsPort.materializeAppointmentReminders.mock.calls[0]![0].body)).toMatchObject({
+    expect(
+      JSON.parse(webappEventsPort.materializeAppointmentReminders.mock.calls[0]![0].body),
+    ).toMatchObject({
       cancelPending: true,
       reminderPlan: { enabled: false, offsetsMinutes: [] },
     });
@@ -150,7 +152,9 @@ describe('D14(1): webapp decides whether to cancel pending reminders', () => {
       dispatchPort,
       { idempotencyPort: createInMemoryIdempotencyPort(), webappEventsPort },
     );
-    expect(JSON.parse(webappEventsPort.materializeAppointmentReminders.mock.calls[0]![0].body)).toMatchObject({
+    expect(
+      JSON.parse(webappEventsPort.materializeAppointmentReminders.mock.calls[0]![0].body),
+    ).toMatchObject({
       cancelPending: false,
     });
   });
@@ -163,7 +167,9 @@ describe('D14(1): webapp decides whether to cancel pending reminders', () => {
       dispatchPort,
       { idempotencyPort: createInMemoryIdempotencyPort(), webappEventsPort },
     );
-    expect(JSON.parse(webappEventsPort.materializeAppointmentReminders.mock.calls[0]![0].body)).toMatchObject({
+    expect(
+      JSON.parse(webappEventsPort.materializeAppointmentReminders.mock.calls[0]![0].body),
+    ).toMatchObject({
       cancelPending: true,
     });
   });
@@ -315,11 +321,9 @@ describe('D14(3): webapp decides the patient message text', () => {
   it('keeps the previous integrator-authored text verbatim when the field is absent', async () => {
     const dispatchPort = fakeDispatchPort();
     const payload = basePayload();
-    await handleBookingLifecycleEvent(
-      { eventType: 'booking.created', payload },
-      dispatchPort,
-      { idempotencyPort: createInMemoryIdempotencyPort() },
-    );
+    await handleBookingLifecycleEvent({ eventType: 'booking.created', payload }, dispatchPort, {
+      idempotencyPort: createInMemoryIdempotencyPort(),
+    });
     const dateLabel = formatBookingRuDateTime(payload.slotStart, 'UTC');
     expect(patientTextSentTo(dispatchPort, 'booking-created')).toBe(
       `Запись подтверждена: ${dateLabel}\nОчный приём`,
@@ -348,10 +352,7 @@ describe('D14(4): webapp decides whether/what to notify the doctor', () => {
     vi.clearAllMocks();
   });
 
-  function doctorTextSentTo(
-    dispatchPort: DispatchPort,
-    eventIdPrefix: string,
-  ): string | undefined {
+  function doctorTextSentTo(dispatchPort: DispatchPort, eventIdPrefix: string): string | undefined {
     const calls = (dispatchPort.dispatchOutgoing as ReturnType<typeof vi.fn>).mock.calls as [
       { meta: { eventId: string }; payload: { message: { text: string } } },
     ][];
@@ -435,11 +436,9 @@ describe('D14(4): webapp decides whether/what to notify the doctor', () => {
   it('keeps the previous always-notify behavior with the previous integrator text when both fields are absent', async () => {
     const dispatchPort = fakeDispatchPort();
     const payload = basePayload();
-    await handleBookingLifecycleEvent(
-      { eventType: 'booking.created', payload },
-      dispatchPort,
-      { idempotencyPort: createInMemoryIdempotencyPort() },
-    );
+    await handleBookingLifecycleEvent({ eventType: 'booking.created', payload }, dispatchPort, {
+      idempotencyPort: createInMemoryIdempotencyPort(),
+    });
     const dateLabel = formatBookingRuDateTime(payload.slotStart, 'UTC');
     expect(doctorTextSentTo(dispatchPort, 'booking-created')).toBe(
       `Новая запись: ${payload.contactName}, ${payload.contactPhone}\nДата: ${dateLabel}`,

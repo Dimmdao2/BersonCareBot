@@ -4,13 +4,7 @@ import type { IntegratorSupportOwnershipPort } from '@/modules/messaging/ports';
 import type { IntegratorSupportQuestionOwnershipPort } from '@/modules/messaging/ports';
 
 describe('integrator support ownership bridge', () => {
-  it('opens the organization conversation, records the complete message, and asks integrator delivery once', async () => {
-    const ensure = vi.fn().mockResolvedValue({ id: 'conversation-db-id' });
-    const append = vi
-      .fn()
-      .mockResolvedValueOnce({ id: 'message-db-id', created: true })
-      .mockResolvedValueOnce({ id: 'message-db-id', created: false });
-    const notify = vi.fn().mockResolvedValue(undefined);
+  it('updates conversation status under the resolved organization', async () => {
     const setStatus = vi.fn().mockResolvedValue(undefined);
     const principalCalls: string[] = [];
     const principal = async <T>(organizationId: string, fn: () => Promise<T>): Promise<T> => {
@@ -18,8 +12,8 @@ describe('integrator support ownership bridge', () => {
       return fn();
     };
     const port: IntegratorSupportOwnershipPort = {
-      ensureWebappConversationForUser: ensure,
-      appendWebappMessage: append,
+      ensureWebappConversationForUser: vi.fn(),
+      appendWebappMessage: vi.fn(),
       setConversationStatusFromProjection: setStatus,
     };
     const questionPort: IntegratorSupportQuestionOwnershipPort = {
@@ -35,21 +29,7 @@ describe('integrator support ownership bridge', () => {
         organizationId: '11111111-1111-4111-8111-111111111111',
       }),
       withOrganizationPrincipal: principal,
-      notifyDoctorOfPatientMessage: notify,
-      resolvePatientLabel: vi.fn().mockResolvedValue('Пациент'),
     });
-    const input = {
-      platformUserId: '22222222-2222-4222-8222-222222222222',
-      integratorMessageId: 'integrator-message-1',
-      text: ' Нужна помощь ',
-      source: 'telegram',
-      createdAt: '2026-07-31T09:00:00.000Z',
-      externalChatId: 'chat-7',
-      externalMessageId: 'message-9',
-    };
-
-    const first = await bridge.syncUserMessage(input);
-    const replay = await bridge.syncUserMessage(input);
     const closed = await bridge.setStatus({
       integratorConversationId: 'webapp:platform:22222222-2222-4222-8222-222222222222',
       status: 'closed',
@@ -58,40 +38,14 @@ describe('integrator support ownership bridge', () => {
       closeReason: 'admin_closed',
     });
 
-    expect(first).toEqual({
+    expect(closed).toEqual({
       ok: true,
       canonicalWrite: {
         conversationId: 'webapp:platform:22222222-2222-4222-8222-222222222222',
         organizationId: '11111111-1111-4111-8111-111111111111',
       },
     });
-    expect(replay).toEqual(first);
-    expect(closed).toEqual(first);
-    expect(principalCalls).toEqual([
-      '11111111-1111-4111-8111-111111111111',
-      '11111111-1111-4111-8111-111111111111',
-      '11111111-1111-4111-8111-111111111111',
-    ]);
-    expect(append).toHaveBeenNthCalledWith(1, {
-      conversationId: 'conversation-db-id',
-      integratorMessageId: 'integrator-message-1',
-      senderRole: 'user',
-      text: 'Нужна помощь',
-      source: 'telegram',
-      createdAt: '2026-07-31T09:00:00.000Z',
-      organizationId: '11111111-1111-4111-8111-111111111111',
-      externalChatId: 'chat-7',
-      externalMessageId: 'message-9',
-    });
-    expect(notify).toHaveBeenCalledTimes(1);
-    expect(notify).toHaveBeenCalledWith(
-      expect.objectContaining({
-        organizationId: '11111111-1111-4111-8111-111111111111',
-        conversationId: 'conversation-db-id',
-        messageId: 'integrator-message-1',
-        messageText: 'Нужна помощь',
-      }),
-    );
+    expect(principalCalls).toEqual(['11111111-1111-4111-8111-111111111111']);
     expect(setStatus).toHaveBeenCalledWith({
       integratorConversationId:
         'webapp:organization:11111111-1111-4111-8111-111111111111:platform:22222222-2222-4222-8222-222222222222',
@@ -223,5 +177,4 @@ describe('integrator support ownership bridge', () => {
     expect(result).toEqual({ ok: false, error: 'organization_mismatch' });
     expect(questionPort.createQuestion).not.toHaveBeenCalled();
   });
-
 });

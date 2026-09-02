@@ -121,7 +121,10 @@ export type DispatchOutgoingOpts = {
 
 /** Порт отправки исходящих намерений во внешний транспорт. */
 export type DispatchPort = {
-  dispatchOutgoing(intent: OutgoingIntent, opts?: DispatchOutgoingOpts): Promise<DeliverySendResult>;
+  dispatchOutgoing(
+    intent: OutgoingIntent,
+    opts?: DispatchOutgoingOpts,
+  ): Promise<DeliverySendResult>;
 };
 
 /** Универсальный адаптер доставки для infra dispatcher. */
@@ -501,10 +504,7 @@ export type RemindersWebappWritesPort = {
  * Track D (#987): keyed by canonical `public.platform_users.id`, never the retired numeric identity.
  */
 export type RemindersReadsPort = {
-  listRulesForUser(
-    platformUserId: string,
-    organizationId: string,
-  ): Promise<ReminderRuleListItem[]>;
+  listRulesForUser(platformUserId: string, organizationId: string): Promise<ReminderRuleListItem[]>;
   getRuleForUserAndCategory(
     platformUserId: string,
     category: string,
@@ -577,18 +577,18 @@ export type VapidCredentials = {
 export type WebPushAccessPort = {
   /**
    * Fetch active web-push subscriptions for a platform user.
-   * Returns `null` on network/auth error; empty array when the user has no subscriptions.
+   * Returns an empty array when the user has no subscriptions; infrastructure/auth failures throw.
    */
   getSubscriptionsForUser(
     pushUserId: string,
     organizationId: string,
-  ): Promise<WebPushSubscriptionPayload[] | null>;
+  ): Promise<WebPushSubscriptionPayload[]>;
 
   /**
    * Fetch the VAPID keypair (publicKey, privateKey) and the centrally-derived subject.
-   * Returns `null` when VAPID is not configured in the webapp or on network/auth error.
+   * Missing configuration and infrastructure/auth failures throw.
    */
-  getVapidCredentials(organizationId: string): Promise<VapidCredentials | null>;
+  getVapidCredentials(organizationId: string): Promise<VapidCredentials>;
 
   /**
    * Remove a dead subscription by endpoint after a 410/404 from the push provider.

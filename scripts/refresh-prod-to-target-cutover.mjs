@@ -9,7 +9,10 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { readMigrationFolder, selectPendingMigrations } from '../deploy/postgres/privileges/migration-order.mjs';
+import {
+  readMigrationFolder,
+  selectPendingMigrations,
+} from '../deploy/postgres/privileges/migration-order.mjs';
 import {
   filterAndValidateTargetTariffCatalog,
   removeRetiredLinkedPhoneSetting,
@@ -45,14 +48,35 @@ function restrictKeyFor(file) {
   return createHash('sha256').update(`prod-to-target-cutover:${file}`).digest('hex').slice(0, 63);
 }
 
+function renderTargetSystemSettingsBaseline() {
+  return execFileSync(
+    'pnpm',
+    [
+      '--dir',
+      'apps/webapp',
+      'exec',
+      'tsx',
+      '../../scripts/render-prod-to-target-system-settings-baseline.ts',
+    ],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      maxBuffer: 4 * 1024 * 1024,
+    },
+  );
+}
+
 const artifacts = [
   {
     file: 'schema-pre.sql',
     args: ['--schema-only', '--section=pre-data'],
-    transform: (sql) => removeRetiredLinkedPhoneSetting(sql.replace(
-      /^CREATE SCHEMA (app|app_control|app_ext|drizzle|integrator);$/gmu,
-      'CREATE SCHEMA IF NOT EXISTS $1;',
-    )),
+    transform: (sql) =>
+      removeRetiredLinkedPhoneSetting(
+        sql.replace(
+          /^CREATE SCHEMA (app|app_control|app_ext|drizzle|integrator);$/gmu,
+          'CREATE SCHEMA IF NOT EXISTS $1;',
+        ),
+      ),
   },
   {
     file: 'schema-post.sql',
@@ -72,9 +96,10 @@ const artifacts = [
       '--table=public.saas_registration_tariff_policy',
       '--table=public.saas_trial_policy',
     ],
-    transform: (sql) => sanitizeSingletonPolicyAuditMetadata(
-      filterAndValidateTargetTariffCatalog(sql),
-    ),
+    transform: (sql) =>
+      `${sanitizeSingletonPolicyAuditMetadata(
+        filterAndValidateTargetTariffCatalog(sql),
+      ).trimEnd()}\n${renderTargetSystemSettingsBaseline()}`,
   },
 ];
 
@@ -93,15 +118,32 @@ function postgres(command, args, options = {}) {
 
 function scalar(sql) {
   return postgres('psql', [
-    '-X', '-h', '/var/run/postgresql', '-p', '5432', '-d', database,
-    '-v', 'ON_ERROR_STOP=1', '-qAt', '-c', sql,
+    '-X',
+    '-h',
+    '/var/run/postgresql',
+    '-p',
+    '5432',
+    '-d',
+    database,
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-qAt',
+    '-c',
+    sql,
   ]).trim();
 }
 
 function dump(artifact) {
   const raw = postgres('pg_dump', [
-    '-h', '/var/run/postgresql', '-p', '5432', '-d', database,
-    '--no-owner', '--no-privileges', '--no-comments',
+    '-h',
+    '/var/run/postgresql',
+    '-p',
+    '5432',
+    '-d',
+    database,
+    '--no-owner',
+    '--no-privileges',
+    '--no-comments',
     `--restrict-key=${restrictKeyFor(artifact.file)}`,
     ...artifact.args,
   ]);
@@ -118,13 +160,16 @@ function firstDifference(expected, actual) {
 }
 
 const mode = process.argv[2];
-if (process.argv.length !== 3 || !['--check', '--confirm-local-dev-target-refresh'].includes(mode)) {
+if (
+  process.argv.length !== 3 ||
+  !['--check', '--confirm-local-dev-target-refresh'].includes(mode)
+) {
   fail('use --check or --confirm-local-dev-target-refresh');
 }
 
 const identity = scalar(
-  "SELECT current_database() || '|' || pg_catalog.pg_get_userbyid(datdba) "
-  + 'FROM pg_catalog.pg_database WHERE datname = current_database();',
+  "SELECT current_database() || '|' || pg_catalog.pg_get_userbyid(datdba) " +
+    'FROM pg_catalog.pg_database WHERE datname = current_database();',
 );
 if (identity !== `${database}|postgres`) fail(`unexpected source identity ${identity}`);
 
@@ -135,30 +180,47 @@ if (identity !== `${database}|postgres`) fail(`unexpected source identity ${iden
 // post-B0 migrations do not append to the frozen journal.
 const migrations = readMigrationFolder(resolve(repoRoot, 'apps/webapp/db/drizzle-migrations'));
 const ledgerTagsRaw = postgres('psql', [
-  '-X', '-h', '/var/run/postgresql', '-p', '5432', '-d', database,
-  '-v', 'ON_ERROR_STOP=1', '-qAt', '-c', "SELECT coalesce(tag, '') FROM drizzle.__drizzle_migrations ORDER BY id;",
+  '-X',
+  '-h',
+  '/var/run/postgresql',
+  '-p',
+  '5432',
+  '-d',
+  database,
+  '-v',
+  'ON_ERROR_STOP=1',
+  '-qAt',
+  '-c',
+  "SELECT coalesce(tag, '') FROM drizzle.__drizzle_migrations ORDER BY id;",
 ]);
-const ledgerRows = ledgerTagsRaw.split('\n').filter((line) => line.length > 0).map((tag) => ({ tag }));
+const ledgerRows = ledgerTagsRaw
+  .split('\n')
+  .filter((line) => line.length > 0)
+  .map((tag) => ({ tag }));
 const pending = selectPendingMigrations(migrations, ledgerRows);
 if (pending.length > 0) {
-  fail(`DEV migration ledger is not current: pending=${pending.map((migration) => migration.tag).join(',')}`);
+  fail(
+    `DEV migration ledger is not current: pending=${pending.map((migration) => migration.tag).join(',')}`,
+  );
 }
 
 const deliveryBodyState = scalar(
-  "SELECT (p.prosrc LIKE '%notification_delivery_attempts%')::text || '|' || "
-  + "(p.prosrc LIKE '%op-inc:%')::text FROM pg_catalog.pg_proc AS p "
-  + "JOIN pg_catalog.pg_namespace AS n ON n.oid=p.pronamespace "
-  + "WHERE n.nspname='app' AND p.proname='record_operator_delivery_attempt';",
+  "SELECT (p.prosrc LIKE '%notification_delivery_attempts%')::text || '|' || " +
+    "(p.prosrc LIKE '%op-inc:%')::text FROM pg_catalog.pg_proc AS p " +
+    'JOIN pg_catalog.pg_namespace AS n ON n.oid=p.pronamespace ' +
+    "WHERE n.nspname='app' AND p.proname='record_operator_delivery_attempt';",
 );
 if (deliveryBodyState !== 'true|false') fail(`delivery audit root is stale: ${deliveryBodyState}`);
 
 const retiredDeliveryAttemptHistoryState = scalar(
-  "SELECT (to_regclass('integrator.delivery_attempt_logs') IS NULL)::text || '|' || "
-  + "(to_regclass('integrator.delivery_attempt_logs_id_seq') IS NULL)::text || '|' || "
-  + "(to_regprocedure('app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)') IS NULL)::text;",
+  "SELECT (to_regclass('integrator.delivery_attempt_logs') IS NULL)::text || '|' || " +
+    "(to_regclass('integrator.delivery_attempt_logs_id_seq') IS NULL)::text || '|' || " +
+    "(to_regprocedure('app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)') IS NULL)::text;",
 );
 if (retiredDeliveryAttemptHistoryState !== 'true|true|true') {
-  fail('D10a delivery-attempt history retirement is not applied; refresh only after the named DEV migration drops its table, sequence and legacy root');
+  fail(
+    'D10a delivery-attempt history retirement is not applied; refresh only after the named DEV migration drops its table, sequence and legacy root',
+  );
 }
 
 if (mode === '--confirm-local-dev-target-refresh') mkdirSync(outputRoot, { recursive: true });

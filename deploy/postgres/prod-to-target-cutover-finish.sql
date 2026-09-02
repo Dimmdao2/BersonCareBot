@@ -70,47 +70,18 @@ SELECT json_build_object(
 \gset cutover_f03_
 SELECT :'cutover_f03_result'::json AS cutover_step_f03_retire_phone_fallback;
 
--- Existing PROD snapshots predate these required global admin-settings rows. The target UI
--- deliberately fails loud when one is absent, so the A -> B cutover creates only the missing
--- canonical rows and never overwrites a configured value.
-\echo '=== CUTOVER STEP F04/05: ensure required global admin settings ==='
-INSERT INTO public.system_settings (key, scope, organization_id, value_json, updated_at)
-VALUES
-  ('vk_id_application_id', 'admin', NULL, '{"value":""}'::jsonb, now()),
-  ('vk_id_client_secret', 'admin', NULL, '{"value":""}'::jsonb, now()),
-  ('vk_id_redirect_uri', 'admin', NULL, '{"value":""}'::jsonb, now()),
-  ('operator_alert_fallback_email', 'admin', NULL, '{"value":""}'::jsonb, now()),
-  ('operator_health_projection_thresholds', 'admin', NULL,
-   '{"value":{"retriesDebounceMinutes":15,"stalePendingDebounceMinutes":15,"oldestPendingStaleMinutes":30}}'::jsonb,
-   now()),
-  ('platform_integration_availability', 'admin', NULL,
-   '{"value":{"version":1,"integrations":{"telegram":true,"max":true,"vk":true,"email":true,"smsc":true,"web_push":true,"google_calendar":true,"yandex_calendar":false}}}'::jsonb,
-   now())
-ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;
-
+-- The generated target-data artifact has already inserted every global key declared by the one
+-- application registry without overwriting source values, and has failed closed on any missing row.
+\echo '=== CUTOVER STEP F04/05: report canonical global settings baseline ==='
 SELECT json_build_object(
   'status', 'pass',
-  'requiredGlobalAdminSettings', 6,
-  'requiredGlobalAdminSettingsPresent', (
-    SELECT count(*)
-    FROM (VALUES
-      ('vk_id_application_id'),
-      ('vk_id_client_secret'),
-      ('vk_id_redirect_uri'),
-      ('operator_alert_fallback_email'),
-      ('operator_health_projection_thresholds'),
-      ('platform_integration_availability')
-    ) AS required_setting(key)
-    WHERE EXISTS (
-      SELECT 1 FROM public.system_settings setting
-      WHERE setting.key = required_setting.key
-        AND setting.scope = 'admin'
-        AND setting.organization_id IS NULL
-    )
+  'globalSystemSettings', (
+    SELECT count(*) FROM public.system_settings
+    WHERE scope = 'admin' AND organization_id IS NULL
   )
 )::text AS result
 \gset cutover_f04_
-SELECT :'cutover_f04_result'::json AS cutover_step_f04_required_admin_settings;
+SELECT :'cutover_f04_result'::json AS cutover_step_f04_global_settings_baseline;
 
 \echo '=== CUTOVER STEP F05/05: verify final target shape ==='
 DO $final_shape_gate$

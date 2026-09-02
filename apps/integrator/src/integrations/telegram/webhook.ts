@@ -5,7 +5,7 @@ import {
   runWithInfraPrincipal,
   runWithOrganizationPrincipal,
 } from '../../infra/principal/organizationPrincipal.js';
-import { getRequestLogger, logger, newEventId } from '../../infra/observability/logger.js';
+import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import type { IncomingUpdate } from '../../kernel/domain/types.js';
 import { telegramIncomingToEvent } from './connector.js';
@@ -97,22 +97,10 @@ export async function buildAdminFacts(
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin,
 ): Promise<Record<string, unknown>> {
   const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
-  let dbAdmin = false;
-  if (typeof chatId === 'number' && resolveMessengerStaffAdmin) {
-    try {
-      dbAdmin = await resolveMessengerStaffAdmin('telegram', String(chatId));
-    } catch (err) {
-      // Fail open like every other pre-routing lookup in this file (all try/catch and default): a
-      // transient DB/privilege hiccup here must degrade admin-detection to "not admin", not crash the
-      // whole inbound Telegram pipeline (see the 42501 this masked before
-      // deploy/postgres/integrator-login-public-identity-grants.sql closed the underlying privilege gap).
-      logger.warn(
-        { err },
-        'buildAdminFacts: resolveMessengerStaffAdmin failed, treating as non-admin',
-      );
-      dbAdmin = false;
-    }
-  }
+  const dbAdmin =
+    typeof chatId === 'number' && resolveMessengerStaffAdmin
+      ? await resolveMessengerStaffAdmin('telegram', String(chatId))
+      : false;
   const isAdmin = dbAdmin;
   const result: Record<string, unknown> = { isAdmin };
   return result;
@@ -162,15 +150,8 @@ async function resolveTelegramOrganizationId(
 ): Promise<string | null> {
   const externalId = getSourceTelegramExternalId(body);
   if (externalId && deps.resolveOrganizationIdForMessengerIdentity) {
-    try {
-      const perUserOrg = await deps.resolveOrganizationIdForMessengerIdentity(
-        externalId,
-        'telegram',
-      );
-      if (perUserOrg) return perUserOrg;
-    } catch {
-      // No enrollment/default fallback: a dedicated bot is resolved by its endpoint binding.
-    }
+    const perUserOrg = await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'telegram');
+    if (perUserOrg) return perUserOrg;
   }
   reqLogger.warn(
     { source: 'telegram' },
@@ -433,11 +414,11 @@ export async function registerTelegramWebhookRoutes(
         recordTelegramWebhookOutcome({
           source: 'telegram',
           processedOk: false,
-          httpStatusReturned: 200,
+          httpStatusReturned: 503,
           errorClass: 'webhook_internal_error',
           detail: msg,
         });
-        return reply.code(200).send({ ok: false, error: 'Internal error' });
+        return reply.code(503).send({ ok: false, error: 'Internal error' });
       }
     });
   }

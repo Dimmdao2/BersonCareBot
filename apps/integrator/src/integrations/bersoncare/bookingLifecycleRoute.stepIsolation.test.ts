@@ -24,7 +24,9 @@ const {
     occurrenceCount: 1,
   })),
   reportOperatorFailureMock: vi.fn(async (_input: Record<string, unknown>) => undefined),
-  syncCanonicalAppointmentToCalendarMock: vi.fn(async (_input: Record<string, unknown>) => undefined),
+  syncCanonicalAppointmentToCalendarMock: vi.fn(
+    async (_input: Record<string, unknown>) => undefined,
+  ),
 }));
 
 vi.mock('../../infra/db/client.js', () => ({ createDbPort: vi.fn(() => ({})) }));
@@ -54,7 +56,11 @@ import type {
   BookingLifecycleEventValidated,
   BookingLifecyclePayloadValidated,
 } from './bookingLifecycleSchema.js';
-import type { DispatchPort, IdempotencyPort, WebappEventsPort } from '../../kernel/contracts/index.js';
+import type {
+  DispatchPort,
+  IdempotencyPort,
+  WebappEventsPort,
+} from '../../kernel/contracts/index.js';
 
 const APPOINTMENT_ID = '20000000-0000-4000-8000-000000000002';
 
@@ -108,7 +114,7 @@ function recipientsOf(dispatch: ReturnType<typeof vi.fn>): string[] {
 
 function webappEventsPort(materialize: WebappEventsPort['materializeAppointmentReminders']) {
   return {
-    notifyPatientWebPush: vi.fn(async () => undefined),
+    notifyPatientWebPush: vi.fn(async () => ({ ok: true, status: 200 })),
     materializeAppointmentReminders: materialize,
   } as unknown as WebappEventsPort;
 }

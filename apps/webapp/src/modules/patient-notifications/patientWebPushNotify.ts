@@ -294,7 +294,16 @@ export async function runPatientWebPushNotify(
   });
 
   if (!result.ok) {
-    return { ok: true, webPushDelivered: 0, webPushErrors: 1, webPushDeactivated: 0 };
+    throw new Error(`PATIENT_WEB_PUSH_RELAY_FAILED:${result.reason}`);
+  }
+  if (result.status === 'skipped' || result.status === 'duplicate') {
+    return {
+      ok: true,
+      skipped: result.status === 'duplicate' ? 'relay_duplicate' : 'relay_skipped',
+      webPushDelivered: 0,
+      webPushErrors: 0,
+      webPushDeactivated: 0,
+    };
   }
 
   return {
