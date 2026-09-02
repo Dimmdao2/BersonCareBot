@@ -5,6 +5,7 @@ import {
   doctorMetricLabelClass,
   doctorMetricValueClass,
   doctorInteractiveSurfaceButtonClass,
+  doctorStatCardActionSegmentClass,
   doctorStatCardInteractiveClass,
   doctorStatCardShellClass,
   doctorStatCardShellWarningClass,
@@ -12,7 +13,6 @@ import {
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/doctor/primitives/tooltip';
 import { cn } from '@/lib/utils';
-import { doctorClientPrimaryOutlineActionClass } from '@/app/app/doctor/clients/doctorClientCardChrome';
 
 type Props = {
   id: string;
@@ -133,10 +133,7 @@ export function DoctorStatCard({
         <Button
           type="button"
           variant="ghost"
-          className={cn(
-            doctorClientPrimaryOutlineActionClass,
-            'm-1.5 h-auto min-w-9 self-stretch rounded-none rounded-r-md px-2',
-          )}
+          className={doctorStatCardActionSegmentClass}
           aria-label={actionLabel}
           onClick={onActionClick}
         >

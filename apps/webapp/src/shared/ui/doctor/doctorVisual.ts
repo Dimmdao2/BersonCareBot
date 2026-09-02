@@ -96,6 +96,10 @@ export const doctorStatCardShellWarningClass =
 export const doctorStatCardInteractiveClass =
   'cursor-pointer transition-colors hover:border-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40';
 
+/** Attached action segment on the right edge of an actionable KPI card. */
+export const doctorStatCardActionSegmentClass =
+  'h-full min-w-11 rounded-none border-l border-primary/30 bg-primary/5 px-3 text-primary hover:bg-primary/15';
+
 /** Section subtitle and helper text under headings. */
 export const doctorSectionSubtitleClass = doctorMetaTextClass;
 
