@@ -85,23 +85,16 @@
   `apps/webapp/src/infra/db/saasIsolationDbFailureReporting.unit.test.ts` (2 passed) и
   `pnpm --dir apps/webapp typecheck` (PASS). Реализация `90a4e2e55`, независимый audit/oracle `0d2ea418d`,
   локализованное исправление ведущего `535c20f58`.
-- [x] **W4 — один источник тела DB seam.** Тело функции записи isolation telemetry совпадало в overlay и
-  forward migration только случайно; механической сверки не было. Нельзя снова оставить два определения, где
-  побеждает последнее применённое. Нужен канонический источник или generated parity-гейт.
-  — СДЕЛАНО БЕЗ НОВОЙ МИГРАЦИИ (действующая функция уже верна, дублировался только источник поставки):
-  тело `app.report_saas_isolation_event` осталось за ledger-миграцией
-  `apps/webapp/db/drizzle-migrations/20260828T092521_deliver_cron_isolation_operations.sql`, а из overlay
-  `deploy/postgres/saas-isolation-telemetry.sql` `CREATE OR REPLACE` этой функции убран — overlay владеет
-  только владельцем и точными EXECUTE-грантами. Это ровно тот же канон, что уже действует для
-  `app.open_or_touch_operator_incident` в `c4-operational-runtime.sql`, и overlay применяется ПОСЛЕ миграций
-  (`deploy/host/deploy-test-saas.sh` → `run_strict_post_migration_closure`), поэтому функция к этому моменту
-  существует. Прав/ролей/политик в миграции не появилось: миграция не менялась вовсе. Механическая сверка:
-  `scripts/check-c4-migration-owned-function-bodies.mjs` обобщён на список overlay-файлов и теперь стережёт эту
-  функцию; гейт уже в `pnpm lint`. Доказано лично: `--self-test` OK; обратная проба — временно дописал
-  `CREATE OR REPLACE FUNCTION app.report_saas_isolation_event(...)` в overlay, гейт упал с exit 1 и назвал
-  файл и функцию, после отката снова OK. ⚠️ НЕ СДЕЛАНО (за границей формулировки W4, выношу как вопрос):
-  CHECK-констрейнт `saas_isolation_events_source_operation_check` по-прежнему объявлен и в той же миграции, и
-  в overlay — тот же класс «побеждает последний применённый», но это уже не тело функции.
+- [x] **W4 — один источник объектов и прав БД.** Первичная локальная правка одного telemetry seam оказалась
+  недостаточной: независимый аудит полного reset-пути доказал достижимый второй writer — старый runtime-overlay
+  после schema B повторно создавал 44 тела, возвращал 14 функций retired-владельцу и сам не был путём обычного
+  deploy. Системная коррекция удаляет исполняемый overlay-list и `e1-webapp-runtime-config.sql`: тела объектов и
+  constraints приходят только из schema-B snapshot и active forward migrations, а owners/grants/policies/FORCE
+  устанавливает один declaration generator/reconcile для full-reset и code-only deploy. TEST settings override
+  теперь data-only: он не удаляет и не создаёт schema-B lock trigger, fail-closed проверяет его до/после и
+  ограниченно обходит срабатывание лишь вокруг защищённых data-mutations. Первый audit `7cda08b97`, bounded
+  re-audit `4c497fb38` и correction `280b1731f`; один и тот же full-reset/path oracle после исправления `14/14`,
+  generator `--check` совпадает побайтно. Живое доказательство остаётся в итоговой TEST rehearsal.
 - [x] **W5 — закончить перевод разрешённых webapp DB-портов.** Команда
   `rg -o "runWebappPgText\\(|runPgPoolPgText\\(" apps/webapp/src --glob "!**/*.test.*" | wc -l`
   вернула `103` вызова в `29` файлах. Они параметризованы и текущей SQL-инъекции не создают, но сохраняют ручную
@@ -209,12 +202,16 @@
   `git mv` в `docs/archive/2026-07-testsuite-rebuild/` (свой README) — ни один не имел входящих ссылок из активного
   канона/скриптов (проверено `grep` по `AGENTS.md`/`README.md`/`CLAUDE.md`/`scripts/*.mjs`), только из других
   архивных run-briefs.
-- [x] **W10 — пересобрать A→B snapshot из окончательной schema B.** Named DEV сначала прошёл rollback-only
+- [x] **W10 — пересобрать A→B snapshot из окончательной schema B.** Предыдущая сборка была зелёной: named DEV сначала прошёл rollback-only
   `bash deploy/host/migrate-dev.sh --preflight`, затем штатный owner-aware `--execute`: единственная pending
   forward-миграция применена, declaration reconcile и catalog audit завершились `PASS`. После этого
   `pnpm run refresh:prod-to-target-cutover` пересобрал три tracked schema-B artifact, а
   `pnpm run check:prod-to-target-cutover` подтвердил `ok` для `schema-pre.sql`, `schema-post.sql` и
-  `ledgers-and-baseline.sql`. Историческая migration chain и одноразовая база не использовались.
+  `ledgers-and-baseline.sql`. После неё приземлённая active migration
+  `20260902T015419_filter_pending_email_challenge_by_purpose.sql` была owner-aware применена штатным
+  `migrate-dev.sh --preflight` → `--execute`; declaration reconcile/catalog audit завершились PASS. Затем
+  `refresh:prod-to-target-cutover` пересобрал три artifact, а `check:prod-to-target-cutover` подтвердил их
+  соответствие текущей DEV schema B. Историческая migration chain и одноразовая база не использовались.
 
 ### План одного системного исправляющего прохода
 
@@ -635,7 +632,8 @@ warning. Это исправляется общей моделью резуль�
 - Рассылки доступны только брендированной клинике с собственным каналом.
 - Обычный public-booking статически использует узкие named roots; живой полный anonymous-сценарий ещё не принят.
 - У runtime/seam ролей нет `SUPERUSER` или `BYPASSRLS`.
-- Обычный deploy не накатывает старые overlay-файлы; они доступны только destructive reset-пути.
+- Обычный deploy и destructive reset завершаются одним declaration-owned access writer; исполняемый список
+  старых runtime-overlay удалён и больше не доступен ни одному публичному deploy-пути.
 - Терминальные состояния outgoing queue покрыты retention; будущие scheduled rows не являются зависшими.
 - Почасовой `db-journal-retention` с правильным Host реально работает.
 

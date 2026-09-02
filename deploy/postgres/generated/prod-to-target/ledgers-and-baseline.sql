@@ -96,6 +96,7 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (641
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (653, '592a26046f44465bd0e9bd5a59aa1839e0e6a8b78ee17c84d246d4c4f9cb447d', 1800000086000, '20260821T040000_cut_over_canonical_contacts');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (654, '09ca1666e98a9172155163d63a23a82bd123f699881a832f89a15b39bdd0ac9a', 1800000087000, '20260821T050000_add_vk_messenger_settings');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1007, '29a1663ceefbbcac5b8270bae3691cf6a2cb8b8523249ca5c459ce8908ace437', 1800000148000, '20260824T150500_derive_public_sms_fallback_at_read');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1484, 'cd0c8036853f6d6543b77a6c0ec8bfb8de9151807510d2d43cf11ff2f30dcc22', 1800000185000, '20260902T015419_filter_pending_email_challenge_by_purpose');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1020, '367bed59416bee23e8c8ccf784708b50ea92024b4c0a156f434567820526dc46', 1800000151000, '20260824T182946_seed_doctor_today_preferences_fallback');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (682, '40d77e5fc76e8202f9372d9dd4af17d080d3ed7a883728a3126acf656037dc10', 1800000092000, '20260821T100000_platform_integration_availability_gains_vk');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (799, '17d0e6ec0a216a9b354f6df3f567744c38b3886387227dc231ddcbc5cff34a3a', 1800000124000, '20260823T002500_pre_session_login_uses_two_named_doors');
@@ -201,7 +202,7 @@ INSERT INTO public.saas_trial_policy (key, duration_days, start_event, post_tria
 -- Name: __drizzle_migrations_id_seq; Type: SEQUENCE SET; Schema: drizzle; Owner: -
 --
 
-SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 1481, true);
+SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 1484, true);
 
 
 --
