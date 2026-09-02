@@ -51,24 +51,24 @@ SELECT json_build_object(
 \gset cutover_f02_
 SELECT :'cutover_f02_result'::json AS cutover_step_f02_remove_source_schemas;
 
--- Canonical phone is unconditional; do not carry the retired fallback strategy into target state.
-\echo '=== CUTOVER STEP F03/05: retire linked-phone fallback setting ==='
+-- Do not carry settings whose only runtime consumers were retired before schema B.
+\echo '=== CUTOVER STEP F03/05: retire obsolete settings ==='
 DELETE FROM public.system_settings
-WHERE key = 'integrator_linked_phone_source'
+WHERE key IN ('integrator_linked_phone_source', 'operator_health_projection_thresholds')
   AND scope = 'admin'
   AND organization_id IS NULL;
 
 SELECT json_build_object(
   'status', 'pass',
-  'canonicalFallbackRowsRemaining', (
+  'obsoleteSettingsRemaining', (
     SELECT count(*) FROM public.system_settings
-    WHERE key = 'integrator_linked_phone_source'
+    WHERE key IN ('integrator_linked_phone_source', 'operator_health_projection_thresholds')
       AND scope = 'admin'
       AND organization_id IS NULL
   )
 )::text AS result
 \gset cutover_f03_
-SELECT :'cutover_f03_result'::json AS cutover_step_f03_retire_phone_fallback;
+SELECT :'cutover_f03_result'::json AS cutover_step_f03_retire_obsolete_settings;
 
 -- The generated target-data artifact has already inserted every global key declared by the one
 -- application registry without overwriting source values, and has failed closed on any missing row.
@@ -294,7 +294,6 @@ BEGIN
     ('vk_id_client_secret'),
     ('vk_id_redirect_uri'),
     ('operator_alert_fallback_email'),
-    ('operator_health_projection_thresholds'),
     ('platform_integration_availability')
   ) AS required_setting(key)
   WHERE NOT EXISTS (
@@ -375,7 +374,7 @@ SELECT json_build_object(
   'finishSteps', json_build_object(
     'F01_system_setting_values', :'cutover_f01_result'::json,
     'F02_remove_source_schemas', :'cutover_f02_result'::json,
-    'F03_retire_phone_fallback', :'cutover_f03_result'::json,
+    'F03_retire_obsolete_settings', :'cutover_f03_result'::json,
     'F04_required_admin_settings', :'cutover_f04_result'::json,
     'F05_final_shape_gate', :'cutover_f05_result'::json
   ),

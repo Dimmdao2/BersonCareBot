@@ -8547,7 +8547,7 @@ function revision10PatientHomeCatalogPolicies(
 }
 
 function revision10SystemSettingsPolicies(index: number): PolicyDecl[] {
-  const readWall = "(CASE WHEN current_user = 'app_staff'::name THEN ((organization_id = (SELECT app.current_org_id())) OR (organization_id IS NULL AND scope = 'doctor')) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL WHEN current_user = 'app_worker'::name THEN organization_id IS NULL AND scope = 'admin' AND key IN ('operator_health_alert_config', 'admin_incident_alert_config', 'operator_health_projection_thresholds', 'operator_heartbeat_config') ELSE false END)";
+  const readWall = "(CASE WHEN current_user = 'app_staff'::name THEN ((organization_id = (SELECT app.current_org_id())) OR (organization_id IS NULL AND scope = 'doctor')) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL WHEN current_user = 'app_worker'::name THEN organization_id IS NULL AND scope = 'admin' AND key IN ('operator_health_alert_config', 'admin_incident_alert_config', 'operator_heartbeat_config') ELSE false END)";
   const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
   return [
     { name: `rev10_system_settings_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
