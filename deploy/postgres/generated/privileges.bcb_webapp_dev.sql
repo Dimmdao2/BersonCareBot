@@ -11563,7 +11563,7 @@ GRANT SELECT ("created_at", "currency", "deduction_mode", "display_number", "id"
 GRANT SELECT ("id", "organization_id", "platform_user_id", "status", "valid_from", "valid_until") ON TABLE "public"."be_patient_packages" TO "app_seam_patient_booking_owner";
 GRANT UPDATE ("updated_at") ON TABLE "public"."be_patient_packages" TO "app_seam_patient_booking_owner";
 GRANT SELECT ON TABLE "public"."be_patient_packages" TO "app_staff";
-GRANT INSERT ("assigned_by_platform_user_id", "created_at", "currency", "deduction_mode", "notes", "organization_id", "paid_amount_minor", "paid_currency", "platform_user_id", "price_minor", "sold_at", "status", "subscription_package_id", "title", "updated_at", "valid_from", "valid_until", "validity_days") ON TABLE "public"."be_patient_packages" TO "app_staff";
+GRANT INSERT ("assigned_by_platform_user_id", "created_at", "currency", "deduction_mode", "display_number", "id", "notes", "organization_id", "paid_amount_minor", "paid_currency", "payment_intent_id", "payment_ref", "platform_user_id", "price_minor", "sold_at", "status", "subscription_package_id", "title", "updated_at", "valid_from", "valid_until", "validity_days") ON TABLE "public"."be_patient_packages" TO "app_staff";
 GRANT UPDATE ("notes", "paid_amount_minor", "paid_currency", "payment_intent_id", "payment_ref", "sold_at", "status", "updated_at", "valid_from", "valid_until") ON TABLE "public"."be_patient_packages" TO "app_staff";
 GRANT SELECT ("created_at", "id", "sold_at") ON TABLE "public"."be_patient_packages" TO "app_tenant_service";
 GRANT UPDATE ("platform_user_id") ON TABLE "public"."be_patient_packages" TO "app_tenant_service";

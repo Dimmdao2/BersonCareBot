@@ -65,6 +65,11 @@ function assertNoOperation(relation, role, operation) {
 
 test('direct staff Drizzle inserts name every schema column allowed by their INSERT grant', () => {
   const contracts = [
+    {
+      relation: 'public.be_patient_packages',
+      schemaExport: 'bePatientPackages',
+      schemaModule: './db/schema/bookingMemberships.ts',
+    },
     { relation: 'public.media_files', schemaExport: 'mediaFiles' },
     {
       relation: 'public.patient_invites',
