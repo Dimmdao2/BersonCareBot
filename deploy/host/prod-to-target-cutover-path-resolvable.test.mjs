@@ -165,6 +165,20 @@ test('post-cutover executed SQL creates no schema object outside schema B', () =
     + offenders.join('\n'));
 });
 
+test('TEST settings override preserves the schema-B lock and limits trigger bypasses', () => {
+  const rel = 'deploy/postgres/test-settings-override.sql';
+  const text = readFileSync(resolve(repoRoot, rel), 'utf8');
+  assert.ok(!/\b(?:DROP|CREATE)\s+TRIGGER\s+(?:IF\s+EXISTS\s+)?system_settings_test_lock\b/iu.test(text),
+    `${rel} must not remove or recreate the schema-B lock trigger`);
+  assert.match(text, /tgname\s*=\s*'system_settings_test_lock'[\s\S]*tgenabled\s*=\s*'O'/u,
+    `${rel} must fail closed unless the declared lock is installed and enabled`);
+  const bypasses = text.match(/SET LOCAL session_replication_role = replica;/gu) ?? [];
+  const restores = text.match(/SET LOCAL session_replication_role = origin;/gu) ?? [];
+  assert.ok(bypasses.length > 0, `${rel} no longer has a bounded way to update protected TEST rows`);
+  assert.equal(restores.length, bypasses.length,
+    `${rel} must restore ordinary trigger execution immediately after every protected-row block`);
+});
+
 test('the retired second closure is not reachable from the engine', () => {
   const executable = engine.split(/\r?\n/u).filter((line) => !/^\s*#/u.test(line)).join('\n');
   for (const symbol of [
