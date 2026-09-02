@@ -25,6 +25,47 @@ export function patientExerciseLoadTypeLabelRu(raw: unknown): string | null {
 
 export type InstanceStageItem = TreatmentProgramInstanceDetail['stages'][number]['items'][number];
 
+export function stageItemSnapshotTitle(
+  snapshot: Record<string, unknown> | null | undefined,
+  itemType: string,
+): string {
+  const title = snapshot?.title;
+  return typeof title === 'string' && title.trim() ? title.trim() : itemType;
+}
+
+function pickFirstFiniteNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+/** Назначенная нагрузка упражнения: локальные настройки экземпляра имеют приоритет над снимком каталога. */
+export function resolveStageItemExerciseLoad(item: {
+  itemType: string;
+  settings?: Record<string, unknown> | null;
+  snapshot?: Record<string, unknown> | null;
+}): {
+  reps: number | null;
+  sets: number | null;
+  maxPain: number | null;
+} {
+  if (item.itemType !== 'exercise') {
+    return { reps: null, sets: null, maxPain: null };
+  }
+  const settings = item.settings ?? {};
+  const snapshot = item.snapshot ?? {};
+  return {
+    reps: pickFirstFiniteNumber(settings.reps, snapshot.reps),
+    sets: pickFirstFiniteNumber(settings.sets, snapshot.sets),
+    maxPain: pickFirstFiniteNumber(
+      settings.maxPain,
+      snapshot.maxPain,
+      snapshot.difficulty,
+    ),
+  };
+}
+
 /** Разбор массива каталожных медиа (рекомендация, строка `tests[]` в снимке тестов / clinical_test и т.п.). */
 export function parseCatalogMediaRows(raw: unknown): RecommendationMediaItem[] {
   if (!Array.isArray(raw)) return [];

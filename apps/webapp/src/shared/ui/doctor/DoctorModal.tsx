@@ -38,6 +38,8 @@ type DoctorModalProps = {
   footer?: ReactNode;
   /** Optional icon action in the modal header. */
   headerAction?: ReactNode;
+  /** Закреплённый блок между системной шапкой и прокручиваемым телом. */
+  bodyHeader?: ReactNode;
   /** Доп. классы на прокручиваемое тело (например, убрать паддинги). */
   bodyClassName?: string;
   /** A flat list owns no local scroll or card chrome: the modal body is its only scroll owner. */
@@ -71,6 +73,7 @@ export function DoctorModal({
   size = 'md',
   footer,
   headerAction,
+  bodyHeader,
   bodyClassName,
   bodyVariant = 'default',
   desktopPresentation = 'dialog',
@@ -135,6 +138,10 @@ export function DoctorModal({
     </div>
   ) : null;
 
+  const bodyHeaderNode = bodyHeader ? (
+    <div className="shrink-0 border-b border-border/60 bg-card">{bodyHeader}</div>
+  ) : null;
+
   const handleOpenChange = (v: boolean) => {
     if (!v) onClose();
   };
@@ -150,6 +157,7 @@ export function DoctorModal({
             </div>
             {description && <DrawerDescription>{description}</DrawerDescription>}
           </DrawerHeader>
+          {bodyHeaderNode}
           {body}
           {footerNode}
         </DrawerContent>
@@ -193,6 +201,7 @@ export function DoctorModal({
             </div>
             {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
           </SheetHeader>
+          {bodyHeaderNode}
           {body}
           {footerNode}
         </SheetContent>
@@ -216,6 +225,7 @@ export function DoctorModal({
           </div>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </DialogHeader>
+        {bodyHeaderNode}
         {body}
         {footerNode}
       </DialogContent>

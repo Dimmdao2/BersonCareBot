@@ -41,7 +41,6 @@ import {
 import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStatus,
-  TreatmentProgramItemType,
 } from '@/modules/treatment-program/types';
 import type { TreatmentProgramTestResultDetailRow } from '@/modules/treatment-program/types';
 import { DoctorProgramItemDiscussionDialog } from './DoctorProgramItemDiscussionDialog';
@@ -107,20 +106,18 @@ import {
 import type { TreatmentProgramLibraryPickers } from '@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes';
 import { doctorProgramTestResultDomId } from '@/app/app/doctor/treatment-program-shared/doctorProgramTestResultDomId';
 import { DoctorCatalogMediaStaticThumb } from '@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb';
-import { primaryMediaForStageItem } from '@/app/app/patient/treatment/stageItemSnapshot';
+import {
+  primaryMediaForStageItem,
+  resolveStageItemExerciseLoad,
+  stageItemSnapshotTitle,
+} from '@/app/app/patient/treatment/stageItemSnapshot';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
-
-function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
-  const t = snapshot.title;
-  if (typeof t === 'string' && t.trim() !== '') return t;
-  return itemType;
-}
 
 function itemTitleById(detail: TreatmentProgramInstanceDetail): Map<string, string> {
   const m = new Map<string, string>();
   for (const st of detail.stages) {
     for (const it of st.items) {
-      m.set(it.id, snapshotTitle(it.snapshot, it.itemType));
+      m.set(it.id, stageItemSnapshotTitle(it.snapshot, it.itemType));
     }
   }
   return m;
@@ -269,37 +266,6 @@ function InstanceStageItemDropPreviewMarker() {
   );
 }
 
-function pickFirstFiniteNum(...vals: unknown[]): number | null {
-  for (const v of vals) {
-    if (typeof v === 'number' && Number.isFinite(v)) return v;
-  }
-  return null;
-}
-
-/** Разбор «нагрузки» без ссылки на целый `item` — чтобы `useEffect` мог иметь точные зависимости (exhaustive-deps). */
-function effectiveLoadTripleFromParts(
-  itemType: TreatmentProgramItemType,
-  settings: Record<string, unknown> | null,
-  snapshot: Record<string, unknown>,
-): {
-  reps: number | null;
-  sets: number | null;
-  maxPain: number | null;
-} {
-  const ov =
-    settings != null && typeof settings === 'object' && !Array.isArray(settings)
-      ? (settings as Record<string, unknown>)
-      : {};
-  if (itemType === 'exercise') {
-    return {
-      reps: pickFirstFiniteNum(ov.reps, snapshot.reps),
-      sets: pickFirstFiniteNum(ov.sets, snapshot.sets),
-      maxPain: pickFirstFiniteNum(ov.maxPain, snapshot.maxPain, snapshot.difficulty),
-    };
-  }
-  return { reps: null, sets: null, maxPain: null };
-}
-
 function DoctorInstanceStageItemPreviewBlock(props: { item: InstanceStageItemT }) {
   const { item } = props;
   const media = useMemo(
@@ -338,7 +304,11 @@ function DoctorInstanceStageItemLoadForm(props: { item: InstanceStageItemT; edit
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const e = effectiveLoadTripleFromParts(item.itemType, item.settings, item.snapshot);
+    const e = resolveStageItemExerciseLoad({
+      itemType: item.itemType,
+      settings: item.settings,
+      snapshot: item.snapshot,
+    });
     // eslint-disable-next-line react-hooks/set-state-in-effect -- sync load draft fields when item changes
     setReps(e.reps != null ? String(e.reps) : '');
     setSets(e.sets != null ? String(e.sets) : '');
@@ -422,7 +392,7 @@ function DoctorInstanceStageItemLoadForm(props: { item: InstanceStageItemT; edit
 function DoctorPersonalExerciseTitleForm(props: { item: InstanceStageItemT; editLocked: boolean }) {
   const { item, editLocked } = props;
   const { patchItem } = useInstanceEditorDraft();
-  const title = snapshotTitle(item.snapshot, item.itemType);
+  const title = stageItemSnapshotTitle(item.snapshot, item.itemType);
   if (item.itemType !== 'exercise' || item.snapshot.exerciseScope !== 'personal') return null;
   return (
     <div className="flex flex-col gap-1.5">
@@ -503,7 +473,7 @@ function DoctorProgramInstanceItemCard(props: {
           </div>
         ) : null}
         <p className="min-w-0 flex-1 text-sm font-medium">
-          <span className="truncate">{snapshotTitle(item.snapshot, item.itemType)}</span>{' '}
+          <span className="truncate">{stageItemSnapshotTitle(item.snapshot, item.itemType)}</span>{' '}
           {recPhase0 ? null : (
             <span className="font-normal text-muted-foreground">({item.itemType})</span>
           )}

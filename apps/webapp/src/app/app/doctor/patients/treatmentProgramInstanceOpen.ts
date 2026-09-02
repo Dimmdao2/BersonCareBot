@@ -17,10 +17,11 @@ type OverviewProgramStageLike = {
 };
 
 export function deriveOverviewProgramWidgetFromDetail<T extends OverviewProgramStageLike>(
-  detail: { title: string; stages: T[] },
+  detail: { title: string; createdAt?: string | null; stages: T[] },
 ): {
   programStatus: 'ok';
   programTitle: string;
+  programStartedAt: string | null;
   programStages: T[];
   programCurrentStage: T | null;
   programCurrentStageIndex: number;
@@ -36,6 +37,7 @@ export function deriveOverviewProgramWidgetFromDetail<T extends OverviewProgramS
   return {
     programStatus: 'ok',
     programTitle: detail.title,
+    programStartedAt: detail.createdAt ?? null,
     programStages,
     programCurrentStage,
     programCurrentStageIndex: programCurrentStageIndex >= 0 ? programCurrentStageIndex : 0,

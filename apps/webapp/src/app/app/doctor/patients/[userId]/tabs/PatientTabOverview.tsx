@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, FilePlus2, ListPlus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FilePlus2, Info, ListPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientSupportPanel';
@@ -53,6 +53,12 @@ import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { formatPatientPackageLongLabel } from '@/modules/memberships/display';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DoctorCatalogMediaStaticThumb } from '@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb';
+import {
+  primaryMediaForStageItem,
+  resolveStageItemExerciseLoad,
+  stageItemSnapshotTitle,
+} from '@/app/app/patient/treatment/stageItemSnapshot';
 import {
   DoctorDnaFlatList,
   doctorDnaFlatListClass,
@@ -159,21 +165,9 @@ interface TreatmentInstanceStage {
     id: string;
     itemType: string;
     sortOrder: number;
+    status?: string;
     groupId?: string | null;
-    snapshot?: {
-      title?: string | null;
-      loadType?: string | null;
-      difficulty?: number | null;
-      /** Raw media rows as stored in the snapshot JSON; may include previewSmUrl/previewMdUrl from the media worker. */
-      media?: Array<{
-        mediaUrl: string;
-        mediaType: string;
-        sortOrder: number;
-        previewSmUrl?: string | null;
-        previewMdUrl?: string | null;
-        previewStatus?: string | null;
-      }> | null;
-    } | null;
+    snapshot?: Record<string, unknown> | null;
     effectiveComment?: string | null;
     settings?: Record<string, unknown> | null;
   }>;
@@ -239,6 +233,7 @@ interface OverviewData {
   // Treatment program
   programStatus: WidgetStatus;
   programTitle: string | null;
+  programStartedAt: string | null;
   programStages: TreatmentInstanceStage[];
   programCurrentStage: TreatmentInstanceStage | null;
   programCurrentStageIndex: number; // 0-based index into programStages
@@ -285,6 +280,49 @@ function fmtDateShort(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function formatDaysRu(days: number): string {
+  const mod100 = days % 100;
+  if (mod100 >= 11 && mod100 <= 14) return `${days} дней`;
+  const mod10 = days % 10;
+  if (mod10 === 1) return `${days} день`;
+  if (mod10 >= 2 && mod10 <= 4) return `${days} дня`;
+  return `${days} дней`;
+}
+
+function utcCalendarDayIndex(iso: string): number | null {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return Math.floor(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) /
+      (24 * 60 * 60 * 1000),
+  );
+}
+
+function elapsedProgramDays(startedAt: string, nowIso: string): number | null {
+  const startedDay = utcCalendarDayIndex(startedAt);
+  const currentDay = utcCalendarDayIndex(nowIso);
+  if (startedDay == null || currentDay == null || currentDay < startedDay) return null;
+  return currentDay - startedDay + 1;
+}
+
+function isBeforeCurrentCalendarDay(iso: string, nowIso: string): boolean {
+  const day = utcCalendarDayIndex(iso);
+  const currentDay = utcCalendarDayIndex(nowIso);
+  return day != null && currentDay != null && day < currentDay;
+}
+
+function overviewExerciseLoadLabel(
+  item: TreatmentInstanceStage['items'][number],
+): string | null {
+  const load = resolveStageItemExerciseLoad(item);
+  const parts = [
+    load.reps != null ? `Повторы ${load.reps}` : null,
+    load.sets != null ? `Подходы ${load.sets}` : null,
+    load.maxPain != null ? `Боль ${load.maxPain}` : null,
+  ].filter((part): part is string => part != null);
+  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 function fmtDateMsgShort(iso: string): string {
@@ -605,6 +643,7 @@ function resolveProgramSeedFields(
   OverviewData,
   | 'programStatus'
   | 'programTitle'
+  | 'programStartedAt'
   | 'programStages'
   | 'programCurrentStage'
   | 'programCurrentStageIndex'
@@ -613,6 +652,7 @@ function resolveProgramSeedFields(
     return {
       programStatus: 'error',
       programTitle: null,
+      programStartedAt: null,
       programStages: [],
       programCurrentStage: null,
       programCurrentStageIndex: 0,
@@ -629,6 +669,7 @@ function resolveProgramSeedFields(
       return {
         programStatus: 'empty',
         programTitle: null,
+        programStartedAt: null,
         programStages: [],
         programCurrentStage: null,
         programCurrentStageIndex: 0,
@@ -641,6 +682,7 @@ function resolveProgramSeedFields(
       return {
         programStatus: 'error',
         programTitle: open.title,
+        programStartedAt: open.createdAt,
         programStages: [],
         programCurrentStage: null,
         programCurrentStageIndex: 0,
@@ -650,6 +692,7 @@ function resolveProgramSeedFields(
       return {
         programStatus: 'error',
         programTitle: open.title,
+        programStartedAt: open.createdAt,
         programStages: [],
         programCurrentStage: null,
         programCurrentStageIndex: 0,
@@ -658,6 +701,7 @@ function resolveProgramSeedFields(
     return {
       programStatus: 'loading',
       programTitle: open.title,
+      programStartedAt: open.createdAt,
       programStages: [],
       programCurrentStage: null,
       programCurrentStageIndex: 0,
@@ -666,6 +710,7 @@ function resolveProgramSeedFields(
   return {
     programStatus: 'loading',
     programTitle: null,
+    programStartedAt: null,
     programStages: [],
     programCurrentStage: null,
     programCurrentStageIndex: 0,
@@ -796,6 +841,7 @@ function buildSsrSeedData(
     activePackages,
     programStatus: programSeed.programStatus,
     programTitle: programSeed.programTitle,
+    programStartedAt: programSeed.programStartedAt,
     programStages: programSeed.programStages,
     programCurrentStage: programSeed.programCurrentStage,
     programCurrentStageIndex: programSeed.programCurrentStageIndex,
@@ -898,6 +944,13 @@ export function PatientTabOverview({
   const [tasksModalOpen, setTasksModalOpen] = useState(false);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<SpecialistTaskRow | null>(null);
+  const [stageExercisesModalOpen, setStageExercisesModalOpen] = useState(false);
+  const [clientNowIso, setClientNowIso] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Time-dependent labels are intentionally absent from SSR and the first client render.
+    setClientNowIso(new Date().toISOString());
+  }, []);
 
   const hasSsrData =
     initialClinicalState != null &&
@@ -1199,6 +1252,7 @@ export function PatientTabOverview({
         // --- Program — fetch active instance detail if available ---
         let programStatus: WidgetStatus = 'ok';
         let programTitle: string | null = null;
+        let programStartedAt: string | null = null;
         let programStages: TreatmentInstanceStage[] = [];
         let programCurrentStage: TreatmentInstanceStage | null = null;
         let programCurrentStageIndex = 0;
@@ -1214,11 +1268,13 @@ export function PatientTabOverview({
             const seeded = deriveOverviewProgramWidgetFromDetail(seededProgramDetail);
             programStatus = seeded.programStatus;
             programTitle = seeded.programTitle;
+            programStartedAt = seeded.programStartedAt;
             programStages = seeded.programStages;
             programCurrentStage = seeded.programCurrentStage;
             programCurrentStageIndex = seeded.programCurrentStageIndex;
           } else {
             programTitle = activeInstance.title;
+            programStartedAt = activeInstance.createdAt;
             try {
               const detailRes = await fetch(
                 `/api/doctor/treatment-program-instances/${activeInstance.id}`,
@@ -1230,6 +1286,7 @@ export function PatientTabOverview({
                   const seeded = deriveOverviewProgramWidgetFromDetail(detail.item);
                   programStatus = seeded.programStatus;
                   programTitle = seeded.programTitle;
+                  programStartedAt = seeded.programStartedAt;
                   programStages = seeded.programStages;
                   programCurrentStage = seeded.programCurrentStage;
                   programCurrentStageIndex = seeded.programCurrentStageIndex;
@@ -1285,6 +1342,7 @@ export function PatientTabOverview({
           activePackages: normalizedActivePackages,
           programStatus,
           programTitle,
+          programStartedAt,
           programStages,
           programCurrentStage,
           programCurrentStageIndex,
@@ -1441,6 +1499,19 @@ export function PatientTabOverview({
         expectedDurationDays: displayStage.expectedDurationDays ?? null,
       })
     : null;
+  const programElapsedDays =
+    data?.programStartedAt && clientNowIso
+      ? elapsedProgramDays(data.programStartedAt, clientNowIso)
+      : null;
+  const programControlIsOverdue =
+    programControlDate && clientNowIso
+      ? isBeforeCurrentCalendarDay(programControlDate, clientNowIso)
+      : false;
+  const displayStageExercises = displayStage
+    ? [...displayStage.items]
+        .filter((item) => item.itemType === 'exercise' && item.status !== 'disabled')
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
+    : [];
   const calendarGrid = buildCalendarGrid(data?.calendarDays ?? [], calYear, calMonth);
   const tasksNeedAttention =
     data?.tasks.some((task) => {
@@ -1947,11 +2018,16 @@ export function PatientTabOverview({
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between gap-2">
               <span className={doctorSectionTitleClass}>Программа ЛФК</span>
-              {(data?.programActivity?.unreadCount ?? 0) > 0 && (
-                <span className="inline-flex shrink-0 items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                  {data!.programActivity!.unreadCount} непрочитанных
-                </span>
-              )}
+              <div className="flex shrink-0 items-center gap-2">
+                {programElapsedDays != null ? (
+                  <span className={doctorMetaTextClass}>{formatDaysRu(programElapsedDays)}</span>
+                ) : null}
+                {(data?.programActivity?.unreadCount ?? 0) > 0 && (
+                  <span className="inline-flex shrink-0 items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                    {data!.programActivity!.unreadCount} непрочитанных
+                  </span>
+                )}
+              </div>
             </div>
             {!isLoading && data?.programStatus === 'ok' && data.programTitle ? (
               <Button
@@ -1962,6 +2038,30 @@ export function PatientTabOverview({
               >
                 {data.programTitle}
               </Button>
+            ) : null}
+            {!isLoading && data?.programStatus === 'ok' && displayStage ? (
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <span className={doctorMetaTextClass}>
+                  Этап {displayStageIndex + 1} из {data.programStages.length}
+                </span>
+                <div className="flex items-center gap-3">
+                  {displayStage.expectedDurationDays != null ? (
+                    <span className={doctorMetaTextClass}>
+                      {formatDaysRu(displayStage.expectedDurationDays)}
+                    </span>
+                  ) : null}
+                  {programControlDate ? (
+                    <span
+                      className={cn(
+                        doctorMetaTextClass,
+                        programControlIsOverdue && 'text-destructive',
+                      )}
+                    >
+                      до {fmtDateShort(programControlDate)}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
           </div>
 
@@ -1977,23 +2077,83 @@ export function PatientTabOverview({
 
           {!isLoading && data?.programStatus === 'ok' && (
             <>
-              {programControlDate ? (
-                <p className="mb-1.5 text-xs text-muted-foreground">
-                  Дата контроля: {fmtDateShort(programControlDate)}
-                </p>
-              ) : null}
-
               {displayStage ? (
-                <div className="rounded-lg border border-primary/50 bg-primary/10 px-3 py-2">
-                  <p className="w-full text-sm font-medium text-foreground">
-                    Этап {displayStageIndex + 1} · {displayStage.title}
-                  </p>
-                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setStageExercisesModalOpen(true)}
+                  className="h-auto min-h-9 w-full justify-start rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-left text-sm font-normal text-primary hover:bg-primary/10 hover:text-primary"
+                >
+                  <span className="line-clamp-2">{displayStage.title}</span>
+                </Button>
               ) : null}
               {exerciseCalendar}
             </>
           )}
         </div>
+
+        <DoctorModal
+          open={stageExercisesModalOpen}
+          onClose={() => setStageExercisesModalOpen(false)}
+          title={`Упражнения этапа ${displayStageIndex + 1}`}
+          size="lg"
+          bodyVariant="list"
+          bodyHeader={
+            displayStage ? (
+              <div className="px-[var(--doctor-block-padding,18px)] py-3">
+                <p className={doctorSectionTitleClass}>{displayStage.title}</p>
+              </div>
+            ) : null
+          }
+        >
+          {displayStageExercises.length > 0 ? (
+            <DoctorDnaFlatList>
+              {displayStageExercises.map((item) => {
+                const loadLabel = overviewExerciseLoadLabel(item);
+                const doctorNote = item.effectiveComment?.trim() || null;
+                return (
+                  <li key={item.id} className={doctorDnaFlatListRowClass}>
+                    <DoctorCatalogMediaStaticThumb
+                      media={primaryMediaForStageItem(
+                        item as Parameters<typeof primaryMediaForStageItem>[0],
+                      )}
+                      frameClassName="size-14 rounded-md border border-border/60 bg-muted/15"
+                      sizes="56px"
+                      iconClassName="size-5"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className={cn(doctorDnaFlatListPrimaryClass, 'line-clamp-2 leading-snug')}>
+                        {stageItemSnapshotTitle(item.snapshot, item.itemType)}
+                      </p>
+                      {loadLabel || doctorNote ? (
+                        <div className="mt-1 flex min-w-0 items-center justify-end gap-2">
+                          {doctorNote ? (
+                            <span
+                              className="inline-flex shrink-0 text-muted-foreground"
+                              aria-label="Есть заметка врача"
+                              title={doctorNote}
+                            >
+                              <Info className="size-4" aria-hidden />
+                            </span>
+                          ) : null}
+                          {loadLabel ? (
+                            <span className={cn(doctorDnaFlatListMetaClass, 'text-right')}>
+                              {loadLabel}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </DoctorDnaFlatList>
+          ) : (
+            <DoctorEmptyState className="m-[var(--doctor-block-padding,18px)]">
+              В этапе нет упражнений
+            </DoctorEmptyState>
+          )}
+        </DoctorModal>
 
         {/* Сопровождение — moved here from Учётка (S2.5) */}
         {!isComposed ? (
