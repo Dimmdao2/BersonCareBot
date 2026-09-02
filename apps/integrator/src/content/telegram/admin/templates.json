@@ -5,7 +5,7 @@
   "admin.stats.bookings": "📅 Активных записей: {{activeBookings}}",
   "admin.stats.users": "👥 Пользователи по интеграциям\n\nTelegram: {{telegramTotal}} всего, {{telegramWithPhone}} с телефоном",
   "admin.reply.prompt": "Напишите ответ пользователю следующим сообщением.",
-  "admin.reply.hintUnmatched": "Чтобы ответить пациенту, нажмите «Ответить» под его сообщением. Команды: /admin_bookings, /admin_users, /show_my_id",
+  "admin.reply.hintUnmatched": "Ответить пациенту можно в переписке в кабинете. Команды: /admin_bookings, /admin_users, /show_my_id",
   "admin.reply.sent": "Сообщение отправлено.",
   "admin.reply.continueButton": "Дополнить ответ",
   "admin.dialog.closed": "Диалог завершён.",

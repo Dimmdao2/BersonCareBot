@@ -32,6 +32,7 @@ import {
 } from './helpers.js';
 import { dispatchRequestContactToUser } from '../../../integrations/bersoncare/dispatchRequestContact.js';
 import { logger } from '../../../infra/observability/logger.js';
+import { applyDirectBotSenderScope } from './deliveryPolicy.js';
 
 const BOOKING_TYPES = new Set<string>(['booking.event.insert']);
 const REMINDER_TYPES = new Set<string>([
@@ -157,7 +158,7 @@ async function appendPhoneMessengerBindFailureRecovery(
         payload: {
           recipient: { chatId },
           message: { text },
-          delivery: { channels, maxAttempts: 1 },
+          delivery: applyDirectBotSenderScope({ channels, maxAttempts: 1 }, ctx),
         },
       });
     }
@@ -198,7 +199,10 @@ async function buildPhoneAuthLoginUrlIntents(
           },
         ],
       ],
-      delivery: { channels: [opts.source], maxAttempts: 1 },
+      delivery: applyDirectBotSenderScope(
+        { channels: [opts.source], maxAttempts: 1 },
+        ctx,
+      ),
     },
   };
   const inlineResult = await executeAction(inlineAction, ctx, fullDeps);
@@ -262,7 +266,7 @@ async function buildPhoneMessengerBindMainMenuIntents(
       templateKey: opts.menuOnly ? 'max:chooseMenu' : opts.templateKey,
       ...(opts.vars ? { vars: opts.vars } : {}),
       menu: 'main',
-      delivery: { channels: ['max'], maxAttempts: 1 },
+      delivery: applyDirectBotSenderScope({ channels: ['max'], maxAttempts: 1 }, ctx),
     },
   };
   const inlineResult = await executeAction(inlineAction, ctx, fullDeps);
@@ -352,7 +356,8 @@ export async function executeAction(
               id: `${action.id}:request-self-contact`, type: 'message.send', mode: 'async',
               params: {
                 recipient: { chatId: resolveChannelLinkFailureChatId(ctx, externalId) },
-                templateKey: 'max:phoneAuthWelcome', delivery: { channels: ['max'], maxAttempts: 1 },
+                templateKey: 'max:phoneAuthWelcome',
+                delivery: applyDirectBotSenderScope({ channels: ['max'], maxAttempts: 1 }, ctx),
                 inlineKeyboard: [[{ textTemplateKey: 'max:requestContact.button', requestPhone: true }]],
               },
             };
@@ -560,7 +565,7 @@ export async function executeAction(
                 payload: {
                   recipient: { chatId },
                   message: { text },
-                  delivery: { channels, maxAttempts: 1 },
+                  delivery: applyDirectBotSenderScope({ channels, maxAttempts: 1 }, ctx),
                 },
               });
             }
@@ -650,7 +655,7 @@ export async function executeAction(
                 payload: {
                   recipient: { chatId: chatIdResolved },
                   message: { text },
-                  delivery: { channels: ['max'], maxAttempts: 1 },
+                  delivery: applyDirectBotSenderScope({ channels: ['max'], maxAttempts: 1 }, ctx),
                 },
               },
             ];
@@ -706,7 +711,7 @@ export async function executeAction(
             message: { text },
             ...(replyMarkup ? { replyMarkup } : {}),
             ...(parseMode ? { parse_mode: parseMode } : {}),
-            delivery: { maxAttempts: 1 },
+            delivery: applyDirectBotSenderScope({ maxAttempts: 1 }, ctx),
           },
         },
       ];

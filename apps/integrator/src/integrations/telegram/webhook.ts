@@ -86,7 +86,7 @@ export async function buildLinksFromBody(
       links.webappHomeUrl = `${baseWebappUrl}&next=${enc('/app/patient')}`;
       links.webappCabinetUrl = `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`;
       links.webappAddressUrl = `${baseWebappUrl}&next=${enc('/app/patient/address')}`;
-      links.bookingUrl = links.webappCabinetUrl;
+      links.bookingUrl = `${baseWebappUrl}&next=${enc('/app/patient/booking')}`;
     }
   }
   if (typeof links.bookingUrl !== 'string' && env.BOOKING_URL) {
@@ -294,11 +294,24 @@ export async function processTelegramUpdate(
 
   const preRouting = await runWithBootstrapPrincipal(
     { source: 'telegram-webhook:pre-routing' },
-    async () => ({
-      facts: await buildTelegramFacts(body, deps.getAppBaseUrl, deps.resolveMessengerStaffAdmin),
-      organizationId:
-        ctx.dedicatedOrganizationId ?? (await resolveTelegramOrganizationId(body, deps, reqLogger)),
-    }),
+    async () => {
+      const facts = await buildTelegramFacts(
+        body,
+        deps.getAppBaseUrl,
+        deps.resolveMessengerStaffAdmin,
+      );
+      return {
+        facts: {
+          ...facts,
+          botDeliverySenderScope: ctx.dedicatedOrganizationId
+            ? 'clinic_required'
+            : 'platform_required',
+        },
+        organizationId:
+          ctx.dedicatedOrganizationId ??
+          (await resolveTelegramOrganizationId(body, deps, reqLogger)),
+      };
+    },
   );
 
   // Убрать кнопку меню у пользователя в личном чате (не админ)

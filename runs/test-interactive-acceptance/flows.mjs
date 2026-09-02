@@ -9,6 +9,7 @@ const password = process.env.TEST_ACCEPTANCE_PASSWORD || '';
 const outputDirectory = resolve(import.meta.dirname, 'out');
 const marker = `ACCEPTANCE ${new Date().toISOString().replaceAll(':', '-')}`;
 const results = [];
+const onlyPrefix = process.env.TEST_ACCEPTANCE_ONLY_PREFIX?.trim() || null;
 
 if (!password) throw new Error('TEST_ACCEPTANCE_PASSWORD is required');
 if (!['http://127.0.0.1:5200', 'https://test.bersoncare.ru'].includes(new URL(baseUrl).origin)) {
@@ -47,6 +48,7 @@ async function settle(page) {
 }
 
 async function runStep(page, name, action) {
+  if (onlyPrefix && !name.startsWith(onlyPrefix)) return;
   const observed = { apiErrors: [], pageErrors: [] };
   const onResponse = (response) => {
     if (response.url().startsWith(baseUrl) && response.status() >= 400) {
@@ -162,7 +164,7 @@ try {
       waitUntil: 'domcontentloaded',
     });
     await settle(page);
-    await page.getByRole('button', { name: 'Программа', exact: true }).click();
+    await page.getByRole('button', { name: 'ЛФК', exact: true }).click();
     await page.getByRole('button', { name: 'Назначить программу лечения', exact: true }).click();
     await page.getByRole('radio', { name: 'Пустой план' }).click();
     await page.getByLabel('Название программы, необязательно').fill(programTitle);
@@ -187,7 +189,7 @@ try {
     if (!programRoute) throw new Error('program_assign_did_not_produce_route');
     await page.goto(`${baseUrl}${programRoute}`, { waitUntil: 'domcontentloaded' });
     await settle(page);
-    await page.getByRole('button', { name: 'Завершить программу лечения', exact: true }).click();
+    await page.getByRole('button', { name: 'Завершить программу', exact: true }).click();
     const responsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === 'PATCH' &&
@@ -259,23 +261,27 @@ try {
   });
 
   await runStep(page, 'appointment:create', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${baseUrl}/app/doctor/schedule`, { waitUntil: 'domcontentloaded' });
     await settle(page);
-    await page.getByRole('button', { name: '+ Создать запись', exact: true }).click();
+    await page.getByRole('button', { name: 'Новая запись', exact: true }).click();
     const patientSearch = page.getByPlaceholder('Имя или телефон…');
-    const patientQuery = clientId ? clientLastName : 'Дмитрий Берсон';
+    const patientQuery = clientId ? clientLastName : 'Ольга Альмендингер';
     await patientSearch.fill(patientQuery);
     const patientOption = page.getByRole('option').filter({ hasText: patientQuery }).first();
     await patientOption.waitFor({ timeout: 12_000 });
     await patientOption.click();
-    await page.getByRole('button', { name: 'Выберите дату и время', exact: true }).click();
-    const appointmentDate = moscowDateAfter(1);
+    await page
+      .getByText('Начало', { exact: true })
+      .locator('xpath=following-sibling::button[1]')
+      .click();
+    const appointmentDate = moscowDateAfter(15);
     const availableDay = page.locator(
       `.rdp-day[data-day="${appointmentDate}"] .rdp-day_button:visible:not([disabled])`,
     );
     await availableDay.click();
     await page.getByRole('option', { name: '20:00', exact: true }).click();
-    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Применить', exact: true }).click();
     const responsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
@@ -289,15 +295,19 @@ try {
     if (!response.ok() || responseBody?.ok !== true || !appointmentId) {
       throw new Error(`appointment_create_failed:${response.status()}:${JSON.stringify(responseBody)}`);
     }
-    await page.getByTestId('create-appointment-btn').waitFor({ timeout: 12_000 });
+    await page
+      .getByText(`${clientFirstName} ${clientLastName}`, { exact: false })
+      .first()
+      .waitFor({ timeout: 12_000 });
     return { appointmentId, appointmentDate, route: new URL(page.url()).pathname };
   });
 
   await runStep(page, 'appointment:cancel', async () => {
     if (!appointmentId) throw new Error('appointment_create_failed');
-    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.goto(`${baseUrl}/app/doctor/schedule?tab=cal&render=list`, {
+      waitUntil: 'domcontentloaded',
+    });
     await settle(page);
-    await page.getByRole('button', { name: 'Список', exact: true }).click();
     const row = page.getByTestId(`list-appt-${appointmentId}`);
     await row.waitFor({ timeout: 30_000 });
     await row.click();

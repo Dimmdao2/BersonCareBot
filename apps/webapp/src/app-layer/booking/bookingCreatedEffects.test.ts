@@ -49,7 +49,10 @@ describe('пациент узнаёт о созданной записи', () =>
         },
       },
       deliveryTargets: {
-        getTargets: async () => ({ channelBindings: { telegramId: '111', maxId: '222' } }),
+        getTargets: async () => ({
+          platformUserId: 'user-1',
+          channelBindings: { telegramId: '111', maxId: '222' },
+        }),
       },
     });
 
@@ -75,7 +78,10 @@ describe('пациент узнаёт о созданной записи', () =>
         },
       },
       deliveryTargets: {
-        getTargets: async () => ({ channelBindings: { telegramId: '111' } }),
+        getTargets: async () => ({
+          platformUserId: 'user-1',
+          channelBindings: { telegramId: '111' },
+        }),
       },
     });
 
@@ -93,7 +99,9 @@ describe('пациент узнаёт о созданной записи', () =>
     });
     const effects = createBookingCreatedEffects({
       outboundMessageQueue: { enqueue: async () => true },
-      deliveryTargets: { getTargets: async () => ({ channelBindings: {} }) },
+      deliveryTargets: {
+        getTargets: async () => ({ platformUserId: 'user-1', channelBindings: {} }),
+      },
     });
 
     await effects.apply(input());
@@ -115,7 +123,10 @@ describe('пациент узнаёт о созданной записи', () =>
         },
       },
       deliveryTargets: {
-        getTargets: async () => ({ channelBindings: { telegramId: '111' } }),
+        getTargets: async () => ({
+          platformUserId: 'user-1',
+          channelBindings: { telegramId: '111' },
+        }),
       },
     });
 
@@ -125,7 +136,10 @@ describe('пациент узнаёт о созданной записи', () =>
 
   it('клиника выключила уведомление пациента — в очередь не уходит ничего', async () => {
     const enqueue = vi.fn(async () => true);
-    const getTargets = vi.fn(async () => ({ channelBindings: { telegramId: '111' } }));
+    const getTargets = vi.fn(async () => ({
+      platformUserId: 'user-1',
+      channelBindings: { telegramId: '111' },
+    }));
     const effects = createBookingCreatedEffects({
       outboundMessageQueue: { enqueue },
       deliveryTargets: { getTargets },

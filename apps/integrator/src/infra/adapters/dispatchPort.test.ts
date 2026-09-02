@@ -84,6 +84,17 @@ function clinicIfConfiguredIntent(channel: 'telegram' | 'max'): OutgoingIntent {
   } as OutgoingIntent;
 }
 
+function platformRequiredIntent(channel: 'telegram' | 'max'): OutgoingIntent {
+  const intent = clinicRequiredIntent(channel);
+  return {
+    ...intent,
+    payload: {
+      ...intent.payload,
+      delivery: { channels: [channel], senderScope: 'platform_required' },
+    },
+  } as OutgoingIntent;
+}
+
 function queuedClinicBroadcastIntent(): OutgoingIntent {
   const intent = clinicRequiredIntent('telegram');
   return {
@@ -350,6 +361,25 @@ describe('clinic-owned delivery routing', () => {
     expect(
       (send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery,
     ).toMatchObject({ clinicCredential: { channel: 'telegram', botToken: 'clinic-a-token' } });
+  });
+
+  it('does not borrow an enabled clinic bot for an ordinary platform-bot reply', async () => {
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const resolveClinicDeliveryCredential = vi.fn(async () => ({
+      channel: 'telegram' as const,
+      botToken: 'clinic-a-token',
+    }));
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      resolveClinicDeliveryCredential,
+    });
+
+    await port.dispatchOutgoing(platformRequiredIntent('telegram'));
+
+    expect(send).toHaveBeenCalledOnce();
+    expect(
+      (send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery,
+    ).not.toHaveProperty('clinicCredential');
   });
 
   it('falls back to the platform credential only for clinic-preferred essential delivery', async () => {

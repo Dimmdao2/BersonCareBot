@@ -156,9 +156,16 @@ UDP/TCP-запросы на порт `53` в этот split resolver. `awg0`, wg
 Боевой тест на **копии реальных прод-данных** — прогон большого merge / миграций / дедуп-скриптов **ДО прода**.
 
 - **🔴 Изоляция отправок (данные настоящие!):** в `api.test` стоит `TEST=true`, а разрешённые owner-аккаунты перечислены в `TEST_ACCOUNT_{TELEGRAM_IDS,MAX_IDS,PHONES,EMAILS,WEB_PUSH_USER_IDS}`. Единственный integrator-gate непосредственно перед провайдером доставляет сообщение неизменённым только исходному получателю из этого списка; всех остальных подавляет без редиректа. Preview и бизнес-логика показывают настоящую аудиторию и не знают о safety-фильтре. В локальном DEV внешняя доставка подавлена целиком. **Maintenance forced ON**, product-настройки TEST залочены DB-триггером.
-- **Входящие Telegram на тесте НЕ настроены:** приём только вебхуком `POST /webhook/telegram` (long-polling в коде нет), а вебхук не задан + IP-allowlist режет IP Telegram → `/start`/меню/кнопки не работают. **Только исходящие** (OTP/уведомления/чат) — этого достаточно для проверки send-safety. Web-push на тест-домен требует **свежей** PWA-подписки (восстановленная из дампа привязана к prod-origin/VAPID).
+- **Telegram на TEST сейчас внешне заблокирован токеном:** код поддерживает и webhook, и long-polling через
+  общий `processTelegramUpdate`, но 02.09 provider-вызовы `deleteMyCommands` и `getUpdates` оба вернули
+  `401 Unauthorized`. Пока не установлен валидный TEST-токен, `/start`, меню, входящие и исходящие Telegram
+  живьём не проверяются; это не ошибка transport/menu-кода. Web-push на test-домен требует **свежей**
+  PWA-подписки (восстановленная из дампа привязана к prod-origin/VAPID).
 - Тест-БД `bersoncarebot_test` на том же PG16 (`:5432`); порты **`:3300`** (integrator) / **`:6300`** (webapp, чтобы не пересечься с dev `:5200` и прод-портами); **ТЕСТ-токен** бота (не прод); доступ к `test.bersoncare.ru` залочен по IP (см. «Доступы / VPN»).
-- **Деплой (факт):** TEST остаётся нетронутым до полного green runtime-прохода именованного DEV. После owner gate `bash deploy/host/deploy-test.sh` сможет обновлять только существующую TEST БД B0-forward changes; fresh dump/restore, disposable/A0/A1 и PROD A→B0 tooling отсутствуют из active checkout.
+- **Деплой (факт):** обычный `bash deploy/host/deploy-test.sh` обновляет существующую именованную TEST БД.
+  Отдельный owner-authorized full-reset path умеет прочитать свежий PROD dump и атомарно получить текущий B-state
+  на той же named TEST; репетиция 02.09 завершилась PASS. Одноразовые/disposable БД и исторический replay
+  запрещены. Фактический PROD A→B0 остаётся отдельным owner-gate.
 
 ### Источник истины по топологии
 
@@ -169,9 +176,13 @@ Orchestration-память, старые чаты и нижние историч
 
 ---
 
-## Модель PostgreSQL (обновление 2026-04)
+## Модель PostgreSQL (актуальная target-модель 2026-09)
 
-**Актуально:** integrator и webapp используют **одну** базу данных: в `api.prod` и `webapp.prod` задаётся **один и тот же** `DATABASE_URL`. Данные разделены **схемами**: канон пациента и webapp-таблицы — в **`public`**, таблицы integrator — в **`integrator`**. Integrator читает и пишет в обе схемы **напрямую SQL** (роль с `search_path` и GRANT), без обязательного **HTTP** и **worker/ретраев** как основного пути для этих операций. Очередь (`projection_outbox` и т.п.) — **fallback** при временных сбоях и для ещё не переведённого legacy-потока.
+**Актуально для репозитория и TEST:** integrator и webapp используют одну физическую БД со схемами `public` и
+`integrator`, но не общий runtime-login. Webapp открывает три role-specific URL, integrator — свой узкий URL;
+все обращения идут через типизированные DB-порты приложения и принятый контекст организации. Общий всемогущий
+`DATABASE_URL`, прямой SQL из route/domain-кода и старый projection-fallback не являются target runtime.
+Существующий PROD остаётся исходным A-state до отдельно разрешённого cutover.
 
 Подробно: [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md).
 
@@ -591,9 +602,15 @@ integrator-only БД — **legacy** (см. [`DATABASE_UNIFIED_POSTGRES.md`](./DA
 
 ### Data migration / доступ к БД (production)
 
-**Текущий runtime:** одна БД; `DATABASE_URL` в `api.prod` и `webapp.prod` **одинаковый**. Для SQL в webapp-таблицах используйте схему **`public`**, для integrator — **`integrator`** (или `search_path`, заданный роли).
+**Target runtime после A→B0:** одна физическая БД, но четыре узких runtime-login: три webapp-поверхности и
+integrator. Схема `public` хранит канон приложения, `integrator` — внутренние объекты интегратора; доступ к ним
+идёт через порты и декларативные roots/grants, а не через общий URL. До cutover текущий PROD остаётся source
+A-state и не используется как образец target-прав.
 
-**УСТАРЕЛО/ЗАМЕНЕНО 16.08.2026:** active checkout не содержит PROD A→B0, historical replay или disposable execution path. `cutover.prod`, `INTEGRATOR_DATABASE_URL` и `SOURCE_DATABASE_URL` могут встречаться только в исторических описаниях и не являются входом текущего deploy.
+**Актуально 02.09.2026:** active checkout содержит owner-gated PROD→named TEST A→B0 rehearsal/cutover tooling.
+Оно не является обычным deploy и не разрешает PROD write без отдельной команды владельца. Historical replay и
+disposable execution path отсутствуют и запрещены; source/target URL живут только в отдельном cutover-контуре,
+не в runtime env приложений.
 
 ### Миграции: webapp Drizzle (`public`) vs integrator
 

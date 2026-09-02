@@ -35,6 +35,7 @@ export type DeliveryTargetsApiParams = {
 };
 
 export type DeliveryTargetsApiResult = {
+  platformUserId: string;
   channelBindings: ChannelBindings;
   resolution?: ResolvedNotificationChannels;
   emailRecipient?: string;
@@ -113,7 +114,9 @@ export async function getDeliveryTargetsForIntegrator(
     return null;
   }
 
-  if (!topicCode) return { channelBindings: legacyBindings(snapshot) };
+  if (!topicCode) {
+    return { platformUserId: snapshot.platformUserId, channelBindings: legacyBindings(snapshot) };
+  }
 
   const core = resolvePatientNotificationChannels({
     topicCode,
@@ -135,6 +138,7 @@ export async function getDeliveryTargetsForIntegrator(
     topicCode,
   });
   return {
+    platformUserId: snapshot.platformUserId,
     channelBindings: bindingsFromResolution(snapshot, resolution.selectedChannels),
     resolution,
     ...(resolution.selectedChannels.includes('email') && snapshot.emailRecipient

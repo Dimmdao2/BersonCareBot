@@ -10,6 +10,7 @@ import {
 } from '@/app-layer/idempotency/idempotencyStore';
 import { appointmentReminderMaterializationBodySchema } from '@/modules/booking-notifications/appointmentReminderMaterializationSchema';
 import { prepareAppointmentReminderDeliveries } from '@/modules/booking-notifications/appointmentReminderMaterialization';
+import { DeliveryTargetsTenantDeniedError } from '@/modules/integrator/deliveryTargetsApi';
 
 export async function POST(request: Request) {
   const timestamp = request.headers.get('x-bersoncare-timestamp');
@@ -48,50 +49,59 @@ export async function POST(request: Request) {
   if (cached.hit && 'status' in cached) return NextResponse.json(cached.body, { status: cached.status });
 
   const deps = buildAppDeps();
-  const platform = parsed.data.platformUserId
-    ? { platformUserId: parsed.data.platformUserId }
-    : parsed.data.phoneNormalized
-      ? await deps.userProjection.findByPhoneNormalized(parsed.data.phoneNormalized)
-      : null;
-  let skipped: 'no_platform_user' | 'no_audience' | undefined;
-  let deliveries: ReturnType<typeof prepareAppointmentReminderDeliveries> = [];
-  if (!platform) {
-    skipped = 'no_platform_user';
-  } else {
-    const targets = await deps.deliveryTargetsApi.getTargets({
+  let targets: Awaited<ReturnType<typeof deps.deliveryTargetsApi.getTargets>> = null;
+  try {
+    targets = await deps.deliveryTargetsApi.getTargets({
       organizationId: parsed.data.organizationId,
-      platformUserId: platform.platformUserId,
+      ...(parsed.data.platformUserId
+        ? { platformUserId: parsed.data.platformUserId }
+        : parsed.data.phoneNormalized
+          ? { phone: parsed.data.phoneNormalized }
+          : {}),
       topic: 'appointment_reminders',
     });
-    if (!targets) {
-      skipped = 'no_audience';
-    } else {
-      const selectedChannels = targets.resolution?.selectedChannels ?? [];
-      const timeZone = await deps.appDisplayTimeZone();
-      deliveries = prepareAppointmentReminderDeliveries(
-        {
-          organizationId: parsed.data.organizationId,
-          appointmentId: parsed.data.appointmentId,
-          bookingId: parsed.data.bookingId,
-          platformUserId: platform.platformUserId,
-          slotStartIso: parsed.data.slotStartIso,
-          generationRevision: parsed.data.generationRevision,
-          patientName: parsed.data.patientName ?? null,
-          reminderPlan: parsed.data.reminderPlan,
-          cancelPending: parsed.data.cancelPending,
-        },
-        {
-          selectedChannels,
-          ...(targets.channelBindings.telegramId
-            ? { telegramId: targets.channelBindings.telegramId }
-            : {}),
-          ...(targets.channelBindings.maxId ? { maxId: targets.channelBindings.maxId } : {}),
-          hasWebPush: selectedChannels.includes('web_push'),
-        },
-        new Date().toISOString(),
-        timeZone,
+  } catch (error) {
+    if (!(error instanceof DeliveryTargetsTenantDeniedError)) throw error;
+    if (parsed.data.platformUserId) {
+      return NextResponse.json(
+        { ok: false, error: 'notification target is outside organization' },
+        { status: 403 },
       );
     }
+    // A phone belonging to a person outside this clinic is simply not an audience for the
+    // clinic appointment. Never reveal the cross-tenant match and never retry it as a 500.
+    targets = null;
+  }
+  let skipped: 'no_platform_user' | 'no_audience' | undefined;
+  let deliveries: ReturnType<typeof prepareAppointmentReminderDeliveries> = [];
+  if (!targets) {
+    skipped = parsed.data.platformUserId ? 'no_audience' : 'no_platform_user';
+  } else {
+    const selectedChannels = targets.resolution?.selectedChannels ?? [];
+    const timeZone = await deps.appDisplayTimeZone();
+    deliveries = prepareAppointmentReminderDeliveries(
+      {
+        organizationId: parsed.data.organizationId,
+        appointmentId: parsed.data.appointmentId,
+        bookingId: parsed.data.bookingId,
+        platformUserId: targets.platformUserId,
+        slotStartIso: parsed.data.slotStartIso,
+        generationRevision: parsed.data.generationRevision,
+        patientName: parsed.data.patientName ?? null,
+        reminderPlan: parsed.data.reminderPlan,
+        cancelPending: parsed.data.cancelPending,
+      },
+      {
+        selectedChannels,
+        ...(targets.channelBindings.telegramId
+          ? { telegramId: targets.channelBindings.telegramId }
+          : {}),
+        ...(targets.channelBindings.maxId ? { maxId: targets.channelBindings.maxId } : {}),
+        hasWebPush: selectedChannels.includes('web_push'),
+      },
+      new Date().toISOString(),
+      timeZone,
+    );
   }
   const result = await deps.appointmentReminderMaterialization.replaceGeneration({
     organizationId: parsed.data.organizationId,

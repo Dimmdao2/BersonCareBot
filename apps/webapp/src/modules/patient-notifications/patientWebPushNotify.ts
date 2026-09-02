@@ -31,6 +31,7 @@ import {
   resolvePatientNotificationChannels,
   type NotificationTopicGate,
 } from '@/modules/patient-notifications/resolveNotificationChannels';
+import type { ResolvedNotificationChannels } from '@/modules/patient-notifications/notificationChannelContract';
 import { REMINDER_NOTIFICATION_TOPIC_APPOINTMENT } from '@/modules/reminders/notificationTopicCode';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import type { SystemSettingsService } from '@/modules/system-settings/service';
@@ -70,7 +71,25 @@ export type IntegratorPatientWebPushNotifyBody = z.infer<
   typeof integratorPatientWebPushNotifyBodySchema
 >;
 
-export type PatientWebPushNotifyDeps = {
+type PatientWebPushNotifyCommonDeps = {
+  /**
+   * The signed integrator path supplies one organization-bound resolution snapshot. The
+   * legacy relation-shaped dependencies below are intentionally absent from that branch,
+   * so an M2M caller cannot accidentally bypass the canonical delivery-target root.
+   */
+  resolveDeliveryTarget?: (input: {
+    organizationId: string;
+    platformUserId?: string;
+    phoneNormalized?: string;
+    topicCode: string;
+  }) => Promise<ResolvedNotificationChannels | null>;
+  systemSettings: Pick<SystemSettingsService, 'getSetting'>;
+  recordDeliveryAttempt?: (input: RecordNotificationDeliveryAttemptInput) => Promise<void>;
+  patientInboundChatPort?: PatientInboundChatPort;
+};
+
+type PatientWebPushNotifyLegacyDeps = PatientWebPushNotifyCommonDeps & {
+  resolveDeliveryTarget?: never;
   findPlatformUserByPhone: (phoneNormalized: string) => Promise<{ platformUserId: string } | null>;
   channelPreferences: ChannelPreferencesPort;
   topicChannelPrefs: TopicChannelPrefsPort;
@@ -79,18 +98,19 @@ export type PatientWebPushNotifyDeps = {
    * Kept for call-site backward compat (buildAppDeps, route.ts, fanOutBroadcastWebPush).
    * No longer used by this function — VAPID + SMTP are read by the integrator adapter (PLAN S14b).
    */
-  systemSettings: Pick<SystemSettingsService, 'getSetting'>;
   readReminderNotifyGate: (
     platformUserId: string,
     topicCode: string,
   ) => Promise<NotificationTopicGate>;
-  /**
-   * Kept for call-site backward compat. Delivery-attempt logging for this leg has moved
-   * to the integrator adapter (PLAN S14 step 1). No longer called here.
-   */
-  recordDeliveryAttempt?: (input: RecordNotificationDeliveryAttemptInput) => Promise<void>;
-  patientInboundChatPort?: PatientInboundChatPort;
 };
+
+type PatientWebPushNotifyIntegratorDeps = PatientWebPushNotifyCommonDeps & {
+  resolveDeliveryTarget: NonNullable<PatientWebPushNotifyCommonDeps['resolveDeliveryTarget']>;
+};
+
+export type PatientWebPushNotifyDeps =
+  | PatientWebPushNotifyLegacyDeps
+  | PatientWebPushNotifyIntegratorDeps;
 
 function buildPatientNotificationsOpenUrl(appBaseUrl: string): string {
   const base = appBaseUrl.replace(/\/$/, '');
@@ -136,11 +156,23 @@ export async function runPatientWebPushNotify(
   body: IntegratorPatientWebPushNotifyBody,
   deps: PatientWebPushNotifyDeps,
 ): Promise<Record<string, unknown>> {
-  const platform = body.platformUserId
-    ? { platformUserId: body.platformUserId }
-    : body.phoneNormalized
-      ? await deps.findPlatformUserByPhone(body.phoneNormalized)
-      : null;
+  const canonicalResolution = deps.resolveDeliveryTarget
+    ? await deps.resolveDeliveryTarget({
+        organizationId: body.organizationId,
+        ...(body.platformUserId ? { platformUserId: body.platformUserId } : {}),
+        ...(body.phoneNormalized ? { phoneNormalized: body.phoneNormalized } : {}),
+        topicCode: body.topicCode,
+      })
+    : null;
+  const platform = deps.resolveDeliveryTarget
+    ? canonicalResolution
+      ? { platformUserId: canonicalResolution.userId }
+      : null
+    : body.platformUserId
+      ? { platformUserId: body.platformUserId }
+      : body.phoneNormalized
+        ? await deps.findPlatformUserByPhone(body.phoneNormalized)
+        : null;
 
   if (!platform) {
     return { ok: true, skipped: 'no_platform_user' };
@@ -184,35 +216,35 @@ export async function runPatientWebPushNotify(
     }
   }
 
-  const gate = await deps.readReminderNotifyGate(uid, body.topicCode);
-  if (gate.muted) {
-    return { ok: true, skipped: 'muted' };
-  }
+  const resolved = canonicalResolution
+    ? canonicalResolution
+    : await (async () => {
+        if (deps.resolveDeliveryTarget) return null;
+        const gate = await deps.readReminderNotifyGate(uid, body.topicCode);
+        if (gate.muted) return 'muted' as const;
+        const [prefs, topicRows, hasSubs] = await Promise.all([
+          deps.channelPreferences.getPreferences(uid),
+          deps.topicChannelPrefs.listByUserId(uid),
+          deps.webPushSubscriptions.hasAnyForUserId(uid),
+        ]);
+        return resolvePatientNotificationChannels({
+          topicCode: body.topicCode,
+          availability: {
+            hasTelegram: false,
+            hasMax: false,
+            hasEmail: false,
+            emailVerified: false,
+            hasWebPushSubscription: hasSubs,
+            vapidConfigured: true,
+          },
+          channelPrefs: prefs,
+          topicChannelRows: topicRows,
+          gate,
+        });
+      })();
 
-  const [prefs, topicRows, hasSubs] = await Promise.all([
-    deps.channelPreferences.getPreferences(uid),
-    deps.topicChannelPrefs.listByUserId(uid),
-    // Pre-check: avoid relay call for users with no subscriptions at all.
-    // Integrator adapter also checks at send time, but we short-circuit here
-    // to preserve the same skipped-channel semantics as the old path.
-    deps.webPushSubscriptions.hasAnyForUserId(uid),
-  ]);
-
-  const resolved = resolvePatientNotificationChannels({
-    topicCode: body.topicCode,
-    availability: {
-      hasTelegram: false,
-      hasMax: false,
-      hasEmail: false,
-      emailVerified: false,
-      hasWebPushSubscription: hasSubs,
-      // VAPID is now read by the integrator adapter; treat as always configured here.
-      vapidConfigured: true,
-    },
-    channelPrefs: prefs,
-    topicChannelRows: topicRows,
-    gate,
-  });
+  if (resolved === 'muted') return { ok: true, skipped: 'muted' };
+  if (!resolved) return { ok: true, skipped: 'no_platform_user' };
 
   if (!resolved.selectedChannels.includes('web_push')) {
     return {
@@ -221,7 +253,7 @@ export async function runPatientWebPushNotify(
       skippedChannels: resolved.skippedChannels,
     };
   }
-  if (!hasSubs) {
+  if (!resolved.availableChannels.includes('web_push')) {
     return { ok: true, skipped: 'no_active_subscriptions' };
   }
 

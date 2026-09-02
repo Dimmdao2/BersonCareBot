@@ -69,7 +69,7 @@ type DeliveryPayload = {
 
 type ClinicSenderScope = 'clinic_required' | 'clinic_preferred' | 'platform_required';
 
-type RequestedSenderScope = 'clinic_required' | 'clinic_if_configured';
+type RequestedSenderScope = 'clinic_required' | 'clinic_if_configured' | 'platform_required';
 
 /**
  * `C3` + §1.2h: на пути по умолчанию клиника не настраивает ничего, поэтому `clinic_if_configured`
@@ -107,6 +107,9 @@ async function clinicSenderScope(
 
   if (requestedScope === 'clinic_required') {
     return { senderScope: 'clinic_required', clinicCredential, requestedScope };
+  }
+  if (requestedScope === 'platform_required') {
+    return { senderScope: 'platform_required', clinicCredential: null, requestedScope };
   }
   if (requestedScope === 'clinic_if_configured') {
     return {

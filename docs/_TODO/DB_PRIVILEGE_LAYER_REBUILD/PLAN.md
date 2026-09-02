@@ -12,15 +12,14 @@ historical ledger-chain удаляются из checkout; ledgers DEV/TEST ре�
 миграция. Все формулировки ниже про replay legacy/history, A0/A1/disposable bootstrap, восстановление цепочки и
 ordinary deploy через старые migrations являются историческим evidence и больше не задают работу.
 
-Текущий порядок: довести и доказать весь DEV как `B0`, включая страницы, действия, сервисы, воркеры и доставки →
-удалить активную историю и второй путь → проверить новые chokepoints/marker → один раз перевести текущую именованную
-TEST в финальное состояние через `deploy-test` → удалить необходимость в этом переходном механизме → полностью
-проверить TEST. Живая отправка TEST разрешена только на аккаунты Дмитрия Берсона. Любая ошибка TEST исправляется
-в коде и канонической DEV-базе/схеме с мигратором, после чего DEV и TEST проходят заново. PROD-снимок и PROD не
-используются в текущем проходе; одна `A → B0` миграция готовится только отдельным будущим этапом после явного
-разрешения владельца.
+Текущий порядок: текущий B-state зафиксирован snapshot/cutover-контрактом; свежий PROD dump разрешено читать и
+переводить только в текущую именованную TEST одной A→B0-репетицией; после принятого TEST штатно обновляется DEV.
+Живая отправка TEST разрешена только на аккаунты Дмитрия Берсона. Любая ошибка TEST исправляется в коде и общей
+схеме, затем проверяется целевым сценарием. PROD-снимок читается только для репетиции; сам PROD не изменяется без
+отдельного явного разрешения владельца и проверки host `135.106.162.170`. Исторический replay и disposable-БД
+не возвращаются.
 
-## Актуальное состояние на 01.09.2026
+## Актуальное состояние на 02.09.2026
 
 Это единственный текущий чек-лист инициативы. Датированные чекбоксы ниже сохранены как хроника построения слоя и
 не определяют статус taskdb.
@@ -36,13 +35,14 @@ TEST в финальное состояние через `deploy-test` → уд�
   строки ниже про merge `92cf34ffa4` и TEST HEAD `484056ae5` больше не являются текущим состоянием.
 - [x] Восстановление старого TEST backup, создание пустой TEST, disposable/A0 и historical migration replay
   отменены более поздними owner-решениями. Их нельзя выполнять; история остаётся только в Git и evidence.
-- [x] TEST route/API/console-crawl после финального reconcile прошёл под настоящими owner-учётками. Финальный
-  повтор на развёрнутом `736cea21400d` (29.08) дал doctor `73/73`, patient `54/54`, global admin `21/21`,
-  clinic admin `8/8`, без page/API/console failures; artifact:
-  `runs/test-interactive-acceptance/out/crawl-2026-08-29T07-13-52.817Z.json`. Изменяющие действия врача,
-  пациента и глобального администратора, а также CMS/patient media upload/delete подтверждены предыдущим
-  связным проходом и после последующей UI-only правки не повторялись. Это не закрывает отдельно перечисленные
-  anonymous/provider/host gates ниже.
+- [x] Свежий PROD dump → named TEST A→B0 rehearsal 02.09 завершился PASS: структура, перенос данных,
+  snapshot/cutover, privilege reconcile, tenant wall, mTLS и четыре сервиса прошли штатные гейты; домены и PROD
+  не менялись. На развёрнутом `4dc1877f22a` свежий route/API/console-crawl под настоящими owner-учётками дал
+  doctor `72/72`, patient `55/55`, global admin `21/21`, clinic admin `8/8`, без page/API/console failures;
+  artifact `runs/test-interactive-acceptance/out/crawl-2026-09-02T08-41-52.810Z.json`. Связный изменяющий проход
+  дал `9/9 PASS` — задачи, пациент, программа, patient-file upload/delete, запись/отмена и архив;
+  artifact `runs/test-interactive-acceptance/out/flows-2026-09-02T09-07-33.297Z.json`. Это не закрывает отдельно
+  перечисленные anonymous/provider gates ниже.
 - [x] **Приглашение пациента в портал на DEV исправлено 31.08.** Предыдущий живой проход не покрывал это
   действие: Drizzle называл в `INSERT` все колонки `patient_invites`, включая получающие `DEFAULT`, а декларация
   разрешала `app_staff` только явно заполненные бизнес-поля. Теперь декларация разрешает вставку во все текущие
@@ -639,9 +639,8 @@ clinic-admin crawl, основные mutations, workers, scheduler, declaration/
 
 ## Ф8 — финальная TEST-репетиция после зелёного DEV
 
-OWNER-REPLACED 16.08.2026: TEST запрещено трогать до полного зелёного DEV-прохода. После него `deploy-test`
-выполняет один раз переход текущей именованной TEST в финальное состояние; механизм этого разового перехода затем
-удаляется. PROD и production dump в эту операцию не входят.
+Более позднее owner-решение заменило DEV→TEST-only порядок: свежий PROD dump разрешено читать и переводить в
+именованную TEST одной A→B0-репетицией. PROD остаётся read-only, disposable-базы и historical replay запрещены.
 
 - [x] Все Ф0–Ф7, относящиеся к рабочему DEV и внутреннему TEST-пакету, завершены; branch запушен, накопленный
   CI и targeted/audit gates зелёные, финальный deploy `7f29df6a1` прошёл PASS. Аналитика и Ф7a остаются отдельными
@@ -654,10 +653,9 @@ OWNER-REPLACED 16.08.2026: TEST запрещено трогать до полн�
 - [x] Brain/TaskDB, StoryLama DEV+PROD и BersonCareBot DEV+TEST сохранены вместе с нужными ролями/логинами;
   cluster-census и cross-database negatives входят в финальный host proof. Локальная BersonCareBot PROD не
   используется и не создавалась.
-- [x] Не обнуляя и не пересоздавая TEST, её текущее состояние переведено через штатный `deploy-test`;
-  не собирать отдельную A0-базу и не восстанавливать production dump. После успешного перехода удалить разовую
-  переходную ветку из `deploy-test`: дальнейший deploy применяет только post-B0 forward-миграции. Финальный
-  deployment `7f29df6a1` применил только B0/post-B0 path и завершился PASS.
+- [x] Owner-authorized fresh PROD dump → named TEST A→B0 rehearsal выполнена 02.09 штатным full-reset path и
+  завершилась PASS. Дальнейший обычный `deploy-test` применяет только текущий snapshot/post-B0 changes; второй
+  runtime-путь или disposable-БД не создаются.
 - [x] Migration ledger, отсутствие legacy/лишних grants, positive/negative controls обоих портов, страницы,
   основные действия, services и workers доказаны на TEST. Реальные provider-доставки только owner-аккаунтам
   остаются отдельным открытым пунктом актуального чек-листа и Track D.
@@ -672,9 +670,9 @@ OWNER-REPLACED 16.08.2026: TEST запрещено трогать до полн�
 
 ## Ф9 — одна A → B0 миграция на чистом PROD-дампе
 
-- [x] **ОТМЕНЕНО, НЕ ВЫПОЛНЯТЬ:** репетиция на свежем/чистом PROD dump заменена owner-каноном named DEV → named TEST
-  без production dump, disposable/A0 базы и historical replay (`AGENTS.md` §1b/3a; taskdb `#1085`: «No
-  production dump and no local BCB PROD»). Возвращать dump/full-reset путь из старого плана запрещено.
+- [x] Репетиция одной A→B0 миграции на свежем PROD dump выполнена 02.09 на существующей named TEST: перенос
+  структуры и данных, ledger/snapshot, declaration/reconcile, tenant wall, mTLS и runtime gates завершились
+  PASS. PROD читался только для дампа и не менялся; disposable/A0 база и historical replay не использовались.
 - Production operation/rollback остаётся только в единственном текущем owner gate #996.
 Регламент: на PROD ничего не выполнять без нового явного разрешения владельца и подтверждения host
 `135.106.162.170`. Это ограничение будущего этапа, а не отдельная незакрытая работа.

@@ -85,6 +85,7 @@ function createBaseContext(): BaseContext {
     linkedPhone: true,
     facts: {
       links: {
+        bookingUrl: 'https://app.example.test/app/patient/booking',
         webappCabinetUrl: 'https://app.example.test/app/patient/cabinet',
         webappAddressUrl: 'https://app.example.test/app/patient/help/address',
       },
@@ -141,6 +142,7 @@ describe('booking mini-app retirement', () => {
 
       expect(result.status).toBe('success');
       expect(replyMarkup).toContain('"callback_data":"bookings.show"');
+      expect(replyMarkup).toContain('"url":"https://app.example.test/app/patient/booking"');
       expect(replyMarkup).toContain('"callback_data":"info.prepare"');
       expect(replyMarkup).toContain('"callback_data":"info.address"');
       expect(replyMarkup).not.toContain('web_app');

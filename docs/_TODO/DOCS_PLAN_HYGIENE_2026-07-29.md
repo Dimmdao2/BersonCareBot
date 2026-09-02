@@ -647,7 +647,8 @@ execution plan, а owner запретил сворачивать карточк�
   Архивный execution plan не является исполняемым authority и не разрешает возобновлять R1–R7.
 - `#987` → `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §Track D: исправленная карта даёт две связанные
   plan-привязки; master Work Order имел **8** живых D3–D10 против **7** живых A-checks в subordinate
-  `TRACK_D1_APPROACH_DECISION_2026-07-24.md`, поэтому сработал второй механический критерий.
+  архивном `docs/archive/2026-07-track-d/SAAS_FOUNDATION/TRACK_D1_APPROACH_DECISION_2026-07-24.md`, поэтому
+  сработал второй механический критерий.
 
 **Исторический вывод:** `#981` и `#987` были самостоятельными workstream; ни одна не являлась зонтиком другой.
 Этот вывод не делает завершённый Rubitime-retirement живой задачей.
@@ -655,7 +656,7 @@ execution plan, а owner запретил сворачивать карточк�
 | карточка | предложение лиду | где уточнена привязка |
 | --- | --- | --- |
 | `#981` | сохранить как завершённую историю; не возобновлять | архивный `RUBITIME_RETIREMENT_EXECUTION_PLAN.md`; retirement 2026-07-27, owner archive decision 2026-07-29 |
-| `#987` | оставить отдельной | `WORK_ORDER.md` §Track D «Точная taskdb-привязка после сверки 29.07» + `TRACK_D1_APPROACH_DECISION_2026-07-24.md` intro |
+| `#987` | оставить отдельной | исторический срез: `WORK_ORDER.md` §Track D + архивный `TRACK_D1_APPROACH_DECISION_2026-07-24.md`; текущая работа сведена в `DB_PRIVILEGE_LAYER_REBUILD/PLAN.md` |
 
 **Что было дописано при сверке:** для `#981` — историческая R3-CATALOG/R5-R7 provenance boundary; для `#987` —
 граница D0–D10, TEST-only/destructive-proof порядок, выбор approach A и явное «не хвост Rubitime». Материалы

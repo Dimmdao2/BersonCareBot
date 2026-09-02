@@ -234,6 +234,12 @@
           "inlineKeyboard": [
             [
               {
+                "textTemplateKey": "max:bookingMenu.new",
+                "urlFact": "links.bookingUrl"
+              }
+            ],
+            [
+              {
                 "textTemplateKey": "max:bookingMenu.my",
                 "callbackData": "bookings.show"
               }
@@ -331,6 +337,12 @@
             "maxAttempts": 1
           },
           "inlineKeyboard": [
+            [
+              {
+                "textTemplateKey": "max:bookingMenu.new",
+                "urlFact": "links.bookingUrl"
+              }
+            ],
             [
               {
                 "textTemplateKey": "max:bookingMenu.my",
@@ -435,6 +447,12 @@
             "maxAttempts": 1
           },
           "inlineKeyboard": [
+            [
+              {
+                "textTemplateKey": "max:bookingMenu.new",
+                "urlFact": "links.bookingUrl"
+              }
+            ],
             [
               {
                 "textTemplateKey": "max:bookingMenu.my",

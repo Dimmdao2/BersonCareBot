@@ -109,7 +109,7 @@ export async function buildMaxLinks(
       ...(remindersUrl ? { remindersUrl } : {}),
       webappCabinetUrl: `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`,
       webappAddressUrl: `${baseWebappUrl}&next=${enc('/app/patient/address')}`,
-      bookingUrl: `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`,
+      bookingUrl: `${baseWebappUrl}&next=${enc('/app/patient/booking')}`,
     },
   };
 }
@@ -251,7 +251,7 @@ export async function registerMaxWebhookRoutes(
         incoming,
         correlationId,
         eventId,
-        facts: preRouting.facts,
+        facts: { ...preRouting.facts, botDeliverySenderScope: 'platform_required' },
       });
       const organizationId = preRouting.organizationId;
       const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
@@ -339,7 +339,7 @@ export async function registerMaxWebhookRoutes(
         incoming,
         correlationId,
         eventId,
-        facts: preRouting.facts,
+        facts: { ...preRouting.facts, botDeliverySenderScope: 'clinic_required' },
       });
       // Прямая пересылка входящего в чат клиники (owner 20.08). Тот же прикладной action, что и в
       // Telegram: различие только в адресации получателя внутри самого action.

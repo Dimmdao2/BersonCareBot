@@ -104,4 +104,29 @@ describe('patient web-push relay delivery truth', () => {
       webPushErrors: 0,
     });
   });
+
+  it('uses one organization-bound target snapshot on the signed integrator path', async () => {
+    relayOutboundMock.mockResolvedValue({ ok: true, status: 'accepted' });
+    const resolveDeliveryTarget = vi.fn(async () => ({
+      userId: PUSH_USER_ID,
+      topicCode: 'patient_news',
+      selectedChannels: ['web_push' as const],
+      skippedChannels: [],
+      availableChannels: ['web_push' as const],
+      enabledChannels: ['web_push' as const],
+    }));
+
+    await expect(
+      runPatientWebPushNotify(body(), {
+        resolveDeliveryTarget,
+        systemSettings: { getSetting: async () => null },
+      }),
+    ).resolves.toMatchObject({ ok: true, webPushDelivered: 1 });
+    expect(resolveDeliveryTarget).toHaveBeenCalledOnce();
+    expect(resolveDeliveryTarget).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      platformUserId: PUSH_USER_ID,
+      topicCode: 'patient_news',
+    });
+  });
 });

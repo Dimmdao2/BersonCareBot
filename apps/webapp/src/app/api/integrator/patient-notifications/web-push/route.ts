@@ -12,6 +12,7 @@ import {
   runPatientWebPushNotify,
 } from '@/modules/patient-notifications/patientWebPushNotify';
 import { enterVerifiedIntegratorOrganizationPrincipal } from '@/app-layer/principal/integratorOrganizationPrincipal';
+import { DeliveryTargetsTenantDeniedError } from '@/modules/integrator/deliveryTargetsApi';
 
 /**
  * POST /api/integrator/patient-notifications/web-push — M2M Web Push (запись на приём, рассылки и т.д.).
@@ -73,44 +74,31 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   try {
-    if (!deps.patientOrganization) {
-      return NextResponse.json(
-        { ok: false, error: 'patient organization service unavailable' },
-        { status: 503 },
-      );
-    }
-    const platformUser = parsed.data.platformUserId
-      ? { platformUserId: parsed.data.platformUserId }
-      : parsed.data.phoneNormalized
-        ? await deps.userProjection.findByPhoneNormalized(parsed.data.phoneNormalized)
-        : null;
-    if (
-      platformUser &&
-      !(await deps.patientOrganization.hasActiveEnrollment(
-        platformUser.platformUserId,
-        parsed.data.organizationId,
-      ))
-    ) {
-      return NextResponse.json(
-        { ok: false, error: 'notification target is outside organization' },
-        { status: 403 },
-      );
-    }
     const result = await runPatientWebPushNotify(parsed.data, {
-      findPlatformUserByPhone: async (phoneNormalized) => {
-        const row =
-          phoneNormalized === parsed.data.phoneNormalized
-            ? platformUser
-            : await deps.userProjection.findByPhoneNormalized(phoneNormalized);
-        return row ? { platformUserId: row.platformUserId } : null;
+      resolveDeliveryTarget: async (input) => {
+        try {
+          const targets = await deps.deliveryTargetsApi.getTargets({
+            organizationId: input.organizationId,
+            ...(input.platformUserId
+              ? { platformUserId: input.platformUserId }
+              : input.phoneNormalized
+                ? { phone: input.phoneNormalized }
+                : {}),
+            topic: input.topicCode,
+          });
+          return targets?.resolution ?? null;
+        } catch (error) {
+          if (
+            error instanceof DeliveryTargetsTenantDeniedError &&
+            input.phoneNormalized &&
+            !input.platformUserId
+          ) {
+            return null;
+          }
+          throw error;
+        }
       },
-      channelPreferences: deps.channelPreferencesPort,
-      topicChannelPrefs: deps.topicChannelPrefs,
-      webPushSubscriptions: deps.webPushSubscriptions,
       systemSettings: deps.systemSettings,
-      readReminderNotifyGate: deps.readReminderNotifyGate,
-      recordDeliveryAttempt: (input) =>
-        deps.notificationDelivery.recordNotificationDeliveryAttempt(input),
       patientInboundChatPort: deps.supportCommunication,
     });
 
@@ -118,6 +106,12 @@ export async function POST(request: Request) {
     await setCachedResponse(idempotencyKey, requestHash, status, result);
     return NextResponse.json(result, { status });
   } catch (e) {
+    if (e instanceof DeliveryTargetsTenantDeniedError) {
+      return NextResponse.json(
+        { ok: false, error: 'notification target is outside organization' },
+        { status: 403 },
+      );
+    }
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }

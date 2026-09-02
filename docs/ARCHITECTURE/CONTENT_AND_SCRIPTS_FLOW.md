@@ -37,13 +37,18 @@
 
 Главное инлайн-меню задаётся в **одном месте** на канал: `src/content/telegram/user/menu.json` и `src/content/max/user/menu.json` (ключ `main`). В сценариях в шагах указывается `"menu": "main"` вместо дублирования `inlineKeyboard`. При сборке плана `buildPlan` подставляет `inlineKeyboard` из `bundle.menus.main`. Так и открытие меню (кнопка «Меню»), и возврат по «Назад» показывают один и тот же набор пунктов.
 
-После удаления дублирующих Telegram/MAX mini-app entry points по `#993` оба главных инлайн-меню сохраняют только bot-действие записи `booking.open`; кнопки запуска WebApp в них нет.
+После удаления дублирующих Telegram/MAX mini-app entry points по `#993` оба главных инлайн-меню сохраняют
+только bot-действие `booking.open`; кнопки запуска второго кабинета в них нет. Уже открытый экран записи при
+этом содержит обычную browser-URL кнопку «Записаться», ведущую в единственный webapp-путь
+`/app/patient/booking`, а также bot-действия просмотра записей, подготовки и адреса.
 
-**Reply-клавиатура Telegram:** отдельный файл `src/content/telegram/user/replyMenu.json` попадает в бандл как `mainReplyKeyboard` (`loadContentRegistry` в `src/kernel/contentRegistry/index.ts`). Она также сохраняет только bot-действие записи; mini-app launch удалён.
+**Reply-клавиатура Telegram:** отдельный файл `src/content/telegram/user/replyMenu.json` попадает в бандл как
+`mainReplyKeyboard` (`loadContentRegistry` в `src/kernel/contentRegistry/index.ts`). Она сохраняет только
+bot-действие записи; mini-app launch удалён.
 
 ## Админ Telegram: меню slash-команд
 
-Список команд в клиенте Telegram для **админского** чата задаётся в [`setupMenuButton.ts`](../../apps/integrator/src/integrations/telegram/setupMenuButton.ts) (`setMyCommands` с `scope: chat`): **`admin_bookings`**, **`admin_users`**, **`unanswered`**. Команды **`/start`** и **`/show_my_id`** в это меню **не** входят — обработка остаётся вебхуком по тексту/сценариям. Список неотвеченных и массовая пометка — в контенте `telegram/admin` и `max/admin` (см. тот же план в archive).
+Список команд в клиенте Telegram для **админского** чата задаётся в [`setupMenuButton.ts`](../../apps/integrator/src/integrations/telegram/setupMenuButton.ts) (`setMyCommands` с `scope: chat`): **`admin_bookings`**, **`admin_users`**, **`unanswered`**. Команды **`/start`** и **`/show_my_id`** в это меню **не** входят — обработка остаётся вебхуком по тексту/сценариям. Список неотвеченных и массовая пометка — в контенте `telegram/admin` и `max/admin`. Ответ врачу через кнопку под сообщением удалён: свободный текст вне команды направляет сотрудника в переписку кабинета.
 
 ## Явные команды и сценарии «открытого диалога»
 

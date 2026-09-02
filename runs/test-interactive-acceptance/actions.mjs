@@ -9,6 +9,7 @@ const password = process.env.TEST_ACCEPTANCE_PASSWORD || '';
 const outputDirectory = resolve(import.meta.dirname, 'out');
 const marker = `ACCEPTANCE ${new Date().toISOString().replaceAll(':', '-')}`;
 const results = [];
+const onlyPrefix = process.env.TEST_ACCEPTANCE_ONLY_PREFIX?.trim() || null;
 
 if (!password) throw new Error('TEST_ACCEPTANCE_PASSWORD is required');
 if (!['http://127.0.0.1:5200', 'https://test.bersoncare.ru'].includes(new URL(baseUrl).origin)) {
@@ -29,6 +30,7 @@ async function login(context, email) {
 }
 
 async function runStep(page, name, action) {
+  if (onlyPrefix && !name.startsWith(onlyPrefix)) return;
   const observed = { apiErrors: [], pageErrors: [] };
   const onResponse = (response) => {
     if (response.url().startsWith(baseUrl) && response.status() >= 400) {
@@ -218,16 +220,17 @@ try {
   await runStep(page, 'task:create', async () => {
     await page.goto(`${baseUrl}/app/doctor/tasks`, { waitUntil: 'domcontentloaded' });
     await waitForSettled(page);
-    await page.locator('button:visible').filter({ hasText: 'Новая задача' }).click();
+    await page.getByRole('button', { name: 'Новая задача', exact: true }).click();
     await page.locator('input[placeholder="Кратко"]:visible').fill(taskTitle);
     const save = page.locator('button:visible').filter({ hasText: 'Сохранить' }).last();
     await save.click();
-    await page.getByText(taskTitle, { exact: true }).waitFor({ timeout: 30_000 });
+    await page.getByText(taskTitle, { exact: true }).first().waitFor({ timeout: 30_000 });
     return { route: new URL(page.url()).pathname };
   });
 
   await runStep(page, 'task:complete', async () => {
-    await page.getByRole('button', { name: taskTitle, exact: false }).click();
+    const taskRow = page.locator('button').filter({ hasText: taskTitle }).first();
+    if ((await taskRow.getAttribute('aria-current')) !== 'true') await taskRow.click();
     const responsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
@@ -237,9 +240,9 @@ try {
     await page.locator('button:visible').filter({ hasText: 'Выполнить' }).last().click();
     const response = await responsePromise;
     if (!response.ok()) throw new Error(`task_complete_failed:${response.status()}`);
-    await page.getByRole('button', { name: taskTitle, exact: false }).waitFor({ state: 'detached' });
+    await taskRow.waitFor({ state: 'detached' });
     await page.reload({ waitUntil: 'domcontentloaded' });
-    if (await page.getByRole('button', { name: taskTitle, exact: false }).count()) {
+    if (await page.locator('button').filter({ hasText: taskTitle }).count()) {
       throw new Error('completed_task_still_visible_after_reload');
     }
     return { route: new URL(page.url()).pathname };

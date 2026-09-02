@@ -100,7 +100,7 @@ async function buildWebappLinkFactsForRecipient(input: {
         links.webappHomeUrl = `${baseWebappUrl}&next=${enc('/app/patient')}`;
         links.webappCabinetUrl = `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`;
         links.webappAddressUrl = `${baseWebappUrl}&next=${enc('/app/patient/address')}`;
-        links.bookingUrl = links.webappCabinetUrl;
+        links.bookingUrl = `${baseWebappUrl}&next=${enc('/app/patient/booking')}`;
       }
     }
   } else if (input.queueChannel === 'max') {
@@ -116,7 +116,7 @@ async function buildWebappLinkFactsForRecipient(input: {
         const enc = (p: string) => encodeURIComponent(p);
         links.webappEntryUrl = baseWebappUrl;
         links.webappHomeUrl = `${baseWebappUrl}&next=${enc('/app/patient')}`;
-        links.bookingUrl = `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`;
+        links.bookingUrl = `${baseWebappUrl}&next=${enc('/app/patient/booking')}`;
       }
     }
   }

@@ -1,5 +1,11 @@
 # Track D1 — approach decision + execution checklist (2026-07-24)
 
+> **ИСТОРИЧЕСКИЙ ДОКУМЕНТ, НЕ ТЕКУЩАЯ РАБОТА.** Развилка июля заменена фактически реализованной схемой и
+> более поздними решениями владельца. Текущий статус Track D ведётся в
+> `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/PLAN.md` и
+> `docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md`. Открытые боксы ниже сохраняют историю и
+> не переоткрывают задачи.
+
 > Orchestrator decision resolving the two competing D1 implementations (owner request 2026-07-24).
 > Authority: `WORK_ORDER.md` §Track D (D1 spec + checkbox), owner ruling 2026-07-23 (taskdb #987),
 > `DATABASE_UNIFIED_POSTGRES.md`. Back-links: reconcile analysis `scratchpad/reconcile-987-d1.md`;

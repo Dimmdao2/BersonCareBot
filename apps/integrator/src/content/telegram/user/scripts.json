@@ -387,6 +387,12 @@
           "inlineKeyboard": [
             [
               {
+                "textTemplateKey": "telegram:bookingMenu.new",
+                "urlFact": "links.bookingUrl"
+              }
+            ],
+            [
+              {
                 "textTemplateKey": "telegram:bookingMenu.my",
                 "callbackData": "bookings.show"
               }
@@ -480,6 +486,12 @@
           "messageId": "{{input.messageId}}",
           "templateKey": "telegram:bookingMessage",
           "inlineKeyboard": [
+            [
+              {
+                "textTemplateKey": "telegram:bookingMenu.new",
+                "urlFact": "links.bookingUrl"
+              }
+            ],
             [
               {
                 "textTemplateKey": "telegram:bookingMenu.my",
