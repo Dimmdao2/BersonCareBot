@@ -87,24 +87,30 @@ export function DoctorStatCard({
       ) : null}
     </div>
   );
-  const inner =
-    valuePlacement === 'inline' ? (
-      <div className="w-full min-w-0">
-        <div className="flex items-baseline gap-2">
-          {label}
-          {metric}
-        </div>
-        {hintNode}
-      </div>
-    ) : (
-      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-1.5 md:block">
+  const inner = (
+    <div
+      className={cn(
+        'w-full min-w-0',
+        valuePlacement === 'responsive' &&
+          'grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-1.5 md:block',
+      )}
+    >
+      <div className={cn(valuePlacement === 'inline' ? 'flex items-baseline gap-2' : 'contents')}>
         {label}
-        <div className="col-start-2 flex items-baseline justify-end gap-0.5 md:mt-0.5 md:w-full md:justify-start md:gap-1">
+        <div
+          className={cn(
+            valuePlacement === 'responsive' &&
+              'col-start-2 flex items-baseline justify-end gap-0.5 md:mt-0.5 md:w-full md:justify-start md:gap-1',
+          )}
+        >
           {metric}
         </div>
-        {hint ? <div className="col-span-full">{hintNode}</div> : null}
       </div>
-    );
+      {hint ? (
+        <div className={cn(valuePlacement === 'responsive' && 'col-span-full')}>{hintNode}</div>
+      ) : null}
+    </div>
+  );
 
   if (actionIcon && actionLabel && onActionClick) {
     return (
@@ -129,7 +135,7 @@ export function DoctorStatCard({
           variant="ghost"
           className={cn(
             doctorClientPrimaryOutlineActionClass,
-            'm-1.5 h-auto min-w-9 self-stretch rounded-l-none px-2',
+            'm-1.5 h-auto min-w-9 self-stretch rounded-none rounded-r-md px-2',
           )}
           aria-label={actionLabel}
           onClick={onActionClick}

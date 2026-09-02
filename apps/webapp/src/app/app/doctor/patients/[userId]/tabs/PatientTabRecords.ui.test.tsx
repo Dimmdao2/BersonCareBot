@@ -124,7 +124,7 @@ describe('patient records tab — a refused load is not a visit history', () => 
     );
 
     const addVisitButton = screen.getByRole('button', { name: 'Добавить визит' });
-    expect(addVisitButton).toHaveClass('rounded-l-none');
+    expect(addVisitButton).toHaveClass('rounded-none', 'rounded-r-md');
     fireEvent.click(addVisitButton);
     expect(createNewVisit).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: 'Добавить абонемент' }));
