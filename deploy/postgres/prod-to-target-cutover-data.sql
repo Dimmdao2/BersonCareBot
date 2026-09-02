@@ -689,12 +689,18 @@ SELECT
   source.notification_topic_code
 FROM cutover_source_public.reminder_rules source
 LEFT JOIN LATERAL (
-  SELECT min(candidate.id) AS id
+  SELECT candidate.id
   FROM cutover_source_public.platform_users candidate
   WHERE source.platform_user_id IS NULL
     AND candidate.integrator_user_id = source.integrator_user_id
     AND candidate.merged_into_id IS NULL
-  HAVING count(*) = 1
+    AND NOT EXISTS (
+      SELECT 1
+      FROM cutover_source_public.platform_users twin
+      WHERE twin.integrator_user_id = candidate.integrator_user_id
+        AND twin.merged_into_id IS NULL
+        AND twin.id <> candidate.id
+    )
 ) source_user ON true
 JOIN cutover_platform_user_canonical_map identity_map
   ON identity_map.source_id = coalesce(source.platform_user_id, source_user.id);
