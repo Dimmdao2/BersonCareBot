@@ -269,11 +269,11 @@ export async function registerMaxWebhookRoutes(
         recordMaxWebhookOutcome({
           source: 'max',
           processedOk: false,
-          httpStatusReturned: 200,
+          httpStatusReturned: 503,
           errorClass: 'webhook_dispatch_failed',
           detail: result.reason,
         });
-        return reply.code(200).send({ ok: false, error: 'Processing failed' });
+        return reply.code(503).send({ ok: false, error: 'Processing failed' });
       }
       recordMaxWebhookOutcome({
         source: 'max',
@@ -364,11 +364,11 @@ export async function registerMaxWebhookRoutes(
         recordMaxWebhookOutcome({
           source: 'max',
           processedOk: false,
-          httpStatusReturned: 200,
+          httpStatusReturned: 503,
           errorClass: 'webhook_dispatch_failed',
           detail: result.reason,
         });
-        return reply.code(200).send({ ok: false, error: 'Processing failed' });
+        return reply.code(503).send({ ok: false, error: 'Processing failed' });
       }
       recordMaxWebhookOutcome({ source: 'max', processedOk: true, httpStatusReturned: 200 });
       return reply.code(200).send({ ok: true });

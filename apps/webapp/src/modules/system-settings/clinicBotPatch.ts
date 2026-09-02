@@ -82,7 +82,14 @@ export function parseClinicBotPatchValue(input: {
       return { ok: false, error: 'invalid_destination_chat_id' };
     } else {
       const record = raw as Record<string, unknown>;
-      const enabled = record.enabled === true;
+      if (
+        !Object.prototype.hasOwnProperty.call(record, 'enabled') ||
+        typeof record.enabled !== 'boolean' ||
+        !Object.prototype.hasOwnProperty.call(record, 'destinationChatId')
+      ) {
+        return { ok: false, error: 'invalid_destination_chat_id' };
+      }
+      const enabled = record.enabled;
       const rawDestination = record.destinationChatId;
       const hasDestination =
         rawDestination !== null && rawDestination !== undefined && String(rawDestination).trim();

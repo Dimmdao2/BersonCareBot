@@ -22,19 +22,13 @@ export function createClinicSenderNameResolver(db: DbPort) {
   return async function resolveClinicSenderName(): Promise<string | null> {
     const organizationId = getCurrentOrganizationPrincipalId()?.trim() ?? '';
     if (!organizationId) return null;
-    try {
-      const rows = await getIntegratorDrizzleSession(db)
-        .select({ title: beOrganizations.title })
-        .from(beOrganizations)
-        .where(and(eq(beOrganizations.id, organizationId), eq(beOrganizations.isActive, true)))
-        .limit(1);
-      const title = rows[0]?.title?.trim() ?? '';
-      if (!title) return null;
-      return title.length > MAX_LABEL_LENGTH ? title.slice(0, MAX_LABEL_LENGTH).trim() : title;
-    } catch {
-      // A name we could not read is never a reason to drop an essential notification: the message
-      // still goes out, just without the clinic prefix.
-      return null;
-    }
+    const rows = await getIntegratorDrizzleSession(db)
+      .select({ title: beOrganizations.title })
+      .from(beOrganizations)
+      .where(and(eq(beOrganizations.id, organizationId), eq(beOrganizations.isActive, true)))
+      .limit(1);
+    const title = rows[0]?.title?.trim() ?? '';
+    if (!title) return null;
+    return title.length > MAX_LABEL_LENGTH ? title.slice(0, MAX_LABEL_LENGTH).trim() : title;
   };
 }

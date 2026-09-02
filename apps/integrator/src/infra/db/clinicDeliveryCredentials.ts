@@ -113,20 +113,16 @@ export function createClinicBotInboundForwardingResolver(db: DbPort) {
     const organizationId = exactCurrentOrganization();
     if (!organizationId) return null;
     const setting = SETTINGS[channel];
-    try {
-      const access = await resolveOrganizationMechanicLifecycleAccess(db, {
-        organizationId,
-        mechanic: setting.mechanic,
-      });
-      if (!access.mutationAllowed) return null;
-      const valueJson = await fetchIntegratorClinicDeliveryCredentialValueJson(
-        db,
-        setting.key,
-        organizationId,
-      );
-      return parseClinicBotInboundForwarding(valueJson);
-    } catch {
-      return null;
-    }
+    const access = await resolveOrganizationMechanicLifecycleAccess(db, {
+      organizationId,
+      mechanic: setting.mechanic,
+    });
+    if (!access.mutationAllowed) return null;
+    const valueJson = await fetchIntegratorClinicDeliveryCredentialValueJson(
+      db,
+      setting.key,
+      organizationId,
+    );
+    return parseClinicBotInboundForwarding(valueJson);
   };
 }

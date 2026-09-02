@@ -487,7 +487,10 @@ export async function registerTelegramWebhookRoutes(
         logger: reqLogger,
         dedicatedOrganizationId: organizationId,
       });
-      return reply.code(200).send({ ok: outcome.status !== 'rejected' });
+      if (outcome.status === 'rejected') {
+        return reply.code(503).send({ ok: false, error: 'Processing failed' });
+      }
+      return reply.code(200).send({ ok: true });
     },
   );
 }
