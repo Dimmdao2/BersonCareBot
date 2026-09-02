@@ -1,7 +1,7 @@
 import { and, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { getWebappSqlDb, runWebappNamedRoot, runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type {
   SaasBillingInvoice,
@@ -43,7 +43,11 @@ import {
   saasBillingRefunds,
   saasBillingSubscriptions,
 } from '../../../db/schema/saasBilling';
-import { saasOrganizationTrials, saasTariffs, saasTrialPolicy } from '../../../db/schema/saasEntitlements';
+import {
+  saasOrganizationTrials,
+  saasTariffs,
+  saasTrialPolicy,
+} from '../../../db/schema/saasEntitlements';
 import { adminAuditLog } from '../../../db/schema/schema';
 
 type Db = ReturnType<typeof getDrizzle>;
@@ -374,7 +378,12 @@ async function promotePaidInvoice(
   const [subscription] = await tx
     .select()
     .from(saasBillingSubscriptions)
-    .where(and(eq(saasBillingSubscriptions.id, invoice.saasBillingSubscriptionId), eq(saasBillingSubscriptions.organizationId, organizationId)))
+    .where(
+      and(
+        eq(saasBillingSubscriptions.id, invoice.saasBillingSubscriptionId),
+        eq(saasBillingSubscriptions.organizationId, organizationId),
+      ),
+    )
     .limit(1)
     .for('update');
   // First tariff payment installs a period. Later payments can only promote exactly at the
@@ -385,8 +394,10 @@ async function promotePaidInvoice(
       subscription.currentPeriodEndsAt !== invoice.servicePeriodStartsAt) ||
     (subscription.currentPeriodEndsAt === null &&
       invoice.tariffId !== (subscription.pendingTariffId ?? subscription.tariffId))
-  ) return false;
-  const tariffSnapshot = invoice.tariffSnapshot ?? await readTariffSnapshotForPeriod(tx, invoice.tariffId);
+  )
+    return false;
+  const tariffSnapshot =
+    invoice.tariffSnapshot ?? (await readTariffSnapshotForPeriod(tx, invoice.tariffId));
   // Решение владельца 18.08: «Удалили/отключили сотрудника — со следующего периода стоимость
   // меньше». The new period starts owing exactly the seats its own invoice billed, so the
   // allowance and the money agree by construction and the counter can go DOWN, not only up.
@@ -394,12 +405,21 @@ async function promotePaidInvoice(
   // description, and mid-period seat/upgrade invoices never reach this boundary promotion.
   const isRenewalPeriodInvoice =
     invoice.invoiceKind === 'tariff_period' && invoice.description === null;
-  await tx.update(saasBillingSubscriptions).set({
-    tariffId: invoice.tariffId, pendingTariffId: null, status: 'active', lifecycleState: 'active',
-    cancelledAt: null, currentPeriodStartsAt: invoice.servicePeriodStartsAt,
-    currentPeriodEndsAt: invoice.servicePeriodEndsAt, tariffSnapshot, updatedAt: new Date().toISOString(),
-    ...(isRenewalPeriodInvoice ? { paidAdditionalSeats: invoice.additionalSeatQuantity } : {}),
-  }).where(eq(saasBillingSubscriptions.id, subscription.id));
+  await tx
+    .update(saasBillingSubscriptions)
+    .set({
+      tariffId: invoice.tariffId,
+      pendingTariffId: null,
+      status: 'active',
+      lifecycleState: 'active',
+      cancelledAt: null,
+      currentPeriodStartsAt: invoice.servicePeriodStartsAt,
+      currentPeriodEndsAt: invoice.servicePeriodEndsAt,
+      tariffSnapshot,
+      updatedAt: new Date().toISOString(),
+      ...(isRenewalPeriodInvoice ? { paidAdditionalSeats: invoice.additionalSeatQuantity } : {}),
+    })
+    .where(eq(saasBillingSubscriptions.id, subscription.id));
   await applyPaidSaasBillingTariff(tx, invoice.id, organizationId);
   if (subscription.pendingTariffId !== null) {
     await tx.insert(adminAuditLog).values({
@@ -445,7 +465,9 @@ function paidPeriodSnapshotPrice(snapshot: Record<string, unknown> | null): {
   return { priceMinor, currency, billingPeriod };
 }
 
-function paidPeriodSnapshotAdditionalSeatPrice(snapshot: Record<string, unknown> | null): number | null {
+function paidPeriodSnapshotAdditionalSeatPrice(
+  snapshot: Record<string, unknown> | null,
+): number | null {
   const additionalSeatPriceMinor = snapshot?.additional_seat_price_minor;
   if (additionalSeatPriceMinor === null || additionalSeatPriceMinor === undefined) return null;
   if (
@@ -550,14 +572,12 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         organizationId,
         billingEmail: account?.billingEmail?.trim() || null,
         subscriptions: subscriptionRows as SaasBillingSubscriptionReadRow[],
-        invoices: invoiceRows.map(
-          (row): SaasBillingInvoiceReadRow => ({
-            ...toSaasBillingInvoice(row),
-            paidAt: row.paidAt,
-            createdAt: row.createdAt,
-            updatedAt: row.updatedAt,
-          }),
-        ),
+        invoices: invoiceRows.map((row): SaasBillingInvoiceReadRow => ({
+          ...toSaasBillingInvoice(row),
+          paidAt: row.paidAt,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        })),
         providerEvents,
       };
     },
@@ -572,9 +592,9 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
     },
 
     async chooseOrganizationFirstTariff({ tariffId, actorId }) {
-      const result = await runWebappPgText<{ payload: unknown }>(
-        `SELECT app.choose_organization_first_tariff($1::uuid, $2::uuid) AS payload`,
-        [tariffId, actorId],
+      const result = await runWebappSql<{ payload: unknown }>(
+        getWebappSqlDb(),
+        sql`SELECT app.choose_organization_first_tariff(${tariffId}::uuid, ${actorId}::uuid) AS payload`,
       );
       const payload = result.rows[0]?.payload;
       if (!payload || typeof payload !== 'object' || payload === null) {
@@ -654,18 +674,16 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           pendingByInvoice.set(sum.saasBillingInvoiceId, totalMinor);
       }
 
-      return rows.map(
-        ({ invoice, organizationTitle }): SaasBillingPlatformInvoiceRow => ({
-          ...toSaasBillingInvoice(invoice),
-          paidAt: invoice.paidAt,
-          createdAt: invoice.createdAt,
-          updatedAt: invoice.updatedAt,
-          organizationId: invoice.organizationId,
-          organizationTitle,
-          refundedMinor: refundedByInvoice.get(invoice.id) ?? 0,
-          pendingRefundMinor: pendingByInvoice.get(invoice.id) ?? 0,
-        }),
-      );
+      return rows.map(({ invoice, organizationTitle }): SaasBillingPlatformInvoiceRow => ({
+        ...toSaasBillingInvoice(invoice),
+        paidAt: invoice.paidAt,
+        createdAt: invoice.createdAt,
+        updatedAt: invoice.updatedAt,
+        organizationId: invoice.organizationId,
+        organizationTitle,
+        refundedMinor: refundedByInvoice.get(invoice.id) ?? 0,
+        pendingRefundMinor: pendingByInvoice.get(invoice.id) ?? 0,
+      }));
     },
 
     async getPlatformPaymentsSummary(filter): Promise<SaasBillingPlatformSummary> {
@@ -819,7 +837,9 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               // the organization's tariff. Within the same lifecycle state, keep the existing
               // paid-subscription-before-manual precedence.
               .orderBy(
-                desc(sql<number>`CASE WHEN ${saasBillingSubscriptions.status} = 'active' THEN 1 ELSE 0 END`),
+                desc(
+                  sql<number>`CASE WHEN ${saasBillingSubscriptions.status} = 'active' THEN 1 ELSE 0 END`,
+                ),
                 desc(saasBillingSubscriptions.source),
               )
               .limit(1);
@@ -944,8 +964,8 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             // real payment (§5a item 7.0 already treats the two identically for the ladder anchor),
             // so it freezes the tariff's content the same way: taken now, kept until this period ends.
             const tariffSnapshot = period
-              ? (preservePeriodSnapshot ? effective?.tariffSnapshot : null) ??
-                (await readTariffSnapshotForPeriod(tx, tariffId))
+              ? ((preservePeriodSnapshot ? effective?.tariffSnapshot : null) ??
+                (await readTariffSnapshotForPeriod(tx, tariffId)))
               : null;
             const [row] = await tx
               .insert(saasBillingSubscriptions)
@@ -1234,7 +1254,11 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           .orderBy(desc(saasBillingInvoices.createdAt))
           .limit(1);
         if (openInvoice) {
-          return { outcome: 'checkout', invoice: toSaasBillingInvoice(openInvoice), created: false };
+          return {
+            outcome: 'checkout',
+            invoice: toSaasBillingInvoice(openInvoice),
+            created: false,
+          };
         }
 
         const [targetTariff] = await tx
@@ -1270,7 +1294,10 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         if (currentPeriodAdjustmentMinor === 0) {
           throw new Error('saas_billing_upgrade_no_remaining_period');
         }
-        if (subscription.paidAdditionalSeats > 0 && targetTariff.additionalSeatPriceMinor === null) {
+        if (
+          subscription.paidAdditionalSeats > 0 &&
+          targetTariff.additionalSeatPriceMinor === null
+        ) {
           throw new Error('saas_billing_additional_seat_price_missing');
         }
         const [paidFuturePeriod] = await tx
@@ -1424,28 +1451,61 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
     async captureSaasBillingPaymentSucceeded(input) {
       return getDrizzle().transaction(async (tx) => {
         const event = sanitizeSaasBillingProviderEventEnvelope(input.event);
-        await tx.insert(saasBillingProviderEvents).values({
-          organizationId: input.organizationId, saasBillingInvoiceId: input.saasBillingInvoiceId,
-          providerId: event.providerId, providerEventId: event.providerEventId, eventType: event.type,
-          rawPayload: event,
-        }).onConflictDoNothing({ target: [saasBillingProviderEvents.providerId, saasBillingProviderEvents.providerEventId] });
+        await tx
+          .insert(saasBillingProviderEvents)
+          .values({
+            organizationId: input.organizationId,
+            saasBillingInvoiceId: input.saasBillingInvoiceId,
+            providerId: event.providerId,
+            providerEventId: event.providerEventId,
+            eventType: event.type,
+            rawPayload: event,
+          })
+          .onConflictDoNothing({
+            target: [
+              saasBillingProviderEvents.providerId,
+              saasBillingProviderEvents.providerEventId,
+            ],
+          });
         // Resolve the owning subscription before taking either row lock, then always take the
         // locks subscription -> invoice. Refund confirmation follows the same order below.
-        const [invoiceIdentity] = await tx.select({
-          id: saasBillingInvoices.id,
-          saasBillingSubscriptionId: saasBillingInvoices.saasBillingSubscriptionId,
-        }).from(saasBillingInvoices).where(and(
-          eq(saasBillingInvoices.id, input.saasBillingInvoiceId), eq(saasBillingInvoices.organizationId, input.organizationId),
-        )).limit(1);
+        const [invoiceIdentity] = await tx
+          .select({
+            id: saasBillingInvoices.id,
+            saasBillingSubscriptionId: saasBillingInvoices.saasBillingSubscriptionId,
+          })
+          .from(saasBillingInvoices)
+          .where(
+            and(
+              eq(saasBillingInvoices.id, input.saasBillingInvoiceId),
+              eq(saasBillingInvoices.organizationId, input.organizationId),
+            ),
+          )
+          .limit(1);
         if (!invoiceIdentity) return { captured: false, duplicate: true };
-        const [subscription] = await tx.select().from(saasBillingSubscriptions).where(and(
-          eq(saasBillingSubscriptions.id, invoiceIdentity.saasBillingSubscriptionId),
-          eq(saasBillingSubscriptions.organizationId, input.organizationId),
-        )).limit(1).for('update');
+        const [subscription] = await tx
+          .select()
+          .from(saasBillingSubscriptions)
+          .where(
+            and(
+              eq(saasBillingSubscriptions.id, invoiceIdentity.saasBillingSubscriptionId),
+              eq(saasBillingSubscriptions.organizationId, input.organizationId),
+            ),
+          )
+          .limit(1)
+          .for('update');
         if (!subscription) throw new Error('saas_billing_subscription_not_found');
-        const [invoice] = await tx.select().from(saasBillingInvoices).where(and(
-          eq(saasBillingInvoices.id, invoiceIdentity.id), eq(saasBillingInvoices.organizationId, input.organizationId),
-        )).limit(1).for('update');
+        const [invoice] = await tx
+          .select()
+          .from(saasBillingInvoices)
+          .where(
+            and(
+              eq(saasBillingInvoices.id, invoiceIdentity.id),
+              eq(saasBillingInvoices.organizationId, input.organizationId),
+            ),
+          )
+          .limit(1)
+          .for('update');
         if (!invoice) return { captured: false, duplicate: true };
         return captureSaasBillingPaidInvoice(invoice, {
           // Деньги пришли по счёту, чей долг уже переехал в счёт-преемник. Молчать здесь нельзя:
@@ -1473,10 +1533,15 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               },
               status: 'error',
             });
-            await tx.update(saasBillingProviderEvents).set({ processedAt: new Date().toISOString() }).where(and(
-              eq(saasBillingProviderEvents.providerId, event.providerId),
-              eq(saasBillingProviderEvents.providerEventId, event.providerEventId),
-            ));
+            await tx
+              .update(saasBillingProviderEvents)
+              .set({ processedAt: new Date().toISOString() })
+              .where(
+                and(
+                  eq(saasBillingProviderEvents.providerId, event.providerId),
+                  eq(saasBillingProviderEvents.providerEventId, event.providerEventId),
+                ),
+              );
             return { captured: false, duplicate: false };
           },
           markPaid: async (cameFromSupersededPath) => {
@@ -1485,18 +1550,31 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               // Ссылка на преемника снимается ТЕМ ЖЕ оператором, что ставит `paid`: два ограничения
               // таблицы (`…_superseded_is_void_check` и `…_seat_void_has_successor_check`) не оставляют
               // между ними ни одного разрешённого промежуточного состояния — и не должны.
-              await tx.update(saasBillingInvoices).set({
-                status: 'paid',
-                paidAt: input.paidAt,
-                updatedAt: new Date().toISOString(),
-                ...(cameFromSupersededPath ? { supersededByInvoiceId: null } : {}),
-              }).where(eq(saasBillingInvoices.id, invoice.id));
+              await tx
+                .update(saasBillingInvoices)
+                .set({
+                  status: 'paid',
+                  paidAt: input.paidAt,
+                  updatedAt: new Date().toISOString(),
+                  ...(cameFromSupersededPath ? { supersededByInvoiceId: null } : {}),
+                })
+                .where(eq(saasBillingInvoices.id, invoice.id));
             }
             // The subscription lock serializes separately delivered seat captures before allowance
             // changes, including replays that carry a different provider event id.
             if (input.savedPaymentMethodId && invoice.invoiceKind === 'tariff_period') {
-              await tx.update(saasBillingSubscriptions).set({ savedPaymentMethodId: input.savedPaymentMethodId, updatedAt: new Date().toISOString() })
-                .where(and(eq(saasBillingSubscriptions.id, invoice.saasBillingSubscriptionId), eq(saasBillingSubscriptions.organizationId, input.organizationId)));
+              await tx
+                .update(saasBillingSubscriptions)
+                .set({
+                  savedPaymentMethodId: input.savedPaymentMethodId,
+                  updatedAt: new Date().toISOString(),
+                })
+                .where(
+                  and(
+                    eq(saasBillingSubscriptions.id, invoice.saasBillingSubscriptionId),
+                    eq(saasBillingSubscriptions.organizationId, input.organizationId),
+                  ),
+                );
             }
             if (invoice.invoiceKind === 'seat_overage') {
               // Место уже открыто в момент выставления этого счёта (Р-15, действующая редакция:
@@ -1512,7 +1590,8 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               const tariffSnapshot =
                 invoice.tariffSnapshot ?? (await readTariffSnapshotForPeriod(tx, invoice.tariffId));
               const targetTariff = paidPeriodSnapshotPrice(tariffSnapshot);
-              const additionalSeatPriceMinor = paidPeriodSnapshotAdditionalSeatPrice(tariffSnapshot);
+              const additionalSeatPriceMinor =
+                paidPeriodSnapshotAdditionalSeatPrice(tariffSnapshot);
               if (subscription.paidAdditionalSeats > 0 && additionalSeatPriceMinor === null) {
                 throw new Error('saas_billing_additional_seat_price_missing');
               }
@@ -1550,9 +1629,15 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             } else if (invoice.servicePeriodStartsAt <= input.paidAt) {
               await promotePaidInvoice(tx, invoice, input.organizationId);
             }
-            await tx.update(saasBillingProviderEvents).set({ processedAt: new Date().toISOString() }).where(and(
-              eq(saasBillingProviderEvents.providerId, event.providerId), eq(saasBillingProviderEvents.providerEventId, event.providerEventId),
-            ));
+            await tx
+              .update(saasBillingProviderEvents)
+              .set({ processedAt: new Date().toISOString() })
+              .where(
+                and(
+                  eq(saasBillingProviderEvents.providerId, event.providerId),
+                  eq(saasBillingProviderEvents.providerEventId, event.providerEventId),
+                ),
+              );
             return { captured: !wasPaid, duplicate: wasPaid };
           },
         });
@@ -1565,11 +1650,11 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
     // narrow SECURITY DEFINER resolver instead; it returns only the four fields this lookup needs.
     async findSaasBillingInvoiceByProviderRef({ providerId, providerInvoiceRef }) {
       const result = await runWebappNamedRoot<{
-          id: string;
-          organization_id: string;
-          amount_minor: number;
-          currency: string;
-        }>(
+        id: string;
+        organization_id: string;
+        amount_minor: number;
+        currency: string;
+      }>(
         getWebappSqlDb(),
         'app.resolve_saas_billing_invoice_for_webhook(text,text)',
         [providerId, providerInvoiceRef],
@@ -1610,24 +1695,24 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         const tariffSnapshot = await readTariffSnapshotForPeriod(tx, authority.tariffId);
 
         return insertSaasBillingInvoiceIdempotent(tx, {
-        organizationId: authority.organizationId,
-        saasBillingAccountId: authority.saasBillingAccountId,
-        saasBillingSubscriptionId: input.saasBillingSubscriptionId,
-        tariffId: authority.tariffId,
-        tariffName: authority.tariffName,
-        invoiceKind: input.invoiceKind,
-        additionalSeatQuantity: input.additionalSeatQuantity,
-        description: input.description,
-        amountMinor: input.amountMinor,
-        currency: input.currency,
-        tariffBillingPeriod: authority.tariffBillingPeriod,
-        tariffSnapshot,
-        servicePeriodStartsAt: input.servicePeriodStartsAt,
-        servicePeriodEndsAt: input.servicePeriodEndsAt,
-        expiresAt: input.expiresAt,
-        status: 'draft',
-        providerId: input.providerId,
-        providerIdempotencyKey: input.providerIdempotencyKey,
+          organizationId: authority.organizationId,
+          saasBillingAccountId: authority.saasBillingAccountId,
+          saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+          tariffId: authority.tariffId,
+          tariffName: authority.tariffName,
+          invoiceKind: input.invoiceKind,
+          additionalSeatQuantity: input.additionalSeatQuantity,
+          description: input.description,
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+          tariffBillingPeriod: authority.tariffBillingPeriod,
+          tariffSnapshot,
+          servicePeriodStartsAt: input.servicePeriodStartsAt,
+          servicePeriodEndsAt: input.servicePeriodEndsAt,
+          expiresAt: input.expiresAt,
+          status: 'draft',
+          providerId: input.providerId,
+          providerIdempotencyKey: input.providerIdempotencyKey,
         });
       });
     },
@@ -1638,43 +1723,42 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           tx,
           { organizationId: input.organizationId, mechanic: 'clinic_team' },
           async (quota) => {
+            const [subscription] = await tx
+              .select()
+              .from(saasBillingSubscriptions)
+              .where(
+                and(
+                  eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
+                  eq(saasBillingSubscriptions.organizationId, input.organizationId),
+                  eq(saasBillingSubscriptions.source, 'paid_subscription'),
+                ),
+              )
+              .limit(1)
+              .for('update');
+            if (!subscription) throw new Error('saas_billing_subscription_not_found');
 
-        const [subscription] = await tx
-          .select()
-          .from(saasBillingSubscriptions)
-          .where(
-            and(
-              eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
-              eq(saasBillingSubscriptions.organizationId, input.organizationId),
-              eq(saasBillingSubscriptions.source, 'paid_subscription'),
-            ),
-          )
-          .limit(1)
-          .for('update');
-        if (!subscription) throw new Error('saas_billing_subscription_not_found');
+            const [existing] = await tx
+              .select()
+              .from(saasBillingInvoices)
+              .where(
+                and(
+                  eq(saasBillingInvoices.providerId, input.providerId),
+                  eq(saasBillingInvoices.providerIdempotencyKey, input.providerIdempotencyKey),
+                ),
+              )
+              .limit(1)
+              .for('update');
+            const offer = await quota.resolveClinicTeamAvailability();
+            if (offer.outcome === 'seat_available') return { outcome: 'seat_available' as const };
+            if (offer.outcome === 'seat_not_sold') {
+              return { outcome: 'seat_overage_unavailable' as const };
+            }
+            // Р-15: остатка оплаченного периода нет — продавать не во что, счёт не выписывается.
+            if (offer.outcome === 'paid_period_over') {
+              return { outcome: 'paid_period_over' as const };
+            }
 
-        const [existing] = await tx
-          .select()
-          .from(saasBillingInvoices)
-          .where(
-            and(
-              eq(saasBillingInvoices.providerId, input.providerId),
-              eq(saasBillingInvoices.providerIdempotencyKey, input.providerIdempotencyKey),
-            ),
-          )
-          .limit(1)
-          .for('update');
-        const offer = await quota.resolveClinicTeamAvailability();
-        if (offer.outcome === 'seat_available') return { outcome: 'seat_available' as const };
-        if (offer.outcome === 'seat_not_sold') {
-          return { outcome: 'seat_overage_unavailable' as const };
-        }
-        // Р-15: остатка оплаченного периода нет — продавать не во что, счёт не выписывается.
-        if (offer.outcome === 'paid_period_over') {
-          return { outcome: 'paid_period_over' as const };
-        }
-
-        const effectiveTariffResult = await tx.execute(sql`
+            const effectiveTariffResult = await tx.execute(sql`
           SELECT
             tariff.id::text AS tariff_id,
             tariff.name AS tariff_name,
@@ -1689,74 +1773,74 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           ) AS tariff ON true
           WHERE organization.id = ${input.organizationId}::uuid
         `);
-        const tariff = effectiveTariffResult.rows[0] as
-          | {
-              tariff_id: string;
-              tariff_name: string;
-              additional_seat_price_minor: number | null;
-              currency: string | null;
-              billing_period: string;
-              tariff_snapshot: Record<string, unknown>;
+            const tariff = effectiveTariffResult.rows[0] as
+              | {
+                  tariff_id: string;
+                  tariff_name: string;
+                  additional_seat_price_minor: number | null;
+                  currency: string | null;
+                  billing_period: string;
+                  tariff_snapshot: Record<string, unknown>;
+                }
+              | undefined;
+            if (!tariff) return { outcome: 'seat_overage_unavailable' as const };
+
+            // Котировка сервера сверяется со свежим расчётом под той же блокировкой. Расхождение
+            // возможно, пока котировка жива: тариф отредактировали, период сдвинулся. На счёт всегда
+            // идёт `offer.priceMinor` — то, что посчитала единственная дверь здесь и сейчас, — а не
+            // число из запроса; равенство лишь доказывает, что человеку показали именно его.
+            if (
+              input.quotePriceMinor !== offer.priceMinor ||
+              input.quoteCurrency !== offer.currency
+            ) {
+              return {
+                outcome: 'price_changed' as const,
+                priceMinor: offer.priceMinor,
+                currency: offer.currency,
+                priceStableUntil: offer.priceStableUntil,
+              };
             }
-          | undefined;
-        if (!tariff) return { outcome: 'seat_overage_unavailable' as const };
+            if (existing) {
+              return {
+                outcome: 'invoice' as const,
+                invoice: toSaasBillingInvoice(existing),
+                created: false,
+              };
+            }
 
-        // Котировка сервера сверяется со свежим расчётом под той же блокировкой. Расхождение
-        // возможно, пока котировка жива: тариф отредактировали, период сдвинулся. На счёт всегда
-        // идёт `offer.priceMinor` — то, что посчитала единственная дверь здесь и сейчас, — а не
-        // число из запроса; равенство лишь доказывает, что человеку показали именно его.
-        if (
-          input.quotePriceMinor !== offer.priceMinor ||
-          input.quoteCurrency !== offer.currency
-        ) {
-          return {
-            outcome: 'price_changed' as const,
-            priceMinor: offer.priceMinor,
-            currency: offer.currency,
-            priceStableUntil: offer.priceStableUntil,
-          };
-        }
-        if (existing) {
-          return {
-            outcome: 'invoice' as const,
-            invoice: toSaasBillingInvoice(existing),
-            created: false,
-          };
-        }
-
-        const inserted = await insertSaasBillingInvoiceIdempotent(tx, {
-          organizationId: input.organizationId,
-          saasBillingAccountId: subscription.saasBillingAccountId,
-          saasBillingSubscriptionId: subscription.id,
-          tariffId: tariff.tariff_id,
-          tariffName: tariff.tariff_name,
-          invoiceKind: 'seat_overage',
-          additionalSeatQuantity: 1,
-          description: 'Дополнительное место специалиста сверх тарифа',
-          amountMinor: offer.priceMinor,
-          currency: offer.currency,
-          tariffBillingPeriod: tariff.billing_period,
-          tariffSnapshot: tariff.tariff_snapshot,
-          // Сумма, отрезок услуги и срок оплаты — из ОДНОГО предложения. Собранные по отдельности,
-          // они и разъезжались: полный тариф за ноль дней и услуга, кончавшаяся раньше начала.
-          servicePeriodStartsAt: offer.servicePeriodStartsAt,
-          servicePeriodEndsAt: offer.servicePeriodEndsAt,
-          // Р-19: срок у счёта за место один — конец периода, той же услуги, что он продаёт;
-          // отдельного срока «от выставления» и перевыставления по нему больше нет.
-          expiresAt: offer.servicePeriodEndsAt,
-          status: 'draft',
-          providerId: input.providerId,
-          providerIdempotencyKey: input.providerIdempotencyKey,
-        });
-        // Р-15 в действующей редакции: «Место открывается СРАЗУ, пропорциональная доплата уходит в
-        // следующий счёт». Счётчик растёт здесь, в одной транзакции с выставлением счёта и под тем
-        // же замком организации, — а НЕ в приёме платежа: платёж перестал быть условием доступа.
-        // Прежний порядок (открыть по оплате) и был механизмом находки F1 слепого аудита 19.08:
-        // приём денег место открывал, а срока счёта не проверял никто.
-        if (inserted.created) {
-          await moveSeatOverageAllowance(tx, subscription.id, +1);
-        }
-        return { outcome: 'invoice' as const, ...inserted };
+            const inserted = await insertSaasBillingInvoiceIdempotent(tx, {
+              organizationId: input.organizationId,
+              saasBillingAccountId: subscription.saasBillingAccountId,
+              saasBillingSubscriptionId: subscription.id,
+              tariffId: tariff.tariff_id,
+              tariffName: tariff.tariff_name,
+              invoiceKind: 'seat_overage',
+              additionalSeatQuantity: 1,
+              description: 'Дополнительное место специалиста сверх тарифа',
+              amountMinor: offer.priceMinor,
+              currency: offer.currency,
+              tariffBillingPeriod: tariff.billing_period,
+              tariffSnapshot: tariff.tariff_snapshot,
+              // Сумма, отрезок услуги и срок оплаты — из ОДНОГО предложения. Собранные по отдельности,
+              // они и разъезжались: полный тариф за ноль дней и услуга, кончавшаяся раньше начала.
+              servicePeriodStartsAt: offer.servicePeriodStartsAt,
+              servicePeriodEndsAt: offer.servicePeriodEndsAt,
+              // Р-19: срок у счёта за место один — конец периода, той же услуги, что он продаёт;
+              // отдельного срока «от выставления» и перевыставления по нему больше нет.
+              expiresAt: offer.servicePeriodEndsAt,
+              status: 'draft',
+              providerId: input.providerId,
+              providerIdempotencyKey: input.providerIdempotencyKey,
+            });
+            // Р-15 в действующей редакции: «Место открывается СРАЗУ, пропорциональная доплата уходит в
+            // следующий счёт». Счётчик растёт здесь, в одной транзакции с выставлением счёта и под тем
+            // же замком организации, — а НЕ в приёме платежа: платёж перестал быть условием доступа.
+            // Прежний порядок (открыть по оплате) и был механизмом находки F1 слепого аудита 19.08:
+            // приём денег место открывал, а срока счёта не проверял никто.
+            if (inserted.created) {
+              await moveSeatOverageAllowance(tx, subscription.id, +1);
+            }
+            return { outcome: 'invoice' as const, ...inserted };
           },
         ),
       );
@@ -1837,7 +1921,12 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         if (!subscriptionTariffId) throw new Error('saas_billing_no_tariff_assigned');
 
         const [tariff] = await tx
-          .select({ id: saasTariffs.id, billingPeriod: saasTariffs.billingPeriod, additionalSeatPriceMinor: saasTariffs.additionalSeatPriceMinor, currency: saasTariffs.currency })
+          .select({
+            id: saasTariffs.id,
+            billingPeriod: saasTariffs.billingPeriod,
+            additionalSeatPriceMinor: saasTariffs.additionalSeatPriceMinor,
+            currency: saasTariffs.currency,
+          })
           .from(saasTariffs)
           .where(and(eq(saasTariffs.id, subscriptionTariffId), eq(saasTariffs.isActive, true)))
           .limit(1);
@@ -1874,13 +1963,16 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         // amount `createSaasBillingInvoice` writes comes from the same rule, so the free-tariff
         // refusal below weighs exactly the price the clinic would be charged.
         const targetTariffId = purchasedTariffId(row);
-        const [targetTariff] = await tx.select({
-          priceMinor: saasTariffs.priceMinor,
-          billingPeriod: saasTariffs.billingPeriod,
-          additionalSeatPriceMinor: saasTariffs.additionalSeatPriceMinor,
-          currency: saasTariffs.currency,
-        })
-          .from(saasTariffs).where(and(eq(saasTariffs.id, targetTariffId), eq(saasTariffs.isActive, true))).limit(1);
+        const [targetTariff] = await tx
+          .select({
+            priceMinor: saasTariffs.priceMinor,
+            billingPeriod: saasTariffs.billingPeriod,
+            additionalSeatPriceMinor: saasTariffs.additionalSeatPriceMinor,
+            currency: saasTariffs.currency,
+          })
+          .from(saasTariffs)
+          .where(and(eq(saasTariffs.id, targetTariffId), eq(saasTariffs.isActive, true)))
+          .limit(1);
         if (!targetTariff) throw new Error('saas_billing_tariff_not_billable');
         return {
           saasBillingSubscriptionId: row.id,
@@ -2045,18 +2137,33 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
     async promoteDueSaasBillingPaidInvoice({ organizationId, saasBillingSubscriptionId, asOf }) {
       return getDrizzle().transaction(async (tx) => {
-        const [subscription] = await tx.select().from(saasBillingSubscriptions).where(and(
-          eq(saasBillingSubscriptions.id, saasBillingSubscriptionId), eq(saasBillingSubscriptions.organizationId, organizationId),
-        )).limit(1).for('update');
+        const [subscription] = await tx
+          .select()
+          .from(saasBillingSubscriptions)
+          .where(
+            and(
+              eq(saasBillingSubscriptions.id, saasBillingSubscriptionId),
+              eq(saasBillingSubscriptions.organizationId, organizationId),
+            ),
+          )
+          .limit(1)
+          .for('update');
         if (!subscription?.currentPeriodEndsAt) return false;
-        const [invoice] = await tx.select().from(saasBillingInvoices).where(and(
-          eq(saasBillingInvoices.organizationId, organizationId),
-          eq(saasBillingInvoices.saasBillingSubscriptionId, saasBillingSubscriptionId),
-          eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
-          eq(saasBillingInvoices.status, 'paid'),
-          eq(saasBillingInvoices.servicePeriodStartsAt, subscription.currentPeriodEndsAt),
-          lte(saasBillingInvoices.servicePeriodStartsAt, asOf),
-        )).limit(1).for('update');
+        const [invoice] = await tx
+          .select()
+          .from(saasBillingInvoices)
+          .where(
+            and(
+              eq(saasBillingInvoices.organizationId, organizationId),
+              eq(saasBillingInvoices.saasBillingSubscriptionId, saasBillingSubscriptionId),
+              eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
+              eq(saasBillingInvoices.status, 'paid'),
+              eq(saasBillingInvoices.servicePeriodStartsAt, subscription.currentPeriodEndsAt),
+              lte(saasBillingInvoices.servicePeriodStartsAt, asOf),
+            ),
+          )
+          .limit(1)
+          .for('update');
         return invoice ? promotePaidInvoice(tx, invoice, organizationId) : false;
       });
     },
@@ -2168,19 +2275,19 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
     async findSaasBillingRefundByProviderRef({ providerId, providerRefundRef }) {
       const result = await runWebappNamedRoot<{
-          id: string;
-          organization_id: string;
-          saas_billing_invoice_id: string;
-          amount_minor: number;
-          currency: string;
-          status: string;
-          provider_id: string;
-          provider_refund_ref: string | null;
-          provider_idempotency_key: string;
-          confirmed_at: Date | string | null;
-          created_at: Date | string;
-          updated_at: Date | string;
-        }>(
+        id: string;
+        organization_id: string;
+        saas_billing_invoice_id: string;
+        amount_minor: number;
+        currency: string;
+        status: string;
+        provider_id: string;
+        provider_refund_ref: string | null;
+        provider_idempotency_key: string;
+        confirmed_at: Date | string | null;
+        created_at: Date | string;
+        updated_at: Date | string;
+      }>(
         getWebappSqlDb(),
         'app.resolve_saas_billing_refund_for_webhook(text,text)',
         [providerId, providerRefundRef],
@@ -2207,30 +2314,64 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
     async confirmSaasBillingRefund({ saasBillingRefundId, organizationId, status, confirmedAt }) {
       return getDrizzle().transaction(async (tx) => {
-        const [refundIdentity] = await tx.select({
-          id: saasBillingRefunds.id,
-          saasBillingInvoiceId: saasBillingRefunds.saasBillingInvoiceId,
-        }).from(saasBillingRefunds).where(and(
-          eq(saasBillingRefunds.id, saasBillingRefundId),
-          eq(saasBillingRefunds.organizationId, organizationId),
-        )).limit(1);
+        const [refundIdentity] = await tx
+          .select({
+            id: saasBillingRefunds.id,
+            saasBillingInvoiceId: saasBillingRefunds.saasBillingInvoiceId,
+          })
+          .from(saasBillingRefunds)
+          .where(
+            and(
+              eq(saasBillingRefunds.id, saasBillingRefundId),
+              eq(saasBillingRefunds.organizationId, organizationId),
+            ),
+          )
+          .limit(1);
         if (!refundIdentity) throw new Error('saas_billing_refund_not_found');
-        const [invoiceIdentity] = await tx.select({
-          id: saasBillingInvoices.id,
-          saasBillingSubscriptionId: saasBillingInvoices.saasBillingSubscriptionId,
-        }).from(saasBillingInvoices).where(eq(saasBillingInvoices.id, refundIdentity.saasBillingInvoiceId)).limit(1);
+        const [invoiceIdentity] = await tx
+          .select({
+            id: saasBillingInvoices.id,
+            saasBillingSubscriptionId: saasBillingInvoices.saasBillingSubscriptionId,
+          })
+          .from(saasBillingInvoices)
+          .where(eq(saasBillingInvoices.id, refundIdentity.saasBillingInvoiceId))
+          .limit(1);
         if (!invoiceIdentity) throw new Error('saas_billing_invoice_not_found');
-        const [subscription] = await tx.select().from(saasBillingSubscriptions).where(eq(saasBillingSubscriptions.id, invoiceIdentity.saasBillingSubscriptionId)).limit(1).for('update');
+        const [subscription] = await tx
+          .select()
+          .from(saasBillingSubscriptions)
+          .where(eq(saasBillingSubscriptions.id, invoiceIdentity.saasBillingSubscriptionId))
+          .limit(1)
+          .for('update');
         if (!subscription) throw new Error('saas_billing_subscription_not_found');
-        const [invoice] = await tx.select().from(saasBillingInvoices).where(eq(saasBillingInvoices.id, invoiceIdentity.id)).limit(1).for('update');
+        const [invoice] = await tx
+          .select()
+          .from(saasBillingInvoices)
+          .where(eq(saasBillingInvoices.id, invoiceIdentity.id))
+          .limit(1)
+          .for('update');
         if (!invoice) throw new Error('saas_billing_invoice_not_found');
-        const [refund] = await tx.select().from(saasBillingRefunds).where(eq(saasBillingRefunds.id, refundIdentity.id)).limit(1).for('update');
+        const [refund] = await tx
+          .select()
+          .from(saasBillingRefunds)
+          .where(eq(saasBillingRefunds.id, refundIdentity.id))
+          .limit(1)
+          .for('update');
         if (!refund) throw new Error('saas_billing_refund_not_found');
-        if (status === 'succeeded' && invoice.invoiceKind === 'seat_overage' && refund.amountMinor !== invoice.amountMinor) {
+        if (
+          status === 'succeeded' &&
+          invoice.invoiceKind === 'seat_overage' &&
+          refund.amountMinor !== invoice.amountMinor
+        ) {
           throw new Error('saas_billing_seat_overage_partial_refund_forbidden');
         }
-        const [row] = await tx.update(saasBillingRefunds).set({ status, confirmedAt, updatedAt: new Date().toISOString() })
-          .where(and(eq(saasBillingRefunds.id, refund.id), eq(saasBillingRefunds.status, 'pending'))).returning();
+        const [row] = await tx
+          .update(saasBillingRefunds)
+          .set({ status, confirmedAt, updatedAt: new Date().toISOString() })
+          .where(
+            and(eq(saasBillingRefunds.id, refund.id), eq(saasBillingRefunds.status, 'pending')),
+          )
+          .returning();
         if (!row) return toSaasBillingRefund(refund);
         if (status === 'succeeded' && invoice.invoiceKind === 'seat_overage') {
           await moveSeatOverageAllowance(tx, subscription.id, -invoice.additionalSeatQuantity);
@@ -2255,7 +2396,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           ),
         )
         .returning({ id: saasBillingSubscriptions.id });
-      return row ? ({ outcome: 'granted' as const }) : ({ outcome: 'no_subscription' as const });
+      return row ? { outcome: 'granted' as const } : { outcome: 'no_subscription' as const };
     },
 
     async revokeSaasBillingAutopayConsent({ organizationId, revokedAt }) {
@@ -2269,7 +2410,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           ),
         )
         .returning({ id: saasBillingSubscriptions.id });
-      return row ? ({ outcome: 'revoked' as const }) : ({ outcome: 'no_subscription' as const });
+      return row ? { outcome: 'revoked' as const } : { outcome: 'no_subscription' as const };
     },
 
     async saveSaasBillingSubscriptionPaymentMethod(input) {

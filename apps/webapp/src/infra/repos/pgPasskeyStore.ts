@@ -1,10 +1,6 @@
 import type { AuthenticatorTransportFuture, CredentialDeviceType } from '@simplewebauthn/server';
 import { sql } from 'drizzle-orm';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  runWebappPgText,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import type {
   PasskeyChallenge,
   PasskeyCredential,
@@ -36,9 +32,9 @@ function parseDeviceType(value: string): CredentialDeviceType {
 
 export const pgPasskeyStore: PasskeyStore = {
   async getOrCreateUserHandle(userId, candidateHandle) {
-    const result = await runWebappPgText<{ user_handle: string | null }>(
-      `SELECT app.passkey_get_or_create_account($1::uuid, $2::text) AS user_handle`,
-      [userId, candidateHandle],
+    const result = await runWebappSql<{ user_handle: string | null }>(
+      getWebappSqlDb(),
+      sql`SELECT app.passkey_get_or_create_account(${userId}::uuid, ${candidateHandle}::text) AS user_handle`,
     );
     const handle = result.rows[0]?.user_handle;
     if (!handle) throw new Error('passkey_account_unavailable');
@@ -46,8 +42,9 @@ export const pgPasskeyStore: PasskeyStore = {
   },
 
   async listCredentialExclusions(_userId) {
-    const result = await runWebappPgText<{ credential_id: string; transports: unknown }>(
-      `SELECT credential_id, transports FROM app.passkey_list_current_exclusions()`,
+    const result = await runWebappSql<{ credential_id: string; transports: unknown }>(
+      getWebappSqlDb(),
+      sql`SELECT credential_id, transports FROM app.passkey_list_current_exclusions()`,
     );
     return result.rows.map((row) => ({
       credentialId: row.credential_id,
@@ -56,7 +53,7 @@ export const pgPasskeyStore: PasskeyStore = {
   },
 
   async listCredentials(_userId): Promise<PasskeyCredentialSummary[]> {
-    const result = await runWebappPgText<{
+    const result = await runWebappSql<{
       credential_id: string;
       transports: unknown;
       device_type: string;
@@ -64,7 +61,8 @@ export const pgPasskeyStore: PasskeyStore = {
       created_at: string;
       last_used_at: string | null;
     }>(
-      `SELECT credential_id, transports, device_type, backed_up, created_at, last_used_at
+      getWebappSqlDb(),
+      sql`SELECT credential_id, transports, device_type, backed_up, created_at, last_used_at
        FROM app.passkey_list_current_credentials()`,
     );
     return result.rows.map((row) => ({
@@ -169,27 +167,18 @@ export const pgPasskeyStore: PasskeyStore = {
   },
 
   async completeRegistration(input) {
-    const result = await runWebappPgText<{ completed: boolean }>(
-      `SELECT app.passkey_complete_registration(
-         $1::uuid,
-         $2::uuid,
-         $3::text,
-         $4::text,
-         $5::bigint,
-         $6::jsonb,
-         $7::text,
-         $8::boolean
+    const result = await runWebappSql<{ completed: boolean }>(
+      getWebappSqlDb(),
+      sql`SELECT app.passkey_complete_registration(
+         ${input.challengeId}::uuid,
+         ${input.userId}::uuid,
+         ${input.credentialId}::text,
+         ${input.publicKey}::text,
+         ${input.counter}::bigint,
+         ${JSON.stringify(input.transports)}::jsonb,
+         ${input.deviceType}::text,
+         ${input.backedUp}::boolean
        ) AS completed`,
-      [
-        input.challengeId,
-        input.userId,
-        input.credentialId,
-        input.publicKey,
-        input.counter,
-        JSON.stringify(input.transports),
-        input.deviceType,
-        input.backedUp,
-      ],
     );
     return result.rows[0]?.completed === true;
   },
@@ -219,9 +208,9 @@ export const pgPasskeyStore: PasskeyStore = {
   },
 
   async deleteCredential(_userId, credentialId) {
-    const result = await runWebappPgText<{ deleted: boolean }>(
-      `SELECT app.passkey_delete_current_credential($1::text) AS deleted`,
-      [credentialId],
+    const result = await runWebappSql<{ deleted: boolean }>(
+      getWebappSqlDb(),
+      sql`SELECT app.passkey_delete_current_credential(${credentialId}::text) AS deleted`,
     );
     return result.rows[0]?.deleted === true;
   },

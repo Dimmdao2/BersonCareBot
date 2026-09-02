@@ -4,21 +4,22 @@
  * never a raw relation transaction the bootstrap principal has no door for.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SQL } from 'drizzle-orm';
 import type { Pool } from 'pg';
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
 
 const runIdentityClientPgTextMock = vi.hoisted(() => vi.fn());
 const runWebappNamedRootMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/infra/repos/identityPhoneSql', () => ({
-  runIdentityClientPgText: runIdentityClientPgTextMock,
-  runIdentityPoolPgTextOnPool: vi.fn(),
+  runIdentityClientSql: runIdentityClientPgTextMock,
+  runIdentityPoolSqlOnPool: vi.fn(),
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: vi.fn(() => ({ tag: 'root-db' })),
   getWebappSqlFromPgClient: vi.fn(() => ({})),
   runWebappNamedRoot: runWebappNamedRootMock,
-  webappSqlFromPgText: vi.fn(() => ({ tag: 'root-sql' })),
 }));
 
 import { createPgPhoneMessengerBindPort } from '@/infra/repos/pgPhoneMessengerBind';
@@ -50,23 +51,31 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
       expiresAtIso: '2026-08-14T19:00:00.000Z',
     });
 
-    expect(runWebappNamedRootMock).toHaveBeenCalledWith(
-      { tag: 'root-db' },
+    expect(runWebappNamedRootMock).toHaveBeenCalledTimes(1);
+    const [db, identity, args, fragment] = runWebappNamedRootMock.mock.calls[0]!;
+    const expectedArgs = [
+      'start',
+      'token-hash',
+      null,
+      '+79001234567',
+      'telegram',
+      'login',
+      null,
+      null,
+      null,
+      '2026-08-14T19:00:00.000Z',
+    ];
+    expect(db).toEqual({ tag: 'root-db' });
+    expect(identity).toBe(
       'app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamp with time zone)',
-      [
-        'start',
-        'token-hash',
-        null,
-        '+79001234567',
-        'telegram',
-        'login',
-        null,
-        null,
-        null,
-        '2026-08-14T19:00:00.000Z',
-      ],
-      { tag: 'root-sql' },
     );
+    expect(args).toEqual(expectedArgs);
+    // The named-root identity above is what routing keys on; this is the belt-and-braces check
+    // that the SQL fragment routed alongside it calls the SAME function with the SAME values —
+    // not two identities that quietly drifted apart.
+    const compiled = drizzleSqlFragmentToPgQuery(fragment as SQL);
+    expect(compiled.sql).toMatch(/FROM app\.phone_messenger_bind_secret\(/);
+    expect(compiled.values).toEqual(expectedArgs);
     expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
   });
 
@@ -96,12 +105,15 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
       syncTargetUserId: SESSION_USER_ID,
       canonicalUserId: null,
     });
-    expect(runWebappNamedRootMock).toHaveBeenCalledWith(
-      { tag: 'root-db' },
-      'app.phone_messenger_bind_completion_state(text,text,text,text)',
-      ['completion-token-hash', 'telegram', 'tg-completion', '+79001234567'],
-      { tag: 'root-sql' },
-    );
+    expect(runWebappNamedRootMock).toHaveBeenCalledTimes(1);
+    const [db, identity, args, fragment] = runWebappNamedRootMock.mock.calls[0]!;
+    const expectedArgs = ['completion-token-hash', 'telegram', 'tg-completion', '+79001234567'];
+    expect(db).toEqual({ tag: 'root-db' });
+    expect(identity).toBe('app.phone_messenger_bind_completion_state(text,text,text,text)');
+    expect(args).toEqual(expectedArgs);
+    const compiled = drizzleSqlFragmentToPgQuery(fragment as SQL);
+    expect(compiled.sql).toMatch(/FROM app\.phone_messenger_bind_completion_state\(/);
+    expect(compiled.values).toEqual(expectedArgs);
     expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
   });
 
@@ -137,7 +149,9 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
     expect(runWebappNamedRootMock).toHaveBeenCalledTimes(1);
     const [db, identity, args] = runWebappNamedRootMock.mock.calls[0]!;
     expect(db).toEqual({ tag: 'root-db' });
-    expect(identity).toBe('app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)');
+    expect(identity).toBe(
+      'app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)',
+    );
     expect(args).toEqual(['telegram', 'tg-1', '+79001234567', null, 'telegram', SESSION_USER_ID]);
     expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
   });
@@ -154,5 +168,4 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
     expect(result).toEqual({ ok: false, code: 'session_required' });
     expect(runWebappNamedRootMock).not.toHaveBeenCalled();
   });
-
 });

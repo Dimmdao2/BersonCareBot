@@ -4,14 +4,14 @@ const fakes = vi.hoisted(() => ({
   db: { execute: vi.fn() },
   getWebappSqlDb: vi.fn(),
   runWebappNamedRoot: vi.fn(),
-  runWebappPgText: vi.fn(),
+  runWebappSql: vi.fn(),
   runWebappTransaction: vi.fn(),
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: fakes.getWebappSqlDb,
   runWebappNamedRoot: fakes.runWebappNamedRoot,
-  runWebappPgText: fakes.runWebappPgText,
+  runWebappSql: fakes.runWebappSql,
   runWebappTransaction: fakes.runWebappTransaction,
 }));
 vi.mock('@/infra/db/client', () => ({ getPool: vi.fn() }));
@@ -51,7 +51,7 @@ describe('createPgEmailPasswordLookupPort().resolveAuthState — equal-rights lo
     expect(db).toBe(fakes.db);
     expect(identity).toBe('app.pre_session_load_email_auth_state(text)');
     expect(args).toEqual(['secondary@mail.ru']);
-    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
   });
 
   it('an email nobody has confirmed (not the primary, not any OAuth-linked secondary) resolves to free', async () => {

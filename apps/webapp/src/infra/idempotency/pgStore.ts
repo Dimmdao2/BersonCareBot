@@ -4,11 +4,8 @@
  */
 import { z } from 'zod';
 import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  webappSqlFromPgText,
-} from '@/infra/db/runWebappSql';
+import { sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
 const TTL_SEC = 24 * 60 * 60; // 24 hours
 const MAX_KEY_LENGTH = 256;
@@ -35,19 +32,17 @@ export async function getCachedResponse(
 ): Promise<CachedResponseHit> {
   const res = await runWithDbBootstrapPrincipal(
     { source: 'integrator-event-idempotency-read' },
-    () => runWebappNamedRoot<{
-    request_hash: string;
-    status: number;
-    response_body: unknown;
-    }>(
-      getWebappSqlDb(),
-      'app.integrator_event_idempotency_read(text)',
-      [key],
-      webappSqlFromPgText(
-        'SELECT * FROM app.integrator_event_idempotency_read($1::text)',
+    () =>
+      runWebappNamedRoot<{
+        request_hash: string;
+        status: number;
+        response_body: unknown;
+      }>(
+        getWebappSqlDb(),
+        'app.integrator_event_idempotency_read(text)',
         [key],
+        sql`SELECT * FROM app.integrator_event_idempotency_read(${key}::text)`,
       ),
-    ),
   );
   const row = res.rows[0];
   if (!row) return { hit: false };
@@ -75,15 +70,13 @@ export async function setCachedResponse(
   const bodyJson = JSON.stringify(responseBody);
   const res = await runWithDbBootstrapPrincipal(
     { source: 'integrator-event-idempotency-store' },
-    () => runWebappNamedRoot<{ stored: boolean }>(
-      getWebappSqlDb(),
-      'app.integrator_event_idempotency_store(text,text,integer,text,integer)',
-      [key, requestHash, status, bodyJson, TTL_SEC],
-      webappSqlFromPgText(
-        'SELECT app.integrator_event_idempotency_store($1::text,$2::text,$3::integer,$4::text,$5::integer) AS stored',
+    () =>
+      runWebappNamedRoot<{ stored: boolean }>(
+        getWebappSqlDb(),
+        'app.integrator_event_idempotency_store(text,text,integer,text,integer)',
         [key, requestHash, status, bodyJson, TTL_SEC],
+        sql`SELECT app.integrator_event_idempotency_store(${key}::text,${requestHash}::text,${status}::integer,${bodyJson}::text,${TTL_SEC}::integer) AS stored`,
       ),
-    ),
   );
   return res.rows[0]?.stored === true;
 }

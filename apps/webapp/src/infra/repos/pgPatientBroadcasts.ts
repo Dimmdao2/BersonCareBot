@@ -1,6 +1,7 @@
+import { sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
-import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { runPgPoolSql } from '@/infra/db/runWebappSql';
 import { extractBroadcastBodyContent } from '@/modules/patient-broadcasts/extractBroadcastBodyContent';
 import type {
   PatientBroadcastsPort,
@@ -17,20 +18,19 @@ export function createPgPatientBroadcastsPort(): PatientBroadcastsPort {
     ): Promise<PatientBroadcastView | null> {
       if (!UUID_RE.test(auditId) || !UUID_RE.test(platformUserId)) return null;
       const pool = getPool();
-      const r = await runPgPoolPgText<{
+      const r = await runPgPoolSql<{
         message_title: string;
         message_body: string;
         executed_at: string;
       }>(
         pool,
-        `SELECT a.message_title, a.message_body, a.executed_at
+        sql`SELECT a.message_title, a.message_body, a.executed_at
          FROM broadcast_audit a
          INNER JOIN broadcast_audit_recipients r
-           ON r.audit_id = a.id AND r.platform_user_id = $2::uuid
-         WHERE a.id = $1::uuid
+           ON r.audit_id = a.id AND r.platform_user_id = ${platformUserId}::uuid
+         WHERE a.id = ${auditId}::uuid
            AND a.preview_only = false
          LIMIT 1`,
-        [auditId, platformUserId],
       );
       const row = r.rows[0];
       if (!row) return null;

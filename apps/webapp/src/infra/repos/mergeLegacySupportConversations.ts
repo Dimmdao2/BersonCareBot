@@ -1,19 +1,12 @@
+import { sql } from 'drizzle-orm';
 import type { Pool, PoolClient } from 'pg';
-import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';
 import { webappPlatformConversationId } from '@/modules/messaging/supportConversationIds';
 
 export type MergeLegacySupportResult = {
   mergedConversationCount: number;
   movedMessageCount: number;
 };
-
-function mergeSqlOnClient<T>(
-  client: Pool | PoolClient,
-  queryText: string,
-  values: readonly unknown[] = [],
-) {
-  return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client as PoolClient));
-}
 
 /**
  * Finds the canonical conversation row, creating it only the first time.
@@ -39,33 +32,30 @@ async function resolveCanonicalConversationId(
 ): Promise<string | undefined> {
   const read = async () =>
     (
-      await mergeSqlOnClient<{ id: string }>(
-        client,
-        `SELECT id FROM support_conversations WHERE integrator_conversation_id = $1`,
-        [canonicalKey],
+      await runWebappSql<{ id: string }>(
+        getWebappSqlFromPgClient(client as PoolClient),
+        sql`SELECT id FROM support_conversations WHERE integrator_conversation_id = ${canonicalKey}`,
       )
     ).rows[0]?.id;
 
   const existing = await read();
   if (existing) {
-    await mergeSqlOnClient(
-      client,
-      `UPDATE support_conversations SET platform_user_id = $2::uuid, updated_at = now()
-       WHERE integrator_conversation_id = $1 AND platform_user_id IS NULL`,
-      [canonicalKey, platformUserId],
+    await runWebappSql(
+      getWebappSqlFromPgClient(client as PoolClient),
+      sql`UPDATE support_conversations SET platform_user_id = ${platformUserId}::uuid, updated_at = now()
+       WHERE integrator_conversation_id = ${canonicalKey} AND platform_user_id IS NULL`,
     );
     return existing;
   }
 
-  const inserted = await mergeSqlOnClient<{ id: string }>(
-    client,
-    `INSERT INTO support_conversations (
+  const inserted = await runWebappSql<{ id: string }>(
+    getWebappSqlFromPgClient(client as PoolClient),
+    sql`INSERT INTO support_conversations (
       integrator_conversation_id, platform_user_id, source, admin_scope, status,
       opened_at, last_message_at
-    ) VALUES ($1, $2::uuid, 'webapp', 'support', 'open', now(), now())
+    ) VALUES (${canonicalKey}, ${platformUserId}::uuid, 'webapp', 'support', 'open', now(), now())
     ON CONFLICT (integrator_conversation_id) DO NOTHING
     RETURNING id`,
-    [canonicalKey, platformUserId],
   );
   return inserted.rows[0]?.id ?? (await read());
 }
@@ -85,22 +75,21 @@ export async function mergeLegacySupportConversationsForPlatformUser(
     return { mergedConversationCount: 0, movedMessageCount: 0 };
   }
 
-  const legacyRows = await mergeSqlOnClient<{ id: string }>(
-    client,
-    `SELECT sc.id FROM support_conversations sc
-     WHERE sc.integrator_conversation_id <> $2
+  const legacyRows = await runWebappSql<{ id: string }>(
+    getWebappSqlFromPgClient(client as PoolClient),
+    sql`SELECT sc.id FROM support_conversations sc
+     WHERE sc.integrator_conversation_id <> ${canonicalKey}
        AND (
-         sc.platform_user_id = $1::uuid
+         sc.platform_user_id = ${platformUserId}::uuid
          OR EXISTS (
            SELECT 1 FROM user_channel_bindings ucb
-           WHERE ucb.user_id = $1::uuid
+           WHERE ucb.user_id = ${platformUserId}::uuid
              AND sc.channel_code IS NOT NULL
              AND sc.channel_external_id IS NOT NULL
              AND ucb.channel_code = sc.channel_code
              AND ucb.external_id = sc.channel_external_id
          )
        )`,
-    [platformUserId, canonicalKey],
   );
 
   if (legacyRows.rows.length === 0) {
@@ -109,39 +98,36 @@ export async function mergeLegacySupportConversationsForPlatformUser(
 
   let movedMessageCount = 0;
   for (const legacy of legacyRows.rows) {
-    const move = await mergeSqlOnClient<{ id: string }>(
-      client,
-      `UPDATE support_conversation_messages
-       SET conversation_id = $1::uuid
-       WHERE conversation_id = $2::uuid
+    const move = await runWebappSql<{ id: string }>(
+      getWebappSqlFromPgClient(client as PoolClient),
+      sql`UPDATE support_conversation_messages
+       SET conversation_id = ${canonicalId}::uuid
+       WHERE conversation_id = ${legacy.id}::uuid
        RETURNING id`,
-      [canonicalId, legacy.id],
     );
     movedMessageCount += move.rowCount ?? move.rows.length;
 
-    await mergeSqlOnClient(
-      client,
-      `UPDATE support_questions
-       SET conversation_id = $1::uuid, updated_at = now()
-       WHERE conversation_id = $2::uuid`,
-      [canonicalId, legacy.id],
+    await runWebappSql(
+      getWebappSqlFromPgClient(client as PoolClient),
+      sql`UPDATE support_questions
+       SET conversation_id = ${canonicalId}::uuid, updated_at = now()
+       WHERE conversation_id = ${legacy.id}::uuid`,
     );
 
-    await mergeSqlOnClient(
-      client,
-      `UPDATE support_conversations
+    await runWebappSql(
+      getWebappSqlFromPgClient(client as PoolClient),
+      sql`UPDATE support_conversations
        SET status = 'closed',
            closed_at = COALESCE(closed_at, now()),
            close_reason = 'merged_into_platform_thread',
            updated_at = now()
-       WHERE id = $1::uuid`,
-      [legacy.id],
+       WHERE id = ${legacy.id}::uuid`,
     );
   }
 
-  await mergeSqlOnClient(
-    client,
-    `UPDATE support_conversations sc
+  await runWebappSql(
+    getWebappSqlFromPgClient(client as PoolClient),
+    sql`UPDATE support_conversations sc
      SET last_message_at = GREATEST(
            sc.last_message_at,
            COALESCE((SELECT MAX(m.created_at) FROM support_conversation_messages m WHERE m.conversation_id = sc.id), sc.last_message_at)
@@ -150,9 +136,8 @@ export async function mergeLegacySupportConversationsForPlatformUser(
          closed_at = NULL,
          close_reason = NULL,
          updated_at = now()
-     WHERE sc.id = $1::uuid
+     WHERE sc.id = ${canonicalId}::uuid
        AND EXISTS (SELECT 1 FROM support_conversation_messages m WHERE m.conversation_id = sc.id)`,
-    [canonicalId],
   );
 
   return {

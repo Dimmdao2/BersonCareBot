@@ -102,11 +102,51 @@
   файл и функцию, после отката снова OK. ⚠️ НЕ СДЕЛАНО (за границей формулировки W4, выношу как вопрос):
   CHECK-констрейнт `saas_isolation_events_source_operation_check` по-прежнему объявлен и в той же миграции, и
   в overlay — тот же класс «побеждает последний применённый», но это уже не тело функции.
-- [ ] **W5 — закончить перевод разрешённых webapp DB-портов.** Команда
+- [x] **W5 — закончить перевод разрешённых webapp DB-портов.** Команда
   `rg -o "runWebappPgText\\(|runPgPoolPgText\\(" apps/webapp/src --glob "!**/*.test.*" | wc -l`
   вернула `103` вызова в `29` файлах. Они параметризованы и текущей SQL-инъекции не создают, но сохраняют ручную
   нумерацию `$N`. Перевод выполняется функциональными группами на существующий typed Drizzle-путь, без нового
   адаптера рядом. Сначала auth/session, затем необратимый purge, admin, doctor/patient CRUD и infra.
+  **Независимый аудит 02.09.2026 (`wt/systemic-typed-sql-20260902`, HEAD `a44726263`) — FAIL.** Перепись
+  честно нулевая (103 → 0), нового адаптера рядом нет, оба гейта зелёные, ~15.5k строк перевода
+  посверены пооператорно и верны. Три возврата: (1) `pgLfkExercises.update` биндит `tags` голым массивом,
+  drizzle компилирует это в row-конструктор — на живом Postgres он отбивается при любом непустом списке
+  (1 тег → `malformed array literal`, 2+ → `text[] = record`), то есть ломается сохранение любого
+  упражнения каталога, у которого проставлен хоть один тег; (2) в `platformUserMergePreview.countMeaningfulData`
+  предикат сузился до `platform_user_id IS NULL`-варианта и разошёлся с `assertSharedPhoneGuard`, на который
+  сам же ссылается оператору; (3) три тест-файла оставлены красными — переименованы моки без правки тел,
+  включая оба оракула необратимого purge. Отчёт с точными доказательствами:
+  `docs/_TODO/runs/TYPED_SQL_W5_INDEPENDENT_AUDIT_2026-09-02.md`.
+  **Correction-pass 02.09.2026 (та же ветка) — все четыре находки исправлены.** (1)
+  `pgLfkExercises.ts` update-билдер: `add()` теперь биндит каждое значение через `sql.param(v)`
+  (как уже делал INSERT в том же файле), а не голым JS-значением — новый
+  `pgLfkExercisesUpdateTags.unit.test.ts` компилирует UPDATE через `PgDialect` и проверяет ровно
+  один `$n` на `tags` при 0/1/2 тегах без скобок-конструктора; тест красный на до-фиксной версии
+  (проверено принудительным откатом), зелёный после. (2) `platformUserMergePreview.
+  countMeaningfulData` вернул для `symptom_trackings`/`lfk_complexes`/`message_log` тот же плоский
+  `platform_user_id = $1 OR user_id = $2`, что использует авторитетный
+  `assertSharedPhoneGuard.meaningfulCount` (`packages/platform-merge/src/pgPlatformUserMerge.ts`),
+  вместо более узкого `platformUserMatchSql` (IS NULL-гейт для других таблиц); новый
+  `platformUserMergePreviewMeaningfulData.unit.test.ts` фиксирует форму SQL и поведенческий кейс
+  (`platform_user_id` указывает на другого пользователя, легаси `user_id` совпадает) — тоже
+  проверен красным на старой форме. (3) три сломанных теста поправлены под новый typed-контракт:
+  ассерты читают текст/параметры через `drizzleSqlFragmentToPgQuery` (тот же приём, что уже
+  использует `pgLfkExercisesHostedCover.unit.test.ts`) вместо `String(fragment)`/`fragment.includes`
+  на объекте `SQL`; `d15b6PhoneMessengerBindMirror.unit.test.ts` также убрал сам стухший мок
+  `webappSqlFromPgText`, которого продукт больше не вызывает. (4) `runWebappPgText`/
+  `runPgPoolPgText` удалены из `runWebappSql.ts` (ноль вызывающих подтверждён `rg`); `check-db-
+  chokepoint.mjs` получил AST-гейт `inspectHandNumberedRawSqlLiterals` на `infra/repos/**` —
+  ловит статический строковый/шаблонный литерал с `$n` в аргументе любого вызова (класс, который
+  ловится обратно вне зависимости от имени обёртки), но НЕ трогает `TaggedTemplateExpression`
+  (`sql\`...\``), поэтому легитимные Drizzle-фрагменты не блокируются; `--self-test` содержит и
+  позитивный, и негативный (legit `sql` fragment) кейс, плюс живая проба: временно вписанный
+  `pool.query('... $1', [x])` в `infra/repos/` гейт ловит (exit 1, назван файл), после отката —
+  снова `OK`. Evidence: `pnpm exec vitest run` по всем 41 файлу теста, которые касался W5 (см.
+  список аудита), плюс оба новых теста — 43 файла / 202 теста зелёных; `node scripts/check-db-
+  chokepoint.mjs --self-test` и без флага — `OK`; `node scripts/check-no-new-raw-sql.mjs` — `OK`,
+  production debt 0; `pnpm --dir apps/webapp typecheck` — PASS; scoped `eslint` по всем изменённым
+  файлам — чисто; `git diff --check` — чисто. Независимый повторный аудит не запускался — эта
+  правка тем же ведущим, что читал FAIL-отчёт; будущий gate/аудит может перепроверить.
 - [x] **W6 — убрать мёртвые действия ботов без изменения будущего меню.** Кнопки удалены в `f456bf8ba`; в этом
   коммите удалены обе недостижимые callback/state/M2M-ветки — обычного сообщения и program note — вместе с
   устаревшими активными описаниями. `rg -n

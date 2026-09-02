@@ -1,10 +1,6 @@
 /** Wave 3 phase 15B — domain SQL via the webapp port; `registerPendingVerification` — named root. */
 import { sql } from 'drizzle-orm';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  runWebappPgText,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import argon2 from 'argon2';
 import {
   passwordIdentifierKey,
@@ -136,8 +132,7 @@ export function createPgUserPasswordCredentialsPort(
         attempts: admission.attempts,
         retryAfterSeconds: admission.retryAfterSeconds,
         captchaRequired: admission.captchaRequired,
-        captchaRefreshRequired:
-          altchaSubmitted && admission.reason === 'challenge_required',
+        captchaRefreshRequired: altchaSubmitted && admission.reason === 'challenge_required',
         locked: admission.reason === 'locked',
       };
     }
@@ -251,9 +246,9 @@ export function createPgUserPasswordCredentialsPort(
     },
 
     async updatePasswordHash(_userId, emailNormalized, passwordHash) {
-      const res = await runWebappPgText<{ updated: boolean }>(
-        'SELECT app.password_credentials_replace_self($1::text, $2::text) AS updated',
-        [emailNormalized, passwordHash],
+      const res = await runWebappSql<{ updated: boolean }>(
+        getWebappSqlDb(),
+        sql`SELECT app.password_credentials_replace_self(${emailNormalized}::text, ${passwordHash}::text) AS updated`,
       );
       if (res.rows[0]?.updated !== true) {
         throw new Error('updatePasswordHash: no credentials row');
@@ -261,9 +256,9 @@ export function createPgUserPasswordCredentialsPort(
     },
 
     async upsertPasswordHash(_userId, emailNormalized, passwordHash) {
-      const res = await runWebappPgText<{ updated: boolean }>(
-        'SELECT app.password_credentials_upsert_self($1::text, $2::text) AS updated',
-        [emailNormalized, passwordHash],
+      const res = await runWebappSql<{ updated: boolean }>(
+        getWebappSqlDb(),
+        sql`SELECT app.password_credentials_upsert_self(${emailNormalized}::text, ${passwordHash}::text) AS updated`,
       );
       if (res.rows[0]?.updated !== true) {
         throw new Error('upsertPasswordHash: self email mismatch');

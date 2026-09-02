@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 /**
  * D15b/5 audit MF-1..2: dual-write mirror after FIO writers.
  *
@@ -11,11 +12,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const syncMirrorMock = vi.hoisted(() => vi.fn());
 const syncContactsMirrorMock = vi.hoisted(() => vi.fn());
-const runIdentityClientPgTextMock = vi.hoisted(() => vi.fn());
-const runIdentityPoolPgTextMock = vi.hoisted(() => vi.fn());
+const runIdentityClientSqlMock = vi.hoisted(() => vi.fn());
+const runIdentityPoolSqlMock = vi.hoisted(() => vi.fn());
 const withPoolTransactionMock = vi.hoisted(() => vi.fn());
 const resolveCanonicalUserIdMock = vi.hoisted(() => vi.fn());
-const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const runWebappSqlMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/infra/repos/userContactsSql', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/infra/repos/userContactsSql')>();
@@ -34,8 +35,8 @@ vi.mock('@/infra/repos/userIdentityFioSql', async (importOriginal) => {
 });
 
 vi.mock('@/infra/repos/identityPhoneSql', () => ({
-  runIdentityClientPgText: runIdentityClientPgTextMock,
-  runIdentityPoolPgText: runIdentityPoolPgTextMock,
+  runIdentityClientSql: runIdentityClientSqlMock,
+  runIdentityPoolSql: runIdentityPoolSqlMock,
 }));
 
 vi.mock('@/infra/db/withClient', () => ({
@@ -47,7 +48,7 @@ vi.mock('@/infra/db/client', () => ({
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
-  runWebappPgText: runWebappPgTextMock,
+  runWebappSql: runWebappSqlMock,
   getWebappSqlFromPgClient: vi.fn(() => ({})),
   getWebappSqlDb: vi.fn(() => ({
     insert: () => ({
@@ -72,6 +73,7 @@ vi.mock('@bersoncare/db-principal', async (importOriginal) => {
   };
 });
 
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
 import { pgOAuthUserResolvePort } from '@/infra/repos/pgOAuthUserResolve';
 import { pgUserByPhonePort } from '@/infra/repos/pgUserByPhone';
 
@@ -89,11 +91,11 @@ describe('D15b/5 MF-1 — pgUserByPhone locked-binding dual-write', () => {
     const fakeClient = { tag: 'tx-client' };
     withPoolTransactionMock.mockImplementation(async (_pool, fn) => fn(fakeClient));
     resolveCanonicalUserIdMock.mockResolvedValue(LOCKED_USER_ID);
-    runIdentityClientPgTextMock
+    runIdentityClientSqlMock
       .mockResolvedValueOnce({ rows: [{ user_id: LOCKED_USER_ID }] })
       .mockResolvedValueOnce({ rows: [{ user_id: LOCKED_USER_ID }] })
       .mockResolvedValueOnce({ rows: [] });
-    runIdentityPoolPgTextMock
+    runIdentityPoolSqlMock
       .mockResolvedValueOnce({
         rows: [
           {
@@ -144,10 +146,11 @@ describe('D15b/5 MF-1 — pgUserByPhone locked-binding dual-write', () => {
     expect(syncContactsMirrorMock).toHaveBeenCalledWith(fakeClient, LOCKED_USER_ID, [
       expect.objectContaining({ action: 'upsert', kind: 'phone' }),
     ]);
-    const updateCall = runIdentityClientPgTextMock.mock.calls.find(
-      ([, sql]) => typeof sql === 'string' && sql.includes('UPDATE platform_users'),
+    const updateCall = runIdentityClientSqlMock.mock.calls.find(([, fragment]) =>
+      drizzleSqlFragmentToPgQuery(fragment).sql.includes('UPDATE platform_users'),
     );
-    expect(updateCall?.[1]).toContain('display_name');
+    expect(updateCall).toBeDefined();
+    expect(drizzleSqlFragmentToPgQuery(updateCall![1]).sql).toContain('display_name');
   });
 });
 
@@ -165,6 +168,6 @@ describe('D15b/5 MF-2 — pgOAuthUserResolve createOAuthPlatformUser dual-write'
     expect(syncMirrorMock).toHaveBeenCalledWith(expect.anything(), OAUTH_USER_ID);
     expect(syncContactsMirrorMock).toHaveBeenCalledOnce();
     expect(syncContactsMirrorMock).toHaveBeenCalledWith(expect.anything(), OAUTH_USER_ID, []);
-    expect(runWebappPgTextMock).not.toHaveBeenCalled();
+    expect(runWebappSqlMock).not.toHaveBeenCalled();
   });
 });

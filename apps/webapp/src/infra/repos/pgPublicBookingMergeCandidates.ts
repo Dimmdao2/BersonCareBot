@@ -3,7 +3,7 @@ import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
 /**
  * Track D synthesis 26.08: this used to read `platform_users`/`user_contacts` through a bare `Pool`
- * with no principal installed at all (`getPool()` handed straight to `runPgPoolPgText` — see the
+ * with no principal installed at all (`getPool()` handed straight to the bare-pool bridge — see the
  * removed `pool` argument at the old call site in `app-layer/booking/createVerifiedPublicBooking.ts`).
  * Every call failed with "Missing declared webapp port capability: pre_session", caught, logged, and
  * the dependent write (a pending `patient_merge_candidates` row) never ran. One named door now does

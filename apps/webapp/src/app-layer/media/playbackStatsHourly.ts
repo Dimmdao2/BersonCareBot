@@ -1,5 +1,6 @@
+import { sql } from 'drizzle-orm';
 import { logger } from '@/app-layer/logging/logger';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 
 export type PlaybackStatDelivery = 'hls' | 'mp4' | 'file';
 
@@ -21,9 +22,9 @@ export async function recordPlaybackResolutionStat(input: {
   fallbackUsed: boolean;
 }): Promise<void> {
   try {
-    await runWebappPgText(
-      'SELECT app.increment_media_playback_resolution_stat($1::uuid, $2::uuid, $3, $4)',
-      [input.userId, input.mediaId, input.delivery, input.fallbackUsed],
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`SELECT app.increment_media_playback_resolution_stat(${input.userId}::uuid, ${input.mediaId}::uuid, ${input.delivery}, ${input.fallbackUsed})`,
     );
   } catch (e) {
     logger.error({ err: e, delivery: input.delivery }, 'playback_stats_hourly_write_failed');

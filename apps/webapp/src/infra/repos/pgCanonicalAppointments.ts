@@ -5,7 +5,7 @@ import {
   getWebappSqlDb,
   getWebappSqlFromPgClient,
   runWebappNamedRoot,
-  runWebappPgText,
+  runWebappSql,
 } from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
@@ -106,12 +106,13 @@ async function resolveCanonicalId(
   externalId: string,
   tx?: ReturnType<typeof getWebappSqlFromPgClient>,
 ): Promise<string | null> {
-  const result = await runWebappPgText<{ id: string }>(
-    `WITH target AS (
+  const result = await runWebappSql<{ id: string }>(
+    tx ?? getWebappSqlDb(),
+    sql`WITH target AS (
        SELECT direct.id
          FROM (SELECT CASE
-                        WHEN $1 ~ '^be:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-                        THEN substring($1 FROM 4)::uuid
+                        WHEN ${externalId} ~ '^be:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+                        THEN substring(${externalId} FROM 4)::uuid
                       END AS id) direct
         WHERE direct.id IS NOT NULL
      )
@@ -119,8 +120,6 @@ async function resolveCanonicalId(
        FROM target
        JOIN public.be_appointments appointment ON appointment.id = target.id
       LIMIT 1`,
-    [externalId],
-    tx,
   );
   return result.rows[0]?.id ?? null;
 }
@@ -158,48 +157,44 @@ export function createPgCanonicalAppointmentAccessPort(): CanonicalAppointmentAc
         const tx = getWebappSqlFromPgClient(client);
         const canonicalId = await resolveCanonicalId(externalId, tx);
         if (!canonicalId) return false;
-        const target = await runWebappPgText<{ organization_id: string; deleted_at: Date | null }>(
-          `SELECT organization_id::text AS organization_id, deleted_at
-             FROM public.be_appointments
-            WHERE id = $1::uuid
-            FOR UPDATE`,
-          [canonicalId],
+        const target = await runWebappSql<{ organization_id: string; deleted_at: Date | null }>(
           tx,
+          sql`SELECT organization_id::text AS organization_id, deleted_at
+             FROM public.be_appointments
+            WHERE id = ${canonicalId}::uuid
+            FOR UPDATE`,
         );
         const row = target.rows[0];
         if (!row || (options.organizationId && row.organization_id !== options.organizationId)) {
           return false;
         }
-        await runWebappPgText(
-          `UPDATE public.be_appointments
-              SET deleted_at = COALESCE(deleted_at, now()), updated_at = now()
-            WHERE id = $1::uuid`,
-          [canonicalId],
+        await runWebappSql(
           tx,
+          sql`UPDATE public.be_appointments
+              SET deleted_at = COALESCE(deleted_at, now()), updated_at = now()
+            WHERE id = ${canonicalId}::uuid`,
         );
         if (options.purgePatientBookings) {
-          await runWebappPgText(
-            `DELETE FROM public.patient_bookings WHERE canonical_appointment_id = $1::uuid`,
-            [canonicalId],
+          await runWebappSql(
             tx,
+            sql`DELETE FROM public.patient_bookings WHERE canonical_appointment_id = ${canonicalId}::uuid`,
           );
         } else if (!row.deleted_at) {
-          await runWebappPgText(
-            `UPDATE public.patient_bookings
+          await runWebappSql(
+            tx,
+            sql`UPDATE public.patient_bookings
                 SET status = 'cancelled',
                     cancelled_at = COALESCE(cancelled_at, now()),
                     cancel_reason = CASE
-                      WHEN cancel_reason IS NULL OR TRIM(cancel_reason) = '' THEN $2
+                      WHEN cancel_reason IS NULL OR TRIM(cancel_reason) = '' THEN ${options.cancelReason ?? 'admin_soft_delete'}
                       ELSE cancel_reason
                     END,
                     updated_at = now()
-              WHERE canonical_appointment_id = $1::uuid
+              WHERE canonical_appointment_id = ${canonicalId}::uuid
                 AND status IN (
                   'creating', 'confirmed', 'rescheduled', 'cancelling',
                   'cancel_failed', 'failed_sync'
                 )`,
-            [canonicalId, options.cancelReason ?? 'admin_soft_delete'],
-            tx,
           );
         }
         return true;
@@ -210,9 +205,9 @@ export function createPgCanonicalAppointmentAccessPort(): CanonicalAppointmentAc
     async getByExternalRecordId(externalId) {
       const canonicalId = await resolveCanonicalId(externalId);
       if (!canonicalId) return null;
-      const result = await runWebappPgText<CanonicalAppointmentDbRow>(
-        `${canonicalSelect} WHERE appointment.id = $1::uuid LIMIT 1`,
-        [canonicalId],
+      const result = await runWebappSql<CanonicalAppointmentDbRow>(
+        getWebappSqlDb(),
+        sql`${sql.raw(canonicalSelect)} WHERE appointment.id = ${canonicalId}::uuid LIMIT 1`,
       );
       const row = result.rows[0];
       return row ? mapRow(row) : null;
@@ -221,9 +216,10 @@ export function createPgCanonicalAppointmentAccessPort(): CanonicalAppointmentAc
     getByExternalRecordIdForIntegrator,
 
     async listActiveByPhoneNormalized(phoneNormalized) {
-      const result = await runWebappPgText<CanonicalAppointmentDbRow>(
-        `${canonicalSelect}
-          WHERE appointment.phone_normalized = $1
+      const result = await runWebappSql<CanonicalAppointmentDbRow>(
+        getWebappSqlDb(),
+        sql`${sql.raw(canonicalSelect)}
+          WHERE appointment.phone_normalized = ${phoneNormalized}
             AND appointment.deleted_at IS NULL
             AND appointment.start_at >= now()
             AND appointment.status IN (
@@ -231,7 +227,6 @@ export function createPgCanonicalAppointmentAccessPort(): CanonicalAppointmentAc
               'visit_confirmed', 'charged_to_package', 'manual_review_required'
             )
           ORDER BY appointment.start_at ASC`,
-        [phoneNormalized],
       );
       return result.rows.map(mapRow);
     },
@@ -239,13 +234,13 @@ export function createPgCanonicalAppointmentAccessPort(): CanonicalAppointmentAc
     listActiveByPhoneNormalizedForIntegrator,
 
     async listHistoryByPhoneNormalized(phoneNormalized, limit = 50) {
-      const result = await runWebappPgText<CanonicalAppointmentDbRow>(
-        `${canonicalSelect}
-          WHERE appointment.phone_normalized = $1
+      const result = await runWebappSql<CanonicalAppointmentDbRow>(
+        getWebappSqlDb(),
+        sql`${sql.raw(canonicalSelect)}
+          WHERE appointment.phone_normalized = ${phoneNormalized}
             AND appointment.deleted_at IS NULL
           ORDER BY appointment.start_at DESC, appointment.updated_at DESC
-          LIMIT $2`,
-        [phoneNormalized, limit],
+          LIMIT ${limit}`,
       );
       return result.rows.map(mapRow);
     },
@@ -263,9 +258,9 @@ export function createPgCanonicalAppointmentAccessPort(): CanonicalAppointmentAc
     async isExternalRecordPurged(externalId) {
       const canonicalId = await resolveCanonicalId(externalId);
       if (!canonicalId) return false;
-      const result = await runWebappPgText<{ deleted_at: Date | null }>(
-        `SELECT deleted_at FROM public.be_appointments WHERE id = $1::uuid LIMIT 1`,
-        [canonicalId],
+      const result = await runWebappSql<{ deleted_at: Date | null }>(
+        getWebappSqlDb(),
+        sql`SELECT deleted_at FROM public.be_appointments WHERE id = ${canonicalId}::uuid LIMIT 1`,
       );
       return result.rows[0]?.deleted_at != null;
     },

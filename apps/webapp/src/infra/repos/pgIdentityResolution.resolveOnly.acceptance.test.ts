@@ -8,7 +8,7 @@ vi.mock('@/infra/db/withClient', () => ({
   withPoolTransaction: vi.fn(async (_pool, work) => work(fakeClient)),
 }));
 vi.mock('@/infra/repos/identityPhoneSql', () => ({
-  runIdentityClientPgText: runIdentityClientPgTextMock,
+  runIdentityClientSql: runIdentityClientPgTextMock,
 }));
 vi.mock('@/infra/repos/pgCanonicalPlatformUser', () => ({
   findTrustedCanonicalUserIdByPhone: vi.fn(),

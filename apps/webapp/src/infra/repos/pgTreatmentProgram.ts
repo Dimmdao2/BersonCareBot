@@ -1,9 +1,9 @@
-/** Wave 3 phase 15C — list preview / usage summary SQL via `runWebappPgText`. */
+/** List preview / usage summary SQL. */
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import { lfkComplexTemplateExercises, lfkComplexTemplates } from '../../../db/schema/schema';
 import { testSetItems, testSets } from '../../../db/schema/clinicalTests';
 import {
@@ -185,8 +185,9 @@ async function templateListFirstItemPreviewByTemplateId(
     preview_type: string | null;
   };
 
-  const res = await runWebappPgText<PreviewRow>(
-    `
+  const res = await runWebappSql<PreviewRow>(
+    getWebappSqlDb(),
+    sql`
     WITH first_item AS (
       SELECT DISTINCT ON (s.template_id)
         s.template_id,
@@ -194,9 +195,9 @@ async function templateListFirstItemPreviewByTemplateId(
         i.item_ref_id
       FROM treatment_program_template_stage_items i
       INNER JOIN treatment_program_template_stages s ON s.id = i.stage_id
-      WHERE s.template_id = ANY($1::uuid[])
-        AND s.organization_id = $2::uuid
-        AND i.organization_id = $2::uuid
+      WHERE s.template_id = ANY(${sql.param(templateIds)}::uuid[])
+        AND s.organization_id = ${organizationId}::uuid
+        AND i.organization_id = ${organizationId}::uuid
       ORDER BY s.template_id, s.sort_order ASC, s.id ASC, i.sort_order ASC, i.id ASC
     )
     SELECT fi.template_id::text AS template_id,
@@ -204,7 +205,7 @@ async function templateListFirstItemPreviewByTemplateId(
         WHEN 'exercise' THEN (
           SELECT em.media_url::text FROM lfk_exercise_media em
           WHERE em.exercise_id = fi.item_ref_id
-            AND ((em.owner_kind = 'organization' AND em.organization_id = $2::uuid)
+            AND ((em.owner_kind = 'organization' AND em.organization_id = ${organizationId}::uuid)
               OR (em.owner_kind = 'platform' AND em.organization_id IS NULL))
           ORDER BY em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
@@ -212,7 +213,7 @@ async function templateListFirstItemPreviewByTemplateId(
         WHEN 'recommendation' THEN (
           SELECT (r.media->0->>'mediaUrl') FROM recommendations r
           WHERE r.id = fi.item_ref_id
-            AND r.organization_id = $2::uuid
+            AND r.organization_id = ${organizationId}::uuid
             AND jsonb_typeof(r.media) = 'array' AND COALESCE(jsonb_array_length(r.media), 0) > 0
           LIMIT 1
         )
@@ -220,7 +221,7 @@ async function templateListFirstItemPreviewByTemplateId(
           SELECT (t.media->0->>'mediaUrl')
           FROM tests t
           WHERE t.id = fi.item_ref_id
-            AND t.organization_id = $2::uuid
+            AND t.organization_id = ${organizationId}::uuid
           LIMIT 1
         )
         WHEN 'lfk_complex' THEN (
@@ -228,9 +229,9 @@ async function templateListFirstItemPreviewByTemplateId(
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_exercise_media em ON em.exercise_id = te.exercise_id
           WHERE te.template_id = fi.item_ref_id
-            AND ((te.owner_kind = 'organization' AND te.organization_id = $2::uuid)
+            AND ((te.owner_kind = 'organization' AND te.organization_id = ${organizationId}::uuid)
               OR (te.owner_kind = 'platform' AND te.organization_id IS NULL))
-            AND ((em.owner_kind = 'organization' AND em.organization_id = $2::uuid)
+            AND ((em.owner_kind = 'organization' AND em.organization_id = ${organizationId}::uuid)
               OR (em.owner_kind = 'platform' AND em.organization_id IS NULL))
           ORDER BY te.sort_order ASC, te.id ASC, em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
@@ -241,7 +242,7 @@ async function templateListFirstItemPreviewByTemplateId(
         WHEN 'exercise' THEN (
           SELECT em.media_type::text FROM lfk_exercise_media em
           WHERE em.exercise_id = fi.item_ref_id
-            AND ((em.owner_kind = 'organization' AND em.organization_id = $2::uuid)
+            AND ((em.owner_kind = 'organization' AND em.organization_id = ${organizationId}::uuid)
               OR (em.owner_kind = 'platform' AND em.organization_id IS NULL))
           ORDER BY em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
@@ -249,7 +250,7 @@ async function templateListFirstItemPreviewByTemplateId(
         WHEN 'recommendation' THEN (
           SELECT (r.media->0->>'mediaType') FROM recommendations r
           WHERE r.id = fi.item_ref_id
-            AND r.organization_id = $2::uuid
+            AND r.organization_id = ${organizationId}::uuid
             AND jsonb_typeof(r.media) = 'array' AND COALESCE(jsonb_array_length(r.media), 0) > 0
           LIMIT 1
         )
@@ -257,7 +258,7 @@ async function templateListFirstItemPreviewByTemplateId(
           SELECT (t.media->0->>'mediaType')
           FROM tests t
           WHERE t.id = fi.item_ref_id
-            AND t.organization_id = $2::uuid
+            AND t.organization_id = ${organizationId}::uuid
           LIMIT 1
         )
         WHEN 'lfk_complex' THEN (
@@ -265,9 +266,9 @@ async function templateListFirstItemPreviewByTemplateId(
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_exercise_media em ON em.exercise_id = te.exercise_id
           WHERE te.template_id = fi.item_ref_id
-            AND ((te.owner_kind = 'organization' AND te.organization_id = $2::uuid)
+            AND ((te.owner_kind = 'organization' AND te.organization_id = ${organizationId}::uuid)
               OR (te.owner_kind = 'platform' AND te.organization_id IS NULL))
-            AND ((em.owner_kind = 'organization' AND em.organization_id = $2::uuid)
+            AND ((em.owner_kind = 'organization' AND em.organization_id = ${organizationId}::uuid)
               OR (em.owner_kind = 'platform' AND em.organization_id IS NULL))
           ORDER BY te.sort_order ASC, te.id ASC, em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
@@ -276,7 +277,6 @@ async function templateListFirstItemPreviewByTemplateId(
       END AS preview_type
     FROM first_item fi
     `,
-    [templateIds, organizationId],
   );
 
   for (const row of res.rows) {
@@ -454,7 +454,7 @@ async function loadTreatmentProgramTemplateUsageSummary(
   organizationId: string,
 ): Promise<TreatmentProgramTemplateUsageSnapshot> {
   const lim = TREATMENT_PROGRAM_TEMPLATE_USAGE_DETAIL_LIMIT;
-  const r = await runWebappPgText<{
+  const r = await runWebappSql<{
     active_inst: string | number | null;
     completed_inst: string | number | null;
     pub_courses: string | number | null;
@@ -466,12 +466,13 @@ async function loadTreatmentProgramTemplateUsageSummary(
     draft_course_refs: unknown;
     arch_course_refs: unknown;
   }>(
-    `SELECT
-       (SELECT COUNT(*)::int FROM treatment_program_instances WHERE template_id = $1::uuid AND organization_id = $2::uuid AND status = 'active') AS active_inst,
-       (SELECT COUNT(*)::int FROM treatment_program_instances WHERE template_id = $1::uuid AND organization_id = $2::uuid AND status = 'completed') AS completed_inst,
-       (SELECT COUNT(*)::int FROM courses WHERE program_template_id = $1::uuid AND organization_id = $2::uuid AND status = 'published') AS pub_courses,
-       (SELECT COUNT(*)::int FROM courses WHERE program_template_id = $1::uuid AND organization_id = $2::uuid AND status = 'draft') AS draft_courses,
-       (SELECT COUNT(*)::int FROM courses WHERE program_template_id = $1::uuid AND organization_id = $2::uuid AND status = 'archived') AS arch_courses,
+    getWebappSqlDb(),
+    sql`SELECT
+       (SELECT COUNT(*)::int FROM treatment_program_instances WHERE template_id = ${templateId}::uuid AND organization_id = ${organizationId}::uuid AND status = 'active') AS active_inst,
+       (SELECT COUNT(*)::int FROM treatment_program_instances WHERE template_id = ${templateId}::uuid AND organization_id = ${organizationId}::uuid AND status = 'completed') AS completed_inst,
+       (SELECT COUNT(*)::int FROM courses WHERE program_template_id = ${templateId}::uuid AND organization_id = ${organizationId}::uuid AND status = 'published') AS pub_courses,
+       (SELECT COUNT(*)::int FROM courses WHERE program_template_id = ${templateId}::uuid AND organization_id = ${organizationId}::uuid AND status = 'draft') AS draft_courses,
+       (SELECT COUNT(*)::int FROM courses WHERE program_template_id = ${templateId}::uuid AND organization_id = ${organizationId}::uuid AND status = 'archived') AS arch_courses,
        (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
           FROM (
             SELECT DISTINCT ON (i.id)
@@ -482,7 +483,7 @@ async function loadTreatmentProgramTemplateUsageSummary(
                 'patientUserId', i.patient_user_id::text
               ) AS obj
             FROM treatment_program_instances i
-            WHERE i.template_id = $1::uuid AND i.organization_id = $2::uuid AND i.status = 'active'
+            WHERE i.template_id = ${templateId}::uuid AND i.organization_id = ${organizationId}::uuid AND i.status = 'active'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS active_inst_refs,
@@ -496,7 +497,7 @@ async function loadTreatmentProgramTemplateUsageSummary(
                 'patientUserId', i.patient_user_id::text
               ) AS obj
             FROM treatment_program_instances i
-            WHERE i.template_id = $1::uuid AND i.organization_id = $2::uuid AND i.status = 'completed'
+            WHERE i.template_id = ${templateId}::uuid AND i.organization_id = ${organizationId}::uuid AND i.status = 'completed'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS completed_inst_refs,
@@ -505,7 +506,7 @@ async function loadTreatmentProgramTemplateUsageSummary(
             SELECT DISTINCT ON (c.id)
               jsonb_build_object('kind', 'course', 'id', c.id::text, 'title', c.title) AS obj
             FROM courses c
-            WHERE c.program_template_id = $1::uuid AND c.organization_id = $2::uuid AND c.status = 'published'
+            WHERE c.program_template_id = ${templateId}::uuid AND c.organization_id = ${organizationId}::uuid AND c.status = 'published'
             ORDER BY c.id, c.title ASC
             LIMIT ${lim}
           ) q) AS pub_course_refs,
@@ -514,7 +515,7 @@ async function loadTreatmentProgramTemplateUsageSummary(
             SELECT DISTINCT ON (c.id)
               jsonb_build_object('kind', 'course', 'id', c.id::text, 'title', c.title) AS obj
             FROM courses c
-            WHERE c.program_template_id = $1::uuid AND c.organization_id = $2::uuid AND c.status = 'draft'
+            WHERE c.program_template_id = ${templateId}::uuid AND c.organization_id = ${organizationId}::uuid AND c.status = 'draft'
             ORDER BY c.id, c.title ASC
             LIMIT ${lim}
           ) q) AS draft_course_refs,
@@ -523,11 +524,10 @@ async function loadTreatmentProgramTemplateUsageSummary(
             SELECT DISTINCT ON (c.id)
               jsonb_build_object('kind', 'course', 'id', c.id::text, 'title', c.title) AS obj
             FROM courses c
-            WHERE c.program_template_id = $1::uuid AND c.organization_id = $2::uuid AND c.status = 'archived'
+            WHERE c.program_template_id = ${templateId}::uuid AND c.organization_id = ${organizationId}::uuid AND c.status = 'archived'
             ORDER BY c.id, c.title ASC
             LIMIT ${lim}
           ) q) AS arch_course_refs`,
-    [templateId, organizationId],
   );
   const row = r.rows[0];
   if (!row) return { ...EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT };

@@ -1,5 +1,6 @@
+import { sql } from 'drizzle-orm';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import type {
   PatientBookingCatalogPort,
   PatientBookingCatalogRow,
@@ -37,8 +38,9 @@ export function createPgPatientBookingCatalogPort(): PatientBookingCatalogPort {
   return {
     async listCurrentPatientCatalog() {
       const result = await runWithWebappDbOperationFamily('patient_booking_catalog', () =>
-        runWebappPgText<PatientBookingCatalogDbRow>(
-          'SELECT * FROM app.read_current_patient_booking_catalog()',
+        runWebappSql<PatientBookingCatalogDbRow>(
+          getWebappSqlDb(),
+          sql`SELECT * FROM app.read_current_patient_booking_catalog()`,
         ),
       );
       return result.rows.map(mapRow);

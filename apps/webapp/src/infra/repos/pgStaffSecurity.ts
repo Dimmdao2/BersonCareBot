@@ -1,5 +1,6 @@
+import { sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import type { StaffSecurityPort, StaffSecurityProfile } from '@/modules/staff-security/ports';
 import { nullableToIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 
@@ -46,14 +47,17 @@ function mapProfile(row: unknown): StaffSecurityProfile {
 }
 
 async function getProfile(): Promise<StaffSecurityProfile | null> {
-  const result = await runWebappPgText('SELECT * FROM app.get_staff_security_profile()');
+  const result = await runWebappSql(
+    getWebappSqlDb(),
+    sql`SELECT * FROM app.get_staff_security_profile()`,
+  );
   return result.rows[0] ? mapProfile(result.rows[0]) : null;
 }
 
 export function createPgStaffSecurityPort(): StaffSecurityPort {
   return {
     async ensureProfile() {
-      await runWebappPgText('SELECT app.ensure_staff_security_profile()');
+      await runWebappSql(getWebappSqlDb(), sql`SELECT app.ensure_staff_security_profile()`);
       const profile = await getProfile();
       if (!profile) throw new Error('staff_security_profile_missing');
       return profile;
@@ -62,26 +66,32 @@ export function createPgStaffSecurityPort(): StaffSecurityPort {
     getProfile,
 
     async savePendingTotp(encryptedSecret) {
-      await runWebappPgText('SELECT app.save_pending_staff_totp($1::text)', [encryptedSecret]);
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`SELECT app.save_pending_staff_totp(${encryptedSecret}::text)`,
+      );
     },
 
     async completeTotpEnrollment({ encryptedSecret, recoveryCodeHashes }) {
-      const result = await runWebappPgText(
-        'SELECT app.complete_staff_totp_enrollment($1::text, $2::jsonb) AS session_version',
-        [encryptedSecret, JSON.stringify(recoveryCodeHashes)],
+      const result = await runWebappSql(
+        getWebappSqlDb(),
+        sql`SELECT app.complete_staff_totp_enrollment(${encryptedSecret}::text, ${JSON.stringify(recoveryCodeHashes)}::jsonb) AS session_version`,
       );
       return versionRowSchema.parse(result.rows[0]).session_version;
     },
 
     async confirmRecoveryCodes() {
-      const result = await runWebappPgText('SELECT app.confirm_staff_recovery_codes() AS ok');
+      const result = await runWebappSql(
+        getWebappSqlDb(),
+        sql`SELECT app.confirm_staff_recovery_codes() AS ok`,
+      );
       return booleanRowSchema.parse(result.rows[0]).ok;
     },
 
     async beginLoginChallenge({ challengeHash, expiresAt }) {
-      const result = await runWebappPgText(
-        'SELECT app.begin_staff_login_challenge($1::text, $2::timestamptz) AS ok',
-        [challengeHash, expiresAt],
+      const result = await runWebappSql(
+        getWebappSqlDb(),
+        sql`SELECT app.begin_staff_login_challenge(${challengeHash}::text, ${expiresAt}::timestamptz) AS ok`,
       );
       if (!booleanRowSchema.parse(result.rows[0]).ok) {
         throw new Error('staff_security_factor_not_enrolled');
@@ -89,30 +99,35 @@ export function createPgStaffSecurityPort(): StaffSecurityPort {
     },
 
     async consumeTotpLogin({ challengeHash }) {
-      const result = await runWebappPgText('SELECT app.consume_staff_totp_login($1::text) AS ok', [
-        challengeHash,
-      ]);
+      const result = await runWebappSql(
+        getWebappSqlDb(),
+        sql`SELECT app.consume_staff_totp_login(${challengeHash}::text) AS ok`,
+      );
       return booleanRowSchema.parse(result.rows[0]).ok;
     },
 
     async consumeRecoveryLogin({ challengeHash, recoveryCodeHash }) {
-      const result = await runWebappPgText(
-        'SELECT * FROM app.consume_staff_recovery_login($1::text, $2::text)',
-        [challengeHash, recoveryCodeHash],
+      const result = await runWebappSql(
+        getWebappSqlDb(),
+        sql`SELECT * FROM app.consume_staff_recovery_login(${challengeHash}::text, ${recoveryCodeHash}::text)`,
       );
       const row = recoveryResultRowSchema.parse(result.rows[0]);
       return { ok: row.ok, sessionVersion: row.session_version };
     },
 
     async recordFailedFactorAttempt() {
-      const result = await runWebappPgText(
-        'SELECT app.record_failed_staff_factor_attempt() AS locked_until',
+      const result = await runWebappSql(
+        getWebappSqlDb(),
+        sql`SELECT app.record_failed_staff_factor_attempt() AS locked_until`,
       );
       return nullableToIsoStringSafe(lockedRowSchema.parse(result.rows[0]).locked_until);
     },
 
     async revokeSessions() {
-      const result = await runWebappPgText('SELECT app.revoke_staff_sessions() AS session_version');
+      const result = await runWebappSql(
+        getWebappSqlDb(),
+        sql`SELECT app.revoke_staff_sessions() AS session_version`,
+      );
       return versionRowSchema.parse(result.rows[0]).session_version;
     },
   };

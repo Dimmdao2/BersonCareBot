@@ -5,7 +5,7 @@ const fakes = vi.hoisted(() => ({
   getCurrentDbPrincipal: vi.fn(),
   getWebappSqlDb: vi.fn(),
   runWebappNamedRoot: vi.fn(),
-  runWebappPgText: vi.fn(),
+  runWebappSql: vi.fn(),
 }));
 
 vi.mock('@bersoncare/db-principal', () => ({
@@ -16,7 +16,7 @@ vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: fakes.getWebappSqlDb,
   getWebappSqlFromPgClient: vi.fn(),
   runWebappNamedRoot: fakes.runWebappNamedRoot,
-  runWebappPgText: fakes.runWebappPgText,
+  runWebappSql: fakes.runWebappSql,
 }));
 vi.mock('@/infra/db/client', () => ({ getPool: vi.fn() }));
 vi.mock('@/infra/db/withClient', () => ({ withPoolTransaction: vi.fn() }));
@@ -40,7 +40,7 @@ describe('pgChannelPreferencesPort.getDefaultAuthOtpChannel', () => {
     expect(db).toBe(fakes.db);
     expect(identity).toBe('app.pre_session_get_default_auth_otp_channel(uuid)');
     expect(args).toEqual(['user-1']);
-    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
   });
 
   it('falls back to the earliest-linked binding when confirming_channel is NULL (historical row)', async () => {
@@ -50,7 +50,7 @@ describe('pgChannelPreferencesPort.getDefaultAuthOtpChannel', () => {
 
     expect(result).toBe('telegram');
     expect(fakes.runWebappNamedRoot).toHaveBeenCalledOnce();
-    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
   });
 
   it('falls back to the earliest-linked binding when no active phone-history row exists', async () => {
@@ -60,7 +60,7 @@ describe('pgChannelPreferencesPort.getDefaultAuthOtpChannel', () => {
 
     expect(result).toBe('email');
     expect(fakes.runWebappNamedRoot).toHaveBeenCalledOnce();
-    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
   });
 
   it('never returns SMS as a default even when SMS is the recorded confirming channel', async () => {
@@ -70,7 +70,7 @@ describe('pgChannelPreferencesPort.getDefaultAuthOtpChannel', () => {
 
     expect(result).toBeNull();
     expect(fakes.runWebappNamedRoot).toHaveBeenCalledOnce();
-    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
   });
 
   it('uses the patient self door when the profile already has a patient principal', async () => {
@@ -85,7 +85,7 @@ describe('pgChannelPreferencesPort.getDefaultAuthOtpChannel', () => {
     expect(db).toBe(fakes.db);
     expect(identity).toBe('app.get_current_patient_default_auth_otp_channel()');
     expect(args).toEqual([]);
-    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
   });
 });
 
@@ -109,7 +109,7 @@ describe('pgChannelPreferencesPort.getPreferredAuthChannelCode', () => {
     expect(db).toBe(fakes.db);
     expect(identity).toBe('app.get_preferred_auth_channel_code(uuid)');
     expect(args).toEqual(['00000000-0000-4000-8000-000000000001']);
-    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
   });
 
   it('uses the patient self door when the profile already has a patient principal', async () => {
@@ -126,6 +126,6 @@ describe('pgChannelPreferencesPort.getPreferredAuthChannelCode', () => {
     expect(db).toBe(fakes.db);
     expect(identity).toBe('app.get_current_patient_preferred_auth_channel_code()');
     expect(args).toEqual([]);
-    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
   });
 });

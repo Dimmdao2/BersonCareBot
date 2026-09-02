@@ -1,15 +1,10 @@
-/** Wave 3 phase 13B — domain SQL via `runWebappPgText`. */
 import { randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { patientBookings as patientBookingsTable } from '../../../db/schema/schema';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  runWebappPgText,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import type {
   PatientBookingsPort,
   CreatePendingPatientBookingInput,
@@ -196,16 +191,16 @@ async function listCurrentPatientBookingRows(
   const patientRowsCapabilitySql = (() => {
     switch (kind) {
       case 'upcoming':
-        return `SELECT booking
-                FROM app.read_current_patient_booking_rows('upcoming', $1::timestamptz)`;
+        return sql`SELECT booking
+                FROM app.read_current_patient_booking_rows('upcoming', ${nowIso}::timestamptz)`;
       case 'history':
-        return `SELECT booking
-                FROM app.read_current_patient_booking_rows('history', $1::timestamptz)`;
+        return sql`SELECT booking
+                FROM app.read_current_patient_booking_rows('history', ${nowIso}::timestamptz)`;
       default:
         throw new Error('Unsupported patient booking row kind');
     }
   })();
-  const result = await runWebappPgText<{ booking: Row }>(patientRowsCapabilitySql, [nowIso]);
+  const result = await runWebappSql<{ booking: Row }>(getWebappSqlDb(), patientRowsCapabilitySql);
   return result.rows.map((row) => mapRow(row.booking));
 }
 
@@ -227,40 +222,41 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
       return mapRow(row);
     }
     // Abandoned placeholders without a canonical link must not block retries or other patients.
-    await runWebappPgText(
-      `UPDATE patient_bookings
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`UPDATE patient_bookings
        SET status = 'failed_sync', updated_at = now()
        WHERE status = 'creating'
-         AND organization_id = $4::uuid
+         AND organization_id = ${input.organizationId}::uuid
          AND canonical_appointment_id IS NULL
          AND (
            (
-             platform_user_id = $1::uuid
-             AND tstzrange(slot_start, slot_end, '[)') && tstzrange($2::timestamptz, $3::timestamptz, '[)')
+             platform_user_id = ${input.userId}::uuid
+             AND tstzrange(slot_start, slot_end, '[)') && tstzrange(${input.slotStart}::timestamptz, ${input.slotEnd}::timestamptz, '[)')
            )
            OR created_at < now() - interval '15 minutes'
          )`,
-      [input.userId, input.slotStart, input.slotEnd, input.organizationId],
     );
     // Stale cancel in-flight rows must not block rebooking.
-    await runWebappPgText(
-      `UPDATE patient_bookings
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`UPDATE patient_bookings
        SET status = 'cancelled',
            cancelled_at = now(),
            updated_at = now()
        WHERE status = 'cancelling'
          AND updated_at < now() - interval '15 minutes'`,
-      [],
     );
-    await runWebappPgText(
-      `UPDATE patient_bookings
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`UPDATE patient_bookings
        SET status = 'failed_sync', updated_at = now()
        WHERE status = 'cancel_failed'
          AND updated_at < now() - interval '15 minutes'`,
-      [],
     );
-    const result = await runWebappPgText<Row>(
-      `WITH overlap AS (
+    const result = await runWebappSql<Row>(
+      getWebappSqlDb(),
+      sql`WITH overlap AS (
          SELECT 1
            FROM patient_bookings
           WHERE status IN ('creating', 'awaiting_payment', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
@@ -268,8 +264,8 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
               status = 'creating'
               AND canonical_appointment_id IS NULL
             )
-            AND tstzrange(slot_start, slot_end, '[)') && tstzrange($6::timestamptz, $7::timestamptz, '[)')
-             AND platform_user_id = $2
+            AND tstzrange(slot_start, slot_end, '[)') && tstzrange(${input.slotStart}::timestamptz, ${input.slotEnd}::timestamptz, '[)')
+             AND platform_user_id = ${input.userId}
           LIMIT 1
        )
        INSERT INTO patient_bookings (
@@ -280,34 +276,13 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
          duration_minutes_snapshot, price_minor_snapshot
        )
        SELECT
-         $1, $19::uuid, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, 'creating',
-         $8, $9, $10,
-         $11, $12, $13,
-         $14, $15, $16,
-         $17, $18
+         ${id}, ${input.organizationId}::uuid, ${input.userId}, ${input.bookingType}, ${input.city}, ${input.category}, ${input.slotStart}::timestamptz, ${input.slotEnd}::timestamptz, 'creating',
+         ${input.contactPhone}, ${input.contactEmail}, ${input.contactName},
+         ${input.branchId}, ${input.serviceId}, ${input.branchServiceId},
+         ${input.cityCodeSnapshot}, ${input.branchTitleSnapshot}, ${input.serviceTitleSnapshot},
+         ${input.durationMinutesSnapshot}, ${input.priceMinorSnapshot}
        WHERE NOT EXISTS (SELECT 1 FROM overlap)
        RETURNING *`,
-      [
-        id,
-        input.userId,
-        input.bookingType,
-        input.city,
-        input.category,
-        input.slotStart,
-        input.slotEnd,
-        input.contactPhone,
-        input.contactEmail,
-        input.contactName,
-        input.branchId,
-        input.serviceId,
-        input.branchServiceId,
-        input.cityCodeSnapshot,
-        input.branchTitleSnapshot,
-        input.serviceTitleSnapshot,
-        input.durationMinutesSnapshot,
-        input.priceMinorSnapshot,
-        input.organizationId,
-      ],
     );
     const row = result.rows[0];
     if (!row) {
@@ -320,28 +295,28 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     if (isCurrentPatientPrincipal()) {
       return mutateCurrentPatientBooking(bookingId, 'await_payment', { canonicalAppointmentId });
     }
-    const result = await runWebappPgText<Row>(
-      `UPDATE patient_bookings
+    const result = await runWebappSql<Row>(
+      getWebappSqlDb(),
+      sql`UPDATE patient_bookings
        SET status = 'awaiting_payment',
-           canonical_appointment_id = $2::uuid,
+           canonical_appointment_id = ${canonicalAppointmentId}::uuid,
            updated_at = now()
-       WHERE id = $1
+       WHERE id = ${bookingId}
        RETURNING *`,
-      [bookingId, canonicalAppointmentId],
     );
     const row = result.rows[0];
     return row ? mapRow(row) : null;
   },
 
   async markConfirmedByCanonicalAppointment(canonicalAppointmentId) {
-    const result = await runWebappPgText<Row>(
-      `UPDATE patient_bookings
+    const result = await runWebappSql<Row>(
+      getWebappSqlDb(),
+      sql`UPDATE patient_bookings
        SET status = 'confirmed',
            updated_at = now()
-       WHERE canonical_appointment_id = $1::uuid
+       WHERE canonical_appointment_id = ${canonicalAppointmentId}::uuid
          AND status = 'awaiting_payment'
        RETURNING *`,
-      [canonicalAppointmentId],
     );
     const row = result.rows[0];
     return row ? mapRow(row) : null;
@@ -354,14 +329,14 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
         canonicalAppointmentId: canonicalId,
       });
     }
-    const result = await runWebappPgText<Row>(
-      `UPDATE patient_bookings
+    const result = await runWebappSql<Row>(
+      getWebappSqlDb(),
+      sql`UPDATE patient_bookings
        SET status = 'confirmed',
-           canonical_appointment_id = COALESCE($2::uuid, canonical_appointment_id),
+           canonical_appointment_id = COALESCE(${canonicalId}::uuid, canonical_appointment_id),
            updated_at = now()
-       WHERE id = $1
+       WHERE id = ${bookingId}
        RETURNING *`,
-      [bookingId, canonicalId],
     );
     const row = result.rows[0];
     return row ? mapRow(row) : null;
@@ -372,11 +347,11 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
       await mutateCurrentPatientBooking(bookingId, 'failed_sync');
       return;
     }
-    await runWebappPgText(
-      `UPDATE patient_bookings
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`UPDATE patient_bookings
        SET status = 'failed_sync', updated_at = now()
-       WHERE id = $1`,
-      [bookingId],
+       WHERE id = ${bookingId}`,
     );
   },
 
@@ -384,12 +359,12 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     if (isCurrentPatientPrincipal()) {
       return mutateCurrentPatientBooking(bookingId, 'cancelling');
     }
-    const result = await runWebappPgText<Row>(
-      `UPDATE patient_bookings
+    const result = await runWebappSql<Row>(
+      getWebappSqlDb(),
+      sql`UPDATE patient_bookings
        SET status = 'cancelling', updated_at = now()
-       WHERE id = $1
+       WHERE id = ${bookingId}
        RETURNING *`,
-      [bookingId],
     );
     const row = result.rows[0];
     return row ? mapRow(row) : null;
@@ -403,15 +378,15 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
         reason: input.reason ?? null,
       });
     }
-    const result = await runWebappPgText<Row>(
-      `UPDATE patient_bookings
-       SET status = $2,
+    const result = await runWebappSql<Row>(
+      getWebappSqlDb(),
+      sql`UPDATE patient_bookings
+       SET status = ${status},
            cancelled_at = now(),
-           cancel_reason = COALESCE($3, cancel_reason),
+           cancel_reason = COALESCE(${input.reason ?? null}, cancel_reason),
            updated_at = now()
-       WHERE id = $1
+       WHERE id = ${input.bookingId}
        RETURNING *`,
-      [input.bookingId, status, input.reason ?? null],
     );
     const row = result.rows[0];
     return row ? mapRow(row) : null;
@@ -426,15 +401,15 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
         status,
       });
     }
-    const result = await runWebappPgText<Row>(
-      `UPDATE patient_bookings
-       SET slot_start = $2::timestamptz,
-           slot_end = $3::timestamptz,
-           status = $4,
+    const result = await runWebappSql<Row>(
+      getWebappSqlDb(),
+      sql`UPDATE patient_bookings
+       SET slot_start = ${input.slotStart}::timestamptz,
+           slot_end = ${input.slotEnd}::timestamptz,
+           status = ${status},
            updated_at = now()
-       WHERE id = $1
+       WHERE id = ${input.bookingId}
        RETURNING *`,
-      [input.bookingId, input.slotStart, input.slotEnd, status],
     );
     const row = result.rows[0];
     return row ? mapRow(row) : null;

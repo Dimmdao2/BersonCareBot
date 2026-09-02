@@ -1,5 +1,6 @@
 import {
-  runWebappPgText,
+  getWebappSqlDb,
+  runWebappSql,
   runWebappTransaction,
   type WebappSqlTransactionExecutor,
 } from '@/infra/db/runWebappSql';
@@ -27,7 +28,7 @@ import type {
   UpdateExerciseInput,
 } from '@/modules/lfk-exercises/types';
 import { mediaFiles } from '../../../db/schema/schema';
-import { eq, sql } from 'drizzle-orm';
+import { type SQL, eq, sql } from 'drizzle-orm';
 import {
   EMPTY_EXERCISE_USAGE_SNAPSHOT,
   EXERCISE_USAGE_DETAIL_LIMIT,
@@ -125,18 +126,18 @@ export async function pgListExerciseUsageForMediaIds(
   if (unique.length === 0) return out;
 
   const urls = unique.map((id) => `/api/media/${id}`);
-  const res = await runWebappPgText<{ media_url: string; exercise_id: string; title: string }>(
-    `SELECT DISTINCT ON (m.media_url, e.id)
+  const res = await runWebappSql<{ media_url: string; exercise_id: string; title: string }>(
+    getWebappSqlDb(),
+    sql`SELECT DISTINCT ON (m.media_url, e.id)
         m.media_url,
         e.id::text AS exercise_id,
         e.title
      FROM lfk_exercise_media m
      INNER JOIN lfk_exercises e ON e.id = m.exercise_id AND e.is_archived = false AND e.catalog_scope = 'catalog'
-     WHERE m.media_url = ANY($1::text[])
-       AND m.organization_id = ${ORG_ID_EXPR}
-       AND e.organization_id = ${ORG_ID_EXPR}
+     WHERE m.media_url = ANY(${sql.param(urls)}::text[])
+       AND m.organization_id = ${sql.raw(ORG_ID_EXPR)}
+       AND e.organization_id = ${sql.raw(ORG_ID_EXPR)}
      ORDER BY m.media_url, e.id, e.title ASC`,
-    [urls],
   );
 
   const MAX_PER_MEDIA = 40;
@@ -175,14 +176,6 @@ function mapExerciseRow(row: ExerciseDbRow, media: ExerciseMedia[]): Exercise {
     updatedAt: toIsoStringSafe(row.updated_at),
     media,
   };
-}
-
-async function txPgText<T>(
-  tx: WebappSqlTransactionExecutor,
-  queryText: string,
-  values: readonly unknown[] = [],
-) {
-  return runWebappPgText<T>(queryText, values, tx);
 }
 
 /**
@@ -248,21 +241,19 @@ async function replaceLfkExerciseRegions(
   exerciseId: string,
   regionRefIds: readonly string[],
 ) {
-  await runWebappPgText(
-    `DELETE FROM lfk_exercise_regions
-      WHERE exercise_id = $1
-        AND organization_id = ${ORG_ID_EXPR}`,
-    [exerciseId],
+  await runWebappSql(
     tx,
+    sql`DELETE FROM lfk_exercise_regions
+      WHERE exercise_id = ${exerciseId}
+        AND organization_id = ${sql.raw(ORG_ID_EXPR)}`,
   );
   for (const rid of regionRefIds) {
     const t = rid.trim();
     if (!t) continue;
-    await runWebappPgText(
-      `INSERT INTO lfk_exercise_regions (owner_kind, organization_id, exercise_id, region_ref_id)
-       VALUES ('organization', ${ORG_ID_EXPR}, $1, $2::uuid)`,
-      [exerciseId, t],
+    await runWebappSql(
       tx,
+      sql`INSERT INTO lfk_exercise_regions (owner_kind, organization_id, exercise_id, region_ref_id)
+       VALUES ('organization', ${sql.raw(ORG_ID_EXPR)}, ${exerciseId}, ${t}::uuid)`,
     );
   }
 }
@@ -271,16 +262,16 @@ async function loadAllMediaForExercise(
   exerciseId: string,
   options: ExerciseAccessOptions = {},
 ): Promise<ExerciseMedia[]> {
-  const r = await runWebappPgText<MediaDbRow>(
-    `SELECT em.id, em.owner_kind, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at
+  const r = await runWebappSql<MediaDbRow>(
+    getWebappSqlDb(),
+    sql`SELECT em.id, em.owner_kind, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at
      FROM lfk_exercise_media em
-     WHERE em.exercise_id = $1
+     WHERE em.exercise_id = ${exerciseId}
        AND (
-         (em.owner_kind = 'organization' AND em.organization_id = ${ORG_ID_EXPR})
-         OR ($2::boolean AND em.owner_kind = 'platform' AND em.organization_id IS NULL)
+         (em.owner_kind = 'organization' AND em.organization_id = ${sql.raw(ORG_ID_EXPR)})
+         OR (${options.includePlatformBase === true}::boolean AND em.owner_kind = 'platform' AND em.organization_id IS NULL)
        )
      ORDER BY em.sort_order ASC, em.created_at ASC`,
-    [exerciseId, options.includePlatformBase === true],
   );
   return withMediaLadder(r.rows);
 }
@@ -339,68 +330,69 @@ type ExerciseUsageSummaryRow = {
 
 async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsageSnapshot> {
   const lim = EXERCISE_USAGE_DETAIL_LIMIT;
-  const r = await runWebappPgText<ExerciseUsageSummaryRow>(
-    `SELECT
+  const r = await runWebappSql<ExerciseUsageSummaryRow>(
+    getWebappSqlDb(),
+    sql`SELECT
        (SELECT COUNT(DISTINCT ct.id)::int
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
-         WHERE te.exercise_id = $1::uuid
-           AND te.organization_id = ${ORG_ID_EXPR}
-           AND ct.organization_id = ${ORG_ID_EXPR}
+         WHERE te.exercise_id = ${exerciseId}::uuid
+           AND te.organization_id = ${sql.raw(ORG_ID_EXPR)}
+           AND ct.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND ct.status = 'published') AS published_lfk_templates,
        (SELECT COUNT(DISTINCT ct.id)::int
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
-         WHERE te.exercise_id = $1::uuid
-           AND te.organization_id = ${ORG_ID_EXPR}
-           AND ct.organization_id = ${ORG_ID_EXPR}
+         WHERE te.exercise_id = ${exerciseId}::uuid
+           AND te.organization_id = ${sql.raw(ORG_ID_EXPR)}
+           AND ct.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND ct.status = 'draft') AS draft_lfk_templates,
        (SELECT COUNT(DISTINCT pla.id)::int
           FROM patient_lfk_assignments pla
-         WHERE pla.organization_id = ${ORG_ID_EXPR}
+         WHERE pla.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND pla.is_active = true
            AND (
              (pla.complex_id IS NOT NULL AND EXISTS (
                SELECT 1 FROM lfk_complex_exercises ce
                WHERE ce.complex_id = pla.complex_id
-                 AND ce.organization_id = ${ORG_ID_EXPR}
-                 AND ce.exercise_id = $1::uuid
+                 AND ce.organization_id = ${sql.raw(ORG_ID_EXPR)}
+                 AND ce.exercise_id = ${exerciseId}::uuid
              ))
              OR
              (pla.complex_id IS NULL AND EXISTS (
                SELECT 1 FROM lfk_complex_template_exercises te2
                WHERE te2.template_id = pla.template_id
-                 AND te2.organization_id = ${ORG_ID_EXPR}
-                 AND te2.exercise_id = $1::uuid
+                 AND te2.organization_id = ${sql.raw(ORG_ID_EXPR)}
+                 AND te2.exercise_id = ${exerciseId}::uuid
              ))
            )) AS active_patient_lfk,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid
-           AND t.organization_id = ${ORG_ID_EXPR}
+         WHERE si.item_type = 'exercise' AND si.item_ref_id = ${exerciseId}::uuid
+           AND t.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND t.status = 'published') AS published_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid
-           AND t.organization_id = ${ORG_ID_EXPR}
+         WHERE si.item_type = 'exercise' AND si.item_ref_id = ${exerciseId}::uuid
+           AND t.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND t.status = 'draft') AS draft_tp_templates,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid
-           AND i.organization_id = ${ORG_ID_EXPR}
+         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = ${exerciseId}::uuid
+           AND i.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND i.status = 'active') AS active_tp_instances,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid
-           AND i.organization_id = ${ORG_ID_EXPR}
+         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = ${exerciseId}::uuid
+           AND i.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND i.status = 'completed') AS completed_tp_instances,
        (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
           FROM (
@@ -412,9 +404,9 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
               ) AS obj
             FROM lfk_complex_template_exercises te
             INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
-            WHERE te.exercise_id = $1::uuid
-              AND te.organization_id = ${ORG_ID_EXPR}
-              AND ct.organization_id = ${ORG_ID_EXPR}
+            WHERE te.exercise_id = ${exerciseId}::uuid
+              AND te.organization_id = ${sql.raw(ORG_ID_EXPR)}
+              AND ct.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND ct.status = 'published'
             ORDER BY ct.id, ct.title ASC
             LIMIT ${lim}
@@ -429,9 +421,9 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
               ) AS obj
             FROM lfk_complex_template_exercises te
             INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
-            WHERE te.exercise_id = $1::uuid
-              AND te.organization_id = ${ORG_ID_EXPR}
-              AND ct.organization_id = ${ORG_ID_EXPR}
+            WHERE te.exercise_id = ${exerciseId}::uuid
+              AND te.organization_id = ${sql.raw(ORG_ID_EXPR)}
+              AND ct.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND ct.status = 'draft'
             ORDER BY ct.id, ct.title ASC
             LIMIT ${lim}
@@ -447,8 +439,8 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid
-              AND t.organization_id = ${ORG_ID_EXPR}
+            WHERE si.item_type = 'exercise' AND si.item_ref_id = ${exerciseId}::uuid
+              AND t.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND t.status = 'published'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
@@ -464,8 +456,8 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid
-              AND t.organization_id = ${ORG_ID_EXPR}
+            WHERE si.item_type = 'exercise' AND si.item_ref_id = ${exerciseId}::uuid
+              AND t.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND t.status = 'draft'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
@@ -483,8 +475,8 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid
-              AND i.organization_id = ${ORG_ID_EXPR}
+            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = ${exerciseId}::uuid
+              AND i.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND i.status = 'active'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
@@ -502,8 +494,8 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid
-              AND i.organization_id = ${ORG_ID_EXPR}
+            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = ${exerciseId}::uuid
+              AND i.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND i.status = 'completed'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
@@ -526,32 +518,31 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             INNER JOIN lfk_complex_templates ct ON ct.id = pla.template_id
             LEFT JOIN platform_users pu ON pu.id = pla.patient_user_id
             LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
-            WHERE pla.organization_id = ${ORG_ID_EXPR}
-              AND ct.organization_id = ${ORG_ID_EXPR}
+            WHERE pla.organization_id = ${sql.raw(ORG_ID_EXPR)}
+              AND ct.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND pla.is_active = true
               AND (
                 (pla.complex_id IS NOT NULL AND EXISTS (
                   SELECT 1 FROM lfk_complex_exercises ce
                   WHERE ce.complex_id = pla.complex_id
-                    AND ce.organization_id = ${ORG_ID_EXPR}
-                    AND ce.exercise_id = $1::uuid
+                    AND ce.organization_id = ${sql.raw(ORG_ID_EXPR)}
+                    AND ce.exercise_id = ${exerciseId}::uuid
                 ))
                 OR
                 (pla.complex_id IS NULL AND EXISTS (
                   SELECT 1 FROM lfk_complex_template_exercises te2
                   WHERE te2.template_id = pla.template_id
-                    AND te2.organization_id = ${ORG_ID_EXPR}
-                    AND te2.exercise_id = $1::uuid
+                    AND te2.organization_id = ${sql.raw(ORG_ID_EXPR)}
+                    AND te2.exercise_id = ${exerciseId}::uuid
                 ))
               )
             ORDER BY pla.assigned_at DESC NULLS LAST
             LIMIT ${lim}
           ) q) AS active_patient_lfk_refs
      FROM lfk_exercises owned
-     WHERE owned.id = $1::uuid
+     WHERE owned.id = ${exerciseId}::uuid
        AND owned.catalog_scope = 'catalog'
-       AND owned.organization_id = ${ORG_ID_EXPR}`,
-    [exerciseId],
+       AND owned.organization_id = ${sql.raw(ORG_ID_EXPR)}`,
   );
   const row = r.rows[0];
   if (!row) return { ...EMPTY_EXERCISE_USAGE_SNAPSHOT };
@@ -597,57 +588,48 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
   return {
     async list(filter: ExerciseFilter): Promise<Exercise[]> {
       requireOrganizationPrincipal();
-      const conds: string[] = [
-        "e.catalog_scope = 'catalog'",
+      const conds: SQL[] = [
+        sql`e.catalog_scope = 'catalog'`,
         filter.includePlatformBase
-          ? `((e.owner_kind = 'organization' AND e.organization_id = ${ORG_ID_EXPR}) OR (e.owner_kind = 'platform' AND e.organization_id IS NULL))`
-          : `e.owner_kind = 'organization' AND e.organization_id = ${ORG_ID_EXPR}`,
+          ? sql`((e.owner_kind = 'organization' AND e.organization_id = ${sql.raw(ORG_ID_EXPR)}) OR (e.owner_kind = 'platform' AND e.organization_id IS NULL))`
+          : sql`e.owner_kind = 'organization' AND e.organization_id = ${sql.raw(ORG_ID_EXPR)}`,
       ];
-      const params: unknown[] = [];
-      let i = 1;
-
       const scope = exerciseListArchiveScope(filter);
       if (scope === 'active') {
-        conds.push('e.is_archived = false');
+        conds.push(sql`e.is_archived = false`);
       } else if (scope === 'archived') {
-        conds.push('e.is_archived = true');
+        conds.push(sql`e.is_archived = true`);
       }
       if (filter.regionRefId) {
+        const regionRefId = filter.regionRefId;
         conds.push(
-          `(EXISTS (
+          sql`(EXISTS (
              SELECT 1 FROM lfk_exercise_regions r0
               WHERE r0.exercise_id = e.id
                 AND r0.owner_kind = e.owner_kind
                 AND r0.organization_id IS NOT DISTINCT FROM e.organization_id
-                AND r0.region_ref_id = $${i}
-           ) OR e.region_ref_id = $${i})`,
+                AND r0.region_ref_id = ${regionRefId}
+           ) OR e.region_ref_id = ${regionRefId})`,
         );
-        params.push(filter.regionRefId);
-        i += 1;
       }
       if (filter.loadType) {
-        conds.push(`e.load_type = $${i++}`);
-        params.push(filter.loadType);
+        conds.push(sql`e.load_type = ${filter.loadType}`);
       }
       if (filter.difficultyMin != null) {
-        conds.push(`e.difficulty_1_10 >= $${i++}`);
-        params.push(filter.difficultyMin);
+        conds.push(sql`e.difficulty_1_10 >= ${filter.difficultyMin}`);
       }
       if (filter.difficultyMax != null) {
-        conds.push(`e.difficulty_1_10 <= $${i++}`);
-        params.push(filter.difficultyMax);
+        conds.push(sql`e.difficulty_1_10 <= ${filter.difficultyMax}`);
       }
       if (filter.tags && filter.tags.length > 0) {
-        conds.push(`e.tags && $${i++}::text[]`);
-        params.push(filter.tags);
+        conds.push(sql`e.tags && ${sql.param(filter.tags)}::text[]`);
       }
       const searchPattern = filter.search ? pgRuSubstringSearchPattern(filter.search) : null;
       if (searchPattern) {
-        conds.push(`normalize(e.title, NFC) ILIKE $${i++} ESCAPE '\\'`);
-        params.push(searchPattern);
+        conds.push(sql`normalize(e.title, NFC) ILIKE ${searchPattern} ESCAPE '\\'`);
       }
 
-      const sql = `
+      const listSql = sql`
         SELECT e.id, e.owner_kind, e.catalog_scope, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                COALESCE((
@@ -669,10 +651,10 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           ORDER BY em.sort_order ASC, em.created_at ASC
           LIMIT 1
         ) pm ON true
-        WHERE ${conds.join(' AND ')}
+        WHERE ${sql.join(conds, sql` AND `)}
         ORDER BY e.updated_at DESC`;
 
-      const result = await runWebappPgText<ExerciseListRow>(sql, params);
+      const result = await runWebappSql<ExerciseListRow>(getWebappSqlDb(), listSql);
 
       /* Одна дверь на всю страницу списка, не по запросу на карточку. */
       const previewRows = new Map<string, MediaDbRow>();
@@ -712,16 +694,16 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       const out = new Map<string, string>();
       const unique = [...new Set(ids.map((x) => x.trim()).filter(Boolean))];
       if (unique.length === 0) return out;
-      const r = await runWebappPgText<{ id: string; title: string }>(
-        `SELECT id::text AS id, title
+      const r = await runWebappSql<{ id: string; title: string }>(
+        getWebappSqlDb(),
+        sql`SELECT id::text AS id, title
            FROM lfk_exercises
-          WHERE id = ANY($1::uuid[])
+          WHERE id = ANY(${sql.param(unique)}::uuid[])
             AND catalog_scope = 'catalog'
             AND (
-              (owner_kind = 'organization' AND organization_id = ${ORG_ID_EXPR})
-              OR ($2::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
+              (owner_kind = 'organization' AND organization_id = ${sql.raw(ORG_ID_EXPR)})
+              OR (${options.includePlatformBase === true}::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
             )`,
-        [unique, options.includePlatformBase === true],
       );
       for (const row of r.rows ?? []) {
         out.set(row.id, row.title);
@@ -731,8 +713,9 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
 
     async getById(id: string, options: ExerciseAccessOptions = {}): Promise<Exercise | null> {
       requireOrganizationPrincipal();
-      const r = await runWebappPgText<ExerciseDbRow>(
-        `SELECT e.id, e.owner_kind, e.catalog_scope, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+      const r = await runWebappSql<ExerciseDbRow>(
+        getWebappSqlDb(),
+        sql`SELECT e.id, e.owner_kind, e.catalog_scope, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                 e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                 COALESCE((
                   SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
@@ -742,13 +725,12 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
                     AND x.organization_id IS NOT DISTINCT FROM e.organization_id
                 ), ARRAY[]::uuid[]) AS region_m2m_ids
          FROM lfk_exercises e
-         WHERE e.id = $1
+         WHERE e.id = ${id}
            AND e.catalog_scope = 'catalog'
            AND (
-             (e.owner_kind = 'organization' AND e.organization_id = ${ORG_ID_EXPR})
-             OR ($2::boolean AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
+             (e.owner_kind = 'organization' AND e.organization_id = ${sql.raw(ORG_ID_EXPR)})
+             OR (${options.includePlatformBase === true}::boolean AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
            )`,
-        [id, options.includePlatformBase === true],
       );
       if (!r.rows[0]) return null;
       const media = await loadAllMediaForExercise(id, options);
@@ -760,24 +742,14 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       const regionIds = mergeExerciseRegionRefIds(input.regionRefId, input.regionRefIds ?? null);
       const legacyRegion = regionIds[0] ?? null;
       const { row, exId } = await runWebappTransaction(async (tx) => {
-        const ins = await txPgText<ExerciseDbRow>(
+        const ins = await runWebappSql<ExerciseDbRow>(
           tx,
-          `INSERT INTO lfk_exercises (
+          sql`INSERT INTO lfk_exercises (
              owner_kind, organization_id, catalog_scope, title, description, region_ref_id, load_type, difficulty_1_10, contraindications, tags, created_by, updated_at
            )
-           VALUES ('organization', ${ORG_ID_EXPR}, 'catalog', $1, $2, $3, $4, $5, $6, $7, $8, now())
+           VALUES ('organization', ${sql.raw(ORG_ID_EXPR)}, 'catalog', ${input.title}, ${input.description ?? null}, ${legacyRegion}, ${input.loadType ?? null}, ${input.difficulty1_10 ?? null}, ${input.contraindications ?? null}, ${sql.param(input.tags ?? null)}, ${createdBy}, now())
            RETURNING id, owner_kind, catalog_scope, title, description, region_ref_id, load_type, difficulty_1_10,
                      contraindications, tags, is_archived, created_by, created_at, updated_at`,
-          [
-            input.title,
-            input.description ?? null,
-            legacyRegion,
-            input.loadType ?? null,
-            input.difficulty1_10 ?? null,
-            input.contraindications ?? null,
-            input.tags ?? null,
-            createdBy,
-          ],
         );
         const insRow = ins.rows[0]!;
         const newExId = insRow.id;
@@ -785,11 +757,10 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         if (input.media?.length) {
           let order = 0;
           for (const m of input.media) {
-            await txPgText(
+            await runWebappSql(
               tx,
-              `INSERT INTO lfk_exercise_media (owner_kind, organization_id, exercise_id, media_url, media_type, sort_order)
-               VALUES ('organization', ${ORG_ID_EXPR}, $1, $2, $3, $4)`,
-              [newExId, m.mediaUrl, m.mediaType, m.sortOrder ?? order],
+              sql`INSERT INTO lfk_exercise_media (owner_kind, organization_id, exercise_id, media_url, media_type, sort_order)
+               VALUES ('organization', ${sql.raw(ORG_ID_EXPR)}, ${newExId}, ${m.mediaUrl}, ${m.mediaType}, ${m.sortOrder ?? order})`,
             );
             order += 1;
           }
@@ -805,22 +776,20 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     async update(id: string, input: UpdateExerciseInput): Promise<Exercise | null> {
       requireOrganizationPrincipal();
       const touched = await runWebappTransaction(async (tx) => {
-        const cur = await txPgText<{ id: string }>(
+        const cur = await runWebappSql<{ id: string }>(
           tx,
-          `SELECT id FROM lfk_exercises
-            WHERE id = $1
+          sql`SELECT id FROM lfk_exercises
+            WHERE id = ${id}
               AND catalog_scope = 'catalog'
-              AND organization_id = ${ORG_ID_EXPR}`,
-          [id],
+              AND organization_id = ${sql.raw(ORG_ID_EXPR)}`,
         );
         if (!cur.rows[0]) return false;
 
-        const sets: string[] = ['updated_at = now()'];
-        const vals: unknown[] = [];
-        let n = 1;
+        // Column names come from this function's own literals, never from input, so they stay
+        // raw; every assigned value is bound.
+        const sets: SQL[] = [sql`updated_at = now()`];
         const add = (col: string, v: unknown) => {
-          sets.push(`${col} = $${n++}`);
-          vals.push(v);
+          sets.push(sql`${sql.raw(col)} = ${sql.param(v)}`);
         };
 
         if (input.title !== undefined) add('title', input.title);
@@ -840,14 +809,12 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           add('contraindications', input.contraindications);
         if (input.tags !== undefined) add('tags', input.tags);
 
-        vals.push(id);
-        await txPgText(
+        await runWebappSql(
           tx,
-          `UPDATE lfk_exercises SET ${sets.join(', ')}
-            WHERE id = $${n}
+          sql`UPDATE lfk_exercises SET ${sql.join(sets, sql`, `)}
+            WHERE id = ${id}
               AND catalog_scope = 'catalog'
-              AND organization_id = ${ORG_ID_EXPR}`,
-          vals,
+              AND organization_id = ${sql.raw(ORG_ID_EXPR)}`,
         );
 
         if (regionPatch !== null) {
@@ -855,20 +822,18 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         }
 
         if (input.media !== undefined && input.media !== null) {
-          await txPgText(
+          await runWebappSql(
             tx,
-            `DELETE FROM lfk_exercise_media
-              WHERE exercise_id = $1
-                AND organization_id = ${ORG_ID_EXPR}`,
-            [id],
+            sql`DELETE FROM lfk_exercise_media
+              WHERE exercise_id = ${id}
+                AND organization_id = ${sql.raw(ORG_ID_EXPR)}`,
           );
           let order = 0;
           for (const m of input.media) {
-            await txPgText(
+            await runWebappSql(
               tx,
-              `INSERT INTO lfk_exercise_media (owner_kind, organization_id, exercise_id, media_url, media_type, sort_order)
-               VALUES ('organization', ${ORG_ID_EXPR}, $1, $2, $3, $4)`,
-              [id, m.mediaUrl, m.mediaType, m.sortOrder ?? order],
+              sql`INSERT INTO lfk_exercise_media (owner_kind, organization_id, exercise_id, media_url, media_type, sort_order)
+               VALUES ('organization', ${sql.raw(ORG_ID_EXPR)}, ${id}, ${m.mediaUrl}, ${m.mediaType}, ${m.sortOrder ?? order})`,
             );
             order += 1;
           }
@@ -879,8 +844,9 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       if (!touched) return null;
 
       const media = await loadAllMediaForExercise(id);
-      const rowR = await runWebappPgText<ExerciseDbRow>(
-        `SELECT e.id, e.owner_kind, e.catalog_scope, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+      const rowR = await runWebappSql<ExerciseDbRow>(
+        getWebappSqlDb(),
+        sql`SELECT e.id, e.owner_kind, e.catalog_scope, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                 e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                 COALESCE((
                   SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
@@ -890,10 +856,9 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
                     AND x.organization_id IS NOT DISTINCT FROM e.organization_id
                 ), ARRAY[]::uuid[]) AS region_m2m_ids
          FROM lfk_exercises e
-         WHERE e.id = $1
+         WHERE e.id = ${id}
            AND e.catalog_scope = 'catalog'
-           AND e.organization_id = ${ORG_ID_EXPR}`,
-        [id],
+           AND e.organization_id = ${sql.raw(ORG_ID_EXPR)}`,
       );
       return mapExerciseRow(rowR.rows[0]!, media);
     },
@@ -901,14 +866,13 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     async archive(id: string): Promise<boolean> {
       requireOrganizationPrincipal();
       const r = await runWebappTransaction((tx) =>
-        runWebappPgText(
-          `UPDATE lfk_exercises SET is_archived = true, updated_at = now()
-            WHERE id = $1
-              AND catalog_scope = 'catalog'
-              AND organization_id = ${ORG_ID_EXPR}
-              AND is_archived = false`,
-          [id],
+        runWebappSql(
           tx,
+          sql`UPDATE lfk_exercises SET is_archived = true, updated_at = now()
+            WHERE id = ${id}
+              AND catalog_scope = 'catalog'
+              AND organization_id = ${sql.raw(ORG_ID_EXPR)}
+              AND is_archived = false`,
         ),
       );
       return (r.rowCount ?? 0) > 0;
@@ -917,14 +881,13 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     async unarchive(id: string): Promise<boolean> {
       requireOrganizationPrincipal();
       const r = await runWebappTransaction((tx) =>
-        runWebappPgText(
-          `UPDATE lfk_exercises SET is_archived = false, updated_at = now()
-            WHERE id = $1
-              AND catalog_scope = 'catalog'
-              AND organization_id = ${ORG_ID_EXPR}
-              AND is_archived = true`,
-          [id],
+        runWebappSql(
           tx,
+          sql`UPDATE lfk_exercises SET is_archived = false, updated_at = now()
+            WHERE id = ${id}
+              AND catalog_scope = 'catalog'
+              AND organization_id = ${sql.raw(ORG_ID_EXPR)}
+              AND is_archived = true`,
         ),
       );
       return (r.rowCount ?? 0) > 0;

@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
   runWebappNamedRoot: vi.fn(),
-  runWebappPgText: vi.fn(),
+  runWebappSql: vi.fn(),
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: vi.fn(),
   runWebappNamedRoot: fakes.runWebappNamedRoot,
-  runWebappPgText: fakes.runWebappPgText,
+  runWebappSql: fakes.runWebappSql,
 }));
 
 vi.mock('@/infra/db/saasIsolationOperationContext', () => ({
@@ -19,6 +19,7 @@ vi.mock('@bersoncare/db-principal', () => ({
   runWithDbBootstrapPrincipal: vi.fn((_principal: unknown, fn: () => unknown) => fn()),
 }));
 
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
 import { createPgAppRuntimeSettingsPort } from './pgAppRuntimeSettings';
 
 beforeEach(() => {
@@ -40,7 +41,7 @@ describe('runtime settings public boundary', () => {
       })).resolves.toBeNull();
 
       expect(fakes.runWebappNamedRoot).not.toHaveBeenCalled();
-      expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+      expect(fakes.runWebappSql).not.toHaveBeenCalled();
     },
   );
 
@@ -76,7 +77,7 @@ describe('runtime settings public boundary', () => {
       'public_sms_fallback_enabled',
       'admin',
     ]);
-    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
   });
 
   it('routes a registered public auth-surface key through the pre-session definer only', async () => {
@@ -103,11 +104,11 @@ describe('runtime settings public boundary', () => {
     expect(fakes.runWebappNamedRoot.mock.calls[0]?.[1]).toBe(
       'app.read_public_runtime_setting(text,text)',
     );
-    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
   });
 
   it('routes an organization setting through the authenticated resolver with exact org input', async () => {
-    fakes.runWebappPgText.mockResolvedValueOnce({ rows: [] });
+    fakes.runWebappSql.mockResolvedValueOnce({ rows: [] });
     const port = createPgAppRuntimeSettingsPort();
 
     await expect(port.getEffective({
@@ -118,15 +119,14 @@ describe('runtime settings public boundary', () => {
       operationFamily: 'patient_runtime_config',
     })).resolves.toBeNull();
 
-    expect(fakes.runWebappPgText).toHaveBeenCalledWith(
-      expect.stringContaining('app.read_authenticated_runtime_setting'),
-      [
-        'patient_booking_url',
-        'admin',
-        '11111111-1111-4111-8111-111111111111',
-        true,
-      ],
-    );
+    const executed = drizzleSqlFragmentToPgQuery(fakes.runWebappSql.mock.calls[0]![1]);
+    expect(executed.sql).toContain('app.read_authenticated_runtime_setting');
+    expect(executed.values).toEqual([
+      'patient_booking_url',
+      'admin',
+      '11111111-1111-4111-8111-111111111111',
+      true,
+    ]);
     expect(fakes.runWebappNamedRoot).not.toHaveBeenCalled();
   });
 });

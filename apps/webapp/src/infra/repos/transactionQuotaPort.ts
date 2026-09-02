@@ -5,10 +5,7 @@ import { organizationMemberInvites } from '../../../db/schema/organizationMember
 import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
 import { saasOrgEntitlementOverrides } from '../../../db/schema/saasEntitlements';
 import { billableAdditionalSeats } from '@/modules/saas-billing/proration';
-import {
-  decideSeatOverage,
-  type SeatOverageOffer,
-} from '@/modules/saas-billing/seatOverage';
+import { decideSeatOverage, type SeatOverageOffer } from '@/modules/saas-billing/seatOverage';
 
 export type StockQuotaMechanic = 'branches' | 'files';
 export type TransactionQuotaMechanic = StockQuotaMechanic | 'clinic_team';
@@ -96,7 +93,10 @@ async function readQuotaContext(tx: WebappSqlExecutor, organizationId: string, m
     )
     .limit(1);
   const tariff = await readEffectiveTariff(tx, organizationId, organization?.tariffId ?? null);
-  return { tariffId: organization?.tariffId ?? null, quota: override?.quota ?? tariff?.quotas[mechanic] };
+  return {
+    tariffId: organization?.tariffId ?? null,
+    quota: override?.quota ?? tariff?.quotas[mechanic],
+  };
 }
 
 async function readClinicTeamContext(tx: WebappSqlExecutor, organizationId: string) {
@@ -202,22 +202,18 @@ export function createTransactionQuotaPort() {
       tx: WebappSqlExecutor,
       input: { organizationId: string; mechanic: TransactionQuotaMechanic },
       execute: (scope: {
-        assertStockAvailable(
-          countUsage: () => Promise<number>,
-          increment?: number,
-        ): Promise<void>;
+        assertStockAvailable(countUsage: () => Promise<number>, increment?: number): Promise<void>;
         resolveClinicTeamAvailability(input?: {
           excludedPendingEmail?: string;
         }): Promise<SeatOverageOffer>;
         resolveBillableAdditionalSeats(paidAdditionalSeats: number): Promise<number>;
       }) => Promise<T>,
     ): Promise<T> {
-      const lockKey = input.mechanic === 'clinic_team'
-        ? `clinic_invite_seats:${input.organizationId}`
-        : `saas_quota:${input.mechanic}:${input.organizationId}`;
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`,
-      );
+      const lockKey =
+        input.mechanic === 'clinic_team'
+          ? `clinic_invite_seats:${input.organizationId}`
+          : `saas_quota:${input.mechanic}:${input.organizationId}`;
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
       return execute({
         async assertStockAvailable(countUsage, increment = 1) {
           const context = await readQuotaContext(tx, input.organizationId, input.mechanic);
@@ -247,7 +243,11 @@ export function createTransactionQuotaPort() {
           const context = await readClinicTeamContext(tx, input.organizationId);
           return decideSeatOverage({
             ...context,
-            used: await countClinicTeamUsage(tx, input.organizationId, options.excludedPendingEmail),
+            used: await countClinicTeamUsage(
+              tx,
+              input.organizationId,
+              options.excludedPendingEmail,
+            ),
             asOf: new Date().toISOString(),
           });
         },

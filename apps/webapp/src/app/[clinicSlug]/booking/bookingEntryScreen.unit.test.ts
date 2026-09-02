@@ -47,12 +47,12 @@ const fakes = vi.hoisted(() => ({
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: vi.fn(() => ({})),
   runWebappNamedRoot: fakes.runWebappNamedRoot,
-  runWebappPgText: vi.fn(async () => {
-    throw new Error('untyped query text attempted under the tenant-service class');
-  }),
+
   runWebappTransaction: vi.fn(),
   getWebappSqlFromPgClient: vi.fn(),
-  runWebappSql: vi.fn(),
+  runWebappSql: vi.fn(async () => {
+    throw new Error('unnamed query attempted under the tenant-service class');
+  }),
 }));
 vi.mock('@/app-layer/db/drizzle', () => ({ getDrizzle: fakes.getDrizzle }));
 vi.mock('@/infra/db/drizzleMutationTx', () => ({ getDrizzleOrMutationTx: fakes.getDrizzle }));

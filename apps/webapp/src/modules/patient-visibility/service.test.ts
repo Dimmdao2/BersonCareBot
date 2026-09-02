@@ -1,3 +1,5 @@
+import { sql, type SQL } from 'drizzle-orm';
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
 // VISIBILITY_CD_BRIEF_2026-08-04.md stage C — the port is not wired to any route yet, so these are
 // the only tests proving the owner's model ("врач видит своих и тех, кого ему передали; менеджер и
 // админ клиники видят записи по всем") before Stage E connects it to a live read.
@@ -50,7 +52,7 @@ beforeEach(() => {
 });
 
 describe('assertPatientVisibleToActor', () => {
-  it('owner/admin (canManageAllSpecialists) sees any patient in the org — even with zero links, today\'s actual DB state', async () => {
+  it("owner/admin (canManageAllSpecialists) sees any patient in the org — even with zero links, today's actual DB state", async () => {
     const service = buildService();
     const visible = await service.assertPatientVisibleToActor({
       patientUserId: PATIENT_ID,
@@ -72,7 +74,12 @@ describe('assertPatientVisibleToActor', () => {
 
   it('bare doctor with an active link for their own specialist sees the patient', async () => {
     resetInMemoryPatientVisibilityLinksForTests([
-      { organizationId: ORG_A, patientUserId: PATIENT_ID, specialistId: SPECIALIST_A, status: 'active' },
+      {
+        organizationId: ORG_A,
+        patientUserId: PATIENT_ID,
+        specialistId: SPECIALIST_A,
+        status: 'active',
+      },
     ]);
     const service = buildService();
     const visible = await service.assertPatientVisibleToActor({
@@ -85,7 +92,12 @@ describe('assertPatientVisibleToActor', () => {
 
   it('bare doctor cannot see a patient linked only to a different specialist in the same org', async () => {
     resetInMemoryPatientVisibilityLinksForTests([
-      { organizationId: ORG_A, patientUserId: PATIENT_ID, specialistId: SPECIALIST_OTHER, status: 'active' },
+      {
+        organizationId: ORG_A,
+        patientUserId: PATIENT_ID,
+        specialistId: SPECIALIST_OTHER,
+        status: 'active',
+      },
     ]);
     const service = buildService();
     const visible = await service.assertPatientVisibleToActor({
@@ -98,7 +110,12 @@ describe('assertPatientVisibleToActor', () => {
 
   it('an ended link does not grant visibility', async () => {
     resetInMemoryPatientVisibilityLinksForTests([
-      { organizationId: ORG_A, patientUserId: PATIENT_ID, specialistId: SPECIALIST_A, status: 'ended' },
+      {
+        organizationId: ORG_A,
+        patientUserId: PATIENT_ID,
+        specialistId: SPECIALIST_A,
+        status: 'ended',
+      },
     ]);
     const service = buildService();
     const visible = await service.assertPatientVisibleToActor({
@@ -111,20 +128,34 @@ describe('assertPatientVisibleToActor', () => {
 
   it('an actor without a bound specialist (e.g. assistant) sees nothing, even with active links for others in the org', async () => {
     resetInMemoryPatientVisibilityLinksForTests([
-      { organizationId: ORG_A, patientUserId: OTHER_PATIENT_ID, specialistId: SPECIALIST_A, status: 'active' },
+      {
+        organizationId: ORG_A,
+        patientUserId: OTHER_PATIENT_ID,
+        specialistId: SPECIALIST_A,
+        status: 'active',
+      },
     ]);
     const service = buildService();
     const visible = await service.assertPatientVisibleToActor({
       patientUserId: PATIENT_ID,
       organizationId: ORG_A,
-      actor: actor({ membershipRole: 'assistant', specialistId: null, canManageAllSpecialists: false }),
+      actor: actor({
+        membershipRole: 'assistant',
+        specialistId: null,
+        canManageAllSpecialists: false,
+      }),
     });
     expect(visible).toBe(false);
   });
 
   it('tenant wall: a link that belongs to another organization does not grant visibility even for the same patient/specialist ids', async () => {
     resetInMemoryPatientVisibilityLinksForTests([
-      { organizationId: ORG_B, patientUserId: PATIENT_ID, specialistId: SPECIALIST_A, status: 'active' },
+      {
+        organizationId: ORG_B,
+        patientUserId: PATIENT_ID,
+        specialistId: SPECIALIST_A,
+        status: 'active',
+      },
     ]);
     const service = buildService();
     const visible = await service.assertPatientVisibleToActor({
@@ -137,7 +168,9 @@ describe('assertPatientVisibleToActor', () => {
 });
 
 describe('buildPatientVisibilityPredicate', () => {
-  const base = { sql: 'SELECT 1 FROM platform_users pu WHERE pu.role = $1', params: ['client'] };
+  const base = sql`SELECT 1 FROM platform_users pu WHERE pu.role = ${'client'}`;
+  const compiled = (fragment: SQL) => drizzleSqlFragmentToPgQuery(fragment);
+  const baseQuery = compiled(base);
 
   it('manager/admin (canManageAllSpecialists) gets the input back unchanged — org-wide, no narrowing', () => {
     const result = buildPatientVisibilityPredicate(
@@ -146,24 +179,26 @@ describe('buildPatientVisibilityPredicate', () => {
       ORG_A,
       actor({ membershipRole: 'owner', canManageAllSpecialists: true, specialistId: null }),
     );
-    expect(result).toEqual(base);
+    expect(compiled(result)).toEqual(baseQuery);
   });
 
   it('an actor without a bound specialist is excluded entirely — not left org-wide by default', () => {
-    const result = buildPatientVisibilityPredicate(
-      base,
-      'pu.id',
-      ORG_A,
-      actor({ membershipRole: 'assistant', specialistId: null, canManageAllSpecialists: false }),
+    const result = compiled(
+      buildPatientVisibilityPredicate(
+        base,
+        'pu.id',
+        ORG_A,
+        actor({ membershipRole: 'assistant', specialistId: null, canManageAllSpecialists: false }),
+      ),
     );
-    expect(result.params).toEqual(base.params);
-    expect(result.sql).not.toEqual(base.sql);
+    expect(result.values).toEqual(baseQuery.values);
+    expect(result.sql).not.toEqual(baseQuery.sql);
   });
 
-  it('a narrow actor appends an org+specialist scoped EXISTS against patient_specialist_links, with params grown by exactly [organizationId, specialistId] in that order', () => {
-    const result = buildPatientVisibilityPredicate(base, 'pu.id', ORG_A, actor());
-    expect(result.params).toEqual([...base.params, ORG_A, SPECIALIST_A]);
+  it('a narrow actor appends an org+specialist scoped EXISTS against patient_specialist_links, with bound values grown by exactly [organizationId, specialistId] in that order', () => {
+    const result = compiled(buildPatientVisibilityPredicate(base, 'pu.id', ORG_A, actor()));
+    expect(result.values).toEqual([...baseQuery.values, ORG_A, SPECIALIST_A]);
     expect(result.sql).toContain('patient_specialist_links');
-    expect(result.sql.startsWith(base.sql)).toBe(true);
+    expect(result.sql.startsWith(baseQuery.sql)).toBe(true);
   });
 });

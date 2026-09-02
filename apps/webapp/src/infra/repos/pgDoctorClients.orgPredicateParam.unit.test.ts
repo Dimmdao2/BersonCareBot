@@ -9,7 +9,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
-  runWebappPgText: vi.fn(),
+  runWebappSql: vi.fn(),
   select: vi.fn(),
 }));
 
@@ -18,14 +18,22 @@ vi.mock('@/app-layer/db/drizzle', () => ({ getDrizzle: () => ({ select: fakes.se
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: vi.fn(),
   runWebappTransaction: vi.fn(),
-  runWebappPgText: fakes.runWebappPgText,
+  runWebappSql: fakes.runWebappSql,
 }));
 vi.mock('@/infra/repos/pgCanonicalPlatformUser', () => ({ resolveCanonicalUserId: vi.fn() }));
 
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
 import { createPgDoctorClientsPort } from './pgDoctorClients';
 
 const ORG_ID = '00000000-0000-4000-8000-0000000e0001';
 const NO_ORG_LITERAL_UUID = /'[0-9a-f-]{36}'::uuid/i;
+
+/** Text and bound values PostgreSQL would receive for the nth executed fragment. */
+function executedQuery(index: number) {
+  const call = fakes.runWebappSql.mock.calls[index];
+  if (!call) throw new Error(`no query executed at index ${index}`);
+  return drizzleSqlFragmentToPgQuery(call[1]);
+}
 
 function emptyDrizzleChain() {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
@@ -41,7 +49,7 @@ describe('pgDoctorClients — organization id travels as a bound $n param, not a
   beforeEach(() => {
     vi.clearAllMocks();
     fakes.select.mockImplementation(() => emptyDrizzleChain());
-    fakes.runWebappPgText.mockResolvedValue({ rows: [] });
+    fakes.runWebappSql.mockResolvedValue({ rows: [] });
   });
 
   it('getClientContactBreakdown: no literal UUID in SQL text, organizationId present in params', async () => {
@@ -50,8 +58,8 @@ describe('pgDoctorClients — organization id travels as a bound $n param, not a
       visibilityActor: { canManageAllSpecialists: true, specialistId: null, membershipRole: 'owner' },
     });
 
-    expect(fakes.runWebappPgText).toHaveBeenCalledOnce();
-    const [statement, params] = fakes.runWebappPgText.mock.calls[0] as [string, unknown[]];
+    expect(fakes.runWebappSql).toHaveBeenCalledOnce();
+    const { sql: statement, values: params } = executedQuery(0);
     expect(statement).not.toContain(ORG_ID);
     expect(statement).not.toMatch(NO_ORG_LITERAL_UUID);
     expect(params).toContain(ORG_ID);
@@ -63,7 +71,7 @@ describe('pgDoctorClients — organization id travels as a bound $n param, not a
   it('getClientContactBreakdown: no organizationId → no appointment-org filter, no param added', async () => {
     await createPgDoctorClientsPort().getClientContactBreakdown({});
 
-    const [statement, params] = fakes.runWebappPgText.mock.calls[0] as [string, unknown[]];
+    const { sql: statement, values: params } = executedQuery(0);
     expect(statement).not.toContain('bea.organization_id');
     expect(params).toEqual([]);
   });
@@ -74,7 +82,8 @@ describe('pgDoctorClients — organization id travels as a bound $n param, not a
       visibilityActor: { canManageAllSpecialists: true, specialistId: null, membershipRole: 'owner' },
     });
 
-    for (const [statement, params] of fakes.runWebappPgText.mock.calls as [string, unknown[]][]) {
+    for (let call = 0; call < fakes.runWebappSql.mock.calls.length; call += 1) {
+      const { sql: statement, values: params } = executedQuery(call);
       expect(statement).not.toContain(ORG_ID);
       expect(statement).not.toMatch(NO_ORG_LITERAL_UUID);
       if (statement.includes('bea.organization_id')) {

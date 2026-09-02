@@ -1,24 +1,19 @@
+import type { SQL } from 'drizzle-orm';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
-import {
-  getWebappSqlFromPgClient,
-  runPgPoolPgText,
-  runWebappPgText,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlFromPgClient, runPgPoolSql, runWebappSql } from '@/infra/db/runWebappSql';
 
 /** Domain SQL on default webapp pool. */
-export async function runPurgePoolPgText<T extends QueryResultRow = QueryResultRow>(
+export async function runPurgePoolSql<T extends QueryResultRow = QueryResultRow>(
   pool: Pick<Pool, 'query'>,
-  queryText: string,
-  values: readonly unknown[] = [],
+  fragment: SQL,
 ) {
-  return runPgPoolPgText<T>(pool, queryText, values);
+  return runPgPoolSql<T>(pool, fragment);
 }
 
 /** Domain SQL inside a multipart TX on a dedicated `PoolClient` (webapp or integrator connection). */
-export async function runPurgeClientPgText<T extends QueryResultRow = QueryResultRow>(
+export async function runPurgeClientSql<T extends QueryResultRow = QueryResultRow>(
   client: PoolClient,
-  queryText: string,
-  values: readonly unknown[] = [],
+  fragment: SQL,
 ) {
-  return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
+  return runWebappSql<T>(getWebappSqlFromPgClient(client), fragment);
 }

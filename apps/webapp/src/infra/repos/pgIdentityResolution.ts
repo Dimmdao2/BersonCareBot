@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 /**
  * Wave 3 phase 12B — Class C transport: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")`.
- * Domain SQL — `runIdentityClientPgText`; row-shape — Zod in `identityPhoneRowSchemas`.
+ * Domain SQL — `runIdentityClientSql`; row-shape — Zod in `identityPhoneRowSchemas`.
  */
 import { getPool } from '@/infra/db/client';
 import type { SessionUser } from '@/shared/types/session';
@@ -16,12 +16,9 @@ import {
   preSessionChannelBindingSessionRowSchema,
   userIdRowSchema,
 } from '@/infra/repos/identityPhoneRowSchemas';
-import { runIdentityClientPgText } from '@/infra/repos/identityPhoneSql';
+import { runIdentityClientSql } from '@/infra/repos/identityPhoneSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { loadSessionIdentityUser } from '@/infra/repos/pgUserByPhone';
 
 async function loadSessionUserForId(
@@ -43,10 +40,9 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
     const parsed = parseResolveByChannelBindingParams(params);
     const pool = getPool();
     const txResult = await withPoolTransaction(pool, async (client) => {
-      const existing = await runIdentityClientPgText(
+      const existing = await runIdentityClientSql(
         client,
-        'SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2 FOR UPDATE',
-        [parsed.channelCode, parsed.externalId],
+        sql`SELECT user_id FROM user_channel_bindings WHERE channel_code = ${parsed.channelCode} AND external_id = ${parsed.externalId} FOR UPDATE`,
       );
 
       const row = existing.rows[0];

@@ -1,8 +1,9 @@
+import { sql } from 'drizzle-orm';
 import {
   getSaasIsolationEventWriterPool,
   getSaasIsolationOperatorPool,
 } from '@/infra/db/saasIsolationTelemetry';
-import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { runPgPoolSql } from '@/infra/db/runWebappSql';
 import type {
   RecordSaasIsolationCoverageInput,
   ReportSaasIsolationEventInput,
@@ -15,36 +16,21 @@ function toIso(value: unknown): unknown {
 
 export const pgSaasIsolationDiagnosticsPort: SaasIsolationDiagnosticsPort = {
   async recordEvent(input: ReportSaasIsolationEventInput): Promise<void> {
-    await runPgPoolPgText(
+    await runPgPoolSql(
       getSaasIsolationEventWriterPool(),
-      'SELECT app.report_saas_isolation_event($1, $2, $3, $4)',
-      [
-        input.eventClass,
-        input.sourceService,
-        input.sourceOperation,
-        input.explanationStatus ?? 'unexplained',
-      ],
+      sql`SELECT app.report_saas_isolation_event(${input.eventClass}, ${input.sourceService}, ${input.sourceOperation}, ${input.explanationStatus ?? 'unexplained'})`,
     );
   },
 
   async recordCoverageAndResolve(input: RecordSaasIsolationCoverageInput): Promise<void> {
-    await runPgPoolPgText(
+    await runPgPoolSql(
       getSaasIsolationOperatorPool(),
-      'SELECT app.record_saas_isolation_coverage($1, $2, $3, $4, $5, $6, $7)',
-      [
-        input.id,
-        input.status,
-        input.startedAt,
-        input.finishedAt,
-        input.servicesChecked,
-        input.checksCount,
-        input.unexpectedErrorsCount,
-      ],
+      sql`SELECT app.record_saas_isolation_coverage(${input.id}, ${input.status}, ${input.startedAt}, ${input.finishedAt}, ${sql.param(input.servicesChecked)}, ${input.checksCount}, ${input.unexpectedErrorsCount})`,
     );
   },
 
   async listEventAggregates(): Promise<unknown[]> {
-    const result = await runPgPoolPgText<{
+    const result = await runPgPoolSql<{
       event_class: unknown;
       source_service: unknown;
       source_operation: unknown;
@@ -53,7 +39,7 @@ export const pgSaasIsolationDiagnosticsPort: SaasIsolationDiagnosticsPort = {
       occurrence_count: unknown;
       first_seen_at: unknown;
       last_seen_at: unknown;
-    }>(getSaasIsolationOperatorPool(), 'SELECT * FROM app.read_saas_isolation_events()');
+    }>(getSaasIsolationOperatorPool(), sql`SELECT * FROM app.read_saas_isolation_events()`);
     return result.rows.map((row) => ({
       eventClass: row.event_class,
       sourceService: row.source_service,
@@ -67,7 +53,7 @@ export const pgSaasIsolationDiagnosticsPort: SaasIsolationDiagnosticsPort = {
   },
 
   async getLastCoverageRun(): Promise<unknown | null> {
-    const result = await runPgPoolPgText<{
+    const result = await runPgPoolSql<{
       id: unknown;
       status: unknown;
       started_at: unknown;
@@ -75,7 +61,7 @@ export const pgSaasIsolationDiagnosticsPort: SaasIsolationDiagnosticsPort = {
       services_checked: unknown;
       checks_count: unknown;
       unexpected_errors_count: unknown;
-    }>(getSaasIsolationOperatorPool(), 'SELECT * FROM app.read_last_saas_isolation_coverage()');
+    }>(getSaasIsolationOperatorPool(), sql`SELECT * FROM app.read_last_saas_isolation_coverage()`);
     const row = result.rows[0];
     if (!row) return null;
     return {
@@ -90,12 +76,12 @@ export const pgSaasIsolationDiagnosticsPort: SaasIsolationDiagnosticsPort = {
   },
 
   async getTrend(): Promise<unknown> {
-    const result = await runPgPoolPgText<{
+    const result = await runPgPoolSql<{
       as_of: unknown;
       current_24_hours: unknown;
       previous_24_hours: unknown;
       daily_7_days: unknown;
-    }>(getSaasIsolationOperatorPool(), 'SELECT * FROM app.read_saas_isolation_trend()');
+    }>(getSaasIsolationOperatorPool(), sql`SELECT * FROM app.read_saas_isolation_trend()`);
     const row = result.rows[0];
     if (!row) throw new Error('saas_isolation_trend_missing');
     return {

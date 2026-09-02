@@ -1,6 +1,6 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql, runWebappTransaction } from '@/infra/db/runWebappSql';
 import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
 import type {
   AcceptOrganizationInviteResult,
@@ -117,94 +117,94 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           tx,
           { organizationId: input.organizationId, mechanic: 'clinic_team' },
           async (quota) => {
-        const [activeMember] = await tx
-          .select({ id: beOrganizationMembers.id })
-          .from(platformUsers)
-          .innerJoin(
-            beOrganizationMembers,
-            and(
-              eq(beOrganizationMembers.platformUserId, platformUsers.id),
-              eq(beOrganizationMembers.organizationId, input.organizationId),
-              eq(beOrganizationMembers.status, 'active'),
-            ),
-          )
-          .where(
-            and(
-              eq(drizzlePrimaryEmailCol, input.invitedEmail),
-              isNull(platformUsers.mergedIntoId),
-            ),
-          )
-          .limit(1);
-        if (activeMember) {
-          return { ok: false, code: 'already_member' };
-        }
+            const [activeMember] = await tx
+              .select({ id: beOrganizationMembers.id })
+              .from(platformUsers)
+              .innerJoin(
+                beOrganizationMembers,
+                and(
+                  eq(beOrganizationMembers.platformUserId, platformUsers.id),
+                  eq(beOrganizationMembers.organizationId, input.organizationId),
+                  eq(beOrganizationMembers.status, 'active'),
+                ),
+              )
+              .where(
+                and(
+                  eq(drizzlePrimaryEmailCol, input.invitedEmail),
+                  isNull(platformUsers.mergedIntoId),
+                ),
+              )
+              .limit(1);
+            if (activeMember) {
+              return { ok: false, code: 'already_member' };
+            }
 
-        if (input.invitedRole === 'doctor') {
-          // The authoritative capacity decision stays inside this organization's advisory-locked
-          // transaction. The shared quota port uses the same effective tariff / active override
-          // resolver as stock writers; route-level checks remain intentionally absent.
-          // `i.invited_email <> $2` excludes this email's own prior pending reservation: a
-          // same-email replacement at the limit does not add a reservation, so it must not be
-          // counted against itself.
-          const offer = await quota.resolveClinicTeamAvailability({
-            excludedPendingEmail: input.invitedEmail,
-          });
-          if (offer.outcome === 'seat_not_sold') {
-            return { ok: false, code: 'seat_limit_reached' };
-          }
-          // Р-15: оплаченный период кончился — отдельного счёта на место в нём быть не может,
-          // остатка нет. Клиника сначала оплачивает продление, и только потом покупает место.
-          if (offer.outcome === 'paid_period_over') {
-            return { ok: false, code: 'seat_overage_paid_period_over' };
-          }
-          if (offer.outcome === 'purchasable') {
+            if (input.invitedRole === 'doctor') {
+              // The authoritative capacity decision stays inside this organization's advisory-locked
+              // transaction. The shared quota port uses the same effective tariff / active override
+              // resolver as stock writers; route-level checks remain intentionally absent.
+              // `i.invited_email <> $2` excludes this email's own prior pending reservation: a
+              // same-email replacement at the limit does not add a reservation, so it must not be
+              // counted against itself.
+              const offer = await quota.resolveClinicTeamAvailability({
+                excludedPendingEmail: input.invitedEmail,
+              });
+              if (offer.outcome === 'seat_not_sold') {
+                return { ok: false, code: 'seat_limit_reached' };
+              }
+              // Р-15: оплаченный период кончился — отдельного счёта на место в нём быть не может,
+              // остатка нет. Клиника сначала оплачивает продление, и только потом покупает место.
+              if (offer.outcome === 'paid_period_over') {
+                return { ok: false, code: 'seat_overage_paid_period_over' };
+              }
+              if (offer.outcome === 'purchasable') {
+                return {
+                  ok: false,
+                  code: 'seat_overage_confirmation_required',
+                  priceMinor: offer.priceMinor,
+                  currency: offer.currency,
+                  priceStableUntil: offer.priceStableUntil,
+                };
+              }
+            }
+
+            await tx
+              .update(organizationMemberInvites)
+              .set({ status: 'revoked' })
+              .where(
+                and(
+                  eq(organizationMemberInvites.organizationId, input.organizationId),
+                  eq(organizationMemberInvites.invitedEmail, input.invitedEmail),
+                  eq(organizationMemberInvites.status, 'pending'),
+                ),
+              );
+
+            const [invite] = await tx
+              .insert(organizationMemberInvites)
+              .values({
+                organizationId: input.organizationId,
+                invitedEmail: input.invitedEmail,
+                invitedRole: input.invitedRole,
+                tokenHash: input.tokenHash,
+                expiresAt: input.expiresAt,
+                createdByPlatformUserId: input.createdByPlatformUserId,
+              })
+              .returning();
+            if (!invite) throw new Error('organization_invite_insert_failed');
+            const [organization] = await tx
+              .select({ title: beOrganizations.title })
+              .from(beOrganizations)
+              .where(eq(beOrganizations.id, input.organizationId))
+              .limit(1);
             return {
-              ok: false,
-              code: 'seat_overage_confirmation_required',
-              priceMinor: offer.priceMinor,
-              currency: offer.currency,
-              priceStableUntil: offer.priceStableUntil,
+              ok: true,
+              invite: {
+                ...invite,
+                invitedRole: parseInviteRole(invite.invitedRole),
+                status: parseInviteStatus(invite.status),
+                organizationTitle: organization?.title ?? null,
+              },
             };
-          }
-        }
-
-        await tx
-          .update(organizationMemberInvites)
-          .set({ status: 'revoked' })
-          .where(
-            and(
-              eq(organizationMemberInvites.organizationId, input.organizationId),
-              eq(organizationMemberInvites.invitedEmail, input.invitedEmail),
-              eq(organizationMemberInvites.status, 'pending'),
-            ),
-          );
-
-        const [invite] = await tx
-          .insert(organizationMemberInvites)
-          .values({
-            organizationId: input.organizationId,
-            invitedEmail: input.invitedEmail,
-            invitedRole: input.invitedRole,
-            tokenHash: input.tokenHash,
-            expiresAt: input.expiresAt,
-            createdByPlatformUserId: input.createdByPlatformUserId,
-          })
-          .returning();
-        if (!invite) throw new Error('organization_invite_insert_failed');
-        const [organization] = await tx
-          .select({ title: beOrganizations.title })
-          .from(beOrganizations)
-          .where(eq(beOrganizations.id, input.organizationId))
-          .limit(1);
-        return {
-          ok: true,
-          invite: {
-            ...invite,
-            invitedRole: parseInviteRole(invite.invitedRole),
-            status: parseInviteStatus(invite.status),
-            organizationTitle: organization?.title ?? null,
-          },
-        };
           },
         ),
       );
@@ -212,48 +212,47 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
 
     async listPendingByOrganization(organizationId) {
       return runWebappTransaction(async (tx) => {
-        await runWebappPgText(
-          `UPDATE organization_member_invites
+        await runWebappSql(
+          tx,
+          sql`UPDATE organization_member_invites
            SET status = 'expired'
-           WHERE organization_id = $1
+           WHERE organization_id = ${organizationId}
              AND status = 'pending'
              AND expires_at <= now()`,
-          [organizationId],
-          tx,
         );
-        const rows = await runWebappPgText<InviteRow>(
-          `${inviteSelectSql}
-           WHERE i.organization_id = $1
+        const rows = await runWebappSql<InviteRow>(
+          tx,
+          sql`${sql.raw(inviteSelectSql)}
+           WHERE i.organization_id = ${organizationId}
              AND i.status = 'pending'
              AND i.expires_at > now()
            ORDER BY i.created_at DESC`,
-          [organizationId],
-          tx,
         );
         return rows.rows.map(mapInvite);
       });
     },
 
     async countSeatReservationsByOrganization(organizationId) {
-      const rows = await runWebappPgText<{ reservation_count: number }>(
-        `SELECT COUNT(*)::int AS reservation_count
+      const rows = await runWebappSql<{ reservation_count: number }>(
+        getWebappSqlDb(),
+        sql`SELECT COUNT(*)::int AS reservation_count
          FROM organization_member_invites i
          LEFT JOIN be_organization_members m ON m.id = i.accepted_membership_id
-         WHERE i.organization_id = $1
+         WHERE i.organization_id = ${organizationId}
            AND i.invited_role = 'doctor'
            AND (
              (i.status = 'pending' AND i.expires_at > now())
              OR
              (i.status = 'accepted' AND m.status = 'active' AND m.specialist_id IS NULL)
            )`,
-        [organizationId],
       );
       return rows.rows[0]?.reservation_count ?? 0;
     },
 
     async getByTokenHash(tokenHash) {
-      const rows = await runWebappPgText<InviteRow>(
-        `SELECT
+      const rows = await runWebappSql<InviteRow>(
+        getWebappSqlDb(),
+        sql`SELECT
            id::text,
            organization_id::text,
            invited_email,
@@ -266,31 +265,30 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
            created_at::text,
            accepted_at::text,
            organization_title
-         FROM app.lookup_pending_org_invite($1)`,
-        [tokenHash],
+         FROM app.lookup_pending_org_invite(${tokenHash})`,
       );
       return rows.rows[0] ? mapInvite(rows.rows[0]) : null;
     },
 
     async expireInvite(inviteId) {
-      await runWebappPgText(
-        `UPDATE organization_member_invites
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`UPDATE organization_member_invites
          SET status = 'expired'
-         WHERE id = $1
+         WHERE id = ${inviteId}
            AND status = 'pending'`,
-        [inviteId],
       );
     },
 
     async revokePendingByOrganization({ organizationId, inviteId }) {
-      const res = await runWebappPgText<{ id: string }>(
-        `UPDATE organization_member_invites
+      const res = await runWebappSql<{ id: string }>(
+        getWebappSqlDb(),
+        sql`UPDATE organization_member_invites
          SET status = 'revoked'
-         WHERE id = $1
-           AND organization_id = $2
+         WHERE id = ${inviteId}
+           AND organization_id = ${organizationId}
            AND status = 'pending'
          RETURNING id::text`,
-        [inviteId, organizationId],
       );
       return Boolean(res.rows[0]);
     },
@@ -300,8 +298,9 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
       platformUserId,
       expectedEmail,
     }): Promise<AcceptOrganizationInviteResult> {
-      const accepted = await runWebappPgText<AcceptOrgInviteFunctionRow>(
-        `SELECT
+      const accepted = await runWebappSql<AcceptOrgInviteFunctionRow>(
+        getWebappSqlDb(),
+        sql`SELECT
            ok,
            code,
            organization_id::text,
@@ -309,8 +308,7 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
            platform_user_id::text,
            specialist_id::text,
            role
-         FROM app.accept_org_invite($1, $2::uuid, $3)`,
-        [tokenHash, platformUserId, expectedEmail],
+         FROM app.accept_org_invite(${tokenHash}, ${platformUserId}::uuid, ${expectedEmail})`,
       );
       const row = accepted.rows[0];
       if (!row) throw new Error('app.accept_org_invite_returned_no_rows');
