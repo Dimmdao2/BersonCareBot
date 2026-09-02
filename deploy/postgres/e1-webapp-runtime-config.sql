@@ -1,57 +1,32 @@
--- Canonical strict/fresh overlay for the E1 safe runtime projection.
+-- Canonical post-restore grant/ownership overlay for the E1 safe runtime projection.
+--
+-- Object bodies (the functions and tables this file grants on) are NOT created here. They arrive
+-- as part of the current schema itself: deploy/postgres/generated/prod-to-target/schema-pre.sql +
+-- schema-post.sql (captured from bcb_webapp_dev, refreshed by
+-- scripts/refresh-prod-to-target-cutover.mjs) are `\ir`'d by the one atomic
+-- deploy/postgres/prod-to-target-cutover.sql A -> B transition that runs before this overlay, and
+-- that dump already has today's current definition of every object below. Because the dump is
+-- generated with `pg_dump --no-owner --no-privileges`, ownership/ACL is stripped on the way in --
+-- restoring exactly that ownership/ACL is this file's only remaining job.
+--
+-- Historical note (2026-09-02, #1085): this file used to ALSO `\ir` the retired pre-B0 migrations
+-- 0193/0194/0195/0197/0198/0200/0201/0202/0216/0230/0231/0234/0262 to (re)create these objects for
+-- a rehydration of an old, pre-current schema, plus a companion
+-- e1-current-patient-organization-entitlements.sql overlay to patch one function's return-type
+-- drift. 13 of those 14 `\ir` targets no longer exist (schema B forward-migrations §"Миграции schema
+-- B" retired the historical webapp chain outright), so every full-reset TEST run aborted here right
+-- after writers stopped. The 14th target still existed but had itself gone stale -- its hardcoded
+-- function body predates the `saas_paid_period_policy`/`app.require_attested_context_for_roles`
+-- logic that schema-pre.sql already carries -- so replaying it would have silently regressed a
+-- current function to an old one. Both are removed: the atomic A -> B transition above already
+-- leaves every object below in its current, correct state; this file only fixes up who owns it and
+-- who may call it.
 \set ON_ERROR_STOP on
 \if :{?e1_webapp_runtime_role}
 \else
 \echo 'FATAL: missing e1_webapp_runtime_role.'
 SELECT 1 / 0 AS e1_webapp_runtime_role_missing;
 \endif
-
--- Non-destructive quarantine for a replay against an already-populated saas_isolation_events
--- (post-restore/rehydration; the fresh-migration case starts with an empty table and this is a
--- no-op). 0193/0194/0201/0202 below each re-run their OWN
--- ALTER TABLE ... ADD CONSTRAINT saas_isolation_events_source_operation_check, and each list is a
--- strict subset of the next (0193 subset 0194 subset 0201 subset 0202 = the final vocabulary that
--- deploy/postgres/saas-isolation-telemetry.sql re-asserts after this whole chain). A row reported
--- under an operation family that only a LATER file in this chain allows (for example
--- ('webapp','auth_role_config'), first allowed at 0201) already legitimately exists in a
--- rehydrated table and makes 0193's own narrower ADD CONSTRAINT fail outright before the chain
--- ever reaches the file that would have accepted it. Move every current row aside for the
--- duration of the replay and restore it once the chain reaches its final, widest state: every row
--- already in this table was written by app.report_saas_isolation_event under whatever constraint
--- was active at the time, so it is guaranteed to satisfy the (monotonically wider) final
--- constraint again.
-CREATE TEMP TABLE saas_isolation_events_e1_quarantine AS
-  TABLE public.saas_isolation_events WITH NO DATA;
-CREATE TEMP TABLE saas_isolation_event_hourly_e1_quarantine AS
-  TABLE public.saas_isolation_event_hourly WITH NO DATA;
-INSERT INTO saas_isolation_events_e1_quarantine SELECT * FROM public.saas_isolation_events;
-INSERT INTO saas_isolation_event_hourly_e1_quarantine SELECT * FROM public.saas_isolation_event_hourly;
--- ON DELETE CASCADE already empties saas_isolation_event_hourly; the hourly rows were copied above.
-DELETE FROM public.saas_isolation_events;
-
-\ir ../../apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql
-\ir ../../apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql
-\ir ../../apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql
-\ir ../../apps/webapp/db/drizzle-migrations/0197_patient_plan_opened_capability.sql
-\ir ../../apps/webapp/db/drizzle-migrations/0198_patient_visible_catalog_reads.sql
--- Replay the current booking capability definition. Migration 0262 is repeat-safe and also keeps
--- the retired Rubitime data surface absent before the capability ACL is re-pinned below.
-\ir ../../apps/webapp/db/drizzle-migrations/0262_remove_rubitime_data.sql
-\ir ../../apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql
-\ir ../../apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql
-\ir ../../apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql
-\ir ../../apps/webapp/db/drizzle-migrations/0216_current_patient_organization_context.sql
-\ir ../../apps/webapp/db/drizzle-migrations/0230_error_tracking_runtime.sql
-\ir ../../apps/webapp/db/drizzle-migrations/0231_admin_email_role_runtime_config.sql
-\ir ../../apps/webapp/db/drizzle-migrations/0234_current_patient_support_activity.sql
-\ir e1-current-patient-organization-entitlements.sql
-
--- Restore the quarantined rows now that the final (widest) allowed-pair vocabulary from the chain
--- above is active; every restored row already satisfies it (see quarantine comment above).
-INSERT INTO public.saas_isolation_events SELECT * FROM saas_isolation_events_e1_quarantine;
-INSERT INTO public.saas_isolation_event_hourly SELECT * FROM saas_isolation_event_hourly_e1_quarantine;
-DROP TABLE saas_isolation_events_e1_quarantine;
-DROP TABLE saas_isolation_event_hourly_e1_quarantine;
 
 GRANT SELECT ON TABLE
   public.system_settings,

@@ -12,7 +12,7 @@ import test from 'node:test';
 
 const repoRoot = resolve(import.meta.dirname, '..', '..');
 
-// The two `\ir` roots the engine feeds to psql on the full-reset path, read from the engine itself
+// The `\ir` roots the engine feeds to psql on the full-reset path, read from the engine itself
 // (deploy-test-saas.sh) so this test tracks the real entrypoints rather than a hand-copied list.
 const engine = readFileSync(resolve(repoRoot, 'deploy/host/deploy-test-saas.sh'), 'utf8');
 function engineVar(name) {
@@ -20,7 +20,15 @@ function engineVar(name) {
   assert.ok(match, `deploy-test-saas.sh no longer defines ${name}; update this path guard`);
   return match[1];
 }
-const irRoots = [engineVar('PRE_CUTOVER_DATA_ASSERTIONS'), engineVar('CUTOVER_MIGRATION')];
+const irRoots = [
+  engineVar('PRE_CUTOVER_DATA_ASSERTIONS'),
+  engineVar('CUTOVER_MIGRATION'),
+  // #1085: the post-migration runtime-overlay chain (rehydrate_post_restore_runtime_overlays ->
+  // runtime_overlay_apply_post_migration_chain) applies this file last, unconditionally, after
+  // writers are stopped. It used to `\ir` 13 already-deleted pre-B0 migrations plus one stale
+  // sibling overlay, so every full-reset run aborted here; this root is why that class stays caught.
+  engineVar('E1_WEBAPP_RUNTIME_CONFIG'),
+];
 
 // Transitively resolve every `\ir` include. psql resolves `\ir` relative to the including file's
 // directory, so the walk mirrors that exactly.
@@ -100,4 +108,27 @@ test('port-context cutover external artifacts exist and the deleted primitive is
     .join('\n');
   assert.ok(!/initial-cutover\.mjs/u.test(executable),
     `${rel} has an executable reference to the deleted privileges/initial-cutover.mjs; the path would not run`);
+});
+
+test('every post-restore runtime-overlay file the shared lib applies exists', () => {
+  const rel = 'deploy/host/runtime-overlay-rehydrate-lib.sh';
+  const lib = readFileSync(resolve(repoRoot, rel), 'utf8');
+
+  // Read both bash arrays straight from the shared lib, not a hand-copied list, so a future entry
+  // added to either array is checked without touching this test.
+  const arrays = [...lib.matchAll(/local -a (\w+)=\(\n([^)]+)\)/gu)];
+  assert.ok(arrays.length >= 2, `${rel} no longer declares the always/protected overlay arrays`);
+  let checked = 0;
+  for (const [, name, body] of arrays) {
+    const files = body
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    assert.ok(files.length >= 1, `${rel} array ${name} is empty; update this path guard`);
+    for (const fileRel of files) {
+      checked += 1;
+      assert.ok(existsSync(resolve(repoRoot, fileRel)), `${rel} array ${name} references missing file ${fileRel}`);
+    }
+  }
+  assert.ok(checked >= 10, `expected at least 10 guarded overlay files, got ${checked}`);
 });

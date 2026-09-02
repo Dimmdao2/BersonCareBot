@@ -2374,6 +2374,7 @@ assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_
 [ -r "$SRC_REPO/$P0_5B_ROLES" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_ROLES"; exit 1; }
 [ -r "$SRC_REPO/$P0_5B_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$P2_B_CONTEXT" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P2_B_CONTEXT"; exit 1; }
+[ -r "$SRC_REPO/$E1_WEBAPP_RUNTIME_CONFIG" ] || { echo "FATAL: missing repo file: $SRC_REPO/$E1_WEBAPP_RUNTIME_CONFIG"; exit 1; }
 [ -r "$SRC_REPO/$ORGANIZATION_MEMBER_INVITES_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$ORGANIZATION_MEMBER_INVITES_RLS"; exit 1; }
 [ -r "$SRC_REPO/$PATIENT_INVITES_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PATIENT_INVITES_RLS"; exit 1; }
 [ -r "$SRC_REPO/$STORE_P0_ENTITLEMENTS_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$STORE_P0_ENTITLEMENTS_RLS"; exit 1; }
