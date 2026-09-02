@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { materializePatientReminderDeliveries } from './materializePatientReminderDeliveries';
+import {
+  buildAppointmentLifecyclePushCopy,
+  buildNewsPushCopy,
+} from '@/modules/web-push/pushNotificationCopy';
 
 const input = {
   rule: {
@@ -9,8 +13,8 @@ const input = {
     category: 'warmup',
     linkedObjectType: 'content_section',
     linkedObjectId: 'warmups',
-    customTitle: 'Разминка',
-    customText: 'Пора размяться',
+    customTitle: null,
+    customText: null,
     displayTitle: null,
     reminderIntent: 'warmup',
     notificationTopicCode: 'warmup_reminders',
@@ -77,20 +81,48 @@ describe('patient reminder ready-delivery materializer', () => {
     }
   });
 
-  it('bounds caller-controlled copy before creating a ready envelope', () => {
-    const [delivery] = materializePatientReminderDeliveries({
+  it('keeps patient-authored reminder text private while every external channel gets a neutral signal and app link', () => {
+    const privateTitle = 'Диагноз: секретный заголовок';
+    const privateText = 'Секретная схема лечения';
+    const openUrl = 'https://test.example/app/patient/reminders?from=reminder';
+    const deliveries = materializePatientReminderDeliveries({
       ...input,
       rule: {
         ...input.rule,
-        customTitle: 'T'.repeat(500),
-        customText: '&'.repeat(20_000),
+        category: 'exercise',
+        linkedObjectType: 'custom',
+        linkedObjectId: null,
+        customTitle: privateTitle,
+        customText: privateText,
+        reminderIntent: 'generic',
+        notificationTopicCode: 'training_reminders',
       },
-      targets: { selectedChannels: ['telegram'] as const, telegramId: '1001' },
+      targets: {
+        selectedChannels: ['telegram', 'max', 'vk', 'email', 'web_push'] as const,
+        telegramId: '1001',
+        maxId: 'max-1',
+        vkId: 'vk-1',
+        emailRecipient: 'patient@example.test',
+      },
     });
 
-    expect(delivery?.logText.length).toBe(8000);
-    const message = delivery?.intent.payload.message as { text: string } | undefined;
-    expect(message?.text.length).toBeLessThanOrEqual(65_536);
+    expect(deliveries.map((delivery) => delivery.channel)).toEqual([
+      'telegram',
+      'max',
+      'vk',
+      'email',
+      'web_push',
+    ]);
+    for (const delivery of deliveries) {
+      const externalEnvelope = JSON.stringify({
+        logText: delivery.logText,
+        payload: delivery.intent.payload,
+      });
+      expect(externalEnvelope).not.toContain(privateTitle);
+      expect(externalEnvelope).not.toContain(privateText);
+      expect(externalEnvelope.toLocaleLowerCase('ru-RU')).toContain('напомин');
+      expect(externalEnvelope).toContain(openUrl);
+    }
   });
 
   it('owns copy, deep-link and callback keyboard before enqueue', () => {
@@ -98,7 +130,7 @@ describe('patient reminder ready-delivery materializer', () => {
     const telegram = deliveries.find((delivery) => delivery.channel === 'telegram');
     expect(telegram?.intent.payload).toEqual(
       expect.objectContaining({
-        message: { text: '<b>Разминка</b>\n\nПора размяться' },
+        message: { text: '<b>Разминка ⚡</b>' },
         replyMarkup: {
           inline_keyboard: expect.arrayContaining([
             [
@@ -149,5 +181,41 @@ describe('patient reminder ready-delivery materializer', () => {
     expect(deliveries[0]?.intent.payload).toEqual(
       expect.objectContaining({ message: { text: '<b>Моя разминка для шеи</b>' } }),
     );
+  });
+
+  it('keeps doctor-generated lesson copy complete', () => {
+    const deliveries = materializePatientReminderDeliveries({
+      ...input,
+      rule: {
+        ...input.rule,
+        category: 'exercise',
+        linkedObjectType: 'rehab_program',
+        linkedObjectId: 'program-1',
+        reminderIntent: 'exercises',
+        notificationTopicCode: 'training_reminders',
+      },
+      linkedTitle: 'Занятие: полный комплекс для спины',
+      targets: { selectedChannels: ['telegram'] as const, telegramId: '1001' },
+    });
+
+    expect(deliveries[0]?.intent.payload).toEqual(
+      expect.objectContaining({ message: { text: '<b>Занятие: полный комплекс для спины</b>' } }),
+    );
+  });
+
+  it('keeps appointment and broadcast copy complete outside the private-reminder boundary', () => {
+    expect(
+      buildAppointmentLifecyclePushCopy(
+        'created',
+        '2026-09-02T12:00:00.000Z',
+        'Europe/Moscow',
+      ),
+    ).toEqual({
+      title: 'Запись на приём',
+      body: 'Вы записаны на приём 2 сент. 2026 г., 15:00',
+    });
+
+    const broadcast = 'Клиника работает в субботу до 18:00 — запись открыта';
+    expect(buildNewsPushCopy(broadcast)).toEqual({ title: 'Новости', body: broadcast });
   });
 });
