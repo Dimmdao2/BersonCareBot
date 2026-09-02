@@ -62,4 +62,3 @@ The current shared `test.bersoncare.ru` deployment deliberately remains on the c
 The branded phone-bind branch is selected only by `patient_branded` surface data. Production wiring
 of the tenant Host resolver remains the already-open branding/domain-cutover stage; no domain or Host
 behavior is changed by W17. This is a named deployment boundary, not a silent platform fallback.
-
