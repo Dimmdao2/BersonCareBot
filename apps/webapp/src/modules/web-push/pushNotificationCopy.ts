@@ -171,14 +171,17 @@ export function buildTrainingPushCopy(stableKey: string): {
   return { title: TRAINING_PUSH_TITLE, body, sloganKey: TRAINING_BODY_KEYS[idx]! };
 }
 
-export function buildCustomReminderPushCopy(
-  customTitle: string,
-  customText: string,
-): { title: string; body: string } {
-  const title = normalizeWhitespace(customTitle).slice(0, 200) || 'Напоминание';
-  const bodyRaw = normalizeWhitespace(customText);
-  const body = bodyRaw ? previewText(bodyRaw, 500) : previewText(title, 500);
-  return { title, body };
+/**
+ * W17A: the patient-entered title/text of a `custom` reminder is arbitrary free text and may
+ * carry medical content — per `docs/OWNER_DECISIONS.md` "медицинские данные | никогда" it must
+ * never reach an external channel. This is the single privacy-aware copy for that case: a neutral
+ * fact-of-reminder, no patient-entered content. Callers append the app deep link themselves.
+ */
+export const NEUTRAL_CUSTOM_REMINDER_TITLE = 'Напоминание';
+export const NEUTRAL_CUSTOM_REMINDER_BODY = 'У вас в приложении новое напоминание';
+
+export function buildCustomReminderPushCopy(): { title: string; body: string } {
+  return { title: NEUTRAL_CUSTOM_REMINDER_TITLE, body: NEUTRAL_CUSTOM_REMINDER_BODY };
 }
 
 export function buildMessagePushCopy(text: string): { title: string; body: string } {
@@ -288,9 +291,7 @@ export function buildReminderWebPushCopy(
   if (kind === 'skip') return null;
 
   if (kind === 'custom') {
-    const title = input.customTitle?.trim() ?? '';
-    if (!title) return null;
-    const copy = buildCustomReminderPushCopy(title, input.customText?.trim() ?? '');
+    const copy = buildCustomReminderPushCopy();
     return { ...copy, pushKind: 'custom', warmupSloganKey: null };
   }
 

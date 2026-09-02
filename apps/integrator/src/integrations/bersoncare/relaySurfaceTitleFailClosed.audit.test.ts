@@ -199,6 +199,45 @@ describe('TPB-15 kill-set: имя поверхности задаёт вызыв
     ).rejects.toThrow(/WEB_PUSH_PAYLOAD_INVALID/);
   });
 
+  it('K7a пустой список подписок остаётся skipped без provider-attempt', async () => {
+    const getSubscriptionsForUser = vi.fn(async () => []);
+    const getVapidCredentials = vi.fn(async () => ({
+      publicKey: 'public-key',
+      privateKey: 'private-key',
+      subject: 'mailto:ops@example.test',
+    }));
+    const adapter = createWebPushDeliveryAdapter({
+      webPushAccessPort: {
+        getSubscriptionsForUser,
+        getVapidCredentials,
+        deleteSubscriptionByEndpoint: vi.fn(async () => false),
+      },
+    });
+
+    const result = await runWithOrganizationPrincipal(ORG, () =>
+      adapter.send({
+        type: 'message.send',
+        meta: { eventId: 'k7a', occurredAt: new Date().toISOString(), source: 'audit' },
+        payload: {
+          recipient: { pushUserId: PUSH_USER },
+          message: { text: 'body' },
+          title: 'Therapygo',
+          delivery: { channels: ['web_push'] },
+        },
+      } as never),
+    );
+
+    expect(result.webPushOutcome).toEqual({
+      status: 'skipped',
+      reason: 'no_active_subscriptions',
+      delivered: 0,
+      errors: 0,
+      deactivated: 0,
+    });
+    expect(getSubscriptionsForUser).toHaveBeenCalledOnce();
+    expect(getVapidCredentials).toHaveBeenCalledOnce();
+  });
+
   it('K8 пациентское имя доходит дословно, бренд не подставляется', async () => {
     const dispatch = vi.fn(async (_i: OutgoingIntent) => ({}));
     const app = await relayApp(dispatch);

@@ -178,8 +178,14 @@ describe('Track D F5/F6 follow-up: dispatchPort records a real attempt for non-q
     expect(writeDb).not.toHaveBeenCalled();
   });
 
-  it('does not brand adapter-local configuration failure as a provider attempt', async () => {
-    const localError = new Error('MAX_RUNTIME_CONFIG_UNAVAILABLE');
+  it.each([
+    'MAX_RUNTIME_CONFIG_UNAVAILABLE',
+    'WEB_PUSH_ACCESS_UNAVAILABLE:runtime_config',
+    'WEB_PUSH_ACCESS_UNAVAILABLE:network',
+    'WEB_PUSH_ACCESS_UNAVAILABLE:http_401',
+    'WEB_PUSH_ACCESS_UNAVAILABLE:http_503',
+  ])('does not brand pre-provider failure %s as a provider attempt', async (message) => {
+    const localError = new Error(message);
     const writeDb = vi.fn(async () => undefined);
     const port = createDefaultDispatchPort({
       adapters: [
@@ -193,7 +199,9 @@ describe('Track D F5/F6 follow-up: dispatchPort records a real attempt for non-q
       writePort: { writeDb },
     });
 
-    const received = await port.dispatchOutgoing(messageSendIntent()).catch((error: unknown) => error);
+    const received = await port
+      .dispatchOutgoing(messageSendIntent())
+      .catch((error: unknown) => error);
 
     expect(received).toBe(localError);
     expect(isProviderAttemptFailure(received)).toBe(false);
@@ -209,9 +217,9 @@ describe('Track D F5/F6 follow-up: dispatchPort records a real attempt for non-q
     const writeDb = vi.fn(async () => undefined);
     const port = createDefaultDispatchPort({ adapters: [adapter], writePort: { writeDb } });
 
-    await expect(
-      port.dispatchOutgoing(messageSendIntent(), { skipAttemptLog: true }),
-    ).rejects.toBe(providerError);
+    await expect(port.dispatchOutgoing(messageSendIntent(), { skipAttemptLog: true })).rejects.toBe(
+      providerError,
+    );
     expect(writeDb).not.toHaveBeenCalled();
   });
 
@@ -233,7 +241,9 @@ describe('Track D F5/F6 follow-up: dispatchPort records a real attempt for non-q
     });
     const port = createDefaultDispatchPort({ adapters: [{ canHandle: () => true, send }] });
 
-    const received = await port.dispatchOutgoing(messageSendIntent()).catch((error: unknown) => error);
+    const received = await port
+      .dispatchOutgoing(messageSendIntent())
+      .catch((error: unknown) => error);
 
     expect(received).toBeInstanceOf(Error);
     expect(isProviderAttemptFailure(received)).toBe(true);
@@ -411,7 +421,9 @@ describe('clinic-owned delivery routing', () => {
     };
 
     try {
-      await expect(port.dispatchOutgoing(intent)).rejects.toThrow('CLINIC_CHANNEL_PROBE_SUPPRESSED');
+      await expect(port.dispatchOutgoing(intent)).rejects.toThrow(
+        'CLINIC_CHANNEL_PROBE_SUPPRESSED',
+      );
       expect(send).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllEnvs();
