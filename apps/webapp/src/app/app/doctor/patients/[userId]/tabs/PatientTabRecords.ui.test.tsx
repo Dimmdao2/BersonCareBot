@@ -96,6 +96,8 @@ describe('patient records tab — a refused load is not a visit history', () => 
 
   it('opens the visit history from the summary and opens prepared notes without creating a duplicate visit', async () => {
     const createVisit = vi.fn();
+    const createNewVisit = vi.fn();
+    const createMembership = vi.fn();
     const openNotes = vi.fn();
     const preparedAppointment = {
       id: 'appointment-with-visit',
@@ -115,9 +117,16 @@ describe('patient records tab — a refused load is not a visit history', () => 
         initialAppointments={[preparedAppointment]}
         initialPackages={[]}
         onCreateVisitFromAppointment={createVisit}
+        onCreateVisit={createNewVisit}
+        onOpenMembershipConfiguration={createMembership}
         onOpenVisitNotes={openNotes}
       />,
     );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить визит' }));
+    expect(createNewVisit).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить абонемент' }));
+    expect(createMembership).toHaveBeenCalledOnce();
 
     fireEvent.click(screen.getByRole('button', { name: /Визитов\s*1/ }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();

@@ -12,6 +12,7 @@ import {
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/doctor/primitives/tooltip';
 import { cn } from '@/lib/utils';
+import { doctorClientPrimaryOutlineActionClass } from '@/app/app/doctor/clients/doctorClientCardChrome';
 
 type Props = {
   id: string;
@@ -122,7 +123,10 @@ export function DoctorStatCard({
         <Button
           type="button"
           variant="ghost"
-          className="h-full min-w-11 rounded-none border-l border-border/60 px-3 text-muted-foreground hover:bg-muted/50 hover:text-primary"
+          className={cn(
+            doctorClientPrimaryOutlineActionClass,
+            'm-1.5 h-auto min-w-9 self-stretch px-2',
+          )}
           aria-label={actionLabel}
           onClick={onActionClick}
         >

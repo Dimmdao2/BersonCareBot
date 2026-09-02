@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
+import { BadgePlus, CalendarPlus, ChevronDown, ChevronRight, Eye } from 'lucide-react';
 import type { PatientAppointmentItem, PatientCardHeader } from '@/modules/doctor-clients/ports';
 import { MembershipCardHeader } from '@/shared/ui/doctor/MembershipCardHeader';
 import {
@@ -232,6 +232,7 @@ type Props = {
   initialPaymentsSummary?: { payments: PaymentItem[]; totalPaidMinor: number } | null;
   compositionMode?: 'master';
   onOpenVisitNotes?: (appointmentId: string) => void;
+  onCreateVisit?: () => void;
   onOpenMembershipConfiguration?: () => void;
 };
 
@@ -246,6 +247,7 @@ export function PatientTabRecords({
   initialPaymentsSummary,
   compositionMode,
   onOpenVisitNotes,
+  onCreateVisit,
   onOpenMembershipConfiguration,
 }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
@@ -407,6 +409,9 @@ export function PatientTabRecords({
             value={completedCount}
             hint={formatNextAppointment(nextAppointment)}
             onClick={() => setVisitsModalOpen(true)}
+            actionIcon={<CalendarPlus className="size-5" aria-hidden />}
+            actionLabel="Добавить визит"
+            onActionClick={onCreateVisit ?? openNewVisit}
           />
           <DoctorStatCard
             id="patient-overview-membership"
@@ -420,6 +425,13 @@ export function PatientTabRecords({
               membershipValidUntil ? `до ${fmtDate(membershipValidUntil.slice(0, 10))}` : undefined
             }
             onClick={() => setMembershipModalOpen(true)}
+            actionIcon={<BadgePlus className="size-5" aria-hidden />}
+            actionLabel="Добавить абонемент"
+            onActionClick={
+              membershipsVisible && membershipMutationsAllowed
+                ? onOpenMembershipConfiguration
+                : undefined
+            }
           />
         </div>
 

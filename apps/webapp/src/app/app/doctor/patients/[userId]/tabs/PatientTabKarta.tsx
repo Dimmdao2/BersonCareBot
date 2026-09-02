@@ -90,6 +90,8 @@ type Props = {
   pendingPrefillLocation?: string | null;
   /** Service name from the source appointment — forwarded to NewVisitPanel. */
   pendingPrefillService?: string | null;
+  /** Opens the standard new-visit flow whenever the request id changes. */
+  newVisitRequestId?: number;
   /**
    * @deprecated Duration is no longer stored on the visit (task #208). Field kept for
    * backwards-compat with PatientCardClient which still passes it. Ignored internally.
@@ -1716,6 +1718,7 @@ export function PatientTabKarta({
   pendingVisitDate,
   pendingPrefillLocation,
   pendingPrefillService,
+  newVisitRequestId = 0,
   onPendingConsumed,
   initialClinicalState,
   initialVisits,
@@ -1829,6 +1832,10 @@ export function PatientTabKarta({
     window.addEventListener('patient:new-visit', handleNewVisit);
     return () => window.removeEventListener('patient:new-visit', handleNewVisit);
   }, []);
+
+  useEffect(() => {
+    if (newVisitRequestId > 0) setModePickerOpen(true);
+  }, [newVisitRequestId]);
 
   // Treat as loading while userId doesn't match loaded data
   const isStale = loadedUserId !== userId;

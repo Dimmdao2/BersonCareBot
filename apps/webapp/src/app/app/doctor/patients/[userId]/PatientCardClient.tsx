@@ -53,6 +53,9 @@ import toast from 'react-hot-toast';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import { DoctorShellMobileBottomTabsRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { DateTime } from 'luxon';
+import { doctorClientPrimaryOutlineActionClass } from '@/app/app/doctor/clients/doctorClientCardChrome';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorClientMembershipsPanel } from '@/app/app/doctor/clients/DoctorClientMembershipsPanel';
 
 function formatSupportStartedAt(value: string): string {
   const date = new Date(value);
@@ -147,6 +150,8 @@ type TabPanelsProps = Props & {
   pendingPrefillDurationMin: number | null;
   onPendingConsumed: () => void;
   onCreateVisitFromAppointment: (prefill: AppointmentPrefill) => void;
+  newVisitRequestId: number;
+  onCreateVisit: () => void;
   header: NonNullable<DoctorPatientCardShellMeta['cardHeader']>;
 };
 
@@ -256,7 +261,8 @@ function PatientContactActions({
           disabled={!identity.phone}
           className={cn(
             buttonVariants({ variant: 'ghost' }),
-            'h-[34px] gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2 font-mono text-xs text-primary hover:bg-primary/15 md:h-6',
+            doctorClientPrimaryOutlineActionClass,
+            'h-[34px] gap-1.5 px-2 font-mono text-xs md:h-6',
           )}
         >
           <Phone className="h-3.5 w-3.5" />
@@ -292,7 +298,7 @@ function PatientContactActions({
         className={cn(
           actionClass,
           chatButtonHighlighted
-            ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
+            ? doctorClientPrimaryOutlineActionClass
             : 'border-transparent bg-muted/30 text-muted-foreground/40 hover:bg-primary/15 hover:text-primary',
         )}
       >
@@ -308,7 +314,7 @@ function PatientContactActions({
         className={cn(
           actionClass,
           hasTelegram
-            ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
+            ? doctorClientPrimaryOutlineActionClass
             : 'border-transparent bg-muted/30 text-muted-foreground/40',
         )}
       >
@@ -323,7 +329,8 @@ function PatientContactActions({
           title="Открыть коммуникации: MAX"
           className={cn(
             actionClass,
-            'border-primary/30 bg-primary/5 font-semibold text-primary hover:bg-primary/15',
+            doctorClientPrimaryOutlineActionClass,
+            'font-semibold',
           )}
         >
           M
@@ -340,7 +347,7 @@ function PatientContactActions({
         className={cn(
           actionClass,
           hasEmail
-            ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
+            ? doctorClientPrimaryOutlineActionClass
             : 'border-transparent bg-muted/30 text-muted-foreground/40',
         )}
       >
@@ -376,6 +383,7 @@ export function PatientCardClient({
   const [pendingPrefillLocation, setPendingPrefillLocation] = useState<string | null>(null);
   const [pendingPrefillService, setPendingPrefillService] = useState<string | null>(null);
   const [pendingPrefillDurationMin, setPendingPrefillDurationMin] = useState<number | null>(null);
+  const [newVisitRequestId, setNewVisitRequestId] = useState(0);
 
   const selectTab = useCallback((tab: TabId) => {
     setActiveTab(tab);
@@ -745,6 +753,16 @@ export function PatientCardClient({
               setPendingPrefillDurationMin(prefill.durationMin ?? null);
               selectTab('karta');
             }}
+            newVisitRequestId={newVisitRequestId}
+            onCreateVisit={() => {
+              setPendingAppointmentId(null);
+              setPendingVisitDate(null);
+              setPendingPrefillLocation(null);
+              setPendingPrefillService(null);
+              setPendingPrefillDurationMin(null);
+              setNewVisitRequestId((value) => value + 1);
+              selectTab('karta');
+            }}
             header={header}
           />
         </Suspense>
@@ -768,6 +786,8 @@ function PatientCardTabPanels({
   pendingPrefillDurationMin,
   onPendingConsumed,
   onCreateVisitFromAppointment,
+  newVisitRequestId,
+  onCreateVisit,
   header,
 }: TabPanelsProps) {
   const tab = use(tabPromise);
@@ -778,6 +798,7 @@ function PatientCardTabPanels({
   const specialistTasksReadable = shellMeta.specialistTasksReadable;
   const [selectedVisitAppointmentId, setSelectedVisitAppointmentId] = useState<string | null>(null);
   const [mobilePane, setMobilePane] = useState<'master' | 'detail'>('master');
+  const [membershipConfigurationOpen, setMembershipConfigurationOpen] = useState(false);
   const appointments = unwrapBootstrapEnvelope(tab.initialAppointments) ?? [];
   const packages = unwrapBootstrapEnvelope(tab.initialPackages) ?? [];
 
@@ -800,6 +821,8 @@ function PatientCardTabPanels({
               setMobilePane('detail');
               selectTab('karta');
             }}
+            onCreateVisit={onCreateVisit}
+            onOpenMembershipConfiguration={() => setMembershipConfigurationOpen(true)}
             initialAppointments={appointments}
             initialPackages={packages}
             membershipsVisible={membershipsVisible}
@@ -842,6 +865,7 @@ function PatientCardTabPanels({
             pendingPrefillLocation={pendingPrefillLocation}
             pendingPrefillService={pendingPrefillService}
             pendingPrefillDurationMin={pendingPrefillDurationMin}
+            newVisitRequestId={newVisitRequestId}
             onPendingConsumed={onPendingConsumed}
             initialClinicalState={unwrapBootstrapEnvelope(tab.initialClinicalState)}
             initialVisits={unwrapBootstrapEnvelope(tab.initialVisits)}
@@ -890,6 +914,21 @@ function PatientCardTabPanels({
           />
         </div>
       ) : null}
+      <DoctorModal
+        open={membershipConfigurationOpen}
+        onClose={() => setMembershipConfigurationOpen(false)}
+        title="Добавить абонемент"
+        size="lg"
+        desktopPresentation="right-sheet"
+      >
+        <DoctorClientMembershipsPanel
+          platformUserId={identity.userId}
+          showCreateForm
+          showPackageList={false}
+          mutationsAllowed={membershipMutationsAllowed}
+          consumptionAllowed
+        />
+      </DoctorModal>
     </>
   );
 }

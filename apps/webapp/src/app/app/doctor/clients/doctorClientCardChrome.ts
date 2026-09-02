@@ -28,6 +28,10 @@ export const doctorClientActionStripChipsClass = 'flex flex-wrap gap-1.5';
 /** Extra classes on chip buttons (with buttonVariants size sm). */
 export const doctorClientActionChipClass = 'h-7 px-2.5 text-xs';
 
+/** Shared blue outline treatment for enabled patient-card quick actions. */
+export const doctorClientPrimaryOutlineActionClass =
+  'rounded-md border border-primary/30 bg-primary/5 text-primary hover:bg-primary/15';
+
 /** Tabs scroll row (§9c). */
 export const doctorClientTabsScrollClass = 'overflow-x-auto border-b border-border bg-card px-2';
 
