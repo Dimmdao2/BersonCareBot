@@ -925,7 +925,7 @@ ACTIVE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_specialis
 [ "${ACTIVE:-0}" = "1" ] || { echo "FATAL: expected exactly 1 active specialist, got ${ACTIVE:-0}"; exit 1; }
 ORPHAN="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_appointments WHERE deleted_at IS NULL AND (specialist_id IS NULL OR specialist_id IN (SELECT id FROM be_specialists WHERE is_active=false));")"
 [ "${ORPHAN:-1}" = "0" ] || { echo "FATAL: ${ORPHAN} appointments left on NULL/inactive specialist (data not fully consolidated)"; exit 1; }
-DROLE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT role FROM platform_users WHERE phone_normalized='+79643805480' AND merged_into_id IS NULL;")"
+DROLE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT person.role FROM platform_users person JOIN user_contacts contact ON contact.platform_user_id = person.id WHERE contact.contact_kind='phone' AND contact.value_normalized='+79643805480' AND person.merged_into_id IS NULL;")"
 [ "$DROLE" = "doctor" ] || { echo "FATAL: canonical doctor role is '$DROLE', expected 'doctor'"; exit 1; }
 APADMIN="$(sudo -u postgres psql -d "$DB" -tAc "SELECT value_json->>'value' FROM public.system_settings WHERE key='admin_phones' AND scope='admin' AND organization_id IS NULL;")"
 [ "$APADMIN" = "[]" ] || { echo "FATAL: admin_phones is '$APADMIN', expected [] (owner phone must be doctor, not admin)"; exit 1; }
