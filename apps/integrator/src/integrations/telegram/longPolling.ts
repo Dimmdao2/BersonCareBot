@@ -29,9 +29,21 @@ const GET_UPDATES_TIMEOUT_SEC = 30;
 const ERROR_BACKOFF_MS = 5_000;
 
 let running = false;
+let loopController: AbortController | null = null;
+let loopPromise: Promise<void> | null = null;
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timeout = setTimeout(done, ms);
+    signal.addEventListener('abort', done, { once: true });
+
+    function done(): void {
+      clearTimeout(timeout);
+      signal.removeEventListener('abort', done);
+      resolve();
+    }
+  });
 }
 
 /**
@@ -42,12 +54,29 @@ function sleep(ms: number): Promise<void> {
 export function startTelegramLongPolling(deps: TelegramWebhookDeps): void {
   if (running) return;
   running = true;
-  void runLoop(deps).catch((err) => {
-    logger.error({ err }, 'Telegram long-polling: runner crashed unexpectedly (non-fatal guard)');
-  });
+  const controller = new AbortController();
+  loopController = controller;
+  loopPromise = runLoop(deps, controller.signal)
+    .catch((err) => {
+      logger.error({ err }, 'Telegram long-polling: runner crashed unexpectedly (non-fatal guard)');
+    })
+    .finally(() => {
+      if (loopController === controller) {
+        running = false;
+        loopController = null;
+        loopPromise = null;
+      }
+    });
 }
 
-async function runLoop(deps: TelegramWebhookDeps): Promise<void> {
+export async function stopTelegramLongPolling(): Promise<void> {
+  const activeLoop = loopPromise;
+  if (!activeLoop) return;
+  loopController?.abort();
+  await activeLoop;
+}
+
+async function runLoop(deps: TelegramWebhookDeps, signal: AbortSignal): Promise<void> {
   logger.info('Telegram: starting long-polling runner (getUpdates)');
 
   // Menu button / commands — best-effort, non-blocking (already non-fatal internally).
@@ -56,8 +85,8 @@ async function runLoop(deps: TelegramWebhookDeps): Promise<void> {
   let bot;
   try {
     bot = await getBotInstance();
-  } catch {
-    logger.warn('Telegram long-polling: runtime configuration unavailable; runner stopped');
+  } catch (err) {
+    logger.warn({ err }, 'Telegram long-polling: runtime configuration unavailable; runner stopped');
     return;
   }
 
@@ -71,28 +100,30 @@ async function runLoop(deps: TelegramWebhookDeps): Promise<void> {
   }
 
   let offset: number | undefined;
-  for (;;) {
+  while (!signal.aborted) {
     let updates: Awaited<ReturnType<typeof bot.api.getUpdates>>;
     try {
       updates = await bot.api.getUpdates({
         ...(offset !== undefined ? { offset } : {}),
         timeout: GET_UPDATES_TIMEOUT_SEC,
         allowed_updates: ['message', 'callback_query'],
-      });
+      }, signal as Parameters<typeof bot.api.getUpdates>[1]);
     } catch (err) {
+      if (signal.aborted) return;
       const msg = err instanceof Error ? err.message : String(err);
       const isConflict = msg.includes('409') || /conflict/i.test(msg);
       logger.warn(
-        { err: msg },
+        err instanceof Error ? { err } : { reason: msg },
         isConflict
           ? 'Telegram long-polling: getUpdates 409 — a webhook is still set for this bot; cannot poll until it is removed (set TELEGRAM_DELETE_WEBHOOK_ON_START=1 ONLY when this host owns the bot). Retrying after backoff.'
           : 'Telegram long-polling: getUpdates failed; retrying after backoff',
       );
-      await sleep(ERROR_BACKOFF_MS);
+      await sleep(ERROR_BACKOFF_MS, signal);
       continue;
     }
 
     for (const update of updates) {
+      if (signal.aborted) return;
       const correlationId = newCorrelationId();
       const eventId = newEventId('incoming');
       const reqLogger = getRequestLogger(correlationId, { correlationId, eventId });
@@ -115,7 +146,7 @@ async function runLoop(deps: TelegramWebhookDeps): Promise<void> {
         offset = update.update_id + 1;
       } catch (err) {
         reqLogger.error({ err }, 'Telegram long-polling: update processing failed; retrying');
-        await sleep(ERROR_BACKOFF_MS);
+        await sleep(ERROR_BACKOFF_MS, signal);
         break;
       }
     }

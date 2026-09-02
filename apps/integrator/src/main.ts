@@ -12,6 +12,7 @@ async function start() {
   const { runStartupMigrationGate } = await import('./infra/db/migrate.js');
   const { createDbPort } = await import('./infra/db/client.js');
   const { buildApp } = await import('./app/index.js');
+  const { stopTelegramLongPolling } = await import('./integrations/telegram/longPolling.js');
   const { env } = await import('./config/env.js');
   const { logger } = await import('./infra/observability/logger.js');
   const { initIntegratorErrorTracking, closeIntegratorErrorTracking } =
@@ -30,6 +31,7 @@ async function start() {
 
   const stop = async (): Promise<void> => {
     try {
+      await stopTelegramLongPolling();
       await app.close();
     } finally {
       await closeIntegratorErrorTracking();

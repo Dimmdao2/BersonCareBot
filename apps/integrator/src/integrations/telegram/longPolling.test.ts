@@ -9,7 +9,6 @@ afterEach(() => {
 describe('Telegram long polling retry cursor', () => {
   it('does not advance the offset when infrastructure processing rejects an update', async () => {
     vi.useFakeTimers();
-    const never = new Promise<never>(() => undefined);
     const getUpdates = vi
       .fn()
       .mockResolvedValueOnce([
@@ -23,7 +22,15 @@ describe('Telegram long polling retry cursor', () => {
           },
         },
       ])
-      .mockImplementationOnce(async () => never);
+      .mockImplementationOnce(async (_payload, signal: AbortSignal | undefined) =>
+        new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('The operation was aborted', 'AbortError')),
+            { once: true },
+          );
+        }),
+      );
     const processTelegramUpdate = vi.fn(async () => {
       throw new Error('resolver DB unavailable');
     });
@@ -41,7 +48,7 @@ describe('Telegram long polling retry cursor', () => {
       setupTelegramMenuButton: vi.fn(async () => undefined),
     }));
 
-    const { startTelegramLongPolling } = await import('./longPolling.js');
+    const { startTelegramLongPolling, stopTelegramLongPolling } = await import('./longPolling.js');
     startTelegramLongPolling({} as never);
     await vi.waitFor(() => expect(processTelegramUpdate).toHaveBeenCalledOnce());
 
@@ -49,5 +56,6 @@ describe('Telegram long polling retry cursor', () => {
     await vi.waitFor(() => expect(getUpdates).toHaveBeenCalledTimes(2));
 
     expect(getUpdates.mock.calls[1]?.[0]).not.toHaveProperty('offset');
+    await stopTelegramLongPolling();
   });
 });
