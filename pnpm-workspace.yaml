@@ -4,6 +4,7 @@ packages:
   - apps/integrator
   - packages/db-principal
   - packages/platform-merge
+  - packages/shared-contracts
   - packages/operator-db-schema
   - packages/error-tracking
 

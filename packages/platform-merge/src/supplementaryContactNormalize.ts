@@ -1,17 +1,6 @@
-/**
- * Shared phone/email normalization for supplementary contacts (merge fallback + webapp).
- * Aligns with webapp `normalizeContactValue` for phone/email types.
- */
+import { normalizeRuPhoneE164 } from '@bersoncare/shared-contracts';
 
-/** Same policy as webapp `normalizeRuPhoneE164`. */
-export function normalizeRuPhoneE164(phone: string): string {
-  let digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('00')) digits = digits.slice(2);
-  if (digits.length === 11 && digits.startsWith('8')) digits = '7' + digits.slice(1);
-  if (digits.length === 10) digits = `7${digits}`;
-  if (digits.length === 11 && digits.startsWith('7')) return `+${digits}`;
-  return `+${digits}`;
-}
+export { normalizeRuPhoneE164 } from '@bersoncare/shared-contracts';
 
 export function normalizeSupplementaryContactPhone(raw: string | null | undefined): string | null {
   const trimmed = raw?.trim();

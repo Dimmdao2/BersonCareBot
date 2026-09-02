@@ -1,58 +1,23 @@
 import { sql } from 'drizzle-orm';
+import {
+  hasPlatformIntegrationAvailabilityValue,
+  isPlatformIntegrationAvailable as isPlatformIntegrationAvailableInContract,
+  normalizePlatformIntegrationAvailability,
+  type PlatformIntegrationAvailability,
+  type PlatformIntegrationId,
+} from '@bersoncare/shared-contracts';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { runWithInfraPrincipal } from '../principal/organizationPrincipal.js';
 import { extractSystemSettingInnerValue } from './publicSystemSettings.js';
 import { runIntegratorSql } from './runIntegratorSql.js';
 
-export const PLATFORM_INTEGRATION_IDS = [
-  'telegram',
-  'max',
-  'vk',
-  'email',
-  'smsc',
-  'web_push',
-  'google_calendar',
-  'yandex_calendar',
-] as const;
-
-export type PlatformIntegrationId = (typeof PLATFORM_INTEGRATION_IDS)[number];
-
-type PlatformIntegrationAvailability = {
-  version: 1;
-  /** Only ids whose persisted value is a valid boolean are present; a missing or malformed id
-   *  is simply absent here rather than invalidating the whole envelope (see
-   *  `isPlatformIntegrationAvailable`, which fails closed per requested id). */
-  integrations: Partial<Record<PlatformIntegrationId, boolean>>;
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
+export { PLATFORM_INTEGRATION_IDS } from '@bersoncare/shared-contracts';
+export type { PlatformIntegrationId } from '@bersoncare/shared-contracts';
 
 export function parsePlatformIntegrationAvailability(
   valueJson: unknown,
 ): PlatformIntegrationAvailability | null {
-  const inner = extractSystemSettingInnerValue(valueJson);
-  if (!isRecord(inner) || inner.version !== 1 || !isRecord(inner.integrations)) {
-    return null;
-  }
-  if (
-    Object.keys(inner.integrations).some(
-      (id) => !PLATFORM_INTEGRATION_IDS.includes(id as PlatformIntegrationId),
-    )
-  ) {
-    return null;
-  }
-
-  const integrations: Partial<Record<PlatformIntegrationId, boolean>> = {};
-  for (const id of PLATFORM_INTEGRATION_IDS) {
-    const enabled = inner.integrations[id];
-    if (typeof enabled === 'boolean') {
-      integrations[id] = enabled;
-    }
-  }
-
-  return { version: 1, integrations };
+  return normalizePlatformIntegrationAvailability(extractSystemSettingInnerValue(valueJson));
 }
 
 /**
@@ -97,11 +62,10 @@ export async function isPlatformIntegrationAvailable(
   integrationId: PlatformIntegrationId,
 ): Promise<boolean> {
   const availability = await readPlatformIntegrationAvailability(db);
-  const enabled = availability.integrations[integrationId];
-  if (typeof enabled !== 'boolean') {
+  if (!hasPlatformIntegrationAvailabilityValue(availability, integrationId)) {
     // A missing/malformed *unrelated* id must not block this request; only the requested id's
     // own value being absent or non-boolean fails closed here.
     throw new Error('PLATFORM_INTEGRATION_AVAILABILITY_UNREADABLE');
   }
-  return enabled;
+  return isPlatformIntegrationAvailableInContract(availability, integrationId);
 }
