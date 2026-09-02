@@ -201,7 +201,14 @@ export function DoctorClientMembershipsPanel({
     const paidAmountMinor = paidRub
       ? Math.round(Number.parseFloat(paidRub.replace(',', '.')) * 100)
       : priceMinor;
-    if (items.length === 0 || !Number.isFinite(priceMinor)) {
+    const selectedQuantity = Number.parseInt(quantity, 10);
+    const packageItems =
+      items.length > 0
+        ? items
+        : serviceId && Number.isFinite(selectedQuantity) && selectedQuantity > 0
+          ? [{ serviceId, quantity: selectedQuantity }]
+          : [];
+    if (packageItems.length === 0 || !Number.isFinite(priceMinor)) {
       showError('invalid_form');
       return;
     }
@@ -214,7 +221,7 @@ export function DoctorClientMembershipsPanel({
           platformUserId,
           notes: manualNotes.trim() || undefined,
           priceMinor,
-          items,
+          items: packageItems,
           sendForPayment: false,
           soldAt: soldDate ? new Date(soldDate).toISOString() : new Date().toISOString(),
           paidAmountMinor,
