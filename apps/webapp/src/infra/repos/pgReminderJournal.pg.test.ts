@@ -129,4 +129,27 @@ describe('createPgReminderJournalPort (pg SQL)', () => {
     expect(result).toEqual({ ok: false, error: 'not_found' });
     expect(rollbackMock).toHaveBeenCalled();
   });
+
+  it.each([
+    [
+      'recordSnooze',
+      (port: ReturnType<typeof createPgReminderJournalPort>) =>
+        port.recordSnooze('platform-user-1', 'occ-1', 15),
+    ],
+    [
+      'recordDone',
+      (port: ReturnType<typeof createPgReminderJournalPort>) =>
+        port.recordDone('platform-user-1', 'occ-1', 'Europe/Moscow'),
+    ],
+    [
+      'recordSkip',
+      (port: ReturnType<typeof createPgReminderJournalPort>) =>
+        port.recordSkip('platform-user-1', 'occ-1', 'busy'),
+    ],
+  ] as const)('%s propagates DB failures instead of returning not_found', async (_name, act) => {
+    const permissionError = Object.assign(new Error('permission denied'), { code: '42501' });
+    runWebappSqlMock.mockRejectedValueOnce(permissionError);
+
+    await expect(act(createPgReminderJournalPort())).rejects.toBe(permissionError);
+  });
 });

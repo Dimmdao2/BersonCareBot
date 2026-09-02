@@ -119,6 +119,15 @@ function webappEventsPort(materialize: WebappEventsPort['materializeAppointmentR
   } as unknown as WebappEventsPort;
 }
 
+function webappEventsPortWithPush(
+  notifyPatientWebPush: NonNullable<WebappEventsPort['notifyPatientWebPush']>,
+): WebappEventsPort {
+  return {
+    notifyPatientWebPush,
+    materializeAppointmentReminders: vi.fn(async () => ({ ok: true, status: 200 })),
+  } as WebappEventsPort;
+}
+
 describe('booking.created: упавший шаг не отменяет остальные и повтор не рождает второе сообщение', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -172,6 +181,42 @@ describe('booking.created: упавший шаг не отменяет оста�
     expect(recipientsOf(retry.dispatchOutgoing)).toEqual([]);
     // А напоминания при повторе всё-таки создаются.
     expect(materialize).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['non-2xx', { kind: 'result' as const }],
+    ['rejection', { kind: 'rejection' as const }],
+  ])('отказ web-push M2M (%s) оставляет только push-шаг для повтора', async (_label, failure) => {
+    const port = persistentIdempotencyPort();
+    const event: BookingLifecycleEventValidated = {
+      ...createdEvent(),
+      eventType: 'booking.rescheduled',
+      idempotencyKey: `push-retry-${failure.kind}`,
+    };
+    const notify = vi.fn<NonNullable<WebappEventsPort['notifyPatientWebPush']>>();
+    if (failure.kind === 'result') {
+      notify.mockResolvedValueOnce({ ok: false, status: 503, error: 'unavailable' });
+    } else {
+      notify.mockRejectedValueOnce(new Error('webapp_unreachable'));
+    }
+    notify.mockResolvedValueOnce({ ok: true, status: 200 });
+
+    const first = dispatchPort();
+    await expect(
+      handleBookingLifecycleEvent(event, first, {
+        idempotencyPort: port,
+        webappEventsPort: webappEventsPortWithPush(notify),
+      }),
+    ).rejects.toThrow('patient_web_push');
+
+    const retry = dispatchPort();
+    await handleBookingLifecycleEvent(event, retry, {
+      idempotencyPort: port,
+      webappEventsPort: webappEventsPortWithPush(notify),
+    });
+
+    expect(notify).toHaveBeenCalledTimes(2);
+    expect(recipientsOf(retry.dispatchOutgoing)).toEqual([]);
   });
 
   it('отказ материализации напоминаний открывает операторский инцидент, а не тонет в 502', async () => {
