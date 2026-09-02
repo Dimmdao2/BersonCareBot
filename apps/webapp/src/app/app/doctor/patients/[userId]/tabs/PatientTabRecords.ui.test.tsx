@@ -127,12 +127,13 @@ describe('patient records tab — a refused load is not a visit history', () => 
     expect(addVisitButton).toHaveClass(
       'h-full',
       'rounded-none',
+      'rounded-r-[var(--doctor-kpi-radius,8px)]',
       'border-l',
       'border-primary/30',
       'bg-primary/5',
       'text-primary',
     );
-    expect(addVisitButton).not.toHaveClass('m-1.5', 'rounded-r-md');
+    expect(addVisitButton).not.toHaveClass('m-1.5');
     fireEvent.click(addVisitButton);
     expect(createNewVisit).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: 'Добавить абонемент' }));
