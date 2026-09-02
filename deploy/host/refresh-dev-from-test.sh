@@ -21,7 +21,8 @@ umask 077
 #               DEV's principal-context signing credential, DEV env files, DEV role passwords,
 #               DEV declaration-owned ownership/ACL. TEST roles, ACLs and object owners are never
 #               copied (`--no-owner --no-acl` on both the dump and the restore); TEST env files are
-#               never read; the TEST environment lock objects are dropped on arrival.
+#               never read; the active TEST environment lock trigger is dropped on arrival while
+#               its inert declaration-managed function remains part of schema B.
 #
 # It orchestrates existing primitives and adds no second privilege generator, migration runner,
 # secret registry or runtime-overlay list:
@@ -529,9 +530,22 @@ restore_target_from_archive() {
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 SQL
-  run_tracked sudo -n -u postgres pg_restore --exit-on-error --no-comments \
+  # pgcrypto belongs to app_ext in schema B, but it is installed before pg_restore so extension-
+  # backed objects are available while the archive is read. Restore pre-data first so the archive
+  # creates app_ext, move the extension, and only then restore data/post-data: post-data contains ACL
+  # statements that already name app_ext.digest/armor and cannot run while pgcrypto is still public.
+  run_tracked sudo -n -u postgres pg_restore --exit-on-error --no-comments --section=pre-data \
     --role=postgres --dbname="$TARGET_DB" "$@" "$archive" ||
-    fatal 'restore into the DEV target failed'
+    fatal 'pre-data restore into the DEV target failed'
+  sudo -n -u postgres psql -X -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d "$TARGET_DB" \
+    -v ON_ERROR_STOP=1 -c 'ALTER EXTENSION pgcrypto SET SCHEMA app_ext;' >/dev/null ||
+    fatal 'could not move pgcrypto into the canonical app_ext schema after pre-data restore'
+  run_tracked sudo -n -u postgres pg_restore --exit-on-error --no-comments --section=data \
+    --role=postgres --dbname="$TARGET_DB" "$@" "$archive" ||
+    fatal 'data restore into the DEV target failed'
+  run_tracked sudo -n -u postgres pg_restore --exit-on-error --no-comments --section=post-data \
+    --role=postgres --dbname="$TARGET_DB" "$@" "$archive" ||
+    fatal 'post-data restore into the DEV target failed'
 }
 
 assert_target_closed() {
@@ -592,8 +606,9 @@ if [[ "$MODE" == rollback ]]; then
 
   note 'rollback: restoring the DEV target from the pre-refresh snapshot'
   DESTRUCTIVE_PHASE_STARTED=1
-  # The snapshot is DEV's own pg_dump, so its owners and ACLs are DEV's own and are restored as-is.
-  restore_target_from_archive "$ROLLBACK_DUMP"
+  # Declaration reconcile below is the source of truth for owners and ACLs; do not replay archived
+  # ACL statements before the canonical extension namespace has been restored.
+  restore_target_from_archive "$ROLLBACK_DUMP" --no-owner --no-acl
   note 'rollback: declaration reconcile and catalog audit'
   reconcile_declaration
   assert_target_closed 'after the rollback reconcile'
@@ -688,7 +703,16 @@ fi
 assert_target_closed 'after the DEV-owned state restore'
 
 test_lock_present="$(postgres_scalar "$TARGET_DB" \
-  "SELECT (to_regprocedure('public.system_settings_test_lock_guard()') IS NOT NULL)::text;")" ||
+  "SELECT EXISTS (
+     SELECT 1
+       FROM pg_catalog.pg_trigger AS trigger
+       JOIN pg_catalog.pg_class AS relation ON relation.oid = trigger.tgrelid
+       JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+      WHERE namespace.nspname = 'public'
+        AND relation.relname = 'system_settings'
+        AND trigger.tgname = 'system_settings_test_lock'
+        AND NOT trigger.tgisinternal
+   )::text;")" ||
   fatal 'could not verify that the TEST environment lock is gone'
 [[ "$test_lock_present" == false ]] ||
   fatal 'the TEST environment lock survived into DEV'

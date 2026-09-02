@@ -757,6 +757,14 @@ class Runner {
       record(this.state, { kind: 'create-extension', database: this.session.databaseName });
       return null;
     }
+    if (/^ALTER\s+EXTENSION\s+PGCRYPTO\s+SET\s+SCHEMA\s+APP_EXT$/u.test(upper)) {
+      record(this.state, {
+        kind: 'pgcrypto-schema',
+        database: this.session.databaseName,
+        schema: 'app_ext',
+      });
+      return null;
+    }
     if (/^CREATE\s+DATABASE\b/u.test(upper)) return this.createDatabase(trimmed);
     if (/^ALTER\s+DATABASE\b/u.test(upper)) return this.alterDatabase(trimmed);
     if (/^SELECT\s+PG_TERMINATE_BACKEND\b/u.test(upper)) {
@@ -767,6 +775,13 @@ class Runner {
     if (/^DROP\s+FUNCTION\b/u.test(upper)) return this.dropObject(trimmed, /^DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?(\S+\(\))/iu, (match) => match[1]);
     if (/^CREATE\s+TEMP\s+VIEW\b/u.test(upper)) return this.createTempView(trimmed);
     if (/^CREATE\s+TEMP\s+TABLE\b/u.test(upper)) return this.createTempTable(trimmed);
+    if (/^COPY\b/u.test(upper)) {
+      const copyOutMatch = /^COPY\s*\(([\s\S]+)\)\s+TO\s+'([^']+)'$/iu.exec(trimmed);
+      if (copyOutMatch) return this.copyOut(copyOutMatch[1], copyOutMatch[2]);
+      const copyInMatch = /^COPY\s+([A-Za-z_][A-Za-z0-9_.]*)\s+FROM\s+'([^']+)'$/iu.exec(trimmed);
+      if (copyInMatch) return this.copyIn(copyInMatch[1], copyInMatch[2]);
+      throw new SqlError(`dev-refresh-sql-model: unsupported COPY: ${trimmed.slice(0, 120)}`);
+    }
     if (/^TRUNCATE\b/u.test(upper)) return this.truncate(trimmed);
     if (/^DELETE\s+FROM\b/u.test(upper)) return this.delete(trimmed);
     if (/^INSERT\s+INTO\b/u.test(upper)) return this.insert(trimmed);
@@ -1075,6 +1090,13 @@ function probe(state, sql, connectedDatabase, environment) {
   }
   if (sql.includes('string_agg')) return override('BCB_TEST_BACKEND_ROLES', '');
   if (sql.includes('pg_stat_activity')) return override('BCB_TEST_FOREIGN_BACKENDS', '0');
+  if (sql.includes('pg_trigger') && sql.includes('system_settings_test_lock')) {
+    return String(
+      state.databases[connectedDatabase]?.objects.includes(
+        'public.system_settings.system_settings_test_lock',
+      ) ?? false,
+    );
+  }
   if (sql.includes('to_regprocedure')) {
     if (environment.BCB_TEST_TEST_LOCK_PRESENT !== undefined) return environment.BCB_TEST_TEST_LOCK_PRESENT;
     const identity = /to_regprocedure\('([^']+)'\)/u.exec(sql)?.[1] ?? '';

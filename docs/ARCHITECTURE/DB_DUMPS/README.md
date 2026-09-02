@@ -58,8 +58,9 @@ bash deploy/host/refresh-dev-from-test.sh --execute --confirm-refresh-dev-from-t
 |                                                            | declaration-owned владельцы, ACL и membership DEV                           |
 
 Не переносится: TEST env, TEST runtime credentials, provider delivery credentials, TEST channel/test-account
-allowlists, TEST роли/ACL/владельцы (`--no-owner --no-acl` с обеих сторон) и TEST env-lock
-(`system_settings_test_lock`). Отбор environment-owned ключей выводится из действующих контрактов —
+allowlists, TEST роли/ACL/владельцы (`--no-owner --no-acl` с обеих сторон) и активный TEST env-lock trigger
+(`system_settings_test_lock`). Его неисполняемая declaration-managed trigger function остаётся частью schema B.
+Отбор environment-owned ключей выводится из действующих контрактов —
 `apps/webapp/src/modules/system-settings/registry.ts` (класс `storage: 'restricted'`) и
 `deploy/postgres/test-settings-override.sql` — через `deploy/host/dev-owned-settings-policy.mjs`, второго
 ручного списка секретов нет.
@@ -86,6 +87,18 @@ entrypoint не содержит; инструкции «а теперь при�
 что зацепиться в новом графе данных DEV, а вставка уронила бы транзакцию уже ЗА destructive-границей.
 Глобальные строки и строки организаций, которые в принятом TEST есть, возвращаются без изменений; число
 отброшенных строк печатается в `PASS` (`dev_owned_settings_dropped_absent_org=N`) и отдельной строкой-пояснением.
+
+### Живая репетиция 02.09.2026
+
+Принятый TEST успешно перенесён в именованную `bcb_webapp_dev`. Restore исполняется по секциям: pre-data
+создаёт канонические схемы, затем `pgcrypto` переносится в `app_ext`, после чего идут data и post-data. Это
+обязательно: post-data уже обращается к функциям `app_ext.*`. Активный TEST-only trigger
+`system_settings_test_lock` снимается, но его inert declaration-managed trigger function остаётся частью schema B.
+
+Финальный результат wrapper’а: 73 DEV-owned строки и DEV signing secret сохранены; три per-organization строки
+не возвращены, потому что соответствующих организаций нет в принятом TEST; migrations, declaration reconcile и
+catalog closure прошли; база открыта с прежним connection limit. Live catalog proof подтвердил `pgcrypto` в
+`app_ext`, отсутствие активного TEST-lock trigger и одинаковое число организаций в DEV/TEST.
 
 ---
 

@@ -5,8 +5,8 @@
 --
 -- Runs read-only against the live bcb_webapp_dev immediately before the destructive phase and
 -- writes the exact DEV-owned state that must survive the refresh into a private, postgres-owned
--- working directory. Nothing is printed: every value leaves through \copy into a file the wrapper
--- never reads, and the wrapper shreds that directory on every exit path.
+-- working directory. Nothing is printed: every value leaves through server-side COPY into a file
+-- the wrapper never reads, and the wrapper shreds that directory on every exit path.
 --
 -- Selection policy is derived, not hand-listed. The wrapper renders two key lists first:
 --   :dev_owned_key_file  -- registry `storage: 'restricted'` keys UNION every key the TEST
@@ -51,9 +51,9 @@ SELECT 1 / 0 AS missing_has_signing_secret_out;
 SELECT 1 / (current_database() = 'bcb_webapp_dev')::int AS capture_target_is_dev;
 
 CREATE TEMP TABLE dev_owned_static_key (key text PRIMARY KEY);
-\copy dev_owned_static_key FROM :'dev_owned_key_file'
+COPY dev_owned_static_key FROM :'dev_owned_key_file';
 CREATE TEMP TABLE registry_key (key text PRIMARY KEY);
-\copy registry_key FROM :'registry_key_file'
+COPY registry_key FROM :'registry_key_file';
 
 SELECT 1 / (count(*) > 0)::int AS dev_owned_key_list_is_not_empty FROM dev_owned_static_key;
 SELECT 1 / (count(*) > 0)::int AS registry_key_list_is_not_empty FROM registry_key;
@@ -68,7 +68,7 @@ CREATE TEMP VIEW dev_owned_setting AS
 -- public.platform_users; the DEV author row does not necessarily exist in the accepted TEST data,
 -- and a dangling reference would fail the re-insert for a value nobody reads. The restore writes
 -- NULL, exactly like the TEST environment overlay does for its own writes.
-\copy (SELECT key, scope, organization_id, value_json, updated_at FROM dev_owned_setting ORDER BY key, scope, organization_id) TO :'settings_out'
+COPY (SELECT key, scope, organization_id, value_json, updated_at FROM dev_owned_setting ORDER BY key, scope, organization_id) TO :'settings_out';
 
 -- app.context_signing_secrets holds the principal-context signing credential of THIS environment.
 -- It is the one runtime credential that lives inside the database rather than in env, so copying
@@ -76,11 +76,11 @@ CREATE TEMP VIEW dev_owned_setting AS
 -- ::text so the exported marker is literally true/false, which is what the wrapper asserts on;
 -- an uncast boolean would print psql's t/f.
 SELECT (to_regclass('app.context_signing_secrets') IS NOT NULL)::text AS dev_has_signing_secret \gset
-\copy (SELECT :'dev_has_signing_secret'::text) TO :'has_signing_secret_out'
+COPY (SELECT :'dev_has_signing_secret'::text) TO :'has_signing_secret_out';
 \if :dev_has_signing_secret
-\copy (SELECT secret FROM app.context_signing_secrets ORDER BY id) TO :'signing_secret_out'
+COPY (SELECT secret FROM app.context_signing_secrets ORDER BY id) TO :'signing_secret_out';
 \else
-\copy (SELECT 1 WHERE false) TO :'signing_secret_out'
+COPY (SELECT 1 WHERE false) TO :'signing_secret_out';
 \endif
 
 SELECT count(*) AS dev_owned_settings_captured FROM dev_owned_setting;

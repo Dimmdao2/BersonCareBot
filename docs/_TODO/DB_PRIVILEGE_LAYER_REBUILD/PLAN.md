@@ -682,3 +682,14 @@ clinic-admin crawl, основные mutations, workers, scheduler, declaration/
 Документ, audit PASS, generated SQL, disposable DB или зелёный CI сами по себе не закрывают live DEV/TEST.
 Пункт закрывается только evidence той же природы: код — tests/fault injection; каталог — read-only catalog proof;
 живой путь — реальный runtime; owner-gated этап — прямое решение владельца.
+
+## Финальная TEST-проверка 02.09.2026
+
+- [x] Коммит `4f675e92232` прошёл полный CI, push gate и штатный deploy на существующую named TEST; transcript:
+      `/var/log/bersoncarebot/deploy-test/deploy-test.20260902T095422Z.EOGSag.log`.
+- [x] После declaration/reconcile migrations имеют `pending=0`, tenant wall прошла `3/3`, четыре сервиса active,
+      webapp и integrator отвечают `200`.
+- [x] Связный live-проход дал `9/9 PASS`, включая создание/отмену записи, программы, файлы и архив; в свежих
+      runtime-логах нет DB permission denial, `42501`, HTTP 500 или падения материализации напоминаний.
+- [ ] Реальные provider/contact доказательства выполняет владелец: messenger phone proof и код входа,
+      подтверждение и напоминание записи. Они не требуют расширения прав и не открывают новую автономную фазу.

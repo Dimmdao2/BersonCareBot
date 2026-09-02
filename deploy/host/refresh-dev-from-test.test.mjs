@@ -569,7 +569,14 @@ test('no TEST environment value, credential or lock survives into DEV', () => {
   );
 
   const dev = clusterState(runtime).databases[TARGET_DB];
-  assert.deepEqual(dev.objects, [], 'the TEST environment lock survived into DEV');
+  assert.ok(
+    !dev.objects.includes('public.system_settings.system_settings_test_lock'),
+    'the active TEST environment lock trigger survived into DEV',
+  );
+  assert.ok(
+    dev.objects.includes('public.system_settings_test_lock_guard()'),
+    'the declaration-managed schema B trigger function was removed with the TEST-only trigger',
+  );
   assert.deepEqual(dev.tables['app.principal_context'].rows, [], 'stale TEST principal rows survived');
   assert.deepEqual(dev.tables['app.context_nonce_ledger'].rows, [], 'stale TEST nonces survived');
 });
@@ -718,6 +725,10 @@ test('PASS is unreachable without the canonical migrate-dev gate, which runs bef
     .filter((event) => event.database === TARGET_DB)
     .map((event) => `${event.kind}${event.kind === 'connection-limit' ? `:${event.connectionLimit}` : ''}`);
   assert.ok(
+    kinds.indexOf('pgcrypto-schema') < kinds.indexOf('migrate-dev-execute'),
+    'the migration gate ran before pgcrypto was moved to schema B app_ext',
+  );
+  assert.ok(
     kinds.indexOf('migrate-dev-execute') < kinds.indexOf('connection-limit:-1'),
     'DEV was reopened before the current-schema migration gate ran',
   );
@@ -793,7 +804,7 @@ test('a failed DEV-owned state restore never reports PASS and names the rollback
 test('a surviving TEST environment lock is fatal, not a warning', () => {
   const runtime = createRuntime({
     restoreSqlMutation: (sql) => sql.replace(
-      'DROP FUNCTION IF EXISTS public.system_settings_test_lock_guard();',
+      'DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;',
       '',
     ),
   });
@@ -890,7 +901,8 @@ test('--rollback puts the pre-refresh DEV rows back and reruns the declaration r
     .split('\n')
     .find((line) => line.startsWith('pg_restore <--exit-on-error>'));
   assert.ok(restoreLine, 'the rollback did not restore the snapshot');
-  assert.ok(!restoreLine.includes('--no-owner'), 'the rollback discarded DEV ownership');
+  assert.ok(restoreLine.includes('--no-owner'), 'the rollback replayed archived ownership before reconcile');
+  assert.ok(restoreLine.includes('--no-acl'), 'the rollback replayed archived ACL before reconcile');
   assert.match(rollbackCalls, /reconcile-access\.mjs/u);
   assert.doesNotMatch(rollbackCalls, /^pg_dump/mu, 'the rollback dumped a database');
   assert.doesNotMatch(rollbackCalls, /<-d> <bersoncarebot_test> .*<-f>/u, 'the rollback read TEST data');

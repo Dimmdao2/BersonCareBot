@@ -1291,3 +1291,44 @@ TEST deploy `8cd492752` дал PASS и применил миграцию. Жив
 До решения владельца эти четыре набора не удаляются молча; код явно держит их как owner-question. Branded
 inbound больше не вопрос: более позднее owner-решение реализовано прямой пересылкой в чат клиники без сохранения
 полного текста в отдельном интеграторском журнале.
+
+## Финальная автономная приёмка 02.09.2026
+
+Накопленный Track D и связанный bot/runtime пакет на `4f675e92232` прошёл полный `pnpm run ci`: lint, typecheck,
+тесты integrator/webapp/media/error-tracking, builds, privilege и audit gates завершились без ошибок. Коммит
+запушен через `pnpm run push:checked`; GitHub Security gate зелёный.
+
+Штатный `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` завершился `PASS`; transcript —
+`/var/log/bersoncarebot/deploy-test/deploy-test.20260902T095422Z.EOGSag.log`. На существующей named TEST
+webapp/integrator migrations имеют `pending=0`, declaration/reconcile применён, tenant wall — `3/3 PASS`,
+установленное расписание совпадает с typed manifest. Четыре TEST-сервиса active, webapp root и integrator
+health отвечают `200`.
+
+Связный живой проход под owner TEST-учётками после deploy дал `9/9 PASS`: cleanup предыдущей приёмки, создание
+клиента, назначение и завершение программы, загрузка и удаление файла пациента, создание и отмена записи,
+архивирование клиента. Artifact:
+`runs/test-interactive-acceptance/out/flows-2026-09-02T10-04-00.034Z.json`. В журналах webapp/API/scheduler за
+этот deploy и проход нет `42501`, permission denial, HTTP 500, падения материализации напоминаний, fatal,
+unhandled или uncaught. Единственная найденная ошибка провайдера — уже зафиксированный `401 Unauthorized`
+недействительного TEST-токена Telegram; она не относится к DB/runtime-исправлениям.
+
+Автономная часть Track D закрыта. Открыты только owner-operated доказательства и решения: реальный messenger
+contact proof и код входа, подтверждение и напоминание записи в настоящем owner-канале, валидный TEST-токен
+Telegram, anonymous public booking после contact proof, четыре срока хранения выше и отдельное разрешение на
+PROD/domain cutover.
+
+Принятое TEST-состояние затем перенесено в именованную `bcb_webapp_dev` штатным
+`refresh-dev-from-test.sh`. Первый живой запуск выявил два дефекта самого нового wrapper’а, которые синтетическая
+модель не ловила: psql `\copy` не подставлял file variables, а однофазный restore оставлял `pgcrypto` в `public`
+до уже именующих `app_ext.*` post-data операций. После исправления capture/restore использует server-side COPY,
+а архив восстанавливается `pre-data → canonical extension namespace → data → post-data`. Второй гейт выявил
+противоречие TEST-lock: DEV должен снять активный trigger, но declaration-managed trigger function является
+частью schema B и удаляться не должна. Wrapper, executable model и документация сведены к этому одному
+контракту; rollback из обоих защищённых снимков реально прошёл до повторной попытки.
+
+Финальный refresh завершился `PASS`: сохранено 73 DEV-owned rows, три per-organization строки отброшены с явным
+счётчиком из-за отсутствующих в принятом TEST организаций, DEV signing secret возвращён, migrations current,
+declaration reconcile и catalog audit зелёные. Пост-проверка тем же локальным PostgreSQL показала
+`bcb_webapp_dev|-1|app_ext|f|1`: база открыта, `pgcrypto` в `app_ext`, TEST-lock trigger отсутствует, число
+организаций совпадает с TEST (`1`). Wrapper suite: все 33 сценария прошли до последней корректировки oracle;
+два изменённых lock-сценария затем повторены `2/2 PASS`.
