@@ -120,16 +120,6 @@ test('port-context cutover external artifacts exist and the deleted primitive is
 const OBJECT_BODY = /^\s*CREATE(?:\s+OR\s+REPLACE)?\s+(?:FUNCTION|PROCEDURE|TABLE|VIEW|MATERIALIZED\s+VIEW)\b/imu;
 const OBJECT_BODY_GLOBAL = new RegExp(OBJECT_BODY.source, 'gimu');
 
-// The single post-cutover object body that is NOT removed by this correction, with its reason. It replays
-// `public.system_settings_test_lock_guard()`, which schema B already ships — but B's body locks five
-// settings keys and this one locks three, so dropping the replay would additionally lock `dev_mode` and
-// `test_account_identifiers` on TEST. That is an owner-visible behaviour change outside the closure
-// boundary of #1085 (F1–F3), so it is named here instead of being changed silently.
-const KNOWN_POST_CUTOVER_BODY = {
-  file: 'deploy/postgres/test-settings-override.sql',
-  object: 'system_settings_test_lock_guard',
-};
-
 function postCutoverExecutedFiles(source = engine) {
   const cutover = engineVar('CUTOVER_MIGRATION', source);
   const roots = executedSqlRoots(source);
@@ -167,26 +157,12 @@ test('post-cutover executed SQL creates no schema object outside schema B', () =
     const text = readFileSync(abs, 'utf8');
     for (const statement of text.match(OBJECT_BODY_GLOBAL) ?? []) {
       const line = text.split(/\r?\n/u).find((candidate) => candidate.includes(statement.trim())) ?? statement;
-      if (rel === KNOWN_POST_CUTOVER_BODY.file && line.includes(KNOWN_POST_CUTOVER_BODY.object)) continue;
       offenders.push(`${rel}: ${line.trim()}`);
     }
   }
   assert.deepEqual(offenders, [],
     `schema B plus forward migrations own object definitions; these post-cutover statements re-create one:\n`
     + offenders.join('\n'));
-});
-
-test('the one documented post-cutover body replay is proven present in schema B', () => {
-  // The allowance above must not outlive its object: if B stops shipping it, the exception is stale and
-  // this test says so instead of quietly widening the boundary.
-  const b = [
-    'deploy/postgres/generated/prod-to-target/schema-pre.sql',
-    'deploy/postgres/generated/prod-to-target/schema-post.sql',
-  ].map((rel) => readFileSync(resolve(repoRoot, rel), 'utf8')).join('\n');
-  assert.match(b, new RegExp(`CREATE FUNCTION public\\.${KNOWN_POST_CUTOVER_BODY.object}\\s*\\(`, 'u'));
-  const overlay = readFileSync(resolve(repoRoot, KNOWN_POST_CUTOVER_BODY.file), 'utf8');
-  assert.ok(OBJECT_BODY.test(overlay) && overlay.includes(KNOWN_POST_CUTOVER_BODY.object),
-    `${KNOWN_POST_CUTOVER_BODY.file} no longer replays ${KNOWN_POST_CUTOVER_BODY.object}; drop the exception`);
 });
 
 test('the retired second closure is not reachable from the engine', () => {
@@ -315,13 +291,12 @@ test('fault injection: dropping the closure call from the public path is caught'
 });
 
 test('fault injection: a retired-owner or object body reintroduced after the cutover is caught', () => {
-  const target = resolve(repoRoot, KNOWN_POST_CUTOVER_BODY.file);
+  const target = resolve(repoRoot, 'deploy/postgres/test-settings-override.sql');
   const text = readFileSync(target, 'utf8');
   const injected = `${text}\nCREATE OR REPLACE FUNCTION app.reintroduced_after_b() RETURNS void LANGUAGE sql AS $$SELECT$$;\nALTER FUNCTION app.reintroduced_after_b() OWNER TO app_owner;\n`;
   const bodies = injected.match(OBJECT_BODY_GLOBAL) ?? [];
-  assert.ok(bodies.some((statement) => !statement.includes(KNOWN_POST_CUTOVER_BODY.object)
-    || /reintroduced_after_b/u.test(injected)), 'object-body oracle did not see the injected statement');
+  assert.ok(bodies.length > 0, 'object-body oracle did not see the injected statement');
   assert.match(injected, /\bapp_owner\b/u, 'retired-owner oracle did not see the injected statement');
   // The unmodified file must not match either class, so the two oracles above are not vacuously true.
-  assert.ok(!/\bapp_owner\b/u.test(text), `${KNOWN_POST_CUTOVER_BODY.file} already names the retired role`);
+  assert.ok(!/\bapp_owner\b/u.test(text), 'test-settings-override.sql already names the retired role');
 });

@@ -128,25 +128,10 @@ INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
 
--- =============================================================================
--- DB-LEVEL LOCK: prevent accidental UI flip of safety-critical settings.
--- Raises on UPDATE of the locked keys until the trigger is removed.
--- =============================================================================
-CREATE OR REPLACE FUNCTION system_settings_test_lock_guard()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE
-  locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
-BEGIN
-  IF OLD.key = ANY(locked_keys) THEN
-    RAISE EXCEPTION 'TEST ENV LOCK: system_settings key "%" is locked for safety. Remove trigger system_settings_test_lock before changing.', OLD.key
-      USING ERRCODE = 'P0001';
-  END IF;
-  RETURN NEW;
-END;
-$$;
-DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;
-CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON public.system_settings
-  FOR EACH ROW EXECUTE FUNCTION system_settings_test_lock_guard();
+-- The TEST settings lock function and trigger are schema-B objects. This data overlay must not replay
+-- their bodies after the snapshot/migrations: object definitions have one owner, while this file only
+-- normalizes TEST data. Retired env-owned keys have no rows after the forward migration, so their names
+-- in the snapshot guard do not reintroduce a database setting or affect live updates.
 
 COMMIT;
 
