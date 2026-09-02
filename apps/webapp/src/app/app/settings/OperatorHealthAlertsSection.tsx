@@ -186,7 +186,7 @@ export function OperatorHealthAlertsSection({
                   onChange={(value) => setDigestTime(normalizeDigestTimeHour(value))}
                   className="w-36"
                   timeStepMinutes={60}
-                  aria-label="Время суточной сводки"
+                  ariaLabel="Время суточной сводки"
                 />
               </label>
             ) : null}

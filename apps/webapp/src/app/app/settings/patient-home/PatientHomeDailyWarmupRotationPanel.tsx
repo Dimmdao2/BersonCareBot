@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { Input } from '@/shared/ui/doctor/primitives/input';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import { savePatientHomeWarmupRotationAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
@@ -104,7 +103,7 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
                     setTimes((prev) => prev.map((row, i) => (i === index ? value : row)));
                   }}
                   className="w-36"
-                  aria-label={`Время смены ${index + 1}`}
+                  ariaLabel={`Время смены ${index + 1}`}
                 />
               </label>
               {times.length > 1 ? (

@@ -1748,7 +1748,7 @@ export function PatientTabOverview({
               setNoteText('');
               setNoteFormOpen(true);
             }}
-            className="h-full"
+            className="h-full border-primary/30"
           />
 
           <DoctorModal
@@ -1853,7 +1853,7 @@ export function PatientTabOverview({
                 setEditingTask(null);
                 setTaskFormOpen(true);
               }}
-              className="h-full"
+              className="h-full border-primary/30"
             />
 
             <DoctorModal

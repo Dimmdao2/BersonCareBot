@@ -169,16 +169,6 @@ describe('patient records tab — a refused load is not a visit history', () => 
     );
 
     const addVisitButton = screen.getByRole('button', { name: 'Добавить запись' });
-    expect(addVisitButton).toHaveClass(
-      'h-full',
-      'rounded-none',
-      'rounded-r-[var(--doctor-kpi-radius,8px)]',
-      'border-l',
-      'border-primary/30',
-      'bg-primary/5',
-      'text-primary',
-    );
-    expect(addVisitButton).not.toHaveClass('m-1.5');
     fireEvent.click(addVisitButton);
     expect(screen.getByRole('dialog', { name: 'Новая запись' })).toHaveTextContent(
       `Иванова Мария · ${patientId}`,

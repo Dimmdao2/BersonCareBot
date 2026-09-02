@@ -398,6 +398,7 @@ export function PatientTabRecords({
             actionIcon={<CalendarPlus className="size-5" aria-hidden />}
             actionLabel="Добавить запись"
             onActionClick={() => setNewAppointmentModalOpen(true)}
+            className="border-primary/30"
           />
           <DoctorStatCard
             id="patient-overview-membership"
@@ -418,6 +419,7 @@ export function PatientTabRecords({
                 ? onOpenMembershipConfiguration
                 : undefined
             }
+            className="border-primary/30"
           />
         </div>
 
