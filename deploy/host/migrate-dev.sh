@@ -12,6 +12,10 @@ umask 077
 
 TARGET_DB="bcb_webapp_dev"
 MIGRATOR_ROLE="bcb_dev_migrator"
+# One lock name for both entrypoints allowed to mutate this database (this one and
+# deploy/host/refresh-dev-from-test.sh).
+HOST_LOCK="/tmp/bcb-dev-migrate.$(id -u).lock"
+HOST_LOCK_FD=""
 OBJECT_OWNER_ROLE="app_object_owner"
 ADMIN_SOCKET="/var/run/postgresql"
 ADMIN_PORT="5432"
@@ -33,6 +37,7 @@ usage() {
   cat <<'EOF'
 Usage: bash deploy/host/migrate-dev.sh --preflight|--execute
          [--runtime-env-root <canonical-dev-checkout>]
+         [--host-lock-fd <descriptor>]
          [--apply-out-of-order <tag>]... [--reapply <tag>]...
 
 Validates the exact existing local bcb_webapp_dev target. --preflight executes pending
@@ -53,6 +58,15 @@ route -- preflight, reconcile and port-context env included -- instead of beside
 sends it through the wrapper again. It is only available with --execute, because the
 declaration reconcile that follows is what gives a rebuilt definer function back its
 attestation seam and its EXECUTE grant.
+
+--host-lock-fd is the re-entry seam for the one caller that already holds this wrapper's
+host lock: the owner-gated refresh (deploy/host/refresh-dev-from-test.sh) runs this whole
+entrypoint inside its own success boundary. It names an INHERITED descriptor on this exact
+lock file, and the descriptor is validated before it is trusted. flock() on an inherited
+open file description re-locks the description its holder already owns, so re-entry cannot
+deadlock, while a third party holding the same lock through any other description still
+refuses the run. The alternative -- a second migration runner that skips the lock -- is what
+this option exists to make unnecessary.
 EOF
 }
 
@@ -137,6 +151,13 @@ shift
 RECOVERY_ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --host-lock-fd)
+      [[ $# -ge 2 && -n "${2:-}" && "${2:0:2}" != "--" ]] || { usage; exit 2; }
+      [[ -z "$HOST_LOCK_FD" ]] || fatal '--host-lock-fd may be provided only once'
+      [[ "$2" =~ ^[3-9]$|^[1-9][0-9]$ ]] || fatal '--host-lock-fd must name an inherited descriptor'
+      HOST_LOCK_FD="$2"
+      shift 2
+      ;;
     --runtime-env-root)
       [[ $# -ge 2 && -n "${2:-}" && "${2:0:2}" != "--" ]] || { usage; exit 2; }
       [[ "$MODE" == "--preflight" ]] || fatal '--runtime-env-root is preflight-only'
@@ -184,8 +205,19 @@ for command in flock mktemp node psql realpath setsid sudo; do
   command -v "$command" >/dev/null 2>&1 || fatal "required command is unavailable: $command"
 done
 
-exec 9>"/tmp/bcb-dev-migrate.$(id -u).lock"
-flock -n 9 || fatal "another DEV migration wrapper is already running"
+if [[ -n "$HOST_LOCK_FD" ]]; then
+  # Trust nothing about the number itself: it must be an open descriptor of THIS process and it must
+  # point at exactly this lock file, otherwise a stray --host-lock-fd would be a way to run the
+  # migrations with no lock at all.
+  [[ -e "/proc/self/fd/$HOST_LOCK_FD" ]] ||
+    fatal "--host-lock-fd $HOST_LOCK_FD is not an open descriptor of this process"
+  [[ "$(realpath "/proc/self/fd/$HOST_LOCK_FD")" == "$HOST_LOCK" ]] ||
+    fatal "--host-lock-fd $HOST_LOCK_FD does not name the shared DEV database wrapper lock"
+  flock -n "$HOST_LOCK_FD" || fatal "another DEV migration wrapper is already running"
+else
+  exec 9>"$HOST_LOCK"
+  flock -n 9 || fatal "another DEV migration wrapper is already running"
+fi
 
 NODE_BIN_DIR="$(dirname "$(command -v node)")"
 SANITIZED_PATH="$NODE_BIN_DIR:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"

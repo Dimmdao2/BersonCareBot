@@ -449,3 +449,82 @@ test('migrate-dev has no implicit mode', () => {
   assert.equal(result.status, 2);
   assert.match(result.stdout, /--preflight\|--execute/u);
 });
+
+// ---------------------------------------------------------------------------
+// --host-lock-fd: the re-entry seam for the owner-gated refresh, which runs this whole entrypoint
+// inside its own success boundary while already holding this exact host lock.
+// ---------------------------------------------------------------------------
+
+const HOST_LOCK = `/tmp/bcb-dev-migrate.${process.getuid()}.lock`;
+
+function runShell(runtime, script) {
+  return spawnSync('bash', ['-c', script], {
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${runtime.bin}:${process.env.PATH ?? ''}` },
+  });
+}
+
+function wrapperPath(runtime) {
+  return join(runtime.root, 'deploy/host/migrate-dev.sh');
+}
+
+test('--host-lock-fd re-enters on the caller\'s own held descriptor instead of a second lockless runner', () => {
+  const runtime = createRuntime();
+  // Exactly the refresh's shape: the caller holds the shared lock on descriptor 9 and hands the
+  // descriptor down. flock() on that same open file description re-locks what its holder already
+  // owns, so the migration runs -- no deadlock and no lock-skipping second runner.
+  const result = runShell(
+    runtime,
+    `exec 9>"${HOST_LOCK}"; flock -n 9 || exit 90; bash "${wrapperPath(runtime)}" --preflight --host-lock-fd 9`,
+  );
+  assert.notEqual(result.status, 90, 'the test could not take the shared host lock');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /preflight: PASS/u);
+});
+
+test('--host-lock-fd still refuses when a third party holds the same lock', () => {
+  const runtime = createRuntime();
+  // Descriptor 8 holds the lock through one open file description; descriptor 9 names the same file
+  // through a DIFFERENT description, which is exactly what a stray caller would pass. The wrapper
+  // must refuse rather than migrate beside the holder.
+  const result = runShell(
+    runtime,
+    `( flock -n 8 || exit 90; bash "${wrapperPath(runtime)}" --preflight --host-lock-fd 9 ) 8>"${HOST_LOCK}" 9<"${HOST_LOCK}"`,
+  );
+  assert.notEqual(result.status, 90, 'the test could not take the shared host lock');
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /another DEV migration wrapper is already running/u);
+  assert.doesNotMatch(result.stdout, /PASS/u);
+});
+
+test('--host-lock-fd refuses a descriptor that is not this exact lock file, or is not open', () => {
+  const runtime = createRuntime();
+  const decoy = join(runtime.root, 'decoy.lock');
+  writeFileSync(decoy, '');
+
+  const wrongFile = runShell(
+    runtime,
+    `exec 9>"${decoy}"; bash "${wrapperPath(runtime)}" --preflight --host-lock-fd 9`,
+  );
+  assert.notEqual(wrongFile.status, 0);
+  assert.match(wrongFile.stderr, /does not name the shared DEV database wrapper lock/u);
+
+  const notOpen = runShell(runtime, `bash "${wrapperPath(runtime)}" --preflight --host-lock-fd 9`);
+  assert.notEqual(notOpen.status, 0);
+  assert.match(notOpen.stderr, /is not an open descriptor of this process/u);
+});
+
+test('--host-lock-fd rejects a value that is not an inheritable descriptor number', () => {
+  const runtime = createRuntime();
+  for (const value of ['abc', '2', '0', '9x']) {
+    const result = runWrapper(runtime, '--preflight', ['--host-lock-fd', value]);
+    assert.notEqual(result.status, 0, `--host-lock-fd ${value} was accepted`);
+    assert.match(result.stderr, /--host-lock-fd must name an inherited descriptor/u);
+  }
+  const twice = runShell(
+    runtime,
+    `exec 9>"${HOST_LOCK}"; flock -n 9 || exit 90; bash "${wrapperPath(runtime)}" --preflight --host-lock-fd 9 --host-lock-fd 9`,
+  );
+  assert.notEqual(twice.status, 0);
+  assert.match(twice.stderr, /--host-lock-fd may be provided only once/u);
+});
