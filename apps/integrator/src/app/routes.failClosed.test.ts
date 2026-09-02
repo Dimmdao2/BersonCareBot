@@ -44,6 +44,7 @@ vi.mock('../infra/db/clinicDedicatedBotBindings.js', () => ({
 }));
 vi.mock('../infra/db/clinicDeliveryCredentials.js', () => ({
   createClinicDeliveryCredentialResolver: vi.fn(() => async () => null),
+  createClinicBotInboundForwardingResolver: vi.fn(() => async () => null),
 }));
 vi.mock('../config/env.js', () => ({
   env: { APP_BASE_URL: 'https://webapp.test', NODE_ENV: 'development' },
@@ -70,7 +71,9 @@ vi.mock('../infra/adapters/integrationRuntimeConfig.js', () => ({
 }));
 
 import { registerRoutes } from './routes.js';
-import type { AppDeps, MessengerWebappEntryIdentityDeps } from './di.js';
+import type { TelegramWebhookDeps } from '../integrations/telegram/webhook.js';
+import type { MaxWebhookDeps } from '../integrations/max/webhook.js';
+import type { AppDeps } from './di.js';
 
 const apps: Array<Awaited<ReturnType<typeof Fastify>>> = [];
 
@@ -85,11 +88,11 @@ beforeEach(() => {
 });
 
 async function captureResolvers(): Promise<{
-  telegram: MessengerWebappEntryIdentityDeps;
-  max: MessengerWebappEntryIdentityDeps;
+  telegram: TelegramWebhookDeps;
+  max: MaxWebhookDeps;
 }> {
-  let telegram: MessengerWebappEntryIdentityDeps | undefined;
-  let max: MessengerWebappEntryIdentityDeps | undefined;
+  let telegram: TelegramWebhookDeps | undefined;
+  let max: MaxWebhookDeps | undefined;
   const app = Fastify({ logger: false });
   apps.push(app);
   const deps = {
@@ -99,16 +102,10 @@ async function captureResolvers(): Promise<{
     idempotencyPort: {},
     eventGateway: {},
     webappEventsPort: {},
-    registerTelegramWebhookRoutes: async (
-      _instance: unknown,
-      captured: MessengerWebappEntryIdentityDeps,
-    ) => {
+    registerTelegramWebhookRoutes: async (_instance: unknown, captured: TelegramWebhookDeps) => {
       telegram = captured;
     },
-    registerMaxWebhookRoutes: async (
-      _instance: unknown,
-      captured: MessengerWebappEntryIdentityDeps,
-    ) => {
+    registerMaxWebhookRoutes: async (_instance: unknown, captured: MaxWebhookDeps) => {
       max = captured;
     },
   } as unknown as AppDeps;
