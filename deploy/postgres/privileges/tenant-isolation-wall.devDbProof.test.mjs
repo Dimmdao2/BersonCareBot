@@ -38,9 +38,10 @@
  * их владелец или суперпользователь, поэтому проба идёт локальным админ-сокетом
  * (`sudo -n -u postgres psql`), как читающие проверки в AGENTS.md §6.
  *
- * НИЧЕГО НЕ ПИШЕТ: вся работа под контекстом идёт в транзакции, которая заканчивается ROLLBACK,
- * фикстуры не создаются, строки не остаются. Единственная запись — строка принятого контекста,
- * которую вставляет сам шов и которая по построению не переживает транзакцию.
+ * НИЧЕГО НЕ ОСТАВЛЯЕТ: вся работа под контекстом идёт в транзакции, которая заканчивается
+ * ROLLBACK. Если в живом слепке только одна клиника, проба внутри той же транзакции добавляет
+ * синтетическую вторую клинику и филиал: иначе утверждение «A не видит B» недоказуемо на данных.
+ * Ни эти строки, ни строка принятого контекста не переживают транзакцию.
  *
  * Запуск руками:
  *   RUN_TENANT_ISOLATION_WALL_DB=1 node --test \
@@ -50,6 +51,7 @@
  */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 
 import { declaration } from './declaration.ts';
@@ -247,6 +249,47 @@ function installStaffContext({ capabilityId, login, argsHash }, actorRef, organi
   ];
 }
 
+/**
+ * Свежий PROD-слепок закономерно может содержать только одну клинику. Постоянная TEST-фикстура ради
+ * гейта запрещена: она загрязняет продуктовые данные и исчезает при следующем сбросе. Вместо неё
+ * каждый недоказуемый сценарий создаёт минимальную чужую строку в СВОЕЙ транзакции и откатывает её.
+ */
+function syntheticForeignClinic() {
+  const organizationId = randomUUID();
+  const branchId = randomUUID();
+  return {
+    organizationId,
+    statements: [
+      'SET LOCAL session_replication_role = replica;',
+      `INSERT INTO public.be_organizations (id, title) VALUES ('${organizationId}'::uuid, 'tenant-wall rollback proof');`,
+      `INSERT INTO public.be_branches (id, organization_id, title, city_code) VALUES (`
+        + `'${branchId}'::uuid, '${organizationId}'::uuid, 'tenant-wall rollback proof', 'proof');`,
+      'SET LOCAL session_replication_role = origin;',
+    ],
+  };
+}
+
+function proveSyntheticForeignRowIsHidden(actor, port) {
+  const fixture = syntheticForeignClinic();
+  const opening = ['BEGIN;', ...fixture.statements, ...installStaffContext(port, actor.actorRef, actor.organization)];
+  const outcome = psql([
+    ...opening,
+    `SELECT 'public.be_branches|' || count(*) FROM public.be_branches WHERE organization_id = '${fixture.organizationId}'::uuid;`,
+    'ROLLBACK;',
+  ], { tolerant: true });
+  for (const line of opening.keys()) {
+    const failure = outcome.errorsByLine.get(line + 1);
+    assert.equal(failure, undefined, failure && `транзакционная проба стены не подготовилась: `
+      + `${failure.sqlstate} ${failure.message}`);
+  }
+  const answered = new Map(rows(outcome.stdout));
+  assert.equal(answered.get('public.be_branches'), '0',
+    `СТЕНА АРЕНДАТОРА ПРОТЕКЛА: клиника ${actor.organization} увидела транзакционную строку `
+    + `чужой клиники ${fixture.organizationId}`);
+  console.log(`доказано на транзакционной строке public.be_branches; клиника ${actor.organization}, `
+    + `актор ${actor.actorRef}, база ${DATABASE}; ROLLBACK не оставляет фикстуру`);
+}
+
 /* ─────────────────────── сами утверждения ─────────────────────── */
 
 let shared = null;
@@ -273,11 +316,10 @@ test('клиника видит только свои строки', { skip: !EN
   const { actor, exercised, skipped, seam: port, subjects } = prepared();
 
   // ЛОВУШКА ПУСТОТЫ, часть первая: без чужих строк «A не видит B» истинно бесплатно.
-  assert.notEqual(exercised.length, 0,
-    `ДОКАЗЫВАТЬ НЕЧЕГО на базе ${DATABASE}: ни в одной из ${subjects.length} таблиц под стеной клиники `
-    + `нет ни одной строки организации, отличной от ${actor.organization}. «Чужое не видно» здесь истинно `
-    + 'даром, и зелёный результат не значил бы ничего. Чтобы стену можно было доказать, в базе нужна '
-    + 'вторая клиника с данными хотя бы в одной из этих таблиц.');
+  if (exercised.length === 0) {
+    proveSyntheticForeignRowIsHidden(actor, port);
+    return;
+  }
 
   // Каждый запрос — РОВНО ОДНА строка скрипта: по номеру строки в сообщении psql узнаётся, какая
   // таблица отказала. Отказ таблицы — не утечка, но и не «пройдено»: она уходит в непроверенные.
@@ -341,13 +383,15 @@ SELECT other.organization_id::text
     WHERE ref.opaque_ref = '${actor.actorRef}'::uuid
       AND mine.organization_id = other.organization_id AND mine.status = 'active')
  LIMIT 1;`).stdout);
-  assert.ok(foreignOrganization,
-    `ДОКАЗЫВАТЬ НЕЧЕГО на базе ${DATABASE}: нет ни одной клиники, к которой актор ${actor.actorRef} `
-    + 'не принадлежит, поэтому отказ в чужом контексте проверить не на чем. Нужна вторая клиника.');
+  const fixture = foreignOrganization ? null : syntheticForeignClinic();
+  const targetOrganization = foreignOrganization
+    ? checkedUuid(foreignOrganization, 'чужая организация')
+    : fixture.organizationId;
 
   const outcome = psql([
     'BEGIN;',
-    ...installStaffContext(port, actor.actorRef, checkedUuid(foreignOrganization, 'чужая организация')),
+    ...(fixture?.statements ?? []),
+    ...installStaffContext(port, actor.actorRef, targetOrganization),
     `SELECT 'КОНТЕКСТ НА ЧУЖУЮ КЛИНИКУ ВЫДАН';`,
     'ROLLBACK;',
   ], { expectFailure: true });
@@ -355,13 +399,26 @@ SELECT other.organization_id::text
 
   assert.equal(failure.sqlstate, '42501',
     `актор ${actor.actorRef} (клиника ${actor.organization}) на базе ${DATABASE} получил контекст на чужую `
-    + `клинику ${foreignOrganization}: ${outcome.failed ? `${failure.sqlstate} ${failure.message}` : outcome.stdout}`);
+    + `клинику ${targetOrganization}: ${outcome.failed ? `${failure.sqlstate} ${failure.message}` : outcome.stdout}`);
 });
 
 test('без контекста чтение отказывает, а не отвечает нулём строк', { skip: !ENABLED }, () => {
   const { exercised, seam: port } = prepared();
-  assert.notEqual(exercised.length, 0,
-    `ДОКАЗЫВАТЬ НЕЧЕГО на базе ${DATABASE}: нет ни одной наполненной таблицы под стеной клиники`);
+  if (exercised.length === 0) {
+    const fixture = syntheticForeignClinic();
+    const outcome = psql([
+      'BEGIN;',
+      ...fixture.statements,
+      `SET LOCAL SESSION AUTHORIZATION ${port.login};`,
+      'SET LOCAL ROLE app_staff;',
+      `SELECT count(*) FROM public.be_branches WHERE organization_id = '${fixture.organizationId}'::uuid;`,
+      'ROLLBACK;',
+    ], { expectFailure: true });
+    const failure = firstError(outcome);
+    assert.equal(failure.sqlstate, '42501', `${DATABASE}: чтение без контекста отказало не 42501, а `
+      + `${failure.sqlstate} ${failure.message}`);
+    return;
+  }
 
   // Спрашиваются ВСЕ наполненные таблицы, а не одна выбранная: «отказал» — это свойство пути, и
   // одна удачно выбранная таблица легко скрыла бы, что соседняя молча отвечает нулём.
