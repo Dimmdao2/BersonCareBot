@@ -218,5 +218,7 @@ describe('patient records tab — a refused load is not a visit history', () => 
     fireEvent.click(screen.getByRole('button', { name: /Визитов\s*0/ }));
     expect(await screen.findByRole('dialog', { name: 'Визиты' })).toBeInTheDocument();
     expect(screen.getByText('Поздних отмен 1')).toBeInTheDocument();
+    expect(screen.getByText('19.08.2026 · 13:00')).toBeInTheDocument();
+    expect(screen.getByText('Консультация · 60 мин')).toBeInTheDocument();
   });
 });

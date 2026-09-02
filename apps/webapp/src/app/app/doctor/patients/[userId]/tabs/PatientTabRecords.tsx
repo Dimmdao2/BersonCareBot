@@ -450,11 +450,12 @@ export function PatientTabRecords({
               {displayList.map((appt) => (
                 <li key={appt.id} className={`${doctorDnaFlatListRowClass} justify-between`}>
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className={`${doctorDnaFlatListPrimaryClass} truncate`}>
-                      {appt.service}
-                    </span>
-                    <span className={`${doctorDnaFlatListMetaClass} tabular-nums`}>
+                    <span className={`${doctorDnaFlatListPrimaryClass} truncate tabular-nums`}>
                       {fmtDate(appt.date)} · {appt.time}
+                    </span>
+                    <span className={`${doctorDnaFlatListMetaClass} truncate`}>
+                      {appt.service}
+                      {appt.durationMin ? ` · ${appt.durationMin} мин` : ''}
                     </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
