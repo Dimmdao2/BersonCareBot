@@ -1944,13 +1944,25 @@ export function PatientTabOverview({
             isOverviewComposition && 'order-3 col-span-2',
           )}
         >
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <span className={doctorSectionTitleClass}>Программа ЛФК</span>
-            {(data?.programActivity?.unreadCount ?? 0) > 0 && (
-              <span className="inline-flex shrink-0 items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                {data!.programActivity!.unreadCount} непрочитанных
-              </span>
-            )}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className={doctorSectionTitleClass}>Программа ЛФК</span>
+              {(data?.programActivity?.unreadCount ?? 0) > 0 && (
+                <span className="inline-flex shrink-0 items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                  {data!.programActivity!.unreadCount} непрочитанных
+                </span>
+              )}
+            </div>
+            {!isLoading && data?.programStatus === 'ok' && data.programTitle ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => onTabSwitch?.('program')}
+                className="h-auto w-full justify-start p-0 text-left text-base font-normal text-foreground hover:bg-transparent hover:text-primary"
+              >
+                {data.programTitle}
+              </Button>
+            ) : null}
           </div>
 
           {isLoading && (
@@ -1965,16 +1977,6 @@ export function PatientTabOverview({
 
           {!isLoading && data?.programStatus === 'ok' && (
             <>
-              {data.programTitle && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => onTabSwitch?.('program')}
-                  className="mb-1.5 h-auto p-0 text-base font-normal text-foreground hover:bg-transparent hover:text-primary"
-                >
-                  {data.programTitle}
-                </Button>
-              )}
               {programControlDate ? (
                 <p className="mb-1.5 text-xs text-muted-foreground">
                   Дата контроля: {fmtDateShort(programControlDate)}
