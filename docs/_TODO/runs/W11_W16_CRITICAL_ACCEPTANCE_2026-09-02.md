@@ -45,22 +45,70 @@ Authority: `docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md`, W11�
 
 ## Result
 
-### Interrupted pass — evidence preserved
+### PASS — 02.09.2026, completing pass on candidate `42c756133`
 
-The first critical-auditor process ended after 1,518,502 ms with `blocked_system` and no final answer. Its last
-recorded progress was: W11/W12 static gates green; W13 and the main W14 matrix had each red-tested under deliberate
-production mutations; it was still proving the separate W14 cache-before-provider class before moving to W15.
-Therefore this is **not yet a PASS**.
+All classes in the blind kill-set above are proven by an existing acceptance test with a targeted fault
+injection that reds the exact test and is fully reverted (`git diff` clean before and after). Zero unproven
+classes remain.
 
-The interrupted process left its deliberate production mutations in the worktree. The lead restored all six
-production files to candidate `42c756133` and verified that `git diff` for those files is empty. Only acceptance
-tests and this artifact remain.
+**W13 — reminder action journal.** Proven in the prior pass (`apps/webapp/src/infra/repos/pgReminderJournal.pg.test.ts`):
+absent row stays `not_found`; repository rejection propagates as an error and is not swallowed into `not_found`.
 
-Salvaged green baseline after restoration:
+**W14 — Web Push delivery.** Classes 1–3 (empty subscriptions, skipped result, duplicate result are not a
+delivery) and 7 (provider failure is an attempt, not a delivery, step stays retryable) proven in the prior pass
+via `relayOutboundRoute.route.test.ts` / `bookingLifecycleRoute.stepIsolation.test.ts`. Classes 4–6 (M2M/auth/DB
+failure before the provider is fail-visible, no provider attempt, no success cache entry) proven in the prior
+pass via `webPushAccessPort.test.ts`. This pass closed the remaining separate class — **a pre-provider failure
+must not be cached as success/delivery, and must leave the step retryable**:
+  - Mutation: `relayOutboundRoute.ts` catch block — removed `await idempotencyPort.release?.(dedupKey);` after
+    a pre-provider `WEB_PUSH_ACCESS_UNAVAILABLE` rejection.
+  - Test: `relayOutboundRoute.route.test.ts` → "releases the relay key after a pre-provider web-push failure so
+    the booking step can retry".
+  - Result: red — retry returned `{ ok: true, status: 'duplicate' }` instead of re-attempting delivery, i.e. the
+    failed attempt was cached as if already handled. Reverted; `git diff` empty.
 
-- Integrator: 9 files, 76 tests passed via the exact targeted Vitest command covering dispatch, access, relay,
-  booking retry, Telegram/MAX webhooks, routes and long-polling.
-- Webapp: 2 files, 14 tests passed covering reminder-journal errors and patient Web Push relay outcomes.
+**W15 — Telegram/MAX pre-routing.** All four classes proven this pass, one targeted mutation each, all reverted
+(`git diff` empty after each):
+  1. *Real `null` binding is normal.* Mutation: `telegram/webhook.ts` `resolveTelegramOrganizationId` — throw
+     instead of returning `null` when the per-user resolver finds nothing. Test:
+     `dedicatedWebhook.route.test.ts` → "keeps a real null organization binding as normal absence and still
+     dispatches". Red: `503` instead of `200`/dispatch.
+  2. *Telegram resolver rejection is fail-visible, no dispatch.* Mutation: same function — `.catch(() => null)`
+     around `resolveOrganizationIdForMessengerIdentity`, swallowing the rejection into an unbound scenario. Test:
+     `dedicatedWebhook.route.test.ts` → "returns retryable non-2xx without dispatch when the organization
+     resolver rejects". Red: `200`/dispatch instead of `503`/no dispatch.
+  3. *MAX resolver rejection is fail-visible, no dispatch.* Same mutation shape in `max/webhook.ts`
+     `resolveMaxOrganizationId`. Test: `max/dedicatedWebhook.route.test.ts`, same name. Red: `200`/dispatch
+     instead of `503`/no dispatch.
+  4. *Long polling does not advance the offset on infra failure.* Mutation: `telegram/longPolling.ts` — moved
+     `offset = update.update_id + 1;` from the success path into the `catch` block. Test:
+     `longPolling.test.ts` → "does not advance the offset when infrastructure processing rejects an update".
+     Red: next `getUpdates` call carried `offset: 18` instead of omitting it.
 
-The completing audit must reuse this kill-set and these tests, finish the remaining W14 cache mutation and W15
-mutations, inspect W16 removal, rerun the same targeted sets, and replace this section with a binary PASS/FAIL.
+**W16 — old support HTTP bridge.** Confirmed removed and unreachable by exact search, no test written (source-
+absence is not a behavioral class per §10a/AGENTS.md W16 classification):
+  - `rg -n "sync-user-message|syncUserMessage|sync_user_message"` across `apps/webapp/src` and
+    `apps/integrator/src` → zero hits (only archived/history docs mention the retired path).
+  - `apps/webapp/src/app/api/integrator/support/` contains only `status/route.ts` and `question/route.ts`
+    (current canonical webapp-owned routes) — no `sync-user-message` route folder exists.
+  - No CSRF-classifier or route-manifest entry references the retired path (W2's unified classifier has no
+    stale second list to diverge from).
+  - No producer (integrator- or webapp-side) calls the retired path; no test asserts its old persist-full-text
+    behavior.
+
+### Verification commands (this pass)
+
+- `pnpm run check:prod-to-target-cutover` → `ok schema-pre.sql` / `ok schema-post.sql` /
+  `ok ledgers-and-baseline.sql` / `prod-to-target cutover snapshot matches current DEV schema B` (W11/W12).
+- `pnpm --dir apps/integrator exec vitest run <9 files>` → **9 files / 76 tests passed** (post-revert, final
+  confirmation).
+- `pnpm --dir apps/webapp exec vitest run --project=fast --project=unit <2 files>` → **2 files / 14 tests
+  passed** (post-revert, final confirmation).
+- `git status --short` / `git diff --stat` → empty at every checkpoint after each fault injection and at the end
+  of the pass; only this artifact is modified in the final commit.
+
+### Unproven classes
+
+Zero. Every named W13–W16 kill-set class above is either caught red by a targeted fault injection against an
+existing acceptance test, or (W16) established as a source-absence fact by exact search per its §10a
+classification, which does not take a behavioral test.
