@@ -19,7 +19,10 @@ vi.mock('./organizationMechanicLifecycleDoor.js', () => ({
   resolveOrganizationMechanicLifecycleAccess: mocks.resolveAccess,
 }));
 
-import { createClinicDeliveryCredentialResolver } from './clinicDeliveryCredentials.js';
+import {
+  createClinicBotInboundForwardingResolver,
+  createClinicDeliveryCredentialResolver,
+} from './clinicDeliveryCredentials.js';
 import { createDefaultDispatchPort } from '../adapters/dispatchPort.js';
 import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
 
@@ -188,4 +191,52 @@ describe('exact-organization clinic delivery credential resolution', () => {
       clinicCredential: { channel: 'telegram', botToken: 'clinic_telegram_bot_token:secret' },
     });
   });
+});
+
+describe('exact-organization inbound forwarding config resolution', () => {
+  it('reads the enabled destination behind the exact-org mechanic gate', async () => {
+    mocks.readCredential.mockResolvedValue({
+      value: 'clinic-secret',
+      inboundForwarding: { enabled: true, destinationChatId: '-123456' },
+    });
+    const resolve = createClinicBotInboundForwardingResolver({} as never);
+
+    await expect(runWithOrganizationPrincipal(ORG_A, () => resolve('telegram'))).resolves.toEqual({
+      enabled: true,
+      destinationChatId: '-123456',
+    });
+    expect(mocks.resolveAccess).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: ORG_A,
+      mechanic: 'clinic_telegram_bot',
+    });
+    expect(mocks.readCredential).toHaveBeenCalledWith(
+      expect.anything(),
+      'clinic_telegram_bot_token',
+      ORG_A,
+    );
+  });
+
+  it('keeps a genuinely disabled mechanic as a normal no-op without reading settings', async () => {
+    mocks.resolveAccess.mockResolvedValue({ mutationAllowed: false });
+    const resolve = createClinicBotInboundForwardingResolver({} as never);
+
+    await expect(runWithOrganizationPrincipal(ORG_A, () => resolve('max'))).resolves.toBeNull();
+    expect(mocks.readCredential).not.toHaveBeenCalled();
+  });
+
+  it.each(['tariff gate', 'settings read'] as const)(
+    'does not disguise a %s failure as disabled forwarding',
+    async (failure) => {
+      if (failure === 'tariff gate') {
+        mocks.resolveAccess.mockRejectedValue(new Error('tariff DB unavailable'));
+      } else {
+        mocks.readCredential.mockRejectedValue(new Error('settings DB unavailable'));
+      }
+      const resolve = createClinicBotInboundForwardingResolver({} as never);
+
+      await expect(runWithOrganizationPrincipal(ORG_A, () => resolve('telegram'))).rejects.toThrow(
+        'unavailable',
+      );
+    },
+  );
 });

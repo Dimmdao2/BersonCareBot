@@ -53,7 +53,7 @@ import {
 import type { SmsClient } from '../integrations/smsc/types.js';
 import { createEmailDeliveryAdapter } from '../integrations/email/deliveryAdapter.js';
 import { createMaxDeliveryAdapter } from '../integrations/max/deliveryAdapter.js';
-import { registerMaxWebhookRoutes } from '../integrations/max/webhook.js';
+import { registerMaxWebhookRoutes, type MaxWebhookDeps } from '../integrations/max/webhook.js';
 import { createVkDeliveryAdapter } from '../integrations/vk/deliveryAdapter.js';
 import { registerVkWebhookRoutes } from '../integrations/vk/webhook.js';
 import { createTelegramDeliveryAdapter } from '../integrations/telegram/deliveryAdapter.js';
@@ -61,7 +61,6 @@ import {
   registerTelegramWebhookRoutes,
   type TelegramWebhookDeps,
 } from '../integrations/telegram/webhook.js';
-import type { ResolveMessengerStaffAdmin } from '../kernel/contracts/index.js';
 import { createWebappEventsPort } from '../infra/adapters/webappEventsClient.js';
 import { createDeliveryTargetsPort } from '../infra/adapters/deliveryTargetsPort.js';
 import { createRemindersReadsPort } from '../infra/adapters/remindersReadsPort.js';
@@ -72,34 +71,13 @@ import type { WebPushAccessPort } from '../kernel/contracts/index.js';
 import { createWebPushDeliveryAdapter } from '../integrations/web-push/deliveryAdapter.js';
 import { isPlatformIntegrationAvailable } from '../infra/db/platformIntegrationAvailability.js';
 import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDeliveryCredentials.js';
+import { createClinicSenderNameResolver } from '../infra/db/clinicSenderName.js';
 import { resolveOutboundProviderIncidentsAfterConfirmedDelivery } from '../infra/db/repos/operatorHealthDrizzle.js';
 
 /**
  * Регистраторы интеграций инжектируются,
  * чтобы wiring app-слоя оставался стабильным во время миграции.
  */
-/**
- * Injected from `routes.ts`. Track D (#987): the messenger-login → numeric-person hook that used to
- * live here is gone with the public identity it resolved; a messenger external id now only ever
- * resolves an ORGANIZATION.
- */
-export type MessengerWebappEntryIdentityDeps = {
-  /** Provider-side command/menu setup stays disabled in development. */
-  setupProviderSurface?: boolean;
-  /** Публичный origin вебаппа из deployment env. */
-  getAppBaseUrl?: () => Promise<string>;
-  /** Staff lists from system_settings (admin_*_ids ∪ doctor_*_ids). */
-  resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin;
-  resolveOrganizationIdForMessengerIdentity?: (
-    externalId: string,
-    resource: 'telegram' | 'max',
-  ) => Promise<string | null>;
-  /** Dedicated webhook path resolves the actual bot instance to one clinic, never a default org. */
-  resolveDedicatedClinicBotOrganization?: (credentialFingerprint: string) => Promise<string | null>;
-  /** MAX contact verification uses the exact clinic bot credential after organization binding. */
-  resolveDedicatedClinicBotApiKey?: (organizationId: string) => Promise<string | null>;
-};
-
 export type TelegramRoutesRegistrar = (
   app: FastifyInstance,
   deps: TelegramWebhookDeps,
@@ -107,9 +85,7 @@ export type TelegramRoutesRegistrar = (
 
 export type MaxRoutesRegistrar = (
   app: FastifyInstance,
-  deps: {
-    eventGateway: EventGateway;
-  } & MessengerWebappEntryIdentityDeps,
+  deps: MaxWebhookDeps,
 ) => Promise<void> | void;
 export type VkRoutesRegistrar = (app: FastifyInstance, deps: {
   eventGateway: EventGateway;
@@ -266,6 +242,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
       isPlatformIntegrationEnabled: (integrationId: DispatchPlatformIntegrationId) =>
         isPlatformIntegrationAvailable(dbPort, integrationId),
       resolveClinicDeliveryCredential: createClinicDeliveryCredentialResolver(dbPort),
+      resolveClinicSenderName: createClinicSenderNameResolver(dbPort),
       onProviderDeliveryConfirmed: async (integrationId) => {
         await resolveOutboundProviderIncidentsAfterConfirmedDelivery(dbPort, integrationId);
       },

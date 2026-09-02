@@ -301,6 +301,35 @@ describe('clinic-owned delivery routing', () => {
     ).not.toHaveProperty('clinicCredential');
   });
 
+  it.each(['telegram', 'max'] as const)(
+    'names the clinic exactly once when the %s platform bot is the fallback sender',
+    async (channel) => {
+      const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+      const port = createDefaultDispatchPort({
+        adapters: [{ canHandle: () => true, send }],
+        resolveClinicDeliveryCredential: async () => null,
+        resolveClinicSenderName: async () => 'Клиника Мир',
+      });
+
+      await port.dispatchOutgoing(clinicIfConfiguredIntent(channel));
+      const sent = send.mock.calls[0]?.[0];
+      expect((sent?.payload as { message: { text: string } }).message.text).toBe(
+        'Клиника Мир:\nhello',
+      );
+
+      const alreadyNamed = clinicIfConfiguredIntent(channel);
+      alreadyNamed.payload = {
+        ...alreadyNamed.payload,
+        message: { text: 'Клиника Мир:\nhello' },
+      };
+      await port.dispatchOutgoing(alreadyNamed);
+      const second = send.mock.calls[1]?.[0];
+      expect((second?.payload as { message: { text: string } }).message.text).toBe(
+        'Клиника Мир:\nhello',
+      );
+    },
+  );
+
   it('does not fall back to the platform sender after an enabled clinic bot fails', async () => {
     const clinicError = new Error('clinic_provider_failed');
     const send = vi.fn(async (_intent: OutgoingIntent) => {

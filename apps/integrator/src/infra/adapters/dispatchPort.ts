@@ -85,14 +85,18 @@ async function clinicSenderScope(
         opts?: ClinicDeliveryCredentialResolveOptions,
       ) => Promise<ClinicDeliveryCredential | null>)
     | undefined,
-): Promise<{ senderScope: ClinicSenderScope; clinicCredential: ClinicDeliveryCredential | null }> {
+): Promise<{
+  senderScope: ClinicSenderScope;
+  clinicCredential: ClinicDeliveryCredential | null;
+  requestedScope: RequestedSenderScope | undefined;
+}> {
   // Platform/system traffic must never borrow a clinic credential merely because the request
   // happens to run under an organization principal.
   if (
     intent.meta.outboundMessageClass === 'operator_security' &&
     intent.meta.outboundCapability === 'operator_alert'
   ) {
-    return { senderScope: 'platform_required', clinicCredential: null };
+    return { senderScope: 'platform_required', clinicCredential: null, requestedScope: undefined };
   }
   const requestedScope =
     intent.type === 'message.send'
@@ -102,15 +106,16 @@ async function clinicSenderScope(
   const clinicCredential = channel && resolveCredential ? await resolveCredential(channel) : null;
 
   if (requestedScope === 'clinic_required') {
-    return { senderScope: 'clinic_required', clinicCredential };
+    return { senderScope: 'clinic_required', clinicCredential, requestedScope };
   }
   if (requestedScope === 'clinic_if_configured') {
     return {
       senderScope: clinicCredential ? 'clinic_required' : 'platform_required',
       clinicCredential,
+      requestedScope,
     };
   }
-  return { senderScope: 'clinic_preferred', clinicCredential };
+  return { senderScope: 'clinic_preferred', clinicCredential, requestedScope };
 }
 
 /** `C5(б)`: проверочная отправка, которой клиника включает свой канал. */
@@ -141,6 +146,25 @@ function withClinicCredential(
       ...payload,
       delivery: { ...(payload.delivery ?? {}), clinicCredential: credential },
     },
+  };
+}
+
+/**
+ * §30.1: когда собственного бота у клиники нет и сообщение уходит ОБЩИМ ботом платформы, человек
+ * обязан увидеть, ЧЬЁ это сообщение. Подпись ставится ровно здесь — в единственном месте, где
+ * вообще принимается решение «клиника или платформа», — и ровно один раз. При собственном боте
+ * префикса нет: отправитель уже и есть клиника.
+ */
+function withClinicSenderPrefix(intent: OutgoingIntent, clinicName: string): OutgoingIntent {
+  if (intent.type !== 'message.send') return intent;
+  const payload = intent.payload as DeliveryPayload;
+  const text = payload.message?.text;
+  if (typeof text !== 'string' || !text.trim()) return intent;
+  const prefix = `${clinicName}:`;
+  if (text.trimStart().startsWith(prefix)) return intent;
+  return {
+    ...intent,
+    payload: { ...payload, message: { ...(payload.message ?? {}), text: `${prefix}\n${text}` } },
   };
 }
 
@@ -286,6 +310,11 @@ export function createDefaultDispatchPort(deps: {
   ) => Promise<ClinicDeliveryCredential | null>;
   /** Best-effort health recovery after a provider really accepted a delivery. */
   onProviderDeliveryConfirmed?: (integrationId: DispatchPlatformIntegrationId) => Promise<void>;
+  /**
+   * Name of the organization the message belongs to, read under the active org principal. Used
+   * only to name the clinic when the COMMON platform bot delivers for it (§30.1).
+   */
+  resolveClinicSenderName?: () => Promise<string | null>;
 }): DispatchPort {
   return {
     async dispatchOutgoing(
@@ -339,7 +368,11 @@ export function createDefaultDispatchPort(deps: {
           ? await deps.resolveClinicDeliveryCredential(clinicChannel, { allowUnverified: true })
           : null;
       const resolved = probe
-        ? { senderScope: 'clinic_required' as ClinicSenderScope, clinicCredential: probeCredential }
+        ? {
+            senderScope: 'clinic_required' as ClinicSenderScope,
+            clinicCredential: probeCredential,
+            requestedScope: undefined,
+          }
         : await clinicSenderScope(
             intentForChannel,
             clinicChannel,
@@ -350,6 +383,21 @@ export function createDefaultDispatchPort(deps: {
       if (senderScope === 'clinic_required' && !clinicCredential) {
         throw new Error(`CLINIC_CHANNEL_NOT_CONFIGURED:${channel}`);
       }
+      // Общий бот платформы, отправляющий за клинику, называет её РОВНО ОДИН РАЗ и ровно здесь.
+      // Producer-ы подпись не ставят: они не знают, чей отправитель будет выбран.
+      const platformSenderForClinic =
+        !probe &&
+        (channel === 'telegram' || channel === 'max') &&
+        resolved.requestedScope === 'clinic_if_configured' &&
+        senderScope === 'platform_required' &&
+        !clinicCredential;
+      const clinicSenderName =
+        platformSenderForClinic && deps.resolveClinicSenderName
+          ? await deps.resolveClinicSenderName()
+          : null;
+      const intentToSend = clinicSenderName
+        ? withClinicSenderPrefix(intentForChannel, clinicSenderName)
+        : intentForChannel;
       try {
         if (clinicCredential) {
           try {
@@ -360,10 +408,10 @@ export function createDefaultDispatchPort(deps: {
             // Essential traffic remains deliverable through the platform. Clinic-required flows
             // (broadcasts and bot support) must never silently assume the platform sender.
             if (senderScope === 'clinic_required') throw clinicError;
-            sendResult = await adapter.send(intentForChannel);
+            sendResult = await adapter.send(intentToSend);
           }
         } else {
-          sendResult = await adapter.send(intentForChannel);
+          sendResult = await adapter.send(intentToSend);
         }
       } catch (providerError) {
         // Adapter-local configuration and payload validation happens before any network call.

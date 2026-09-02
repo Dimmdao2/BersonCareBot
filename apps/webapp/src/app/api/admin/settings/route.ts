@@ -67,6 +67,18 @@ import {
   type PlatformIntegrationId,
 } from '@/modules/system-settings/platformIntegrationAvailability';
 import { withPendingClinicDeliveryReadiness } from '@/modules/system-settings/clinicDeliveryReadiness';
+import {
+  parseClinicBotPatchValue,
+  type ClinicBotPatchError,
+} from '@/modules/system-settings/clinicBotPatch';
+
+/** Owner-facing reasons for a rejected dedicated bot configuration. */
+const CLINIC_BOT_PATCH_MESSAGES: Readonly<Record<ClinicBotPatchError, string>> = {
+  credential_required: 'Сначала сохраните credential бота.',
+  invalid_bot_public_id: 'Укажите публичный ник бота: латиница, цифры и подчёркивание, 3–64 символа.',
+  invalid_destination_chat_id: 'Id чата для пересылки — целое число, как его выдаёт мессенджер.',
+  forwarding_destination_required: 'Чтобы включить пересылку, укажите id чата, куда пересылать.',
+};
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
@@ -848,16 +860,38 @@ export async function PATCH(request: Request) {
     normalizedValue = { value: checked.value };
   }
 
-  if (
-    parsed.data.key === 'clinic_smtp_outbound' ||
-    parsed.data.key === 'clinic_telegram_bot_token' ||
-    parsed.data.key === 'clinic_max_bot_api_key'
-  ) {
+  if (parsed.data.key === 'clinic_smtp_outbound') {
     normalizedValue = withPendingClinicDeliveryReadiness(normalizedValue);
   }
 
   /** Prefetch for audit: avoid second `getSetting` for `web_push_vapid` (same row as validation). */
   let webPushVapidOldRowForAudit: SystemSetting | null | undefined;
+  /** Same prefetch for the dedicated bot keys: the merge needs the stored envelope anyway. */
+  let clinicBotOldRowForAudit: SystemSetting | null | undefined;
+
+  if (
+    parsed.data.key === 'clinic_telegram_bot_token' ||
+    parsed.data.key === 'clinic_max_bot_api_key'
+  ) {
+    clinicBotOldRowForAudit = await deps.systemSettings.getSetting(parsed.data.key, 'admin', {
+      organizationId,
+    });
+    const checked = parseClinicBotPatchValue({
+      patchEnvelope: normalizedValue,
+      existingValueJson: clinicBotOldRowForAudit?.valueJson ?? null,
+    });
+    if (!checked.ok) {
+      return NextResponse.json(
+        { ok: false, error: checked.error, message: CLINIC_BOT_PATCH_MESSAGES[checked.error] },
+        { status: 400 },
+      );
+    }
+    // Только смена самого credential обнуляет живую проверку канала: правка публичного ника или
+    // настроек пересылки не делает уже доказанный канал неподтверждённым.
+    normalizedValue = checked.credentialChanged
+      ? (withPendingClinicDeliveryReadiness(checked.valueJson) as { value: unknown })
+      : (checked.valueJson as { value: unknown });
+  }
   if (parsed.data.key === 'web_push_vapid') {
     webPushVapidOldRowForAudit = await deps.systemSettings.getSetting('web_push_vapid', 'admin', {
       organizationId,
@@ -876,7 +910,9 @@ export async function PATCH(request: Request) {
   const oldSetting =
     webPushVapidOldRowForAudit !== undefined
       ? webPushVapidOldRowForAudit
-      : await deps.systemSettings.getSetting(parsed.data.key, settingScope, { organizationId });
+      : clinicBotOldRowForAudit !== undefined
+        ? clinicBotOldRowForAudit
+        : await deps.systemSettings.getSetting(parsed.data.key, settingScope, { organizationId });
   console.info('[admin-settings audit]', {
     key: parsed.data.key,
     oldValue: redactSettingValueForAudit(parsed.data.key, oldSetting?.valueJson ?? null),

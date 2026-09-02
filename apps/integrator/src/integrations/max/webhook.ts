@@ -16,6 +16,10 @@ import { createDbPort } from '../../infra/db/client.js';
 import { getOperationalVerboseLogEnabled } from '../../infra/db/repos/operationalVerboseLog.js';
 import { recordIntegrationWebhookOutcome } from '../../infra/operatorIncident/recordIntegrationWebhookOutcome.js';
 import { isWebhookSecretValid } from '../common/webhookSecretCompare.js';
+import {
+  forwardDedicatedBotInbound,
+  type DedicatedBotInboundForwardDeps,
+} from '../common/clinicBotInboundForward.js';
 
 type WebhookOutcomeInput = Parameters<typeof recordIntegrationWebhookOutcome>[0];
 
@@ -40,6 +44,11 @@ export type MaxWebhookDeps = {
   /** Exact dedicated bot-instance binding; never falls back to enrollment/default organization. */
   resolveDedicatedClinicBotOrganization?: (credentialFingerprint: string) => Promise<string | null>;
   resolveDedicatedClinicBotApiKey?: (organizationId: string) => Promise<string | null>;
+  /**
+   * Direct forwarding of free-form inbound text to the chat the clinic named. Wired ONLY for the
+   * dedicated clinic bot route — the platform webhook never gets it.
+   */
+  dedicatedBotInboundForward?: DedicatedBotInboundForwardDeps;
 };
 
 function getSourceMaxExternalId(data: MaxUpdateValidated): string | null {
@@ -260,11 +269,11 @@ export async function registerMaxWebhookRoutes(
         recordMaxWebhookOutcome({
           source: 'max',
           processedOk: false,
-          httpStatusReturned: 200,
+          httpStatusReturned: 503,
           errorClass: 'webhook_dispatch_failed',
           detail: result.reason,
         });
-        return reply.code(200).send({ ok: false, error: 'Processing failed' });
+        return reply.code(503).send({ ok: false, error: 'Processing failed' });
       }
       recordMaxWebhookOutcome({
         source: 'max',
@@ -332,6 +341,22 @@ export async function registerMaxWebhookRoutes(
         eventId,
         facts: preRouting.facts,
       });
+      // Прямая пересылка входящего в чат клиники (owner 20.08). Тот же прикладной action, что и в
+      // Telegram: различие только в адресации получателя внутри самого action.
+      if (deps.dedicatedBotInboundForward) {
+        await runWithOrganizationPrincipal(organizationId, () =>
+          forwardDedicatedBotInbound(
+            {
+              channel: 'max',
+              organizationId,
+              incoming,
+              eventId,
+              correlationId,
+            },
+            deps.dedicatedBotInboundForward!,
+          ),
+        );
+      }
       const result = await runWithOrganizationPrincipal(organizationId, () =>
         deps.eventGateway.handleIncomingEvent(event),
       );
@@ -339,11 +364,11 @@ export async function registerMaxWebhookRoutes(
         recordMaxWebhookOutcome({
           source: 'max',
           processedOk: false,
-          httpStatusReturned: 200,
+          httpStatusReturned: 503,
           errorClass: 'webhook_dispatch_failed',
           detail: result.reason,
         });
-        return reply.code(200).send({ ok: false, error: 'Processing failed' });
+        return reply.code(503).send({ ok: false, error: 'Processing failed' });
       }
       recordMaxWebhookOutcome({ source: 'max', processedOk: true, httpStatusReturned: 200 });
       return reply.code(200).send({ ok: true });

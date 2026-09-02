@@ -11,6 +11,10 @@ import {
   type PlatformIntegrationAvailability,
 } from '@/modules/system-settings/platformIntegrationAvailability';
 import type { ClinicDeliveryReadiness } from '@/modules/system-settings/clinicDeliveryReadiness';
+import {
+  CLINIC_BOT_PUBLIC_CONFIG_NONE,
+  type ClinicBotPublicConfig,
+} from '@/modules/system-settings/clinicBotConfig';
 
 type ClinicDeliveryChannelsSectionProps = {
   platformAvailability: PlatformIntegrationAvailability;
@@ -28,8 +32,10 @@ type ClinicDeliveryChannelsSectionProps = {
     smsConfigured: boolean;
     telegramConfigured: boolean;
     telegramReadiness: ClinicDeliveryReadiness;
+    telegramBot?: ClinicBotPublicConfig;
     maxConfigured: boolean;
     maxReadiness: ClinicDeliveryReadiness;
+    maxBot?: ClinicBotPublicConfig;
     vkConfigured: boolean;
     telegramWebhookPath: string | null;
     maxWebhookPath: string | null;
@@ -42,6 +48,128 @@ async function saveSetting(key: string, value: unknown): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, value: { value } }),
   });
+}
+
+/**
+ * Публичный ник и настройки пересылки живут в ТОЙ ЖЕ настройке бота, что и credential: пустая
+ * строка `value` означает «оставить сохранённый токен» (сервер его подставляет сам).
+ */
+async function saveBotSetting(
+  key: 'clinic_telegram_bot_token' | 'clinic_max_bot_api_key',
+  config: ClinicBotPublicConfig,
+): Promise<void> {
+  await apiJson('/api/admin/settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      key,
+      value: {
+        value: '',
+        botPublicId: config.botPublicId ?? '',
+        inboundForwarding: config.inboundForwarding ?? { enabled: false, destinationChatId: '' },
+      },
+    }),
+  });
+}
+
+/**
+ * Публичная половина настройки собственного бота клиники: ник для диплинков подтверждения телефона
+ * и пересылка входящих. Одна форма на обе платформы — различается только заголовок и ключ.
+ */
+function ClinicBotPublicSettings({
+  settingKey,
+  handleLabel,
+  configured,
+  initial,
+}: Readonly<{
+  settingKey: 'clinic_telegram_bot_token' | 'clinic_max_bot_api_key';
+  handleLabel: string;
+  configured: boolean;
+  initial: ClinicBotPublicConfig;
+}>) {
+  const [botPublicId, setBotPublicId] = useState(initial.botPublicId ?? '');
+  const [forwardingEnabled, setForwardingEnabled] = useState(
+    initial.inboundForwarding?.enabled === true,
+  );
+  const [destinationChatId, setDestinationChatId] = useState(
+    initial.inboundForwarding?.destinationChatId ?? '',
+  );
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  if (!configured) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Сохраните credential бота — тогда станут доступны ник для входа и пересылка входящих.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Input
+        value={botPublicId}
+        onChange={(event) => setBotPublicId(event.target.value)}
+        placeholder={handleLabel}
+        spellCheck={false}
+        disabled={pending}
+      />
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={forwardingEnabled}
+          disabled={pending}
+          onChange={(event) => setForwardingEnabled(event.target.checked)}
+        />{' '}
+        Пересылать входящие сообщения
+      </label>
+      <Input
+        value={destinationChatId}
+        onChange={(event) => setDestinationChatId(event.target.value)}
+        placeholder="Id чата, куда пересылать"
+        inputMode="numeric"
+        spellCheck={false}
+        disabled={pending}
+      />
+      <p className="text-xs text-muted-foreground">
+        Пока пересылка выключена, входящие сообщения игнорируются. Переписка не сохраняется:
+        сообщение уходит в указанный чат напрямую.
+      </p>
+      <Button
+        type="button"
+        size="sm"
+        className="w-fit"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            setError(null);
+            try {
+              await saveBotSetting(settingKey, {
+                botPublicId: botPublicId.trim() ? botPublicId.trim() : null,
+                inboundForwarding: {
+                  enabled: forwardingEnabled,
+                  destinationChatId: destinationChatId.trim(),
+                },
+              });
+              setSaved(true);
+            } catch (cause) {
+              setSaved(false);
+              setError(
+                cause instanceof Error && cause.message.trim()
+                  ? cause.message
+                  : 'Не удалось сохранить настройки бота.',
+              );
+            }
+          })
+        }
+      >
+        Сохранить настройки бота
+      </Button>
+      {saved ? <p className="text-xs text-muted-foreground">Настройки бота сохранены</p> : null}
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+    </div>
+  );
 }
 
 type ProbeChannel = 'email' | 'telegram' | 'max';
@@ -270,6 +398,12 @@ export function ClinicDeliveryChannelsSection({
               pending={probePending === 'telegram'}
               onTest={() => testChannel('telegram')}
             />
+            <ClinicBotPublicSettings
+              settingKey="clinic_telegram_bot_token"
+              handleLabel="Публичный @username бота"
+              configured={telegramConfigured}
+              initial={initial.telegramBot ?? CLINIC_BOT_PUBLIC_CONFIG_NONE}
+            />
           </>
         ) : null}
         {isPlatformIntegrationAvailable(platformAvailability, 'max') ? (
@@ -292,6 +426,12 @@ export function ClinicDeliveryChannelsSection({
               readiness={readiness.max}
               pending={probePending === 'max'}
               onTest={() => testChannel('max')}
+            />
+            <ClinicBotPublicSettings
+              settingKey="clinic_max_bot_api_key"
+              handleLabel="Публичный ник бота MAX"
+              configured={maxConfigured}
+              initial={initial.maxBot ?? CLINIC_BOT_PUBLIC_CONFIG_NONE}
             />
           </>
         ) : null}

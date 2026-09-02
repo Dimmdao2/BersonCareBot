@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organizationPrincipal.js';
+import type { DedicatedBotInboundForwardDeps } from '../common/clinicBotInboundForward.js';
 import { registerTelegramWebhookRoutes } from './webhook.js';
 
 vi.mock('../../infra/operatorIncident/recordIntegrationWebhookOutcome.js', () => ({
@@ -15,6 +16,30 @@ vi.mock('./setupMenuButton.js', () => ({
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const FINGERPRINT = 'a'.repeat(64);
 const apps: Array<Awaited<ReturnType<typeof Fastify>>> = [];
+
+function failingForwarding(): DedicatedBotInboundForwardDeps & { acquired: Set<string> } {
+  const acquired = new Set<string>();
+  return {
+    acquired,
+    dispatchPort: {
+      async dispatchOutgoing() {
+        throw new Error('clinic delivery unavailable');
+      },
+    },
+    async resolveInboundForwarding() {
+      return { enabled: true, destinationChatId: '123456' };
+    },
+    idempotencyPort: {
+      async tryAcquire(key) {
+        acquired.add(key);
+        return true;
+      },
+      async release(key) {
+        acquired.delete(key);
+      },
+    },
+  };
+}
 
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
@@ -122,6 +147,59 @@ describe('dedicated Telegram inbound ownership', () => {
 
     expect(response.statusCode).toBeGreaterThanOrEqual(500);
     expect(handleIncomingEvent).not.toHaveBeenCalled();
+  });
+
+  it('returns retryable non-2xx and releases dedup when clinic forwarding fails', async () => {
+    const handleIncomingEvent = vi.fn(async () => ({ status: 'accepted' as const }));
+    const dedicatedBotInboundForward = failingForwarding();
+    const app = Fastify({ logger: false });
+    apps.push(app);
+    await registerTelegramWebhookRoutes(app, {
+      eventGateway: { handleIncomingEvent } as unknown as EventGateway,
+      setupProviderSurface: false,
+      resolveDedicatedClinicBotOrganization: async () => ORGANIZATION_ID,
+      dedicatedBotInboundForward,
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/webhook/telegram/dedicated/${FINGERPRINT}`,
+      payload: {
+        update_id: 91,
+        message: { message_id: 19, text: 'help', from: { id: 42 }, chat: { id: 42 } },
+      },
+    });
+
+    expect(response.statusCode).toBeGreaterThanOrEqual(500);
+    expect(handleIncomingEvent).not.toHaveBeenCalled();
+    expect(dedicatedBotInboundForward.acquired.size).toBe(0);
+  });
+
+  it('returns retryable non-2xx when the dedicated event pipeline rejects the update', async () => {
+    const handleIncomingEvent = vi.fn(async () => ({
+      status: 'rejected' as const,
+      reason: 'idempotency unavailable',
+      dedupKey: 'telegram:91',
+    }));
+    const app = Fastify({ logger: false });
+    apps.push(app);
+    await registerTelegramWebhookRoutes(app, {
+      eventGateway: { handleIncomingEvent } as unknown as EventGateway,
+      setupProviderSurface: false,
+      resolveDedicatedClinicBotOrganization: async () => ORGANIZATION_ID,
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/webhook/telegram/dedicated/${FINGERPRINT}`,
+      payload: {
+        update_id: 91,
+        message: { message_id: 19, text: 'help', from: { id: 42 }, chat: { id: 42 } },
+      },
+    });
+
+    expect(response.statusCode).toBeGreaterThanOrEqual(500);
+    expect(handleIncomingEvent).toHaveBeenCalledOnce();
   });
 });
 

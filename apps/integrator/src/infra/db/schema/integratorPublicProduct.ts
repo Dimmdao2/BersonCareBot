@@ -60,6 +60,18 @@ export const userChannelBindings = publicSchema.table('user_channel_bindings', {
   displayHandle: text('display_handle'),
 });
 
+/**
+ * Narrow `public.be_organizations` slice: the clinic's own name, needed by the single
+ * sender-selection seam to say WHOSE message the common platform bot is delivering (owner 30.07,
+ * `OWNER_PRODUCT_RULES.md` §30.1). RLS keeps the read to `id = app.current_org_id()`, so this is
+ * the tenant's own row and nothing else.
+ */
+export const beOrganizations = publicSchema.table('be_organizations', {
+  id: uuid().primaryKey().notNull(),
+  title: text().notNull(),
+  isActive: boolean('is_active').notNull(),
+});
+
 /** Existing public enrollment table, mapped narrowly for shared direct-writer actor resolution. */
 export const orgEnrollments = publicSchema.table('org_enrollments', {
   platformUserId: uuid('platform_user_id').notNull(),

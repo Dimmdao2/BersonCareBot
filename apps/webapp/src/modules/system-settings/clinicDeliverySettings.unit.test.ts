@@ -9,6 +9,7 @@ import {
   parseClinicDeliveryReadiness,
   withClinicDeliveryReadiness,
 } from './clinicDeliveryReadiness';
+import { parseClinicBotPatchValue } from './clinicBotPatch';
 
 function setting(key: SystemSetting['key'], value: unknown): SystemSetting {
   return {
@@ -48,6 +49,68 @@ describe('clinic delivery settings', () => {
     });
     expect(telegram?.valueJson).toEqual({ value: '[REDACTED]' });
   });
+
+  it('returns public bot routing fields while keeping the credential redacted', () => {
+    const row: SystemSetting = {
+      ...setting('clinic_telegram_bot_token', 'secret'),
+      valueJson: {
+        value: 'secret',
+        botPublicId: 'clinic_bot',
+        inboundForwarding: { enabled: true, destinationChatId: '-123456' },
+        deliveryReadiness: { status: 'enabled' },
+      },
+    };
+
+    expect(redactAdminSettingsForClient([row])[0]?.valueJson).toEqual({
+      value: '[REDACTED]',
+      botPublicId: 'clinic_bot',
+      inboundForwarding: { enabled: true, destinationChatId: '-123456' },
+      deliveryReadiness: { status: 'enabled' },
+    });
+  });
+
+  it('merges a valid public bot patch without changing its secret or readiness', () => {
+    expect(
+      parseClinicBotPatchValue({
+        patchEnvelope: {
+          value: '',
+          botPublicId: '@new_clinic_bot',
+          inboundForwarding: { enabled: true, destinationChatId: '-654321' },
+        },
+        existingValueJson: {
+          value: 'stored-secret',
+          botPublicId: 'old_clinic_bot',
+          inboundForwarding: { enabled: false, destinationChatId: '' },
+          deliveryReadiness: { status: 'enabled', checkedAt: '2026-08-24T00:00:00.000Z' },
+        },
+      }),
+    ).toEqual({
+      ok: true,
+      credentialChanged: false,
+      valueJson: {
+        value: 'stored-secret',
+        botPublicId: 'new_clinic_bot',
+        inboundForwarding: { enabled: true, destinationChatId: '-654321' },
+        deliveryReadiness: { status: 'enabled', checkedAt: '2026-08-24T00:00:00.000Z' },
+      },
+    });
+  });
+
+  it.each([{ destinationChatId: '123456' }, { enabled: 'true', destinationChatId: '123456' }])(
+    'rejects malformed partial forwarding instead of resetting the saved state: %j',
+    (patch) => {
+      expect(
+        parseClinicBotPatchValue({
+          patchEnvelope: { value: '', inboundForwarding: patch },
+          existingValueJson: {
+            value: 'stored-secret',
+            inboundForwarding: { enabled: true, destinationChatId: '-654321' },
+            deliveryReadiness: { status: 'enabled' },
+          },
+        }),
+      ).toMatchObject({ ok: false });
+    },
+  );
 
   it('retains the stored clinic SMTP password when the redacted settings form saves an empty password', async () => {
     const organizationId = '11111111-1111-4111-8111-111111111111';

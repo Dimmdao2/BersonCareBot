@@ -22,6 +22,8 @@ import { getMaxLoginBotNickname } from '@/modules/system-settings/maxLoginBotNic
 import { getTelegramLoginBotUsername } from '@/modules/system-settings/telegramLoginBotUsername';
 import { canAccessPatient } from '@/modules/roles/service';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
+import { selectMessengerBindBotIdentity } from '@/modules/auth/messengerBindBotIdentity';
+import { readResolvedSurface } from '@/shared/lib/surface/requestSurface';
 import { logger } from '@/infra/logging/logger';
 
 const bodySchema = z.object({
@@ -91,10 +93,36 @@ export async function POST(request: Request) {
   // arbitrary phone already exists merely to classify an analytics event.
   const isRegistrationIntent = false;
 
-  const [botUsername, maxBotNickname] = await Promise.all([
+  const [platformBotUsername, platformMaxBotNickname] = await Promise.all([
     getTelegramLoginBotUsername(),
     getMaxLoginBotNickname(),
   ]);
+
+  // The bot identity follows the SURFACE, not the platform default: on a branded patient surface
+  // the clinic's own bot proves the phone and delivers the code (owner 20.08). A clinic that
+  // declared its bot but whose exact identity is unusable fails closed here — silently handing the
+  // person the platform bot would move the clinic's own channel to the platform behind its back.
+  const resolvedSurface = readResolvedSurface(request.headers);
+  const botIdentity = selectMessengerBindBotIdentity({
+    surface: resolvedSurface,
+    channelCode: parsed.data.channelCode,
+    platformPublicId:
+      parsed.data.channelCode === 'telegram' ? platformBotUsername : platformMaxBotNickname,
+  });
+  if (!botIdentity.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: botIdentity.error,
+        message: 'Бот клиники сейчас недоступен. Обратитесь в клинику или войдите другим способом.',
+      },
+      { status: 503 },
+    );
+  }
+  const botUsername =
+    parsed.data.channelCode === 'telegram' ? botIdentity.identity.publicId : platformBotUsername;
+  const maxBotNickname =
+    parsed.data.channelCode === 'max' ? botIdentity.identity.publicId : platformMaxBotNickname;
 
   let result: Awaited<ReturnType<typeof deps.phoneMessengerBind.start>>;
   try {

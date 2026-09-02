@@ -2,6 +2,7 @@ import type { SystemSettingsService } from './service';
 import type { SystemSetting } from './types';
 import { redactSaasBillingPaymentProviderValue } from '@/modules/saas-billing/settings';
 import { isSecretValueSettingKey } from './auditRedaction';
+import { parseClinicBotPublicConfig } from './clinicBotConfig';
 
 export type WebPushVapidKeyPair = {
   publicKey: string;
@@ -107,10 +108,20 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
         s.valueJson !== null && typeof s.valueJson === 'object'
           ? (s.valueJson as Record<string, unknown>).deliveryReadiness
           : undefined;
+      const clinicBotPublicConfig =
+        s.key === 'clinic_telegram_bot_token' || s.key === 'clinic_max_bot_api_key'
+          ? parseClinicBotPublicConfig(s.valueJson)
+          : null;
       return {
         ...s,
         valueJson: {
           value: '[REDACTED]',
+          ...(clinicBotPublicConfig?.botPublicId
+            ? { botPublicId: clinicBotPublicConfig.botPublicId }
+            : {}),
+          ...(clinicBotPublicConfig?.inboundForwarding
+            ? { inboundForwarding: clinicBotPublicConfig.inboundForwarding }
+            : {}),
           ...(readiness ? { deliveryReadiness: readiness } : {}),
         },
       };

@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
+import {
+  DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+  RESOLVED_SURFACE_HEADER,
+  serializeResolvedSurface,
+  type ResolvedSurface,
+} from '@/shared/lib/surface/requestSurface';
 
 const fakes = vi.hoisted(() => ({
   isRateLimited: vi.fn<(phone: string) => Promise<boolean>>(),
@@ -9,6 +15,7 @@ const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
   personalizedLookup: vi.fn(),
   identityPort: vi.fn(),
+  phoneMessengerBindStart: vi.fn(),
 }));
 
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({ stampBootstrapPrincipal: vi.fn() }));
@@ -27,6 +34,9 @@ vi.mock('@/modules/auth/checkPhoneMethods', async (importOriginal) => ({
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
 vi.mock('@/app-layer/di/bindAuthModulePorts', () => ({ ensureAuthModulePortsBound: vi.fn() }));
+vi.mock('@/app-layer/di/bindSystemSettingsConfigAdapter', () => ({
+  ensureSystemSettingsConfigAdapterBound: vi.fn(),
+}));
 vi.mock('@/modules/auth/service', () => ({ getCurrentSession: fakes.getCurrentSession }));
 vi.mock('@/modules/roles/service', () => ({ canAccessPatient: vi.fn(() => true) }));
 vi.mock('@/modules/auth/phoneMessengerBindStartRateLimit', () => ({
@@ -57,6 +67,7 @@ function identityDeps() {
     },
     oauthBindings: fakes.identityPort,
     channelPreferences: { getPreferredAuthOtpChannel: fakes.identityPort },
+    phoneMessengerBind: { start: fakes.phoneMessengerBindStart },
   };
 }
 
@@ -70,6 +81,34 @@ function requestBody(body: unknown): Request {
 
 function request(phone: string): Request {
   return requestBody({ phone });
+}
+
+function messengerBindRequest(channelCode: 'telegram' | 'max', surface?: ResolvedSurface): Request {
+  const headers = new Headers({ 'content-type': 'application/json' });
+  if (surface) headers.set(RESOLVED_SURFACE_HEADER, serializeResolvedSurface(surface));
+  return new Request('https://app.example.test/api/auth/phone/messenger-bind/start', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ phone: '+79991234567', channelCode, purpose: 'login' }),
+  });
+}
+
+function brandedSurface(
+  clinicMessengerBots: NonNullable<ResolvedSurface['clinicMessengerBots']>,
+): ResolvedSurface {
+  return {
+    surface: 'patient_branded',
+    publicOrigin: 'https://clinic.example.test',
+    organizationId: '11111111-1111-4111-8111-111111111111',
+    clinicSlug: 'clinic-a',
+    effectivePatientBrand: {
+      effectiveDisplayName: 'Клиника А',
+      patientAppName: 'Клиника А',
+      accentToken: '#123456',
+    },
+    clinicMessengerBots,
+    authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
+  };
 }
 
 async function completePublicResponse(phone: string): Promise<Response> {
@@ -103,6 +142,12 @@ beforeEach(() => {
   fakes.buildAppDeps.mockImplementation(identityDeps);
   fakes.personalizedLookup.mockRejectedValue(new Error('identity lookup must not be called'));
   fakes.identityPort.mockRejectedValue(new Error('identity port must not be called'));
+  fakes.phoneMessengerBindStart.mockResolvedValue({
+    ok: true,
+    setupToken: 'setup-token',
+    url: 'https://t.me/test_bot?start=setup-token',
+    expiresAtIso: '2026-08-03T10:10:00.000Z',
+  });
 });
 
 afterEach(() => {
@@ -269,5 +314,61 @@ describe('public check-phone enumeration closure', () => {
     await expect(response.json()).resolves.toEqual({ ok: false, error: 'unauthorized' });
     expect(fakes.buildAppDeps).not.toHaveBeenCalled();
     expect(fakes.identityPort).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['telegram', 'test_bot', 'test_max_bot'],
+    ['max', 'test_bot', 'test_max_bot'],
+  ] as const)(
+    'uses the common Therapysto %s bot when no clinic bot is declared',
+    async (channelCode, botUsername, maxBotNickname) => {
+      const response = await startMessengerBind(messengerBindRequest(channelCode));
+
+      expect(response.status).toBe(200);
+      expect(fakes.phoneMessengerBindStart).toHaveBeenCalledWith(
+        expect.objectContaining({ channelCode, botUsername, maxBotNickname }),
+      );
+    },
+  );
+
+  it.each([
+    ['telegram', 'clinic_tg_bot', 'test_max_bot'],
+    ['max', 'test_bot', 'clinic_max_bot'],
+  ] as const)(
+    'uses the exact ready clinic %s bot on its branded surface',
+    async (channelCode, botUsername, maxBotNickname) => {
+      const response = await startMessengerBind(
+        messengerBindRequest(
+          channelCode,
+          brandedSurface({
+            [channelCode]: {
+              status: 'ready',
+              publicId: channelCode === 'telegram' ? 'clinic_tg_bot' : 'clinic_max_bot',
+            },
+          }),
+        ),
+      );
+
+      expect(response.status).toBe(200);
+      expect(fakes.phoneMessengerBindStart).toHaveBeenCalledWith(
+        expect.objectContaining({ channelCode, botUsername, maxBotNickname }),
+      );
+    },
+  );
+
+  it('returns 503 instead of platform fallback for a declared but unusable clinic bot', async () => {
+    const response = await startMessengerBind(
+      messengerBindRequest(
+        'telegram',
+        brandedSurface({ telegram: { status: 'declared_invalid' } }),
+      ),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'clinic_bot_unavailable',
+    });
+    expect(fakes.phoneMessengerBindStart).not.toHaveBeenCalled();
   });
 });

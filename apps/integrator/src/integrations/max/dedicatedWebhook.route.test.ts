@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organizationPrincipal.js';
+import type { DedicatedBotInboundForwardDeps } from '../common/clinicBotInboundForward.js';
 import { registerMaxWebhookRoutes } from './webhook.js';
 
 vi.mock('../../infra/db/client.js', () => ({ createDbPort: vi.fn(() => ({})) }));
@@ -15,6 +16,30 @@ vi.mock('../../infra/operatorIncident/recordIntegrationWebhookOutcome.js', () =>
 const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222';
 const FINGERPRINT = 'c'.repeat(64);
 const apps: Array<Awaited<ReturnType<typeof Fastify>>> = [];
+
+function failingForwarding(): DedicatedBotInboundForwardDeps & { acquired: Set<string> } {
+  const acquired = new Set<string>();
+  return {
+    acquired,
+    dispatchPort: {
+      async dispatchOutgoing() {
+        throw new Error('clinic delivery unavailable');
+      },
+    },
+    async resolveInboundForwarding() {
+      return { enabled: true, destinationChatId: '123456' };
+    },
+    idempotencyPort: {
+      async tryAcquire(key) {
+        acquired.add(key);
+        return true;
+      },
+      async release(key) {
+        acquired.delete(key);
+      },
+    },
+  };
+}
 
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
@@ -85,6 +110,71 @@ describe('dedicated MAX inbound ownership', () => {
 
     expect(response.statusCode).toBeGreaterThanOrEqual(500);
     expect(handleIncomingEvent).not.toHaveBeenCalled();
+  });
+
+  it('returns retryable non-2xx and releases dedup when clinic forwarding fails', async () => {
+    const handleIncomingEvent = vi.fn(async () => ({ status: 'accepted' as const }));
+    const dedicatedBotInboundForward = failingForwarding();
+    const app = Fastify({ logger: false });
+    apps.push(app);
+    await registerMaxWebhookRoutes(app, {
+      eventGateway: { handleIncomingEvent } as unknown as EventGateway,
+      setupProviderSurface: false,
+      resolveDedicatedClinicBotOrganization: async () => ORGANIZATION_ID,
+      resolveDedicatedClinicBotApiKey: async () => 'clinic-key',
+      dedicatedBotInboundForward,
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/webhook/max/dedicated/${FINGERPRINT}`,
+      payload: {
+        update_type: 'message_created',
+        timestamp: 1,
+        message: {
+          recipient: { chat_id: 42 },
+          sender: { user_id: 42 },
+          body: { mid: 'message-19', text: 'help' },
+        },
+      },
+    });
+
+    expect(response.statusCode).toBeGreaterThanOrEqual(500);
+    expect(handleIncomingEvent).not.toHaveBeenCalled();
+    expect(dedicatedBotInboundForward.acquired.size).toBe(0);
+  });
+
+  it('returns retryable non-2xx when the dedicated event pipeline rejects the update', async () => {
+    const handleIncomingEvent = vi.fn(async () => ({
+      status: 'rejected' as const,
+      reason: 'idempotency unavailable',
+      dedupKey: 'max:message-19',
+    }));
+    const app = Fastify({ logger: false });
+    apps.push(app);
+    await registerMaxWebhookRoutes(app, {
+      eventGateway: { handleIncomingEvent } as unknown as EventGateway,
+      setupProviderSurface: false,
+      resolveDedicatedClinicBotOrganization: async () => ORGANIZATION_ID,
+      resolveDedicatedClinicBotApiKey: async () => 'clinic-key',
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/webhook/max/dedicated/${FINGERPRINT}`,
+      payload: {
+        update_type: 'message_created',
+        timestamp: 1,
+        message: {
+          recipient: { chat_id: 42 },
+          sender: { user_id: 42 },
+          body: { mid: 'message-19', text: 'help' },
+        },
+      },
+    });
+
+    expect(response.statusCode).toBeGreaterThanOrEqual(500);
+    expect(handleIncomingEvent).toHaveBeenCalledOnce();
   });
 });
 

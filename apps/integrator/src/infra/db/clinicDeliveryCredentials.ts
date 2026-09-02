@@ -10,6 +10,10 @@ import {
 } from './publicSystemSettings.js';
 import { getCurrentOrganizationPrincipalId } from '../principal/organizationPrincipal.js';
 import { resolveOrganizationMechanicLifecycleAccess } from './organizationMechanicLifecycleDoor.js';
+import {
+  parseClinicBotInboundForwarding,
+  type ClinicBotInboundForwarding,
+} from './clinicBotPublicConfig.js';
 
 export type ClinicDeliveryChannel = 'email' | 'smsc' | 'telegram' | 'max' | 'vk';
 export type ClinicDeliveryCredential =
@@ -93,5 +97,32 @@ export function createClinicDeliveryCredentialResolver(db: DbPort) {
     } catch {
       return null;
     }
+  };
+}
+
+/**
+ * Inbound forwarding настройка КЛИНИКИ for its own bot, read from the SAME per-org envelope and
+ * behind the SAME tariff-mechanic gate as the credential above — not a second resolver and not a
+ * second store. Returns `null` whenever forwarding must not happen: no organization principal,
+ * mechanic disabled, no clinic bot at all, «игнорировать» (the default), or a missing chat id.
+ */
+export function createClinicBotInboundForwardingResolver(db: DbPort) {
+  return async function resolveClinicBotInboundForwarding(
+    channel: 'telegram' | 'max',
+  ): Promise<ClinicBotInboundForwarding | null> {
+    const organizationId = exactCurrentOrganization();
+    if (!organizationId) return null;
+    const setting = SETTINGS[channel];
+    const access = await resolveOrganizationMechanicLifecycleAccess(db, {
+      organizationId,
+      mechanic: setting.mechanic,
+    });
+    if (!access.mutationAllowed) return null;
+    const valueJson = await fetchIntegratorClinicDeliveryCredentialValueJson(
+      db,
+      setting.key,
+      organizationId,
+    );
+    return parseClinicBotInboundForwarding(valueJson);
   };
 }
