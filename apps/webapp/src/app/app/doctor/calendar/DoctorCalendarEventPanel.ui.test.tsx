@@ -2,7 +2,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./DoctorCalendarPatientSearch', () => ({
-  DoctorCalendarPatientSearch: () => <div data-testid="patient-search" />,
+  DoctorCalendarPatientSearch: ({ value }: { value?: { displayName: string } | null }) => (
+    <div data-testid="patient-search">{value?.displayName}</div>
+  ),
 }));
 vi.mock('@/shared/ui/doctor/DoctorDateTimePicker', () => ({
   DoctorDateTimePicker: ({ value }: { value: string }) => (
@@ -20,6 +22,31 @@ const SERVICE_ID = '33333333-3333-4333-8333-333333333333';
 afterEach(() => vi.unstubAllGlobals());
 
 describe('clinic calendar create form', () => {
+  it('starts with the patient supplied by the host already selected', async () => {
+    render(
+      <DoctorCalendarEventPanel
+        apiBase="/api/doctor/booking-engine"
+        selected={null}
+        timeZone="Europe/Moscow"
+        filterMeta={{ specialists: [], branches: [], rooms: [], services: [] }}
+        activeFilters={{ specialistId: null, branchId: null, roomId: null, serviceId: null }}
+        ownSpecialistId={null}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+        startInCreate
+        createInitialPatient={{
+          id: 'patient-1',
+          displayName: 'Иванова Мария',
+          firstName: 'Мария',
+          lastName: 'Иванова',
+          phone: '+79990000000',
+        }}
+      />,
+    );
+
+    expect(await screen.findByTestId('patient-search')).toHaveTextContent('Иванова Мария');
+  });
+
   it('renders canonical specialist/branch/service fields and submits their exact ids', async () => {
     const onChanged = vi.fn();
     const fetchMock = vi.fn(async () => ({

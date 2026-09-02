@@ -151,7 +151,6 @@ type TabPanelsProps = Props & {
   onPendingConsumed: () => void;
   onCreateVisitFromAppointment: (prefill: AppointmentPrefill) => void;
   newVisitRequestId: number;
-  onCreateVisit: () => void;
   header: NonNullable<DoctorPatientCardShellMeta['cardHeader']>;
 };
 
@@ -754,15 +753,6 @@ export function PatientCardClient({
               selectTab('karta');
             }}
             newVisitRequestId={newVisitRequestId}
-            onCreateVisit={() => {
-              setPendingAppointmentId(null);
-              setPendingVisitDate(null);
-              setPendingPrefillLocation(null);
-              setPendingPrefillService(null);
-              setPendingPrefillDurationMin(null);
-              setNewVisitRequestId((value) => value + 1);
-              selectTab('karta');
-            }}
             header={header}
           />
         </Suspense>
@@ -787,7 +777,6 @@ function PatientCardTabPanels({
   onPendingConsumed,
   onCreateVisitFromAppointment,
   newVisitRequestId,
-  onCreateVisit,
   header,
 }: TabPanelsProps) {
   const tab = use(tabPromise);
@@ -821,7 +810,6 @@ function PatientCardTabPanels({
               setMobilePane('detail');
               selectTab('karta');
             }}
-            onCreateVisit={onCreateVisit}
             onOpenMembershipConfiguration={() => setMembershipConfigurationOpen(true)}
             initialAppointments={appointments}
             initialPackages={packages}

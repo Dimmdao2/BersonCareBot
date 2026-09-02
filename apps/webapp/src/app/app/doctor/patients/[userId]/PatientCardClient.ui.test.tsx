@@ -44,11 +44,9 @@ vi.mock('./tabs/PatientTabOverview', () => ({
 vi.mock('./tabs/PatientTabRecords', () => ({
   PatientTabRecords: ({
     onOpenVisitNotes,
-    onCreateVisit,
     onOpenMembershipConfiguration,
   }: {
     onOpenVisitNotes?: (appointmentId: string) => void;
-    onCreateVisit?: () => void;
     onOpenMembershipConfiguration?: () => void;
   }) => (
     <div data-testid="card-master-pane">
@@ -57,9 +55,6 @@ vi.mock('./tabs/PatientTabRecords', () => ({
       </button>
       <button type="button" onClick={onOpenMembershipConfiguration}>
         Добавить абонемент
-      </button>
-      <button type="button" onClick={onCreateVisit}>
-        Добавить визит
       </button>
     </div>
   ),

@@ -46,6 +46,7 @@ import {
   formatPatientPackageLongLabel,
   formatPatientPackageShortLabel,
 } from '@/modules/memberships/display';
+import { DoctorNewAppointmentModal } from '@/app/app/doctor/calendar/DoctorNewAppointmentModal';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -125,7 +126,7 @@ function fmtWeekday(iso: string): string {
 
 function formatNextAppointment(appointment: DisplayAppointment | undefined): string | undefined {
   if (!appointment?.date) return undefined;
-  return `Следующ. ${fmtDate(appointment.date).slice(0, 5)}`;
+  return `След ${fmtDate(appointment.date).slice(0, 5)}`;
 }
 
 function formatMoney(amountMinor: number | null | undefined, currency: string | null | undefined) {
@@ -142,11 +143,6 @@ function openTab(tabId: string) {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('patient:open-tab', { detail: { tab: tabId } }));
   }
-}
-
-function openNewVisit() {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent('patient:new-visit'));
 }
 
 // ---------------------------------------------------------------------------
@@ -221,7 +217,6 @@ type Props = {
   initialPaymentsSummary?: { payments: PaymentItem[]; totalPaidMinor: number } | null;
   compositionMode?: 'master';
   onOpenVisitNotes?: (appointmentId: string) => void;
-  onCreateVisit?: () => void;
   onOpenMembershipConfiguration?: () => void;
 };
 
@@ -236,12 +231,12 @@ export function PatientTabRecords({
   initialPaymentsSummary,
   compositionMode,
   onOpenVisitNotes,
-  onCreateVisit,
   onOpenMembershipConfiguration,
 }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
   const [highlightedPackageId, setHighlightedPackageId] = useState<string | null>(null);
   const [visitsModalOpen, setVisitsModalOpen] = useState(false);
+  const [newAppointmentModalOpen, setNewAppointmentModalOpen] = useState(false);
   const [membershipModalOpen, setMembershipModalOpen] = useState(false);
   const [membershipSessions, setMembershipSessions] = useState<PackageSession[] | null>(null);
   const [membershipSessionsError, setMembershipSessionsError] = useState(false);
@@ -401,8 +396,8 @@ export function PatientTabRecords({
             hintClassName={doctorSecondaryListTextClass}
             onClick={() => setVisitsModalOpen(true)}
             actionIcon={<CalendarPlus className="size-5" aria-hidden />}
-            actionLabel="Добавить визит"
-            onActionClick={onCreateVisit ?? openNewVisit}
+            actionLabel="Добавить запись"
+            onActionClick={() => setNewAppointmentModalOpen(true)}
           />
           <DoctorStatCard
             id="patient-overview-membership"
@@ -425,6 +420,20 @@ export function PatientTabRecords({
             }
           />
         </div>
+
+        <DoctorNewAppointmentModal
+          open={newAppointmentModalOpen}
+          onClose={() => setNewAppointmentModalOpen(false)}
+          patient={{
+            id: header?.identity.userId ?? userId,
+            displayName: header?.identity.displayName ?? '',
+            firstName: header?.identity.firstName ?? null,
+            lastName: header?.identity.lastName ?? null,
+            patronymic: header?.identity.patronymic ?? null,
+            phone: header?.identity.phone ?? null,
+            email: header?.identity.email ?? null,
+          }}
+        />
 
         <DoctorModal
           open={visitsModalOpen}

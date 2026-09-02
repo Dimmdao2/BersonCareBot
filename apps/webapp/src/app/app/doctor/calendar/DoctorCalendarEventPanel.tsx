@@ -85,6 +85,8 @@ type Props = {
   createInitialBranchId?: string | null;
   createInitialServiceId?: string | null;
   createInitialSpecialistId?: string | null;
+  /** Patient already known by the host (for example, from the patient card). */
+  createInitialPatient?: CalendarPatientOption | null;
   onCreateDirtyChange?: (dirty: boolean) => void;
   /** Dialog hosts keep their standard close; embedded schedule keeps this panel close. */
   showCloseControl?: boolean;
@@ -195,6 +197,7 @@ function DoctorCalendarEventPanelInner({
   createInitialBranchId = null,
   createInitialServiceId = null,
   createInitialSpecialistId = null,
+  createInitialPatient = null,
   onCreateDirtyChange,
   showCloseControl = true,
   flushChrome = false,
@@ -221,7 +224,9 @@ function DoctorCalendarEventPanelInner({
   const [createSpecialistId, setCreateSpecialistId] = useState<string | null>(null);
   const [createBranchId, setCreateBranchId] = useState<string | null>(null);
   const [createServiceId, setCreateServiceId] = useState<string | null>(null);
-  const [createPatient, setCreatePatient] = useState<CalendarPatientOption | null>(null);
+  const [createPatient, setCreatePatient] = useState<CalendarPatientOption | null>(
+    createInitialPatient,
+  );
   const createManualRequestIdRef = useRef(crypto.randomUUID());
   // R16: комментарий, добавляемый сразу после создания записи (staff-коммент).
   const [createComment, setCreateComment] = useState('');
@@ -279,6 +284,7 @@ function DoctorCalendarEventPanelInner({
     setCreateServiceId(
       initialServices.some((service) => service.id === initialServiceId) ? initialServiceId : null,
     );
+    setCreatePatient(createInitialPatient);
     // R32: подставить выделенное время старта (если открыто через select по сетке)
     if (createInitialStart) setCreateStart(createInitialStart);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -288,6 +294,7 @@ function DoctorCalendarEventPanelInner({
     createInitialBranchId,
     createInitialServiceId,
     createInitialSpecialistId,
+    createInitialPatient,
   ]);
 
   useEffect(() => {

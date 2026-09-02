@@ -1,9 +1,55 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PatientAppointmentItem } from '@/modules/doctor-clients/ports';
+import type { PatientAppointmentItem, PatientCardHeader } from '@/modules/doctor-clients/ports';
+
+vi.mock('@/app/app/doctor/calendar/DoctorNewAppointmentModal', () => ({
+  DoctorNewAppointmentModal: ({
+    open,
+    patient,
+    onClose,
+  }: {
+    open: boolean;
+    patient?: { id: string | null; displayName: string } | null;
+    onClose: () => void;
+  }) =>
+    open ? (
+      <div role="dialog" aria-label="Новая запись">
+        {patient?.displayName} · {patient?.id}
+        <button type="button" onClick={onClose}>
+          Закрыть новую запись
+        </button>
+      </div>
+    ) : null,
+}));
+
 import { PatientTabRecords } from './PatientTabRecords';
 
 const patientId = '22222222-2222-4222-8222-222222222222';
+const patientHeader = {
+  identity: {
+    userId: patientId,
+    displayName: 'Иванова Мария',
+    firstName: 'Мария',
+    lastName: 'Иванова',
+    patronymic: null,
+    phone: '+79990000000',
+    email: null,
+    bindings: {},
+    hasConversation: false,
+    isArchived: false,
+    isBlocked: false,
+    birthDate: null,
+    age: null,
+    gender: null,
+  },
+  support: { isOnSupport: false, startedAt: null, supportMonthsApprox: null },
+  lastVisit: null,
+  nextAppointment: null,
+  totalVisits: 1,
+  cancellationsCount: 0,
+  reschedulesCount: 0,
+  firstVisitDate: null,
+} satisfies PatientCardHeader;
 
 /**
  * A failed appointments load used to render three hardcoded demo visits — «Студия на Лесной»,
@@ -96,7 +142,6 @@ describe('patient records tab — a refused load is not a visit history', () => 
 
   it('opens the visit history from the summary and opens prepared notes without creating a duplicate visit', async () => {
     const createVisit = vi.fn();
-    const createNewVisit = vi.fn();
     const createMembership = vi.fn();
     const openNotes = vi.fn();
     const preparedAppointment = {
@@ -113,17 +158,17 @@ describe('patient records tab — a refused load is not a visit history', () => 
     render(
       <PatientTabRecords
         userId={patientId}
+        header={patientHeader}
         compositionMode="master"
         initialAppointments={[preparedAppointment]}
         initialPackages={[]}
         onCreateVisitFromAppointment={createVisit}
-        onCreateVisit={createNewVisit}
         onOpenMembershipConfiguration={createMembership}
         onOpenVisitNotes={openNotes}
       />,
     );
 
-    const addVisitButton = screen.getByRole('button', { name: 'Добавить визит' });
+    const addVisitButton = screen.getByRole('button', { name: 'Добавить запись' });
     expect(addVisitButton).toHaveClass(
       'h-full',
       'rounded-none',
@@ -135,12 +180,15 @@ describe('patient records tab — a refused load is not a visit history', () => 
     );
     expect(addVisitButton).not.toHaveClass('m-1.5');
     fireEvent.click(addVisitButton);
-    expect(createNewVisit).toHaveBeenCalledOnce();
+    expect(screen.getByRole('dialog', { name: 'Новая запись' })).toHaveTextContent(
+      `Иванова Мария · ${patientId}`,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть новую запись' }));
     fireEvent.click(screen.getByRole('button', { name: 'Добавить абонемент' }));
     expect(createMembership).toHaveBeenCalledOnce();
 
     fireEvent.click(screen.getByRole('button', { name: /Визитов\s*1/ }));
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Визиты' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Открыть' }));
     expect(openNotes).toHaveBeenCalledWith('appointment-with-visit');
     expect(createVisit).not.toHaveBeenCalled();
@@ -262,7 +310,7 @@ describe('patient records tab — a refused load is not a visit history', () => 
       />,
     );
 
-    const nextVisit = screen.getByText('Следующ. 01.01');
+    const nextVisit = screen.getByText('След 01.01');
     expect(nextVisit).toHaveClass('text-sm', 'font-normal', 'text-foreground/80');
   });
 });
