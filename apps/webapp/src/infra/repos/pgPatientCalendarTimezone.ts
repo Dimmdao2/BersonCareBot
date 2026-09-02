@@ -8,7 +8,7 @@
 import { and, eq, ne, or, isNull, sql } from 'drizzle-orm';
 import { platformUsers } from '../../../db/schema/schema';
 import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
-import { isAcceptableIanaTimezone } from '@/modules/system-settings/calendarIana';
+import { syncCalendarTimezoneFromDevice as syncIdentityCalendarTimezoneFromDevice } from '@/app-layer/platform-user/syncCalendarTimezoneFromDevice';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 
@@ -33,35 +33,34 @@ export async function syncCalendarTimezoneFromDevice(
   platformUserId: string,
   raw: string | null,
 ): Promise<boolean> {
-  const candidate = raw?.trim() ?? '';
-  if (!candidate || !isAcceptableIanaTimezone(candidate)) return false;
-  // Совпало — не пишем вовсе. Гарантия §34 системная, а не «экран не пошлёт лишний POST»: маршрут остаётся
-  // открытой дверью для второй вкладки, повторной отправки и будущего нативного клиента. У сотрудника то же
-  // условие стоит прямо в `WHERE`; здесь путь идёт через definer-функцию, которая сравнения не делает.
-  if ((await getPatientCalendarTimezoneIana(platformUserId)) === candidate) return false;
-  if (getCurrentDbPrincipal()?.kind === 'patient') {
-    const result = await runWithWebappDbOperationFamily('patient_calendar_timezone', () =>
-      runWebappSql<{ updated: boolean }>(
-        getWebappSqlDb(),
-        sql`SELECT app.set_current_patient_calendar_timezone(${candidate}, false) AS updated`,
-      ),
-    );
-    return result.rows[0]?.updated === true;
-  }
-  const updated = await getWebappSqlDb()
-    .update(platformUsers)
-    .set({ calendarTimezone: candidate, updatedAt: sql`now()` })
-    .where(
-      and(
-        eq(platformUsers.id, platformUserId),
-        eq(platformUsers.role, 'client'),
-        isNull(platformUsers.mergedIntoId),
-        or(
-          isNull(platformUsers.calendarTimezone),
-          ne(platformUsers.calendarTimezone, candidate),
-        ),
-      ),
-    )
-    .returning({ id: platformUsers.id });
-  return updated.length > 0;
+  return syncIdentityCalendarTimezoneFromDevice(platformUserId, raw, {
+    readCurrent: getPatientCalendarTimezoneIana,
+    writeChanged: async (targetUserId, calendarTimezone) => {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const result = await runWithWebappDbOperationFamily('patient_calendar_timezone', () =>
+          runWebappSql<{ updated: boolean }>(
+            getWebappSqlDb(),
+            sql`SELECT app.set_current_patient_calendar_timezone(${calendarTimezone}, false) AS updated`,
+          ),
+        );
+        return result.rows[0]?.updated === true;
+      }
+      const updated = await getWebappSqlDb()
+        .update(platformUsers)
+        .set({ calendarTimezone, updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(platformUsers.id, targetUserId),
+            eq(platformUsers.role, 'client'),
+            isNull(platformUsers.mergedIntoId),
+            or(
+              isNull(platformUsers.calendarTimezone),
+              ne(platformUsers.calendarTimezone, calendarTimezone),
+            ),
+          ),
+        )
+        .returning({ id: platformUsers.id });
+      return updated.length > 0;
+    },
+  });
 }
