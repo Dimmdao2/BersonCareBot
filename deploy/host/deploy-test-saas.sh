@@ -79,7 +79,9 @@ C4_OPERATIONAL_PROVISIONER=deploy/host/provision-c4-operational-runtime.sh
 C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
 C4_MEDIA_CONTROL_CUTOVER=deploy/host/media-control-cutover-sequence.sh
 C4_MEDIA_LOGIN_RETIREMENT=deploy/host/retire-media-db-login.sh
-UNITS=(api worker scheduler webapp media-worker)
+UNITS=(api scheduler webapp media-worker)
+LEGACY_WORKER_SERVICE=bersoncarebot-worker-test.service
+LEGACY_WORKER_UNIT_INSTALLED="/etc/systemd/system/$LEGACY_WORKER_SERVICE"
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
 LEGACY_ELEVATION_CLEANUP_REQUIRED=1
@@ -348,6 +350,43 @@ assert_test_writers_stopped(){
       exit 1
     fi
   done
+}
+
+# D30 merged the outgoing-delivery worker into the resident scheduler. A full reset must accept a host
+# where the old unit is already absent, but it must also retire an installed legacy unit before the
+# scheduler can be started, otherwise two delivery loops can run at once.
+retire_legacy_test_worker_unit(){
+  local fragment_path drop_in_paths
+  if sudo systemctl is-active --quiet "$LEGACY_WORKER_SERVICE"; then
+    sudo systemctl stop "$LEGACY_WORKER_SERVICE" || {
+      echo "FATAL: cannot stop legacy $LEGACY_WORKER_SERVICE before starting the merged scheduler" >&2
+      exit 1
+    }
+  fi
+  if sudo systemctl is-enabled --quiet "$LEGACY_WORKER_SERVICE" 2>/dev/null; then
+    sudo systemctl disable "$LEGACY_WORKER_SERVICE" || {
+      echo "FATAL: cannot disable legacy $LEGACY_WORKER_SERVICE before starting the merged scheduler" >&2
+      exit 1
+    }
+  fi
+  if sudo test -e "$LEGACY_WORKER_UNIT_INSTALLED"; then
+    { sudo test -f "$LEGACY_WORKER_UNIT_INSTALLED" && ! sudo test -L "$LEGACY_WORKER_UNIT_INSTALLED"; } || {
+      echo "FATAL: refusing to remove non-regular legacy unit target: $LEGACY_WORKER_UNIT_INSTALLED" >&2
+      exit 1
+    }
+    fragment_path="$(sudo systemctl show --property=FragmentPath --value "$LEGACY_WORKER_SERVICE")"
+    drop_in_paths="$(sudo systemctl show --property=DropInPaths --value "$LEGACY_WORKER_SERVICE")"
+    [ "$fragment_path" = "$LEGACY_WORKER_UNIT_INSTALLED" ] || {
+      echo "FATAL: legacy worker FragmentPath mismatch: ${fragment_path:-missing}" >&2
+      exit 1
+    }
+    [ -z "$drop_in_paths" ] || {
+      echo "FATAL: refusing to retire legacy worker with drop-ins: $drop_in_paths" >&2
+      exit 1
+    }
+    sudo rm -- "$LEGACY_WORKER_UNIT_INSTALLED"
+    sudo systemctl daemon-reload
+  fi
 }
 
 assert_test_db_restore_owner_ready(){
@@ -647,7 +686,7 @@ run_port_context_test_release(){
 
   log "restart TEST on exact port-context runtime"
   install_and_assert_media_worker_test_unit
-  for unit_name in api worker scheduler webapp; do
+  for unit_name in api scheduler webapp; do
     sudo systemctl restart "bersoncarebot-$unit_name-test"
   done
   sudo systemctl restart bersoncarebot-media-worker-test
@@ -742,6 +781,7 @@ log "snapshot configured TEST SMTP before destructive restore"
 snapshot_test_smtp_outbound
 
 log "stop TEST writers before restore/migration"
+retire_legacy_test_worker_unit
 for u in "${UNITS[@]}"; do sudo systemctl stop "bersoncarebot-$u-test"; done
 WRITERS_STOPPED=1
 assert_test_writers_stopped
