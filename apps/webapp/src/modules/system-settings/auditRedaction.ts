@@ -29,10 +29,20 @@ import {
   redactBookingPaymentProvidersForClient,
 } from '@/modules/payments/bookingPaymentSettings';
 
-type RegistryLookup = Record<string, { secretAudit: SystemSettingSecretAuditPolicy } | undefined>;
+type RegistryLookup = Record<
+  string,
+  {
+    secretAudit: SystemSettingSecretAuditPolicy;
+    valueContract: string;
+  } | undefined
+>;
+
+function definitionForKey(key: string): RegistryLookup[string] {
+  return (SYSTEM_SETTING_REGISTRY as RegistryLookup)[key];
+}
 
 function policyForKey(key: string): SystemSettingSecretAuditPolicy {
-  const definition = (SYSTEM_SETTING_REGISTRY as RegistryLookup)[key];
+  const definition = definitionForKey(key);
   // A key absent from the registry cannot be written through the chokepoint (`ALLOWED_KEYS` gates
   // it), so this only fires for a stale/foreign key reaching this function directly (e.g. a test).
   // Fail closed rather than guess it is safe to show.
@@ -60,12 +70,21 @@ function redactObjectField(value: unknown, field: string): unknown {
   if (value === null || value === undefined) return value;
   if (!isCompositeEnvelope(value)) return '[REDACTED]';
   const inner = { ...value.value };
-  if (field in inner) {
-    const raw = inner[field];
-    const trimmed = typeof raw === 'string' ? raw.trim() : '';
-    inner[field] = trimmed.length > 0 ? '[REDACTED]' : '';
-  }
+  if (!(field in inner)) return '[REDACTED]';
+  const raw = inner[field];
+  const trimmed = typeof raw === 'string' ? raw.trim() : '';
+  inner[field] = trimmed.length > 0 ? '[REDACTED]' : '';
   return { ...value, value: inner };
+}
+
+function redactPublicScalarEnvelope(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'object' || Array.isArray(value)) return '[REDACTED]';
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 1 || !('value' in record)) return '[REDACTED]';
+  const inner = record.value;
+  if (typeof inner !== 'string') return '[REDACTED]';
+  return value;
 }
 
 function redactDomain(
@@ -87,7 +106,9 @@ export function redactSettingValueForAudit(key: string, value: unknown): unknown
   const policy = policyForKey(key);
   switch (policy.kind) {
     case 'none':
-      return value;
+      return definitionForKey(key)?.valueContract === 'secret_envelope'
+        ? redactPublicScalarEnvelope(value)
+        : value;
     case 'whole_value':
       return redactWholeValue(value);
     case 'object_field':
