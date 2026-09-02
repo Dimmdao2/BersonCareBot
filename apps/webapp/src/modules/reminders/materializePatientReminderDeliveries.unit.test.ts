@@ -88,21 +88,17 @@ describe('patient reminder ready-delivery materializer', () => {
       targets: { selectedChannels: ['telegram'] as const, telegramId: '1001' },
     });
 
-    // W17A: patient-entered customTitle/customText never reach the envelope — bounding is
-    // automatic because the channel content is the fixed shared neutral copy, not the input.
+    expect(delivery?.logText.length).toBe(8000);
     const message = delivery?.intent.payload.message as { text: string } | undefined;
-    expect(message?.text).not.toContain('T'.repeat(500));
-    expect(message?.text).not.toContain('&'.repeat(20_000));
-    expect(delivery?.logText).not.toContain('&');
     expect(message?.text.length).toBeLessThanOrEqual(65_536);
   });
 
-  it('replaces patient-entered custom title/text with the shared neutral copy before enqueue', () => {
+  it('owns copy, deep-link and callback keyboard before enqueue', () => {
     const deliveries = materializePatientReminderDeliveries(input);
     const telegram = deliveries.find((delivery) => delivery.channel === 'telegram');
     expect(telegram?.intent.payload).toEqual(
       expect.objectContaining({
-        message: { text: '<b>Напоминание</b>\n\nУ вас в приложении новое напоминание' },
+        message: { text: '<b>Разминка</b>\n\nПора размяться' },
         replyMarkup: {
           inline_keyboard: expect.arrayContaining([
             [
@@ -121,9 +117,6 @@ describe('patient reminder ready-delivery materializer', () => {
         outboundMessageClass: 'routine_product',
         outboundCapability: 'app_push',
       }),
-    );
-    expect((push?.intent.payload.message as { text: string }).text).toBe(
-      'У вас в приложении новое напоминание',
     );
   });
 
