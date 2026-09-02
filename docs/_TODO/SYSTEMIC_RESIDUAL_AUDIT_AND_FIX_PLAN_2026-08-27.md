@@ -229,6 +229,29 @@
    владельцем `deploy:deploy`/mode `0600` подтверждены; до W10 destructive reset не запускался.
 6. После зелёной TEST-живой приёмки обновить DEV из принятого TEST-состояния отдельным repo-managed действием:
    данные/примеры сохраняются, но TEST runtime credentials, provider delivery и TEST env не переносятся в DEV.
+   **Entrypoint готов, действие ещё не выполнено (02.09.2026).** Канонический вход —
+   `bash deploy/host/refresh-dev-from-test.sh --check`, затем `--execute --confirm-refresh-dev-from-test`;
+   что переносится и что остаётся — `docs/ARCHITECTURE/DB_DUMPS/README.md`. Он оркестрирует существующие
+   примитивы (`dev-owned-settings-policy.mjs` над registry + TEST-overlay, `parse-dev-database-url.mjs`,
+   `generate-cli.mjs --shared-role-baseline`, единственный `reconcile-access.mjs`) и не содержит второго
+   генератора прав, мигратора, реестра секретов или runtime-overlay списка. Живой прогон отложен: он идёт
+   строго после шага 5 — принятого TEST, которого на 02.09 ещё нет. Готовность entrypoint не закрывает W10.
+
+   **Correction-pass 02.09.2026 по независимому аудиту** (`docs/_TODO/runs/TEST_TO_DEV_REFRESH_INDEPENDENT_AUDIT_2026-09-02.md`,
+   F1–F4), выполнен без обращения к живым TEST/DEV/PROD:
+   - F1 — пересоздание идёт одним `CREATE DATABASE … CONNECTION LIMIT 0`, окна доступной базы нет вообще;
+     `assert_target_closed` проверяет закрытость на каждом шаге, лимит возвращается в одной точке успеха.
+   - F2 — штатный `deploy/host/migrate-dev.sh --execute` вызывается ВНУТРИ границы успеха; своя копия
+     reconcile из `--execute` убрана; вложенный вызов получает уже удерживаемый host-lock новым параметром
+     `--host-lock-fd` (второго мигратора без замка не появилось).
+   - F3 — per-org DEV-строка отсутствующей в принятом TEST организации не восстанавливается: политика,
+     count-экспорт и три assertions в restore-SQL, число печатается в `PASS`.
+   - F4 — добавлен исполняемый оракул `deploy/host/dev-refresh-sql-model.mjs` (+ свой тест): capture/restore
+     SQL реально исполняются над синтетическим PII-free фикстуром, проверки — по строкам и значениям.
+     Живые именованные базы не использовались, одноразовая база не создавалась.
+   - Побочно вскрыто и исправлено `run_tracked`: асинхронный дочерний процесс получал stdin из `/dev/null`,
+     то есть capture/restore SQL на живом прогоне не исполнились бы вовсе (psql молча вышел бы с кодом 0).
+   Живой прогон по-прежнему отложен до принятого TEST; W10 не закрыт.
 
 ### Не приняты как отдельные дефекты
 
