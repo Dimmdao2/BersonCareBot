@@ -687,7 +687,7 @@ $c5a_platform_support_isolation$;
 --
 -- Why here and not a migration: p2-b-protected-principal-context.sql and p0-5b-grants.sql scrub
 -- privileges on every closure, and this file is the overlay that owns app_platform_settings and runs
--- after them (deploy/host/runtime-overlay-rehydrate-lib.sh always_overlays). A grant written in a
+-- after them (the retired runtime-overlay chain, removed 02.09.2026 with #1085). A grant written in a
 -- migration runs once and is silently revoked by the next deploy — exactly what happened to
 -- migration 0241 and is recorded at the end of this file.
 --

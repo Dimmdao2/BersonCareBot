@@ -79,9 +79,9 @@
 --     re-reading the CURRENT code (apps/webapp/src/infra/repos/pgProductAnalytics.ts:145-182,
 --     recordEventsBatch/recordPushOpen) shows the patient branch (principal.kind === "patient") no
 --     longer does a direct table INSERT/UPSERT at all -- it calls the SECURITY DEFINER RPC functions
---     app.record_current_patient_analytics_event / app.record_current_patient_push_open
---     (apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql), which already
---     have GRANT EXECUTE ... TO app_patient (deploy/postgres/e1-webapp-runtime-config.sql:195-198,
+--     app.record_current_patient_analytics_event / app.record_current_patient_push_open, part of the
+--     current schema (deploy/postgres/generated/prod-to-target/schema-pre.sql), which already
+--     have GRANT EXECUTE ... TO app_patient (declared in deploy/postgres/privileges/function-census.ts;
 --     wired into deploy via deploy/host/deploy-test-saas.sh) and write all three product_analytics_*
 --     tables as the function owner (app_owner), not as app_patient. The direct-table helper functions
 --     insertRecent/upsertHourlyCount/upsertUserHourly in pgProductAnalytics.ts are only reached from

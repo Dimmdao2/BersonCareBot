@@ -22,23 +22,35 @@
 
 ## Current TEST outcome
 
-Current TEST has one supported outcome: writers stop, the wrapper performs migrations/data cleanup/roles/grants and
-all reviewed overlays, including the E1 closed telemetry API, then `deploy/postgres/test-strict-rls-finalizer.sql`
-applies base policies → safe invite/course/app_worker overlays → FORCE with exact catalog/semantic assertions.
-Temporary privileges are revoked, and only locked units that pass fail-closed health remain running; acceptance is
-an ordinary check against the already-registered owner accounts and clinics (`docs/OWNER_DECISIONS.md:870-871`,
-`AGENTS.md` §1a/§1b) — no fixture reconciliation window and no product-smoke-fixture step. A failure is fixed in
-code/policy; walls are not disabled as recovery.
+**Superseded 02.09.2026 (#1085).** The overlay/E1/`test-strict-rls-finalizer.sql` closure this section used to
+describe was never executed by the public full-reset: it hung off the orphaned `deploy-test-saas.sh
+--post-migration-closure` flag that `deploy-test.sh` stopped passing on 12.08.2026 (`fe7aa07d9`). It also
+contradicted the current access layer — its first overlay required the retired `app_owner` to hold `BYPASSRLS`,
+nine of its files depended on that role, `e1-webapp-runtime-config.sql` transferred fourteen current functions
+back to it, and eight files re-created 44 objects schema B already ships. It has been removed, not rewired.
 
-Use only:
+Current TEST has one supported post-migration access closure, and both public entrypoints reach it: writers stop,
+schema/data land (full reset: the one atomic A→B transition; code-only: forward migrations), then the declaration
+(`deploy/postgres/privileges/`) installs the whole access matrix in one reconcile — owners, roles, memberships,
+grants, policies, FORCE RLS and the port-context capability catalog — after which the units restart and must pass
+fail-closed health before TEST is released. Object definitions come only from schema B plus active forward
+migrations (`AGENTS.md` §1 «Миграции schema B»); no deploy step re-creates a schema object after B, and no deploy
+step writes privileges outside the declaration. Acceptance is an ordinary check against the already-registered
+owner accounts and clinics (`docs/OWNER_DECISIONS.md:870-871`, `AGENTS.md` §1a/§1b) — no fixture reconciliation
+window and no product-smoke-fixture step. A failure is fixed in code/declaration; walls are not disabled as recovery.
+
+Full reset (destructive, owner-gated) — use only:
 
 ```bash
 bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset <hash-bound-owner-inputs> feat/doctor-ui-rebuild
 ```
 
-For a code-only update of the existing TEST database use `deploy/host/deploy-test.sh`; it now owns the same controlled
-migration privilege window and invokes the same shared post-migration closure (roles/helpers/grants/telemetry,
-strict finalizer, restart/health/smoke). Manual restore/SQL chains are prohibited.
+Its post-migration closure is `run_port_context_test_release` → `deploy/host/cutover-postgres-port-context.sh` →
+`generate-cli.mjs --shared-role-baseline` + `reconcile-access.mjs` → HBA → live mTLS readiness → restart → health.
+
+For a code-only update of the existing TEST database use `deploy/host/deploy-test.sh`; it owns the controlled
+migration privilege window and closes on the same generator + `reconcile-access.mjs`, followed by the live
+tenant-wall proof before the restart. Manual restore/SQL chains are prohibited.
 
 ## PROD mapping (eventual)
 
@@ -89,7 +101,9 @@ cleanly on test. The permanent canonical file is `deploy/postgres/test-settings-
 the former `/tmp/bcb-test-setup` copy.
 
 Current mode contract (2026-07-23): callers must pass `test_settings_overlay_mode=code-only` for an ordinary
-existing-DB deploy or `test_settings_overlay_mode=reset` for a fresh/reset rehearsal. Code-only preserves the
+existing-DB deploy or `test_settings_overlay_mode=reset` for a fresh/reset rehearsal. Since 02.09.2026 (#1085) only
+the `reset` caller exists: `code-only` was passed solely by the removed second closure, and `deploy-test.sh` does not
+apply this override at all. The mode argument itself is kept — the SQL still refuses a missing/unknown value. Code-only preserves the
 canonical global DB-backed SMTP value and aligns the integrator mirror; reset scrubs both. The SQL refuses a
 missing/unknown mode before dropping locks. `smtp_outbound` is writable through Settings/`updateSetting`; the other
 TEST-only locked keys remain protected.
@@ -97,4 +111,6 @@ TEST-only locked keys remain protected.
 ## Current status
 
 The single hard TEST wrapper and repo-tracked settings override are implemented. There is no separate supported
-`flip-test-saas.sh`: strict/FORCE finalization is mandatory inside every supported TEST migration path.
+`flip-test-saas.sh`, and since 02.09.2026 (#1085) no separate strict-overlay closure either: FORCE RLS and the
+strict policy set are rendered by the declaration and applied by `reconcile-access.mjs`, which every supported
+TEST migration path runs before it releases the units.

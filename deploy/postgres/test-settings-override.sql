@@ -13,8 +13,8 @@
 -- below therefore uses ON CONFLICT (key, scope) WHERE organization_id IS NULL.
 -- =============================================================================
 
--- Fail closed before dropping either lock trigger. Never infer destructive
--- reset semantics from ambient state or from the current contents of TEST.
+-- Fail closed before bypassing the TEST lock. Never infer destructive reset
+-- semantics from ambient state or from the current contents of TEST.
 \set ON_ERROR_STOP on
 \if :{?test_settings_overlay_mode}
 \else
@@ -29,14 +29,29 @@ SELECT :'test_settings_overlay_mode' IN ('reset', 'code-only') AS test_settings_
 SELECT 1 / 0 AS invalid_test_settings_overlay_mode;
 \endif
 
--- Drop the safety-lock trigger FIRST so re-runs (and the upserts below) can
--- re-apply settings. The drops, every setting mutation, and lock recreation are
--- one transaction: any ON_ERROR_STOP failure restores the prior lock objects.
+-- The lock is a schema-B object and this overlay is data-only. Prove that the
+-- declared trigger is installed and enabled; never drop, recreate or redefine it.
 BEGIN;
 
-DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;
+SELECT EXISTS (
+  SELECT 1
+  FROM pg_trigger
+  WHERE tgname = 'system_settings_test_lock'
+    AND tgrelid = 'public.system_settings'::regclass
+    AND tgenabled = 'O'
+) AS system_settings_test_lock_ready
+\gset
+\if :system_settings_test_lock_ready
+\else
+\warn 'FATAL: declared system_settings_test_lock is missing or not enabled'
+SELECT 1 / 0 AS missing_system_settings_test_lock;
+\endif
 
 -- Environment identity, diagnostics and TEST-account delivery safety are deploy-owned env policy.
+-- The ordinary lock trigger must remain installed. A transaction-local replica
+-- role bypasses only trigger execution for the locked-row cleanup; restoring
+-- origin immediately keeps all unrelated system_settings sync triggers live.
+SET LOCAL session_replication_role = replica;
 DELETE FROM public.system_settings
 WHERE key IN (
   'dev_mode',
@@ -45,6 +60,7 @@ WHERE key IN (
   'integration_test_ids',
   'test_account_identifiers'
 );
+SET LOCAL session_replication_role = origin;
 
 -- ── 1. app_base_url ──────────────────────────────────────────────────────────
 INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
@@ -54,10 +70,12 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
 
 -- ── 2. Maintenance ON (patient app sees maintenance screen) ──────────────────
 -- Env-declared test accounts bypass the maintenance screen and see full UI.
+SET LOCAL session_replication_role = replica;
 INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
 VALUES ('patient_app_maintenance_enabled', 'admin', '{"value":true}'::jsonb, NOW(), NULL)
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
+SET LOCAL session_replication_role = origin;
 
 INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
 VALUES ('patient_app_maintenance_message', 'admin',
@@ -84,6 +102,7 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;
 -- 6a. Specialist + clinic registration for the owner-ready TEST walkthrough.
 -- Owner-authorized TEST-only product scenario. The public flow creates the specialist,
 -- their organization and owner membership together; production remains default-off.
+SET LOCAL session_replication_role = replica;
 INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
 VALUES ('specialist_signup_enabled', 'admin', '{"value":true}'::jsonb, NOW(), NULL)
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
@@ -95,6 +114,7 @@ INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_
 VALUES ('patient_program_discussion_ui_enabled', 'admin', '{"value":true}'::jsonb, NOW(), NULL)
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
+SET LOCAL session_replication_role = origin;
 
 -- 6c. OAuth redirect URIs.
 UPDATE public.system_settings SET value_json = jsonb_set(value_json, '{value}',
@@ -128,26 +148,23 @@ INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
 
--- =============================================================================
--- DB-LEVEL LOCK: prevent accidental UI flip of safety-critical settings.
--- Raises on UPDATE of the locked keys until the trigger is removed.
--- =============================================================================
-CREATE OR REPLACE FUNCTION system_settings_test_lock_guard()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE
-  locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
-BEGIN
-  IF OLD.key = ANY(locked_keys) THEN
-    RAISE EXCEPTION 'TEST ENV LOCK: system_settings key "%" is locked for safety. Remove trigger system_settings_test_lock before changing.', OLD.key
-      USING ERRCODE = 'P0001';
-  END IF;
-  RETURN NEW;
-END;
-$$;
-DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;
-CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON public.system_settings
-  FOR EACH ROW EXECUTE FUNCTION system_settings_test_lock_guard();
+-- The TEST settings lock function and trigger are schema-B objects. This data overlay must not replay
+-- their bodies after the snapshot/migrations: object definitions have one owner, while this file only
+-- normalizes TEST data. Retired env-owned keys have no rows after the forward migration, so their names
+-- in the snapshot guard do not reintroduce a database setting or affect live updates.
 
 COMMIT;
 
-SELECT tgname, tgrelid::regclass, tgenabled FROM pg_trigger WHERE tgname = 'system_settings_test_lock';
+SELECT EXISTS (
+  SELECT 1
+  FROM pg_trigger
+  WHERE tgname = 'system_settings_test_lock'
+    AND tgrelid = 'public.system_settings'::regclass
+    AND tgenabled = 'O'
+) AS system_settings_test_lock_still_ready
+\gset
+\if :system_settings_test_lock_still_ready
+\else
+\warn 'FATAL: system_settings_test_lock changed during TEST data override'
+SELECT 1 / 0 AS changed_system_settings_test_lock;
+\endif
