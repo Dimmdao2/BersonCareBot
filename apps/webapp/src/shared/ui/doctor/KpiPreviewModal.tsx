@@ -24,6 +24,8 @@ export type KpiPreviewModalProps<T> = {
   showCount?: boolean;
   /** Optional icon action in the canonical modal header. */
   headerAction?: ReactNode;
+  /** Optional canonical bottom action panel. */
+  footer?: ReactNode;
   /** List of entities to display */
   items: T[];
   /**
@@ -57,6 +59,7 @@ export function KpiPreviewModal<T>({
   count,
   showCount = true,
   headerAction,
+  footer,
   items,
   renderItem,
   searchPlaceholder,
@@ -104,6 +107,7 @@ export function KpiPreviewModal<T>({
       bodyVariant="list"
       desktopPresentation={desktopPresentation}
       headerAction={headerAction}
+      footer={footer}
     >
       <>
         {/* Search */}

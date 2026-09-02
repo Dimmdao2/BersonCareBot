@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorConversationListRow } from '@/modules/messaging/components/DoctorConversationListRow';
 import {
@@ -29,6 +30,7 @@ import {
 } from '@/modules/specialist-tasks/taskPriority';
 import { SpecialistTaskRow as TaskRow } from './clients/SpecialistTaskRow';
 import { SpecialistTaskDetailsDialog } from './clients/SpecialistTaskDetailsDialog';
+import { SpecialistTaskFormDialog } from './clients/SpecialistTaskFormDialog';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 
 type Props = Pick<
@@ -119,6 +121,7 @@ export function DoctorTodayLeftKpiRow({
   onTaskSaved,
 }: Props) {
   const [kpiModal, setKpiModal] = useState<KpiModal>(null);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
   const router = useRouter();
   // DoctorTodayDashboard switches to its two-column desktop workspace at `md` (768px).
   // Keep KPI navigation on the same boundary so tablet widths do not open the mobile modal.
@@ -275,6 +278,29 @@ export function DoctorTodayLeftKpiRow({
         showCount={false}
         desktopPresentation="right-sheet"
         items={attentionTasks}
+        footer={
+          <div className="flex w-full items-center justify-between gap-2">
+            <Link
+              href={routePaths.doctorTasks}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              onClick={() => setKpiModal(null)}
+            >
+              Все задачи
+            </Link>
+            {tasksAvailable ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setKpiModal(null);
+                  setTaskFormOpen(true);
+                }}
+              >
+                Новая задача
+              </Button>
+            ) : null}
+          </div>
+        }
         renderItem={(task) => (
           <li>
             <TaskRow
@@ -286,6 +312,7 @@ export function DoctorTodayLeftKpiRow({
               }
               dueToday={isSpecialistTaskDueOnDate(task, todayIso, displayIana)}
               canMutate={tasksAvailable}
+              mobileFlat
               onOpen={(selected) => {
                 setKpiModal(null);
                 setSelectedTaskId(selected.id);
@@ -298,6 +325,14 @@ export function DoctorTodayLeftKpiRow({
             Нет задач на сегодня или просроченных
           </p>
         }
+      />
+
+      <SpecialistTaskFormDialog
+        open={taskFormOpen}
+        onOpenChange={setTaskFormOpen}
+        patientUserId=""
+        editing={null}
+        onSaved={onTaskSaved}
       />
 
       <SpecialistTaskDetailsDialog
