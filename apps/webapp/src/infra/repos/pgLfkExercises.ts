@@ -789,7 +789,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         // raw; every assigned value is bound.
         const sets: SQL[] = [sql`updated_at = now()`];
         const add = (col: string, v: unknown) => {
-          sets.push(sql`${sql.raw(col)} = ${v}`);
+          sets.push(sql`${sql.raw(col)} = ${sql.param(v)}`);
         };
 
         if (input.title !== undefined) add('title', input.title);

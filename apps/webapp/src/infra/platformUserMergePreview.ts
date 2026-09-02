@@ -1,5 +1,4 @@
 import { sql } from 'drizzle-orm';
-import { platformUserMatchSql } from '@/infra/repos/platformUserMatchSql';
 /**
  * Manual merge preview (read-only): conflicts, hard blockers, dependent counts, recommendations.
  * Apply flow is implemented separately (manual merge engine).
@@ -543,15 +542,24 @@ async function loadOauth(pool: Pool, userId: string): Promise<MergePreviewOAuthB
   return r.rows;
 }
 
-async function countMeaningfulData(pool: Pool, userId: string): Promise<number> {
+/** Exported for the preview/apply consistency test — same shared-phone counter the preview runs. */
+export async function countMeaningfulData(pool: Pool, userId: string): Promise<number> {
+  // Must count exactly what assertSharedPhoneGuard's meaningfulCount counts
+  // (packages/platform-merge/src/pgPlatformUserMerge.ts) — the apply path's authority for the
+  // shared-phone block. That guard predicates symptom_trackings/lfk_complexes on a plain
+  // `platform_user_id = $1 OR user_id = $2`, not the `platform_user_id IS NULL` fallback that
+  // platformUserMatchSql adds for the dual-id diary tables elsewhere. Using the narrower helper
+  // here let the preview under-count and clear a merge the apply path then refuses mid-flight
+  // (docs/_TODO/runs/TYPED_SQL_W5_INDEPENDENT_AUDIT_2026-09-02.md F2). message_log has no
+  // authority counterpart to mirror, so it keeps the same plain form for consistency.
   const q = [
     sql`SELECT COUNT(*)::int AS c FROM patient_bookings WHERE platform_user_id = ${userId}::uuid`,
     sql`SELECT COUNT(*)::int AS c FROM doctor_notes WHERE user_id = ${userId}::uuid`,
     sql`SELECT COUNT(*)::int AS c FROM online_intake_requests WHERE user_id = ${userId}::uuid`,
-    sql`SELECT COUNT(*)::int AS c FROM symptom_trackings WHERE ${platformUserMatchSql(null, userId)}`,
-    sql`SELECT COUNT(*)::int AS c FROM lfk_complexes WHERE ${platformUserMatchSql(null, userId)}`,
+    sql`SELECT COUNT(*)::int AS c FROM symptom_trackings WHERE platform_user_id = ${userId}::uuid OR user_id = ${userId}::text`,
+    sql`SELECT COUNT(*)::int AS c FROM lfk_complexes WHERE platform_user_id = ${userId}::uuid OR user_id = ${userId}::text`,
     sql`SELECT COUNT(*)::int AS c FROM patient_lfk_assignments WHERE patient_user_id = ${userId}::uuid`,
-    sql`SELECT COUNT(*)::int AS c FROM message_log WHERE ${platformUserMatchSql(null, userId)}`,
+    sql`SELECT COUNT(*)::int AS c FROM message_log WHERE platform_user_id = ${userId}::uuid OR user_id = ${userId}::text`,
   ];
   let sum = 0;
   for (const fragment of q) {
