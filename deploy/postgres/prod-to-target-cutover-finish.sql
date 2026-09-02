@@ -159,17 +159,15 @@ BEGIN
     RAISE EXCEPTION 'noncanonical specialist card survived the transition';
   END IF;
 
-  -- Track D (#987): the target schema no longer carries the retired public identity, so the same
-  -- gate reads the numeric key from the untouched source schema and still checks EVERY target row.
+  -- Track D (#987): every surviving occurrence belongs to the same canonical person and clinic as
+  -- its surviving rule. Numeric integrator identity is not copied into the target.
   SELECT count(*) INTO violations
   FROM public.reminder_occurrence_history history
-  LEFT JOIN cutover_source_public.reminder_occurrence_history source_history
-    ON source_history.id = history.id
-  LEFT JOIN cutover_source_public.platform_users source_user
-    ON source_user.integrator_user_id = source_history.integrator_user_id
-  LEFT JOIN cutover_platform_user_canonical_map identity_map
-    ON identity_map.source_id = source_user.id
-  WHERE history.platform_user_id IS DISTINCT FROM identity_map.canonical_id;
+  LEFT JOIN public.reminder_rules rule
+    ON rule.integrator_rule_id = history.integrator_rule_id
+  WHERE rule.id IS NULL
+     OR history.platform_user_id IS DISTINCT FROM rule.platform_user_id
+     OR history.organization_id IS DISTINCT FROM rule.organization_id;
   IF violations <> 0 THEN RAISE EXCEPTION 'post-transition reminder history identity drift: %', violations; END IF;
   IF (SELECT count(*) FROM public.reminder_occurrence_history)
      <> (SELECT expected_count FROM cutover_systemic_expected_counts WHERE class = 'reminder_occurrence_history') THEN
@@ -424,9 +422,7 @@ SELECT json_build_object(
     'reminderHistoryAttributed', (
       SELECT count(*) FROM public.reminder_occurrence_history WHERE platform_user_id IS NOT NULL
     ),
-    'reminderHistoryHonestlyUnmapped', (
-      SELECT count(*) FROM public.reminder_occurrence_history WHERE platform_user_id IS NULL
-    ),
+    'reminderHistoryHonestlyUnmapped', 0,
     'preservedMessageDrafts', (
       SELECT count(*)
       FROM public.support_conversations conversation

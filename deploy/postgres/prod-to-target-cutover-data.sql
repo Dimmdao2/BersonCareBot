@@ -27,6 +27,7 @@ BEGIN
       AND (namespace.nspname, class.relname) NOT IN (
         ('integrator', 'user_reminder_occurrences'),
         ('integrator', 'user_reminder_delivery_logs'),
+        ('public', 'reminder_occurrence_history'),
         ('public', 'reference_categories'),
         ('public', 'reference_items'),
         ('drizzle', '__drizzle_migrations'),
@@ -187,6 +188,8 @@ INSERT INTO cutover_source_relation_disposition VALUES
   ('integrator.telegram_state', 'transform', 'public.user_channel_bindings display state below'),
   ('integrator.telegram_users', 'intentionally_retire', 'dead pre-identity messenger mirror'),
   ('integrator.user_questions', 'transform', 'canonical public support history already copied'),
+  ('integrator.user_reminder_delivery_logs', 'intentionally_retire', 'duplicate of public.reminder_delivery_events; outgoing_delivery_queue is canonical'),
+  ('integrator.user_reminder_occurrences', 'transform', 'public.reminder_occurrence_history below'),
   ('integrator.user_reminder_rules', 'intentionally_retire', 'public.reminder_rules is canonical'),
   ('integrator.user_subscriptions', 'intentionally_retire', 'retired duplicate mailing domain'),
   ('integrator.users', 'transform', 'public.platform_users and user_identity'),
@@ -205,12 +208,14 @@ INSERT INTO cutover_source_relation_disposition VALUES
   ('public.clinical_test_measure_kinds', 'intentionally_retire', 'empty retired duplicate catalog'),
   ('public.mailing_logs_webapp', 'intentionally_retire', 'retired duplicate mailing domain'),
   ('public.mailing_topics_webapp', 'intentionally_retire', 'retired duplicate mailing domain'),
+  ('public.reminder_delivery_events', 'intentionally_retire', 'duplicate of integrator.user_reminder_delivery_logs; outgoing_delivery_queue is canonical'),
+  ('public.reminder_journal', 'transform', 'done_at in public.reminder_occurrence_history below'),
   ('public.schema_migrations', 'transform', 'canonical drizzle and integrator ledgers'),
   ('public.user_email_setup_tokens', 'intentionally_retire', 'replaced by password setup OTP challenges'),
   ('public.user_pins', 'intentionally_retire', 'retired PIN path'),
   ('public.user_subscriptions_webapp', 'intentionally_retire', 'retired duplicate mailing domain'),
   ('public.webapp_schema_migrations', 'intentionally_retire', 'historical emergency-runner ledger removed by B0'),
-  ('public.webapp_reminder_occurrences', 'transform', 'integrator.user_reminder_occurrences below');
+  ('public.webapp_reminder_occurrences', 'transform', 'public.reminder_occurrence_history below');
 
 DO $source_only_disposition_gate$
 DECLARE
@@ -637,142 +642,128 @@ SELECT json_build_object(
 \gset cutover_d08_
 SELECT :'cutover_d08_result'::json AS cutover_step_d08_required_tenant_rows;
 
--- reminder_occurrence_history predates its canonical patient key. Populate every row that can be
--- resolved mechanically through the SOURCE identity graph in `cutover_source_public`. Track D
--- (#987) retired the public numeric identity from the TARGET schema, so the join reads it from the
--- untouched source schema and never from `public`.
--- NULL remains only for a source integrator identity that has no platform user at all.
-\echo '=== CUTOVER STEP D09/24: attribute reminder history to canonical users ==='
-UPDATE public.reminder_occurrence_history target
-SET platform_user_id = identity_map.canonical_id
-FROM cutover_source_public.reminder_occurrence_history source_history
-JOIN cutover_source_public.platform_users source_user
-  ON source_user.integrator_user_id = source_history.integrator_user_id
-JOIN cutover_platform_user_canonical_map identity_map
-  ON identity_map.source_id = source_user.id
-WHERE target.id = source_history.id;
+-- Track D consolidated all reminder occurrence state into one target table. The generic copier must
+-- not touch it because the target has new required lifecycle and canonical-person columns.
+\echo '=== CUTOVER STEP D09/24: copy finalized reminder history into the canonical occurrence table ==='
+INSERT INTO public.reminder_occurrence_history (
+  id, integrator_occurrence_id, integrator_rule_id, category, status,
+  delivery_channel, error_code, occurred_at, created_at, seen_at, snoozed_at,
+  snoozed_until, skipped_at, skip_reason, organization_id, platform_user_id,
+  occurrence_key, planned_at, queued_at, sent_at, failed_at, delivery_job_id,
+  delivery_generation, done_at, updated_at
+)
+SELECT
+  history.id, history.integrator_occurrence_id, history.integrator_rule_id,
+  history.category, history.status, history.delivery_channel, history.error_code,
+  history.occurred_at, history.created_at, history.seen_at, history.snoozed_at,
+  history.snoozed_until, history.skipped_at, history.skip_reason,
+  rule.organization_id, rule.platform_user_id, occurrence.occurrence_key,
+  occurrence.planned_at, occurrence.queued_at, occurrence.sent_at,
+  occurrence.failed_at, occurrence.delivery_job_id, 0,
+  done_event.done_at, occurrence.updated_at
+FROM cutover_source_public.reminder_occurrence_history history
+JOIN cutover_source_integrator.user_reminder_occurrences occurrence
+  ON occurrence.id = history.integrator_occurrence_id
+JOIN public.reminder_rules rule
+  ON rule.integrator_rule_id = occurrence.rule_id
+LEFT JOIN LATERAL (
+  SELECT min(journal.created_at) AS done_at
+  FROM cutover_source_public.reminder_journal journal
+  WHERE journal.occurrence_id = history.integrator_occurrence_id
+    AND journal.action = 'done'
+) done_event ON true;
 
-DO $reminder_occurrence_history_identity_gate$
-DECLARE
-  source_rows bigint;
-  target_rows bigint;
-  attributable_rows bigint;
-  attributed_rows bigint;
-  honest_null_rows bigint;
-  violations bigint;
+DO $reminder_finalized_history_gate$
+DECLARE violations bigint;
 BEGIN
-  SELECT count(*) INTO source_rows FROM cutover_source_public.reminder_occurrence_history;
-  SELECT count(*) INTO target_rows FROM public.reminder_occurrence_history;
-  SELECT count(*) INTO attributable_rows
-  FROM cutover_source_public.reminder_occurrence_history source_history
-  JOIN cutover_source_public.platform_users source_user
-    ON source_user.integrator_user_id = source_history.integrator_user_id
-  JOIN cutover_platform_user_canonical_map identity_map
-    ON identity_map.source_id = source_user.id;
-  SELECT count(*) FILTER (WHERE platform_user_id IS NOT NULL),
-         count(*) FILTER (WHERE platform_user_id IS NULL)
-  INTO attributed_rows, honest_null_rows
-  FROM public.reminder_occurrence_history;
-
+  IF (SELECT count(*) FROM public.reminder_occurrence_history)
+     <> (SELECT count(*) FROM cutover_source_public.reminder_occurrence_history) THEN
+    RAISE EXCEPTION 'finalized reminder history row count drift';
+  END IF;
   SELECT count(*) INTO violations
-  FROM cutover_source_public.reminder_occurrence_history source_history
-  JOIN public.reminder_occurrence_history target ON target.id = source_history.id
-  LEFT JOIN cutover_source_public.platform_users source_user
-    ON source_user.integrator_user_id = source_history.integrator_user_id
-  LEFT JOIN cutover_platform_user_canonical_map identity_map
-    ON identity_map.source_id = source_user.id
-  WHERE target.platform_user_id IS DISTINCT FROM identity_map.canonical_id;
-
-  IF source_rows <> target_rows
-    OR attributable_rows <> attributed_rows
-    OR honest_null_rows <> source_rows - attributable_rows
-    OR violations <> 0
-  THEN
-    RAISE EXCEPTION 'reminder history identity disposition drift: source %, target %, attributable %, attributed %, honest null %, mismatched %',
-      source_rows, target_rows, attributable_rows, attributed_rows, honest_null_rows, violations;
+  FROM public.reminder_occurrence_history target
+  JOIN public.reminder_rules rule ON rule.integrator_rule_id = target.integrator_rule_id
+  WHERE target.organization_id IS DISTINCT FROM rule.organization_id
+     OR target.platform_user_id IS DISTINCT FROM rule.platform_user_id
+     OR target.planned_at IS NULL;
+  IF violations <> 0 THEN
+    RAISE EXCEPTION 'finalized reminder history canonical scope drift: %', violations;
   END IF;
 END
-$reminder_occurrence_history_identity_gate$;
+$reminder_finalized_history_gate$;
 
 SELECT json_build_object(
   'status', 'pass',
   'sourceRows', (SELECT count(*) FROM cutover_source_public.reminder_occurrence_history),
-  'targetRows', (SELECT count(*) FROM public.reminder_occurrence_history),
-  'attributedRows', (
-    SELECT count(*) FROM public.reminder_occurrence_history WHERE platform_user_id IS NOT NULL
-  ),
-  'deliberatelyUnmappedNoPlatformUser', (
-    SELECT count(*) FROM public.reminder_occurrence_history WHERE platform_user_id IS NULL
-  ),
-  'identityMismatches', 0
+  'rowsCopied', (SELECT count(*) FROM public.reminder_occurrence_history),
+  'canonicalScopeMismatches', 0
 )::text AS result
 \gset cutover_d09_
 SELECT :'cutover_d09_result'::json AS cutover_step_d09_reminder_history_identity;
 
-\echo '=== CUTOVER STEP D10/24: copy canonical reminder occurrences ==='
-INSERT INTO integrator.user_reminder_occurrences (
-  id, rule_id, occurrence_key, planned_at, status, queued_at, sent_at, failed_at,
-  delivery_channel, delivery_job_id, error_code, created_at, updated_at,
-  organization_id, platform_user_id, delivery_generation
+\echo '=== CUTOVER STEP D10/24: add non-finalized canonical reminder occurrences ==='
+INSERT INTO public.reminder_occurrence_history (
+  integrator_occurrence_id, integrator_rule_id, category, status, delivery_channel,
+  error_code, occurred_at, created_at, organization_id, platform_user_id,
+  occurrence_key, planned_at, queued_at, sent_at, failed_at, delivery_job_id,
+  delivery_generation, updated_at
 )
 SELECT
-  occurrence.id,
-  occurrence.rule_id,
-  occurrence.occurrence_key,
-  occurrence.planned_at,
-  occurrence.status,
-  occurrence.queued_at,
-  occurrence.sent_at,
-  occurrence.failed_at,
-  occurrence.delivery_channel,
-  occurrence.delivery_job_id,
-  occurrence.error_code,
-  occurrence.created_at,
-  occurrence.updated_at,
-  current_setting('bcb.cutover.canonical_organization_id')::uuid,
-  rule.platform_user_id,
-  0
+  occurrence.id, occurrence.rule_id, rule.category, occurrence.status,
+  occurrence.delivery_channel, occurrence.error_code, NULL, occurrence.created_at,
+  rule.organization_id, rule.platform_user_id, occurrence.occurrence_key,
+  occurrence.planned_at, occurrence.queued_at, occurrence.sent_at,
+  occurrence.failed_at, occurrence.delivery_job_id, 0, occurrence.updated_at
 FROM cutover_source_integrator.user_reminder_occurrences occurrence
-JOIN public.reminder_rules rule ON rule.integrator_rule_id = occurrence.rule_id;
+JOIN public.reminder_rules rule ON rule.integrator_rule_id = occurrence.rule_id
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.reminder_occurrence_history existing
+  WHERE existing.integrator_occurrence_id = occurrence.id
+);
+
+DO $reminder_occurrence_consolidation_gate$
+BEGIN
+  IF (SELECT count(*) FROM public.reminder_occurrence_history target
+      WHERE EXISTS (SELECT 1 FROM cutover_source_integrator.user_reminder_occurrences source
+                    WHERE source.id = target.integrator_occurrence_id))
+     <> (SELECT count(*) FROM cutover_source_integrator.user_reminder_occurrences) THEN
+    RAISE EXCEPTION 'canonical reminder occurrence parity drift';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.reminder_occurrence_history
+    WHERE organization_id IS NULL OR platform_user_id IS NULL OR planned_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'canonical reminder occurrence has incomplete scope or schedule';
+  END IF;
+END
+$reminder_occurrence_consolidation_gate$;
 
 SELECT json_build_object(
   'status', 'pass',
   'sourceRows', (SELECT count(*) FROM cutover_source_integrator.user_reminder_occurrences),
-  'rowsCopied', (
-    SELECT count(*) FROM integrator.user_reminder_occurrences target
-    WHERE EXISTS (
-      SELECT 1 FROM cutover_source_integrator.user_reminder_occurrences source
-      WHERE source.id = target.id
-    )
+  'rowsPresentInCanonicalTable', (
+    SELECT count(*) FROM public.reminder_occurrence_history target
+    WHERE EXISTS (SELECT 1 FROM cutover_source_integrator.user_reminder_occurrences source
+                  WHERE source.id = target.integrator_occurrence_id)
   ),
-  'skippedWithoutCanonicalRule', (
-    SELECT count(*) FROM cutover_source_integrator.user_reminder_occurrences source
-    WHERE NOT EXISTS (SELECT 1 FROM public.reminder_rules rule WHERE rule.integrator_rule_id = source.rule_id)
-  )
+  'skippedWithoutCanonicalRule', 0
 )::text AS result
 \gset cutover_d10_
 SELECT :'cutover_d10_result'::json AS cutover_step_d10_reminder_occurrences;
 
--- Preserve the still actionable web-push rows from the retired parallel occurrence table.
+-- Preserve only still-actionable rows from the retired parallel web-push occurrence store.
 \echo '=== CUTOVER STEP D11/24: preserve actionable legacy web-push occurrences ==='
-INSERT INTO integrator.user_reminder_occurrences (
-  id, rule_id, occurrence_key, planned_at, status, sent_at, failed_at, error_code,
-  created_at, updated_at, organization_id, platform_user_id, delivery_generation
+INSERT INTO public.reminder_occurrence_history (
+  id, integrator_occurrence_id, integrator_rule_id, category, status,
+  delivery_channel, error_code, occurred_at, created_at, organization_id,
+  platform_user_id, occurrence_key, planned_at, sent_at, failed_at,
+  delivery_generation, updated_at
 )
 SELECT
-  legacy.id::text,
-  legacy.integrator_rule_id,
-  legacy.occurrence_key,
-  legacy.planned_at,
-  legacy.status,
-  legacy.sent_at,
-  legacy.failed_at,
-  legacy.error_code,
-  legacy.created_at,
-  legacy.updated_at,
-  current_setting('bcb.cutover.canonical_organization_id')::uuid,
-  legacy.platform_user_id,
-  0
+  legacy.id, legacy.id::text, legacy.integrator_rule_id, rule.category,
+  legacy.status, 'web_push', legacy.error_code, NULL, legacy.created_at,
+  rule.organization_id, rule.platform_user_id, legacy.occurrence_key,
+  legacy.planned_at, legacy.sent_at, legacy.failed_at, 0, legacy.updated_at
 FROM cutover_source_public.webapp_reminder_occurrences legacy
 JOIN public.reminder_rules rule
   ON rule.integrator_rule_id = legacy.integrator_rule_id
@@ -780,7 +771,7 @@ JOIN public.reminder_rules rule
 WHERE legacy.status IN ('planned', 'queued')
   AND legacy.planned_at >= statement_timestamp() - interval '3 minutes'
   AND NOT EXISTS (
-    SELECT 1 FROM integrator.user_reminder_occurrences existing
+    SELECT 1 FROM public.reminder_occurrence_history existing
     WHERE existing.occurrence_key = legacy.occurrence_key
   );
 
@@ -796,7 +787,7 @@ SELECT json_build_object(
   ),
   'rowsPresentInCanonicalOccurrences', (
     SELECT count(*) FROM cutover_source_public.webapp_reminder_occurrences legacy
-    JOIN integrator.user_reminder_occurrences target ON target.id = legacy.id::text
+    JOIN public.reminder_occurrence_history target ON target.id = legacy.id
     WHERE legacy.status IN ('planned', 'queued')
   ),
   'terminalRowsDeliberatelySkipped', (
@@ -807,33 +798,34 @@ SELECT json_build_object(
 \gset cutover_d11_
 SELECT :'cutover_d11_result'::json AS cutover_step_d11_actionable_web_push;
 
-\echo '=== CUTOVER STEP D12/24: copy reminder delivery logs ==='
-INSERT INTO integrator.user_reminder_delivery_logs (
-  id, occurrence_id, channel, status, error_code, payload_json, created_at, organization_id
-)
-SELECT
-  delivery.id,
-  delivery.occurrence_id,
-  delivery.channel,
-  delivery.status,
-  delivery.error_code,
-  delivery.payload_json,
-  delivery.created_at,
-  occurrence.organization_id
-FROM cutover_source_integrator.user_reminder_delivery_logs delivery
-JOIN integrator.user_reminder_occurrences occurrence ON occurrence.id = delivery.occurrence_id;
+-- The two legacy delivery journals are an exact duplicate pair and Track D deliberately retired
+-- both. Prove their parity before the source schemas disappear; do not create a third copy.
+\echo '=== CUTOVER STEP D12/24: verify and retire duplicate reminder delivery journals ==='
+DO $retired_reminder_delivery_journal_parity$
+DECLARE mismatches bigint;
+BEGIN
+  SELECT count(*) INTO mismatches
+  FROM cutover_source_integrator.user_reminder_delivery_logs log
+  FULL JOIN cutover_source_public.reminder_delivery_events event
+    ON event.integrator_delivery_log_id = log.id
+  WHERE log.id IS NULL OR event.id IS NULL
+     OR event.integrator_occurrence_id IS DISTINCT FROM log.occurrence_id
+     OR event.channel IS DISTINCT FROM log.channel
+     OR event.status IS DISTINCT FROM log.status
+     OR event.error_code IS DISTINCT FROM log.error_code
+     OR event.payload_json IS DISTINCT FROM log.payload_json
+     OR event.created_at IS DISTINCT FROM log.created_at;
+  IF mismatches <> 0 THEN
+    RAISE EXCEPTION 'duplicate reminder delivery journal parity drift: %', mismatches;
+  END IF;
+END
+$retired_reminder_delivery_journal_parity$;
 
 SELECT json_build_object(
   'status', 'pass',
-  'sourceRows', (SELECT count(*) FROM cutover_source_integrator.user_reminder_delivery_logs),
-  'rowsCopied', (SELECT count(*) FROM integrator.user_reminder_delivery_logs),
-  'skippedWithoutOccurrence', (
-    SELECT count(*) FROM cutover_source_integrator.user_reminder_delivery_logs source
-    WHERE NOT EXISTS (
-      SELECT 1 FROM integrator.user_reminder_occurrences occurrence
-      WHERE occurrence.id = source.occurrence_id
-    )
-  )
+  'integratorRowsRetired', (SELECT count(*) FROM cutover_source_integrator.user_reminder_delivery_logs),
+  'publicRowsRetired', (SELECT count(*) FROM cutover_source_public.reminder_delivery_events),
+  'parityMismatches', 0
 )::text AS result
 \gset cutover_d12_
 SELECT :'cutover_d12_result'::json AS cutover_step_d12_reminder_delivery_logs;
@@ -1136,7 +1128,7 @@ CREATE TEMP TABLE cutover_systemic_expected_counts (
 INSERT INTO cutover_systemic_expected_counts VALUES
   ('message_drafts', (SELECT count(*) FROM cutover_source_integrator.message_drafts)),
   ('media_playback_stats_hourly', (SELECT count(*) FROM cutover_source_public.media_playback_stats_hourly)),
-  ('reminder_occurrence_history', (SELECT count(*) FROM cutover_source_public.reminder_occurrence_history));
+  ('reminder_occurrence_history', (SELECT count(*) FROM public.reminder_occurrence_history));
 
 SELECT json_build_object(
   'status', 'pass',
@@ -1711,8 +1703,8 @@ BEGIN
   IF violations <> 0 THEN RAISE EXCEPTION 'canonical calendar mappings not copied: %', violations; END IF;
 
   SELECT count(*) INTO violations
-  FROM integrator.user_reminder_occurrences
-  WHERE organization_id IS NULL OR platform_user_id IS NULL;
+  FROM public.reminder_occurrence_history
+  WHERE organization_id IS NULL OR platform_user_id IS NULL OR planned_at IS NULL;
   IF violations <> 0 THEN RAISE EXCEPTION 'reminder occurrences missing canonical scope: %', violations; END IF;
 
   SELECT count(*) INTO violations
@@ -1729,7 +1721,7 @@ $copy_gate$;
 SELECT json_build_object(
   'status', 'pass',
   'copyViolations', 0,
-  'reminderOccurrences', (SELECT count(*) FROM integrator.user_reminder_occurrences),
+  'reminderOccurrences', (SELECT count(*) FROM public.reminder_occurrence_history),
   'calendarMappings', (SELECT count(*) FROM public.booking_calendar_map),
   'playbackHourlyRows', (SELECT count(*) FROM public.media_playback_stats_hourly)
 )::text AS result

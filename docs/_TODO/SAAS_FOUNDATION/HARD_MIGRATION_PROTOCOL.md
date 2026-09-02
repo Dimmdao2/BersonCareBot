@@ -506,10 +506,10 @@ The atomic A → B transition also owns these fail-closed data gates:
   every remaining reference (including soft-deleted history), and proves source-derived total/canonical counts. The
   A→B final gate repeats that reference-class census after the source schemas have gone. Cascades and `SET NULL`
   are never a migration mechanism;
-- `reminder_occurrence_history.platform_user_id` is derived from its `integrator_user_id` through the terminal
-  `platform_users.merged_into_id` graph. Every mechanically attributable source row must land on that terminal user;
-  `NULL` survives only for a source identity with no platform-user mapping, and source/attributed/honest-NULL counts
-  are checked before and after source-schema removal;
+- the three legacy reminder occurrence stores are folded into one `reminder_occurrence_history` table. Finalized
+  history is enriched from the operational occurrence, still-actionable web-push rows are preserved, and every row
+  receives the canonical person from its surviving rule after messenger identities have been materialized. The two
+  equivalent delivery-result journals are parity-checked and retired without creating another copy;
 - live subject/ownership UUID references named `platform_user_id`, `patient_user_id`, `user_id`, `owner_user_id`, or
   `doctor_user_id` are discovered from the copied target catalog and canonicalized through the complete merge graph.
   Unique channel-preference collisions keep the latest complete state per canonical user/channel; first-playback
