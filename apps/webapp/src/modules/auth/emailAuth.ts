@@ -157,12 +157,16 @@ export type PendingEmailChallenge = { email: string; expiresAt: string } | null;
  * Returns the latest unexpired pending email challenge for a user (for display in admin UI).
  * Returns null if none exists.
  */
-export async function getPendingEmailChallenge(userId: string): Promise<PendingEmailChallenge> {
+export async function getPendingEmailChallenge(
+  userId: string,
+  expectedPurpose?: EmailChallengePurpose,
+): Promise<PendingEmailChallenge> {
   if (!webappRuntimeDatabaseIsConfigured()) {
     const now = Math.floor(Date.now() / 1000);
     let best: { email: string; expiresAt: number } | null = null;
     for (const row of memEmailChallenges.values()) {
       if (row.userId !== userId) continue;
+      if (expectedPurpose && row.purpose !== expectedPurpose) continue;
       if (row.expiresAt <= now) continue;
       if (!best || row.expiresAt > best.expiresAt) {
         best = { email: row.email, expiresAt: row.expiresAt };
@@ -176,6 +180,7 @@ export async function getPendingEmailChallenge(userId: string): Promise<PendingE
   const now = Math.floor(Date.now() / 1000);
   const row = await db.findLatestPendingEmailChallengeForUser(userId, now);
   if (!row) return null;
+  if (expectedPurpose && row.purpose !== expectedPurpose) return null;
   return { email: row.email, expiresAt: new Date(Number(row.expires_at) * 1000).toISOString() };
 }
 

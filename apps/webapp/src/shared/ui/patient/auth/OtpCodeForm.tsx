@@ -53,7 +53,7 @@ type OtpCodeFormProps = {
   /** HTTPS ссылка в поддержку; из `system_settings.support_contact_url` (сервер) или дефолт. */
   supportContactHref?: string;
   onConfirm: (code: string) => Promise<OtpConfirmResult>;
-  onResend: () => Promise<OtpResendOutcome>;
+  onResend?: () => Promise<OtpResendOutcome>;
   onBack?: () => void;
   /** Скрыть кнопку «Назад» под кодом — если навигация уже в шапке родителя. */
   hideBack?: boolean;
@@ -117,7 +117,7 @@ export function OtpCodeForm({
   }, [resendCountdown, canResend]);
 
   const handleResend = async () => {
-    if (hardBlocked || resendLoading) return;
+    if (!onResend || hardBlocked || resendLoading) return;
     setError(null);
     setResendLoading(true);
     try {
@@ -241,7 +241,7 @@ export function OtpCodeForm({
             Назад
           </Button>
         ) : null}
-        {canResend && !hardBlocked ? (
+        {onResend && canResend && !hardBlocked ? (
           <Button
             type="button"
             variant="outline"
@@ -251,7 +251,7 @@ export function OtpCodeForm({
           >
             {resendLoading ? 'Отправка…' : 'Отправить код повторно'}
           </Button>
-        ) : !hardBlocked ? (
+        ) : onResend && !hardBlocked ? (
           <span className={patientMutedTextClass}>
             Повторная отправка возможна через {resendCountdown} сек
           </span>
