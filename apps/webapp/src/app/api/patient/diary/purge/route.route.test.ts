@@ -62,6 +62,8 @@ describe('patient diary resource purge identity boundary', () => {
         bindings: {},
         sessionEpoch: 1,
       },
+      redirectTo: '/app',
+      wasCreated: false,
     });
 
     const response = await POST(request());

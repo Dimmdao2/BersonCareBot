@@ -22,7 +22,6 @@ import {
   asString,
   asMessageId,
   asNumber,
-  readIncoming,
   readIncomingChatId,
   readIncomingPhone,
   buildIntentMeta,
@@ -123,21 +122,6 @@ function resolveChannelLinkFailureChatId(
   if (Number.isFinite(n)) return n;
   const t = externalId.trim();
   return t.length > 0 ? t : null;
-}
-
-function pushCallbackAnswerFromIncoming(
-  intents: OutgoingIntent[],
-  action: Action,
-  ctx: DomainContext,
-  suffix: string,
-): void {
-  const callbackQueryId = asString(readIncoming(ctx).callbackQueryId);
-  if (!callbackQueryId) return;
-  intents.push({
-    type: 'callback.answer',
-    meta: buildIntentMeta({ ...action, id: `${action.id}:${suffix}` }, ctx),
-    payload: { callbackQueryId },
-  });
 }
 
 async function appendPhoneMessengerBindFailureRecovery(

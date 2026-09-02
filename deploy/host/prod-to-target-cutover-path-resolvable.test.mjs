@@ -295,7 +295,7 @@ test('fault injection: dropping the closure call from the public path is caught'
   const root = mkdtempSync(resolve(tmpdir(), 'bcb-closure-fault-'));
   const broken = resolve(root, 'deploy-test-saas.sh');
   const withoutClosure = engine.replace(
-    /  sudo bash "\$DEPLOY_REPO\/deploy\/host\/cutover-postgres-port-context\.sh" \\\n(?:.*\\\n)*.*\n/u,
+    / {2}sudo bash "\$DEPLOY_REPO\/deploy\/host\/cutover-postgres-port-context\.sh" \\\n(?:.*\\\n)*.*\n/u,
     '  :\n',
   );
   assert.notEqual(withoutClosure, engine, 'fault injection did not modify the engine; update the pattern');
