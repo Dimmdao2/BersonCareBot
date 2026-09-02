@@ -618,8 +618,14 @@ runtime gates pass. The disposable historical runner is not TEST acceptance.
 
 ### Current DEV migration policy
 
-Owner decision 2026-07-30 supersedes the former DEV restore/rehydrate procedure: TEST→DEV refresh,
-`dev-runtime-overlay-rehydrate` and recreation of `bcb_webapp_dev` are not supported development steps.
+`dev-runtime-overlay-rehydrate` and recreation of `bcb_webapp_dev` are not supported development steps, and
+ordinary development neither copies TEST nor refreshes DEV. The one exception is a separate owner-gated action
+taken after a green TEST live acceptance: `bash deploy/host/refresh-dev-from-test.sh --check`, then
+`--execute --confirm-refresh-dev-from-test`, which brings the accepted TEST data/examples and current schema B
+into `bcb_webapp_dev` while leaving TEST env, TEST runtime credentials, provider delivery credentials and TEST
+channel/test-account allowlists behind, and never copying TEST roles, ACLs or object owners. It is not part of
+this rehearsal protocol and never runs as a step of a deploy.
+
 Pending shared migrations are applied to the existing DEV database through
 `bash deploy/host/migrate-dev.sh --preflight`, then `bash deploy/host/migrate-dev.sh --execute`. This wrapper
 validates exact local `bcb_webapp_dev`/`bcb_webapp_dev_user` and runs the ordinary repository migration chain; it

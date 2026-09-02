@@ -2165,7 +2165,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.email_auth_find_latest_pending_email_challenge_for_user(uuid,bigint)": {
+  "app.email_auth_find_latest_pending_email_challenge_for_user(uuid,bigint,text)": {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "record",
@@ -2181,7 +2181,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
     "typedArgs": [
       "uuid",
-      "bigint"
+      "bigint",
+      "text"
     ],
     "databases": [
       "bersoncarebot_test",

@@ -110,6 +110,7 @@ export type EmailAuthDbPort = {
   findLatestPendingEmailChallengeForUser: (
     userId: string,
     nowSec: number,
+    purpose: EmailChallengePurpose,
   ) => Promise<EmailChallengeRow | null>;
   /**
    * Decaying OTP lockout (night plan C-2 step 3): read-only gate check for `startEmailChallenge`.

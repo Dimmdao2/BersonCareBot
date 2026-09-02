@@ -151,7 +151,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   }
 
   const pending = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    getPendingEmailChallenge(identity.userId),
+    getPendingEmailChallenge(identity.userId, 'patient_email_change'),
   );
   return NextResponse.json({ ok: true, pending });
 }

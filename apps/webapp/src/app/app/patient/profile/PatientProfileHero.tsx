@@ -29,6 +29,7 @@ type Props = {
   fallbackDisplayName: string;
   initialEmail: string | null;
   emailVerified: boolean;
+  pendingEmailChange: { email: string; expiresAt: string } | null;
 };
 
 export function PatientProfileHero({
@@ -39,6 +40,7 @@ export function PatientProfileHero({
   fallbackDisplayName,
   initialEmail,
   emailVerified,
+  pendingEmailChange,
 }: Props) {
   const router = useRouter();
   const [persistedFio, setPersistedFio] = useState(initialFio);
@@ -144,6 +146,7 @@ export function PatientProfileHero({
         <EmailAccountPanel
           initialEmail={initialEmail}
           emailVerified={emailVerified}
+          pendingEmailChange={pendingEmailChange}
           supportContactHref={supportContactHref}
           layout="profileHero"
         />

@@ -694,8 +694,19 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
   declaration-owned runtime capability JSON обоих DEV-портов. Мигратор не
   получает LOGIN, пароль, BYPASSRLS или постоянное membership; runtime URL нужны только как защищённый источник
   уже действующих четырёх паролей для повторного reconcile.
-- TEST→DEV refresh и DEV runtime-rehydrate удалены решением владельца 2026-07-30. DEV не копирует TEST и не
-  пересоздаётся для обычной разработки; RLS/security acceptance выполняется на именованных DEV и TEST.
+- DEV не копирует TEST и не пересоздаётся для обычной разработки; RLS/security acceptance выполняется на
+  именованных DEV и TEST.
+- Отдельное owner-gated действие после зелёной живой приёмки TEST — `bash deploy/host/refresh-dev-from-test.sh
+  --check`, затем `--execute --confirm-refresh-dev-from-test`. Переносит принятые данные/примеры и текущую
+  schema B из `bersoncarebot_test` в `bcb_webapp_dev`; не переносит TEST env, TEST runtime credentials,
+  provider delivery и TEST channel/test-account allowlists; TEST роли/ACL/владельцы не копируются
+  (`--no-owner --no-acl`). DEV-owned состояние снимается до разрушения и возвращается после restore.
+  Пересозданная база рождается закрытой (`CREATE DATABASE … CONNECTION LIMIT 0`) и остаётся закрытой до
+  единственной точки успеха. В эту же точку успеха входит штатный `migrate-dev.sh --execute` (текущий ledger,
+  declaration reconcile, catalog closure) — он вызывается внутри refresh, а не советуется после `PASS`, и
+  получает уже удерживаемый host-lock дескриптором `--host-lock-fd`. Прерванный прогон оставляет DEV закрытым
+  и печатает `--rollback <локальный снимок> --confirm-refresh-dev-from-test`. Канон —
+  `docs/ARCHITECTURE/DB_DUMPS/README.md`.
 
 Wrapper не останавливает и не запускает процессы. Перед `migrate-dev.sh --execute` оператор должен отдельно
 скоординировать единственный DEV writer/server; нельзя поднимать второй Next server.

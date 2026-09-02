@@ -7,7 +7,7 @@
 import { and, eq, ne, or, isNull, sql } from 'drizzle-orm';
 import { platformUsers } from '../../../db/schema/schema';
 import { getWebappSqlDb } from '@/infra/db/runWebappSql';
-import { isAcceptableIanaTimezone } from '@/modules/system-settings/calendarIana';
+import { syncCalendarTimezoneFromDevice } from '@/app-layer/platform-user/syncCalendarTimezoneFromDevice';
 
 export async function getPlatformUserCalendarTimezone(userId: string): Promise<string | null> {
   const rows = await getWebappSqlDb()
@@ -28,20 +28,23 @@ export async function syncPlatformUserCalendarTimezoneFromDevice(
   userId: string,
   raw: string | null,
 ): Promise<boolean> {
-  const candidate = raw?.trim() ?? '';
-  if (!candidate || !isAcceptableIanaTimezone(candidate)) return false;
-  const updated = await getWebappSqlDb()
-    .update(platformUsers)
-    .set({ calendarTimezone: candidate, updatedAt: sql`now()` })
-    .where(
-      and(
-        eq(platformUsers.id, userId),
-        or(
-          isNull(platformUsers.calendarTimezone),
-          ne(platformUsers.calendarTimezone, candidate),
-        ),
-      ),
-    )
-    .returning({ id: platformUsers.id });
-  return updated.length > 0;
+  return syncCalendarTimezoneFromDevice(userId, raw, {
+    readCurrent: getPlatformUserCalendarTimezone,
+    writeChanged: async (targetUserId, calendarTimezone) => {
+      const updated = await getWebappSqlDb()
+        .update(platformUsers)
+        .set({ calendarTimezone, updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(platformUsers.id, targetUserId),
+            or(
+              isNull(platformUsers.calendarTimezone),
+              ne(platformUsers.calendarTimezone, calendarTimezone),
+            ),
+          ),
+        )
+        .returning({ id: platformUsers.id });
+      return updated.length > 0;
+    },
+  });
 }

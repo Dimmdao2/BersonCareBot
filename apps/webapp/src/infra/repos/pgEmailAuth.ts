@@ -358,11 +358,12 @@ export async function findLatestEmailChallengeForUser(
 export async function findLatestPendingEmailChallengeForUser(
   userId: string,
   nowSec: number,
+  purpose: EmailChallengePurpose,
 ): Promise<EmailChallengeRow | null> {
   const row = await runWebappSql<EmailChallengeRow>(
     getWebappSqlDb(),
     sql`SELECT id::text, email, code_hash, expires_at::text, attempts::text, purpose
-     FROM app.email_auth_find_latest_pending_email_challenge_for_user(${userId}::uuid, ${nowSec}::bigint)`,
+     FROM app.email_auth_find_latest_pending_email_challenge_for_user(${userId}::uuid, ${nowSec}::bigint, ${purpose}::text)`,
   );
   return row.rows[0] ?? null;
 }
