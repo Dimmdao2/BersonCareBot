@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import { savePatientHomeWarmupRotationAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
 import {
@@ -96,12 +97,11 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
             <li key={index} className="flex items-end gap-2">
               <label className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-muted-foreground">Время {index + 1}</span>
-                <Input
-                  type="time"
+                <DoctorDateTimePicker
+                  mode="time"
                   value={time}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setTimes((prev) => prev.map((row, i) => (i === index ? v : row)));
+                  onChange={(value) => {
+                    setTimes((prev) => prev.map((row, i) => (i === index ? value : row)));
                   }}
                   className="w-36"
                   aria-label={`Время смены ${index + 1}`}

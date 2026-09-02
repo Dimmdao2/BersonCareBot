@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { Input } from '@/shared/ui/doctor/primitives/input';
+import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import {
   Select,
   SelectContent,
@@ -209,11 +209,12 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
             <span className="text-xs text-muted-foreground">Время</span>
             {times.map((t, i) => (
               <div key={i} className="flex items-center gap-2">
-                <Input
-                  type="time"
+                <DoctorDateTimePicker
+                  mode="time"
                   value={t}
-                  onChange={(e) => updateSlot(i, e.target.value)}
-                  className="h-8 px-2 text-sm"
+                  onChange={(value) => updateSlot(i, value)}
+                  className="w-28"
+                  ariaLabel="Время разминки"
                 />
                 <Button
                   type="button"

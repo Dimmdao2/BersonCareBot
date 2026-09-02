@@ -6,6 +6,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
+import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { patchAdminSettingWithResult } from './patchAdminSetting';
 import {
   normalizeDigestTimeHour,
@@ -179,12 +180,12 @@ export function OperatorHealthAlertsSection({
             {def.showTime ? (
               <label className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-muted-foreground">Время</span>
-                <Input
-                  type="time"
-                  step={3600}
+                <DoctorDateTimePicker
+                  mode="time"
                   value={digestTime}
-                  onChange={(e) => setDigestTime(normalizeDigestTimeHour(e.target.value))}
+                  onChange={(value) => setDigestTime(normalizeDigestTimeHour(value))}
                   className="w-36"
+                  timeStepMinutes={60}
                   aria-label="Время суточной сводки"
                 />
               </label>

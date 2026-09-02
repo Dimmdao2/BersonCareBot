@@ -9,16 +9,9 @@ import { CalendarDays } from 'lucide-react';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/doctor/primitives/popover';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/shared/ui/doctor/primitives/dialog';
 import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import { DoctorTimeColumn } from '@/shared/ui/doctor/DoctorTimeColumn';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { cn } from '@/lib/utils';
 
 /**
@@ -39,20 +32,23 @@ const RDP_ACCENT_STYLE = {
 const RDP_SELECTED_DAY_CLASS = '!bg-[var(--bc-accent-500,#386fba)] !text-white !border-transparent';
 
 /**
- * Shared canonical date-time picker (react-day-picker + brand time column).
- * value/onChange — строка datetime-local "yyyy-MM-ddTHH:mm".
+ * Shared canonical doctor picker (react-day-picker + brand time column).
+ * value/onChange: date — "yyyy-MM-dd"; date-time — "yyyy-MM-ddTHH:mm"; time — "HH:mm".
  */
 type Props = {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
   placeholder?: string;
-  /** Default keeps the existing datetime-local contract; time mode uses HH:mm. */
-  mode?: 'date-time' | 'time';
+  mode?: 'date' | 'date-time' | 'time';
   id?: string;
   ariaLabel?: string;
   testId?: string;
   className?: string;
+  /** Inclusive maximum, in the format used by the current picker mode. */
+  max?: string;
+  /** Time increments in the picker. Defaults to the doctor's standard 15-minute slots. */
+  timeStepMinutes?: number;
 };
 
 export function DoctorDateTimePicker({
@@ -65,28 +61,43 @@ export function DoctorDateTimePicker({
   ariaLabel,
   testId,
   className,
+  max,
+  timeStepMinutes = 15,
 }: Props) {
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobileViewport();
   const isTimeOnly = mode === 'time';
+  const isDateOnly = mode === 'date';
   const dt = !isTimeOnly && value ? DateTime.fromISO(value) : null;
   const selectedDate = dt?.isValid ? dt.toJSDate() : undefined;
   const time = isTimeOnly ? value : dt?.isValid ? dt.toFormat('HH:mm') : '';
+  const maxDateTime = max ? DateTime.fromISO(max) : null;
+  const maxDate = maxDateTime?.isValid ? maxDateTime.toJSDate() : undefined;
   const resolvedPlaceholder =
-    placeholder ?? (isTimeOnly ? 'Выберите время' : 'Выберите дату и время');
+    placeholder ?? (isTimeOnly ? 'Выберите время' : isDateOnly ? 'Выберите дату' : 'Выберите дату и время');
   const label = isTimeOnly
     ? value || resolvedPlaceholder
     : dt?.isValid
-      ? dt.setLocale('ru').toFormat('d MMMM yyyy, HH:mm')
+      ? dt.setLocale('ru').toFormat(isDateOnly ? 'd MMMM yyyy' : 'd MMMM yyyy, HH:mm')
       : resolvedPlaceholder;
 
-  const commit = (date: DateTime, hhmm: string) => {
+  const formatValue = (date: DateTime, hhmm: string) => {
+    if (isDateOnly) return date.toFormat('yyyy-MM-dd');
     const [h, m] = hhmm.split(':').map((n) => Number.parseInt(n, 10));
-    onChange(
-      date
-        .set({ hour: Number.isFinite(h) ? h : 9, minute: Number.isFinite(m) ? m : 0 })
-        .toFormat("yyyy-MM-dd'T'HH:mm"),
-    );
+    return date
+      .set({ hour: Number.isFinite(h) ? h : 9, minute: Number.isFinite(m) ? m : 0 })
+      .toFormat("yyyy-MM-dd'T'HH:mm");
+  };
+
+  const exceedsMax = (nextValue: string) => {
+    if (!maxDateTime?.isValid) return false;
+    const next = DateTime.fromISO(nextValue);
+    return next.isValid && next.toMillis() > maxDateTime.toMillis();
+  };
+
+  const commit = (date: DateTime, hhmm: string) => {
+    const nextValue = formatValue(date, hhmm);
+    if (!exceedsMax(nextValue)) onChange(nextValue);
   };
 
   // Mobile bottom-sheet drafts: staged locally and committed only on "Применить". Owner
@@ -108,10 +119,15 @@ export function DoctorDateTimePicker({
     if (isTimeOnly) {
       if (draftTime) onChange(draftTime);
     } else if (draftDate) {
-      commit(DateTime.fromJSDate(draftDate), draftTime || '09:00');
+      commit(DateTime.fromJSDate(draftDate), isDateOnly ? '' : draftTime || '09:00');
     }
     setOpen(false);
   };
+
+  const isTimeUnavailable = (date: Date, hhmm: string) =>
+    exceedsMax(formatValue(DateTime.fromJSDate(date), hhmm));
+  const isDraftTimeUnavailable =
+    !isTimeOnly && !isDateOnly && draftDate ? isTimeUnavailable(draftDate, draftTime || '09:00') : false;
 
   const triggerClassName = cn(
     buttonVariants({ variant: 'outline', size: isTimeOnly ? 'sm' : 'default' }),
@@ -131,22 +147,35 @@ export function DoctorDateTimePicker({
 
   if (isMobile) {
     return (
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger
+      <>
+        <button
           id={id}
           type="button"
           aria-label={ariaLabel}
           disabled={disabled}
           className={triggerClassName}
           data-testid={testId}
+          onClick={() => setOpen(true)}
         >
           {triggerContent}
-        </DialogTrigger>
-        <DialogContent className="max-h-[85dvh] gap-0 overflow-hidden p-0" style={RDP_ACCENT_STYLE}>
-          <DialogHeader className="shrink-0 border-b border-border px-4 pt-4 pb-3 pr-12">
-            <DialogTitle>{isTimeOnly ? 'Выберите время' : 'Выберите дату и время'}</DialogTitle>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+        </button>
+        <DoctorModal
+          open={open}
+          onClose={() => setOpen(false)}
+          title={isTimeOnly ? 'Выберите время' : isDateOnly ? 'Выберите дату' : 'Выберите дату и время'}
+          size="sm"
+          bodyClassName="p-0"
+          footer={
+            <Button
+              type="button"
+              onClick={applyDraft}
+              disabled={isTimeOnly ? !draftTime : !draftDate || isDraftTimeUnavailable}
+            >
+              Применить
+            </Button>
+          }
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto" style={RDP_ACCENT_STYLE}>
             {isTimeOnly ? (
               <div className="p-3">
                 <DoctorTimeColumn
@@ -154,7 +183,7 @@ export function DoctorDateTimePicker({
                   disabled={disabled}
                   startHour={0}
                   endHour={23}
-                  stepMinutes={15}
+                  stepMinutes={timeStepMinutes}
                   onChange={setDraftTime}
                 />
               </div>
@@ -166,32 +195,30 @@ export function DoctorDateTimePicker({
                   weekStartsOn={1}
                   selected={draftDate}
                   defaultMonth={draftDate}
+                  disabled={maxDate ? { after: maxDate } : undefined}
                   onSelect={(d) => setDraftDate(d)}
                   classNames={{ selected: RDP_SELECTED_DAY_CLASS }}
                   className="flex justify-center p-3"
                 />
-                <div className="border-t border-border p-3">
-                  <span className="mb-1 block text-xs text-muted-foreground">Время</span>
-                  <DoctorTimeColumn
-                    value={draftTime}
-                    disabled={!draftDate}
-                    onChange={setDraftTime}
-                  />
-                </div>
+                {!isDateOnly ? (
+                  <div className="border-t border-border p-3">
+                    <span className="mb-1 block text-xs text-muted-foreground">Время</span>
+                    <DoctorTimeColumn
+                      value={draftTime}
+                      disabled={!draftDate}
+                      isSlotDisabled={(hhmm) =>
+                        draftDate ? isTimeUnavailable(draftDate, hhmm) : false
+                      }
+                      stepMinutes={timeStepMinutes}
+                      onChange={setDraftTime}
+                    />
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              onClick={applyDraft}
-              disabled={isTimeOnly ? !draftTime : !draftDate}
-            >
-              Применить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </DoctorModal>
+      </>
     );
   }
 
@@ -218,11 +245,29 @@ export function DoctorDateTimePicker({
             disabled={disabled}
             startHour={0}
             endHour={23}
-            stepMinutes={15}
+            stepMinutes={timeStepMinutes}
             onChange={(hhmm) => {
               onChange(hhmm);
               setOpen(false);
             }}
+          />
+        </PopoverContent>
+      ) : isDateOnly ? (
+        <PopoverContent className="w-auto p-0" align="start" style={RDP_ACCENT_STYLE}>
+          <DayPicker
+            mode="single"
+            locale={ru}
+            weekStartsOn={1}
+            selected={selectedDate}
+            defaultMonth={selectedDate}
+            disabled={maxDate ? { after: maxDate } : undefined}
+            onSelect={(d) => {
+              if (!d) return;
+              commit(DateTime.fromJSDate(d), '');
+              setOpen(false);
+            }}
+            classNames={{ selected: RDP_SELECTED_DAY_CLASS }}
+            className="p-3"
           />
         </PopoverContent>
       ) : (
@@ -234,6 +279,7 @@ export function DoctorDateTimePicker({
               weekStartsOn={1}
               selected={selectedDate}
               defaultMonth={selectedDate}
+              disabled={maxDate ? { after: maxDate } : undefined}
               onSelect={(d) => {
                 if (!d) return;
                 commit(DateTime.fromJSDate(d), time || '09:00');
@@ -246,6 +292,10 @@ export function DoctorDateTimePicker({
               <DoctorTimeColumn
                 value={time}
                 disabled={!selectedDate && !dt?.isValid}
+                isSlotDisabled={(hhmm) =>
+                  selectedDate ? isTimeUnavailable(selectedDate, hhmm) : false
+                }
+                stepMinutes={timeStepMinutes}
                 onChange={(hhmm) => {
                   const base = selectedDate ? DateTime.fromJSDate(selectedDate) : DateTime.now();
                   commit(base, hhmm);

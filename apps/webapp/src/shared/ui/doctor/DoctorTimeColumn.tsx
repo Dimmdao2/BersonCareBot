@@ -23,6 +23,8 @@ type Props = {
   endHour?: number;
   /** Step between slots in minutes (default 15). */
   stepMinutes?: number;
+  /** Disables individual slots while retaining their place in the time scale. */
+  isSlotDisabled?: (hhmm: string) => boolean;
 };
 
 function buildSlots(startHour: number, endHour: number, stepMinutes: number): string[] {
@@ -44,6 +46,7 @@ export function DoctorTimeColumn({
   startHour = 7,
   endHour = 21,
   stepMinutes = 15,
+  isSlotDisabled,
 }: Props) {
   const slots = useMemo(
     () => buildSlots(startHour, endHour, stepMinutes),
@@ -68,6 +71,7 @@ export function DoctorTimeColumn({
     >
       {slots.map((slot) => {
         const isSelected = slot === value;
+        const slotDisabled = disabled || isSlotDisabled?.(slot) || false;
         return (
           <Button
             key={slot}
@@ -76,7 +80,7 @@ export function DoctorTimeColumn({
             variant="ghost"
             role="option"
             aria-selected={isSelected}
-            disabled={disabled}
+            disabled={slotDisabled}
             onClick={() => onChange(slot)}
             className={cn(
               'w-full shrink-0 cursor-pointer rounded-md px-3 py-1.5 text-center text-sm tabular-nums tracking-tight outline-none transition-colors',

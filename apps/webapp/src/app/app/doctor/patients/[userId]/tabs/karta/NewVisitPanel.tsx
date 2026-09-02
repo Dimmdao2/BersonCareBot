@@ -28,6 +28,7 @@ import type {
 import type { PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { cn } from '@/lib/utils';
 import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
+import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
@@ -1023,12 +1024,12 @@ export function NewVisitPanel({
           {/* Date picker */}
           <DoctorDatePicker value={selectedDate} onChange={setSelectedDate} />
           {/* Time picker */}
-          <Input
-            type="time"
+          <DoctorDateTimePicker
+            mode="time"
             value={selectedTime}
-            onChange={(e) => setSelectedTime(e.target.value)}
-            className="w-[6.5rem] h-[26px] px-2 text-xs"
-            title="Время визита"
+            onChange={setSelectedTime}
+            className="h-[26px] w-[6.5rem] px-2 text-xs"
+            ariaLabel="Время визита"
           />
           {/* Branch / location */}
           {locationOptions.length > 0 && !locationOther ? (

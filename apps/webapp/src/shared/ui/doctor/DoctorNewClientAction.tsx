@@ -6,6 +6,7 @@ import { useState, type ReactNode } from 'react';
 import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
 import { DoctorModal, type DoctorModalDesktopPresentation } from './DoctorModal';
+import { DoctorDateTimePicker } from './DoctorDateTimePicker';
 import { Button } from './primitives/button';
 import { Input } from './primitives/input';
 import { Label } from './primitives/label';
@@ -241,13 +242,12 @@ export function DoctorNewClientAction({
             </div>
             <div className="grid gap-1.5 sm:col-span-2">
               <Label htmlFor="doctor-new-client-visited-at">Дата и время визита, если есть</Label>
-              <Input
+              <DoctorDateTimePicker
                 id="doctor-new-client-visited-at"
-                type="datetime-local"
                 value={visitedAt}
                 max={currentLocalDateTimeValue(2)}
                 placeholder="Не указано — создастся только карточка"
-                onChange={(event) => setVisitedAt(event.target.value)}
+                onChange={setVisitedAt}
               />
             </div>
           </div>
