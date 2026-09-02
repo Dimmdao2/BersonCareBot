@@ -213,7 +213,7 @@ SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 1484, true);
 
 -- Generated from SYSTEM_SETTING_REGISTRY. Existing source values always win.
 INSERT INTO public.system_settings (key, scope, organization_id, value_json, updated_at, updated_by)
-SELECT seed.key, seed.scope, seed.organization_id, seed.value_json, seed.updated_at, seed.updated_by
+SELECT seed.key, seed.scope, seed.organization_id::uuid, seed.value_json, seed.updated_at, seed.updated_by::uuid
 FROM (VALUES
   ('admin_emails', 'admin', NULL, '{"value":[]}'::jsonb, statement_timestamp(), NULL),
   ('admin_incident_alert_config', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
@@ -332,7 +332,7 @@ WHERE NOT EXISTS (
   SELECT 1 FROM public.system_settings existing
   WHERE existing.key = seed.key
     AND existing.scope = seed.scope
-    AND existing.organization_id IS NOT DISTINCT FROM seed.organization_id
+    AND existing.organization_id IS NOT DISTINCT FROM seed.organization_id::uuid
 );
 
 DO $target_global_system_settings_gate$
