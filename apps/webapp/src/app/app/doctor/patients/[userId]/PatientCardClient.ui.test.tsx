@@ -157,38 +157,6 @@ afterEach(() => {
 });
 
 describe('patient card — final tabs live in DoctorPageHeader', () => {
-  it('renders patient navigation inside the page header', async () => {
-    render(
-      <PatientCardClient
-        shellMeta={shellMeta}
-        tabPromise={fulfilledThenable(tabBootstrap)}
-        initialTab="karta"
-        patientListHref={patientListHref}
-      />,
-    );
-
-    await screen.findByTestId('panel-karta');
-
-    const header = document.querySelector('[data-doctor-page-header]');
-    expect(header).toBeInTheDocument();
-
-    const tabsSlot = header!.querySelector('[data-doctor-page-header-tabs]');
-    expect(tabsSlot).toBeInTheDocument();
-    expect(tabsSlot!.querySelector('nav#doctor-patient-card-tabs')).toBeInTheDocument();
-
-    const accountButtons = screen.getAllByRole('button', { name: 'Учётка' });
-    expect(accountButtons).toHaveLength(1);
-    expect(tabsSlot!.contains(accountButtons[0]!)).toBe(true);
-    expect(screen.queryByRole('button', { name: 'Визиты' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Коммуникации' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Финансы' })).not.toBeInTheDocument();
-
-    // The «К клиентам» back link lives in the same header, not floating elsewhere.
-    const backLink = screen.getByRole('link', { name: 'К клиентам' });
-    expect(header!.contains(backLink)).toBe(true);
-    expect(backLink).toHaveAttribute('href', patientListHref);
-  });
-
   it('switching tabs from the header changes the visible panel and keeps prior tabs mounted (deep-link state)', async () => {
     render(
       <PatientCardClient

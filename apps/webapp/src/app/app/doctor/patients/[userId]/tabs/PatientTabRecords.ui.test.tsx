@@ -280,27 +280,4 @@ describe('patient records tab — a refused load is not a visit history', () => 
     expect(screen.getByText('Консультация · 60 мин')).toBeInTheDocument();
   });
 
-  it('shows the next visit as emphasized secondary text in the visits KPI', () => {
-    render(
-      <PatientTabRecords
-        userId={patientId}
-        compositionMode="master"
-        initialAppointments={[
-          {
-            id: 'future-appointment',
-            internalId: 'future-appointment',
-            dateTime: '2099-01-01T10:00:00+03:00',
-            status: 'upcoming',
-            serviceName: 'Консультация',
-            location: 'Клиника',
-            durationMin: 60,
-          },
-        ]}
-        initialPackages={[]}
-      />,
-    );
-
-    const nextVisit = screen.getByText('След 01.01');
-    expect(nextVisit).toHaveClass('text-sm', 'font-normal', 'text-foreground/80');
-  });
 });

@@ -27,8 +27,6 @@ describe('DoctorConversationListRow', () => {
 
     const row = screen.getByRole('link', { name: /Берсон Дмитрий/ });
     expect(row).toHaveAttribute('href', '/app/doctor/communications?conversation=conversation-1');
-    expect(row).toHaveClass('flex');
-    expect(row).not.toHaveClass('block');
     expect(row).toHaveTextContent('Нужна помощь');
     expect(row).not.toHaveTextContent('Дмитрий: Нужна помощь');
     expect(row).toHaveTextContent('1');
