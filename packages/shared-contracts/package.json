@@ -1,5 +1,5 @@
 {
-  "name": "@bersoncare/platform-merge",
+  "name": "@bersoncare/shared-contracts",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -8,6 +8,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
       "default": "./dist/index.js"
     }
   },
@@ -15,15 +16,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "dependencies": {
-    "@bersoncare/shared-contracts": "workspace:*",
-    "drizzle-orm": "^0.45.2"
-  },
   "devDependencies": {
-    "@types/pg": "^8.21.0",
+    "@types/node": "^25.5.2",
     "typescript": "^5.9.3"
-  },
-  "peerDependencies": {
-    "pg": "^8.23.0"
   }
 }
