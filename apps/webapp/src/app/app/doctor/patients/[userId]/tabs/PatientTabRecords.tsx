@@ -23,6 +23,7 @@ import {
   doctorPageStackClass,
   doctorInteractiveSurfaceButtonClass,
   doctorMetricValueClass,
+  doctorSecondaryListTextClass,
   doctorStatCardInteractiveClass,
   doctorStatCardShellClass,
 } from '@/shared/ui/doctor/doctorVisual';
@@ -136,7 +137,7 @@ function formatNextAppointment(appointment: DisplayAppointment | undefined): str
         : days > 1 && days <= 7
           ? `через ${days} ${days >= 2 && days <= 4 ? 'дня' : 'дней'}`
           : fmtDate(appointment.date).slice(0, 5);
-  return `${dayLabel}, ${appointment.time}`;
+  return `Следующий: ${dayLabel}, ${appointment.time}`;
 }
 
 function formatMoney(amountMinor: number | null | undefined, currency: string | null | undefined) {
@@ -407,7 +408,9 @@ export function PatientTabRecords({
             id="patient-overview-visits"
             title="Визитов"
             value={completedCount}
+            valuePlacement="inline"
             hint={formatNextAppointment(nextAppointment)}
+            hintClassName={doctorSecondaryListTextClass}
             onClick={() => setVisitsModalOpen(true)}
             actionIcon={<CalendarPlus className="size-5" aria-hidden />}
             actionLabel="Добавить визит"

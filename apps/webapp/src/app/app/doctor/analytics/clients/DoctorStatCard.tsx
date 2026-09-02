@@ -27,6 +27,7 @@ type Props = {
   onClick?: () => void;
   className?: string;
   valueClassName?: string;
+  hintClassName?: string;
   testId?: string;
   valuePlacement?: 'responsive' | 'inline';
   actionIcon?: ReactNode;
@@ -47,6 +48,7 @@ export function DoctorStatCard({
   onClick,
   className,
   valueClassName,
+  hintClassName,
   testId,
   valuePlacement = 'responsive',
   actionIcon,
@@ -68,7 +70,9 @@ export function DoctorStatCard({
     </div>
   );
   const hintNode = hint ? (
-    <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p>
+    <p className={cn('mt-0.5 text-[10px] leading-snug text-muted-foreground', hintClassName)}>
+      {hint}
+    </p>
   ) : null;
   const metric = (
     <div className="flex items-baseline gap-0.5">
@@ -125,7 +129,7 @@ export function DoctorStatCard({
           variant="ghost"
           className={cn(
             doctorClientPrimaryOutlineActionClass,
-            'm-1.5 h-auto min-w-9 self-stretch px-2',
+            'm-1.5 h-auto min-w-9 self-stretch rounded-l-none px-2',
           )}
           aria-label={actionLabel}
           onClick={onActionClick}

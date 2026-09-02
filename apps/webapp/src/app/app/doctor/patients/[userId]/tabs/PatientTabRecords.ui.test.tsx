@@ -123,7 +123,9 @@ describe('patient records tab — a refused load is not a visit history', () => 
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Добавить визит' }));
+    const addVisitButton = screen.getByRole('button', { name: 'Добавить визит' });
+    expect(addVisitButton).toHaveClass('rounded-l-none');
+    fireEvent.click(addVisitButton);
     expect(createNewVisit).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: 'Добавить абонемент' }));
     expect(createMembership).toHaveBeenCalledOnce();
@@ -229,5 +231,29 @@ describe('patient records tab — a refused load is not a visit history', () => 
     expect(screen.getByText('Поздних отмен 1')).toBeInTheDocument();
     expect(screen.getByText('19.08.2026 · 13:00')).toBeInTheDocument();
     expect(screen.getByText('Консультация · 60 мин')).toBeInTheDocument();
+  });
+
+  it('shows the next visit as emphasized secondary text in the visits KPI', () => {
+    render(
+      <PatientTabRecords
+        userId={patientId}
+        compositionMode="master"
+        initialAppointments={[
+          {
+            id: 'future-appointment',
+            internalId: 'future-appointment',
+            dateTime: '2099-01-01T10:00:00+03:00',
+            status: 'upcoming',
+            serviceName: 'Консультация',
+            location: 'Клиника',
+            durationMin: 60,
+          },
+        ]}
+        initialPackages={[]}
+      />,
+    );
+
+    const nextVisit = screen.getByText(/^Следующий:/);
+    expect(nextVisit).toHaveClass('text-sm', 'font-normal', 'text-foreground/80');
   });
 });
