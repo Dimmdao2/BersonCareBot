@@ -6,84 +6,104 @@
  * `operator_health_imap` password reaching both the admin log line and `new_value_json`, because the
  * log-side redactor was a per-key `if` chain in the route and the ledger had no redaction at all.
  * A ledger row is worse than a log line — it is durable, it is read back by the audit UI, and it
- * survives log rotation. So the ledger and the log now share one list.
+ * survives log rotation. So the ledger and the log now share one call (`admin/settings/route.ts`'s
+ * `PATCH`/batch handlers pass their log line through this same function).
+ *
+ * #1071: a second independent audit (2026-09-02) found the redaction policy itself was a
+ * hand-maintained key list, disjoint from `SYSTEM_SETTING_REGISTRY` — `web_push_vapid`,
+ * `booking_payment_providers` and `saas_billing_payment_provider` carry live secret material
+ * (`value.privateKey`, `value.providers[].{webhookSecret,apiKey}`) but were in neither list, so
+ * their plaintext reached `system_settings_audit` verbatim. The policy now lives on the registry
+ * entry itself (`SystemSettingSecretAuditPolicy`, `registry.ts`) — one key, one classification,
+ * checked by this module's `auditRedaction.unit.test.ts` registry-census tests — instead of a
+ * second list that can silently diverge.
  *
  * Scope note: this does NOT make `system_settings` itself safe — values are stored there as given
- * (see the SMTP password today). Encrypting settings at rest is a separate, owner-gated decision.
+ * (see the SMTP password today). Encrypting settings at rest is a separate, owner-gated decision
+ * (`docs/_TODO/runs/INTEGRATION_SECRET_ENCRYPTION_DECISION_PACKET_2026-09-02.md`).
  */
+import { SYSTEM_SETTING_REGISTRY, type SystemSettingSecretAuditPolicy } from './registry';
+import { redactSaasBillingPaymentProviderValue } from '@/modules/saas-billing/settings';
+import {
+  parseBookingPaymentSettingsValue,
+  redactBookingPaymentProvidersForClient,
+} from '@/modules/payments/bookingPaymentSettings';
 
-/** Envelope-shaped settings whose `value.password` must never be copied into the audit trail. */
-const PASSWORD_BEARING_KEYS = new Set<string>([
-  'smtp_outbound',
-  'clinic_smtp_outbound',
-  'operator_health_imap',
-]);
+type RegistryLookup = Record<string, { secretAudit: SystemSettingSecretAuditPolicy } | undefined>;
 
-/**
- * Settings whose ENTIRE value is a credential — a bare string, not an envelope with a `password`
- * field. Found by an independent audit (2026-07-28) on `vk_id_client_secret`: the route's log line
- * masks it, but the durable ledger stored it verbatim, because the only redactor understood the
- * envelope shape and silently passed a scalar through. The same hole covered the Google and Yandex
- * secrets, which nobody had flagged.
- *
- * Rule for adding to this list: if the value IS the secret, it belongs here; if the secret sits in
- * `value.password`, it belongs in PASSWORD_BEARING_KEYS above.
- */
-const SECRET_VALUE_KEYS = new Set<string>([
-  'max_bot_api_key',
-  'max_webhook_secret',
-  'vk_community_access_token',
-  'vk_callback_secret',
-  'vk_callback_confirmation_token',
-  'vk_video_service_token',
-  'telegram_bot_token',
-  'telegram_webhook_secret',
-  'yandex_oauth_client_secret',
-  'vk_id_client_secret',
-  'google_client_secret',
-  'google_refresh_token',
-  'apple_oauth_private_key',
-  'smsc_api_key',
-  'clinic_smsc_api_key',
-  'clinic_telegram_bot_token',
-  'clinic_max_bot_api_key',
-  'clinic_vk_community_access_token',
-  'auth_altcha_hmac_secret',
-]);
+function policyForKey(key: string): SystemSettingSecretAuditPolicy {
+  const definition = (SYSTEM_SETTING_REGISTRY as RegistryLookup)[key];
+  // A key absent from the registry cannot be written through the chokepoint (`ALLOWED_KEYS` gates
+  // it), so this only fires for a stale/foreign key reaching this function directly (e.g. a test).
+  // Fail closed rather than guess it is safe to show.
+  return definition?.secretAudit ?? { kind: 'whole_value' };
+}
 
-function redactEnvelopePassword(envelope: unknown): unknown {
-  if (envelope === null || typeof envelope !== 'object') return envelope;
-  if (!('value' in envelope)) return envelope;
-  const inner = (envelope as Record<string, unknown>).value;
-  if (inner === null || typeof inner !== 'object' || Array.isArray(inner)) return envelope;
-  const o = { ...(inner as Record<string, unknown>) };
-  if ('password' in o) {
-    const p = typeof o.password === 'string' ? o.password.trim() : '';
-    o.password = p.length > 0 ? '[REDACTED]' : '';
+/** The expected shape for every composite secret: `{ value: { ...fields... } }`. */
+function isCompositeEnvelope(value: unknown): value is { value: Record<string, unknown> } {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (!('value' in value)) return false;
+  const inner = (value as Record<string, unknown>).value;
+  return inner !== null && typeof inner === 'object' && !Array.isArray(inner);
+}
+
+function redactWholeValue(value: unknown): unknown {
+  // Absent/cleared stays distinguishable from "configured" — it is not a credential to hide.
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'string') return value.trim().length > 0 ? '[REDACTED]' : value;
+  // A whole-value secret that isn't a bare string is not the shape this key is supposed to hold —
+  // fail closed instead of passing an unrecognized shape through unredacted.
+  return '[REDACTED]';
+}
+
+function redactObjectField(value: unknown, field: string): unknown {
+  if (value === null || value === undefined) return value;
+  if (!isCompositeEnvelope(value)) return '[REDACTED]';
+  const inner = { ...value.value };
+  if (field in inner) {
+    const raw = inner[field];
+    const trimmed = typeof raw === 'string' ? raw.trim() : '';
+    inner[field] = trimmed.length > 0 ? '[REDACTED]' : '';
   }
-  return { ...(envelope as Record<string, unknown>), value: o };
+  return { ...value, value: inner };
+}
+
+function redactDomain(
+  id: 'booking_payment_providers' | 'saas_billing_payment_provider',
+  value: unknown,
+): unknown {
+  if (value === null || value === undefined) return value;
+  if (!isCompositeEnvelope(value)) return '[REDACTED]';
+  if (id === 'saas_billing_payment_provider') return redactSaasBillingPaymentProviderValue(value);
+  return { value: redactBookingPaymentProvidersForClient(parseBookingPaymentSettingsValue(value)) };
 }
 
 /**
  * Returns the value as it may be persisted to `system_settings_audit` / written to a log line.
- * Unknown keys pass through unchanged — this is a redactor, not an allowlist gate.
+ * Every key is classified in `SYSTEM_SETTING_REGISTRY[key].secretAudit`; a key that cannot be
+ * resolved there is treated as `whole_value` and redacted, not passed through.
  */
 export function redactSettingValueForAudit(key: string, value: unknown): unknown {
-  if (PASSWORD_BEARING_KEYS.has(key)) return redactEnvelopePassword(value);
-  if (SECRET_VALUE_KEYS.has(key)) {
-    // An empty value is not a secret and stays visible, so the trail still shows "it was cleared".
-    if (value === null || value === undefined) return value;
-    if (typeof value === 'string') return value.trim().length > 0 ? '[REDACTED]' : value;
-    return '[REDACTED]';
+  const policy = policyForKey(key);
+  switch (policy.kind) {
+    case 'none':
+      return value;
+    case 'whole_value':
+      return redactWholeValue(value);
+    case 'object_field':
+      return redactObjectField(value, policy.field);
+    case 'domain_redactor':
+      return redactDomain(policy.id, value);
   }
-  return value;
 }
 
+/** True for the envelope-shaped settings whose `value.password` must never reach the audit trail. */
 export function isPasswordBearingSettingKey(key: string): boolean {
-  return PASSWORD_BEARING_KEYS.has(key);
+  const policy = policyForKey(key);
+  return policy.kind === 'object_field' && policy.field === 'password';
 }
 
 /** True when the whole setting value is a credential (scalar secret), not an envelope. */
 export function isSecretValueSettingKey(key: string): boolean {
-  return SECRET_VALUE_KEYS.has(key);
+  return policyForKey(key).kind === 'whole_value';
 }
