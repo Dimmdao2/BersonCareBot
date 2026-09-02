@@ -133,3 +133,65 @@ green author suite does not prove the core owner requirement.
 - Audit mutation exact command: `node --test deploy/host/refresh-dev-from-test.test.mjs` with the temporary
   restore-SQL no-op → `pass 20`, `fail 0`, proving F4. Mutation reverted before artifact creation.
 - Full CI was not run, as explicitly prohibited by the brief.
+
+---
+
+## Correction pass, 2026-09-02 (written by the correction pass, not by the audit)
+
+This section records what changed in response to F1–F4 above. The audit verdict itself is left exactly as
+written; nothing above this line was edited. No live TEST/DEV/PROD database, env file, service, domain or
+external channel was touched, and no disposable database was created.
+
+- **F1 — recreated DEV is connectable throughout the destructive restore.** The recreate is now a single
+  `CREATE DATABASE "bcb_webapp_dev" OWNER postgres TEMPLATE template0 CONNECTION LIMIT 0`, replacing
+  `createdb` + a later `ALTER DATABASE` — `createdb` cannot express a connection limit, so the two-step form
+  always left a real window. There is now no instant in which a default-connectable `bcb_webapp_dev` exists.
+  `assert_target_closed` re-reads `datconnlimit` after the recreate, after the DEV-state restore, before and
+  after the migration gate and before the rollback reopen; the original limit is restored at exactly one
+  success boundary. Oracle: the model records every cluster event, and the suite asserts that no operation
+  touched the target while it was connectable and that the target is reopened exactly once.
+- **F2 — PASS before the canonical current-schema migration gate.** `deploy/host/migrate-dev.sh --execute`
+  is now invoked inside `--execute`, before the reopen and before `PASS`; the wrapper's duplicated
+  reconcile block was removed from that path (it remains only for `--rollback`, which applies no
+  migrations), and the after-PASS "now run migrate-dev" instruction is gone. Lock re-entry is a new
+  parameter on the existing entrypoint, `migrate-dev.sh --host-lock-fd <descriptor>`: it validates that the
+  inherited descriptor is open and resolves to this exact lock file, then `flock`s it. Re-locking the same
+  open file description cannot deadlock against its own holder, while a third party holding the lock through
+  any other description still refuses the run. No second, lockless migration runner exists.
+- **F3 — DEV-owned per-org credential for an organization absent from TEST.** The restore SQL now returns a
+  captured row only when its `organization_id` is NULL or present in `public.be_organizations`; a row whose
+  organization is absent is deliberately not restored, because it cannot belong to the new DEV data graph and
+  inserting it would abort the transaction after the destructive boundary. The policy is fail-loud, not
+  silent: `dev_owned_setting_absent_org` is materialized, three assertions cover it (restored count is
+  captured minus dropped, every restorable row is present, no dropped row came back), the count is exported
+  through `:absent_org_out`, and the wrapper prints both an explanatory line and
+  `dev_owned_settings_dropped_absent_org=N` in `PASS`. Keys and organization ids stay inside the database.
+- **F4 — the suite did not execute DEV-state SQL semantics.** `deploy/host/dev-refresh-sql-model.mjs` is a new
+  executable model of the cluster: it runs the real capture and restore scripts — psql meta-commands,
+  `\copy`, the transaction, DELETE/INSERT predicates, the foreign key and the division-by-zero assertions —
+  against a synthetic, PII-free fixture, and the suite asserts on the resulting ROWS. Statements the model
+  does not implement are a loud error, never a silent pass, and the model has its own test file. The named
+  DEV/TEST databases are untouched and reserved for the future live `--execute`. New oracles, each verified
+  red under its own mutation: restore SQL neutered with `\quit` (the exact audit mutation), signing-secret
+  repin removed, TEST environment values surviving, TEST-only unclassified row surviving, TEST environment
+  lock surviving, absent-organization policy removed (FK abort after the boundary), migration gate failing,
+  and the target reopened early.
+- **Additional defect found by the new oracle, fixed here.** `run_tracked` ran its child asynchronously so a
+  signal could reach the whole process group; with job control off, an asynchronous command's stdin is
+  `/dev/null` before any explicit redirection, and the `run_tracked … <"$CAPTURE_SQL"` redirection applied to
+  the function, not to the async child. Every repository SQL primitive is handed to psql on stdin, so on a
+  live run the capture and the DEV-state restore would have read `/dev/null`, executed nothing and exited 0.
+  The previous fake `psql` discarded stdin and wrote fixture output regardless, which is why the green suite
+  could not see it. `run_tracked` now duplicates its own stdin and hands it to the child by descriptor.
+
+### Validation of the correction pass
+
+- `bash -n deploy/host/refresh-dev-from-test.sh && bash -n deploy/host/migrate-dev.sh` → syntax clean.
+- `node deploy/host/dev-owned-settings-policy.mjs --self-test` → `PASS (registry=155 restricted=59 testEnv=21
+  devOwned=69)`.
+- `node --test deploy/host/dev-owned-settings-policy.test.mjs deploy/host/refresh-dev-from-test.test.mjs`
+  → `pass 41`, `fail 0` (the audit's baseline command; it was `pass 28` before this pass).
+- `node --test deploy/host/migrate-dev.test.mjs` → `pass 17`, `fail 0` (13 existing + 4 new lock-contract).
+- `node --test deploy/host/dev-refresh-sql-model.test.mjs` → `pass 9`, `fail 0`.
+- Full CI was not run, as explicitly prohibited by the brief. The live `--execute` remains deferred to an
+  accepted TEST; nothing in this pass claims the refresh ran.

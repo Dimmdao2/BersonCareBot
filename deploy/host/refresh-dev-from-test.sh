@@ -29,8 +29,24 @@ umask 077
 #                                                       registry and the TEST environment overlay
 #   deploy/postgres/dev-refresh-{capture,restore}-*.sql capture/restore of DEV-owned state
 #   deploy/host/parse-dev-database-url.mjs              the four DEV runtime URLs -> reconcile env
+#   deploy/host/migrate-dev.sh                          the canonical current-schema migration gate:
+#                                                       role baseline, ordered integrator/webapp
+#                                                       forwards, the one declaration reconcile with
+#                                                       its catalog closure, port-context descriptors
 #   deploy/postgres/privileges/generate-cli.mjs         shared cluster role baseline + verifier
 #   deploy/postgres/privileges/reconcile-access.mjs     the one declaration reconcile + catalog audit
+#
+# Two properties this file exists to hold, and where each is enforced:
+#   single writer   The recreated bcb_webapp_dev is BORN closed (CREATE DATABASE ... CONNECTION
+#                   LIMIT 0) and stays closed through restore, DEV-state return and the migration
+#                   gate. There is no instant in which a default-connectable bcb_webapp_dev exists,
+#                   so a hand-started worker that passed the writer gate and is quietly retrying
+#                   cannot slip in behind the preflight sample. The limit comes back at exactly one
+#                   success boundary; a failed run leaves it at 0 with a named recovery command.
+#   current schema  PASS is only reachable after deploy/host/migrate-dev.sh --execute has applied
+#                   this checkout's pending migrations on top of the accepted TEST ledger and its
+#                   reconcile has committed the catalog closure. The migration gate is INSIDE the
+#                   success boundary, never an instruction printed after it.
 #
 # The historical migration chain is never replayed and no disposable/scratch database is created.
 #
@@ -54,12 +70,18 @@ CONFIRM_FLAG="--confirm-refresh-dev-from-test"
 # database, so they share one host lock instead of inventing a second name that would not exclude
 # the other one.
 HOST_LOCK="/tmp/bcb-dev-migrate.$(id -u).lock"
+# migrate-dev.sh runs INSIDE this run's success boundary and needs the same lock. It is handed the
+# already-held descriptor instead of a second, lockless migration runner: flock() re-locking the
+# SAME open file description cannot deadlock against its own holder, and it still fails closed
+# against any third party holding this lock on a different description.
+HOST_LOCK_FD=9
 DEV_TCP_PORTS=(5200 4200)
 
 REPO_ROOT="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)")"
 API_ENV="$REPO_ROOT/.env"
 WEBAPP_ENV="$REPO_ROOT/apps/webapp/.env.dev"
 DEV_ENV_PARSER="$REPO_ROOT/deploy/host/parse-dev-database-url.mjs"
+MIGRATE_DEV="$REPO_ROOT/deploy/host/migrate-dev.sh"
 SETTINGS_POLICY="$REPO_ROOT/deploy/host/dev-owned-settings-policy.mjs"
 CAPTURE_SQL="$REPO_ROOT/deploy/postgres/dev-refresh-capture-dev-owned-state.sql"
 RESTORE_SQL="$REPO_ROOT/deploy/postgres/dev-refresh-restore-dev-owned-state.sql"
@@ -88,8 +110,10 @@ Usage: bash deploy/host/refresh-dev-from-test.sh --check
 
 --check    Proves host, database and writer readiness and resolves the DEV-owned state policy.
            It changes nothing: no dump, no drop, no restore, no reconcile, no env write.
---execute  Destructive. Replaces bcb_webapp_dev with the accepted bersoncarebot_test state and
-           puts DEV-owned environment state back. Requires the confirmation flag above.
+--execute  Destructive. Replaces bcb_webapp_dev with the accepted bersoncarebot_test state, puts
+           DEV-owned environment state back and runs the canonical migrate-dev.sh --execute gate
+           before it reports PASS. The target is closed to connections from the recreate until that
+           one success boundary. Requires the confirmation flag above.
 --rollback Destructive. Restores bcb_webapp_dev from a pre-refresh snapshot this script produced,
            then reruns the declaration reconcile. Requires the confirmation flag above.
 
@@ -108,11 +132,20 @@ note() {
 }
 
 run_tracked() {
+  # The child runs asynchronously so a signal can be delivered to its whole process group. With job
+  # control off, an asynchronous command's stdin is /dev/null BEFORE any explicit redirection, and a
+  # redirection written on the `run_tracked ... <file` call itself applies to this function, not to
+  # the async command inside it. Every repository SQL primitive is handed to psql on stdin, so
+  # without this explicit hand-off psql would read /dev/null, execute nothing and exit 0 -- a silent
+  # no-op exactly where the DEV-owned capture and restore live. Duplicate this function's own stdin
+  # and give it to the child by name.
   local child_status=0
-  setsid --wait "$@" &
+  exec 8<&0
+  setsid --wait "$@" <&8 &
   ACTIVE_CHILD_PID=$!
   wait "$ACTIVE_CHILD_PID" || child_status=$?
   ACTIVE_CHILD_PID=""
+  exec 8<&-
   return "$child_status"
 }
 
@@ -185,8 +218,23 @@ close_target() {
       WHERE datname = '$TARGET_DB' AND pid <> pg_backend_pid();" >/dev/null 2>&1
 }
 
+# The env guard has to survive one legitimate writer and refuse every other one. migrate-dev.sh ends
+# by re-rendering the two declaration-owned port-context capability descriptors into the DEV env
+# files; that value is a generated projection of the privilege declaration, carries no credential and
+# is exactly what an ordinary migration keeps in sync. Everything else -- the four runtime passwords
+# above all -- must be byte-identical from the first probe to PASS. So the digest is taken over the
+# env file WITHOUT those two declaration-owned lines: the refresh still cannot write a single byte of
+# DEV env, and a run that touches anything else fails loudly instead of reporting PASS.
 file_digest() {
-  sha256sum -- "$1" | cut -d' ' -f1
+  awk '
+    /^(WEBAPP|INTEGRATOR)_PORT_CONTEXT_CAPABILITIES_JSON=/ { next }
+    $0 == "# Declaration-owned exact port-context capabilities." { next }
+    { line[++count] = $0 }
+    END {
+      while (count > 0 && line[count] == "") count--
+      for (at = 1; at <= count; at++) print line[at]
+    }
+  ' "$1" | sha256sum | cut -d' ' -f1
 }
 
 # ---------------------------------------------------------------------------
@@ -236,7 +284,7 @@ fi
 # ---------------------------------------------------------------------------
 [[ "$EUID" -ne 0 ]] || fatal 'run this wrapper as the non-root repository owner'
 
-for command in awk createdb dropdb find flock hostname mktemp node pg_dump pg_restore psql \
+for command in awk dropdb find flock hostname mktemp node pg_dump pg_restore psql \
   realpath setsid sha256sum shred ss sudo wc; do
   command -v "$command" >/dev/null 2>&1 || fatal "required command is unavailable: $command"
 done
@@ -253,6 +301,7 @@ fi
 assert_canonical_file "$API_ENV" 'DEV API env'
 assert_canonical_file "$WEBAPP_ENV" 'DEV webapp env'
 assert_canonical_file "$DEV_ENV_PARSER" 'DEV env parser'
+assert_canonical_file "$MIGRATE_DEV" 'canonical DEV migration entrypoint'
 assert_canonical_file "$SETTINGS_POLICY" 'DEV-owned settings policy'
 assert_canonical_file "$CAPTURE_SQL" 'DEV-owned state capture SQL'
 assert_canonical_file "$RESTORE_SQL" 'DEV-owned state restore SQL'
@@ -263,8 +312,9 @@ for env_path in "$API_ENV" "$WEBAPP_ENV"; do
   [[ "$env_path" == "$REPO_ROOT/"* ]] || fatal "DEV env must live in this checkout: $env_path"
 done
 
-exec 9>"$HOST_LOCK"
-flock -n 9 || fatal 'another DEV database wrapper (refresh or migrate-dev) is already running'
+eval "exec ${HOST_LOCK_FD}>\"\$HOST_LOCK\""
+flock -n "$HOST_LOCK_FD" ||
+  fatal 'another DEV database wrapper (refresh or migrate-dev) is already running'
 
 # The connection is proven local before any identity claim is trusted.
 local_connection="$(postgres_scalar postgres "SELECT (inet_server_addr() IS NULL)::text;")" ||
@@ -363,13 +413,28 @@ WEBAPP_ENV_DIGEST="$(file_digest "$WEBAPP_ENV")"
 
 assert_env_untouched() {
   [[ "$(file_digest "$API_ENV")" == "$API_ENV_DIGEST" ]] ||
-    fatal 'DEV API env changed during the refresh; this wrapper must never write env files'
+    fatal 'DEV API env changed during the refresh outside the declaration-owned port-context line; \
+this wrapper must never write env files'
   [[ "$(file_digest "$WEBAPP_ENV")" == "$WEBAPP_ENV_DIGEST" ]] ||
-    fatal 'DEV webapp env changed during the refresh; this wrapper must never write env files'
+    fatal 'DEV webapp env changed during the refresh outside the declaration-owned port-context \
+line; this wrapper must never write env files'
 }
 
 NODE_BIN_DIR="$(dirname "$(command -v node)")"
 SANITIZED_PATH="$NODE_BIN_DIR:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+run_canonical_migration_gate() {
+  # deploy/host/migrate-dev.sh --execute IS the current-schema gate: shared role baseline, the
+  # relation-wall registry seed, the ordered integrator/webapp forwards against the ledger that
+  # arrived with the accepted TEST, the one reconcile-access.mjs with --port-context-verify,
+  # --env-verify and --catalog-closure-verify in its transaction, the port-context runtime
+  # descriptors and its own stationary-migrator assertion. It is invoked here, not copied and not
+  # printed as an after-PASS instruction: a refresh that cannot reach the current ledger must not be
+  # able to report success. It is handed this run's already-held host-lock descriptor, so it needs no
+  # second, lockless migration runner to get past its own lock.
+  run_tracked bash "$MIGRATE_DEV" --execute --host-lock-fd "$HOST_LOCK_FD" ||
+    fatal 'the canonical DEV migration gate (migrate-dev.sh --execute) failed; DEV stays closed'
+}
 
 reconcile_declaration() {
   # The one declaration reconcile in this repository. It reapplies the exact declared ownership,
@@ -447,8 +512,18 @@ restore_target_from_archive() {
     fatal 'could not close the DEV target before the restore'
   run_tracked sudo -n -u postgres dropdb -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" \
     --if-exists "$TARGET_DB" || fatal 'could not drop the DEV target'
-  run_tracked sudo -n -u postgres createdb -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" \
-    --owner=postgres --template=template0 "$TARGET_DB" || fatal 'could not recreate the DEV target'
+  # One statement creates the target ALREADY closed. `createdb` cannot express a connection limit,
+  # so the two-step createdb + ALTER DATABASE it replaces always left a real window in which a
+  # default-connectable bcb_webapp_dev existed: a hand-started scheduler or worker that has no
+  # listening port and happened to hold no backend during the single preflight sample would pass the
+  # writer gate and its ordinary retry could connect right here -- while pg_restore, the DEV-state
+  # return and the migration gate are still running -- and write into the accepted TEST image. The
+  # host lock does not stop it: that lock coordinates the repo-managed wrappers, not application
+  # processes. Born closed, there is nothing to race.
+  sudo -n -u postgres psql -X -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d postgres -v ON_ERROR_STOP=1 -c \
+    "CREATE DATABASE \"$TARGET_DB\" OWNER postgres TEMPLATE template0 CONNECTION LIMIT 0;" \
+    >/dev/null || fatal 'could not recreate the DEV target closed to connections'
+  assert_target_closed 'immediately after the recreate'
   sudo -n -u postgres psql -X -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d "$TARGET_DB" \
     -v ON_ERROR_STOP=1 >/dev/null <<'SQL' || fatal 'could not install the base extensions'
 CREATE EXTENSION IF NOT EXISTS btree_gist;
@@ -457,6 +532,19 @@ SQL
   run_tracked sudo -n -u postgres pg_restore --exit-on-error --no-comments \
     --role=postgres --dbname="$TARGET_DB" "$@" "$archive" ||
     fatal 'restore into the DEV target failed'
+}
+
+assert_target_closed() {
+  # Cheap, and it is the only thing that can catch a hand-run ALTER DATABASE or a future edit that
+  # reopens the target early. Called at every step of the destructive phase.
+  local phase="$1"
+  local limit
+  limit="$(postgres_scalar postgres \
+    "SELECT datconnlimit::text FROM pg_catalog.pg_database WHERE datname = '$TARGET_DB';")" ||
+    fatal "could not read the DEV connection limit $phase"
+  [[ "$limit" == 0 ]] ||
+    fatal "$TARGET_DB is open to connections $phase (limit $limit); the destructive phase must stay \
+single-writer. DEV is NOT usable; roll back from the snapshot named below."
 }
 
 reopen_target() {
@@ -508,6 +596,7 @@ if [[ "$MODE" == rollback ]]; then
   restore_target_from_archive "$ROLLBACK_DUMP"
   note 'rollback: declaration reconcile and catalog audit'
   reconcile_declaration
+  assert_target_closed 'after the rollback reconcile'
   reopen_target
   assert_env_untouched
   REFRESH_COMPLETE=1
@@ -527,6 +616,7 @@ TEST_TRANSPORT="$WORK_DIR/test-source.dump"
 DEV_SETTINGS="$WORK_DIR/dev-owned-settings.tsv"
 DEV_SIGNING_SECRET="$WORK_DIR/dev-signing-secret.tsv"
 DEV_HAS_SIGNING_SECRET="$WORK_DIR/dev-has-signing-secret.txt"
+DEV_ABSENT_ORG="$WORK_DIR/dev-absent-organization-count.txt"
 
 note 'execute: capturing DEV-owned environment state'
 # The repository lives under /home/dev with mode 0700, so the postgres OS user cannot open a repo
@@ -576,8 +666,26 @@ run_tracked sudo -n -u postgres psql -X -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d "
   -v settings_in="$DEV_SETTINGS" \
   -v signing_secret_in="$DEV_SIGNING_SECRET" \
   -v dev_had_signing_secret="$DEV_HAD_SIGNING_SECRET" \
+  -v absent_org_out="$DEV_ABSENT_ORG" \
   <"$RESTORE_SQL" >/dev/null ||
   fatal 'restore of DEV-owned environment state failed'
+
+# A per-organization DEV-owned credential whose organization is not in the accepted TEST cannot be
+# reattached to the new DEV data graph, so the restore drops it on purpose instead of aborting the
+# transaction on the foreign key after the destructive boundary. Counted, never silent: the number
+# is asserted here and printed in the PASS line. Key names and organization ids stay in the database.
+DEV_ABSENT_ORG_ROWS="$(sudo -n -u postgres cat "$DEV_ABSENT_ORG")" ||
+  fatal 'cannot read the dropped absent-organization row count'
+[[ "$DEV_ABSENT_ORG_ROWS" =~ ^[0-9]+$ ]] ||
+  fatal 'the dropped absent-organization row count is unusable'
+[[ "$DEV_ABSENT_ORG_ROWS" -le "$DEV_OWNED_ROWS" ]] ||
+  fatal 'the restore reported more dropped rows than were captured'
+if [[ "$DEV_ABSENT_ORG_ROWS" -gt 0 ]]; then
+  note "execute: $DEV_ABSENT_ORG_ROWS DEV-owned per-organization setting row(s) were NOT restored: \
+their organization does not exist in the accepted TEST data, so they cannot belong to the new DEV \
+data graph. Every global row and every row of an organization that TEST does carry was restored."
+fi
+assert_target_closed 'after the DEV-owned state restore'
 
 test_lock_present="$(postgres_scalar "$TARGET_DB" \
   "SELECT (to_regprocedure('public.system_settings_test_lock_guard()') IS NOT NULL)::text;")" ||
@@ -585,15 +693,18 @@ test_lock_present="$(postgres_scalar "$TARGET_DB" \
 [[ "$test_lock_present" == false ]] ||
   fatal 'the TEST environment lock survived into DEV'
 
-note 'execute: declaration reconcile, ACL rebuild and catalog audit'
-reconcile_declaration
-reopen_target
+note 'execute: canonical migration gate — current ledger, declaration reconcile, catalog closure'
+run_canonical_migration_gate
 assert_env_untouched
+assert_target_closed 'after the canonical migration gate'
 
+# The single success boundary. Everything above ran against a target that no application process
+# could reach; this is the one line that gives DEV back to its writers.
+reopen_target
 REFRESH_COMPLETE=1
 note "execute: PASS (source=$SOURCE_DB target=$TARGET_DB \
-dev_owned_settings_preserved=$DEV_OWNED_ROWS dev_signing_secret_repinned=$DEV_HAD_SIGNING_SECRET \
+dev_owned_settings_preserved=$DEV_OWNED_ROWS \
+dev_owned_settings_dropped_absent_org=$DEV_ABSENT_ORG_ROWS \
+dev_signing_secret_repinned=$DEV_HAD_SIGNING_SECRET \
 connection_limit=$TARGET_CONNECTION_LIMIT; TEST roles/ACLs/owners not copied; \
-declaration reconciled and catalog-audited)"
-note "execute: apply any migrations this checkout adds on top of the accepted TEST schema with \
-bash deploy/host/migrate-dev.sh --preflight, then --execute"
+migrations applied to the current ledger, declaration reconciled and catalog-audited)"

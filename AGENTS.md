@@ -581,8 +581,11 @@ DEV идёт из репо (`pnpm dev` → webapp `:5200` + integrator `:4200`, 
   `--execute --confirm-refresh-dev-from-test`. Оно переносит в DEV принятые данные/примеры и текущую
   schema B из `bersoncarebot_test` и не переносит TEST env, TEST runtime credentials, provider delivery
   и TEST channel/test-account allowlists; TEST роли, ACL и владельцы не копируются (`--no-owner
-  --no-acl`), DEV-owned состояние сохраняется и возвращается, права заново раскладывает штатный
-  declaration reconcile. Без явного решения владельца по конкретной приёмке entrypoint не запускают;
+  --no-acl`), DEV-owned состояние сохраняется и возвращается. Пересозданная база рождается закрытой
+  (`CONNECTION LIMIT 0`) и остаётся закрытой весь destructive-этап, а штатный `migrate-dev.sh --execute`
+  (текущий ledger + declaration reconcile + catalog closure) входит ВНУТРЬ этого же действия — отдельной
+  инструкции «примени миграции после refresh» нет, и refresh, не дошедший до текущего ledger'а, не
+  отчитывается `PASS`. Без явного решения владельца по конкретной приёмке entrypoint не запускают;
   `--check` ничего не меняет, а прерванный `--execute` откатывается его же `--rollback` из локального
   снимка DEV.
 - Данные из DEV можно использовать внутри команды агентов для разработки и UX-аудита. Не коммитить DB dumps,

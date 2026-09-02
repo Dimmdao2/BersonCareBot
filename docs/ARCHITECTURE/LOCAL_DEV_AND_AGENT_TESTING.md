@@ -67,7 +67,9 @@ DB-behavior проверяются живым проходом именован�
 `bash deploy/host/refresh-dev-from-test.sh --check`, затем `--execute --confirm-refresh-dev-from-test`
 (канон и таблица «что переносится / что остаётся» — [`DB_DUMPS/README.md`](./DB_DUMPS/README.md)). Entrypoint
 работает только с двумя существующими именованными базами, не проигрывает историческую цепочку миграций, не
-переносит TEST env/credentials/allowlists и не копирует TEST роли, ACL и владельцев. Он не управляет процессами:
+переносит TEST env/credentials/allowlists и не копирует TEST роли, ACL и владельцев. Пересозданная DEV-база
+закрыта для подключений весь destructive-этап, а штатный `migrate-dev.sh --execute` вызывается внутри действия
+до `PASS`, поэтому отдельного шага «применить миграции после refresh» нет. Он не управляет процессами:
 единственный DEV writer оператор останавливает сам (`pnpm run dev:stop`), иначе wrapper громко отказывает.
 
 **Node:** ≥22 (`nvm use` по `.nvmrc`).

@@ -700,9 +700,13 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
   --check`, затем `--execute --confirm-refresh-dev-from-test`. Переносит принятые данные/примеры и текущую
   schema B из `bersoncarebot_test` в `bcb_webapp_dev`; не переносит TEST env, TEST runtime credentials,
   provider delivery и TEST channel/test-account allowlists; TEST роли/ACL/владельцы не копируются
-  (`--no-owner --no-acl`). DEV-owned состояние снимается до разрушения и возвращается после restore, затем
-  права раскладывает штатный `reconcile-access.mjs`. Прерванный прогон оставляет DEV закрытым и печатает
-  `--rollback <локальный снимок> --confirm-refresh-dev-from-test`. Канон — `docs/ARCHITECTURE/DB_DUMPS/README.md`.
+  (`--no-owner --no-acl`). DEV-owned состояние снимается до разрушения и возвращается после restore.
+  Пересозданная база рождается закрытой (`CREATE DATABASE … CONNECTION LIMIT 0`) и остаётся закрытой до
+  единственной точки успеха. В эту же точку успеха входит штатный `migrate-dev.sh --execute` (текущий ledger,
+  declaration reconcile, catalog closure) — он вызывается внутри refresh, а не советуется после `PASS`, и
+  получает уже удерживаемый host-lock дескриптором `--host-lock-fd`. Прерванный прогон оставляет DEV закрытым
+  и печатает `--rollback <локальный снимок> --confirm-refresh-dev-from-test`. Канон —
+  `docs/ARCHITECTURE/DB_DUMPS/README.md`.
 
 Wrapper не останавливает и не запускает процессы. Перед `migrate-dev.sh --execute` оператор должен отдельно
 скоординировать единственный DEV writer/server; нельзя поднимать второй Next server.

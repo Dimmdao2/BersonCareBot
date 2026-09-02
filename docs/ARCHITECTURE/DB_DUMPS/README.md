@@ -64,11 +64,28 @@ allowlists, TEST роли/ACL/владельцы (`--no-owner --no-acl` с об�
 `deploy/postgres/test-settings-override.sql` — через `deploy/host/dev-owned-settings-policy.mjs`, второго
 ручного списка секретов нет.
 
-`--check` ничего не меняет. `--execute` перед разрушением снимает защищённый локальный снимок DEV; прерванный
-прогон оставляет DEV закрытым (`CONNECTION LIMIT 0`) и печатает точную команду
-`--rollback <снимок> --confirm-refresh-dev-from-test`. Права после restore заново раскладывает единственный
-штатный `reconcile-access.mjs`; свой генератор прав entrypoint не содержит. Если в текущем checkout есть
-миграции поверх принятой TEST-схемы, после refresh их применяет обычный `migrate-dev.sh`.
+`--check` ничего не меняет. `--execute` перед разрушением снимает защищённый локальный снимок DEV.
+
+**Цель закрыта на весь destructive-этап.** Пересоздание идёт одним оператором
+`CREATE DATABASE … CONNECTION LIMIT 0`, то есть момента, когда `bcb_webapp_dev` существует и доступна для
+подключения, не бывает вообще: поднятый вручную worker/scheduler, прошедший writer-гейт, не может влезть в
+окно между drop и финалом. Исходный лимит возвращается ровно в одной точке успеха; прерванный прогон
+оставляет DEV закрытым и печатает точную команду `--rollback <снимок> --confirm-refresh-dev-from-test`.
+
+**Текущая схема — часть той же точки успеха.** Внутри `--execute`, до возврата лимита и до `PASS`, вызывается
+штатный `bash deploy/host/migrate-dev.sh --execute`: role baseline, упорядоченные integrator/webapp forwards
+поверх ledger'а принятого TEST, единственный `reconcile-access.mjs` с `--port-context-verify`, `--env-verify`
+и `--catalog-closure-verify`, затем port-context дескрипторы. Своего мигратора и своего генератора прав
+entrypoint не содержит; инструкции «а теперь примени миграции» после `PASS` больше нет — refresh, который не
+дошёл до текущего ledger'а, не может отчитаться успехом. Общий host-lock передаётся вложенному вызову
+дескриптором (`--host-lock-fd`), второго мигратора без замка не появляется.
+
+**Одно исключение при возврате DEV-состояния, и оно громкое.** DEV-строка per-org environment-owned ключа
+(например, `clinic_bot_token` конкретной клиники), чья организация отсутствует в принятом TEST, НЕ
+восстанавливается: `system_settings.organization_id` — реальный FK на `be_organizations`, такой строке не за
+что зацепиться в новом графе данных DEV, а вставка уронила бы транзакцию уже ЗА destructive-границей.
+Глобальные строки и строки организаций, которые в принятом TEST есть, возвращаются без изменений; число
+отброшенных строк печатается в `PASS` (`dev_owned_settings_dropped_absent_org=N`) и отдельной строкой-пояснением.
 
 ---
 
