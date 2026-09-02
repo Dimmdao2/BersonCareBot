@@ -959,4 +959,6 @@ run_b1_doctor_admin_identity_assertion
 # cluster-wide zero deliberately removes. Install the target HBA and target-only zero +
 # exact six-logins target state, then prove live authentication through the two ports.
 run_port_context_test_release
+log "verify canonical TEST owner logins through the released runtime"
+sudo -u deploy node "$DEPLOY_REPO/deploy/host/verify-test-owner-logins.mjs"
 log "DONE — TEST DB/schema/runtime ready (reviewed FIO + port-context runtime verified); external delivery unverified"

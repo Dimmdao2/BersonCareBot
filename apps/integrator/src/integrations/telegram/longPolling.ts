@@ -113,7 +113,7 @@ async function runLoop(deps: TelegramWebhookDeps, signal: AbortSignal): Promise<
       const msg = err instanceof Error ? err.message : String(err);
       const isConflict = msg.includes('409') || /conflict/i.test(msg);
       logger.warn(
-        err instanceof Error ? { err } : { reason: msg },
+        { errorName: err instanceof Error ? err.name : typeof err, reason: msg },
         isConflict
           ? 'Telegram long-polling: getUpdates 409 — a webhook is still set for this bot; cannot poll until it is removed (set TELEGRAM_DELETE_WEBHOOK_ON_START=1 ONLY when this host owns the bot). Retrying after backoff.'
           : 'Telegram long-polling: getUpdates failed; retrying after backoff',

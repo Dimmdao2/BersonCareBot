@@ -17,7 +17,22 @@ export async function setupTelegramMenuButton(): Promise<void> {
     logger.info('Telegram: setChatMenuButton (default) ok');
 
   } catch (err) {
-    logger.warn({ err }, 'Telegram: setup menu button failed (non-fatal)');
+    const record = typeof err === 'object' && err !== null ? err : null;
+    logger.warn(
+      {
+        errorName: err instanceof Error ? err.name : typeof err,
+        reason: err instanceof Error ? err.message : String(err),
+        telegramErrorCode:
+          record && 'error_code' in record && typeof record.error_code === 'number'
+            ? record.error_code
+            : undefined,
+        telegramDescription:
+          record && 'description' in record && typeof record.description === 'string'
+            ? record.description
+            : undefined,
+      },
+      'Telegram: setup menu button failed (non-fatal)',
+    );
   }
 }
 
