@@ -6,6 +6,8 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
 import {
   doctorCatalogRowActiveClass,
+  doctorMetaTextClass,
+  doctorSecondaryListTextClass,
   getDoctorSectionItemClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
@@ -83,18 +85,25 @@ export function SpecialistTaskRow({
         >
           <span className="flex min-w-0 flex-col gap-0.5">
             {task.patientUserId ? (
-              <span className="truncate text-xs font-medium text-foreground">
+              <span className="truncate text-sm leading-5 font-medium text-foreground">
                 {patientDisplayName?.trim() || 'Пациент'}
               </span>
             ) : null}
             <span className="text-base font-normal text-foreground">{task.title}</span>
             {task.description?.trim() ? (
-              <span className="line-clamp-2 text-xs text-muted-foreground">
+              <span
+                className={cn('line-clamp-2 text-muted-foreground', doctorSecondaryListTextClass)}
+              >
                 {task.description.trim()}
               </span>
             ) : null}
           </span>
-          <span className="flex shrink-0 flex-col items-end gap-0.5 text-right text-xs">
+          <span
+            className={cn(
+              'flex shrink-0 flex-col items-end gap-0.5 text-right',
+              doctorMetaTextClass,
+            )}
+          >
             <span
               className={cn(
                 'font-medium',

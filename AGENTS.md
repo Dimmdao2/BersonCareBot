@@ -1776,7 +1776,7 @@ UI-тексты читает владелец и пользователи, их 
   основные поверхности остаются белыми. Глубина — тонкие границы/лёгкие поверхности, не тени (§A). `shadow-*` —
   только floating (медиакарточки §11, поповеры, drag), **не** на page-level секциях/KPI.
 - Semantic primary кабинета врача — ровно `#4573b1` через зональный `--primary`; кнопки, ссылки, active/focus и другие primary-consumers используют semantic-классы, а не локальный hex. Patient/public tokens и destructive/warning/info роли не перекрашивать.
-- Chrome-типографика — закрытый набор §B.1: page-title `text-[18px] font-medium`; section `text-sm`, обычный body `text-sm`, **первичная строка списка** `text-base font-normal`, meta `text-xs`, KPI `doctorMetricValueClass` (`text-[1.3rem]`). Micro-роль `text-[10px]`/`text-[11px]` — только бейджи/календарь/оси графиков/mono. Запрещено: `text-[13px]`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`; `text-[18px]` и `text-[1.3rem]` разрешены только через соответствующие общие роли.
+- Chrome-типографика — закрытый набор §B.1: page-title `text-[18px] font-medium`; на mobile section/body `text-base`, на desktop `text-sm`; **первичная строка списка** `text-base font-normal`; secondary `text-sm`; meta на mobile `text-[13px]`, на desktop `text-xs`; KPI `doctorMetricValueClass` (`text-[1.3rem]`). Micro-роль `text-[10px]`/`text-[11px]` — только бейджи/календарь/оси графиков/mono. Локальные `text-[13px]`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl` запрещены; `text-[13px]`, `text-[18px]` и `text-[1.3rem]` разрешены только через соответствующие общие роли.
 - Контролы doctor-zone: input/select-триггер — `h-8`/`h-[32px]`; input/select/textarea используют единый радиус `8px`, как стандартная кнопка. Стандартная кнопка `size="sm"` — `h-9`/`h-[36px]`; фактическая поверхность input белая. Радиус задают doctor primitives, не локальный caller.
 - Радиусы (§A.3): page-block `12px`, KPI `8px`, doctor button/select/input/textarea `8px`; `rounded-2xl` запрещён. Явный радиус caller (`rounded-none`, icon override и т.п.) сохраняется.
 - Исключение навигации: main doctor sidebar/mobile menu items не являются button pills и сохраняют минимальный
@@ -1795,7 +1795,7 @@ UI-тексты читает владелец и пользователи, их 
 
 ```bash
 rg "rounded-2xl|<h2>[^<]" apps/webapp/src/app/app/doctor --glob "*.tsx"
-rg "text-\[13px\]|text-lg|text-xl|text-3xl" apps/webapp/src/app/app/doctor apps/webapp/src/shared/ui/doctor --glob "*.tsx"
+rg "text-\[13px\]|text-lg|text-xl|text-3xl" apps/webapp/src/app/app/doctor apps/webapp/src/shared/ui/doctor --glob "*.tsx" --glob '!doctorVisual.ts'
 rg "doctorSectionCardClass|DoctorSection|doctorClientCardChrome" apps/webapp/src/app/app/doctor/<зона>
 ```
 

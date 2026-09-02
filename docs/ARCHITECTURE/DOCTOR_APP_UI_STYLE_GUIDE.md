@@ -103,19 +103,20 @@
 
 Основные роли (вся chrome-типографика — только отсюда):
 
-| Роль                              | Общий класс                    | Текущая реализация                         | px   |
-| --------------------------------- | ------------------------------ | ------------------------------------------ | ---- |
-| Page title (h1)                   | `doctorPageTitleClass`         | `text-[18px] font-medium tracking-tight`   | 18   |
-| Section title (h2/h3)             | `doctorSectionTitleClass`      | `text-sm font-semibold`                    | 14   |
-| Body                              | `doctorBodyTextClass`          | `text-sm`                                  | 14   |
-| Первичная строка основного списка | `doctorPrimaryListTextClass`   | `text-base font-normal`                    | 16   |
-| Secondary / meta                  | `doctorMetaTextClass`          | `text-xs text-muted-foreground`            | 12   |
-| Metric (KPI)                      | `doctorMetricValueClass`       | `text-[1.3rem] font-semibold tabular-nums` | 20.8 |
-| Строчная метрика                  | `doctorInlineMetricValueClass` | `text-base font-semibold tabular-nums`     | 16   |
+| Роль                              | Общий класс                    | Текущая реализация                         | px      |
+| --------------------------------- | ------------------------------ | ------------------------------------------ | ------- |
+| Page title (h1)                   | `doctorPageTitleClass`         | `text-[18px] font-medium tracking-tight`   | 18      |
+| Section title (h2/h3)             | `doctorSectionTitleClass`      | mobile `text-base`, desktop `text-sm`      | 16 / 14 |
+| Body                              | `doctorBodyTextClass`          | mobile `text-base`, desktop `text-sm`      | 16 / 14 |
+| Первичная строка основного списка | `doctorPrimaryListTextClass`   | `text-base font-normal`                    | 16      |
+| Secondary content                 | `doctorSecondaryListTextClass` | `text-sm text-foreground/80`               | 14      |
+| Meta / status / date              | `doctorMetaTextClass`          | mobile `text-[13px]`, desktop `text-xs`    | 13 / 12 |
+| Metric (KPI)                      | `doctorMetricValueClass`       | `text-[1.3rem] font-semibold tabular-nums` | 20.8    |
+| Строчная метрика                  | `doctorInlineMetricValueClass` | `text-base font-semibold tabular-nums`     | 16      |
 
 **Micro-роль (узкое исключение, 10–11px).** Разрешена **только** для плотных, нечитаемых-как-абзац подписей: статус-бейджи/пилюли (`Badge`, статус каталога), ячейки календаря, оси/тултипы графиков, технические mono-дампы. Класс: `text-[10px]` / `text-[11px]`. Micro-роль **не** применять к заголовкам, строкам сущностей, кнопкам и основному тексту.
 
-**Запрещено в `/app/doctor/**`(chrome):**`text-[13px]`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`. Исключения: `text-[18px]` для Page title и `text-[1.3rem]` для Metric через общие классы.
+**Запрещено в `/app/doctor/**`(chrome):** локальный `text-[13px]`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`. Исключения: `text-[13px]` внутри общей mobile meta-роли, `text-[18px]` для Page title и `text-[1.3rem]` для Metric через общие классы.
 
 Миграция текущего кода: header-заголовок `text-[13px]` → `text-sm`; KPI-число `text-3xl` → `text-2xl`; прочие крупные числа-метрики `text-lg`/`text-xl` → роль Metric (`text-2xl`) или `text-base` для строчных; заголовки-`text-lg` → `text-base`; page-заголовки admin/ops `text-xl` → `text-base`.
 
@@ -244,20 +245,21 @@ DOCTOR_PAGE_CONTAINER_CLASS =
 
 Иерархия текста в кабинете врача. Базовые роли — закрытый набор из §B.1; ниже — их применение и вспомогательные стили ссылок:
 
-| Роль                                                | Тег           | Класс                                                         |
-| --------------------------------------------------- | ------------- | ------------------------------------------------------------- |
-| Заголовок страницы (h1)                             | `h1`          | `text-[18px] font-medium tracking-tight text-foreground`      |
-| Заголовок секции / панели                           | `h2` или `h3` | `text-sm font-semibold text-foreground`                       |
-| Первичная строка сущности                           | `p`           | `text-base font-normal text-foreground`                       |
-| Обычный текст                                       | `p`           | `text-sm text-foreground`                                     |
-| Вспомогательный текст / micro-label / бейдж-подпись | `p` / `span`  | `text-xs text-muted-foreground`                               |
-| Числовая метрика (крупная, KPI)                     | `p`           | `text-[1.3rem] font-semibold tabular-nums`                    |
-| Числовая метрика (строчная)                         | `span`        | `text-base font-semibold tabular-nums`                        |
-| Inline-link                                         | `Link/a`      | `text-primary underline underline-offset-2`                   |
-| Hover-link (secondary)                              | `Link/a`      | `text-primary underline-offset-4 hover:underline font-medium` |
-| Строка с адресом / телефон                          | `a`           | `font-medium text-primary underline underline-offset-2`       |
+| Роль                            | Тег           | Класс                                                         |
+| ------------------------------- | ------------- | ------------------------------------------------------------- |
+| Заголовок страницы (h1)         | `h1`          | `text-[18px] font-medium tracking-tight text-foreground`      |
+| Заголовок секции / панели       | `h2` или `h3` | mobile `text-base`, desktop `text-sm`, `font-semibold`        |
+| Первичная строка сущности       | `p`           | `text-base font-normal text-foreground`                       |
+| Обычный текст                   | `p`           | mobile `text-base`, desktop `text-sm`, `text-foreground`      |
+| Описание / вторичная строка     | `p` / `span`  | `text-sm text-foreground/80`                                  |
+| Meta / статус / дата            | `p` / `span`  | mobile `text-[13px]`, desktop `text-xs`, muted                |
+| Числовая метрика (крупная, KPI) | `p`           | `text-[1.3rem] font-semibold tabular-nums`                    |
+| Числовая метрика (строчная)     | `span`        | `text-base font-semibold tabular-nums`                        |
+| Inline-link                     | `Link/a`      | `text-primary underline underline-offset-2`                   |
+| Hover-link (secondary)          | `Link/a`      | `text-primary underline-offset-4 hover:underline font-medium` |
+| Строка с адресом / телефон      | `a`           | `font-medium text-primary underline underline-offset-2`       |
 
-**Запрещено:** голый `<h2>`, `<h3>` без className; chrome-размеры вне набора §B.1 (`text-[13px]`, `text-lg`, `text-xl`, `text-3xl`, `text-2xl` вне KPI).
+**Запрещено:** голый `<h2>`, `<h3>` без className; chrome-размеры вне набора §B.1 (локальный `text-[13px]`, `text-lg`, `text-xl`, `text-3xl`, `text-2xl` вне KPI).
 
 > Миграция: `text-3xl` (KPI) приводится к `text-2xl`; chrome-`text-[13px]`/`text-lg`/`text-xl` приводятся к `text-sm`/`text-base` по роли. `text-[10px]`/`text-[11px]` сохраняются только в micro-роли (§B.1).
 

@@ -8,7 +8,7 @@ export const doctorSectionCardClass =
 
 /** Inner list row/card inside page-level sections. */
 export const doctorSectionItemClass =
-  'rounded-lg border border-border/70 bg-background/40 p-3 text-sm';
+  'rounded-lg border border-border/70 bg-background/40 p-3 text-base leading-6 md:text-sm md:leading-5';
 
 /** Reset for Button used as an invisible card/list/tile surface. */
 export const doctorInteractiveSurfaceButtonClass =
@@ -42,10 +42,12 @@ export const doctorCatalogRowActiveClass =
   'border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25';
 
 /** Empty state copy in catalog master list (list mode). */
-export const doctorCatalogListEmptyClass = 'px-2 pb-2 text-sm text-muted-foreground';
+export const doctorCatalogListEmptyClass =
+  'px-2 pb-2 text-base leading-6 text-muted-foreground md:text-sm md:leading-5';
 
 /** Empty state copy in catalog tile grid. */
-export const doctorCatalogListEmptyTilesClass = 'px-2 text-sm text-muted-foreground';
+export const doctorCatalogListEmptyTilesClass =
+  'px-2 text-base leading-6 text-muted-foreground md:text-sm md:leading-5';
 
 /** Standalone catalog editor page shell (new / [id] routes outside split-layout). */
 export const doctorCatalogEditorSectionClass =
@@ -60,10 +62,11 @@ export const doctorHistoryRowClass = 'rounded-md border border-border/60 bg-mute
 export const doctorPageTitleClass = 'text-[18px] font-medium tracking-tight text-foreground';
 
 /** Section title for h2/h3 in doctor pages. */
-export const doctorSectionTitleClass = 'text-sm font-semibold text-foreground';
+export const doctorSectionTitleClass =
+  'text-base leading-6 font-semibold text-foreground md:text-sm md:leading-5';
 
 /** Default body copy in doctor pages. */
-export const doctorBodyTextClass = 'text-sm text-foreground';
+export const doctorBodyTextClass = 'text-base leading-6 text-foreground md:text-sm md:leading-5';
 
 /** Primary entity/title line in doctor lists. */
 export const doctorPrimaryListTextClass = 'text-base font-normal text-foreground';
@@ -72,7 +75,8 @@ export const doctorPrimaryListTextClass = 'text-base font-normal text-foreground
 export const doctorSecondaryListTextClass = 'text-sm font-normal text-foreground/80';
 
 /** Secondary labels, timestamps, hints, and metadata. */
-export const doctorMetaTextClass = 'text-xs text-muted-foreground';
+export const doctorMetaTextClass =
+  'text-[13px] leading-[18px] text-muted-foreground md:text-xs md:leading-4';
 
 /** KPI numeric value on compact stat cards (dashboard, analytics). */
 export const doctorMetricValueClass =
@@ -112,7 +116,8 @@ export const doctorHoverLinkClass = 'text-primary underline-offset-4 hover:under
 // -- Empty states -------------------------------------------------------------
 
 /** Default container for empty states in doctor pages. */
-export const doctorEmptyStateClass = 'flex flex-col gap-2 text-sm text-muted-foreground';
+export const doctorEmptyStateClass =
+  'flex flex-col gap-2 text-base leading-6 text-muted-foreground md:text-sm md:leading-5';
 
 /** Compact empty-state variant for dense panels / inline hints inside cards. */
 export const doctorEmptyStateCompactClass = 'flex flex-col gap-2 text-xs text-muted-foreground';

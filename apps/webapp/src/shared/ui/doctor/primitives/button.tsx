@@ -12,12 +12,15 @@ type SharedButtonVariantsProps = NonNullable<Parameters<typeof sharedButtonVaria
   className?: string;
 };
 
+const doctorButtonRadiusClassName =
+  'doctor-button-radius rounded-[var(--doctor-button-radius,8px)]';
+
 /** Doctor button radius (8px). Explicit caller radii (`rounded-none`, icon circles) still win. */
 export function Button({ className, size, ...props }: SharedButtonProps) {
   return (
     <SharedButton
       size={size}
-      className={cn('doctor-button-radius', size === 'sm' && 'h-9', className)}
+      className={cn(doctorButtonRadiusClassName, size === 'sm' && 'h-9', className)}
       {...props}
     />
   );
@@ -28,7 +31,7 @@ export function buttonVariants(props?: SharedButtonVariantsProps): string {
   const { className, size, ...variants } = props ?? {};
   return cn(
     sharedButtonVariants({ ...variants, size }),
-    'doctor-button-radius',
+    doctorButtonRadiusClassName,
     size === 'sm' && 'h-9',
     className,
   );

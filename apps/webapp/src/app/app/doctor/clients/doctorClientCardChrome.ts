@@ -63,7 +63,8 @@ export const doctorClientOverviewPrimaryCardClass =
 export const doctorClientOverviewSecondaryCardClass =
   'flex h-full min-h-0 flex-col rounded-lg border border-border/80 bg-muted/15 p-4';
 
-export const doctorClientSectionTitleClass = 'text-sm font-semibold text-foreground';
+export const doctorClientSectionTitleClass =
+  'text-base leading-6 font-semibold text-foreground md:text-sm md:leading-5';
 
 export const doctorClientTabSectionClass = 'border-b border-border px-4 py-4 last:border-b-0';
 

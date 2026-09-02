@@ -149,7 +149,7 @@ export function DoctorModal({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={handleOpenChange}>
-        <DrawerContent showCloseButton={false} className="gap-0 p-0">
+        <DrawerContent showCloseButton={false} className="gap-0 bg-card p-0">
           <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pt-3 pb-3">
             <div className="flex min-w-0 items-center justify-between gap-2">
               <DrawerTitle className={doctorPageTitleClass}>{title}</DrawerTitle>
@@ -180,7 +180,7 @@ export function DoctorModal({
         <SheetContent
           side="right"
           showOverlay={false}
-          className="gap-0 p-0 !max-w-none !shadow-md"
+          className="gap-0 bg-card p-0 !max-w-none !shadow-md"
           style={{
             top: 'var(--doctor-page-header-h, 2.75rem)',
             height: 'calc(100dvh - var(--doctor-page-header-h, 2.75rem))',
@@ -214,7 +214,7 @@ export function DoctorModal({
       <DialogContent
         showCloseButton
         className={cn(
-          'flex max-h-[calc(100dvh-3rem)] flex-col gap-0 overflow-hidden p-0',
+          'flex max-h-[calc(100dvh-3rem)] flex-col gap-0 overflow-hidden bg-card p-0',
           sizeMaxWidth[size],
         )}
       >

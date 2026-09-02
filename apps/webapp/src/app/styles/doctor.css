@@ -1,5 +1,6 @@
 /** Doctor product zone CSS — loaded from doctor and settings layouts. */
 
+body:has(#app-shell-doctor),
 #app-shell-doctor {
   /* Owner UI authority 2026-08-25: neutral canvas; headers/surfaces stay white. */
   --doctor-page-gap-background: var(--bc-canvas, #f2f2f0);
@@ -83,7 +84,6 @@
   .doctor-today-two-pane-grid {
     grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
   }
-
 }
 
 @media (min-width: 1280px) {
