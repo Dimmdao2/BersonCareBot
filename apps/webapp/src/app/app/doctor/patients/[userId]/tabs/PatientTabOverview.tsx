@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { ChevronLeft, ChevronRight, FilePlus2, Info, ListPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
@@ -47,7 +48,7 @@ import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
 } from '@/shared/ui/doctor/doctorVisual';
-import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { formatPatientPackageLongLabel } from '@/modules/memberships/display';
@@ -62,13 +63,18 @@ import {
 import {
   DoctorDnaFlatList,
   doctorDnaFlatListClass,
-  doctorDnaFlatListClickableClass,
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { SpecialistTaskFormDialog } from '@/app/app/doctor/clients/SpecialistTaskFormDialog';
-import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority';
+import { SpecialistTaskRow as TaskRow } from '@/app/app/doctor/clients/SpecialistTaskRow';
+import {
+  isSpecialistTaskDueOnDate,
+  isSpecialistTaskOverdue,
+  selectSpecialistTasksDueTodayOrOverdue,
+} from '@/modules/specialist-tasks/taskPriority';
+import { routePaths } from '@/app-layer/routes/paths';
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -627,6 +633,8 @@ type Props = {
   > | null;
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
+  tasksDisplayIana?: string;
+  tasksTodayIso?: string;
   /** Places the reusable widgets in a composed patient-card surface. */
   compositionMode?: 'right-pane' | 'overview';
 };
@@ -871,6 +879,7 @@ function buildSsrSeedData(
 export function PatientTabOverview({
   active = true,
   userId,
+  header,
   onTabSwitch,
   initialClinicalState,
   initialVisits,
@@ -887,6 +896,8 @@ export function PatientTabOverview({
   initialSupportEffectivePolicy,
   specialistTasksAvailable,
   specialistTasksReadable,
+  tasksDisplayIana,
+  tasksTodayIso,
   compositionMode,
 }: Props) {
   const isComposed = compositionMode != null;
@@ -1527,18 +1538,11 @@ export function PatientTabOverview({
         .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
     : [];
   const calendarGrid = buildCalendarGrid(data?.calendarDays ?? [], calYear, calMonth);
-  const tasksNeedAttention =
-    data?.tasks.some((task) => {
-      if (isSpecialistTaskOverdue(task)) return true;
-      if (!task.dueAt) return false;
-      const dueAt = new Date(task.dueAt);
-      const today = new Date();
-      return (
-        dueAt.getFullYear() === today.getFullYear() &&
-        dueAt.getMonth() === today.getMonth() &&
-        dueAt.getDate() === today.getDate()
-      );
-    }) ?? false;
+  const attentionTasks =
+    tasksTodayIso && tasksDisplayIana
+      ? selectSpecialistTasksDueTodayOrOverdue(data?.tasks ?? [], tasksTodayIso, tasksDisplayIana)
+      : (data?.tasks.filter((task) => isSpecialistTaskOverdue(task)) ?? []);
+  const tasksNeedAttention = attentionTasks.length > 0;
 
   function handleCalendarTouchEnd(clientX: number) {
     const startX = calendarSwipeStartXRef.current;
@@ -1948,63 +1952,69 @@ export function PatientTabOverview({
               size="lg"
               bodyVariant="list"
               desktopPresentation="right-sheet"
-            >
-              {specialistTasksAvailable ? (
-                <div className="flex justify-end px-4 pb-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => {
-                      setEditingTask(null);
-                      setTaskFormOpen(true);
-                    }}
+              footer={
+                <div className="flex w-full items-center justify-between gap-2">
+                  <Link
+                    href={routePaths.doctorTasks}
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                    onClick={() => setTasksModalOpen(false)}
                   >
-                    <ListPlus className="size-4" aria-hidden />
-                    Добавить
-                  </Button>
+                    Все задачи
+                  </Link>
+                  {specialistTasksAvailable ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        setTasksModalOpen(false);
+                        setEditingTask(null);
+                        setTaskFormOpen(true);
+                      }}
+                    >
+                      <ListPlus className="size-4" aria-hidden />
+                      Новая задача
+                    </Button>
+                  ) : null}
                 </div>
-              ) : null}
+              }
+            >
               {isLoading ? (
                 <p className="animate-pulse px-4 py-2 text-sm text-muted-foreground">
                   Загрузка задач…
                 </p>
               ) : data?.tasksStatus === 'error' ? (
                 <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить задачи.</p>
-              ) : data?.tasks.length ? (
+              ) : attentionTasks.length ? (
                 <DoctorDnaFlatList>
-                  {data.tasks.map((task) => {
-                    const isOverdue = task.dueAt ? new Date(task.dueAt) < new Date() : false;
-                    return (
-                      <li key={task.id}>
-                        <button
-                          type="button"
-                          className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} w-full justify-between text-left`}
-                          onClick={() => {
-                            setEditingTask(task);
-                            setTaskFormOpen(true);
-                          }}
-                        >
-                          <span className={`${doctorDnaFlatListPrimaryClass} min-w-0 truncate`}>
-                            {task.title}
-                          </span>
-                          {task.dueAt ? (
-                            <span
-                              className={cn(
-                                doctorDnaFlatListMetaClass,
-                                'shrink-0 tabular-nums',
-                                isOverdue && 'text-destructive',
-                              )}
-                            >
-                              {fmtDateShort(task.dueAt)}
-                            </span>
-                          ) : null}
-                        </button>
-                      </li>
-                    );
-                  })}
+                  {attentionTasks.map((task) => (
+                    <li key={task.id}>
+                      <TaskRow
+                        as="div"
+                        task={task}
+                        displayIana={tasksDisplayIana}
+                        patientDisplayName={header?.identity.displayName}
+                        dueToday={
+                          tasksTodayIso && tasksDisplayIana
+                            ? isSpecialistTaskDueOnDate(
+                                task,
+                                tasksTodayIso,
+                                tasksDisplayIana,
+                              )
+                            : false
+                        }
+                        canMutate={specialistTasksAvailable}
+                        mobileFlat
+                        onOpen={(selected) => {
+                          setTasksModalOpen(false);
+                          setEditingTask(selected);
+                          setTaskFormOpen(true);
+                        }}
+                      />
+                    </li>
+                  ))}
                 </DoctorDnaFlatList>
               ) : (
-                <DoctorEmptyState>Задач нет</DoctorEmptyState>
+                <DoctorEmptyState>Нет задач на сегодня или просроченных</DoctorEmptyState>
               )}
             </DoctorModal>
 

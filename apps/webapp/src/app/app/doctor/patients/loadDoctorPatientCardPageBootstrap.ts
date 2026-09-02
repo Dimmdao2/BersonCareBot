@@ -18,6 +18,8 @@ import { loadDoctorPatientMessagesSnapshot } from './loadDoctorPatientMessagesSn
 import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 import { pickOpenTreatmentProgramInstance } from './treatmentProgramInstanceOpen';
 import { envelopeFromSettled, type BootstrapEnvelope } from './doctorPatientCardBootstrapShared';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { DateTime } from 'luxon';
 
 export type PatientCardTabId = 'overview' | 'karta' | 'program' | 'files' | 'account';
 
@@ -46,6 +48,9 @@ export type DoctorPatientCardShellMeta = {
   cardHeader: Awaited<ReturnType<Deps['doctorClients']['getPatientCardHeader']>>;
   portalState?: Awaited<ReturnType<Deps['patientInvites']['getPortalStatus']>> | null;
   currentProgramStartedAt: string | null;
+  /** Server snapshot used by task attention filters; optional for legacy/test callers. */
+  displayIana?: string;
+  todayIso?: string;
 };
 
 export function loadDoctorPatientProgramInstances(
@@ -310,16 +315,18 @@ export async function loadDoctorPatientCardShellMeta(
   activeTab: PatientCardTabId,
   programInstancesPromise = loadDoctorPatientProgramInstances(deps, workspace, patientUserId),
 ): Promise<DoctorPatientCardShellMeta> {
-  const [membershipMeta, cardHeader, portalState, currentProgramStartedAt] = await Promise.all([
-    loadMembershipMeta(workspace, activeTab),
-    deps.doctorClients.getPatientCardHeader(patientUserId),
-    withDoctorWorkspacePrincipal(workspace, () =>
-      deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
-    ).catch(() => null),
-    programInstancesPromise
-      .then((instances) => pickOpenTreatmentProgramInstance(instances)?.createdAt ?? null)
-      .catch(() => null),
-  ]);
+  const [membershipMeta, cardHeader, portalState, currentProgramStartedAt, displayIana] =
+    await Promise.all([
+      loadMembershipMeta(workspace, activeTab),
+      deps.doctorClients.getPatientCardHeader(patientUserId),
+      withDoctorWorkspacePrincipal(workspace, () =>
+        deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
+      ).catch(() => null),
+      programInstancesPromise
+        .then((instances) => pickOpenTreatmentProgramInstance(instances)?.createdAt ?? null)
+        .catch(() => null),
+      getAppDisplayTimeZone(),
+    ]);
 
   return {
     activeTab: membershipMeta.activeTab,
@@ -330,6 +337,8 @@ export async function loadDoctorPatientCardShellMeta(
     cardHeader,
     portalState,
     currentProgramStartedAt,
+    displayIana,
+    todayIso: DateTime.now().setZone(displayIana).toISODate() ?? '',
   };
 }
 

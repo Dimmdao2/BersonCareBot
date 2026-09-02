@@ -840,6 +840,8 @@ function PatientCardTabPanels({
             initialSupportEffectivePolicy={tab.initialSupportEffectivePolicy}
             specialistTasksAvailable={specialistTasksAvailable}
             specialistTasksReadable={specialistTasksReadable}
+            tasksDisplayIana={shellMeta.displayIana}
+            tasksTodayIso={shellMeta.todayIso}
           />
         </div>
       ) : null}

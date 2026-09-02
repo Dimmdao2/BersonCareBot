@@ -40,3 +40,18 @@ export function isSpecialistTaskDueOnDate(
   const due = DateTime.fromISO(task.dueAt, { setZone: true }).setZone(displayIana);
   return due.isValid && due.toISODate() === dateIso;
 }
+
+/** Единый список внимания для KPI и модалок: просроченные + назначенные на сегодня. */
+export function selectSpecialistTasksDueTodayOrOverdue(
+  tasks: SpecialistTaskRow[],
+  todayIso: string,
+  displayIana: string,
+): SpecialistTaskRow[] {
+  return tasks
+    .filter(
+      (task) =>
+        isSpecialistTaskOverdue(task) ||
+        isSpecialistTaskDueOnDate(task, todayIso, displayIana),
+    )
+    .sort((a, b) => (a.dueAt ?? '').localeCompare(b.dueAt ?? ''));
+}

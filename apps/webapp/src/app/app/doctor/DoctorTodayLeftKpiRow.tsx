@@ -25,7 +25,7 @@ import { routePaths } from '@/app-layer/routes/paths';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import {
   isSpecialistTaskDueOnDate,
-  isSpecialistTaskOverdue,
+  selectSpecialistTasksDueTodayOrOverdue,
 } from '@/modules/specialist-tasks/taskPriority';
 import { SpecialistTaskRow as TaskRow } from './clients/SpecialistTaskRow';
 import { SpecialistTaskDetailsDialog } from './clients/SpecialistTaskDetailsDialog';
@@ -129,12 +129,11 @@ export function DoctorTodayLeftKpiRow({
   // чтобы синхронизировать с обработкой комментария в диалоге.
   const [exerciseCommentItems] = useState(exerciseCommentAttentionItems);
   const displayTotal = exerciseCommentsTotalOverride ?? exerciseCommentAttentionTotal;
-  const attentionTasks = tasks
-    .filter(
-      (task) =>
-        isSpecialistTaskOverdue(task) || isSpecialistTaskDueOnDate(task, todayIso, displayIana),
-    )
-    .sort((a, b) => (a.dueAt ?? '').localeCompare(b.dueAt ?? ''));
+  const attentionTasks = selectSpecialistTasksDueTodayOrOverdue(
+    tasks,
+    todayIso,
+    displayIana,
+  );
   const selectedTask = selectedTaskId
     ? (tasks.find((task) => task.id === selectedTaskId) ?? null)
     : null;
