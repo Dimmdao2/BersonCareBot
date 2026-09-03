@@ -1,10 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserPasswordCredentialsPort } from '@/infra/repos/pgUserPasswordCredentials';
 import type { PasswordAltchaService } from '@/modules/auth/passwordAltcha';
 import type { PasswordChangeService } from '@/modules/auth/passwordChange';
 import type { StaffSecurityService } from '@/modules/staff-security/service';
 import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
 import type { AppSession, SessionUser } from '@/shared/types/session';
+
+const previousTestAccountPhones = vi.hoisted(() => {
+  const previous = process.env.TEST_ACCOUNT_PHONES;
+  process.env.TEST_ACCOUNT_PHONES = '+12025550101';
+  return previous;
+});
+
+afterAll(() => {
+  if (previousTestAccountPhones === undefined) {
+    delete process.env.TEST_ACCOUNT_PHONES;
+  } else {
+    process.env.TEST_ACCOUNT_PHONES = previousTestAccountPhones;
+  }
+});
 
 type CheckRateLimit =
   typeof import('@/modules/auth/authConfirmRateLimit').checkAuthConfirmRateLimit;
