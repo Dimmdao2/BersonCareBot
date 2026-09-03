@@ -23,6 +23,10 @@ import {
   firstSnapshotMedia,
   type ExerciseCommentThumbMedia,
 } from './comments/exerciseCommentThumb';
+export {
+  groupExerciseCommentAttentionByPatient,
+  type ExerciseCommentAttentionPatientGroup,
+} from './comments/exerciseCommentAttentionGrouping';
 
 export const DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT = 30;
 
@@ -38,6 +42,8 @@ export type TodayExerciseCommentAttentionItem = {
   thumb?: ExerciseCommentThumbMedia | null;
   latestMessage: ProgramItemDiscussionMessage;
   latestMessageAtLabel: string;
+  /** Exact number of unread patient comments in this exercise thread. */
+  unreadCount?: number;
   href: string;
 };
 
@@ -63,44 +69,17 @@ export type DoctorExerciseCommentAttentionDeps = {
       viewerUserId: string;
       stageItemId: string;
     }): Promise<string | null>;
+    listUnreadCountsForViewerByStageItems(input: {
+      stageItemIds: string[];
+      viewerUserId: string;
+    }): Promise<Array<{ stageItemId: string; unread: number }>>;
   };
-};
-
-export type ExerciseCommentAttentionPatientGroup = {
-  patientUserId: string;
-  patientDisplayName: string;
-  items: TodayExerciseCommentAttentionItem[];
 };
 
 function stageItemSnapshotTitle(snapshot: Record<string, unknown>): string {
   const raw = snapshot.title;
   if (typeof raw === 'string' && raw.trim() !== '') return raw.trim();
   return 'Упражнение';
-}
-
-/** Группирует строки по пациенту: внутри — по убыванию даты, группы — по имени пациента. */
-export function groupExerciseCommentAttentionByPatient(
-  items: TodayExerciseCommentAttentionItem[],
-): ExerciseCommentAttentionPatientGroup[] {
-  const groups = new Map<string, ExerciseCommentAttentionPatientGroup>();
-  for (const row of items) {
-    const current = groups.get(row.patientUserId);
-    if (current) {
-      current.items.push(row);
-    } else {
-      groups.set(row.patientUserId, {
-        patientUserId: row.patientUserId,
-        patientDisplayName: row.patientDisplayName,
-        items: [row],
-      });
-    }
-  }
-  for (const group of groups.values()) {
-    group.items.sort((a, b) => b.latestMessage.createdAt.localeCompare(a.latestMessage.createdAt));
-  }
-  return [...groups.values()].sort((a, b) =>
-    a.patientDisplayName.localeCompare(b.patientDisplayName, 'ru', { sensitivity: 'base' }),
-  );
 }
 
 export async function loadDoctorExerciseCommentAttention(
@@ -167,6 +146,14 @@ export async function loadDoctorExerciseCommentAttention(
           .map((row) => row.stageItemId);
         if (attentionStageItemIds.length === 0) return [] as TodayExerciseCommentAttentionItem[];
 
+        const unreadCounts = await deps.programItemDiscussion!.listUnreadCountsForViewerByStageItems({
+          stageItemIds: attentionStageItemIds,
+          viewerUserId: deps.doctorUserId!,
+        });
+        const unreadCountByStageItemId = new Map(
+          unreadCounts.map((row) => [row.stageItemId, row.unread]),
+        );
+
         const itemById = new Map(activeExerciseItems.map((item) => [item.id, item]));
         const rows: Array<TodayExerciseCommentAttentionItem | null> = await Promise.all(
           attentionStageItemIds.map(async (stageItemId) => {
@@ -198,6 +185,7 @@ export async function loadDoctorExerciseCommentAttention(
               thumb: firstSnapshotMedia(item.snapshot),
               latestMessage: latest,
               latestMessageAtLabel: formatCommentDateRu(latest.createdAt, appDisplayTimeZone),
+              unreadCount: Math.max(1, unreadCountByStageItemId.get(stageItemId) ?? 0),
               href: patientProgramInstanceHref(patientUserId, active.id, {
                 discussionItemId: stageItemId,
               }),
@@ -214,7 +202,7 @@ export async function loadDoctorExerciseCommentAttention(
   const allRows = perPatientRows
     .flat()
     .sort((a, b) => b.latestMessage.createdAt.localeCompare(a.latestMessage.createdAt));
-  const total = allRows.length;
+  const total = allRows.reduce((sum, row) => sum + (row.unreadCount ?? 1), 0);
   const items = allRows.slice(0, DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT);
   return {
     items,

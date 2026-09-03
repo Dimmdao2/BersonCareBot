@@ -10,6 +10,7 @@ export type InstanceEditorItemLoadSettingsPatch = {
 export const INSTANCE_EDITOR_LOAD_REPS_RANGE = [1, 999] as const;
 export const INSTANCE_EDITOR_LOAD_SETS_RANGE = [1, 99] as const;
 export const INSTANCE_EDITOR_LOAD_MAX_PAIN_RANGE = [0, 10] as const;
+export const INSTANCE_EDITOR_LOAD_WEIGHT_RANGE = [0, 500] as const;
 
 export function parseInstanceEditorLoadField(
   raw: string,
@@ -27,6 +28,24 @@ export function parseInstanceEditorLoadField(
     throw new Error(`${label}: целое число от ${min} до ${max}`);
   }
   return n;
+}
+
+export function parseInstanceEditorDecimalLoadField(
+  raw: string,
+  label: string,
+  range: readonly [number, number],
+): number | null {
+  const normalized = raw.trim().replace(',', '.');
+  if (normalized === '') return null;
+  const n = Number(normalized);
+  if (!Number.isFinite(n)) {
+    throw new Error(`${label}: число или пусто`);
+  }
+  const [min, max] = range;
+  if (n < min || n > max) {
+    throw new Error(`${label}: число от ${min} до ${max}`);
+  }
+  return Math.round(n * 100) / 100;
 }
 
 export function validateInstanceEditorLoadSettingsPatch(

@@ -1110,8 +1110,7 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const prev = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId) as
-        | TreatmentProgramInstanceStageItemRow
-        | undefined;
+        TreatmentProgramInstanceStageItemRow | undefined;
       if (!prev) throw new Error('Элемент не найден');
       await assertStageItemAllowsStructuralChange(prev);
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId);
@@ -1451,13 +1450,17 @@ export function createTreatmentProgramInstanceService(deps: {
       reps?: number | null;
       sets?: number | null;
       maxPain?: number | null;
+      weightKg?: number | null;
     }) {
       assertUuid(input.instanceId);
       assertUuid(input.itemId);
       if (input.actorId) assertUuid(input.actorId);
 
       const hasAny =
-        input.reps !== undefined || input.sets !== undefined || input.maxPain !== undefined;
+        input.reps !== undefined ||
+        input.sets !== undefined ||
+        input.maxPain !== undefined ||
+        input.weightKg !== undefined;
       if (!hasAny) throw new Error('Пустой запрос настроек нагрузки');
 
       const detail = await instances.getInstanceById(input.instanceId);
@@ -1495,6 +1498,16 @@ export function createTreatmentProgramInstanceService(deps: {
       applyInt('reps', input.reps, 1, 999, 'Повторы');
       applyInt('sets', input.sets, 1, 99, 'Подходы');
       applyInt('maxPain', input.maxPain, 0, 10, 'Макс. боль');
+
+      if (input.weightKg !== undefined) {
+        if (input.weightKg === null) {
+          delete prev.weightKg;
+        } else if (!Number.isFinite(input.weightKg) || input.weightKg < 0 || input.weightKg > 500) {
+          throw new Error('Вес: число от 0 до 500');
+        } else {
+          prev.weightKg = Math.round(input.weightKg * 100) / 100;
+        }
+      }
 
       const nextSettings: Record<string, unknown> | null =
         Object.keys(prev).length === 0 ? null : prev;

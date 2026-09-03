@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUp, CornerDownLeft, Trash2, X } from 'lucide-react';
+import { ArrowUp, CornerDownLeft, Pencil, Trash2, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
@@ -27,6 +27,103 @@ import {
 } from '@/shared/ui/chat/chatThreadSurface';
 import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import { ProgramItemDiscussionMessageBody } from '@/app/app/patient/treatment/ProgramItemDiscussionMessageBody';
+import type { ExerciseMedia } from '@/modules/lfk-exercises/types';
+import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
+
+export type DoctorProgramDiscussionAssignment = {
+  media: ExerciseMedia | null;
+  reps: number | null;
+  sets: number | null;
+  maxPain: number | null;
+  weightKg: number | null;
+  note: string | null;
+};
+
+export type DoctorProgramDiscussionExecutionMetrics = {
+  difficulty: 'easy' | 'medium' | 'hard' | null;
+  reps: number | null;
+  sets: number | null;
+  weightKg: number | null;
+};
+
+const difficultyLabel: Record<
+  NonNullable<DoctorProgramDiscussionExecutionMetrics['difficulty']>,
+  string
+> = {
+  easy: 'Легко',
+  medium: 'Средне',
+  hard: 'Тяжело',
+};
+
+function AssignmentToolbar({
+  assignment,
+  onEdit,
+}: {
+  assignment: DoctorProgramDiscussionAssignment;
+  onEdit?: () => void;
+}) {
+  const loadParts: string[] = [];
+  if (assignment.reps !== null || assignment.sets !== null) {
+    loadParts.push(`${assignment.reps ?? '—'} × ${assignment.sets ?? '—'}`);
+  }
+  if (assignment.weightKg !== null) loadParts.push(`${assignment.weightKg} кг`);
+  if (assignment.maxPain !== null) loadParts.push(`Боль ≤ ${assignment.maxPain}`);
+
+  return (
+    <div className="flex shrink-0 items-start gap-3 border-b border-border/60 bg-card px-4 py-3">
+      <ExerciseListCatalogThumb media={assignment.media} className="!size-11 !rounded-md" />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-foreground">
+          {loadParts.length > 0 ? (
+            <span className="block truncate">{loadParts.join(' · ')}</span>
+          ) : (
+            <>
+              Нет рекомендации
+              <br />к выполнению
+            </>
+          )}
+        </p>
+        {assignment.note ? (
+          <p className="mt-1 line-clamp-2 whitespace-normal text-sm text-muted-foreground">
+            {assignment.note}
+          </p>
+        ) : null}
+      </div>
+      {onEdit ? (
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="size-8 shrink-0 text-muted-foreground"
+          onClick={onEdit}
+          aria-label="Изменить рекомендации"
+        >
+          <Pencil className="size-4" aria-hidden />
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function PatientExecutionMetrics({
+  metrics,
+}: {
+  metrics: DoctorProgramDiscussionExecutionMetrics;
+}) {
+  const hasRepetitions = metrics.reps !== null || metrics.sets !== null;
+  return (
+    <div className="absolute top-5 right-0 w-20 text-xs leading-4 text-muted-foreground">
+      {metrics.difficulty ? (
+        <>
+          <p>Сложность:</p>
+          <p>{difficultyLabel[metrics.difficulty]}</p>
+        </>
+      ) : null}
+      {hasRepetitions ? <p>{`${metrics.reps ?? '—'} × ${metrics.sets ?? '—'}`}</p> : null}
+      {metrics.weightKg !== null ? <p>{metrics.weightKg} кг</p> : null}
+    </div>
+  );
+}
 
 function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussionMessage): number {
   const byDate = a.createdAt.localeCompare(b.createdAt);
@@ -46,6 +143,11 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
   onDeleteMediaMessage?: (messageId: string) => Promise<{ ok: boolean; error?: string }>;
   peerLastReadAt?: string | null;
   peerLastReadAtByStageItemId?: Record<string, string | null>;
+  assignment?: DoctorProgramDiscussionAssignment | null;
+  onEditAssignment?: () => void;
+  executionMetricsByMessageId?: Record<string, DoctorProgramDiscussionExecutionMetrics>;
+  /** Per-item dialog can send directly without first selecting a patient message. */
+  composerStageItemId?: string;
 }) {
   const {
     messages,
@@ -59,6 +161,10 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     onDeleteMediaMessage,
     peerLastReadAt = null,
     peerLastReadAtByStageItemId,
+    assignment = null,
+    onEditAssignment,
+    executionMetricsByMessageId = {},
+    composerStageItemId,
   } = props;
   const sortedMessages = useMemo(() => [...messages].sort(compareMessages), [messages]);
   const showItemLabels = itemLabelById != null && itemLabelById.size > 0;
@@ -169,7 +275,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     }
   };
 
-  const submitReply = async (message: ProgramItemDiscussionMessage) => {
+  const submitReply = async (stageItemId: string) => {
     if (!onSendReply || replySending) return;
     const text = replyDraft.trim();
     if (!text) {
@@ -179,7 +285,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     setReplySending(true);
     setReplyError(null);
     try {
-      const result = await onSendReply(message.instanceStageItemId, text);
+      const result = await onSendReply(stageItemId, text);
       if (!result.ok) {
         setReplyError(result.error ?? 'Не удалось отправить ответ');
         return;
@@ -191,7 +297,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
   };
 
   return (
-    <div className="flex h-[min(75vh,34rem)] min-h-[20rem] flex-col gap-2">
+    <div className="flex min-h-0 flex-1 flex-col sm:h-[min(75vh,40rem)] sm:min-h-[20rem] sm:flex-none">
       <Dialog open={deleteTarget != null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -221,12 +327,13 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {assignment ? <AssignmentToolbar assignment={assignment} onEdit={onEditAssignment} /> : null}
+      {error ? <p className="mx-4 mt-3 text-sm text-destructive">{error}</p> : null}
       {nextCursor ? (
         <Button
           type="button"
           variant="outline"
-          className="self-start"
+          className="mx-4 mt-3 self-start"
           disabled={loading || loadingOlder}
           onClick={onLoadOlder}
         >
@@ -235,7 +342,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
       ) : null}
       <div
         ref={scrollRef}
-        className={cn('min-h-0 flex-1 overflow-y-auto space-y-4 pb-2', chatThreadSurfaceClass)}
+        className={cn('min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3', chatThreadSurfaceClass)}
         data-testid="doctor-program-discussion-messages"
       >
         {sortedMessages.length === 0 ? (
@@ -246,14 +353,14 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
           sortedMessages.map((m) => {
             const fromPatient = m.senderRole === 'patient';
             const itemLabel = showItemLabels ? itemLabelById.get(m.instanceStageItemId) : null;
-            const authorLabel = fromPatient ? 'Пациент' : 'Врач';
+            const executionMetrics = fromPatient ? executionMetricsByMessageId[m.id] : null;
             const peerCursor =
               peerLastReadAtByStageItemId?.[m.instanceStageItemId] ?? peerLastReadAt ?? null;
             const deliveryStatus = !fromPatient
               ? chatMessageDeliveryStatus({ createdAt: m.createdAt, peerLastReadAt: peerCursor })
               : null;
             const replyAffordanceVisible =
-              fromPatient && onSendReply
+              fromPatient && onSendReply && !composerStageItemId
                 ? activeReplyMessageId === m.id || touchReplyTargetId === m.id
                 : false;
             const canDeleteMedia =
@@ -266,11 +373,13 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                   fromPatient
                     ? canDeleteMedia
                       ? 'items-start pr-32'
-                      : 'items-start pr-24'
+                      : executionMetrics || (!composerStageItemId && onSendReply)
+                        ? 'items-start pr-24'
+                        : 'items-start'
                     : 'items-end',
                 )}
                 onClick={() => {
-                  if (!fromPatient || !onSendReply) return;
+                  if (!fromPatient || !onSendReply || composerStageItemId) return;
                   if (ignoreTapMessageIdRef.current === m.id) {
                     ignoreTapMessageIdRef.current = null;
                     return;
@@ -285,8 +394,8 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                   <p className="text-xs font-medium text-muted-foreground">{itemLabel}</p>
                 ) : null}
                 <p className="text-xs text-muted-foreground">
-                  {authorLabel} · {formatChatRelativeDateLabelRu(m.createdAt, new Date())}
-                  {fromPatient ? ` · ${formatChatMessageTimeRu(m.createdAt)}` : null}
+                  {formatChatRelativeDateLabelRu(m.createdAt, new Date())} ·{' '}
+                  {formatChatMessageTimeRu(m.createdAt)}
                 </p>
                 <div
                   className={cn(
@@ -294,7 +403,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                     fromPatient ? chatBubblePeerClass : chatBubbleOwnClass,
                   )}
                   onTouchStart={
-                    fromPatient && onSendReply && touchEnabled
+                    fromPatient && onSendReply && !composerStageItemId && touchEnabled
                       ? (event) => {
                           const touch = event.touches[0];
                           if (!touch) return;
@@ -308,7 +417,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                       : undefined
                   }
                   onTouchMove={
-                    fromPatient && onSendReply && touchEnabled
+                    fromPatient && onSendReply && !composerStageItemId && touchEnabled
                       ? (event) => {
                           const state = touchDragRef.current;
                           const touch = event.touches[0];
@@ -325,14 +434,14 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                       : undefined
                   }
                   onTouchEnd={
-                    fromPatient && onSendReply && touchEnabled
+                    fromPatient && onSendReply && !composerStageItemId && touchEnabled
                       ? () => {
                           touchDragRef.current = null;
                         }
                       : undefined
                   }
                   onTouchCancel={
-                    fromPatient && onSendReply && touchEnabled
+                    fromPatient && onSendReply && !composerStageItemId && touchEnabled
                       ? () => {
                           touchDragRef.current = null;
                         }
@@ -348,7 +457,8 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                     />
                   ) : null}
                 </div>
-                {fromPatient && onSendReply ? (
+                {executionMetrics ? <PatientExecutionMetrics metrics={executionMetrics} /> : null}
+                {fromPatient && onSendReply && !composerStageItemId ? (
                   <Button
                     type="button"
                     size="sm"
@@ -398,11 +508,13 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
           })
         )}
       </div>
-      {activeReplyMessage && onSendReply ? (
+      {(composerStageItemId || activeReplyMessage) && onSendReply ? (
         <MessageComposer
           value={replyDraft}
           onValueChange={setReplyDraft}
-          onSubmit={() => submitReply(activeReplyMessage)}
+          onSubmit={() =>
+            submitReply(composerStageItemId ?? activeReplyMessage!.instanceStageItemId)
+          }
           submitting={replySending}
           placeholder="Ответ..."
           ariaLabel="Ответ пациенту"
@@ -414,26 +526,31 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
           textareaRef={textareaRef}
           submitInsideInput
           inputRowClassName="relative"
-          className={cn('shrink-0 border-t border-border pt-3', replySending && 'opacity-50')}
+          className={cn(
+            'shrink-0 border-t border-border bg-card px-4 py-3',
+            replySending && 'opacity-50',
+          )}
           header={
-            <div className="mb-2 rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
-              <div className="flex items-start gap-2">
-                <span className="min-w-0 flex-1 truncate">
-                  Ответ на:{' '}
-                  {activeReplyMessage.body?.trim() ||
-                    itemLabelById?.get(activeReplyMessage.instanceStageItemId) ||
-                    'сообщение с вложением'}
-                </span>
-                <button
-                  type="button"
-                  className="shrink-0 text-foreground/70 hover:text-foreground"
-                  onClick={closeReplyComposer}
-                  aria-label="Убрать выбранное сообщение"
-                >
-                  <X className="size-3.5" aria-hidden />
-                </button>
+            activeReplyMessage && !composerStageItemId ? (
+              <div className="mb-2 rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
+                <div className="flex items-start gap-2">
+                  <span className="min-w-0 flex-1 truncate">
+                    Ответ на:{' '}
+                    {activeReplyMessage.body?.trim() ||
+                      itemLabelById?.get(activeReplyMessage.instanceStageItemId) ||
+                      'сообщение с вложением'}
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 text-foreground/70 hover:text-foreground"
+                    onClick={closeReplyComposer}
+                    aria-label="Убрать выбранное сообщение"
+                  >
+                    <X className="size-3.5" aria-hidden />
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : null
           }
           status={replyError ? <p className="mt-1 text-xs text-destructive">{replyError}</p> : null}
           renderTextarea={(textareaProps) => (

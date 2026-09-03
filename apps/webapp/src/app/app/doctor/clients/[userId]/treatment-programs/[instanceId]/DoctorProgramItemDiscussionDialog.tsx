@@ -3,10 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
-import { DoctorProgramDiscussionMessagesPanel } from './DoctorProgramDiscussionMessagesPanel';
+import {
+  DoctorProgramDiscussionMessagesPanel,
+  type DoctorProgramDiscussionAssignment,
+  type DoctorProgramDiscussionExecutionMetrics,
+} from './DoctorProgramDiscussionMessagesPanel';
 import { markDoctorProgramDiscussionRead } from '@/app/app/doctor/doctorProgramDiscussionMarkRead';
 import { sendDoctorProgramDiscussionReply } from './doctorProgramDiscussionReply';
 import { deleteDoctorProgramDiscussionMediaMessage } from './doctorProgramDiscussionDeleteMedia';
+import { resolveStageItemExerciseLoad } from '@/app/app/patient/treatment/stageItemSnapshot';
+import { firstSnapshotMedia } from '@/app/app/doctor/comments/exerciseCommentThumb';
+import { thumbToExerciseMedia } from '@/app/app/doctor/comments/exerciseCommentThumb';
+import { DoctorExerciseRecommendationsModal } from '@/app/app/doctor/treatment-program-shared/DoctorExerciseRecommendationsModal';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -16,6 +24,13 @@ type DiscussionPageResponse = {
     nextCursor?: string | null;
   };
   peerLastReadAt?: string | null;
+  itemContext?: {
+    itemType: string;
+    settings?: Record<string, unknown> | null;
+    snapshot?: Record<string, unknown> | null;
+    effectiveComment?: string | null;
+  };
+  executionMetricsByMessageId?: Record<string, DoctorProgramDiscussionExecutionMetrics>;
 };
 
 function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussionMessage): number {
@@ -39,6 +54,12 @@ export function DoctorProgramItemDiscussionDialog(props: {
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [peerLastReadAt, setPeerLastReadAt] = useState<string | null>(null);
+  const [assignment, setAssignment] = useState<DoctorProgramDiscussionAssignment | null>(null);
+  const [recommendationsEditable, setRecommendationsEditable] = useState(false);
+  const [recommendationsOpen, setRecommendationsOpen] = useState(false);
+  const [executionMetricsByMessageId, setExecutionMetricsByMessageId] = useState<
+    Record<string, DoctorProgramDiscussionExecutionMetrics>
+  >({});
   const loadGenerationRef = useRef(0);
   const onMarkedReadRef = useRef(onMarkedRead);
   onMarkedReadRef.current = onMarkedRead;
@@ -74,6 +95,25 @@ export function DoctorProgramItemDiscussionDialog(props: {
       if (data.peerLastReadAt !== undefined) {
         setPeerLastReadAt(data.peerLastReadAt);
       }
+      if (data.itemContext) {
+        const load = resolveStageItemExerciseLoad(data.itemContext);
+        setRecommendationsEditable(data.itemContext.itemType === 'exercise');
+        setAssignment({
+          media: thumbToExerciseMedia(firstSnapshotMedia(data.itemContext.snapshot ?? {})),
+          reps: load.reps,
+          sets: load.sets,
+          maxPain: load.maxPain,
+          weightKg: load.weightKg,
+          note: data.itemContext.effectiveComment?.trim() || null,
+        });
+      }
+      if (data.executionMetricsByMessageId) {
+        setExecutionMetricsByMessageId((current) =>
+          appendOlder
+            ? { ...current, ...data.executionMetricsByMessageId }
+            : data.executionMetricsByMessageId!,
+        );
+      }
     },
     [basePath],
   );
@@ -85,6 +125,10 @@ export function DoctorProgramItemDiscussionDialog(props: {
     setError(null);
     setMessages([]);
     setNextCursor(null);
+    setAssignment(null);
+    setRecommendationsEditable(false);
+    setRecommendationsOpen(false);
+    setExecutionMetricsByMessageId({});
     try {
       await loadPage(null, false, generation);
       void markDoctorProgramDiscussionRead({ instanceId, stageItemId: itemId }).then((result) => {
@@ -130,71 +174,99 @@ export function DoctorProgramItemDiscussionDialog(props: {
     setLoadingOlder(false);
     setError(null);
     setNextCursor(null);
+    setAssignment(null);
+    setExecutionMetricsByMessageId({});
   }, [open]);
 
   return (
-    <DoctorModal
-      open={open}
-      onClose={() => onOpenChange(false)}
-      title={itemLabel ? `Обсуждение: ${itemLabel}` : 'Обсуждение'}
-      size="content"
-    >
-      <DoctorProgramDiscussionMessagesPanel
-        messages={messages}
-        loading={loading}
-        loadingOlder={loadingOlder}
-        error={error}
-        nextCursor={nextCursor}
-        peerLastReadAt={peerLastReadAt}
-        onSendReply={async (_stageItemId, text) => {
-          const sendResult = await sendDoctorProgramDiscussionReply({
-            instanceId,
-            stageItemId: itemId,
-            text,
-          });
-          if (!sendResult.ok) return sendResult;
-          const generation = loadGenerationRef.current;
-          try {
-            await loadPage(null, false, generation);
-          } catch {
-            if (generation === loadGenerationRef.current) {
-              setError('Ответ отправлен, но список не обновился. Откройте обсуждение заново.');
-            }
+    <>
+      <DoctorModal
+        open={open}
+        onClose={() => onOpenChange(false)}
+        title={itemLabel ? `Обсуждение: ${itemLabel}` : 'Обсуждение'}
+        size="content"
+        bodyClassName="!p-0"
+      >
+        <DoctorProgramDiscussionMessagesPanel
+          messages={messages}
+          loading={loading}
+          loadingOlder={loadingOlder}
+          error={error}
+          nextCursor={nextCursor}
+          peerLastReadAt={peerLastReadAt}
+          assignment={assignment}
+          onEditAssignment={
+            recommendationsEditable ? () => setRecommendationsOpen(true) : undefined
           }
-          return { ok: true as const };
-        }}
-        onDeleteMediaMessage={async (messageId) => {
-          const deleteResult = await deleteDoctorProgramDiscussionMediaMessage({
-            instanceId,
-            messageId,
-          });
-          if (!deleteResult.ok) return deleteResult;
-          const generation = loadGenerationRef.current;
-          try {
-            await loadPage(null, false, generation);
-          } catch {
-            if (generation === loadGenerationRef.current) {
-              setError('Файл удалён из чата, но список не обновился. Откройте обсуждение заново.');
-            }
-          }
-          return { ok: true as const };
-        }}
-        onLoadOlder={() => {
-          if (!nextCursor) return;
-          const generation = loadGenerationRef.current;
-          setLoadingOlder(true);
-          void loadPage(nextCursor, true, generation)
-            .catch((e) => {
-              if (generation !== loadGenerationRef.current) return;
-              setError(e instanceof Error ? e.message : 'Не удалось загрузить обсуждение');
-            })
-            .finally(() => {
-              if (generation === loadGenerationRef.current) {
-                setLoadingOlder(false);
-              }
+          executionMetricsByMessageId={executionMetricsByMessageId}
+          composerStageItemId={itemId}
+          onSendReply={async (_stageItemId, text) => {
+            const sendResult = await sendDoctorProgramDiscussionReply({
+              instanceId,
+              stageItemId: itemId,
+              text,
             });
-        }}
-      />
-    </DoctorModal>
+            if (!sendResult.ok) return sendResult;
+            const generation = loadGenerationRef.current;
+            try {
+              await loadPage(null, false, generation);
+            } catch {
+              if (generation === loadGenerationRef.current) {
+                setError('Ответ отправлен, но список не обновился. Откройте обсуждение заново.');
+              }
+            }
+            return { ok: true as const };
+          }}
+          onDeleteMediaMessage={async (messageId) => {
+            const deleteResult = await deleteDoctorProgramDiscussionMediaMessage({
+              instanceId,
+              messageId,
+            });
+            if (!deleteResult.ok) return deleteResult;
+            const generation = loadGenerationRef.current;
+            try {
+              await loadPage(null, false, generation);
+            } catch {
+              if (generation === loadGenerationRef.current) {
+                setError(
+                  'Файл удалён из чата, но список не обновился. Откройте обсуждение заново.',
+                );
+              }
+            }
+            return { ok: true as const };
+          }}
+          onLoadOlder={() => {
+            if (!nextCursor) return;
+            const generation = loadGenerationRef.current;
+            setLoadingOlder(true);
+            void loadPage(nextCursor, true, generation)
+              .catch((e) => {
+                if (generation !== loadGenerationRef.current) return;
+                setError(e instanceof Error ? e.message : 'Не удалось загрузить обсуждение');
+              })
+              .finally(() => {
+                if (generation === loadGenerationRef.current) {
+                  setLoadingOlder(false);
+                }
+              });
+          }}
+        />
+      </DoctorModal>
+
+      {assignment && recommendationsEditable ? (
+        <DoctorExerciseRecommendationsModal
+          open={recommendationsOpen}
+          onClose={() => setRecommendationsOpen(false)}
+          instanceId={instanceId}
+          itemId={itemId}
+          exerciseTitle={itemLabel ?? 'Упражнение'}
+          media={assignment.media}
+          initialValue={assignment}
+          onSaved={({ value }) => {
+            setAssignment((current) => (current ? { ...current, ...value } : current));
+          }}
+        />
+      ) : null}
+    </>
   );
 }

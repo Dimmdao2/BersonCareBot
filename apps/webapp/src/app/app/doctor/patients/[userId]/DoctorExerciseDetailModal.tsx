@@ -4,17 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pencil, Play } from 'lucide-react';
 import type {
   ExerciseMetricPoint,
-  TreatmentProgramInstanceStageItemRow,
   TreatmentProgramInstanceStageItemView,
 } from '@/modules/treatment-program/types';
-import { effectiveInstanceStageItemComment } from '@/modules/treatment-program/types';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
-import {
-  INSTANCE_EDITOR_LOAD_MAX_PAIN_RANGE,
-  INSTANCE_EDITOR_LOAD_REPS_RANGE,
-  INSTANCE_EDITOR_LOAD_SETS_RANGE,
-  parseInstanceEditorLoadField,
-} from '@/app/app/doctor/treatment-program-shared/instanceEditorLoadSettings';
 import {
   primaryMediaForStageItem,
   resolveStageItemExerciseLoad,
@@ -22,21 +14,13 @@ import {
 } from '@/app/app/patient/treatment/stageItemSnapshot';
 import { markDoctorProgramDiscussionRead } from '@/app/app/doctor/doctorProgramDiscussionMarkRead';
 import { DoctorProgramItemDiscussionDialog } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramItemDiscussionDialog';
+import { DoctorExerciseRecommendationsModal } from '@/app/app/doctor/treatment-program-shared/DoctorExerciseRecommendationsModal';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { ExerciseExecutionGraph } from '@/shared/ui/doctor/ExerciseExecutionGraph';
-import {
-  doctorMetaTextClass,
-  doctorSectionTitleClass,
-} from '@/shared/ui/doctor/doctorVisual';
+import { doctorMetaTextClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { Input } from '@/shared/ui/doctor/primitives/input';
-import { Label } from '@/shared/ui/doctor/primitives/label';
-import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { DoctorCatalogMediaStaticThumb } from '@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb';
-import { DoctorMediaPlaybackVideo } from '@/shared/ui/doctor/media/DoctorMediaPlaybackVideo';
-import { HostedVideoEmbed } from '@/shared/ui/doctor/media/HostedVideoEmbed';
-import { NoContextMenuVideo } from '@/shared/ui/doctor/media/NoContextMenuVideo';
-import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
+import { DoctorExerciseMediaPlayer } from '@/shared/ui/doctor/media/DoctorExerciseMediaPlayer';
 import {
   formatChatMessageTimeRu,
   formatChatRelativeDateLabelRu,
@@ -52,12 +36,6 @@ type DiscussionResponse = {
 type MetricsResponse = {
   ok?: boolean;
   points?: ExerciseMetricPoint[];
-};
-
-type PatchStageItemResponse = {
-  ok?: boolean;
-  error?: string;
-  item?: TreatmentProgramInstanceStageItemRow;
 };
 
 type Props = {
@@ -82,69 +60,6 @@ function discussionPreviewBody(body: string | null): string {
   return value.replace(/^\d{2}\.\d{2}\.\d{4}\s*/, '').trim() || value;
 }
 
-function toViewItem(row: TreatmentProgramInstanceStageItemRow): TreatmentProgramInstanceStageItemView {
-  return {
-    ...row,
-    effectiveComment: effectiveInstanceStageItemComment(row),
-  };
-}
-
-async function patchStageItem(
-  instanceId: string,
-  itemId: string,
-  body: Record<string, unknown>,
-): Promise<TreatmentProgramInstanceStageItemView> {
-  const response = await fetch(
-    `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(itemId)}`,
-    {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    },
-  );
-  const payload = (await response.json().catch(() => null)) as PatchStageItemResponse | null;
-  if (!response.ok || !payload?.ok || !payload.item) {
-    throw new Error(payload?.error ?? 'Не удалось сохранить назначение');
-  }
-  return toViewItem(payload.item);
-}
-
-function ExerciseVideoPlayer({
-  media,
-  title,
-}: {
-  media: NonNullable<ReturnType<typeof primaryMediaForStageItem>>;
-  title: string;
-}) {
-  if (media.mediaType === 'hosted_video') {
-    return <HostedVideoEmbed url={media.mediaUrl} title={title} />;
-  }
-
-  const mediaId = parseMediaFileIdFromAppUrl(media.mediaUrl);
-  if (mediaId) {
-    return (
-      <DoctorMediaPlaybackVideo
-        mediaId={mediaId}
-        mp4Url={media.mediaUrl}
-        title={title}
-        initialPlayback={null}
-        shellClassName="relative aspect-video w-full overflow-hidden rounded-lg bg-black"
-      />
-    );
-  }
-
-  return (
-    <NoContextMenuVideo
-      controls
-      preload="metadata"
-      className="aspect-video w-full rounded-lg bg-black object-contain"
-    >
-      <source src={media.mediaUrl} />
-    </NoContextMenuVideo>
-  );
-}
-
 export function DoctorExerciseDetailModal({
   open,
   onOpenChange,
@@ -155,22 +70,13 @@ export function DoctorExerciseDetailModal({
   onMarkedRead,
 }: Props) {
   const title = stageItemSnapshotTitle(item.snapshot, item.itemType);
-  const media = useMemo(
-    () => primaryMediaForStageItem(item),
-    [item],
-  );
+  const media = useMemo(() => primaryMediaForStageItem(item), [item]);
   const playableMedia =
     media && (media.mediaType === 'video' || media.mediaType === 'hosted_video') ? media : null;
   const load = resolveStageItemExerciseLoad(item);
   const [videoOpen, setVideoOpen] = useState(false);
   const [discussionOpen, setDiscussionOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [reps, setReps] = useState(load.reps == null ? '' : String(load.reps));
-  const [sets, setSets] = useState(load.sets == null ? '' : String(load.sets));
-  const [maxPain, setMaxPain] = useState(load.maxPain == null ? '' : String(load.maxPain));
-  const [note, setNote] = useState(item.effectiveComment ?? '');
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [recommendationsOpen, setRecommendationsOpen] = useState(false);
   const [windowDays, setWindowDays] = useState<7 | 30>(30);
   const [metrics, setMetrics] = useState<ExerciseMetricPoint[] | null>(null);
   const [metricsError, setMetricsError] = useState(false);
@@ -254,59 +160,6 @@ export function DoctorExerciseDetailModal({
     };
   }, [instanceId, item.id, open, unreadCount]);
 
-  const resetDraft = () => {
-    const currentLoad = resolveStageItemExerciseLoad(item);
-    setReps(currentLoad.reps == null ? '' : String(currentLoad.reps));
-    setSets(currentLoad.sets == null ? '' : String(currentLoad.sets));
-    setMaxPain(currentLoad.maxPain == null ? '' : String(currentLoad.maxPain));
-    setNote(item.effectiveComment ?? '');
-    setSaveError(null);
-  };
-
-  const cancelEditing = () => {
-    resetDraft();
-    setEditing(false);
-  };
-
-  const saveAssignment = async () => {
-    if (saving) return;
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const nextLoad = {
-        reps: parseInstanceEditorLoadField(reps, 'Повторы', INSTANCE_EDITOR_LOAD_REPS_RANGE),
-        sets: parseInstanceEditorLoadField(sets, 'Подходы', INSTANCE_EDITOR_LOAD_SETS_RANGE),
-        maxPain: parseInstanceEditorLoadField(
-          maxPain,
-          'Макс. боль',
-          INSTANCE_EDITOR_LOAD_MAX_PAIN_RANGE,
-        ),
-      };
-      let currentItem = item;
-      if (
-        nextLoad.reps !== load.reps ||
-        nextLoad.sets !== load.sets ||
-        nextLoad.maxPain !== load.maxPain
-      ) {
-        currentItem = await patchStageItem(instanceId, item.id, { loadSettings: nextLoad });
-        onItemUpdated(currentItem);
-      }
-
-      const normalizedNote = note.trim();
-      if (normalizedNote !== (item.effectiveComment ?? '').trim()) {
-        currentItem = await patchStageItem(instanceId, item.id, {
-          localComment: normalizedNote || null,
-        });
-        onItemUpdated(currentItem);
-      }
-      setEditing(false);
-    } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'Не удалось сохранить назначение');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const markAllRead = async () => {
     if (markingRead || unreadCount <= 0) return;
     setMarkingRead(true);
@@ -368,99 +221,37 @@ export function DoctorExerciseDetailModal({
 
           <div className="min-w-0">
             <div className="mb-2 flex min-h-8 items-center justify-between gap-2">
-              <h3 className={doctorSectionTitleClass}>Назначение</h3>
-              {!editing ? (
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="size-8 shrink-0"
-                  onClick={() => {
-                    resetDraft();
-                    setEditing(true);
-                  }}
-                  aria-label="Изменить назначение"
-                >
-                  <Pencil className="size-4" aria-hidden />
-                </Button>
-              ) : null}
+              <h3 className={doctorSectionTitleClass}>Рекомендации</h3>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-8 shrink-0 text-muted-foreground"
+                onClick={() => setRecommendationsOpen(true)}
+                aria-label="Изменить рекомендации"
+              >
+                <Pencil className="size-4" aria-hidden />
+              </Button>
             </div>
 
-            {editing ? (
-              <div className="grid grid-cols-3 gap-2">
-                <div className="min-w-0 space-y-1">
-                  <Label htmlFor={`overview-exercise-reps-${item.id}`} className={doctorMetaTextClass}>
-                    Повторы
-                  </Label>
-                  <Input
-                    id={`overview-exercise-reps-${item.id}`}
-                    inputMode="numeric"
-                    value={reps}
-                    onChange={(event) => setReps(event.target.value)}
-                  />
-                </div>
-                <div className="min-w-0 space-y-1">
-                  <Label htmlFor={`overview-exercise-sets-${item.id}`} className={doctorMetaTextClass}>
-                    Подходы
-                  </Label>
-                  <Input
-                    id={`overview-exercise-sets-${item.id}`}
-                    inputMode="numeric"
-                    value={sets}
-                    onChange={(event) => setSets(event.target.value)}
-                  />
-                </div>
-                <div className="min-w-0 space-y-1">
-                  <Label htmlFor={`overview-exercise-pain-${item.id}`} className={doctorMetaTextClass}>
-                    Боль
-                  </Label>
-                  <Input
-                    id={`overview-exercise-pain-${item.id}`}
-                    inputMode="numeric"
-                    value={maxPain}
-                    onChange={(event) => setMaxPain(event.target.value)}
-                  />
-                </div>
-                <div className="col-span-3 space-y-1">
-                  <Label htmlFor={`overview-exercise-note-${item.id}`} className={doctorMetaTextClass}>
-                    Заметка врача
-                  </Label>
-                  <Textarea
-                    id={`overview-exercise-note-${item.id}`}
-                    rows={3}
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                  />
-                </div>
-                {saveError ? (
-                  <p className="col-span-3 text-sm text-destructive">{saveError}</p>
-                ) : null}
-                <div className="col-span-3 grid grid-cols-2 gap-2">
-                  <Button type="button" variant="secondary" onClick={cancelEditing} disabled={saving}>
-                    Отмена
-                  </Button>
-                  <Button type="button" onClick={() => void saveAssignment()} disabled={saving}>
-                    {saving ? 'Сохранение…' : 'Сохранить'}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1.5 text-sm">
-                <p className="text-foreground">
-                  {load.reps != null || load.sets != null
-                    ? `${load.reps ?? '—'} × ${load.sets ?? '—'}`
-                    : 'Повторы и подходы не указаны'}
+            <div className="space-y-1.5 text-sm">
+              <p className="text-foreground">
+                {load.reps != null || load.sets != null
+                  ? `${load.reps ?? '—'} × ${load.sets ?? '—'}`
+                  : 'Нагрузка не назначена'}
+              </p>
+              {load.weightKg != null ? (
+                <p className={doctorMetaTextClass}>Вес: {load.weightKg} кг</p>
+              ) : null}
+              {load.maxPain != null ? (
+                <p className={doctorMetaTextClass}>Макс. боль: {load.maxPain}</p>
+              ) : null}
+              {item.effectiveComment ? (
+                <p className={cn(doctorMetaTextClass, 'line-clamp-4 whitespace-pre-line')}>
+                  {item.effectiveComment}
                 </p>
-                {load.maxPain != null ? (
-                  <p className={doctorMetaTextClass}>Макс. боль: {load.maxPain}</p>
-                ) : null}
-                {item.effectiveComment ? (
-                  <p className={cn(doctorMetaTextClass, 'line-clamp-4 whitespace-pre-line')}>
-                    {item.effectiveComment}
-                  </p>
-                ) : null}
-              </div>
-            )}
+              ) : null}
+            </div>
           </div>
         </section>
 
@@ -527,9 +318,28 @@ export function DoctorExerciseDetailModal({
           size="content"
           bodyClassName="justify-center"
         >
-          <ExerciseVideoPlayer media={playableMedia} title={title} />
+          <DoctorExerciseMediaPlayer media={playableMedia} title={title} />
         </DoctorModal>
       ) : null}
+
+      <DoctorExerciseRecommendationsModal
+        open={recommendationsOpen}
+        onClose={() => setRecommendationsOpen(false)}
+        instanceId={instanceId}
+        itemId={item.id}
+        exerciseTitle={title}
+        media={media}
+        initialValue={{
+          reps: load.reps,
+          sets: load.sets,
+          maxPain: load.maxPain,
+          weightKg: load.weightKg,
+          note: item.effectiveComment?.trim() || null,
+        }}
+        onSaved={({ item: savedItem }) => {
+          if (savedItem) onItemUpdated(savedItem);
+        }}
+      />
 
       <DoctorProgramItemDiscussionDialog
         instanceId={instanceId}

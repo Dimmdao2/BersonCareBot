@@ -28,6 +28,7 @@ const patchBodySchema = z
         reps: z.union([z.number(), z.null()]),
         sets: z.union([z.number(), z.null()]),
         maxPain: z.union([z.number(), z.null()]),
+        weightKg: z.union([z.number().min(0).max(500), z.null()]).optional(),
       })
       .optional(),
   })
@@ -149,6 +150,7 @@ export async function PATCH(
           reps: loadSettings.reps,
           sets: loadSettings.sets,
           maxPain: loadSettings.maxPain,
+          weightKg: loadSettings.weightKg,
         }),
       );
       revalidatePatientTreatmentProgramUi();

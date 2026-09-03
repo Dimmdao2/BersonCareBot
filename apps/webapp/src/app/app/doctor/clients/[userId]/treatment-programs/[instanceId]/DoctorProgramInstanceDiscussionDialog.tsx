@@ -170,7 +170,13 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
   }, [open, basePath]);
 
   return (
-    <DoctorModal open={open} onClose={() => onOpenChange(false)} title="Комментарии" size="content">
+    <DoctorModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Комментарии"
+      size="content"
+      bodyClassName="!p-0"
+    >
       <div className="flex min-h-0 flex-1 flex-col">
         <DoctorProgramDiscussionMessagesPanel
           messages={messages}

@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorChatPanel } from '@/modules/messaging/components/DoctorChatPanel';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorConversationChatModal } from '@/modules/messaging/components/DoctorConversationChatModal';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
@@ -408,24 +408,13 @@ export function DoctorSupportInbox({
         desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
         className={cn(DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS, 'min-h-0 flex-1 md:flex-none')}
       />
-      <DoctorModal
-        open={!hasSplitChat && selectedId != null}
+      <DoctorConversationChatModal
+        conversationId={!hasSplitChat ? selectedId : null}
+        displayName={selectedConvDisplayName}
         onClose={() => selectConversation(null)}
-        title={`Чат: ${selectedConvDisplayName || '—'}`}
-        size="content"
-        desktopPresentation="right-sheet"
-        bodyClassName="p-0"
-      >
-        {selectedId ? (
-          <DoctorChatPanel
-            key={selectedId}
-            conversationId={selectedId}
-            className="min-h-0 flex-1"
-            onReadStateChanged={loadList}
-            onSent={loadList}
-          />
-        ) : null}
-      </DoctorModal>
+        onReadStateChanged={loadList}
+        onSent={loadList}
+      />
     </>
   );
 }

@@ -8,6 +8,7 @@ import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorConversationListRow } from '@/modules/messaging/components/DoctorConversationListRow';
+import { DoctorConversationChatModal } from '@/modules/messaging/components/DoctorConversationChatModal';
 import {
   doctorDnaFlatListClickableClass,
   doctorDnaFlatListMetaClass,
@@ -15,7 +16,7 @@ import {
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorStatCard } from './analytics/clients/DoctorStatCard';
-import { ExerciseCommentPreviewListRow } from './comments/ExerciseCommentPreviewItem';
+import { DoctorTodayExerciseCommentsModal } from './comments/DoctorTodayExerciseCommentsModal';
 import type {
   TodayDashboardData,
   TodayUnreadConversationItem,
@@ -67,7 +68,13 @@ type KpiModal = 'messages' | 'comments' | 'tests' | 'tasks' | null;
 const attentionKpiBackgroundClass = 'bg-[#f5ede5]';
 const attentionKpiValueClass = 'text-destructive';
 
-function UnreadConversationModalItem({ item }: { item: TodayUnreadConversationItem }) {
+function UnreadConversationModalItem({
+  item,
+  onOpen,
+}: {
+  item: TodayUnreadConversationItem;
+  onOpen: () => void;
+}) {
   return (
     <DoctorConversationListRow
       conversation={{
@@ -80,7 +87,7 @@ function UnreadConversationModalItem({ item }: { item: TodayUnreadConversationIt
         lastSenderRole: item.lastSenderRole,
         unreadFromUserCount: item.unreadFromUserCount,
       }}
-      href={item.href}
+      onClick={onOpen}
     />
   );
 }
@@ -121,6 +128,8 @@ export function DoctorTodayLeftKpiRow({
   onTaskSaved,
 }: Props) {
   const [kpiModal, setKpiModal] = useState<KpiModal>(null);
+  const [selectedConversation, setSelectedConversation] =
+    useState<TodayUnreadConversationItem | null>(null);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const router = useRouter();
   // DoctorTodayDashboard switches to its two-column desktop workspace at `md` (768px).
@@ -130,8 +139,14 @@ export function DoctorTodayLeftKpiRow({
   // SEG-07: items сохраняем локально (список в KpiPreviewModal);
   // total берётся из exerciseCommentsTotalOverride, управляемого DoctorTodayDashboard,
   // чтобы синхронизировать с обработкой комментария в диалоге.
-  const [exerciseCommentItems] = useState(exerciseCommentAttentionItems);
-  const displayTotal = exerciseCommentsTotalOverride ?? exerciseCommentAttentionTotal;
+  const [exerciseCommentItems, setExerciseCommentItems] = useState(
+    exerciseCommentAttentionItems,
+  );
+  const [locallyReadCommentCount, setLocallyReadCommentCount] = useState(0);
+  const displayTotal = Math.max(
+    0,
+    (exerciseCommentsTotalOverride ?? exerciseCommentAttentionTotal) - locallyReadCommentCount,
+  );
   const attentionTasks = selectSpecialistTasksDueTodayOrOverdue(
     tasks,
     todayIso,
@@ -208,27 +223,29 @@ export function DoctorTodayLeftKpiRow({
         ) : null}
       </DoctorMetricList>
 
-      {/* KpiPreviewModal: Комментарии */}
-      <KpiPreviewModal<TodayExerciseCommentAttentionItem>
+      <DoctorTodayExerciseCommentsModal
         open={kpiModal === 'comments'}
         onClose={() => setKpiModal(null)}
-        title="Комментарии"
-        count={displayTotal}
-        showCount={false}
-        desktopPresentation="right-sheet"
         items={exerciseCommentItems}
-        renderItem={(item) => <ExerciseCommentPreviewListRow item={item} />}
-        emptyState={
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            Нет новых комментариев по упражнениям
-          </p>
-        }
+        onMarkedRead={(item) => {
+          setExerciseCommentItems((current) =>
+            current.filter(
+              (candidate) =>
+                candidate.instanceId !== item.instanceId ||
+                candidate.stageItemId !== item.stageItemId,
+            ),
+          );
+          setLocallyReadCommentCount((current) => current + (item.unreadCount ?? 1));
+        }}
       />
 
       {/* KpiPreviewModal: Сообщения (SEG-02) */}
       <KpiPreviewModal<TodayUnreadConversationItem>
         open={kpiModal === 'messages'}
-        onClose={() => setKpiModal(null)}
+        onClose={() => {
+          setSelectedConversation(null);
+          setKpiModal(null);
+        }}
         title="Сообщения"
         count={unreadTotal}
         showCount={false}
@@ -236,7 +253,10 @@ export function DoctorTodayLeftKpiRow({
         items={unreadConversations}
         renderItem={(item) => (
           <li>
-            <UnreadConversationModalItem item={item} />
+            <UnreadConversationModalItem
+              item={item}
+              onOpen={() => setSelectedConversation(item)}
+            />
           </li>
         )}
         emptyState={
@@ -247,6 +267,18 @@ export function DoctorTodayLeftKpiRow({
             </Link>
           </p>
         }
+      />
+
+      <DoctorConversationChatModal
+        conversationId={selectedConversation?.conversationId ?? null}
+        displayName={
+          selectedConversation
+            ? [selectedConversation.lastName, selectedConversation.firstName]
+                .filter(Boolean)
+                .join(' ') || selectedConversation.displayName
+            : ''
+        }
+        onClose={() => setSelectedConversation(null)}
       />
 
       {/* KpiPreviewModal: Тесты к проверке (SEG-02) */}

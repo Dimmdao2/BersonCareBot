@@ -105,6 +105,10 @@ export type DoctorTodayDashboardDeps = {
       viewerUserId: string;
       stageItemId: string;
     }): Promise<string | null>;
+    listUnreadCountsForViewerByStageItems(input: {
+      stageItemIds: string[];
+      viewerUserId: string;
+    }): Promise<Array<{ stageItemId: string; unread: number }>>;
   };
   programActionLog?: {
     countDoneByItemInWindow(params: {
@@ -772,7 +776,7 @@ export async function loadDoctorTodayDashboard(
   const unreadExerciseCommentsByPatientId = new Map<string, number>();
   for (const row of exerciseCommentAttention.items) {
     const prev = unreadExerciseCommentsByPatientId.get(row.patientUserId) ?? 0;
-    unreadExerciseCommentsByPatientId.set(row.patientUserId, prev + 1);
+    unreadExerciseCommentsByPatientId.set(row.patientUserId, prev + (row.unreadCount ?? 1));
   }
   const realtimePreviewRows = Array.from(
     new Map([...peoplePreviewRaw, ...onSupportPreviewRaw].map((row) => [row.userId, row])).values(),

@@ -49,9 +49,10 @@ export function resolveStageItemExerciseLoad(item: {
   reps: number | null;
   sets: number | null;
   maxPain: number | null;
+  weightKg: number | null;
 } {
   if (item.itemType !== 'exercise') {
-    return { reps: null, sets: null, maxPain: null };
+    return { reps: null, sets: null, maxPain: null, weightKg: null };
   }
   const settings = item.settings ?? {};
   const snapshot = item.snapshot ?? {};
@@ -63,6 +64,7 @@ export function resolveStageItemExerciseLoad(item: {
       snapshot.maxPain,
       snapshot.difficulty,
     ),
+    weightKg: pickFirstFiniteNumber(settings.weightKg, snapshot.weightKg),
   };
 }
 

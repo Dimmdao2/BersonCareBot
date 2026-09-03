@@ -407,7 +407,7 @@ function DoctorPersonalExerciseTitleForm(props: { item: InstanceStageItemT; edit
         }}
       />
       <p className="text-xs text-muted-foreground">
-        Видео закреплено за назначением и не заменяется.
+        Видео закреплено за рекомендацией и не заменяется.
       </p>
     </div>
   );
