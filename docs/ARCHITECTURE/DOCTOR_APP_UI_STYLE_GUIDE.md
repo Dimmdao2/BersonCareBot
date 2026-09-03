@@ -106,6 +106,8 @@
 | Роль                              | Общий класс                    | Текущая реализация                         | px      |
 | --------------------------------- | ------------------------------ | ------------------------------------------ | ------- |
 | Page title (h1)                   | `doctorPageTitleClass`         | `text-[18px] font-medium tracking-tight`   | 18      |
+| Заголовок модалки                 | `doctorModalTitleClass`        | `text-base font-medium tracking-tight`     | 16      |
+| Название сущности в модалке       | `doctorModalEntityTitleClass`  | наследует `doctorModalTitleClass`          | 16      |
 | Имя пациента в entity-header     | `doctorClientDisplayNameClass` | `text-[18px] font-bold leading-6`           | 18      |
 | Section title (h2/h3)             | `doctorSectionTitleClass`      | mobile `text-base`, desktop `text-sm`      | 16 / 14 |
 | Body                              | `doctorBodyTextClass`          | mobile `text-base`, desktop `text-sm`      | 16 / 14 |
@@ -117,7 +119,7 @@
 
 **Micro-роль (узкое исключение, 10–11px).** Разрешена **только** для плотных, нечитаемых-как-абзац подписей: статус-бейджи/пилюли (`Badge`, статус каталога), ячейки календаря, оси/тултипы графиков, технические mono-дампы. Класс: `text-[10px]` / `text-[11px]`. Micro-роль **не** применять к заголовкам, строкам сущностей, кнопкам и основному тексту.
 
-**Запрещено в `/app/doctor/**`(chrome):** локальный `text-[13px]`, `text-[18px]`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`. Исключения: `text-[13px]` внутри общей mobile meta-роли и `text-[18px]` для Page title и Metric через общие классы.
+**Запрещено в `/app/doctor/**`(chrome):** локальный `text-[13px]`, `text-[18px]`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`. Нестандартные размеры разрешены только через общие роли, включая mobile meta, modal entity title и Metric.
 
 Миграция текущего кода: header-заголовок `text-[13px]` → `text-sm`; KPI-число `text-3xl` → `text-2xl`; прочие крупные числа-метрики `text-lg`/`text-xl` → роль Metric (`text-2xl`) или `text-base` для строчных; заголовки-`text-lg` → `text-base`; page-заголовки admin/ops `text-xl` → `text-base`.
 
@@ -249,6 +251,8 @@ DOCTOR_PAGE_CONTAINER_CLASS =
 | Роль                            | Тег           | Класс                                                         |
 | ------------------------------- | ------------- | ------------------------------------------------------------- |
 | Заголовок страницы (h1)         | `h1`          | `text-[18px] font-medium tracking-tight text-foreground`      |
+| Заголовок модалки               | `h1` или `h2` | `text-base font-medium tracking-tight text-foreground`        |
+| Название сущности в модалке     | `h2` или `h3` | наследует `doctorModalTitleClass`                            |
 | Заголовок секции / панели       | `h2` или `h3` | mobile `text-base`, desktop `text-sm`, `font-semibold`        |
 | Первичная строка сущности       | `p`           | `text-base font-normal text-foreground`                       |
 | Обычный текст                   | `p`           | mobile `text-base`, desktop `text-sm`, `text-foreground`      |
@@ -1056,7 +1060,7 @@ export const doctorMediaCardGridClass = 'grid gap-3 sm:grid-cols-2 lg:grid-cols-
 // ── Лэйаут-хелперы ───────────────────────────────────────────────────────────
 
 /** Заголовок страницы (h1) в AppShell или standalone-header. */
-export const doctorPageTitleClass = 'text-base font-semibold tracking-tight text-foreground';
+export const doctorPageTitleClass = 'text-[18px] font-medium tracking-tight text-foreground';
 
 /** Вертикальный стек контента doctor-страницы. */
 export const doctorPageStackClass = 'flex flex-col gap-3';

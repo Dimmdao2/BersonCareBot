@@ -5,8 +5,6 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { exerciseTitleFromSnapshot } from '@/modules/messaging/programNoteReplyContext';
 import { listDiscussionPageMerged } from '@/modules/program-item-discussion/listDiscussionPage';
-import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
-import type { ProgramActionLogListRow } from '@/modules/treatment-program/types';
 import { effectiveInstanceStageItemComment } from '@/modules/treatment-program/types';
 import { resolveDoctorInstanceInWorkspace } from '../../../../_doctorInstanceWorkspace';
 
@@ -32,80 +30,6 @@ function normalizeLimit(raw: string | null): number | null {
   if (raw == null || raw.trim() === '') return 30;
   if (!/^\d+$/.test(raw.trim())) return null;
   return Math.min(100, Math.max(1, Number.parseInt(raw, 10)));
-}
-
-type DiscussionExecutionMetrics = {
-  difficulty: 'easy' | 'medium' | 'hard' | null;
-  reps: number | null;
-  sets: number | null;
-  weightKg: number | null;
-};
-
-function executionMetricsFromAction(
-  row: ProgramActionLogListRow,
-): DiscussionExecutionMetrics | null {
-  const payload = row.payload ?? {};
-  const difficulty =
-    payload.perceivedDifficulty === 'easy' ||
-    payload.perceivedDifficulty === 'medium' ||
-    payload.perceivedDifficulty === 'hard'
-      ? payload.perceivedDifficulty
-      : null;
-  const reps =
-    typeof payload.reps === 'number' && Number.isFinite(payload.reps) ? payload.reps : null;
-  const sets =
-    typeof payload.sets === 'number' && Number.isFinite(payload.sets) ? payload.sets : null;
-  const weightKg =
-    typeof payload.weightKg === 'number' && Number.isFinite(payload.weightKg)
-      ? payload.weightKg
-      : null;
-  return difficulty !== null || reps !== null || sets !== null || weightKg !== null
-    ? { difficulty, reps, sets, weightKg }
-    : null;
-}
-
-/**
- * Legacy comments and completion rows have no foreign key between them. Associate a completion
- * only with the first following patient message inside a 24-hour window, using the nearest unused
- * completion. This avoids presenting stale exercise metrics as belonging to an unrelated comment.
- */
-function matchExecutionMetricsToMessages(
-  messages: ProgramItemDiscussionMessage[],
-  actionRows: ProgramActionLogListRow[],
-  stageItemId: string,
-): Record<string, DiscussionExecutionMetrics> {
-  const completionRows = actionRows
-    .filter(
-      (row) =>
-        row.instanceStageItemId === stageItemId &&
-        row.actionType === 'done' &&
-        executionMetricsFromAction(row) !== null,
-    )
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const usedCompletionIds = new Set<string>();
-  const result: Record<string, DiscussionExecutionMetrics> = {};
-  const patientMessages = messages
-    .filter((message) => message.senderRole === 'patient')
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-
-  for (const message of patientMessages) {
-    const messageAt = Date.parse(message.createdAt);
-    if (!Number.isFinite(messageAt)) continue;
-    let candidate: ProgramActionLogListRow | null = null;
-    for (const row of completionRows) {
-      if (usedCompletionIds.has(row.id)) continue;
-      const completedAt = Date.parse(row.createdAt);
-      if (!Number.isFinite(completedAt) || completedAt > messageAt) continue;
-      if (messageAt - completedAt > 24 * 60 * 60 * 1000) continue;
-      if (!candidate || row.createdAt > candidate.createdAt) candidate = row;
-    }
-    if (!candidate) continue;
-    const metrics = executionMetricsFromAction(candidate);
-    if (!metrics) continue;
-    usedCompletionIds.add(candidate.id);
-    result[message.id] = metrics;
-  }
-  return result;
 }
 
 export async function GET(
@@ -154,22 +78,17 @@ export async function GET(
     const item = instance.stages.flatMap((s) => s.items).find((x) => x.id === stageItemId) ?? null;
     if (!item) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
 
-    const [pageResult, actionRows] = await Promise.all([
-      withDoctorWorkspacePrincipal(gate.ctx, () =>
-        listDiscussionPageMerged({
-          discussion: deps.programItemDiscussion,
-          stageItemId,
-          patientUserId: instance.patientUserId,
-          exerciseTitle: exerciseTitleFromSnapshot(item.snapshot),
-          limit,
-          direction,
-          cursor,
-        }),
-      ),
-      withDoctorWorkspacePrincipal(gate.ctx, () =>
-        deps.programActionLog.listForInstance({ instanceId, limit: 500 }),
-      ),
-    ]);
+    const pageResult = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      listDiscussionPageMerged({
+        discussion: deps.programItemDiscussion,
+        stageItemId,
+        patientUserId: instance.patientUserId,
+        exerciseTitle: exerciseTitleFromSnapshot(item.snapshot),
+        limit,
+        direction,
+        cursor,
+      }),
+    );
 
     const { page, nextCursor, hasMore, totalCount } = pageResult;
 
@@ -192,16 +111,12 @@ export async function GET(
       totalCount,
       peerLastReadAt,
       itemContext: {
+        patientUserId: instance.patientUserId,
         itemType: item.itemType,
         settings: item.settings,
         snapshot: item.snapshot,
         effectiveComment: effectiveInstanceStageItemComment(item),
       },
-      executionMetricsByMessageId: matchExecutionMetricsToMessages(
-        page,
-        actionRows,
-        stageItemId,
-      ),
     });
   } catch {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });

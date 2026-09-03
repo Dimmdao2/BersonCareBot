@@ -15,8 +15,7 @@ import {
   parseInstanceEditorDecimalLoadField,
   parseInstanceEditorLoadField,
 } from './instanceEditorLoadSettings';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
-import { doctorMetaTextClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { DoctorModal, DoctorModalCompositeTitle } from '@/shared/ui/doctor/DoctorModal';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
@@ -160,24 +159,25 @@ export function DoctorExerciseRecommendationsModal(props: {
     <DoctorModal
       open={open}
       onClose={onClose}
-      title="Рекомендации к выполнению"
+      title={<DoctorModalCompositeTitle label="Рекомендации" entity={exerciseTitle} />}
       size="lg"
       bodyClassName="space-y-4"
       footer={
-        <Button type="button" size="sm" disabled={saving} onClick={() => void save()}>
-          {saving ? 'Сохранение…' : 'Сохранить рекомендации'}
-        </Button>
+        <>
+          <Button type="button" variant="outline" disabled={saving} onClick={onClose}>
+            Отмена
+          </Button>
+          <Button type="button" disabled={saving} onClick={() => void save()}>
+            {saving ? 'Сохранение…' : 'Сохранить'}
+          </Button>
+        </>
       }
     >
-      <h3 className={doctorSectionTitleClass}>{exerciseTitle}</h3>
       <DoctorExerciseMediaPlayer media={media} title={exerciseTitle} />
 
       <div className="grid grid-cols-2 gap-3">
         <div className="min-w-0 space-y-1">
-          <Label
-            htmlFor={`exercise-recommendations-reps-${itemId}`}
-            className={doctorMetaTextClass}
-          >
+          <Label htmlFor={`exercise-recommendations-reps-${itemId}`}>
             Повторы
           </Label>
           <Input
@@ -188,10 +188,7 @@ export function DoctorExerciseRecommendationsModal(props: {
           />
         </div>
         <div className="min-w-0 space-y-1">
-          <Label
-            htmlFor={`exercise-recommendations-sets-${itemId}`}
-            className={doctorMetaTextClass}
-          >
+          <Label htmlFor={`exercise-recommendations-sets-${itemId}`}>
             Подходы
           </Label>
           <Input
@@ -202,10 +199,7 @@ export function DoctorExerciseRecommendationsModal(props: {
           />
         </div>
         <div className="min-w-0 space-y-1">
-          <Label
-            htmlFor={`exercise-recommendations-pain-${itemId}`}
-            className={doctorMetaTextClass}
-          >
+          <Label htmlFor={`exercise-recommendations-pain-${itemId}`}>
             Макс. боль
           </Label>
           <Input
@@ -216,10 +210,7 @@ export function DoctorExerciseRecommendationsModal(props: {
           />
         </div>
         <div className="min-w-0 space-y-1">
-          <Label
-            htmlFor={`exercise-recommendations-weight-${itemId}`}
-            className={doctorMetaTextClass}
-          >
+          <Label htmlFor={`exercise-recommendations-weight-${itemId}`}>
             Вес, кг
           </Label>
           <Input
@@ -232,7 +223,7 @@ export function DoctorExerciseRecommendationsModal(props: {
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor={`exercise-recommendations-note-${itemId}`} className={doctorMetaTextClass}>
+        <Label htmlFor={`exercise-recommendations-note-${itemId}`}>
           Заметка специалиста
         </Label>
         <Textarea

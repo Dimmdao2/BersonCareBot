@@ -14,7 +14,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from './primitives/sheet
 import { useIsMobileViewport } from './primitives/useIsMobileViewport';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import {
-  doctorPageTitleClass,
+  doctorModalEntityTitleClass,
+  doctorModalTitleClass,
   doctorSectionTitleClass,
 } from '@/shared/ui/doctor/doctorVisual';
 
@@ -54,6 +55,26 @@ type DoctorModalProps = {
   /** Called before a non-modal right sheet closes from a pointer press outside it. */
   onRightSheetOutsidePress?: () => void;
 };
+
+export function DoctorModalCompositeTitle({
+  label,
+  entity,
+}: {
+  label: ReactNode;
+  entity?: ReactNode;
+}) {
+  return (
+    <span className="line-clamp-2">
+      <span>{label}</span>
+      {entity ? (
+        <>
+          {': '}
+          <span className={doctorModalEntityTitleClass}>{entity}</span>
+        </>
+      ) : null}
+    </span>
+  );
+}
 
 /**
  * Канонический контейнер-модалка доктора.
@@ -139,10 +160,14 @@ export function DoctorModal({
   );
 
   const footerNode = footer ? (
-    <div className="grid shrink-0 grid-flow-col auto-cols-fr gap-2 border-t border-border/60 bg-muted/30 px-4 py-3 [&>*]:min-w-0 [&>*]:w-full max-sm:[&>div]:contents max-sm:[&>div>*]:w-full sm:flex sm:justify-end sm:[&>*]:w-auto">
+    <div className="grid shrink-0 grid-flow-col auto-cols-fr gap-2 border-t border-border/60 bg-muted/30 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] [&>*]:min-w-0 [&>*]:w-full max-sm:[&>div]:contents max-sm:[&>div>*]:w-full sm:flex sm:justify-end sm:[&>*]:w-auto">
       {footer}
     </div>
   ) : null;
+
+  const mobileSafeAreaNode = footer ? null : (
+    <div aria-hidden="true" className="h-[env(safe-area-inset-bottom,0px)] shrink-0 bg-card" />
+  );
 
   const bodyHeaderNode = bodyHeader ? (
     <div className="shrink-0 border-b border-border/60 bg-card">{bodyHeader}</div>
@@ -168,9 +193,9 @@ export function DoctorModal({
     return (
       <Drawer open={open} onOpenChange={handleOpenChange}>
         <DrawerContent showCloseButton={false} className="gap-0 bg-card p-0">
-          <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pt-3 pb-3">
+          <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pt-1.5 pb-3">
             <div className="flex min-w-0 items-center justify-between gap-2">
-              <DrawerTitle className={doctorPageTitleClass}>{title}</DrawerTitle>
+              <DrawerTitle className={doctorModalTitleClass}>{title}</DrawerTitle>
               {headerTrailingNode}
             </div>
             {description && <DrawerDescription>{description}</DrawerDescription>}
@@ -178,6 +203,7 @@ export function DoctorModal({
           {bodyHeaderNode}
           {body}
           {footerNode}
+          {mobileSafeAreaNode}
         </DrawerContent>
       </Drawer>
     );
@@ -214,7 +240,7 @@ export function DoctorModal({
             style={{ minHeight: 'var(--doctor-page-header-h, 2.75rem)' }}
           >
             <div className="flex min-w-0 items-center justify-between gap-2">
-              <SheetTitle className={doctorPageTitleClass}>{title}</SheetTitle>
+              <SheetTitle className={doctorModalTitleClass}>{title}</SheetTitle>
               {headerTrailingNode}
             </div>
             {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
@@ -238,7 +264,7 @@ export function DoctorModal({
       >
         <DialogHeader className="shrink-0 border-b border-border/60 px-4 pt-4 pb-3 pr-12">
           <div className="flex min-w-0 items-center justify-between gap-2">
-            <DialogTitle className={doctorPageTitleClass}>{title}</DialogTitle>
+            <DialogTitle className={doctorModalTitleClass}>{title}</DialogTitle>
             {headerTrailingNode}
           </div>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}

@@ -3,7 +3,7 @@ import type { ChatMessageDeliveryStatus } from '@/modules/messaging/chatMessageD
 import { ChatMessageDeliveryTicks } from './ChatMessageDeliveryTicks';
 
 type Props = {
-  timeLabel: string;
+  timeLabel?: string;
   deliveryStatus: ChatMessageDeliveryStatus;
   className?: string;
   ticksClassName?: string;
@@ -18,7 +18,9 @@ export function ChatBubbleOutgoingMeta({
 }: Props) {
   return (
     <div className={cn('mt-1 flex items-center justify-end gap-0.5', className)}>
-      <span className="text-[11px] leading-none tabular-nums opacity-80">{timeLabel}</span>
+      {timeLabel ? (
+        <span className="text-[11px] leading-none tabular-nums opacity-80">{timeLabel}</span>
+      ) : null}
       <ChatMessageDeliveryTicks
         status={deliveryStatus}
         className={cn('opacity-90', ticksClassName)}

@@ -9,10 +9,12 @@ import {
   doctorDnaFlatListClickableClass,
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListRowClass,
-  doctorDnaFlatListSecondaryClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
-import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import {
+  doctorListPreviewTextClass,
+  doctorSectionTitleClass,
+} from '@/shared/ui/doctor/doctorVisual';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import { DoctorProgramItemDiscussionDialog } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramItemDiscussionDialog';
@@ -64,9 +66,7 @@ function ExerciseCommentRow({
           <span className={cn(doctorDnaFlatListMetaClass, 'mt-0.5 block')}>
             {item.latestMessageAtLabel}
           </span>
-          <span className={cn(doctorDnaFlatListSecondaryClass, 'mt-0.5 line-clamp-2')}>
-            {latestCommentPreview(item)}
-          </span>
+          <span className={doctorListPreviewTextClass}>{latestCommentPreview(item)}</span>
         </span>
       </Button>
     </li>
@@ -160,26 +160,23 @@ export function DoctorTodayExerciseCommentsModal({
   };
 
   return (
-    <>
-      <DoctorModal
-        open={open}
-        onClose={handleClose}
-        title="Комментарии"
-        size="lg"
-        bodyVariant="list"
-        desktopPresentation="right-sheet"
-      >
-        {groups.length > 0 ? (
-          groups.map((group) => (
-            <PatientCommentGroup key={group.patientUserId} group={group} onOpen={openDiscussion} />
-          ))
-        ) : (
-          <p className="px-4 py-4 text-center text-sm text-muted-foreground">
-            Нет новых комментариев по упражнениям
-          </p>
-        )}
-      </DoctorModal>
-
+    <DoctorModal
+      open={open}
+      onClose={handleClose}
+      title="Комментарии"
+      size="lg"
+      bodyVariant="list"
+      desktopPresentation="right-sheet"
+    >
+      {groups.length > 0 ? (
+        groups.map((group) => (
+          <PatientCommentGroup key={group.patientUserId} group={group} onOpen={openDiscussion} />
+        ))
+      ) : (
+        <p className="px-4 py-4 text-center text-sm text-muted-foreground">
+          Нет новых комментариев по упражнениям
+        </p>
+      )}
       {selectedItem ? (
         <DoctorProgramItemDiscussionDialog
           instanceId={selectedItem.instanceId}
@@ -192,6 +189,6 @@ export function DoctorTodayExerciseCommentsModal({
           onMarkedRead={() => onMarkedRead(selectedItem)}
         />
       ) : null}
-    </>
+    </DoctorModal>
   );
 }

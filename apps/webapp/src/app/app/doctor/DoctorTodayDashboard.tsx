@@ -1,6 +1,5 @@
 'use client';
 
-import { CircleHelp, Dumbbell, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
@@ -12,7 +11,9 @@ import {
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
+  doctorDnaFlatListUnreadTextClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -110,56 +111,31 @@ function DoctorTodayPeopleSection({
       ) : (
         <>
           <DoctorDnaFlatList>
-            {people.map((client, index) => (
-              <li key={client.userId}>
-                <Link
-                  id={`doctor-today-person-${client.userId}`}
-                  href={client.href}
-                  aria-label={peopleItemName(client)}
-                  className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} justify-between gap-2${index === 0 ? ' border-t-0' : ''}`}
-                >
-                  <span className={`${doctorDnaFlatListPrimaryClass} min-w-0 truncate`}>
-                    <span className="block truncate">{peopleItemName(client)}</span>
-                  </span>
-                  <div
-                    className={`ml-auto flex shrink-0 items-center gap-2 ${doctorDnaFlatListMetaClass}`}
+            {people.map((client, index) => {
+              const attentionCount = client.unreadMessagesCount + client.newExerciseCommentsCount;
+              const name = peopleItemName(client);
+              return (
+                <li key={client.userId}>
+                  <Link
+                    id={`doctor-today-person-${client.userId}`}
+                    href={client.href}
+                    aria-label={
+                      attentionCount > 0
+                        ? `${name}, новых сообщений и комментариев: ${attentionCount}`
+                        : name
+                    }
+                    className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} justify-between gap-2${index === 0 ? ' border-t-0' : ''}`}
                   >
                     <span
-                      className="inline-flex items-center gap-1"
-                      title="Новые сообщения"
-                      aria-label={`Новые сообщения: ${client.unreadMessagesCount}`}
+                      className={`${doctorDnaFlatListPrimaryClass} min-w-0 truncate ${attentionCount > 0 ? doctorDnaFlatListUnreadTextClass : ''}`}
                     >
-                      <MessageSquare className="size-3.5" aria-hidden />
-                      {client.unreadMessagesCount > 0 ? (
-                        <span className="tabular-nums">{client.unreadMessagesCount}</span>
-                      ) : null}
+                      <span className="block truncate">{name}</span>
                     </span>
-                    <span
-                      className="inline-flex items-center gap-1"
-                      title="Отметки упражнений за сегодня"
-                      aria-label={`Отметки упражнений за сегодня: ${client.exerciseDoneTodayCount}`}
-                    >
-                      <Dumbbell className="size-3.5" aria-hidden />
-                      {client.exerciseDoneTodayCount > 0 ? (
-                        <span className="tabular-nums">{client.exerciseDoneTodayCount}</span>
-                      ) : null}
-                    </span>
-                    <span
-                      className="inline-flex items-center gap-1"
-                      title="Новые комментарии по упражнениям"
-                      aria-label={`Новые комментарии по упражнениям: ${client.newExerciseCommentsCount}`}
-                    >
-                      <span className="inline-flex size-4 items-center justify-center rounded-full border border-border/70">
-                        <CircleHelp className="size-3" aria-hidden />
-                      </span>
-                      {client.newExerciseCommentsCount > 0 ? (
-                        <span className="tabular-nums">{client.newExerciseCommentsCount}</span>
-                      ) : null}
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            ))}
+                    <DoctorAttentionBadge count={attentionCount} className="shrink-0" />
+                  </Link>
+                </li>
+              );
+            })}
           </DoctorDnaFlatList>
           {peopleListTruncated ? (
             <p>

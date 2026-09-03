@@ -13,6 +13,11 @@ import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
 import type { DoctorExerciseCommentCursor } from '@/modules/program-item-discussion/types';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
+import {
+  dayKeyFromIso,
+  formatChatMessageTimeRu,
+  formatChatRelativeDateLabelRu,
+} from '@/modules/messaging/messageFormatting';
 import type { CommentPatientRow } from './loadDoctorCommentPatients';
 import type {
   PatientExercisesWithCommentsResult,
@@ -33,7 +38,12 @@ import {
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
-import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
+import {
+  doctorChatMessageTextClass,
+  doctorChatTimestampClass,
+  doctorInlineLinkClass,
+  doctorMetaTextClass,
+} from '@/shared/ui/doctor/doctorVisual';
 import { patientCardHref } from '../patients/patientCardHref';
 import { patientProgramInstanceHref } from '../patients/patientProgramInstanceHref';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
@@ -367,39 +377,32 @@ function ThreadMessage({
   }
 
   return (
-    <div className={cn('flex px-4 py-2.5', isPatient ? 'justify-start' : 'justify-end')}>
-      <div
-        className={cn(
-          'w-fit max-w-[85%] rounded-md px-3 py-2 shadow-sm',
-          isPatient ? chatBubblePeerClass : chatBubbleOwnClass,
-          isUnread && 'border-l-2 border-l-primary',
-        )}
-      >
-        <div className="mb-1 flex items-baseline justify-between gap-2">
-          <span className="flex items-baseline gap-1.5 text-xs font-semibold text-muted-foreground">
-            {isPatient ? 'Пациент' : 'Врач'}
-            {isUnread && (
-              <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                новое
-              </span>
-            )}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {formatRelativeTime(message.createdAt)}
-          </span>
-        </div>
-        {message.body && (
-          <p className="text-sm text-foreground whitespace-pre-wrap">{message.body}</p>
-        )}
-        {!message.body && !message.mediaFileId && (
-          <p className="text-sm text-muted-foreground italic">—</p>
-        )}
+    <div className={cn('flex flex-col gap-1 px-4 py-2.5', isPatient ? 'items-start' : 'items-end')}>
+      <div className={cn('flex max-w-full items-end gap-1.5', !isPatient && 'justify-end')}>
+        {!isPatient ? (
+          <p className={doctorChatTimestampClass}>{formatChatMessageTimeRu(message.createdAt)}</p>
+        ) : null}
+        <div
+          className={cn(
+            'min-w-0 w-fit max-w-[min(100%,22rem)] rounded-md px-3 py-2 shadow-sm',
+            doctorChatMessageTextClass,
+            isPatient ? chatBubblePeerClass : chatBubbleOwnClass,
+            isUnread && 'border-l-2 border-l-primary',
+            isPatient && !success && !replyOpen && 'cursor-pointer',
+          )}
+          onClick={() => {
+            if (isPatient && !success && !replyOpen) setReplyOpen(true);
+          }}
+        >
+          {message.body && <p className="whitespace-pre-wrap break-words">{message.body}</p>}
+          {!message.body && !message.mediaFileId && (
+            <p className="text-sm text-muted-foreground italic">—</p>
+          )}
 
-        {success && <p className="mt-1.5 text-xs text-primary">Ответ отправлен</p>}
+          {success && <p className="mt-1.5 text-xs text-primary">Ответ отправлен</p>}
 
-        {isPatient && !success && (
-          <div className="mt-1.5">
-            {replyOpen ? (
+          {isPatient && !success && replyOpen && (
+            <div className="mt-1.5">
               <MessageComposer
                 value={replyText}
                 onValueChange={setReplyText}
@@ -418,7 +421,8 @@ function ThreadMessage({
                     type="button"
                     size="sm"
                     variant="ghost"
-                    onClick={() => {
+                    onClick={(event) => {
+                      event.stopPropagation();
                       setReplyOpen(false);
                       setReplyText('');
                       setError(null);
@@ -427,22 +431,15 @@ function ThreadMessage({
                     Отмена
                   </Button>
                 }
-                renderTextarea={(props) => <Textarea {...props} className="text-sm resize-none" />}
+                renderTextarea={(props) => <Textarea {...props} className="resize-none text-sm" />}
                 renderSubmit={(props) => <Button {...props} size="sm" />}
               />
-            ) : (
-              <Button
-                type="button"
-                variant="link"
-                size="sm"
-                onClick={() => setReplyOpen(true)}
-                className={cn(doctorInlineLinkClass, 'text-xs h-auto p-0')}
-              >
-                Ответить
-              </Button>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
+        {isPatient ? (
+          <p className={doctorChatTimestampClass}>{formatChatMessageTimeRu(message.createdAt)}</p>
+        ) : null}
       </div>
     </div>
   );
@@ -1136,16 +1133,28 @@ function DoctorCommentsDesktopTab({
           )}
           {!threadLoading && !threadError && threadMessages.length > 0 && (
             <div className="flex flex-col">
-              {threadMessages.map((msg) => (
-                <ThreadMessage
-                  key={msg.id}
-                  message={msg}
-                  instanceId={instanceId}
-                  stageItemId={selectedExercise.stageItemId}
-                  peerLastReadAt={peerLastReadAt}
-                  onReplied={() => void loadThread(instanceId, selectedExercise.stageItemId)}
-                />
-              ))}
+              {threadMessages.map((msg, index) => {
+                const previousMessage = index > 0 ? threadMessages[index - 1] : null;
+                const startsNewDay =
+                  !previousMessage ||
+                  dayKeyFromIso(previousMessage.createdAt) !== dayKeyFromIso(msg.createdAt);
+                return (
+                  <div key={msg.id}>
+                    {startsNewDay ? (
+                      <p className={cn(doctorMetaTextClass, 'px-4 pt-3 pb-1 text-center')}>
+                        {formatChatRelativeDateLabelRu(msg.createdAt, new Date())}
+                      </p>
+                    ) : null}
+                    <ThreadMessage
+                      message={msg}
+                      instanceId={instanceId}
+                      stageItemId={selectedExercise.stageItemId}
+                      peerLastReadAt={peerLastReadAt}
+                      onReplied={() => void loadThread(instanceId, selectedExercise.stageItemId)}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

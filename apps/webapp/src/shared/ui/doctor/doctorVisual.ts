@@ -61,6 +61,12 @@ export const doctorHistoryRowClass = 'rounded-md border border-border/60 bg-mute
 /** Page title (h1 in AppShell content or standalone page headers). */
 export const doctorPageTitleClass = 'text-[18px] font-medium tracking-tight text-foreground';
 
+/** Title in the shared doctor modal header. */
+export const doctorModalTitleClass = 'text-base font-medium tracking-tight text-foreground';
+
+/** Entity name composed into a doctor modal header; visually equal to the modal title. */
+export const doctorModalEntityTitleClass = doctorModalTitleClass;
+
 /** Section title for h2/h3 in doctor pages. */
 export const doctorSectionTitleClass =
   'text-base leading-6 font-semibold text-foreground md:text-sm md:leading-5';
@@ -68,11 +74,22 @@ export const doctorSectionTitleClass =
 /** Default body copy in doctor pages. */
 export const doctorBodyTextClass = 'text-base leading-6 text-foreground md:text-sm md:leading-5';
 
+/** Message copy inside doctor chat bubbles. */
+export const doctorChatMessageTextClass = 'text-[15px] leading-[22px] text-foreground';
+
+/** Timestamp placed beside a doctor chat bubble. */
+export const doctorChatTimestampClass =
+  'shrink-0 pb-0.5 text-xs leading-4 tabular-nums text-muted-foreground/70';
+
 /** Primary entity/title line in doctor lists. */
 export const doctorPrimaryListTextClass = 'text-base font-normal text-foreground';
 
 /** Secondary content line in doctor lists (message/comment preview). */
 export const doctorSecondaryListTextClass = 'text-sm font-normal text-foreground/80';
+
+/** Two-line body preview used for messages and comments in attention lists. */
+export const doctorListPreviewTextClass =
+  'mt-0.5 line-clamp-2 whitespace-normal break-words text-sm leading-5 font-normal text-foreground [overflow-wrap:anywhere]';
 
 /** Secondary labels, timestamps, hints, and metadata. */
 export const doctorMetaTextClass =

@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUp, CornerDownLeft, Pencil, Trash2, X } from 'lucide-react';
+import { ArrowUp, ChartLine, Pencil, Trash2, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
@@ -15,6 +15,7 @@ import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 import { cn } from '@/lib/utils';
 import {
+  dayKeyFromIso,
   formatChatMessageTimeRu,
   formatChatRelativeDateLabelRu,
 } from '@/modules/messaging/messageFormatting';
@@ -29,6 +30,11 @@ import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import { ProgramItemDiscussionMessageBody } from '@/app/app/patient/treatment/ProgramItemDiscussionMessageBody';
 import type { ExerciseMedia } from '@/modules/lfk-exercises/types';
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
+import {
+  doctorChatMessageTextClass,
+  doctorChatTimestampClass,
+  doctorMetaTextClass,
+} from '@/shared/ui/doctor/doctorVisual';
 
 export type DoctorProgramDiscussionAssignment = {
   media: ExerciseMedia | null;
@@ -39,88 +45,71 @@ export type DoctorProgramDiscussionAssignment = {
   note: string | null;
 };
 
-export type DoctorProgramDiscussionExecutionMetrics = {
-  difficulty: 'easy' | 'medium' | 'hard' | null;
-  reps: number | null;
-  sets: number | null;
-  weightKg: number | null;
-};
-
-const difficultyLabel: Record<
-  NonNullable<DoctorProgramDiscussionExecutionMetrics['difficulty']>,
-  string
-> = {
-  easy: 'Легко',
-  medium: 'Средне',
-  hard: 'Тяжело',
-};
-
 function AssignmentToolbar({
   assignment,
+  onShowStatistics,
   onEdit,
 }: {
   assignment: DoctorProgramDiscussionAssignment;
+  onShowStatistics?: () => void;
   onEdit?: () => void;
 }) {
   const loadParts: string[] = [];
   if (assignment.reps !== null || assignment.sets !== null) {
-    loadParts.push(`${assignment.reps ?? '—'} × ${assignment.sets ?? '—'}`);
+    loadParts.push(
+      assignment.sets === null
+        ? `${assignment.reps ?? '—'} повт.`
+        : `${assignment.reps ?? '—'}×${assignment.sets}`,
+    );
   }
   if (assignment.weightKg !== null) loadParts.push(`${assignment.weightKg} кг`);
   if (assignment.maxPain !== null) loadParts.push(`Боль ≤ ${assignment.maxPain}`);
 
   return (
-    <div className="flex shrink-0 items-start gap-3 border-b border-border/60 bg-card px-4 py-3">
+    <div className="flex shrink-0 items-start gap-3 border-b border-border/60 bg-card px-4 py-2.5 shadow-sm">
       <ExerciseListCatalogThumb media={assignment.media} className="!size-11 !rounded-md" />
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-foreground">
-          {loadParts.length > 0 ? (
-            <span className="block truncate">{loadParts.join(' · ')}</span>
-          ) : (
-            <>
-              Нет рекомендации
-              <br />к выполнению
-            </>
-          )}
-        </p>
+        <div className="flex min-h-9 items-end gap-2">
+          <div className="min-w-0 flex-1 pb-1">
+            {loadParts.length > 0 ? (
+              <p className="text-sm font-medium text-foreground">{loadParts.join(', ')}</p>
+            ) : assignment.note ? null : (
+              <p className="text-sm font-medium text-foreground">Нет рекомендаций</p>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {onShowStatistics ? (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-9 shrink-0 text-muted-foreground"
+                onClick={onShowStatistics}
+                aria-label="Открыть статистику упражнения"
+              >
+                <ChartLine className="size-5" aria-hidden />
+              </Button>
+            ) : null}
+            {onEdit ? (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-9 shrink-0 text-muted-foreground"
+                onClick={onEdit}
+                aria-label="Изменить рекомендации"
+              >
+                <Pencil className="size-5" aria-hidden />
+              </Button>
+            ) : null}
+          </div>
+        </div>
         {assignment.note ? (
-          <p className="mt-1 line-clamp-2 whitespace-normal text-sm text-muted-foreground">
+          <p className="mt-0.5 whitespace-normal text-sm font-medium text-foreground">
             {assignment.note}
           </p>
         ) : null}
       </div>
-      {onEdit ? (
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="size-8 shrink-0 text-muted-foreground"
-          onClick={onEdit}
-          aria-label="Изменить рекомендации"
-        >
-          <Pencil className="size-4" aria-hidden />
-        </Button>
-      ) : null}
-    </div>
-  );
-}
-
-function PatientExecutionMetrics({
-  metrics,
-}: {
-  metrics: DoctorProgramDiscussionExecutionMetrics;
-}) {
-  const hasRepetitions = metrics.reps !== null || metrics.sets !== null;
-  return (
-    <div className="absolute top-5 right-0 w-20 text-xs leading-4 text-muted-foreground">
-      {metrics.difficulty ? (
-        <>
-          <p>Сложность:</p>
-          <p>{difficultyLabel[metrics.difficulty]}</p>
-        </>
-      ) : null}
-      {hasRepetitions ? <p>{`${metrics.reps ?? '—'} × ${metrics.sets ?? '—'}`}</p> : null}
-      {metrics.weightKg !== null ? <p>{metrics.weightKg} кг</p> : null}
     </div>
   );
 }
@@ -144,8 +133,8 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
   peerLastReadAt?: string | null;
   peerLastReadAtByStageItemId?: Record<string, string | null>;
   assignment?: DoctorProgramDiscussionAssignment | null;
+  onShowStatistics?: () => void;
   onEditAssignment?: () => void;
-  executionMetricsByMessageId?: Record<string, DoctorProgramDiscussionExecutionMetrics>;
   /** Per-item dialog can send directly without first selecting a patient message. */
   composerStageItemId?: string;
 }) {
@@ -162,8 +151,8 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     peerLastReadAt = null,
     peerLastReadAtByStageItemId,
     assignment = null,
+    onShowStatistics,
     onEditAssignment,
-    executionMetricsByMessageId = {},
     composerStageItemId,
   } = props;
   const sortedMessages = useMemo(() => [...messages].sort(compareMessages), [messages]);
@@ -172,7 +161,6 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
   const [replyDraft, setReplyDraft] = useState('');
   const [replySending, setReplySending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
-  const [touchReplyTargetId, setTouchReplyTargetId] = useState<string | null>(null);
   const [touchEnabled, setTouchEnabled] = useState(false);
   const [supportsHover, setSupportsHover] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<ProgramItemDiscussionMessage | null>(null);
@@ -249,7 +237,6 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     setActiveReplyMessageId(messageId);
     setReplyDraft('');
     setReplyError(null);
-    setTouchReplyTargetId(null);
     window.requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
@@ -327,7 +314,13 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {assignment ? <AssignmentToolbar assignment={assignment} onEdit={onEditAssignment} /> : null}
+      {assignment ? (
+        <AssignmentToolbar
+          assignment={assignment}
+          onShowStatistics={onShowStatistics}
+          onEdit={onEditAssignment}
+        />
+      ) : null}
       {error ? <p className="mx-4 mt-3 text-sm text-destructive">{error}</p> : null}
       {nextCursor ? (
         <Button
@@ -350,159 +343,157 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
             {loading ? 'Загрузка...' : 'Пока нет сообщений.'}
           </p>
         ) : (
-          sortedMessages.map((m) => {
+          sortedMessages.map((m, index) => {
             const fromPatient = m.senderRole === 'patient';
+            const previousMessage = index > 0 ? sortedMessages[index - 1] : null;
+            const startsNewDay =
+              !previousMessage ||
+              dayKeyFromIso(previousMessage.createdAt) !== dayKeyFromIso(m.createdAt);
             const itemLabel = showItemLabels ? itemLabelById.get(m.instanceStageItemId) : null;
-            const executionMetrics = fromPatient ? executionMetricsByMessageId[m.id] : null;
             const peerCursor =
               peerLastReadAtByStageItemId?.[m.instanceStageItemId] ?? peerLastReadAt ?? null;
             const deliveryStatus = !fromPatient
               ? chatMessageDeliveryStatus({ createdAt: m.createdAt, peerLastReadAt: peerCursor })
               : null;
-            const replyAffordanceVisible =
-              fromPatient && onSendReply && !composerStageItemId
-                ? activeReplyMessageId === m.id || touchReplyTargetId === m.id
-                : false;
             const canDeleteMedia =
               fromPatient && Boolean(m.mediaFileId) && Boolean(onDeleteMediaMessage);
             return (
-              <div
-                key={m.id}
-                className={cn(
-                  'group/row relative flex w-full flex-col gap-1',
-                  fromPatient
-                    ? canDeleteMedia
-                      ? 'items-start pr-32'
-                      : executionMetrics || (!composerStageItemId && onSendReply)
-                        ? 'items-start pr-24'
-                        : 'items-start'
-                    : 'items-end',
-                )}
-                onClick={() => {
-                  if (!fromPatient || !onSendReply || composerStageItemId) return;
-                  if (ignoreTapMessageIdRef.current === m.id) {
-                    ignoreTapMessageIdRef.current = null;
-                    return;
-                  }
-                  if (touchEnabled && !supportsHover) {
-                    setTouchReplyTargetId(m.id);
-                  }
-                  openReplyComposer(m.id);
-                }}
-              >
-                {itemLabel ? (
-                  <p className="text-xs font-medium text-muted-foreground">{itemLabel}</p>
+              <div key={m.id}>
+                {startsNewDay ? (
+                  <p className={cn(doctorMetaTextClass, 'mb-2 text-center')}>
+                    {formatChatRelativeDateLabelRu(m.createdAt, new Date())}
+                  </p>
                 ) : null}
-                <p className="text-xs text-muted-foreground">
-                  {formatChatRelativeDateLabelRu(m.createdAt, new Date())} ·{' '}
-                  {formatChatMessageTimeRu(m.createdAt)}
-                </p>
                 <div
                   className={cn(
-                    'max-w-[min(100%,22rem)] rounded-md border px-3 py-2 text-sm shadow-sm',
-                    fromPatient ? chatBubblePeerClass : chatBubbleOwnClass,
+                    'group/row relative flex w-full flex-col gap-1',
+                    fromPatient
+                      ? canDeleteMedia
+                        ? 'items-start pr-10'
+                        : 'items-start'
+                      : 'items-end',
                   )}
-                  onTouchStart={
-                    fromPatient && onSendReply && !composerStageItemId && touchEnabled
-                      ? (event) => {
-                          const touch = event.touches[0];
-                          if (!touch) return;
-                          touchDragRef.current = {
-                            messageId: m.id,
-                            startX: touch.clientX,
-                            startY: touch.clientY,
-                            openedBySwipe: false,
-                          };
-                        }
-                      : undefined
-                  }
-                  onTouchMove={
-                    fromPatient && onSendReply && !composerStageItemId && touchEnabled
-                      ? (event) => {
-                          const state = touchDragRef.current;
-                          const touch = event.touches[0];
-                          if (!state || !touch || state.messageId !== m.id || state.openedBySwipe)
-                            return;
-                          const dx = touch.clientX - state.startX;
-                          const dy = touch.clientY - state.startY;
-                          if (dx <= -48 && Math.abs(dy) <= 28) {
-                            state.openedBySwipe = true;
-                            ignoreTapMessageIdRef.current = m.id;
-                            openReplyComposer(m.id);
-                          }
-                        }
-                      : undefined
-                  }
-                  onTouchEnd={
-                    fromPatient && onSendReply && !composerStageItemId && touchEnabled
-                      ? () => {
-                          touchDragRef.current = null;
-                        }
-                      : undefined
-                  }
-                  onTouchCancel={
-                    fromPatient && onSendReply && !composerStageItemId && touchEnabled
-                      ? () => {
-                          touchDragRef.current = null;
-                        }
-                      : undefined
-                  }
+                  onClick={() => {
+                    if (!fromPatient || !onSendReply || composerStageItemId) return;
+                    if (ignoreTapMessageIdRef.current === m.id) {
+                      ignoreTapMessageIdRef.current = null;
+                      return;
+                    }
+                    openReplyComposer(m.id);
+                  }}
                 >
-                  <ProgramItemDiscussionMessageBody message={m} mine={false} />
-                  {!fromPatient && deliveryStatus ? (
-                    <ChatBubbleOutgoingMeta
-                      timeLabel={formatChatMessageTimeRu(m.createdAt)}
-                      deliveryStatus={deliveryStatus}
-                      ticksClassName="text-primary"
-                    />
+                  {itemLabel ? (
+                    <p className={cn(doctorMetaTextClass, 'font-medium')}>{itemLabel}</p>
+                  ) : null}
+                  <div
+                    className={cn(
+                      'flex max-w-full items-end gap-1.5',
+                      !fromPatient && 'justify-end',
+                    )}
+                  >
+                    {!fromPatient ? (
+                      <p className={doctorChatTimestampClass}>
+                        {formatChatMessageTimeRu(m.createdAt)}
+                      </p>
+                    ) : null}
+                    <div
+                      className={cn(
+                        'min-w-0 max-w-[min(100%,22rem)] rounded-md border px-3 py-2 shadow-sm',
+                        doctorChatMessageTextClass,
+                        fromPatient ? chatBubblePeerClass : chatBubbleOwnClass,
+                      )}
+                      onTouchStart={
+                        fromPatient && onSendReply && !composerStageItemId && touchEnabled
+                          ? (event) => {
+                              const touch = event.touches[0];
+                              if (!touch) return;
+                              touchDragRef.current = {
+                                messageId: m.id,
+                                startX: touch.clientX,
+                                startY: touch.clientY,
+                                openedBySwipe: false,
+                              };
+                            }
+                          : undefined
+                      }
+                      onTouchMove={
+                        fromPatient && onSendReply && !composerStageItemId && touchEnabled
+                          ? (event) => {
+                              const state = touchDragRef.current;
+                              const touch = event.touches[0];
+                              if (
+                                !state ||
+                                !touch ||
+                                state.messageId !== m.id ||
+                                state.openedBySwipe
+                              )
+                                return;
+                              const dx = touch.clientX - state.startX;
+                              const dy = touch.clientY - state.startY;
+                              if (dx <= -48 && Math.abs(dy) <= 28) {
+                                state.openedBySwipe = true;
+                                ignoreTapMessageIdRef.current = m.id;
+                                openReplyComposer(m.id);
+                              }
+                            }
+                          : undefined
+                      }
+                      onTouchEnd={
+                        fromPatient && onSendReply && !composerStageItemId && touchEnabled
+                          ? () => {
+                              touchDragRef.current = null;
+                            }
+                          : undefined
+                      }
+                      onTouchCancel={
+                        fromPatient && onSendReply && !composerStageItemId && touchEnabled
+                          ? () => {
+                              touchDragRef.current = null;
+                            }
+                          : undefined
+                      }
+                    >
+                      <ProgramItemDiscussionMessageBody
+                        message={m}
+                        mine={false}
+                        textClassName={doctorChatMessageTextClass}
+                      />
+                      {!fromPatient && deliveryStatus ? (
+                        <ChatBubbleOutgoingMeta
+                          deliveryStatus={deliveryStatus}
+                          ticksClassName="text-primary"
+                        />
+                      ) : null}
+                    </div>
+                    {fromPatient ? (
+                      <p className={doctorChatTimestampClass}>
+                        {formatChatMessageTimeRu(m.createdAt)}
+                      </p>
+                    ) : null}
+                  </div>
+                  {canDeleteMedia ? (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      className={cn(
+                        'absolute bottom-1 size-8 rounded-full border-border/70 bg-background/95 shadow-sm transition-opacity',
+                        'right-0',
+                        touchEnabled && !supportsHover
+                          ? 'opacity-100'
+                          : 'pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100',
+                      )}
+                      aria-label="Удалить файл из чата"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDeleteError(null);
+                        setDeleteTarget(m);
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
                   ) : null}
                 </div>
-                {executionMetrics ? <PatientExecutionMetrics metrics={executionMetrics} /> : null}
-                {fromPatient && onSendReply && !composerStageItemId ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className={cn(
-                      'absolute right-0 bottom-1 h-8 rounded-full border-border/70 bg-background/95 px-2.5 text-xs shadow-sm transition-opacity',
-                      touchEnabled && !supportsHover
-                        ? replyAffordanceVisible
-                          ? 'opacity-100'
-                          : 'pointer-events-none opacity-0'
-                        : 'pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100',
-                    )}
-                    aria-label="Ответить"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openReplyComposer(m.id);
-                    }}
-                  >
-                    <CornerDownLeft className="size-3.5" />
-                    Ответить
-                  </Button>
-                ) : null}
-                {canDeleteMedia ? (
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    className={cn(
-                      'absolute bottom-1 size-8 rounded-full border-border/70 bg-background/95 shadow-sm transition-opacity',
-                      onSendReply ? 'right-24' : 'right-0',
-                      touchEnabled && !supportsHover
-                        ? 'opacity-100'
-                        : 'pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100',
-                    )}
-                    aria-label="Удалить файл из чата"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setDeleteError(null);
-                      setDeleteTarget(m);
-                    }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                ) : null}
               </div>
             );
           })

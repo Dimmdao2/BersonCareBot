@@ -4,6 +4,11 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { ArrowUp, Loader } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import {
+  doctorChatMessageTextClass,
+  doctorChatTimestampClass,
+  doctorMetaTextClass,
+} from '@/shared/ui/doctor/doctorVisual';
 import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import { cn } from '@/lib/utils';
 import { ChatView } from '@/modules/messaging/components/ChatView';
@@ -81,22 +86,25 @@ export function DoctorChatPanel({
     }
   }, [conversationId, onReadStateChanged]);
 
-  const loadMessages = useCallback(async (deduplicateInitial = false) => {
-    try {
-      const data = await fetchDoctorChatMessages(conversationId, deduplicateInitial);
-      if (!data.ok) {
+  const loadMessages = useCallback(
+    async (deduplicateInitial = false) => {
+      try {
+        const data = await fetchDoctorChatMessages(conversationId, deduplicateInitial);
+        if (!data.ok) {
+          setError('Не удалось загрузить сообщения');
+          return;
+        }
+        const nextMessages = data.messages ?? [];
+        setMessages(nextMessages);
+        if (nextMessages.some((message) => message.senderRole === 'user' && !message.readAt)) {
+          void markRead();
+        }
+      } catch {
         setError('Не удалось загрузить сообщения');
-        return;
       }
-      const nextMessages = data.messages ?? [];
-      setMessages(nextMessages);
-      if (nextMessages.some((message) => message.senderRole === 'user' && !message.readAt)) {
-        void markRead();
-      }
-    } catch {
-      setError('Не удалось загрузить сообщения');
-    }
-  }, [conversationId, markRead]);
+    },
+    [conversationId, markRead],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -276,6 +284,9 @@ export function DoctorChatPanel({
         composer={composer}
         className="min-h-0 flex-1"
         onReplyToMessage={replyToMessage}
+        messageTextClassName={doctorChatMessageTextClass}
+        timestampClassName={doctorChatTimestampClass}
+        dayLabelClassName={doctorMetaTextClass}
       />
     </div>
   );

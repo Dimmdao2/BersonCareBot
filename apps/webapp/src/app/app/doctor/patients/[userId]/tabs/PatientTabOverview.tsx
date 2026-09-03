@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, FilePlus2, ListPlus } from 'lucide-react';
+import { FilePlus2, ListPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientSupportPanel';
@@ -79,6 +79,10 @@ import {
 } from '@/modules/specialist-tasks/taskPriority';
 import { routePaths } from '@/app-layer/routes/paths';
 import { formatRussianLongDateCompactLabel } from '@/shared/datetime/displayTimeZoneFormat';
+import {
+  DoctorExerciseActivityCalendar,
+  type DoctorExerciseActivityCalendarDay,
+} from '@/shared/ui/doctor/DoctorExerciseActivityCalendar';
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -180,10 +184,7 @@ interface ProgramActivityApiResponse {
   activity: DoctorPatientProgramActivity;
 }
 
-interface CalendarDay {
-  date: string; // YYYY-MM-DD
-  completedCount: number;
-}
+type CalendarDay = DoctorExerciseActivityCalendarDay;
 
 interface ExerciseCalendarApiResponse {
   ok: boolean;
@@ -289,8 +290,7 @@ function utcCalendarDayIndex(iso: string): number | null {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
   return Math.floor(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) /
-      (24 * 60 * 60 * 1000),
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) / (24 * 60 * 60 * 1000),
   );
 }
 
@@ -413,14 +413,6 @@ function monthRangeFor(year: number, month: number): { from: string; to: string 
   };
 }
 
-/** Russian month+year label for the given 1-based month. */
-function monthLabelFor(year: number, month: number): string {
-  return new Date(year, month - 1, 1).toLocaleDateString('ru-RU', {
-    month: 'long',
-    year: 'numeric',
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -482,9 +474,7 @@ function SymptomChart({
   const xLabels = validSeries[0].points.map((p) => p.visit);
   const nPoints = validSeries[0].points.length;
   const scrollable = nPoints > 5;
-  const W = scrollable
-    ? Math.max(baseWidth, padLeft + padRight + (nPoints - 1) * 104)
-    : baseWidth;
+  const W = scrollable ? Math.max(baseWidth, padLeft + padRight + (nPoints - 1) * 104) : baseWidth;
   const chartW = W - padLeft - padRight;
   const xOf = (i: number) => padLeft + (i / Math.max(nPoints - 1, 1)) * chartW;
 
@@ -540,62 +530,6 @@ function SymptomChart({
           ))}
         </g>
       </svg>
-    </div>
-  );
-}
-
-type CalendarDayStatus = 'full' | 'partial' | 'missed' | 'no-assign' | 'future' | 'today';
-
-interface CalendarCellData {
-  day: number;
-  status: CalendarDayStatus;
-  ratio?: number;
-}
-
-function CalendarCell({ day }: { day: CalendarCellData }) {
-  let bg = '';
-  let textColor = '';
-  let ring = '';
-
-  switch (day.status) {
-    case 'full':
-      bg = 'bg-primary';
-      textColor = 'text-white font-semibold';
-      break;
-    case 'partial':
-      bg = day.ratio && day.ratio > 0.4 ? 'bg-[hsl(215_45%_76%)]' : 'bg-[hsl(215_45%_89%)]';
-      textColor =
-        day.ratio && day.ratio > 0.4 ? 'text-white font-semibold' : 'text-muted-foreground';
-      break;
-    case 'missed':
-      bg = 'bg-background border border-border';
-      textColor = 'text-muted-foreground';
-      break;
-    case 'no-assign':
-      bg = 'bg-muted/40';
-      textColor = 'text-muted-foreground/50';
-      break;
-    case 'today':
-      bg = 'bg-background border border-border';
-      textColor = 'text-muted-foreground';
-      ring = 'ring-2 ring-[#e8c84a] ring-inset';
-      break;
-    case 'future':
-      bg = 'bg-muted/20';
-      textColor = 'text-muted-foreground/40';
-      break;
-  }
-
-  return (
-    <div
-      className={cn(
-        'h-[26px] rounded-md flex items-center justify-center text-[10px]',
-        bg,
-        textColor,
-        ring,
-      )}
-    >
-      {day.day}
     </div>
   );
 }
@@ -918,7 +852,6 @@ export function PatientTabOverview({
     : monthPartsFromIsoDate(new Date().toISOString().slice(0, 10));
   const [calYear, setCalYear] = useState(initialCalParts.year);
   const [calMonth, setCalMonth] = useState(initialCalParts.month);
-  const calendarSwipeStartXRef = useRef<number | null>(null);
   const [data, setData] = useState<OverviewData | null>(() => {
     if (
       initialClinicalState != null &&
@@ -982,10 +915,9 @@ export function PatientTabOverview({
     if (!stageExercisesModalOpen) return;
     let active = true;
 
-    void fetch(
-      `/api/doctor/comments/patients/${encodeURIComponent(userId)}/exercises`,
-      { credentials: 'include' },
-    )
+    void fetch(`/api/doctor/comments/patients/${encodeURIComponent(userId)}/exercises`, {
+      credentials: 'include',
+    })
       .then((response) =>
         response.ok
           ? (response.json() as Promise<{
@@ -1641,110 +1573,75 @@ export function PatientTabOverview({
         : prev,
     );
   };
-  const calendarGrid = buildCalendarGrid(data?.calendarDays ?? [], calYear, calMonth);
   const attentionTasks =
     tasksTodayIso && tasksDisplayIana
       ? selectSpecialistTasksDueTodayOrOverdue(data?.tasks ?? [], tasksTodayIso, tasksDisplayIana)
       : (data?.tasks.filter((task) => isSpecialistTaskOverdue(task)) ?? []);
   const tasksNeedAttention = attentionTasks.length > 0;
 
-  function handleCalendarTouchEnd(clientX: number) {
-    const startX = calendarSwipeStartXRef.current;
-    calendarSwipeStartXRef.current = null;
-    if (startX == null) return;
-    const delta = clientX - startX;
-    if (Math.abs(delta) < 48) return;
-    if (delta > 0) navigateCalMonth(-1);
-    if (delta < 0 && !isCalCurrentMonth) navigateCalMonth(1);
-  }
-
   const exerciseCalendar = (
-    <div
+    <DoctorExerciseActivityCalendar
       className="mt-3 border-t border-border/60 pt-3"
-      onTouchStart={(event) => {
-        calendarSwipeStartXRef.current = event.touches[0]?.clientX ?? null;
-      }}
-      onTouchEnd={(event) => handleCalendarTouchEnd(event.changedTouches[0]?.clientX ?? 0)}
-    >
-      <div className="mb-1.5 flex items-center gap-1.5" data-testid="cal-month-nav">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-label="Предыдущий месяц"
-          data-testid="cal-month-prev"
-          onClick={() => navigateCalMonth(-1)}
-          className="size-7 p-0 text-muted-foreground"
-        >
-          <ChevronLeft className="size-4" />
-        </Button>
-        <span
-          className="flex-1 text-center text-xs font-medium capitalize text-foreground"
-          data-testid="cal-month-label"
-        >
-          {monthLabelFor(calYear, calMonth)}
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-label="Следующий месяц"
-          data-testid="cal-month-next"
-          onClick={() => navigateCalMonth(1)}
-          disabled={isCalCurrentMonth}
-          className="size-7 p-0 text-muted-foreground disabled:opacity-30"
-        >
-          <ChevronRight className="size-4" />
-        </Button>
-      </div>
-
-      {isLoading || data?.calendarStatus === 'loading' ? (
-        <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка календаря…</p>
-      ) : null}
-      {!isLoading && data?.calendarStatus === 'error' ? (
-        <p className="py-2 text-xs text-muted-foreground">Данные о выполнении недоступны.</p>
-      ) : null}
-      {!isLoading && data?.calendarStatus === 'ok' ? (
-        <>
-          <div className="mb-0.5 grid grid-cols-7 gap-0.5">
-            {['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'].map((day) => (
-              <div
-                key={day}
-                className="flex h-4 items-center justify-center text-[10px] uppercase text-muted-foreground/70"
-              >
-                {day}
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-0.5">
-            {Array.from({ length: calendarGrid.firstDOW }).map((_, index) => (
-              <div key={`blank-${index}`} />
-            ))}
-            {calendarGrid.days.map((day) => (
-              <CalendarCell key={day.day} day={day} />
-            ))}
-          </div>
-          <div className="mt-1.5 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <span className="size-2.5 rounded-sm bg-primary" />
-              Полностью
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="size-2.5 rounded-sm bg-[hsl(215_45%_76%)]" />
-              Частично
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="size-2.5 rounded-sm border border-border bg-background" />
-              Не выполнено
-            </span>
-          </div>
-        </>
-      ) : null}
-    </div>
+      days={data?.calendarDays ?? []}
+      year={calYear}
+      month={calMonth}
+      state={
+        isLoading || data?.calendarStatus === 'loading'
+          ? 'loading'
+          : data?.calendarStatus === 'error'
+            ? 'error'
+            : 'ready'
+      }
+      disableNext={isCalCurrentMonth}
+      onMonthChange={navigateCalMonth}
+    />
   );
 
   // Message unread count
   const totalMessageUnread = data?.unreadFromUserCount ?? 0;
+  const noteFormModal = (
+    <DoctorModal
+      open={noteFormOpen}
+      onClose={() => setNoteFormOpen(false)}
+      title="Новая заметка"
+      size="sm"
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={() => setNoteFormOpen(false)}>
+            Отмена
+          </Button>
+          <Button
+            type="button"
+            onClick={() => void handleNoteSubmit()}
+            disabled={noteSaving || !noteText.trim()}
+          >
+            {noteSaving ? 'Сохранение…' : 'Сохранить'}
+          </Button>
+        </>
+      }
+    >
+      <Textarea
+        autoFocus
+        value={noteText}
+        onChange={(event) => setNoteText(event.target.value)}
+        rows={5}
+        placeholder="Текст заметки…"
+        className="resize-none"
+      />
+    </DoctorModal>
+  );
+  const taskFormDialog = (
+    <SpecialistTaskFormDialog
+      open={taskFormOpen}
+      onOpenChange={(open) => {
+        setTaskFormOpen(open);
+        if (!open) setEditingTask(null);
+      }}
+      patientUserId={userId}
+      editing={editingTask}
+      onSaved={handleTaskSaved}
+    />
+  );
 
   return (
     <div
@@ -2002,37 +1899,9 @@ export function PatientTabOverview({
             ) : (
               <DoctorEmptyState>Заметок нет</DoctorEmptyState>
             )}
+            {notesModalOpen ? noteFormModal : null}
           </DoctorModal>
-
-          <DoctorModal
-            open={noteFormOpen}
-            onClose={() => setNoteFormOpen(false)}
-            title="Новая заметка"
-            size="sm"
-            footer={
-              <>
-                <Button type="button" variant="outline" onClick={() => setNoteFormOpen(false)}>
-                  Отмена
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => void handleNoteSubmit()}
-                  disabled={noteSaving || !noteText.trim()}
-                >
-                  {noteSaving ? 'Сохранение…' : 'Сохранить'}
-                </Button>
-              </>
-            }
-          >
-            <Textarea
-              autoFocus
-              value={noteText}
-              onChange={(event) => setNoteText(event.target.value)}
-              rows={5}
-              placeholder="Текст заметки…"
-              className="resize-none"
-            />
-          </DoctorModal>
+          {!notesModalOpen ? noteFormModal : null}
         </section>
 
         {/* Задачи */}
@@ -2109,11 +1978,7 @@ export function PatientTabOverview({
                         patientDisplayName={header?.identity.displayName}
                         dueToday={
                           tasksTodayIso && tasksDisplayIana
-                            ? isSpecialistTaskDueOnDate(
-                                task,
-                                tasksTodayIso,
-                                tasksDisplayIana,
-                              )
+                            ? isSpecialistTaskDueOnDate(task, tasksTodayIso, tasksDisplayIana)
                             : false
                         }
                         canMutate={specialistTasksAvailable}
@@ -2129,18 +1994,9 @@ export function PatientTabOverview({
               ) : (
                 <DoctorEmptyState>Нет задач на сегодня или просроченных</DoctorEmptyState>
               )}
+              {tasksModalOpen ? taskFormDialog : null}
             </DoctorModal>
-
-            <SpecialistTaskFormDialog
-              open={taskFormOpen}
-              onOpenChange={(open) => {
-                setTaskFormOpen(open);
-                if (!open) setEditingTask(null);
-              }}
-              patientUserId={userId}
-              editing={editingTask}
-              onSaved={handleTaskSaved}
-            />
+            {!tasksModalOpen ? taskFormDialog : null}
           </section>
         ) : null}
 
@@ -2298,26 +2154,25 @@ export function PatientTabOverview({
               В этапе нет упражнений
             </DoctorEmptyState>
           )}
+          {selectedStageExercise && data?.programInstanceId ? (
+            <DoctorExerciseDetailModal
+              key={selectedStageExercise.id}
+              open
+              onOpenChange={(nextOpen) => {
+                if (!nextOpen) setSelectedStageExerciseId(null);
+              }}
+              instanceId={data.programInstanceId}
+              item={selectedStageExercise}
+              unreadCount={
+                stageExerciseComments?.userId === userId
+                  ? (stageExerciseComments.counts[selectedStageExercise.id]?.unread ?? 0)
+                  : 0
+              }
+              onItemUpdated={updateStageExercise}
+              onMarkedRead={markStageExerciseCommentsRead}
+            />
+          ) : null}
         </DoctorModal>
-
-        {selectedStageExercise && data?.programInstanceId ? (
-          <DoctorExerciseDetailModal
-            key={selectedStageExercise.id}
-            open
-            onOpenChange={(nextOpen) => {
-              if (!nextOpen) setSelectedStageExerciseId(null);
-            }}
-            instanceId={data.programInstanceId}
-            item={selectedStageExercise}
-            unreadCount={
-              stageExerciseComments?.userId === userId
-                ? (stageExerciseComments.counts[selectedStageExercise.id]?.unread ?? 0)
-                : 0
-            }
-            onItemUpdated={updateStageExercise}
-            onMarkedRead={markStageExerciseCommentsRead}
-          />
-        ) : null}
 
         {/* Сопровождение — moved here from Учётка (S2.5) */}
         {!isComposed ? (
@@ -2398,78 +2253,4 @@ export function PatientTabOverview({
       </div>
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Calendar grid builder — converts API days to renderable cells
-// ---------------------------------------------------------------------------
-
-interface CalendarGrid {
-  firstDOW: number; // blank cells before day 1 (0 = Mon)
-  days: CalendarCellData[];
-}
-
-/** Build renderable calendar cells for the given year+month (1-based). */
-function buildCalendarGrid(
-  apiDays: CalendarDay[],
-  viewYear: number,
-  viewMonth: number,
-): CalendarGrid {
-  const now = new Date();
-  const todayYear = now.getFullYear();
-  const todayMonthIdx = now.getMonth(); // 0-based
-  const todayDay = now.getDate();
-
-  // viewMonth is 1-based; convert for Date constructor (month arg is 0-based)
-  const daysInMonth = new Date(viewYear, viewMonth, 0).getDate(); // day 0 of month+1
-
-  // First day of week offset (Mon = 0): getDay() returns 0=Sun, 1=Mon, …6=Sat
-  const firstOfMonth = new Date(viewYear, viewMonth - 1, 1);
-  const jsDay = firstOfMonth.getDay(); // 0=Sun
-  const firstDOW = jsDay === 0 ? 6 : jsDay - 1; // convert to Mon-based
-
-  // Is the viewed month the current real month?
-  const isCurrentMonth = viewYear === todayYear && viewMonth - 1 === todayMonthIdx;
-
-  // Build lookup by day number (1-31)
-  const completedByDay = new Map<number, number>();
-  for (const apiDay of apiDays) {
-    const d = parseInt(apiDay.date.slice(8, 10), 10);
-    completedByDay.set(d, (completedByDay.get(d) ?? 0) + apiDay.completedCount);
-  }
-
-  const days: CalendarCellData[] = [];
-  for (let d = 1; d <= daysInMonth; d++) {
-    const completedCount = completedByDay.get(d);
-    let status: CalendarCellData['status'];
-
-    // For a past month — all days are past; for current month — use today boundary
-    const isPast = !isCurrentMonth || d < todayDay;
-    const isToday = isCurrentMonth && d === todayDay;
-    const isFuture = isCurrentMonth && d > todayDay;
-
-    if (isFuture) {
-      status = 'future';
-    } else if (isToday) {
-      status = 'today';
-    } else if (isPast && completedCount === undefined) {
-      status = 'no-assign';
-    } else if (!isPast && completedCount === undefined) {
-      status = 'future';
-    } else if ((completedCount ?? 0) >= 3) {
-      status = 'full';
-    } else if ((completedCount ?? 0) >= 1) {
-      status = 'partial';
-    } else {
-      status = 'missed';
-    }
-
-    days.push({
-      day: d,
-      status,
-      ratio: completedCount ? Math.min(completedCount / 3, 1) : undefined,
-    });
-  }
-
-  return { firstDOW, days };
 }
