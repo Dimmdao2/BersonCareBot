@@ -2275,7 +2275,7 @@ export function PatientTabOverview({
                         <p
                           className={cn(
                             doctorDnaFlatListPrimaryClass,
-                            'line-clamp-2 leading-snug',
+                            'line-clamp-2 whitespace-normal leading-snug',
                             commentCounts?.unread ? 'pr-4' : undefined,
                           )}
                         >
