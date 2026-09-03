@@ -88,6 +88,7 @@ function UnreadConversationModalItem({
         unreadFromUserCount: item.unreadFromUserCount,
       }}
       onClick={onOpen}
+      variant="unread-preview"
     />
   );
 }
@@ -250,6 +251,19 @@ export function DoctorTodayLeftKpiRow({
         count={unreadTotal}
         showCount={false}
         desktopPresentation="right-sheet"
+        nestedModals={
+          <DoctorConversationChatModal
+            conversationId={selectedConversation?.conversationId ?? null}
+            displayName={
+              selectedConversation
+                ? [selectedConversation.lastName, selectedConversation.firstName]
+                    .filter(Boolean)
+                    .join(' ') || selectedConversation.displayName
+                : ''
+            }
+            onClose={() => setSelectedConversation(null)}
+          />
+        }
         items={unreadConversations}
         renderItem={(item) => (
           <li>
@@ -267,18 +281,6 @@ export function DoctorTodayLeftKpiRow({
             </Link>
           </p>
         }
-      />
-
-      <DoctorConversationChatModal
-        conversationId={selectedConversation?.conversationId ?? null}
-        displayName={
-          selectedConversation
-            ? [selectedConversation.lastName, selectedConversation.firstName]
-                .filter(Boolean)
-                .join(' ') || selectedConversation.displayName
-            : ''
-        }
-        onClose={() => setSelectedConversation(null)}
       />
 
       {/* KpiPreviewModal: Тесты к проверке (SEG-02) */}
@@ -310,6 +312,32 @@ export function DoctorTodayLeftKpiRow({
         showCount={false}
         desktopPresentation="right-sheet"
         items={attentionTasks}
+        nestedModals={
+          <>
+            <SpecialistTaskFormDialog
+              open={taskFormOpen}
+              onOpenChange={setTaskFormOpen}
+              patientUserId=""
+              editing={null}
+              onSaved={onTaskSaved}
+            />
+            <SpecialistTaskDetailsDialog
+              open={selectedTask != null}
+              onClose={() => setSelectedTaskId(null)}
+              task={selectedTask}
+              patientDisplayName={
+                selectedTask?.patientUserId
+                  ? taskPatientNames[selectedTask.patientUserId]
+                  : undefined
+              }
+              displayIana={displayIana}
+              canMutate={tasksAvailable}
+              busy={taskMutationPending}
+              onComplete={onTaskComplete}
+              onTaskSaved={onTaskSaved}
+            />
+          </>
+        }
         footer={
           <div className="flex w-full items-center justify-between gap-2">
             <Link
@@ -355,28 +383,6 @@ export function DoctorTodayLeftKpiRow({
             Нет задач на сегодня или просроченных
           </p>
         }
-      />
-
-      <SpecialistTaskFormDialog
-        open={taskFormOpen}
-        onOpenChange={setTaskFormOpen}
-        patientUserId=""
-        editing={null}
-        onSaved={onTaskSaved}
-      />
-
-      <SpecialistTaskDetailsDialog
-        open={selectedTask != null}
-        onClose={() => setSelectedTaskId(null)}
-        task={selectedTask}
-        patientDisplayName={
-          selectedTask?.patientUserId ? taskPatientNames[selectedTask.patientUserId] : undefined
-        }
-        displayIana={displayIana}
-        canMutate={tasksAvailable}
-        busy={taskMutationPending}
-        onComplete={onTaskComplete}
-        onTaskSaved={onTaskSaved}
       />
     </>
   );

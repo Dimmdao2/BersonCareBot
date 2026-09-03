@@ -19,8 +19,9 @@ import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discus
 export function ProgramItemDiscussionMessageBody(props: {
   message: ProgramItemDiscussionMessage;
   mine: boolean;
+  textClassName?: string;
 }) {
-  const { message, mine } = props;
+  const { message, mine, textClassName } = props;
   const [playerOpen, setPlayerOpen] = useState(false);
   const [playbackResult, setPlaybackResult] = useState<{
     mediaId: string;
@@ -136,7 +137,13 @@ export function ProgramItemDiscussionMessageBody(props: {
   if (!message.body?.trim()) return null;
 
   return (
-    <p className={cn('whitespace-pre-wrap break-words', mine ? undefined : patientBodyTextClass)}>
+    <p
+      className={cn(
+        'whitespace-pre-wrap break-words',
+        mine ? undefined : patientBodyTextClass,
+        textClassName,
+      )}
+    >
       {message.body}
     </p>
   );

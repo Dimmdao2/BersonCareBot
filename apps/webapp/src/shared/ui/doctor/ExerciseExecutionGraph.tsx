@@ -33,6 +33,10 @@ export type ExerciseExecutionGraphProps = {
   dayBars: DayBar[];
   windowDays?: 7 | 30;
   onWindowChange?: (days: 7 | 30) => void;
+  showWindowToggle?: boolean;
+  chartTitle?: string;
+  centerChartTitle?: boolean;
+  showRelativeYAxis?: boolean;
   className?: string;
   /**
    * CMT-05: IANA timezone name (e.g. "Europe/Moscow") for converting ISO metric
@@ -149,6 +153,10 @@ export function ExerciseExecutionGraph({
   dayBars,
   windowDays = 7,
   onWindowChange,
+  showWindowToggle = true,
+  chartTitle = 'Динамика метрик',
+  centerChartTitle = false,
+  showRelativeYAxis = false,
   className,
   displayIana,
 }: ExerciseExecutionGraphProps) {
@@ -176,12 +184,13 @@ export function ExerciseExecutionGraph({
   // ── Line chart setup ──────────────────────────────────────────────────────
 
   const n = ordered.length;
-  const innerW = viewWidth - PADDING.left - PADDING.right;
+  const linePaddingLeft = showRelativeYAxis ? 34 : PADDING.left;
+  const innerW = viewWidth - linePaddingLeft - PADDING.right;
 
   const xPositions: number[] =
     n <= 1
-      ? [PADDING.left + innerW / 2]
-      : ordered.map((_, i) => PADDING.left + (i / (n - 1)) * innerW);
+      ? [linePaddingLeft + innerW / 2]
+      : ordered.map((_, i) => linePaddingLeft + (i / (n - 1)) * innerW);
 
   // Severity (difficulty) series
   const difficultyRaw = ordered.map((p) => difficultyToNumeric(p.difficulty));
@@ -245,26 +254,34 @@ export function ExerciseExecutionGraph({
   return (
     <div className={className}>
       {/* Window toggle */}
-      <div className="mb-3 flex gap-1">
-        {([7, 30] as const).map((d) => (
-          <Button
-            key={d}
-            type="button"
-            size="sm"
-            variant={windowDays === d ? 'default' : 'secondary'}
-            onClick={() => onWindowChange?.(d)}
-            className="h-8 px-3"
-          >
-            {d} дней
-          </Button>
-        ))}
-      </div>
+      {showWindowToggle ? (
+        <div className="mb-3 flex gap-1">
+          {([7, 30] as const).map((d) => (
+            <Button
+              key={d}
+              type="button"
+              size="sm"
+              variant={windowDays === d ? 'default' : 'secondary'}
+              onClick={() => onWindowChange?.(d)}
+              className="h-8 px-3"
+            >
+              {d} дней
+            </Button>
+          ))}
+        </div>
+      ) : null}
 
       {/* ── Line chart ── */}
       {hasAnyMetric ? (
         <div className="mb-3">
-          <p className={cn(doctorMetaTextClass, 'mb-1 font-medium uppercase tracking-wide')}>
-            Динамика метрик
+          <p
+            className={cn(
+              doctorMetaTextClass,
+              'mb-1 font-medium',
+              centerChartTitle && 'text-center',
+            )}
+          >
+            {chartTitle}
           </p>
           <div className="doctor-weekly-chart-scroll min-w-0 overflow-x-auto overscroll-x-contain">
             <svg
@@ -272,100 +289,112 @@ export function ExerciseExecutionGraph({
               style={{ width: scrollWidth, minWidth: '100%', height: 'auto', display: 'block' }}
               aria-label="Динамика метрик упражнения"
             >
-            {/* Background grid lines */}
-            {[0, 25, 50, 75, 100].map((pct) => {
-              const innerH = CHART_H - PADDING.top - PADDING.bottom;
-              const y = PADDING.top + innerH * (1 - pct / 100);
-              return (
-                <line
-                  key={pct}
-                  x1={PADDING.left}
-                  y1={y}
-                  x2={viewWidth - PADDING.right}
-                  y2={y}
-                  stroke="#e5e7eb"
-                  strokeWidth={0.5}
-                />
-              );
-            })}
+              {/* Background grid lines */}
+              {[0, 25, 50, 75, 100].map((pct) => {
+                const innerH = CHART_H - PADDING.top - PADDING.bottom;
+                const y = PADDING.top + innerH * (1 - pct / 100);
+                return (
+                  <g key={pct}>
+                    <line
+                      x1={linePaddingLeft}
+                      y1={y}
+                      x2={viewWidth - PADDING.right}
+                      y2={y}
+                      stroke="#e5e7eb"
+                      strokeWidth={0.5}
+                    />
+                    {showRelativeYAxis && pct % 50 === 0 ? (
+                      <text
+                        x={linePaddingLeft - 6}
+                        y={y + 3}
+                        textAnchor="end"
+                        fontSize={10}
+                        fill="#9ca3af"
+                      >
+                        {pct}
+                      </text>
+                    ) : null}
+                  </g>
+                );
+              })}
 
-            {/* Severity line — red */}
-            {hasDifficulty && difficultyPolyline && (
-              <>
-                <polyline
-                  data-testid="line-severity"
-                  points={difficultyPolyline}
-                  fill="none"
-                  stroke="#ef4444"
-                  strokeWidth={2}
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                />
-                {difficultyDots.map((pt, i) => (
-                  <circle key={i} cx={pt.x} cy={pt.y} r={3.5} fill="#ef4444" />
-                ))}
-              </>
-            )}
+              {/* Severity line — red */}
+              {hasDifficulty && difficultyPolyline && (
+                <>
+                  <polyline
+                    data-testid="line-severity"
+                    points={difficultyPolyline}
+                    fill="none"
+                    stroke="#ef4444"
+                    strokeWidth={2}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                  {difficultyDots.map((pt, i) => (
+                    <circle key={i} cx={pt.x} cy={pt.y} r={3.5} fill="#ef4444" />
+                  ))}
+                </>
+              )}
 
-            {/* Weight line — blue */}
-            {hasWeight && weightPolyline && (
-              <>
-                <polyline
-                  data-testid="line-weight"
-                  points={weightPolyline}
-                  fill="none"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                />
-                {weightDots.map((pt, i) => (
-                  <circle key={i} cx={pt.x} cy={pt.y} r={3.5} fill="#3b82f6" />
-                ))}
-              </>
-            )}
+              {/* Weight line — blue */}
+              {hasWeight && weightPolyline && (
+                <>
+                  <polyline
+                    data-testid="line-weight"
+                    points={weightPolyline}
+                    fill="none"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                  {weightDots.map((pt, i) => (
+                    <circle key={i} cx={pt.x} cy={pt.y} r={3.5} fill="#3b82f6" />
+                  ))}
+                </>
+              )}
 
-            {/* Reps×sets line — emerald */}
-            {hasReps && repsPolyline && (
-              <>
-                <polyline
-                  data-testid="line-reps"
-                  points={repsPolyline}
-                  fill="none"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                />
-                {repsDots.map((pt, i) => (
-                  <circle key={i} cx={pt.x} cy={pt.y} r={3.5} fill="#10b981" />
-                ))}
-              </>
-            )}
+              {/* Reps×sets line — emerald */}
+              {hasReps && repsPolyline && (
+                <>
+                  <polyline
+                    data-testid="line-reps"
+                    points={repsPolyline}
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                  {repsDots.map((pt, i) => (
+                    <circle key={i} cx={pt.x} cy={pt.y} r={3.5} fill="#10b981" />
+                  ))}
+                </>
+              )}
 
-            {/* X-axis date labels for metric points */}
-            {ordered.map((p, i) => {
-              const x = xPositions[i];
-              const label = formatIsoDateShort(p.at);
-              const previousLabel = i > 0 ? formatIsoDateShort(ordered[i - 1]!.at) : null;
-              const maxLabels = Math.max(7, timelineDays);
-              const show =
-                label !== previousLabel &&
-                (n <= maxLabels || i % Math.ceil(n / maxLabels) === 0 || i === n - 1);
-              if (!show) return null;
-              return (
-                <text
-                  key={p.at}
-                  x={x}
-                  y={CHART_H - 4}
-                  textAnchor="middle"
-                  fontSize={11}
-                  fill="#9ca3af"
-                >
-                  {label}
-                </text>
-              );
-            })}
+              {/* X-axis date labels for metric points */}
+              {ordered.map((p, i) => {
+                const x = xPositions[i];
+                const label = formatIsoDateShort(p.at);
+                const previousLabel = i > 0 ? formatIsoDateShort(ordered[i - 1]!.at) : null;
+                const maxLabels = Math.max(7, timelineDays);
+                const show =
+                  label !== previousLabel &&
+                  (n <= maxLabels || i % Math.ceil(n / maxLabels) === 0 || i === n - 1);
+                if (!show) return null;
+                return (
+                  <text
+                    key={p.at}
+                    x={x}
+                    y={CHART_H - 4}
+                    textAnchor="middle"
+                    fontSize={11}
+                    fill="#9ca3af"
+                  >
+                    {label}
+                  </text>
+                );
+              })}
             </svg>
           </div>
           {/* Legend */}
@@ -447,76 +476,76 @@ export function ExerciseExecutionGraph({
               style={{ width: scrollWidth, minWidth: '100%', height: 'auto', display: 'block' }}
               aria-label="Выполнение заданий по дням"
             >
-            {dayBars.map((day, i) => {
-              const slotX = PADDING.left + i * slotW;
-              const cx = slotX + slotW / 2;
-              const barX = cx - barW / 2;
-              const barHeightPx =
-                day.assignedCount === 0
-                  ? 0
-                  : Math.max(2, Math.round((day.assignedCount / maxAssigned) * barInnerH));
-              const barY = PADDING.top + barInnerH - barHeightPx;
-              const color = dayBarColor(day.assignedCount, day.doneCount);
-              const label = formatLocalDate(day.localDate);
-              const title = `${label}: ${day.doneCount}/${day.assignedCount}`;
-              const isHovered = hoveredDay?.dayBar.localDate === day.localDate;
+              {dayBars.map((day, i) => {
+                const slotX = PADDING.left + i * slotW;
+                const cx = slotX + slotW / 2;
+                const barX = cx - barW / 2;
+                const barHeightPx =
+                  day.assignedCount === 0
+                    ? 0
+                    : Math.max(2, Math.round((day.assignedCount / maxAssigned) * barInnerH));
+                const barY = PADDING.top + barInnerH - barHeightPx;
+                const color = dayBarColor(day.assignedCount, day.doneCount);
+                const label = formatLocalDate(day.localDate);
+                const title = `${label}: ${day.doneCount}/${day.assignedCount}`;
+                const isHovered = hoveredDay?.dayBar.localDate === day.localDate;
 
-              return (
-                <g
-                  key={day.localDate}
-                  role="img"
-                  aria-label={title}
-                  onMouseEnter={() => handleDayHover(day, i)}
-                  style={{ cursor: 'default' }}
-                >
-                  <title>{title}</title>
-                  {/* Hover hit area (wider than the bar) */}
-                  <rect
-                    x={slotX}
-                    y={PADDING.top}
-                    width={slotW}
-                    height={barInnerH + PADDING.bottom}
-                    fill="transparent"
-                  />
-                  {day.assignedCount > 0 && (
+                return (
+                  <g
+                    key={day.localDate}
+                    role="img"
+                    aria-label={title}
+                    onMouseEnter={() => handleDayHover(day, i)}
+                    style={{ cursor: 'default' }}
+                  >
+                    <title>{title}</title>
+                    {/* Hover hit area (wider than the bar) */}
                     <rect
-                      x={barX}
-                      y={barY}
-                      width={barW}
-                      height={barHeightPx}
-                      rx={2}
-                      fill={color}
-                      opacity={isHovered ? 1 : 0.85}
-                      stroke={isHovered ? color : 'none'}
-                      strokeWidth={isHovered ? 1 : 0}
+                      x={slotX}
+                      y={PADDING.top}
+                      width={slotW}
+                      height={barInnerH + PADDING.bottom}
+                      fill="transparent"
                     />
-                  )}
-                  {day.assignedCount === 0 && (
-                    <rect
-                      x={barX}
-                      y={PADDING.top + barInnerH - 2}
-                      width={barW}
-                      height={2}
-                      rx={1}
-                      fill="#e5e7eb"
-                    />
-                  )}
-                  {/* Date label */}
-                  {(barsN <= 31 || i % Math.ceil(barsN / 31) === 0 || i === barsN - 1) && (
-                    <text
-                      x={cx}
-                      y={PADDING.top + barInnerH + 12}
-                      textAnchor="middle"
-                      fontSize={11}
-                      fill={isHovered ? '#6b7280' : '#9ca3af'}
-                      fontWeight={isHovered ? '600' : 'normal'}
-                    >
-                      {label}
-                    </text>
-                  )}
-                </g>
-              );
-            })}
+                    {day.assignedCount > 0 && (
+                      <rect
+                        x={barX}
+                        y={barY}
+                        width={barW}
+                        height={barHeightPx}
+                        rx={2}
+                        fill={color}
+                        opacity={isHovered ? 1 : 0.85}
+                        stroke={isHovered ? color : 'none'}
+                        strokeWidth={isHovered ? 1 : 0}
+                      />
+                    )}
+                    {day.assignedCount === 0 && (
+                      <rect
+                        x={barX}
+                        y={PADDING.top + barInnerH - 2}
+                        width={barW}
+                        height={2}
+                        rx={1}
+                        fill="#e5e7eb"
+                      />
+                    )}
+                    {/* Date label */}
+                    {(barsN <= 31 || i % Math.ceil(barsN / 31) === 0 || i === barsN - 1) && (
+                      <text
+                        x={cx}
+                        y={PADDING.top + barInnerH + 12}
+                        textAnchor="middle"
+                        fontSize={11}
+                        fill={isHovered ? '#6b7280' : '#9ca3af'}
+                        fontWeight={isHovered ? '600' : 'normal'}
+                      >
+                        {label}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
             </svg>
           </div>
 

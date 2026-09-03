@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useId, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -39,6 +39,8 @@ export type SpecialistTaskFormContentProps = {
   editing: SpecialistTaskRow | null;
   onSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
   onClose: () => void;
+  formId?: string;
+  showInlineActions?: boolean;
 };
 
 export function SpecialistTaskFormContent({
@@ -46,6 +48,8 @@ export function SpecialistTaskFormContent({
   editing,
   onSaved,
   onClose,
+  formId,
+  showInlineActions = true,
 }: SpecialistTaskFormContentProps) {
   const [title, setTitle] = useState(editing?.title ?? '');
   const [description, setDescription] = useState(editing?.description ?? '');
@@ -115,6 +119,7 @@ export function SpecialistTaskFormContent({
   const isGlobal = !patientUserId.trim();
 
   function handleSubmit() {
+    if (isPending || !title.trim()) return;
     setError(null);
     const effectivePatientUserId = isGlobal ? (linkedPatient?.id ?? null) : patientUserId;
 
@@ -164,33 +169,14 @@ export function SpecialistTaskFormContent({
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <Input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Кратко"
-        maxLength={500}
-      />
-      <Textarea
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder="Подробнее"
-        rows={3}
-      />
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Срок</span>
-        <DoctorDateTimePicker value={dueAt} onChange={setDueAt} />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Напомнить</span>
-        <DoctorDateTimePicker value={remindAt} onChange={setRemindAt} />
-      </label>
-      <LabeledSwitch
-        label="Важное"
-        checked={isImportant}
-        onCheckedChange={setIsImportant}
-        disabled={isPending}
-      />
+    <form
+      id={formId}
+      className="flex flex-col gap-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        handleSubmit();
+      }}
+    >
       {/* Patient picker: shown only for global tasks (patientUserId === "") */}
       {isGlobal ? (
         <DoctorCalendarPatientSearch
@@ -199,16 +185,51 @@ export function SpecialistTaskFormContent({
           disabled={isPending}
         />
       ) : null}
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Задача</span>
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Кратко"
+          maxLength={500}
+          required
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Описание</span>
+        <Textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Подробнее"
+          rows={3}
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Срок</span>
+        <DoctorDateTimePicker value={dueAt} onChange={setDueAt} />
+      </label>
+      <LabeledSwitch
+        label="Важное"
+        checked={isImportant}
+        onCheckedChange={setIsImportant}
+        disabled={isPending}
+      />
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Напомнить</span>
+        <DoctorDateTimePicker value={remindAt} onChange={setRemindAt} />
+      </label>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      <div className="flex justify-end gap-2 pt-1">
-        <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
-          Отмена
-        </Button>
-        <Button type="button" onClick={handleSubmit} disabled={isPending || !title.trim()}>
-          {isPending ? 'Сохранение…' : 'Сохранить'}
-        </Button>
-      </div>
-    </div>
+      {showInlineActions ? (
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
+            Отмена
+          </Button>
+          <Button type="submit" disabled={isPending || !title.trim()}>
+            {isPending ? 'Сохранение…' : 'Сохранить'}
+          </Button>
+        </div>
+      ) : null}
+    </form>
   );
 }
 
@@ -227,12 +248,24 @@ export function SpecialistTaskFormDialog({
   editing,
   onSaved,
 }: Props) {
+  const formId = useId();
+
   return (
     <DoctorModal
       open={open}
       onClose={() => onOpenChange(false)}
       title={editing ? 'Изменить задачу' : 'Новая задача'}
       size="sm"
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Отмена
+          </Button>
+          <Button type="submit" form={formId}>
+            Сохранить
+          </Button>
+        </>
+      }
     >
       {open ? (
         <SpecialistTaskFormContent
@@ -241,6 +274,8 @@ export function SpecialistTaskFormDialog({
           editing={editing}
           onSaved={onSaved}
           onClose={() => onOpenChange(false)}
+          formId={formId}
+          showInlineActions={false}
         />
       ) : null}
     </DoctorModal>

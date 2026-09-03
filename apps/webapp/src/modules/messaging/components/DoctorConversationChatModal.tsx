@@ -1,6 +1,6 @@
 'use client';
 
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalCompositeTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorChatPanel } from './DoctorChatPanel';
 
 type DoctorConversationChatModalProps = {
@@ -23,7 +23,7 @@ export function DoctorConversationChatModal({
     <DoctorModal
       open={conversationId != null}
       onClose={onClose}
-      title={`Чат: ${displayName || '—'}`}
+      title={<DoctorModalCompositeTitle label="Чат" entity={displayName || '—'} />}
       size="content"
       desktopPresentation="right-sheet"
       bodyClassName="p-0"

@@ -8,6 +8,7 @@
  *  1. lfk_sessions — personal LFK diary sessions (manual complexes in bot/app)
  *  2. patient_practice_completions (non-warmup) — standalone content-page completions
  *  3. program_action_log (done) — treatment program exercise completions (main source)
+ * Optional instanceId + stageItemId restrict the result to one assigned exercise.
  */
 
 import { NextResponse } from 'next/server';
@@ -20,6 +21,7 @@ import {
 } from '@/app/app/doctor/patients/loadDoctorPatientExerciseCalendar';
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
+const uuidSchema = z.string().uuid();
 
 export async function GET(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
@@ -33,6 +35,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
   const url = new URL(request.url);
   const rawFrom = url.searchParams.get('from');
   const rawTo = url.searchParams.get('to');
+  const rawInstanceId = url.searchParams.get('instanceId');
+  const rawStageItemId = url.searchParams.get('stageItemId');
 
   let fromDate: string | undefined;
   let toDate: string | undefined;
@@ -54,6 +58,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
     toDate = toResult.data;
   }
 
+  const exerciseFilterResult = z
+    .object({ instanceId: uuidSchema, stageItemId: uuidSchema })
+    .safeParse({ instanceId: rawInstanceId, stageItemId: rawStageItemId });
+  if ((rawInstanceId || rawStageItemId) && !exerciseFilterResult.success) {
+    return NextResponse.json({ ok: false, error: 'invalid_exercise_filter' }, { status: 400 });
+  }
+
   const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
@@ -64,18 +75,23 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
-  const patientIana =
-    (await deps.patientCalendarTimezone.getIanaForUser(identity.userId)) ?? 'UTC';
+  const patientIana = (await deps.patientCalendarTimezone.getIanaForUser(identity.userId)) ?? 'UTC';
   if (!fromDate || !toDate) {
     const current = currentPatientExerciseCalendarMonthRangeInIana(patientIana);
     fromDate = current.from;
     toDate = current.to;
   }
 
-  const snapshot = await loadDoctorPatientExerciseCalendar(deps, gate.ctx, identity.userId, {
-    from: fromDate,
-    to: toDate,
-  });
+  const snapshot = await loadDoctorPatientExerciseCalendar(
+    deps,
+    gate.ctx,
+    identity.userId,
+    {
+      from: fromDate,
+      to: toDate,
+    },
+    exerciseFilterResult.success ? exerciseFilterResult.data : undefined,
+  );
 
   return NextResponse.json({ ok: true, ...snapshot });
 }

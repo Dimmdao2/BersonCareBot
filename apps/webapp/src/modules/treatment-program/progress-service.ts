@@ -746,17 +746,30 @@ export function createTreatmentProgramProgressService(deps: {
     async listExerciseMetricsForWindow(params: {
       instanceId: string;
       instanceStageItemId: string;
-      windowDays: 7 | 30;
+      windowDays?: 7 | 30;
+      windowStartUtcIso?: string;
+      windowEndUtcExclusiveIso?: string;
     }): Promise<import('./types').ExerciseMetricPoint[]> {
       assertUuid(params.instanceId);
       assertUuid(params.instanceStageItemId);
-      const now = new Date();
-      // Use +1 min as exclusive upper bound so rows created at "now" are included.
-      const windowEndDate = new Date(now.getTime() + 60_000);
-      const windowEndUtcIso = windowEndDate.toISOString();
-      const windowStartDate = new Date(now);
-      windowStartDate.setUTCDate(windowStartDate.getUTCDate() - params.windowDays);
-      const windowStartUtcIso = windowStartDate.toISOString();
+      const hasExplicitStart = typeof params.windowStartUtcIso === 'string';
+      const hasExplicitEnd = typeof params.windowEndUtcExclusiveIso === 'string';
+      if (hasExplicitStart !== hasExplicitEnd) throw new Error('invalid_metric_window');
+
+      let windowStartUtcIso: string;
+      let windowEndUtcIso: string;
+      if (hasExplicitStart && hasExplicitEnd) {
+        windowStartUtcIso = params.windowStartUtcIso!;
+        windowEndUtcIso = params.windowEndUtcExclusiveIso!;
+      } else {
+        const now = new Date();
+        // Use +1 min as exclusive upper bound so rows created at "now" are included.
+        const windowEndDate = new Date(now.getTime() + 60_000);
+        windowEndUtcIso = windowEndDate.toISOString();
+        const windowStartDate = new Date(now);
+        windowStartDate.setUTCDate(windowStartDate.getUTCDate() - (params.windowDays ?? 7));
+        windowStartUtcIso = windowStartDate.toISOString();
+      }
       const rows = await actionLog.listDoneForStageItemInWindow({
         instanceId: params.instanceId,
         instanceStageItemId: params.instanceStageItemId,

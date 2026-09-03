@@ -90,6 +90,9 @@ type ChatViewProps = {
   relativeFooters?: boolean;
   className?: string;
   onReplyToMessage?: (message: SerializedSupportMessage) => void;
+  messageTextClassName?: string;
+  timestampClassName?: string;
+  dayLabelClassName?: string;
 };
 
 /** Каркас чата: группировка по дням, пузырьки, скролл вниз. */
@@ -101,6 +104,9 @@ export function ChatView({
   relativeFooters = false,
   className,
   onReplyToMessage,
+  messageTextClassName,
+  timestampClassName,
+  dayLabelClassName,
 }: ChatViewProps) {
   const patientRelative = variant === 'patient' && relativeFooters;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -118,7 +124,7 @@ export function ChatView({
   const scrollClasses = cn(
     'min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-4 pb-4 pt-1 md:pb-5',
     chatThreadSurfaceClass,
-    variant === 'doctor' && 'px-3',
+    variant === 'doctor' && 'px-4',
   );
 
   const patientBubbleMine = cn(
@@ -228,15 +234,79 @@ export function ChatView({
         ) : (
           grouped.map((g) => (
             <div key={g.dayKey}>
-              <p className="mb-2 text-center text-xs capitalize text-muted-foreground">
-                {g.dayLabel}
+              <p
+                className={cn(
+                  'mb-2 text-center capitalize',
+                  variant === 'doctor' ? dayLabelClassName : 'text-xs text-muted-foreground',
+                )}
+              >
+                {variant === 'doctor' && g.items[0]
+                  ? formatChatRelativeDateLabelRu(g.items[0].createdAt, new Date())
+                  : g.dayLabel}
               </p>
-              <div className={variant === 'doctor' ? 'space-y-3' : 'space-y-2'}>
+              <div className={variant === 'doctor' ? 'space-y-4' : 'space-y-2'}>
                 {g.items.map((m) => {
                   const mine = isAlignedRight(m.senderRole, variant);
                   const deliveryStatus = mine
                     ? chatMessageDeliveryStatus({ createdAt: m.createdAt, readAt: m.readAt })
                     : null;
+                  if (variant === 'doctor') {
+                    return (
+                      <div
+                        key={m.id}
+                        className={cn('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}
+                      >
+                        <div
+                          className={cn('flex max-w-full items-end gap-1.5', mine && 'justify-end')}
+                        >
+                          {mine ? (
+                            <p className={timestampClassName}>
+                              {formatChatMessageTimeRu(m.createdAt)}
+                            </p>
+                          ) : null}
+                          <div
+                            className={cn(
+                              'min-w-0 max-w-[min(100%,22rem)] rounded-md px-3 py-2 shadow-sm',
+                              messageTextClassName,
+                              mine ? chatBubbleOwnClass : chatBubblePeerClass,
+                              !mine && onReplyToMessage && 'cursor-pointer',
+                            )}
+                            onClick={
+                              !mine && onReplyToMessage ? () => onReplyToMessage(m) : undefined
+                            }
+                          >
+                            {m.mediaUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={m.mediaUrl}
+                                alt=""
+                                className={cn(
+                                  'max-h-60 w-auto max-w-full rounded-lg',
+                                  m.text ? 'mb-1.5' : undefined,
+                                )}
+                              />
+                            ) : null}
+                            {m.text ? (
+                              <p className="whitespace-pre-wrap break-words">
+                                {renderMessageText(m.text)}
+                              </p>
+                            ) : null}
+                            {mine && deliveryStatus ? (
+                              <ChatBubbleOutgoingMeta
+                                deliveryStatus={deliveryStatus}
+                                ticksClassName="text-primary"
+                              />
+                            ) : null}
+                          </div>
+                          {!mine ? (
+                            <p className={timestampClassName}>
+                              {formatChatMessageTimeRu(m.createdAt)}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  }
                   return (
                     <div key={m.id} className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
                       <div
@@ -294,7 +364,7 @@ export function ChatView({
           className={cn(
             'mt-auto shrink-0',
             variant === 'doctor' &&
-              'border-t border-border bg-card px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3',
+              'border-t border-border bg-card px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3',
           )}
         >
           {composer}

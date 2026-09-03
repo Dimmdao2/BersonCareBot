@@ -26,6 +26,8 @@ export type KpiPreviewModalProps<T> = {
   headerAction?: ReactNode;
   /** Optional canonical bottom action panel. */
   footer?: ReactNode;
+  /** Modals opened from this preview; preserves Base UI's nested drawer stack. */
+  nestedModals?: ReactNode;
   /** List of entities to display */
   items: T[];
   /**
@@ -60,6 +62,7 @@ export function KpiPreviewModal<T>({
   showCount = true,
   headerAction,
   footer,
+  nestedModals,
   items,
   renderItem,
   searchPlaceholder,
@@ -175,6 +178,7 @@ export function KpiPreviewModal<T>({
             ))}
           </DoctorDnaFlatList>
         )}
+        {nestedModals}
       </>
     </DoctorModal>
   );

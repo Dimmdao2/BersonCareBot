@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
+import { doctorListPreviewTextClass } from '@/shared/ui/doctor/doctorVisual';
 import {
   DoctorDnaFlatListSelectionStrip,
   doctorDnaFlatListClickableClass,
@@ -32,6 +33,7 @@ type DoctorConversationListRowProps = {
   conversation: DoctorConversationListRowData;
   displayIana?: string;
   selected?: boolean;
+  variant?: 'default' | 'unread-preview';
   href?: string;
   onClick?: () => void;
 };
@@ -62,15 +64,22 @@ export function DoctorConversationListRow({
   conversation,
   displayIana = 'Europe/Moscow',
   selected = false,
+  variant = 'default',
   href,
   onClick,
 }: DoctorConversationListRowProps) {
   const hasStructuredName = Boolean(conversation.lastName ?? conversation.firstName);
+  const isUnreadPreview = variant === 'unread-preview';
   const content = (
     <>
       {selected ? <DoctorDnaFlatListSelectionStrip /> : null}
       <div className="min-w-0 flex-1 overflow-hidden">
-        <div className="flex items-baseline justify-between gap-2">
+        <div
+          className={cn(
+            'flex justify-between gap-2',
+            isUnreadPreview ? 'items-center' : 'items-baseline',
+          )}
+        >
           <span
             className={cn(
               'min-w-0 truncate',
@@ -86,22 +95,31 @@ export function DoctorConversationListRow({
               <span className="ml-1.5 text-[10px] font-semibold text-primary">★</span>
             ) : null}
           </span>
-          <span
-            className={cn(
-              'shrink-0',
-              doctorDnaFlatListMetaClass,
-              conversation.unreadFromUserCount > 0 && doctorDnaFlatListUnreadTextClass,
-            )}
-          >
-            {formatConversationTime(conversation.lastMessageAt, displayIana)}
+          <span className="flex shrink-0 items-center gap-1.5">
+            <span
+              className={cn(
+                doctorDnaFlatListMetaClass,
+                !isUnreadPreview &&
+                  conversation.unreadFromUserCount > 0 &&
+                  doctorDnaFlatListUnreadTextClass,
+              )}
+            >
+              {formatConversationTime(conversation.lastMessageAt, displayIana)}
+            </span>
+            {isUnreadPreview ? (
+              <DoctorAttentionBadge count={conversation.unreadFromUserCount} />
+            ) : null}
           </span>
         </div>
         {conversation.lastMessageText ? (
           <p
             className={cn(
-              'mt-0.5 truncate',
-              doctorDnaFlatListSecondaryClass,
-              conversation.unreadFromUserCount > 0 && doctorDnaFlatListUnreadTextClass,
+              isUnreadPreview
+                ? doctorListPreviewTextClass
+                : cn('mt-0.5 truncate', doctorDnaFlatListSecondaryClass),
+              !isUnreadPreview &&
+                conversation.unreadFromUserCount > 0 &&
+                doctorDnaFlatListUnreadTextClass,
             )}
           >
             {conversation.lastSenderRole === 'admin' ? <span>Вы: </span> : null}
@@ -109,7 +127,9 @@ export function DoctorConversationListRow({
           </p>
         ) : null}
       </div>
-      <DoctorAttentionBadge count={conversation.unreadFromUserCount} className="self-center" />
+      {!isUnreadPreview ? (
+        <DoctorAttentionBadge count={conversation.unreadFromUserCount} className="self-center" />
+      ) : null}
     </>
   );
   const rowClassName = cn(

@@ -308,50 +308,49 @@ export function DoctorExerciseDetailModal({
             </Button>
           </div>
         </section>
+        {playableMedia ? (
+          <DoctorModal
+            open={videoOpen}
+            onClose={() => setVideoOpen(false)}
+            title={title}
+            size="content"
+            bodyClassName="justify-center"
+          >
+            <DoctorExerciseMediaPlayer media={playableMedia} title={title} />
+          </DoctorModal>
+        ) : null}
+
+        <DoctorExerciseRecommendationsModal
+          open={recommendationsOpen}
+          onClose={() => setRecommendationsOpen(false)}
+          instanceId={instanceId}
+          itemId={item.id}
+          exerciseTitle={title}
+          media={media}
+          initialValue={{
+            reps: load.reps,
+            sets: load.sets,
+            maxPain: load.maxPain,
+            weightKg: load.weightKg,
+            note: item.effectiveComment?.trim() || null,
+          }}
+          onSaved={({ item: savedItem }) => {
+            if (savedItem) onItemUpdated(savedItem);
+          }}
+        />
+
+        <DoctorProgramItemDiscussionDialog
+          instanceId={instanceId}
+          itemId={item.id}
+          itemLabel={title}
+          open={discussionOpen}
+          onOpenChange={setDiscussionOpen}
+          onMarkedRead={() => {
+            setUnreadMessages([]);
+            onMarkedRead(item.id);
+          }}
+        />
       </DoctorModal>
-
-      {playableMedia ? (
-        <DoctorModal
-          open={videoOpen}
-          onClose={() => setVideoOpen(false)}
-          title={title}
-          size="content"
-          bodyClassName="justify-center"
-        >
-          <DoctorExerciseMediaPlayer media={playableMedia} title={title} />
-        </DoctorModal>
-      ) : null}
-
-      <DoctorExerciseRecommendationsModal
-        open={recommendationsOpen}
-        onClose={() => setRecommendationsOpen(false)}
-        instanceId={instanceId}
-        itemId={item.id}
-        exerciseTitle={title}
-        media={media}
-        initialValue={{
-          reps: load.reps,
-          sets: load.sets,
-          maxPain: load.maxPain,
-          weightKg: load.weightKg,
-          note: item.effectiveComment?.trim() || null,
-        }}
-        onSaved={({ item: savedItem }) => {
-          if (savedItem) onItemUpdated(savedItem);
-        }}
-      />
-
-      <DoctorProgramItemDiscussionDialog
-        instanceId={instanceId}
-        itemId={item.id}
-        itemLabel={title}
-        open={discussionOpen}
-        onOpenChange={setDiscussionOpen}
-        onMarkedRead={() => {
-          setUnreadMessages([]);
-          onMarkedRead(item.id);
-        }}
-      />
     </>
   );
 }

@@ -40,7 +40,10 @@ export function currentPatientExerciseCalendarMonthRangeInIana(iana: string): {
 }
 
 /** @deprecated Use patientExerciseCalendarMonthRangeInIana with patient IANA. */
-export function patientExerciseCalendarMonthRange(year: number, month: number): {
+export function patientExerciseCalendarMonthRange(
+  year: number,
+  month: number,
+): {
   from: string;
   to: string;
 } {
@@ -77,13 +80,15 @@ type Deps = ReturnType<typeof buildAppDeps>;
 
 /**
  * Shared loader for patient exercise-completion calendar. Used by RSC bootstrap and
- * GET /api/doctor/patients/[userId]/exercise-calendar.
+ * GET /api/doctor/patients/[userId]/exercise-calendar. With exerciseFilter, returns
+ * only completion days for the selected assigned exercise.
  */
 export async function loadDoctorPatientExerciseCalendar(
   deps: Deps,
   workspace: DoctorWorkspaceAccessContext,
   patientUserId: string,
   range?: { from: string; to: string },
+  exerciseFilter?: { instanceId: string; stageItemId: string },
 ): Promise<DoctorPatientExerciseCalendarSnapshot> {
   const patientIana =
     (await deps.patientCalendarTimezone.getIanaForUser(patientUserId)) ?? FALLBACK_IANA;
@@ -99,25 +104,41 @@ export async function loadDoctorPatientExerciseCalendar(
     workspace,
     () =>
       Promise.all([
-        deps.diaries.listLfkSessionsInRange({
-          userId: patientUserId,
-          organizationId: workspace.organizationId,
-          fromCompletedAt,
-          toCompletedAtExclusive,
-        }),
-        deps.patientPractice.listByUserInUtcRange(
-          patientUserId,
-          fromCompletedAt,
-          toCompletedAtExclusive,
-          workspace.organizationId,
-        ),
-        deps.programActionLog.listDoneItemsByLocalDateInWindowForPatient({
-          patientUserId,
-          organizationId: workspace.organizationId,
-          windowStartUtcIso: fromCompletedAt,
-          windowEndUtcExclusiveIso: toCompletedAtExclusive,
-          displayIana: patientIana,
-        }),
+        exerciseFilter
+          ? Promise.resolve([])
+          : deps.diaries.listLfkSessionsInRange({
+              userId: patientUserId,
+              organizationId: workspace.organizationId,
+              fromCompletedAt,
+              toCompletedAtExclusive,
+            }),
+        exerciseFilter
+          ? Promise.resolve([])
+          : deps.patientPractice.listByUserInUtcRange(
+              patientUserId,
+              fromCompletedAt,
+              toCompletedAtExclusive,
+              workspace.organizationId,
+            ),
+        exerciseFilter
+          ? deps.programActionLog
+              .listDoneItemsByLocalDateInWindow({
+                instanceId: exerciseFilter.instanceId,
+                patientUserId,
+                windowStartUtcIso: fromCompletedAt,
+                windowEndUtcExclusiveIso: toCompletedAtExclusive,
+                displayIana: patientIana,
+              })
+              .then((rows) =>
+                rows.map((row) => ({ ...row, instanceId: exerciseFilter.instanceId })),
+              )
+          : deps.programActionLog.listDoneItemsByLocalDateInWindowForPatient({
+              patientUserId,
+              organizationId: workspace.organizationId,
+              windowStartUtcIso: fromCompletedAt,
+              windowEndUtcExclusiveIso: toCompletedAtExclusive,
+              displayIana: patientIana,
+            }),
       ]),
   );
 
@@ -134,6 +155,12 @@ export async function loadDoctorPatientExerciseCalendar(
     counts.set(day, (counts.get(day) ?? 0) + 1);
   }
   for (const item of programDoneItems) {
+    if (
+      exerciseFilter &&
+      (item.instanceId !== exerciseFilter.instanceId || item.itemId !== exerciseFilter.stageItemId)
+    ) {
+      continue;
+    }
     if (item.localDate < fromDate || item.localDate > toDate) continue;
     counts.set(item.localDate, (counts.get(item.localDate) ?? 0) + 1);
   }
