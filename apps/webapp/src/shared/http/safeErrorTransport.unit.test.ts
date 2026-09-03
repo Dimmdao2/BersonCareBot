@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LOG_SERIALIZERS, logger } from '@/infra/logging/logger';
 
-import { jsonError, resolveApiFailure, safeActionErrorCode } from './apiResponse';
+import {
+  jsonError,
+  resolveApiFailure,
+  safeActionErrorCode,
+  TypedApiResponseError,
+} from './apiResponse';
 
 /**
  * S4 (owner plan `docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md`, wave 03.09).
@@ -89,6 +94,36 @@ describe('shared error door — the id the user gets is the id the operator logs
     expect(operatorLog).toHaveBeenCalledTimes(1);
     const [payload] = operatorLog.mock.calls[0] as [{ operatorErrorDetail: unknown }];
     expect(payload.operatorErrorDetail).toBe(dbFailure);
+  });
+
+  /**
+   * The door has one trusted channel for an outcome a module authored on purpose — the typed error
+   * class — and server actions now use it (`entitlementMutationRefusalError`), because a tariff
+   * refusal is a sentence the doctor must read, not an internal failure to hide. The expensive and
+   * silent failure is the widening: someone re-opens the authored text for *any* `Error` — a
+   * literal allowlist of the sentence, a "looks authored" heuristic — and a rejected statement
+   * carrying that same text is back on the doctor's screen with every test still green.
+   */
+  it('trusts the typed authored outcome and still refuses the same text from a plain Error', () => {
+    const operatorLog = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const authored =
+      'Невозможно изменить настройки главной страницы пациента: этот раздел не входит в ваш тариф.';
+
+    const trusted = safeActionErrorCode(
+      new TypedApiResponseError({ code: authored, status: 403 }),
+      'toggle_failed',
+      'test_action_failure',
+    );
+    expect(trusted).toBe(authored);
+    expect(operatorLog).not.toHaveBeenCalled();
+
+    const impostor = safeActionErrorCode(
+      Object.assign(new Error(authored), { code: '42501' }),
+      'toggle_failed',
+      'test_action_failure',
+    );
+    expect(impostor).toBe('toggle_failed');
+    expect(operatorLog).toHaveBeenCalledTimes(1);
   });
 
   it('reuses one id for every failure of the same request instead of minting a new one', () => {

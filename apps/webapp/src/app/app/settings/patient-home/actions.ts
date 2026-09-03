@@ -9,7 +9,7 @@ import {
   type DoctorWorkspaceAccessContext,
 } from '@/app-layer/guards/requireRole';
 import {
-  entitlementMutationRefusalMessage,
+  entitlementMutationRefusalError,
   requireEntitlementForReadAction,
   requireEntitlementForMutationAction,
 } from '@/app-layer/guards/requireEntitlement';
@@ -23,7 +23,7 @@ import { PATIENT_HOME_USEFUL_POST_BADGE_LABEL } from '@/modules/patient-home/use
 import { validateContentSectionSlug } from '@/shared/lib/contentSectionSlug';
 import { systemParentCodeForPatientHomeBlock } from '@/modules/content-sections/types';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
-import { safeActionErrorCode } from '@/shared/http/apiResponse';
+import { safeActionErrorCode, TypedApiResponseError } from '@/shared/http/apiResponse';
 
 const targetTypeSchema = z.enum(['content_page', 'content_section', 'course', 'static_action']);
 const uuidSchema = z.string().uuid();
@@ -107,9 +107,7 @@ async function requireDoctorForPatientHomeMutation(): Promise<DoctorWorkspaceAcc
     'patient_home_today',
   );
   if (!todayEntitlement.ok) {
-    throw new Error(
-      entitlementMutationRefusalMessage('изменить настройки главной страницы пациента'),
-    );
+    throw entitlementMutationRefusalError('изменить настройки главной страницы пациента');
   }
   return workspace;
 }
@@ -131,7 +129,7 @@ async function requireWarmupsForPatientHomeBlockMutation(
   if (blockCode !== 'daily_warmup') return;
   const entitlement = await requireEntitlementForMutationAction(workspace, 'warmups');
   if (!entitlement.ok) {
-    throw new Error(entitlementMutationRefusalMessage(action));
+    throw entitlementMutationRefusalError(action);
   }
 }
 
@@ -433,7 +431,7 @@ export async function createContentSectionForPatientHomeBlock(input: {
   try {
     const workspace = await requireDoctorForPatientHomeMutation();
     const cmsEntitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-    if (!cmsEntitlement.ok) throw new Error('forbidden');
+    if (!cmsEntitlement.ok) throw new TypedApiResponseError({ code: 'forbidden', status: 403 });
     const blockCode = input.blockCode;
     if (!isPatientHomeBlockCode(blockCode)) {
       return { ok: false, error: 'invalid_block_code' };

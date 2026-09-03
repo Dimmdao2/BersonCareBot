@@ -199,3 +199,158 @@ throw в нескольких модулях), и заводить его в с�
 
 **Развилка владельца:** заводить ли этот workstream отдельным пунктом волны, и если да — до или после
 приземления S1+S4. До решения долг заморожен механически и расти не может.
+
+---
+
+# S4 — correction-проход после независимого аудита (04.09.2026)
+
+Роль раздела — **evidence исправления**, не приёмка. Вердикт `FAIL` артефакта
+`S4_ERROR_BOUNDARY_INDEPENDENT_AUDIT_2026-09-04.md` остаётся историческим фактом и не переписан.
+Оракул — kill-set и тесты того же артефакта; второй аудит не заводился.
+
+База: `3d9cfd152` (продуктовое состояние `c3ebdae26`). После механической правки мока ведущим полный
+фазовый набор приложения дал **пять** красных файлов, а не один.
+
+## C1. Причинность каждого падения, доказанная экспериментом
+
+| Файл | Причина | Кандидат виноват? |
+|---|---|---|
+| `api/payments/patientAcquiring.route.test.ts` | мок `@bersoncare/db-principal` без `getCurrentObservabilityContext` | **да** |
+| `api/payments/saasWebhook.route.test.ts` | то же | **да** |
+| `api/clinic/invites/route.route.test.ts` | то же | **да** |
+| `api/tariffMechanics.route.test.ts` (2 утверждения) | доверенный текст отказа по тарифу схлопнут в `forbidden` / `toggle_failed` | **да** |
+| `modules/auth/passwordAuth.route.test.ts` | тест зависит от переменной окружения `TEST_ACCOUNT_PHONES` | **нет** |
+
+**Импорт-аборты (три файла).** Кандидат добавил в `shared/http/apiResponse.ts` две строки импорта,
+которых на родителе не было:
+
+```bash
+git show babdc87e8^:apps/webapp/src/shared/http/apiResponse.ts | sed -n '1,3p'
+#   import { NextResponse } from 'next/server';        ← и всё
+sed -n '1,3p' apps/webapp/src/shared/http/apiResponse.ts
+#   + import { ensureCorrelationId } from '@bersoncare/db-principal';
+#   + import { logger } from '@/infra/logging/logger';
+```
+
+Логгер зовёт `getCurrentObservabilityContext` как `mixin` на уровне модуля, поэтому пакет попадает в
+граф любого файла, чей маршрут отвечает через `jsonError`, и неполный мок роняет файл на импорте.
+
+**Перепись доведена до конца, а не до первых трёх.** Проверены **все** файлы, мокающие пакет, —
+не только напечатанные до остановки Vitest:
+
+```bash
+grep -rln "vi.mock('@bersoncare/db-principal'" src | wc -l        → 47
+grep -rn "vi\.\(do\)\?mock(\s*[\"'`]@bersoncare/db-principal" src \
+  | grep -v "vi.mock('@bersoncare/db-principal'"                  → пусто (другой формы записи нет)
+pnpm --dir apps/webapp exec vitest run <все 47>                   → 3 failed | 44 passed (до правки)
+                                                                  → 47 passed (после)
+```
+
+Правка — тот же паттерн, что кандидат уже применил в `admin/commercial` и `clinic/billing`:
+`ensureCorrelationId` + `getCurrentObservabilityContext` в мок, с той же строкой-объяснением.
+`ensureCorrelationId` добавлен всем трём, потому что все три маршрута достижимо доходят до fallback-ветки.
+
+**Регрессия текста отказа по тарифу — настоящая продуктовая, не тестовая.** Гварды бросали
+`new Error(entitlementMutationRefusalMessage(...))`, то есть авторское русское предложение, которое
+панель показывает врачу дословно (`PatientHomePracticeTargetPanel.tsx:27` → `setError(res.error)`).
+Для двери такой `Error` неотличим от отказа PostgreSQL, и `safeActionErrorCode` — правильно — схлопывал
+его в фиксированный код. Виден был `forbidden` вместо причины «раздел не входит в ваш тариф».
+
+**`passwordAuth` кандидатом не вызван — доказано двумя способами.**
+
+```bash
+git diff --stat babdc87e8^ HEAD -- apps/webapp/src/modules/auth/passwordAuth.route.test.ts \
+  apps/webapp/src/app/api/auth/email-password/login/route.ts apps/webapp/src/config/testAccounts.ts \
+  apps/webapp/src/config/env.ts apps/webapp/src/modules/auth/passwordEligibility.ts \
+  apps/webapp/vitest.setup.ts apps/webapp/vitest.config.ts
+#   пусто — ни один файл этого пути кандидатом не тронут
+
+TEST_ACCOUNT_PHONES="+12025550101" pnpm --dir apps/webapp exec vitest run \
+  --project route src/modules/auth/passwordAuth.route.test.ts
+#   Test Files 1 passed (1) / Tests 17 passed (17)
+```
+
+Продуктовое поведение auth не менялось — см. «НЕ СДЕЛАНО» ниже.
+
+## C2. Конструкция исправления: существующий типизированный класс, а не вторая дверь
+
+Дверь уже несёт ровно один доверенный канал для авторского исхода — `TypedApiResponseError`
+(«a trusted typed error whose public HTTP representation is explicit at construction time»), и
+`mapApiError` разбирает его **первым**, до любых allowlist. Поэтому:
+
+- **новой функции в `apiResponse.ts` нет**, `safeActionErrorCode` **не параметризован**. Параметры
+  `literalRules`/`typedRules` ему не помогли бы: отказ собирается из свободного аргумента `action`
+  («показать блок разминок», «изменить настройки разминок»), перечислимого allowlist у него нет
+  по построению. Доверенный класс проходит через `safeActionErrorCode` без единой правки двери;
+- в `app-layer/guards/requireEntitlement.ts` — где уже живут `entitlementMutationRefusalMessage` и
+  `entitlementMutationRefusalResponse` — добавлен **третий транспорт того же решения**:
+  `entitlementMutationRefusalError(action, reason)`. Само предложение по-прежнему сочиняется ровно в
+  одной точке; новая функция говорит только, как оно едет. Это та же форма, что у самой S4:
+  одна `resolveApiFailure` и два транспорта вокруг неё;
+- четыре throw-сайта в двух action-файлах переведены на него; два `throw new Error('forbidden')`
+  там же — на `new TypedApiResponseError({ code: 'forbidden', status: 403 })`. Второй из них
+  (`settings/patient-home/actions.ts:434`, отсутствие `cms_pages`) кандидат схлопывал в
+  `create_section_failed` — тот же класс регрессии, просто без красного теста;
+- ни подстрочных эвристик, ни широкого разрешения `Error.message`, ни второй response/error-двери.
+  `String(error)`, касты и деструктуризация не трогались — это по-прежнему вопросы владельцу.
+
+Конструкция сильнее теста (§10a, ступень 1): понизить отказ обратно до `new Error(...)` **не
+компилируется** — `tsc` даёт `TS2741: Property 'descriptor' is missing in type 'Error' but required
+in type 'TypedApiResponseError'`.
+
+## C3. Инъекции для новой типизированной поверхности
+
+Три класса из брифа, по одной инъекции на класс; каждая откачена сразу, дерево проверено после каждой.
+
+| # | Что сломано | Покрасневшее утверждение |
+|---|---|---|
+| CI-1 | `resolveApiFailure` при промахе отдаёт `code: error.message` | `never puts raw PostgreSQL/Drizzle detail into the response body…`, `never lets raw PostgreSQL/Drizzle detail become the mapped code…`, `returns a correlation id… under that same id`, `gives server actions the same decision…`, новый `trusts the typed authored outcome…` (4 failed / 10 passed) |
+| CI-2 | `mapApiError` перестал доверять `TypedApiResponseError` | `tariffMechanics.route.test.ts`: `refuses Today configuration visibly…` и `refuses every daily-warmup block/item mutation…` (2 failed / 42 passed) |
+| CI-3 | «сообщение похоже на авторское» — эвристика `message.includes(' ')` в `mapApiError` | те же оракулы двери + новый тест: `expected 'Невозможно…' to be 'toggle_failed'` (5 failed / 9 passed) |
+| CI-2′ | понизить `entitlementMutationRefusalError` до `new Error(...)` | **тестом не ловится, и это верно:** ловится компилятором, `TS2741`. Записано честно: сайт защищён конструкцией, а не тестом; доверие двери к классу защищено CI-2 |
+
+Первая попытка CI-2 была негодной: инъекция в реальный `requireEntitlement.ts` оставила
+`tariffMechanics` зелёным, потому что этот файл модуль гварда целиком дублирует. Инъекция
+переделана на настоящую проверяемую точку — доверие двери — и утверждения покраснели.
+
+## C4. Один новый тест — на поверхность, которой раньше не было
+
+`src/shared/http/safeErrorTransport.unit.test.ts` — `trusts the typed authored outcome and still
+refuses the same text from a plain Error`. Названный отказ: кто-то расширяет авторский текст на
+**любой** `Error` (literal allowlist на предложение, эвристика «похоже на авторское») — и отклонённый
+SQL-стейтмент снова на экране врача, при зелёном наборе. Дорогой и молчаливый (§10a, ступень 2),
+самый дешёвый слой — unit на самой двери. Оракул — требование плана владельца («доменные коды обязаны
+остаться различимыми») плюс контракт S4, не реализация. Дубля нет: существующие оракулы проверяют
+неизвестный текст и потерю детали, но ни один не проверял доверенный класс.
+
+## C5. Прогоны (все через `/home/dev/brain/host-orch/run-tests.sh`)
+
+| Проверка | Результат |
+|---|---|
+| 5 красных файлов до правки | `5 failed (5)`, `3 failed / 58 passed` — воспроизведено |
+| Перепись 47 моков `db-principal` | до: `3 failed / 44 passed`; после: **47 passed (47) / 263 tests** |
+| Целевые S4 (4 файла) | **17 passed (17)** (было 16, +1 новый) |
+| 4 бывших красных route-файла | **75 passed (75)** |
+| Гейт `check-safe-error-transport.mjs` | **OK** — 69 файлов долга, без сдвига |
+| Его `--self-test` | **OK** — 13 форм обхода отклонено, 10 канонических принято |
+| `pnpm --dir apps/webapp typecheck` | **rc 0** |
+| `pnpm --dir apps/webapp lint` (eslint + все 9 гейтов и их self-test) | **rc 0** |
+| `pnpm test:webapp:fast` | **114 passed / 7 skipped (121)**, 664 теста |
+| `pnpm test:webapp:behavior` | unit **227/227**, route **89/90** (единственный красный — `passwordAuth`, см. C1), ui **69/69** |
+| `pnpm test:webapp:behavior` с `TEST_ACCOUNT_PHONES` в окружении | **386 файлов / 1904 теста, всё зелёное** |
+
+## C6. НЕ СДЕЛАНО
+
+- **`modules/auth/passwordAuth.route.test.ts` остаётся красным без переменной окружения.** Это
+  не-S4 блокер и он не исправлен намеренно. Дефект внесён `592ed97e8` (27.08, за восемь дней до
+  кандидата): аллоулист тестовых аккаунтов переехал из мокаемой настройки в `env`, а стаб из теста
+  был удалён без замены. Тест зависит от обстоятельств запуска (§10a, антипаттерн 6) — он зелёный
+  только там, где в окружении лежит `TEST_ACCOUNT_PHONES` (например из `apps/webapp/.env`, которого
+  в репозитории нет). `TEST_ACCOUNT_PHONES` не задаётся и в `.github/workflows/ci.yml`. Продуктовое
+  поведение auth по брифу не трогалось; вопрос, чинить ли изоляцию теста или окружение прогона, —
+  за ведущим, это отдельная работа вне S4.
+- **Full CI не запускался** — по решению владельца он один раз на объединённом S1+S4 SHA.
+- **Живая проверка, DEV/TEST/PROD, deploy, push, миграции, taskdb, БД — не выполнялись.**
+- **Замороженный долг 69 файлов / 87 точек не расширялся и не трогался**; `String(error)`, касты,
+  деструктуризация и correlation id для server actions остаются вопросами владельцу.
+- **Строку очереди в accepted этот проход не переводит** — приёмку регистрирует ведущий.

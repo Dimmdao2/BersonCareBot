@@ -21,6 +21,10 @@ vi.mock('@bersoncare/db-principal', () => ({
   runWithDbInfraPrincipal: <T>(_principal: unknown, callback: () => T): T => callback(),
   runWithDbOrganizationPrincipal: <T>(_organizationId: string, callback: () => T): T =>
     callback(),
+  // The shared error door resolves this request's correlation id and the root logger stamps it on
+  // every line, so both live on the module graph of any route that answers with `jsonError`.
+  ensureCorrelationId: () => 'test-correlation-id',
+  getCurrentObservabilityContext: () => ({}),
 }));
 
 function buildService(webhookSecret: string | null = 'unused-webhook-secret-9021') {

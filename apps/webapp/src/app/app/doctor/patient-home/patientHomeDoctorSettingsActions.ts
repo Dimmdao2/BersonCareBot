@@ -6,7 +6,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
-  entitlementMutationRefusalMessage,
+  entitlementMutationRefusalError,
   requireEntitlementForMutationAction,
 } from '@/app-layer/guards/requireEntitlement';
 import {
@@ -17,7 +17,7 @@ import {
   isValidPatientHomeDailyWarmupRotationTimesPayload,
   normalizeDailyWarmupRotationTime,
 } from '@/modules/patient-home/patientHomeDailyWarmupRotationSettings';
-import { safeActionErrorCode } from '@/shared/http/apiResponse';
+import { safeActionErrorCode, TypedApiResponseError } from '@/shared/http/apiResponse';
 
 function revalidatePatientHomePages(): void {
   revalidatePath('/app/doctor/patient-home');
@@ -46,7 +46,7 @@ async function requirePatientHomeOwnerOrThrow(): Promise<{
 }> {
   const workspace = await requireDoctorWorkspaceContext();
   if (workspace.membershipRole !== 'owner') {
-    throw new Error('forbidden');
+    throw new TypedApiResponseError({ code: 'forbidden', status: 403 });
   }
   await requirePatientHomeTodayEntitlementOrThrow(workspace.organizationId);
   return { userId: workspace.session.user.userId, organizationId: workspace.organizationId };
@@ -58,16 +58,14 @@ async function requirePatientHomeTodayEntitlementOrThrow(organizationId: string)
     'patient_home_today',
   );
   if (!entitlement.ok) {
-    throw new Error(
-      entitlementMutationRefusalMessage('изменить настройки главной страницы пациента'),
-    );
+    throw entitlementMutationRefusalError('изменить настройки главной страницы пациента');
   }
 }
 
 async function requireWarmupsEntitlementOrThrow(organizationId: string): Promise<void> {
   const entitlement = await requireEntitlementForMutationAction({ organizationId }, 'warmups');
   if (!entitlement.ok) {
-    throw new Error(entitlementMutationRefusalMessage('изменить настройки разминок'));
+    throw entitlementMutationRefusalError('изменить настройки разминок');
   }
 }
 
