@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireOrgBrandingManagementContext } from '@/app-layer/guards/requireOrgBrandingManagementContext';
+import { safeActionErrorCode } from '@/shared/http/apiResponse';
 
 type ActionState = { ok: true } | { ok: false; error: string };
 
@@ -47,6 +48,6 @@ export async function saveOrgBranding(input: {
     revalidateOrgBrandingSurfaces();
     return { ok: true };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'save_failed');
+    return fail(safeActionErrorCode(error, 'save_failed', 'org_branding_save_failed'));
   }
 }

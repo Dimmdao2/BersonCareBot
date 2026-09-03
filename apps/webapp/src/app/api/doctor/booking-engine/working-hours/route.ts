@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
+import { jsonError } from '@/shared/http/apiResponse';
 import { z } from 'zod';
-import { logger } from '@/app-layer/logging/logger';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
@@ -132,17 +132,14 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, row });
   } catch (error) {
-    logger.error({ error }, '[doctor/booking-engine/working-hours] create failed');
-    return NextResponse.json(
-      {
-        ok: false,
-        error: 'create_failed',
-        ...(process.env.NODE_ENV === 'development' && error instanceof Error
-          ? { detail: error.message }
-          : {}),
-      },
-      { status: 400 },
-    );
+    // The DEV-only `detail` is gone (owner plan, wave 03.09): this is the doctor's ordinary
+    // response, not an operator surface, and the requirement holds in DEV/TEST/PROD alike. The full
+    // detail now reaches the operator log under the correlation id the doctor receives.
+    return jsonError({
+      error,
+      fallback: { code: 'create_failed', status: 400 },
+      logEvent: 'doctor_working_hours_create_failed',
+    });
   }
 }
 
@@ -186,17 +183,11 @@ export async function PATCH(request: Request) {
     );
     return NextResponse.json({ ok: true, row });
   } catch (error) {
-    logger.error({ error }, '[doctor/booking-engine/working-hours] patch failed');
-    return NextResponse.json(
-      {
-        ok: false,
-        error: 'update_failed',
-        ...(process.env.NODE_ENV === 'development' && error instanceof Error
-          ? { detail: error.message }
-          : {}),
-      },
-      { status: 400 },
-    );
+    return jsonError({
+      error,
+      fallback: { code: 'update_failed', status: 400 },
+      logEvent: 'doctor_working_hours_patch_failed',
+    });
   }
 }
 

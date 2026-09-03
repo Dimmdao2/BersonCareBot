@@ -27,7 +27,10 @@ export default function GlobalError({
 }): ReactNode {
   const staleAutoReloadTriggeredRef = useRef(false);
   const chunkAutoReloadTriggeredRef = useRef(false);
-  const message = error.message || 'Не удалось загрузить страницу.';
+  // S4 (owner plan, wave 03.09): a render/Server Component exception carries raw internal text —
+  // SQL, table and column names, bound parameters — and this boundary used to print it verbatim.
+  // React's own `digest` below is the id an operator looks the full server-side detail up by.
+  const message = 'Не удалось загрузить страницу.';
   const isChunkError = isChunkLoadFailure(error);
   const isStaleAction = isStaleServerActionError(error);
 

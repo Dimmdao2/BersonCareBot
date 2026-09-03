@@ -198,13 +198,18 @@ describe('doctor appointment payment route', () => {
   });
 
   it('returns provider failure without a payment link or a false success payload', async () => {
+    // S4 (owner plan, wave 03.09): the route used to echo whatever text the provider failure
+    // carried — `provider_down` here, a rejected SQL statement in production. The doctor now gets
+    // the route's own fixed code plus the id the operator log records the real detail under.
     fakes.createAppointmentPaymentIntent.mockRejectedValue(new Error('provider_down'));
 
     const response = await post('link');
     const body = (await response.json()) as Record<string, unknown>;
 
     expect(response.status).toBe(503);
-    expect(body).toEqual({ ok: false, error: 'provider_down' });
+    expect(body.ok).toBe(false);
+    expect(body.error).toBe('payment_provider_unavailable');
+    expect(typeof body.correlationId).toBe('string');
     expect(body).not.toHaveProperty('paymentLink');
   });
 });

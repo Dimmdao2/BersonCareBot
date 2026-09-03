@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { jsonError } from '@/shared/http/apiResponse';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
 
@@ -34,10 +35,11 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'organization_patch_failed';
-    if (message === 'organization_not_found') {
-      return NextResponse.json({ ok: false, error: message }, { status: 404 });
-    }
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return jsonError({
+      error,
+      literalRules: { organization_not_found: { code: 'organization_not_found', status: 404 } },
+      fallback: { code: 'organization_patch_failed', status: 500 },
+      logEvent: 'admin_organization_patch_failed',
+    });
   }
 }

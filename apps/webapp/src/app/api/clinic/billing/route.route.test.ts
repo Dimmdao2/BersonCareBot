@@ -11,6 +11,10 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
 }));
 vi.mock('@bersoncare/db-principal', () => ({
   runWithDbClinicBillingPrincipal: (_input: unknown, work: () => unknown) => work(),
+  // The shared error door resolves this request's correlation id and the root logger stamps it on
+  // every line, so both live on the module graph of any route that answers with `jsonError`.
+  ensureCorrelationId: () => 'test-correlation-id',
+  getCurrentObservabilityContext: () => ({}),
 }));
 
 import { DELETE, GET, PATCH, POST } from './route';

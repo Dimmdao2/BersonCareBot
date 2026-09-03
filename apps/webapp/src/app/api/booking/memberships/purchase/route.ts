@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { jsonError, type ApiErrorLiteralRules } from '@/shared/http/apiResponse';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
@@ -6,6 +7,22 @@ import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole'
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
 import { resolvePatientEnrollmentOrganizationId } from '../../bookingTenant';
+
+/**
+ * Closed allowlist of the membership codes the patient booking screen is allowed to be told about
+ * (`modules/memberships` throws these literals). Anything else — a rejected INSERT, a runtime bug —
+ * collapses to `purchase_failed` and goes to the operator log under the correlation id instead.
+ */
+const PURCHASE_ERROR_RULES: ApiErrorLiteralRules = {
+  catalog_not_found: { code: 'catalog_not_found', status: 404 },
+  package_not_found: { code: 'package_not_found', status: 404 },
+  package_expired: { code: 'package_expired', status: 409 },
+  package_no_balance: { code: 'package_no_balance', status: 409 },
+  package_not_active: { code: 'package_not_active', status: 409 },
+  payments_disabled: { code: 'payments_disabled', status: 422 },
+  payments_unavailable: { code: 'payments_unavailable', status: 503 },
+  memberships_unavailable: { code: 'memberships_unavailable', status: 503 },
+};
 
 const bodySchema = z.object({
   subscriptionPackageId: z.string().uuid(),
@@ -53,7 +70,11 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, package: pkg });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'purchase_failed';
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    return jsonError({
+      error,
+      literalRules: PURCHASE_ERROR_RULES,
+      fallback: { code: 'purchase_failed', status: 400 },
+      logEvent: 'patient_membership_purchase_failed',
+    });
   }
 }

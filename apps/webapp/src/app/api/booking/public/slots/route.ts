@@ -1,5 +1,6 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
+import { jsonError } from '@/shared/http/apiResponse';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logger } from '@/app-layer/logging/logger';
@@ -87,10 +88,13 @@ export async function GET(request: Request) {
       );
       return NextResponse.json({ ok: false, error: msg }, { status });
     }
-    if (msg === 'branch_service_not_found') {
-      return NextResponse.json({ ok: false, error: msg }, { status: 404 });
-    }
-    logger.error({ err }, '[booking/public/slots] failed');
-    return NextResponse.json({ ok: false, error: msg }, { status: 503 });
+    return jsonError({
+      error: err,
+      literalRules: {
+        branch_service_not_found: { code: 'branch_service_not_found', status: 404 },
+      },
+      fallback: { code: 'slots_unavailable', status: 503 },
+      logEvent: 'public_booking_slots_failed',
+    });
   }
 }

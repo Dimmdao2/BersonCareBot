@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { jsonError } from '@/shared/http/apiResponse';
 import { parseCalendarQuery } from '@/app-layer/booking/parseCalendarQuery';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolveDoctorCalendarIana } from '@/app-layer/booking/resolveDoctorCalendarIana';
@@ -80,7 +81,10 @@ export async function GET(request: Request) {
       resolvedScope: scheduleScope.value,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'calendar_load_failed';
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return jsonError({
+      error: err,
+      fallback: { code: 'calendar_load_failed', status: 500 },
+      logEvent: 'doctor_calendar_load_failed',
+    });
   }
 }

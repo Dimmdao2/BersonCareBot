@@ -1,4 +1,13 @@
 import { NextResponse } from 'next/server';
+import { jsonError, type ApiErrorLiteralRules } from '@/shared/http/apiResponse';
+
+/** Closed allowlist of the completion-metric refusals the patient screen may be told about. */
+const METRICS_ERROR_RULES: ApiErrorLiteralRules = {
+  completion_not_found: { code: 'completion_not_found', status: 404 },
+  completion_cooldown_active: { code: 'completion_cooldown_active', status: 409 },
+  invalid_metric_window: { code: 'invalid_metric_window', status: 400 },
+};
+
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
@@ -40,8 +49,11 @@ export async function PATCH(
     });
     return NextResponse.json({ ok: true, metrics });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'error';
-    const status = message.includes('not_found') || message.includes('не найден') ? 404 : 400;
-    return NextResponse.json({ ok: false, error: message }, { status });
+    return jsonError({
+      error,
+      literalRules: METRICS_ERROR_RULES,
+      fallback: { code: 'metrics_save_failed', status: 400 },
+      logEvent: 'patient_completion_metrics_failed',
+    });
   }
 }

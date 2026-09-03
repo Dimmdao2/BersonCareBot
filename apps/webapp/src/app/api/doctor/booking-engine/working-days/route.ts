@@ -1,4 +1,13 @@
 import { NextResponse } from 'next/server';
+import { jsonError, type ApiErrorLiteralRules } from '@/shared/http/apiResponse';
+
+/** Closed allowlist of the scheduling refusals (`modules/booking-scheduling`) this route may name. */
+const WORKING_DAYS_ERROR_RULES: ApiErrorLiteralRules = {
+  dates_required: { code: 'dates_required', status: 400 },
+  organization_id_required: { code: 'organization_id_required', status: 400 },
+  invalid_working_hours_range: { code: 'invalid_working_hours_range', status: 400 },
+  template_not_found: { code: 'template_not_found', status: 404 },
+};
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
@@ -143,10 +152,13 @@ export async function PUT(request: Request) {
     }
     return NextResponse.json({ ok: true });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'unknown';
-    return NextResponse.json(
-      { ok: false, error: 'operation_failed', detail: msg },
-      { status: 400 },
-    );
+    // The `detail` field carried the raw text — including a rejected statement — straight to the
+    // doctor's browser. The full detail now goes to the operator log under the correlation id.
+    return jsonError({
+      error: err,
+      literalRules: WORKING_DAYS_ERROR_RULES,
+      fallback: { code: 'operation_failed', status: 400 },
+      logEvent: 'doctor_working_days_failed',
+    });
   }
 }

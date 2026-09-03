@@ -68,7 +68,10 @@ export function SegmentRouteError({
     void safeReload('chunk-load-error');
   }, [isChunkError]);
 
-  const message = error.message || 'Не удалось загрузить раздел.';
+  // S4 (owner plan, wave 03.09): never render the escaped exception's own text. `console.error`
+  // above keeps the whole error for the browser console, and `error.digest` below is the id an
+  // operator looks the full server-side detail up by.
+  const message = 'Не удалось загрузить раздел.';
   const backFallback = backFallbackHref ?? resolveBackFallback(pathname);
 
   const onBack = () => {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { jsonError } from '@/shared/http/apiResponse';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolveDoctorCalendarIana } from '@/app-layer/booking/resolveDoctorCalendarIana';
@@ -67,7 +68,10 @@ export async function GET(request: Request) {
     });
     return NextResponse.json({ ok: true, timeZone, ...page });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'appointment_feed_load_failed';
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return jsonError({
+      error,
+      fallback: { code: 'appointment_feed_load_failed', status: 500 },
+      logEvent: 'doctor_appointment_feed_failed',
+    });
   }
 }

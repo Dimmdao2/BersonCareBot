@@ -34,6 +34,20 @@ function formatDurationHours(durationMs: number): string {
   return Number.isInteger(hours) ? `${hours} hours` : `${durationMs} ms`;
 }
 
+/**
+ * Authored validation refusal for this setting. S4 (owner plan
+ * `docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md`, wave 03.09) requires the admin
+ * screen to keep seeing *these* sentences while never seeing an unknown internal failure. A plain
+ * `Error` cannot tell the two apart at the route; a dedicated class can, exactly as
+ * `InPersonBookingResolveError` already does for the booking family.
+ */
+export class OperatorHealthProbeConfigInvalidError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OperatorHealthProbeConfigInvalidError';
+  }
+}
+
 /** Reject unsafe admin input; callers must never silently clamp probe cadence or timeouts. */
 export function assertOperatorHealthProbeConfig(valueJson: unknown, now = new Date()): void {
   const value =
@@ -41,17 +55,17 @@ export function assertOperatorHealthProbeConfig(valueJson: unknown, now = new Da
       ? (valueJson as { value: unknown }).value
       : valueJson;
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('operator_health_probe_config must be an object');
+    throw new OperatorHealthProbeConfigInvalidError('operator_health_probe_config must be an object');
   }
   const config = value as Record<string, unknown>;
   for (const name of PROBE_NAMES) {
     const probe = config[name];
     if (!probe || typeof probe !== 'object' || Array.isArray(probe)) {
-      throw new Error(`operator_health_probe_config.${name} is required`);
+      throw new OperatorHealthProbeConfigInvalidError(`operator_health_probe_config.${name} is required`);
     }
     const p = probe as Record<string, unknown>;
     if (typeof p.enabled !== 'boolean')
-      throw new Error(`Проба ${name}: укажите, включена она или выключена, и сохраните снова.`);
+      throw new OperatorHealthProbeConfigInvalidError(`Проба ${name}: укажите, включена она или выключена, и сохраните снова.`);
     const timeoutMs = p.timeoutMs;
     if (
       typeof timeoutMs !== 'number' ||
@@ -59,7 +73,7 @@ export function assertOperatorHealthProbeConfig(valueJson: unknown, now = new Da
       timeoutMs < 1_000 ||
       timeoutMs > 60_000
     ) {
-      throw new Error(
+      throw new OperatorHealthProbeConfigInvalidError(
         `Таймаут пробы ${name} должен быть от 1 до 60 секунд: меньше создаёт ложные сбои и нагрузку на провайдера. Исправьте таймаут и сохраните снова.`,
       );
     }
@@ -70,7 +84,7 @@ export function assertOperatorHealthProbeConfig(valueJson: unknown, now = new Da
       intervalMs < 300_000 ||
       intervalMs > 3_600_000
     ) {
-      throw new Error(
+      throw new OperatorHealthProbeConfigInvalidError(
         `Период пробы ${name} должен быть от 5 до 60 минут: более частые запросы могут перегрузить провайдера. Увеличьте период и сохраните снова.`,
       );
     }
@@ -81,14 +95,14 @@ export function assertOperatorHealthProbeConfig(valueJson: unknown, now = new Da
       consecutiveFailures < 2 ||
       consecutiveFailures > 10
     ) {
-      throw new Error(
+      throw new OperatorHealthProbeConfigInvalidError(
         `Порог пробы ${name} должен быть от 2 до 10 подряд: тревога требует подтверждённых сбоев. Исправьте порог и сохраните снова.`,
       );
     }
   }
   const email = config.email;
   if (!email || typeof email !== 'object' || Array.isArray(email)) {
-    throw new Error('Настройки почтовой пробы обязательны. Заполните их и сохраните снова.');
+    throw new OperatorHealthProbeConfigInvalidError('Настройки почтовой пробы обязательны. Заполните их и сохраните снова.');
   }
   const mail = email as Record<string, unknown>;
   const assertRange = (key: string, min: number, max: number, label: string) => {
@@ -99,7 +113,7 @@ export function assertOperatorHealthProbeConfig(valueJson: unknown, now = new Da
       candidate < min ||
       candidate > max
     ) {
-      throw new Error(
+      throw new OperatorHealthProbeConfigInvalidError(
         `${label} должен быть от ${min / 60_000} до ${max / 60_000} минут. Исправьте значение и сохраните снова.`,
       );
     }
@@ -116,7 +130,7 @@ export function assertOperatorHealthProbeConfig(valueJson: unknown, now = new Da
     (quietWindowMaxDurationMs as number) < QUIET_WINDOW_CAP_MIN_MS ||
     (quietWindowMaxDurationMs as number) > QUIET_WINDOW_CAP_MAX_MS
   ) {
-    throw new Error(
+    throw new OperatorHealthProbeConfigInvalidError(
       `operator_health_probe_config.quietWindowMaxDurationMs must be ${QUIET_WINDOW_CAP_MIN_MS}–${QUIET_WINDOW_CAP_MAX_MS} ms; the maintenance-window cap must remain bounded`,
     );
   }
@@ -124,7 +138,7 @@ export function assertOperatorHealthProbeConfig(valueJson: unknown, now = new Da
     config.quietUntil !== null &&
     (typeof config.quietUntil !== 'string' || Number.isNaN(Date.parse(config.quietUntil)))
   ) {
-    throw new Error(
+    throw new OperatorHealthProbeConfigInvalidError(
       'Окно тишины должно быть корректной датой или пустым. Исправьте дату и сохраните снова.',
     );
   }
@@ -132,7 +146,7 @@ export function assertOperatorHealthProbeConfig(valueJson: unknown, now = new Da
     typeof config.quietUntil === 'string' &&
     Date.parse(config.quietUntil) - now.getTime() > (quietWindowMaxDurationMs as number)
   ) {
-    throw new Error(
+    throw new OperatorHealthProbeConfigInvalidError(
       `operator_health_probe_config.quietUntil exceeds the configured maintenance-window limit of ${formatDurationHours(quietWindowMaxDurationMs as number)}; longer quiet windows can indefinitely silence mandatory probes`,
     );
   }

@@ -17,6 +17,7 @@ import {
   isValidPatientHomeDailyWarmupRotationTimesPayload,
   normalizeDailyWarmupRotationTime,
 } from '@/modules/patient-home/patientHomeDailyWarmupRotationSettings';
+import { safeActionErrorCode } from '@/shared/http/apiResponse';
 
 function revalidatePatientHomePages(): void {
   revalidatePath('/app/doctor/patient-home');
@@ -91,7 +92,7 @@ export async function savePatientHomePracticeTargetAction(
     revalidatePatientHomePages();
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'forbidden' };
+    return { ok: false, error: safeActionErrorCode(error, 'forbidden', 'patient_home_doctor_setting_failed') };
   }
 }
 
@@ -142,7 +143,7 @@ export async function savePatientHomeRepeatCooldownsAction(
     revalidatePatientHomePages();
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'forbidden' };
+    return { ok: false, error: safeActionErrorCode(error, 'forbidden', 'patient_home_doctor_setting_failed') };
   }
 }
 
@@ -185,6 +186,6 @@ export async function savePatientHomeWarmupRotationAction(input: {
     revalidatePatientHomePages();
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'forbidden' };
+    return { ok: false, error: safeActionErrorCode(error, 'forbidden', 'patient_home_doctor_setting_failed') };
   }
 }

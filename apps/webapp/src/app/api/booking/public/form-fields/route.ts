@@ -1,5 +1,6 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
+import { jsonError } from '@/shared/http/apiResponse';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logger } from '@/app-layer/logging/logger';
@@ -57,6 +58,10 @@ export async function GET(request: Request) {
       );
       return NextResponse.json({ ok: false, error: message }, { status });
     }
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    return jsonError({
+      error,
+      fallback: { code: 'ambiguous_booking_tenant', status: 400 },
+      logEvent: 'public_booking_form_fields_failed',
+    });
   }
 }

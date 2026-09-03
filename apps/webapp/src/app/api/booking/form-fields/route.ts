@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { jsonError } from '@/shared/http/apiResponse';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
@@ -29,6 +30,10 @@ export async function GET(request: Request) {
       const status = message === 'branch_service_mapping_missing' ? 404 : 400;
       return NextResponse.json({ ok: false, error: message }, { status });
     }
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    return jsonError({
+      error,
+      fallback: { code: 'ambiguous_booking_tenant', status: 400 },
+      logEvent: 'booking_form_fields_failed',
+    });
   }
 }

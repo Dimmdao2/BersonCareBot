@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { jsonError, type ApiErrorLiteralRules } from '@/shared/http/apiResponse';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
@@ -11,6 +12,51 @@ import {
   type TrialPolicy,
   type PaidPeriodPolicy,
 } from '@/modules/org-entitlements/types';
+
+/**
+ * Closed allowlist of the commercial constructor's own validation codes — the exact literals
+ * `modules/org-entitlements` throws. The admin screen shows this code, so S4 must keep every one of
+ * them distinct; only what is *not* on this list (a PostgreSQL failure, a runtime bug) collapses to
+ * the fallback and travels to the operator log under the correlation id instead of to the browser.
+ * A code added in the module without a line here degrades safely — it stops being named, it never
+ * starts leaking.
+ */
+const COMMERCIAL_ERROR_RULES: ApiErrorLiteralRules = {
+  access_notification_condition_invalid: { code: 'access_notification_condition_invalid', status: 400 },
+  access_notification_offset_invalid: { code: 'access_notification_offset_invalid', status: 400 },
+  access_notification_template_id_invalid: { code: 'access_notification_template_id_invalid', status: 400 },
+  access_notification_template_not_found: { code: 'access_notification_template_not_found', status: 400 },
+  access_policy_notifications_invalid: { code: 'access_policy_notifications_invalid', status: 400 },
+  access_policy_terminal_state_invalid: { code: 'access_policy_terminal_state_invalid', status: 400 },
+  access_policy_value_invalid: { code: 'access_policy_value_invalid', status: 400 },
+  entitlement_mechanic_invalid: { code: 'entitlement_mechanic_invalid', status: 400 },
+  entitlement_override_expiry_invalid: { code: 'entitlement_override_expiry_invalid', status: 400 },
+  mailing_template_id_duplicate: { code: 'mailing_template_id_duplicate', status: 400 },
+  mailing_template_id_required: { code: 'mailing_template_id_required', status: 400 },
+  mailing_template_name_required: { code: 'mailing_template_name_required', status: 400 },
+  paid_period_post_tariff_forbidden: { code: 'paid_period_post_tariff_forbidden', status: 400 },
+  paid_period_post_tariff_required: { code: 'paid_period_post_tariff_required', status: 400 },
+  tariff_additional_seat_price_invalid: { code: 'tariff_additional_seat_price_invalid', status: 400 },
+  tariff_currency_required: { code: 'tariff_currency_required', status: 400 },
+  tariff_discounted_price_invalid: { code: 'tariff_discounted_price_invalid', status: 400 },
+  tariff_downgrade_policy_invalid: { code: 'tariff_downgrade_policy_invalid', status: 400 },
+  tariff_included_seats_required: { code: 'tariff_included_seats_required', status: 400 },
+  tariff_name_required: { code: 'tariff_name_required', status: 400 },
+  tariff_not_found: { code: 'tariff_not_found', status: 400 },
+  tariff_price_invalid: { code: 'tariff_price_invalid', status: 400 },
+  tariff_quota_limit_invalid: { code: 'tariff_quota_limit_invalid', status: 400 },
+  tariff_quota_mechanic_invalid: { code: 'tariff_quota_mechanic_invalid', status: 400 },
+  tariff_quota_unit_invalid: { code: 'tariff_quota_unit_invalid', status: 400 },
+  tariff_quota_unlimited_limit_invalid: { code: 'tariff_quota_unlimited_limit_invalid', status: 400 },
+  tariff_quota_warning_invalid: { code: 'tariff_quota_warning_invalid', status: 400 },
+  tariff_quota_warning_unsupported: { code: 'tariff_quota_warning_unsupported', status: 400 },
+  tariff_seat_limit_invalid: { code: 'tariff_seat_limit_invalid', status: 400 },
+  trial_discount_window_invalid: { code: 'trial_discount_window_invalid', status: 400 },
+  trial_duration_invalid: { code: 'trial_duration_invalid', status: 400 },
+  trial_post_tariff_forbidden: { code: 'trial_post_tariff_forbidden', status: 400 },
+  trial_post_tariff_required: { code: 'trial_post_tariff_required', status: 400 },
+  trial_start_event_required: { code: 'trial_start_event_required', status: 400 },
+};
 
 const quotaAmountSchema = {
   kind: z.enum(['numeric', 'unlimited']),
@@ -273,12 +319,11 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ok: true, result });
   } catch (error) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: error instanceof Error ? error.message : 'commercial_operation_failed',
-      },
-      { status: 400 },
-    );
+    return jsonError({
+      error,
+      literalRules: COMMERCIAL_ERROR_RULES,
+      fallback: { code: 'commercial_operation_failed', status: 400 },
+      logEvent: 'admin_commercial_operation_failed',
+    });
   }
 }

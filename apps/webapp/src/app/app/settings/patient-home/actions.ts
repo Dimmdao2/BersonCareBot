@@ -23,6 +23,7 @@ import { PATIENT_HOME_USEFUL_POST_BADGE_LABEL } from '@/modules/patient-home/use
 import { validateContentSectionSlug } from '@/shared/lib/contentSectionSlug';
 import { systemParentCodeForPatientHomeBlock } from '@/modules/content-sections/types';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
+import { safeActionErrorCode } from '@/shared/http/apiResponse';
 
 const targetTypeSchema = z.enum(['content_page', 'content_section', 'course', 'static_action']);
 const uuidSchema = z.string().uuid();
@@ -161,7 +162,7 @@ export async function togglePatientHomeBlockVisibility(
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'toggle_failed');
+    return fail(safeActionErrorCode(error, 'toggle_failed', 'patient_home_settings_failed'));
   }
 }
 
@@ -185,7 +186,7 @@ export async function setPatientHomeBlockIcon(
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'set_block_icon_failed');
+    return fail(safeActionErrorCode(error, 'set_block_icon_failed', 'patient_home_settings_failed'));
   }
 }
 
@@ -206,7 +207,7 @@ export async function reorderPatientHomeBlocks(orderedCodes: string[]): Promise<
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'reorder_blocks_failed');
+    return fail(safeActionErrorCode(error, 'reorder_blocks_failed', 'patient_home_settings_failed'));
   }
 }
 
@@ -243,7 +244,7 @@ export async function addPatientHomeItem(input: {
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'add_item_failed');
+    return fail(safeActionErrorCode(error, 'add_item_failed', 'patient_home_settings_failed'));
   }
 }
 
@@ -275,7 +276,7 @@ export async function updatePatientHomeItemVisibility(
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'update_item_failed');
+    return fail(safeActionErrorCode(error, 'update_item_failed', 'patient_home_settings_failed'));
   }
 }
 
@@ -320,7 +321,7 @@ export async function updatePatientHomeItemPresentation(input: {
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'update_item_presentation_failed');
+    return fail(safeActionErrorCode(error, 'update_item_presentation_failed', 'patient_home_settings_failed'));
   }
 }
 
@@ -347,7 +348,7 @@ export async function deletePatientHomeItem(itemId: string): Promise<ActionState
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'delete_item_failed');
+    return fail(safeActionErrorCode(error, 'delete_item_failed', 'patient_home_settings_failed'));
   }
 }
 
@@ -372,7 +373,7 @@ export async function reorderPatientHomeItems(
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'reorder_items_failed');
+    return fail(safeActionErrorCode(error, 'reorder_items_failed', 'patient_home_settings_failed'));
   }
 }
 
@@ -414,7 +415,7 @@ export async function retargetPatientHomeItem(input: {
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
-    return fail(error instanceof Error ? error.message : 'retarget_failed');
+    return fail(safeActionErrorCode(error, 'retarget_failed', 'patient_home_settings_failed'));
   }
 }
 
@@ -526,8 +527,10 @@ export async function createContentSectionForPatientHomeBlock(input: {
     revalidatePatientHomeSettings();
     return { ok: true, itemId, sectionSlug: slug };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'create_section_failed';
-    return { ok: false, error: message };
+    return {
+      ok: false,
+      error: safeActionErrorCode(error, 'create_section_failed', 'patient_home_settings_failed'),
+    };
   }
 }
 
@@ -562,7 +565,7 @@ export async function listPatientHomeCandidates(blockCode: string): Promise<
   } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : 'list_candidates_failed',
+      error: safeActionErrorCode(error, 'list_candidates_failed', 'patient_home_settings_failed'),
       items: [],
     };
   }

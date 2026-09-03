@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { jsonError, mapApiError, type ApiErrorLiteralRules } from '@/shared/http/apiResponse';
 import { z } from 'zod';
 import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -68,6 +69,48 @@ async function requireBillingManager() {
   return gate;
 }
 
+/**
+ * Closed allowlists of the billing refusals this screen may name. `BILLING_UNMAPPED` is compared by
+ * identity — `mapApiError` returns that exact object when nothing matched — so an unmapped failure
+ * falls through to the existing safe branches instead of describing itself in the body.
+ */
+const TARIFF_CHANGE_CONFLICT_RULES: ApiErrorLiteralRules = {
+  [SAAS_BILLING_TARIFF_NOT_PAYABLE]: { code: SAAS_BILLING_TARIFF_NOT_PAYABLE, status: 409 },
+  saas_billing_tariff_upgrade_proration_unavailable: {
+    code: 'saas_billing_tariff_upgrade_proration_unavailable',
+    status: 409,
+  },
+  saas_billing_tariff_upgrade_not_more_expensive: {
+    code: 'saas_billing_tariff_upgrade_not_more_expensive',
+    status: 409,
+  },
+  saas_billing_upgrade_no_remaining_period: {
+    code: 'saas_billing_upgrade_no_remaining_period',
+    status: 409,
+  },
+  saas_billing_tariff_downgrade_blocked: {
+    code: 'saas_billing_tariff_downgrade_blocked',
+    status: 409,
+  },
+  saas_billing_no_active_paid_subscription: {
+    code: 'saas_billing_no_active_paid_subscription',
+    status: 409,
+  },
+};
+
+const RENEWAL_RECEIPT_RULES: ApiErrorLiteralRules = {
+  saas_billing_receipt_email_missing: {
+    code: 'saas_billing_receipt_email_missing',
+    status: 409,
+  },
+  saas_billing_receipt_vat_code_missing: {
+    code: 'saas_billing_receipt_vat_code_missing',
+    status: 409,
+  },
+};
+
+const BILLING_UNMAPPED = { code: 'saas_billing_unavailable', status: 503 } as const;
+
 function tariffChangeError(error: unknown) {
   if (error instanceof SaasBillingTariffDowngradeBlockedError) {
     return NextResponse.json(
@@ -75,17 +118,13 @@ function tariffChangeError(error: unknown) {
       { status: 409 },
     );
   }
-  const message = error instanceof Error ? error.message : '';
-  if (
-    message === SAAS_BILLING_TARIFF_NOT_PAYABLE ||
-    message === 'saas_billing_tariff_upgrade_proration_unavailable' ||
-    message === 'saas_billing_tariff_upgrade_not_more_expensive' ||
-    message === 'saas_billing_upgrade_no_remaining_period' ||
-    message === 'saas_billing_tariff_downgrade_blocked' ||
-    message === 'saas_billing_no_active_paid_subscription'
-  ) {
-    return NextResponse.json({ ok: false, error: message }, { status: 409 });
+  // The refusal codes below are named to the clinic screen through the shared mapper, so the branch
+  // can no longer echo whatever text the error happened to carry.
+  const conflict = mapApiError(error, TARIFF_CHANGE_CONFLICT_RULES, BILLING_UNMAPPED);
+  if (conflict !== BILLING_UNMAPPED) {
+    return jsonError(conflict.code, {}, { status: conflict.status });
   }
+  const message = error instanceof Error ? error.message : '';
   if (
     message === 'saas_billing_tariff_change_unavailable' ||
     message.startsWith('saas_billing_period_unknown:')
@@ -267,11 +306,9 @@ export async function POST(request: Request) {
         { status: 503 },
       );
     }
-    if (
-      message === 'saas_billing_receipt_email_missing' ||
-      message === 'saas_billing_receipt_vat_code_missing'
-    ) {
-      return NextResponse.json({ ok: false, error: message }, { status: 409 });
+    const receiptRefusal = mapApiError(error, RENEWAL_RECEIPT_RULES, BILLING_UNMAPPED);
+    if (receiptRefusal !== BILLING_UNMAPPED) {
+      return jsonError(receiptRefusal.code, {}, { status: receiptRefusal.status });
     }
     if (
       message.startsWith('saas_billing_provider_invoices_unsupported:') ||

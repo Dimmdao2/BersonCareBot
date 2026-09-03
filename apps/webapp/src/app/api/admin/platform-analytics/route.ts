@@ -1,9 +1,19 @@
 import { NextResponse } from 'next/server';
+import { mapApiError, type ApiErrorLiteralRules } from '@/shared/http/apiResponse';
 import { loadPlatformAnalyticsAudienceSpec } from '@/app-layer/analytics/loadAnalyticsAudience';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
 import { parseAdminStatsTimePreset } from '@/modules/admin-platform-stats/parseAdminStatsTimePreset';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+
+const RANGE_ERROR_RULES: ApiErrorLiteralRules = {
+  invalid_date: { code: 'invalid_date', status: 400 },
+  range_inverted: { code: 'range_inverted', status: 400 },
+  range_too_short: { code: 'range_too_short', status: 400 },
+};
+
+/** Distinct object identity: `mapApiError` returns this exact value when nothing matched. */
+const RANGE_UNKNOWN = { code: 'platform_analytics_failed', status: 500 } as const;
 
 export async function GET(req: Request) {
   const gate = await requirePlatformOperationsApiContext();
@@ -26,10 +36,9 @@ export async function GET(req: Request) {
     });
     return NextResponse.json(dashboard);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'invalid_range';
-    if (message === 'invalid_date' || message === 'range_inverted' || message === 'range_too_short') {
-      return NextResponse.json({ error: message }, { status: 400 });
-    }
-    throw error;
+    // Known range codes stay distinct; anything else keeps re-throwing to `onRequestError`.
+    const mapped = mapApiError(error, RANGE_ERROR_RULES, RANGE_UNKNOWN);
+    if (mapped === RANGE_UNKNOWN) throw error;
+    return NextResponse.json({ error: mapped.code }, { status: mapped.status });
   }
 }
