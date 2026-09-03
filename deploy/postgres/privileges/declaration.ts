@@ -60,6 +60,7 @@
 import { WALL_TEMPLATES, expandTables } from './types.ts';
 import { BUSINESS_SEAM_FUNCTIONS } from './function-census.ts';
 import { REV10_CLINICAL_ACCESS } from './relation-access.ts';
+import { DRIZZLE_INSERT_SURFACE } from './drizzle-insert-surface.ts';
 // The canonical locked descriptor module is executable ESM; its public shape is narrowed below
 // so this declaration remains strict without a second source-of-truth .d.ts file.
 // @ts-expect-error no declaration file exists for the canonical executable descriptor module.
@@ -7947,12 +7948,72 @@ function revision10RelationSeams(tableKey: string, dbName: string): NamedSeamAcc
   return seams.sort((a, b) => a.regprocedure.localeCompare(b.regprocedure));
 }
 
+/**
+ * Roles a webapp relational (Drizzle) statement can actually run as: the target role of every
+ * webapp port capability with `purpose: 'relation'`. Declared, not guessed — and deliberately
+ * narrower than "every role with a column INSERT grant": `app_tenant_service`, the `app_seam_*`
+ * owners and the integrator roles have no webapp relational capability, so ORM metadata proves
+ * nothing about what they must be able to insert.
+ */
+const REV10_WEBAPP_RELATION_ROLES: ReadonlySet<string> = new Set(
+  Object.values(REV10_CONTEXT.capabilities)
+    .filter((capability) => capability.port === 'webapp' && capability.purpose === 'relation')
+    .map((capability) => capability.targetRole),
+);
+
+/**
+ * Column-level `INSERT` is derived, not hand-written (S1).
+ *
+ * Drizzle's pg insert builder always enumerates EVERY schema column in the emitted
+ * `INSERT INTO t (...) VALUES (...)` — a key absent from `.values({...})` still appears in the
+ * column list with `DEFAULT` as its value — and Postgres demands column-level INSERT privilege on
+ * every NAMED column, `DEFAULT` ones included. A grant hand-written from "business columns" therefore
+ * fails the WHOLE statement with `42501 permission denied for table X`: the live failure of the
+ * "продать абонемент" chain on `be_patient_package_items.id`.
+ *
+ * So the emitted INSERT column list is the declared list UNION the columns Drizzle names, taken
+ * from the machine-owned artifact `drizzle-insert-surface.ts`. Three boundaries hold it in place:
+ *
+ *   - only relations with a proven direct `.insert()` callsite in `apps/webapp/src` are widened;
+ *     a column grant with no such callsite serves raw SQL or a SECURITY DEFINER body that names its
+ *     own columns, and widening it from ORM metadata would be an unproven privilege broadening;
+ *   - only roles that can execute a webapp relational statement are widened;
+ *   - only `INSERT` changes. A grant row that carries INSERT together with another operation is
+ *     split, so `SELECT`/`UPDATE`/`DELETE` keep exactly the columns they were declared with.
+ *
+ * Nothing is ever removed. Relations with no Drizzle model at all (`public.broadcast_drafts`,
+ * `public.system_settings_audit`) keep their hand-written lists untouched, and a declared column the
+ * ORM does not know — `public.platform_users.session_epoch`, which the model lags behind — is kept
+ * where it was declared instead of being erased by a mechanical replacement.
+ */
+function withDrizzleInsertColumns(
+  tableKey: string,
+  grants: Extract<RelationAccess, { kind: 'direct' }>['grants'],
+): Extract<RelationAccess, { kind: 'direct' }>['grants'] {
+  const surface = DRIZZLE_INSERT_SURFACE[tableKey];
+  if (!surface || surface.directInsertCallsites.length === 0) return grants;
+  return grants.flatMap((grant) => {
+    if (grant.columns === 'table') return [grant];
+    if (!grant.operations.includes('INSERT')) return [grant];
+    if (!REV10_WEBAPP_RELATION_ROLES.has(grant.role)) return [grant];
+    const declared = grant.columns;
+    const absent = surface.insertColumns.filter((column) => !declared.includes(column));
+    if (absent.length === 0) return [grant];
+    const insert = { ...grant, operations: ['INSERT' as Privilege], columns: [...declared, ...absent].sort() };
+    const others = grant.operations.filter((operation) => operation !== 'INSERT');
+    return others.length > 0 ? [{ ...grant, operations: others }, insert] : [insert];
+  });
+}
+
 function revision10RelationAccess(tableKey: string, dbName: string): RelationAccess {
   const seams = revision10RelationSeams(tableKey, dbName);
   const clinical = REV10_CLINICAL_ACCESS[tableKey];
   const systemDirect = REV10_SYSTEM_DIRECT_ACCESS[tableKey];
   const finalizeDirect = (seed: DirectAccessSeed): RelationAccess => {
-    const grants = withoutConvertedPatientWrites(tableKey, seed.grants);
+    const grants = withDrizzleInsertColumns(
+      tableKey,
+      withoutConvertedPatientWrites(tableKey, seed.grants),
+    );
     if (grants.length > 0) return { ...seed, grants, seams };
     if (seams.length > 0) return {
       kind: 'named-seams', seams, purpose: `exact declared function surfaces for ${tableKey}`,

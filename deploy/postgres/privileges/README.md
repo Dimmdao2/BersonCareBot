@@ -22,6 +22,36 @@
 PROD не входит в текущий объект декларации. Его переход из старого снимка A в B0 — отдельная атомарная миграция
 с rollback после явного разрешения владельца; DEV/TEST-конфигурацию нельзя молча выдать за PROD target.
 
+## Колоночный `INSERT` выводится из схемы Drizzle, а не пишется руками
+
+Drizzle перечисляет в `INSERT INTO t (...)` **каждую** колонку схемы: ключ, отсутствующий в `.values({...})`,
+всё равно попадает в список со значением `DEFAULT`. Postgres требует колоночного `INSERT`-права на каждую
+НАЗВАННУЮ колонку, включая `DEFAULT`, поэтому грант, написанный по «бизнес-колонкам», роняет весь стейтмент
+через `42501` — так и ломалась продажа абонемента на `be_patient_package_items.id`.
+
+Генератор при этом обязан остаться чистым Node-модулем: `drizzle-orm` не разрешается из корня репозитория, а
+`apps/webapp/db/schema/*.ts` резолвится только бандлером. Поэтому метаданные приходят машинным закоммиченным
+артефактом [`drizzle-insert-surface.ts`](./drizzle-insert-surface.ts) — «отношение → колонки, которые ORM
+называет в `INSERT`» плюс каждый прямой `.insert()`-callsite в `apps/webapp/src`. Артефакт производит
+workspace webapp:
+
+```bash
+pnpm --dir apps/webapp exec tsx scripts/generate-drizzle-insert-surface.ts          # перегенерировать
+pnpm run check:drizzle-insert-surface                                              # побайтный гейт
+```
+
+Побайтный гейт идёт первым шагом `pnpm run test:db-privileges`, поэтому правка схемы, не перегенерировавшая
+артефакт, краснеет раньше любого privilege-теста.
+
+`declaration.ts` читает артефакт как данные и расширяет **только** колоночный `INSERT` и **только** там, где
+есть и прямой `.insert()`-callsite, и роль с webapp-возможностью `purpose: 'relation'`. Объявленные колонки
+никогда не удаляются: отношения без Drizzle-модели (`public.broadcast_drafts`, `public.system_settings_audit`)
+и `public.platform_users.session_epoch`, которой модель не знает, остаются как объявлены.
+
+Приёмочный гейт [`drizzle-insert-grant-completeness.test.mjs`](./drizzle-insert-grant-completeness.test.mjs)
+выводит обе стороны независимо — сам зовёт печать метаданных и сам разбирает callsites по AST — и сверяет их с
+грантами, которые генератор реально пишет.
+
 ## Проверки
 
 Типы:
