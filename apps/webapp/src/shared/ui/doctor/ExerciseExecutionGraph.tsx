@@ -17,6 +17,8 @@
 import { useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import type { ExerciseMetricPoint } from './ExerciseMicroChart';
+import { doctorMetaTextClass } from '@/shared/ui/doctor/doctorVisual';
+import { cn } from '@/lib/utils';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -42,10 +44,10 @@ export type ExerciseExecutionGraphProps = {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const VIEW_W = 400;
-const CHART_H = 110;
-const BAR_H = 70;
-const PADDING = { top: 8, right: 12, bottom: 20, left: 12 };
+const BASE_VIEW_W = 400;
+const CHART_H = 128;
+const BAR_H = 82;
+const PADDING = { top: 8, right: 16, bottom: 26, left: 16 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -153,11 +155,28 @@ export function ExerciseExecutionGraph({
   const [hoveredDay, setHoveredDay] = useState<HoveredDay | null>(null);
 
   const ordered = [...metricPoints].sort((a, b) => a.at.localeCompare(b.at));
+  const metricTimes = ordered
+    .map((point) => Date.parse(point.at))
+    .filter((value) => Number.isFinite(value));
+  const metricSpanDays =
+    metricTimes.length > 1
+      ? Math.max(
+          1,
+          Math.ceil((Math.max(...metricTimes) - Math.min(...metricTimes)) / 86_400_000) + 1,
+        )
+      : 1;
+  const timelineDays = Math.min(
+    windowDays,
+    dayBars.length > 0 ? Math.max(1, dayBars.length) : metricSpanDays,
+  );
+  const widthScale = Math.max(1, timelineDays / 7);
+  const viewWidth = Math.round(BASE_VIEW_W * widthScale);
+  const scrollWidth = `${Math.ceil(widthScale * 100)}%`;
 
   // ── Line chart setup ──────────────────────────────────────────────────────
 
   const n = ordered.length;
-  const innerW = VIEW_W - PADDING.left - PADDING.right;
+  const innerW = viewWidth - PADDING.left - PADDING.right;
 
   const xPositions: number[] =
     n <= 1
@@ -194,7 +213,7 @@ export function ExerciseExecutionGraph({
 
   const hasBars = dayBars.length > 0;
   const barsN = dayBars.length;
-  const barInnerW = VIEW_W - PADDING.left - PADDING.right;
+  const barInnerW = viewWidth - PADDING.left - PADDING.right;
   const slotW = barsN > 0 ? barInnerW / barsN : barInnerW;
   const barW = Math.max(2, Math.min(slotW * 0.65, 18));
   const maxAssigned = Math.max(1, ...dayBars.map((d) => d.assignedCount));
@@ -219,7 +238,7 @@ export function ExerciseExecutionGraph({
         return false;
       }
     });
-    const xFraction = (PADDING.left + i * slotW + slotW / 2) / VIEW_W;
+    const xFraction = (PADDING.left + i * slotW + slotW / 2) / viewWidth;
     setHoveredDay({ dayBar: day, metrics: metricsForDay, xFraction });
   };
 
@@ -231,12 +250,10 @@ export function ExerciseExecutionGraph({
           <Button
             key={d}
             type="button"
+            size="sm"
+            variant={windowDays === d ? 'default' : 'secondary'}
             onClick={() => onWindowChange?.(d)}
-            className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
-              windowDays === d
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
+            className="h-8 px-3"
           >
             {d} дней
           </Button>
@@ -246,15 +263,15 @@ export function ExerciseExecutionGraph({
       {/* ── Line chart ── */}
       {hasAnyMetric ? (
         <div className="mb-3">
-          <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className={cn(doctorMetaTextClass, 'mb-1 font-medium uppercase tracking-wide')}>
             Динамика метрик
           </p>
-          <svg
-            viewBox={`0 0 ${VIEW_W} ${CHART_H}`}
-            className="w-full"
-            style={{ height: 110 }}
-            aria-label="Динамика метрик упражнения"
-          >
+          <div className="doctor-weekly-chart-scroll min-w-0 overflow-x-auto overscroll-x-contain">
+            <svg
+              viewBox={`0 0 ${viewWidth} ${CHART_H}`}
+              style={{ width: scrollWidth, minWidth: '100%', height: 'auto', display: 'block' }}
+              aria-label="Динамика метрик упражнения"
+            >
             {/* Background grid lines */}
             {[0, 25, 50, 75, 100].map((pct) => {
               const innerH = CHART_H - PADDING.top - PADDING.bottom;
@@ -264,7 +281,7 @@ export function ExerciseExecutionGraph({
                   key={pct}
                   x1={PADDING.left}
                   y1={y}
-                  x2={VIEW_W - PADDING.right}
+                  x2={viewWidth - PADDING.right}
                   y2={y}
                   stroke="#e5e7eb"
                   strokeWidth={0.5}
@@ -280,12 +297,12 @@ export function ExerciseExecutionGraph({
                   points={difficultyPolyline}
                   fill="none"
                   stroke="#ef4444"
-                  strokeWidth={1.5}
+                  strokeWidth={2}
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
                 {difficultyDots.map((pt, i) => (
-                  <circle key={i} cx={pt.x} cy={pt.y} r={2.5} fill="#ef4444" />
+                  <circle key={i} cx={pt.x} cy={pt.y} r={3.5} fill="#ef4444" />
                 ))}
               </>
             )}
@@ -298,12 +315,12 @@ export function ExerciseExecutionGraph({
                   points={weightPolyline}
                   fill="none"
                   stroke="#3b82f6"
-                  strokeWidth={1.5}
+                  strokeWidth={2}
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
                 {weightDots.map((pt, i) => (
-                  <circle key={i} cx={pt.x} cy={pt.y} r={2.5} fill="#3b82f6" />
+                  <circle key={i} cx={pt.x} cy={pt.y} r={3.5} fill="#3b82f6" />
                 ))}
               </>
             )}
@@ -316,12 +333,12 @@ export function ExerciseExecutionGraph({
                   points={repsPolyline}
                   fill="none"
                   stroke="#10b981"
-                  strokeWidth={1.5}
+                  strokeWidth={2}
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
                 {repsDots.map((pt, i) => (
-                  <circle key={i} cx={pt.x} cy={pt.y} r={2.5} fill="#10b981" />
+                  <circle key={i} cx={pt.x} cy={pt.y} r={3.5} fill="#10b981" />
                 ))}
               </>
             )}
@@ -329,8 +346,12 @@ export function ExerciseExecutionGraph({
             {/* X-axis date labels for metric points */}
             {ordered.map((p, i) => {
               const x = xPositions[i];
-              // Only show every Nth label to avoid crowding
-              const show = n <= 7 || i % Math.ceil(n / 7) === 0 || i === n - 1;
+              const label = formatIsoDateShort(p.at);
+              const previousLabel = i > 0 ? formatIsoDateShort(ordered[i - 1]!.at) : null;
+              const maxLabels = Math.max(7, timelineDays);
+              const show =
+                label !== previousLabel &&
+                (n <= maxLabels || i % Math.ceil(n / maxLabels) === 0 || i === n - 1);
               if (!show) return null;
               return (
                 <text
@@ -338,30 +359,31 @@ export function ExerciseExecutionGraph({
                   x={x}
                   y={CHART_H - 4}
                   textAnchor="middle"
-                  fontSize={7}
+                  fontSize={11}
                   fill="#9ca3af"
                 >
-                  {formatIsoDateShort(p.at)}
+                  {label}
                 </text>
               );
             })}
-          </svg>
+            </svg>
+          </div>
           {/* Legend */}
           <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
             {hasDifficulty && (
-              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span className={cn(doctorMetaTextClass, 'flex items-center gap-1')}>
                 <span className="inline-block h-1.5 w-4 rounded bg-red-500" />
                 тяжесть
               </span>
             )}
             {hasWeight && (
-              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span className={cn(doctorMetaTextClass, 'flex items-center gap-1')}>
                 <span className="inline-block h-1.5 w-4 rounded bg-blue-500" />
                 доп.вес
               </span>
             )}
             {hasReps && (
-              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span className={cn(doctorMetaTextClass, 'flex items-center gap-1')}>
                 <span className="inline-block h-1.5 w-4 rounded bg-emerald-500" />
                 повт.×подх.
               </span>
@@ -369,20 +391,20 @@ export function ExerciseExecutionGraph({
           </div>
         </div>
       ) : metricPoints.length > 0 ? (
-        <p className="mb-3 text-[10px] text-muted-foreground">Метрики не зафиксированы</p>
+        <p className={cn(doctorMetaTextClass, 'mb-3')}>Метрики не зафиксированы</p>
       ) : null}
 
       {/* ── Day activity bars (CMT-02) with hover tooltip (CMT-03) ── */}
       {hasBars ? (
         <div className="relative" onMouseLeave={() => setHoveredDay(null)}>
-          <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className={cn(doctorMetaTextClass, 'mb-1 font-medium uppercase tracking-wide')}>
             Активность по дням
           </p>
 
           {/* Hover tooltip (CMT-03: detailed numeric expansion) */}
           {hoveredDay && (
             <div
-              className="pointer-events-none absolute z-20 w-40 rounded border border-border bg-popover p-2 text-[10px] shadow-md"
+              className="pointer-events-none absolute z-20 w-40 rounded border border-border bg-popover p-2 text-xs shadow-md"
               style={{
                 bottom: 'calc(100% - 2px)',
                 left: `clamp(0px, calc(${(hoveredDay.xFraction * 100).toFixed(1)}% - 5rem), calc(100% - 10rem))`,
@@ -419,12 +441,12 @@ export function ExerciseExecutionGraph({
             </div>
           )}
 
-          <svg
-            viewBox={`0 0 ${VIEW_W} ${BAR_H}`}
-            className="w-full"
-            style={{ height: 70 }}
-            aria-label="Выполнение заданий по дням"
-          >
+          <div className="doctor-weekly-chart-scroll min-w-0 overflow-x-auto overscroll-x-contain">
+            <svg
+              viewBox={`0 0 ${viewWidth} ${BAR_H}`}
+              style={{ width: scrollWidth, minWidth: '100%', height: 'auto', display: 'block' }}
+              aria-label="Выполнение заданий по дням"
+            >
             {dayBars.map((day, i) => {
               const slotX = PADDING.left + i * slotW;
               const cx = slotX + slotW / 2;
@@ -480,12 +502,12 @@ export function ExerciseExecutionGraph({
                     />
                   )}
                   {/* Date label */}
-                  {(barsN <= 10 || i % Math.ceil(barsN / 10) === 0 || i === barsN - 1) && (
+                  {(barsN <= 31 || i % Math.ceil(barsN / 31) === 0 || i === barsN - 1) && (
                     <text
                       x={cx}
                       y={PADDING.top + barInnerH + 12}
                       textAnchor="middle"
-                      fontSize={7}
+                      fontSize={11}
                       fill={isHovered ? '#6b7280' : '#9ca3af'}
                       fontWeight={isHovered ? '600' : 'normal'}
                     >
@@ -495,19 +517,20 @@ export function ExerciseExecutionGraph({
                 </g>
               );
             })}
-          </svg>
+            </svg>
+          </div>
 
           {/* Legend */}
           <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <span className={cn(doctorMetaTextClass, 'flex items-center gap-1')}>
               <span className="inline-block h-2 w-2 rounded-sm bg-green-500" />
               всё выполнено
             </span>
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <span className={cn(doctorMetaTextClass, 'flex items-center gap-1')}>
               <span className="inline-block h-2 w-2 rounded-sm bg-yellow-500" />
               частично
             </span>
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <span className={cn(doctorMetaTextClass, 'flex items-center gap-1')}>
               <span className="inline-block h-2 w-2 rounded-sm bg-gray-400" />
               нет данных
             </span>

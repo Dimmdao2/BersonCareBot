@@ -87,9 +87,10 @@
 
 /*
  * Doctor routes render overlays through document.body portals. Keep the semantic
- * theme at the product-zone boundary so page chrome, dialogs, drawers, sheets and
- * popovers all inherit the same tokens instead of falling back to the root theme.
+ * theme at the product-zone boundary on both root and body so WebKit and Chromium
+ * page chrome, dialogs, drawers, sheets and popovers cannot fall back to root tokens.
  */
+:root:has(#app-shell-doctor),
 body:has(#app-shell-doctor),
 #app-shell-doctor.theme-bersoncare-doctor-dna,
 #app-shell-doctor[data-theme='bersoncare-doctor-dna'] {
@@ -109,7 +110,7 @@ body:has(#app-shell-doctor),
   --secondary: var(--bc-rail);
   --secondary-foreground: var(--bc-ink);
   --muted: var(--bc-rail);
-  --muted-foreground: var(--bc-muted);
+  --muted-foreground: var(--bc-ink-2);
   --accent: var(--bc-warm-selected);
   --accent-foreground: var(--bc-ink);
   --destructive: var(--bc-danger);
@@ -126,6 +127,7 @@ body:has(#app-shell-doctor),
 }
 
 /* Shell chrome and portal surfaces are white; only the workspace itself owns the canvas. */
+:root:has(#app-shell-doctor),
 body:has(#app-shell-doctor) {
   --background: var(--bc-surface);
 }

@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, FilePlus2, Info, ListPlus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FilePlus2, ListPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientSupportPanel';
@@ -25,6 +25,7 @@ import {
   type SerializedSupportMessage,
 } from '@/modules/messaging/serializeSupportMessage';
 import type { DoctorPatientProgramActivity } from '@/app/app/doctor/patients/loadDoctorPatientProgramActivity';
+import type { PatientExercisesWithCommentsResult } from '@/app/app/doctor/comments/loadDoctorPatientExercisesWithComments';
 import type { DoctorPatientExerciseCalendarSnapshot } from '@/app/app/doctor/patients/loadDoctorPatientExerciseCalendar';
 import type { DoctorPatientMessagesSnapshot } from '@/app/app/doctor/patients/loadDoctorPatientMessagesSnapshot';
 import type { BootstrapEnvelope } from '@/app/app/doctor/patients/doctorPatientCardBootstrapShared';
@@ -36,6 +37,7 @@ import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
 import type {
   TreatmentProgramInstanceSummary,
   TreatmentProgramInstanceDetail,
+  TreatmentProgramInstanceStageItemView,
 } from '@/modules/treatment-program/types';
 import {
   deriveOverviewProgramWidgetFromDetail,
@@ -57,16 +59,17 @@ import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorCatalogMediaStaticThumb } from '@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb';
 import {
   primaryMediaForStageItem,
-  resolveStageItemExerciseLoad,
   stageItemSnapshotTitle,
 } from '@/app/app/patient/treatment/stageItemSnapshot';
 import {
   DoctorDnaFlatList,
+  doctorDnaFlatListClickableClass,
   doctorDnaFlatListClass,
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { DoctorExerciseDetailModal } from '@/app/app/doctor/patients/[userId]/DoctorExerciseDetailModal';
 import { SpecialistTaskFormDialog } from '@/app/app/doctor/clients/SpecialistTaskFormDialog';
 import { SpecialistTaskRow as TaskRow } from '@/app/app/doctor/clients/SpecialistTaskRow';
 import {
@@ -75,6 +78,7 @@ import {
   selectSpecialistTasksDueTodayOrOverdue,
 } from '@/modules/specialist-tasks/taskPriority';
 import { routePaths } from '@/app-layer/routes/paths';
+import { formatRussianLongDateCompactLabel } from '@/shared/datetime/displayTimeZoneFormat';
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -159,29 +163,11 @@ interface TreatmentInstanceItem {
   updatedAt: string;
 }
 
-interface TreatmentInstanceStage {
-  id: string;
-  title: string;
-  status: string;
-  sortOrder: number;
-  startedAt?: string | null;
-  expectedDurationDays?: number | null;
-  groups: Array<{ id: string; title: string; systemKind?: string | null }>;
-  items: Array<{
-    id: string;
-    itemType: string;
-    sortOrder: number;
-    status?: string;
-    groupId?: string | null;
-    snapshot?: Record<string, unknown> | null;
-    effectiveComment?: string | null;
-    settings?: Record<string, unknown> | null;
-  }>;
-}
+type TreatmentInstanceStage = TreatmentProgramInstanceDetail['stages'][number];
 
 interface TreatmentInstanceDetailResponse {
   ok: boolean;
-  item: TreatmentInstanceItem & { stages: TreatmentInstanceStage[] };
+  item: TreatmentProgramInstanceDetail;
 }
 
 interface ProgramInstancesApiResponse {
@@ -238,6 +224,7 @@ interface OverviewData {
 
   // Treatment program
   programStatus: WidgetStatus;
+  programInstanceId: string | null;
   programTitle: string | null;
   programStartedAt: string | null;
   programStages: TreatmentInstanceStage[];
@@ -267,6 +254,7 @@ interface OverviewData {
 type SymptomSeries = {
   name: string;
   color: string;
+  currentSeverity: number;
   points: Array<{ visit: string; score: number }>;
 };
 
@@ -317,18 +305,6 @@ function isBeforeCurrentCalendarDay(iso: string, nowIso: string): boolean {
   const day = utcCalendarDayIndex(iso);
   const currentDay = utcCalendarDayIndex(nowIso);
   return day != null && currentDay != null && day < currentDay;
-}
-
-function overviewExerciseLoadLabel(
-  item: TreatmentInstanceStage['items'][number],
-): string | null {
-  const load = resolveStageItemExerciseLoad(item);
-  const parts = [
-    load.reps != null ? `Повторы ${load.reps}` : null,
-    load.sets != null ? `Подходы ${load.sets}` : null,
-    load.maxPain != null ? `Боль ${load.maxPain}` : null,
-  ].filter((part): part is string => part != null);
-  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 function fmtDateMsgShort(iso: string): string {
@@ -423,8 +399,7 @@ function buildSymptomSeries(
     }
 
     const color = c.priority ? COLORS[0] : (COLORS[idx + 1] ?? COLORS[1]);
-    const label = `${c.priority ? '⚑ ' : ''}${c.text.length > 20 ? c.text.slice(0, 20) + '…' : c.text} · ${c.currentSeverity}/10`;
-    return { name: label, color, points };
+    return { name: c.text, color, currentSeverity: c.currentSeverity, points };
   });
 }
 
@@ -485,63 +460,87 @@ function ScoreBadge({ score, size = 'base' }: { score: number; size?: 'base' | '
   return <span className={cls}>{score}/10</span>;
 }
 
-function SymptomChart({ series }: { series: SymptomSeries[] }) {
+function SymptomChart({
+  series,
+  currentYear,
+}: {
+  series: SymptomSeries[];
+  currentYear: number | null;
+}) {
   const validSeries = series.filter((s) => s.points.length >= 2);
   if (validSeries.length === 0) return null;
 
-  const W = 480;
-  const H = 168;
-  const padLeft = 34;
+  const baseWidth = 480;
+  const H = 184;
+  const padLeft = 30;
   const padRight = 14;
-  const padTop = 10;
+  const padTop = 14;
   const chartH = 130;
-  const chartW = W - padLeft - padRight;
 
   const yLabels = [10, 8, 6, 4, 2, 0];
   const yOf = (score: number) => padTop + ((10 - score) / 10) * chartH;
   const xLabels = validSeries[0].points.map((p) => p.visit);
   const nPoints = validSeries[0].points.length;
+  const scrollable = nPoints > 5;
+  const W = scrollable
+    ? Math.max(baseWidth, padLeft + padRight + (nPoints - 1) * 104)
+    : baseWidth;
+  const chartW = W - padLeft - padRight;
   const xOf = (i: number) => padLeft + (i / Math.max(nPoints - 1, 1)) * chartW;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
-      <g stroke="#edf0f5" strokeWidth="1">
-        {yLabels.map((v) => (
-          <line key={v} x1={padLeft} y1={yOf(v)} x2={W - padRight} y2={yOf(v)} />
-        ))}
-      </g>
-      <g fontSize="9" fill="#8b95a3">
-        {yLabels.map((v) => (
-          <text key={v} x={padLeft - 6} y={yOf(v) + 3} textAnchor="end">
-            {v}
-          </text>
-        ))}
-      </g>
-      {validSeries.map((s) => {
-        const pts = s.points.map((p, i) => `${xOf(i)},${yOf(p.score)}`).join(' ');
-        return (
-          <g key={s.name}>
-            <polyline points={pts} fill="none" stroke={s.color} strokeWidth="2" />
-            {s.points.map((p, i) => (
-              <circle
-                key={i}
-                cx={xOf(i)}
-                cy={yOf(p.score)}
-                r={i === s.points.length - 1 ? 3.5 : 3}
-                fill={s.color}
-              />
-            ))}
-          </g>
-        );
-      })}
-      <g fontSize="9.5" fill="#5a6675">
-        {xLabels.map((label, i) => (
-          <text key={i} x={xOf(i)} y={H - 12} textAnchor="middle">
-            {label.length > 12 ? label.slice(0, 12) : label}
-          </text>
-        ))}
-      </g>
-    </svg>
+    <div className="min-w-0 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        style={{
+          width: scrollable ? `max(100%, ${Math.ceil(W * 0.7)}px)` : '100%',
+          height: 'auto',
+          display: 'block',
+        }}
+      >
+        <g stroke="#edf0f5" strokeWidth="1">
+          {yLabels.map((v) => (
+            <line key={v} x1={padLeft} y1={yOf(v)} x2={W - padRight} y2={yOf(v)} />
+          ))}
+        </g>
+        <g fontSize="18" className="fill-muted-foreground">
+          {yLabels.map((v) => (
+            <text key={v} x="0" y={yOf(v) + 6} textAnchor="start">
+              {v}
+            </text>
+          ))}
+        </g>
+        {validSeries.map((s) => {
+          const pts = s.points.map((p, i) => `${xOf(i)},${yOf(p.score)}`).join(' ');
+          return (
+            <g key={s.name}>
+              <polyline points={pts} fill="none" stroke={s.color} strokeWidth="2" />
+              {s.points.map((p, i) => (
+                <circle
+                  key={i}
+                  cx={xOf(i)}
+                  cy={yOf(p.score)}
+                  r={i === s.points.length - 1 ? 3.5 : 3}
+                  fill={s.color}
+                />
+              ))}
+            </g>
+          );
+        })}
+        <g fontSize="18" className="fill-muted-foreground">
+          {xLabels.map((label, i) => (
+            <text
+              key={i}
+              x={xOf(i)}
+              y={H - 10}
+              textAnchor={i === 0 ? 'start' : i === xLabels.length - 1 ? 'end' : 'middle'}
+            >
+              {formatRussianLongDateCompactLabel(label, currentYear)}
+            </text>
+          ))}
+        </g>
+      </svg>
+    </div>
   );
 }
 
@@ -650,6 +649,7 @@ function resolveProgramSeedFields(
 ): Pick<
   OverviewData,
   | 'programStatus'
+  | 'programInstanceId'
   | 'programTitle'
   | 'programStartedAt'
   | 'programStages'
@@ -659,6 +659,7 @@ function resolveProgramSeedFields(
   if (initialProgramInstances != null && isBootstrapEnvelopeFailed(initialProgramInstances)) {
     return {
       programStatus: 'error',
+      programInstanceId: null,
       programTitle: null,
       programStartedAt: null,
       programStages: [],
@@ -668,7 +669,10 @@ function resolveProgramSeedFields(
   }
   const programInstanceDetail = unwrapBootstrapEnvelope(initialProgramInstanceDetail);
   if (programInstanceDetail) {
-    return deriveOverviewProgramWidgetFromDetail(programInstanceDetail);
+    return {
+      ...deriveOverviewProgramWidgetFromDetail(programInstanceDetail),
+      programInstanceId: programInstanceDetail.id,
+    };
   }
   const programInstances = unwrapBootstrapEnvelope(initialProgramInstances);
   if (initialProgramInstances != null) {
@@ -676,6 +680,7 @@ function resolveProgramSeedFields(
     if (!open) {
       return {
         programStatus: 'empty',
+        programInstanceId: null,
         programTitle: null,
         programStartedAt: null,
         programStages: [],
@@ -689,6 +694,7 @@ function resolveProgramSeedFields(
     ) {
       return {
         programStatus: 'error',
+        programInstanceId: open.id,
         programTitle: open.title,
         programStartedAt: open.createdAt,
         programStages: [],
@@ -699,6 +705,7 @@ function resolveProgramSeedFields(
     if (initialProgramInstanceDetail != null) {
       return {
         programStatus: 'error',
+        programInstanceId: open.id,
         programTitle: open.title,
         programStartedAt: open.createdAt,
         programStages: [],
@@ -708,6 +715,7 @@ function resolveProgramSeedFields(
     }
     return {
       programStatus: 'loading',
+      programInstanceId: open.id,
       programTitle: open.title,
       programStartedAt: open.createdAt,
       programStages: [],
@@ -717,6 +725,7 @@ function resolveProgramSeedFields(
   }
   return {
     programStatus: 'loading',
+    programInstanceId: null,
     programTitle: null,
     programStartedAt: null,
     programStages: [],
@@ -848,6 +857,7 @@ function buildSsrSeedData(
     activePackage,
     activePackages,
     programStatus: programSeed.programStatus,
+    programInstanceId: programSeed.programInstanceId,
     programTitle: programSeed.programTitle,
     programStartedAt: programSeed.programStartedAt,
     programStages: programSeed.programStages,
@@ -956,12 +966,53 @@ export function PatientTabOverview({
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<SpecialistTaskRow | null>(null);
   const [stageExercisesModalOpen, setStageExercisesModalOpen] = useState(false);
+  const [selectedStageExerciseId, setSelectedStageExerciseId] = useState<string | null>(null);
+  const [stageExerciseComments, setStageExerciseComments] = useState<{
+    userId: string;
+    counts: Record<string, { total: number; unread: number }>;
+  } | null>(null);
   const [clientNowIso, setClientNowIso] = useState<string | null>(null);
 
   useEffect(() => {
     // Time-dependent labels are intentionally absent from SSR and the first client render.
     setClientNowIso(new Date().toISOString());
   }, []);
+
+  useEffect(() => {
+    if (!stageExercisesModalOpen) return;
+    let active = true;
+
+    void fetch(
+      `/api/doctor/comments/patients/${encodeURIComponent(userId)}/exercises`,
+      { credentials: 'include' },
+    )
+      .then((response) =>
+        response.ok
+          ? (response.json() as Promise<{
+              ok: boolean;
+              data: PatientExercisesWithCommentsResult | null;
+            }>)
+          : null,
+      )
+      .catch(() => null)
+      .then((response) => {
+        if (!active || !response?.ok) return;
+        const counts: Record<string, { total: number; unread: number }> = {};
+        for (const group of response.data?.groups ?? []) {
+          for (const exercise of group.exercises) {
+            counts[exercise.stageItemId] = {
+              total: exercise.totalComments,
+              unread: exercise.unreadComments,
+            };
+          }
+        }
+        setStageExerciseComments({ userId, counts });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [stageExercisesModalOpen, userId]);
 
   const hasSsrData =
     initialClinicalState != null &&
@@ -1262,6 +1313,7 @@ export function PatientTabOverview({
 
         // --- Program — fetch active instance detail if available ---
         let programStatus: WidgetStatus = 'ok';
+        let programInstanceId: string | null = null;
         let programTitle: string | null = null;
         let programStartedAt: string | null = null;
         let programStages: TreatmentInstanceStage[] = [];
@@ -1276,6 +1328,7 @@ export function PatientTabOverview({
           if (!activeInstance) {
             programStatus = 'empty';
           } else if (seededProgramDetail && seededProgramDetail.id === activeInstance.id) {
+            programInstanceId = activeInstance.id;
             const seeded = deriveOverviewProgramWidgetFromDetail(seededProgramDetail);
             programStatus = seeded.programStatus;
             programTitle = seeded.programTitle;
@@ -1284,6 +1337,7 @@ export function PatientTabOverview({
             programCurrentStage = seeded.programCurrentStage;
             programCurrentStageIndex = seeded.programCurrentStageIndex;
           } else {
+            programInstanceId = activeInstance.id;
             programTitle = activeInstance.title;
             programStartedAt = activeInstance.createdAt;
             try {
@@ -1352,6 +1406,7 @@ export function PatientTabOverview({
           activePackage,
           activePackages: normalizedActivePackages,
           programStatus,
+          programInstanceId,
           programTitle,
           programStartedAt,
           programStages,
@@ -1537,6 +1592,55 @@ export function PatientTabOverview({
         .filter((item) => item.itemType === 'exercise' && item.status !== 'disabled')
         .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
     : [];
+  const selectedStageExercise =
+    displayStageExercises.find((item) => item.id === selectedStageExerciseId) ?? null;
+
+  const updateStageExercise = (nextItem: TreatmentProgramInstanceStageItemView) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      const updateStage = (stage: TreatmentInstanceStage): TreatmentInstanceStage => ({
+        ...stage,
+        items: stage.items.map((item) => (item.id === nextItem.id ? nextItem : item)),
+      });
+      return {
+        ...prev,
+        programStages: prev.programStages.map(updateStage),
+        programCurrentStage: prev.programCurrentStage
+          ? updateStage(prev.programCurrentStage)
+          : null,
+      };
+    });
+  };
+
+  const markStageExerciseCommentsRead = (stageItemId: string) => {
+    const clearedUnread =
+      stageExerciseComments?.userId === userId
+        ? (stageExerciseComments.counts[stageItemId]?.unread ?? 0)
+        : 0;
+    setStageExerciseComments((prev) =>
+      prev?.userId === userId && prev.counts[stageItemId]
+        ? {
+            ...prev,
+            counts: {
+              ...prev.counts,
+              [stageItemId]: { ...prev.counts[stageItemId], unread: 0 },
+            },
+          }
+        : prev,
+    );
+    if (clearedUnread <= 0) return;
+    setData((prev) =>
+      prev?.programActivity
+        ? {
+            ...prev,
+            programActivity: {
+              ...prev.programActivity,
+              unreadCount: Math.max(0, prev.programActivity.unreadCount - clearedUnread),
+            },
+          }
+        : prev,
+    );
+  };
   const calendarGrid = buildCalendarGrid(data?.calendarDays ?? [], calYear, calMonth);
   const attentionTasks =
     tasksTodayIso && tasksDisplayIana
@@ -1788,25 +1892,35 @@ export function PatientTabOverview({
               isOverviewComposition && 'order-2 col-span-2',
             )}
           >
-            <div className="flex items-center justify-between flex-wrap gap-1.5 mb-1">
+            <div className="mb-1 flex flex-col gap-2">
               <span className={doctorSectionTitleClass}>Динамика симптомов</span>
               {!isLoading && data?.symptomSeries && data.symptomSeries.length > 0 && (
-                <span className="flex gap-2.5 items-center">
+                <div className="grid min-w-0 gap-1.5 sm:grid-cols-2">
                   {data.symptomSeries
                     .filter((series) => series.points.length >= 2)
                     .map((s) => (
-                      <span
+                      <div
                         key={s.name}
-                        className="flex items-center gap-1 text-xs text-muted-foreground"
+                        className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-1.5"
                       >
                         <span
-                          className="w-2.5 h-2.5 rounded-sm flex-none"
+                          className="mt-1 size-2.5 flex-none rounded-sm"
                           style={{ background: s.color }}
                         />
-                        {s.name}
-                      </span>
+                        <span className={cn(doctorMetaTextClass, 'min-w-0 line-clamp-2')}>
+                          {s.name}
+                        </span>
+                        <span
+                          className={cn(
+                            doctorMetaTextClass,
+                            'ml-2 shrink-0 text-right tabular-nums text-foreground',
+                          )}
+                        >
+                          {s.currentSeverity}/10
+                        </span>
+                      </div>
                     ))}
-                </span>
+                </div>
               )}
             </div>
             {isLoading && (
@@ -1815,7 +1929,10 @@ export function PatientTabOverview({
             {!isLoading &&
               data?.symptomSeries &&
               data.symptomSeries.some((s) => s.points.length >= 2) && (
-                <SymptomChart series={data.symptomSeries} />
+                <SymptomChart
+                  series={data.symptomSeries}
+                  currentYear={tasksTodayIso ? Number(tasksTodayIso.slice(0, 4)) : null}
+                />
               )}
           </div>
         ) : null}
@@ -1829,15 +1946,14 @@ export function PatientTabOverview({
             id="patient-overview-notes"
             title="Заметок"
             value={data?.notes.length ?? 0}
-            onClick={() => setNotesModalOpen(true)}
-            valuePlacement="inline"
+            onClick={(data?.notes.length ?? 0) > 0 ? () => setNotesModalOpen(true) : undefined}
             actionIcon={<FilePlus2 className="size-5" aria-hidden />}
             actionLabel="Добавить заметку"
             onActionClick={() => {
               setNoteText('');
               setNoteFormOpen(true);
             }}
-            className="h-full border-primary/30"
+            className="h-full"
           />
 
           <DoctorModal
@@ -1934,15 +2050,14 @@ export function PatientTabOverview({
               value={data?.tasks.length ?? 0}
               tone={tasksNeedAttention ? 'warning' : 'neutral'}
               valueClassName={tasksNeedAttention ? 'text-destructive' : undefined}
-              onClick={() => setTasksModalOpen(true)}
-              valuePlacement="inline"
+              onClick={(data?.tasks.length ?? 0) > 0 ? () => setTasksModalOpen(true) : undefined}
               actionIcon={<ListPlus className="size-5" aria-hidden />}
               actionLabel="Добавить задачу"
               onActionClick={() => {
                 setEditingTask(null);
                 setTaskFormOpen(true);
               }}
-              className="h-full border-primary/30"
+              className="h-full"
             />
 
             <DoctorModal
@@ -1966,7 +2081,6 @@ export function PatientTabOverview({
                       type="button"
                       size="sm"
                       onClick={() => {
-                        setTasksModalOpen(false);
                         setEditingTask(null);
                         setTaskFormOpen(true);
                       }}
@@ -2005,7 +2119,6 @@ export function PatientTabOverview({
                         canMutate={specialistTasksAvailable}
                         mobileFlat
                         onOpen={(selected) => {
-                          setTasksModalOpen(false);
                           setEditingTask(selected);
                           setTaskFormOpen(true);
                         }}
@@ -2048,11 +2161,6 @@ export function PatientTabOverview({
                     с {fmtDateShort(data.programStartedAt)} ({formatDaysRu(programElapsedDays)})
                   </span>
                 ) : null}
-                {(data?.programActivity?.unreadCount ?? 0) > 0 && (
-                  <span className="inline-flex shrink-0 items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                    {data!.programActivity!.unreadCount} непрочитанных
-                  </span>
-                )}
               </div>
             </div>
             {!isLoading && data?.programStatus === 'ok' && data.programTitle ? (
@@ -2106,7 +2214,12 @@ export function PatientTabOverview({
                   type="button"
                   variant="ghost"
                   onClick={() => setStageExercisesModalOpen(true)}
-                  className="h-auto min-h-9 w-full justify-start rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-left text-sm font-normal text-primary hover:bg-primary/10 hover:text-primary"
+                  className={cn(
+                    'h-auto min-h-9 w-full justify-start rounded-lg border px-3 py-2 text-left text-sm font-normal',
+                    (data?.programActivity?.unreadCount ?? 0) > 0
+                      ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:text-destructive'
+                      : 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary',
+                  )}
                 >
                   <span className="line-clamp-2">{displayStage.title}</span>
                 </Button>
@@ -2118,7 +2231,10 @@ export function PatientTabOverview({
 
         <DoctorModal
           open={stageExercisesModalOpen}
-          onClose={() => setStageExercisesModalOpen(false)}
+          onClose={() => {
+            setStageExercisesModalOpen(false);
+            setSelectedStageExerciseId(null);
+          }}
           title={`Упражнения этапа ${displayStageIndex + 1}`}
           size="lg"
           bodyVariant="list"
@@ -2133,41 +2249,46 @@ export function PatientTabOverview({
           {displayStageExercises.length > 0 ? (
             <DoctorDnaFlatList>
               {displayStageExercises.map((item) => {
-                const loadLabel = overviewExerciseLoadLabel(item);
-                const doctorNote = item.effectiveComment?.trim() || null;
+                const commentCounts =
+                  stageExerciseComments?.userId === userId
+                    ? (stageExerciseComments.counts[item.id] ?? { total: 0, unread: 0 })
+                    : null;
                 return (
-                  <li key={item.id} className={doctorDnaFlatListRowClass}>
-                    <DoctorCatalogMediaStaticThumb
-                      media={primaryMediaForStageItem(
-                        item as Parameters<typeof primaryMediaForStageItem>[0],
+                  <li key={item.id}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className={cn(
+                        doctorDnaFlatListRowClass,
+                        doctorDnaFlatListClickableClass,
+                        'h-auto min-h-0 w-full rounded-none bg-transparent text-left shadow-none',
                       )}
-                      frameClassName="size-14 rounded-md border border-border/60 bg-muted/15"
-                      sizes="56px"
-                      iconClassName="size-5"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className={cn(doctorDnaFlatListPrimaryClass, 'line-clamp-2 leading-snug')}>
-                        {stageItemSnapshotTitle(item.snapshot, item.itemType)}
-                      </p>
-                      {loadLabel || doctorNote ? (
-                        <div className="mt-1 flex min-w-0 items-center justify-end gap-2">
-                          {doctorNote ? (
-                            <span
-                              className="inline-flex shrink-0 text-muted-foreground"
-                              aria-label="Есть заметка врача"
-                              title={doctorNote}
-                            >
-                              <Info className="size-4" aria-hidden />
-                            </span>
-                          ) : null}
-                          {loadLabel ? (
-                            <span className={cn(doctorDnaFlatListMetaClass, 'text-right')}>
-                              {loadLabel}
-                            </span>
-                          ) : null}
-                        </div>
+                      onClick={() => setSelectedStageExerciseId(item.id)}
+                    >
+                      <DoctorCatalogMediaStaticThumb
+                        media={primaryMediaForStageItem(item)}
+                        frameClassName="size-12 rounded-sm border border-border/60 bg-muted/15"
+                        sizes="48px"
+                        iconClassName="size-4"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={cn(
+                            doctorDnaFlatListPrimaryClass,
+                            'line-clamp-2 leading-snug',
+                            commentCounts?.unread ? 'pr-4' : undefined,
+                          )}
+                        >
+                          {stageItemSnapshotTitle(item.snapshot, item.itemType)}
+                        </p>
+                      </div>
+                      {commentCounts?.unread ? (
+                        <span
+                          className="absolute top-3 right-[var(--doctor-list-inline-padding,18px)] size-2 rounded-full bg-destructive"
+                          aria-label="Есть непрочитанные комментарии"
+                        />
                       ) : null}
-                    </div>
+                    </Button>
                   </li>
                 );
               })}
@@ -2178,6 +2299,25 @@ export function PatientTabOverview({
             </DoctorEmptyState>
           )}
         </DoctorModal>
+
+        {selectedStageExercise && data?.programInstanceId ? (
+          <DoctorExerciseDetailModal
+            key={selectedStageExercise.id}
+            open
+            onOpenChange={(nextOpen) => {
+              if (!nextOpen) setSelectedStageExerciseId(null);
+            }}
+            instanceId={data.programInstanceId}
+            item={selectedStageExercise}
+            unreadCount={
+              stageExerciseComments?.userId === userId
+                ? (stageExerciseComments.counts[selectedStageExercise.id]?.unread ?? 0)
+                : 0
+            }
+            onItemUpdated={updateStageExercise}
+            onMarkedRead={markStageExerciseCommentsRead}
+          />
+        ) : null}
 
         {/* Сопровождение — moved here from Учётка (S2.5) */}
         {!isComposed ? (

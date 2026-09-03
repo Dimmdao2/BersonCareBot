@@ -12,7 +12,8 @@ export const doctorClientProfileStickyShellClass =
 /** PatientCareBar header (§9a). */
 export const doctorClientEntityHeaderClass = 'border-b border-border bg-card px-4 py-3';
 
-export const doctorClientDisplayNameClass = 'min-w-0 text-base font-semibold text-foreground';
+export const doctorClientDisplayNameClass =
+  'min-w-0 text-[18px] font-bold leading-6 text-foreground';
 
 export const doctorClientStatusPillMutedClass =
   'rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground';

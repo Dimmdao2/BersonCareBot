@@ -120,7 +120,7 @@ export function SpecialistTaskDetailsDialog({
   return (
     <>
       <DoctorModal
-        open={open && task != null && !editOpen}
+        open={open && task != null}
         onClose={onClose}
         title="Задача"
         size="sm"

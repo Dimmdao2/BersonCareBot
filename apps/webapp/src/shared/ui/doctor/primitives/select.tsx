@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 export function SelectTrigger({ className, ...props }: ComponentProps<typeof SharedSelectTrigger>) {
   return (
     <SharedSelectTrigger
-      className={cn('doctor-button-radius bg-white', className)}
+      className={cn('rounded-[var(--doctor-button-radius,8px)] bg-white', className)}
       {...props}
     />
   );
@@ -36,7 +36,10 @@ export function SelectContent({
     <SharedSelectContent
       align={align}
       alignItemWithTrigger={alignItemWithTrigger}
-      className={cn('doctor-button-radius [&_[data-slot=select-item]]:pl-3', className)}
+      className={cn(
+        'rounded-[var(--doctor-button-radius,8px)] [&_[data-slot=select-item]]:pl-3',
+        className,
+      )}
       {...props}
     />
   );

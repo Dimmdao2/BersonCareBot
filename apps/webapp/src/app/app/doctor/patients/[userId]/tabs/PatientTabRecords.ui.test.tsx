@@ -253,6 +253,16 @@ describe('patient records tab — a refused load is not a visit history', () => 
   });
 
   it('shows visit totals in the fixed modal summary without putting a count in its title', async () => {
+    const completed = {
+      id: 'completed',
+      internalId: 'completed',
+      dateTime: '2026-08-18T10:00:00.000Z',
+      status: 'completed',
+      serviceName: 'Сеанс',
+      location: 'Клиника',
+      durationMin: 60,
+      hasVisitRecord: true,
+    } satisfies PatientAppointmentItem;
     const lateCancellation = {
       id: 'late-cancellation',
       internalId: 'late-cancellation',
@@ -268,12 +278,12 @@ describe('patient records tab — a refused load is not a visit history', () => 
       <PatientTabRecords
         userId={patientId}
         compositionMode="master"
-        initialAppointments={[lateCancellation]}
+        initialAppointments={[completed, lateCancellation]}
         initialPackages={[]}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Визитов\s*0/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Визитов\s*1/ }));
     expect(await screen.findByRole('dialog', { name: 'Визиты' })).toBeInTheDocument();
     expect(screen.getByText('Поздних отмен 1')).toBeInTheDocument();
     expect(screen.getByText('19.08.2026 · 13:00')).toBeInTheDocument();

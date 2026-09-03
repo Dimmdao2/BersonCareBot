@@ -19,7 +19,11 @@ import type {
   TreatmentProgramInstanceSummary,
   TreatmentProgramInstanceDetail,
 } from '@/modules/treatment-program/types';
-import { doctorSectionCardClass, doctorPageStackClass } from '@/shared/ui/doctor/doctorVisual';
+import {
+  doctorMetaTextClass,
+  doctorSectionCardClass,
+  doctorPageStackClass,
+} from '@/shared/ui/doctor/doctorVisual';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
@@ -53,7 +57,10 @@ import toast from 'react-hot-toast';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import { DoctorShellMobileBottomTabsRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { DateTime } from 'luxon';
-import { doctorClientPrimaryOutlineActionClass } from '@/app/app/doctor/clients/doctorClientCardChrome';
+import {
+  doctorClientDisplayNameClass,
+  doctorClientPrimaryOutlineActionClass,
+} from '@/app/app/doctor/clients/doctorClientCardChrome';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorClientMembershipsPanel } from '@/app/app/doctor/clients/DoctorClientMembershipsPanel';
 
@@ -240,6 +247,8 @@ function PatientContactActions({
   hasMax,
   hasEmail,
   chatButtonHighlighted,
+  chatUnreadCount,
+  onChatUnreadChange,
   className,
 }: {
   identity: PatientCardHeader['identity'];
@@ -247,6 +256,8 @@ function PatientContactActions({
   hasMax: boolean;
   hasEmail: boolean;
   chatButtonHighlighted: boolean;
+  chatUnreadCount: number;
+  onChatUnreadChange: (count: number) => void;
   className?: string;
 }) {
   const actionClass = 'h-[34px] w-[34px] rounded-md border text-xs md:h-6 md:w-6';
@@ -293,12 +304,15 @@ function PatientContactActions({
         patientName={identity.displayName ?? undefined}
         variant="ghost"
         size="icon"
-        title="Открыть чат"
+        title={chatUnreadCount > 0 ? `Открыть чат · ${chatUnreadCount}` : 'Открыть чат'}
+        onUnreadChange={onChatUnreadChange}
         className={cn(
           actionClass,
-          chatButtonHighlighted
-            ? doctorClientPrimaryOutlineActionClass
-            : 'border-transparent bg-muted/30 text-muted-foreground/40 hover:bg-primary/15 hover:text-primary',
+          chatUnreadCount > 0
+            ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:text-destructive'
+            : chatButtonHighlighted
+              ? doctorClientPrimaryOutlineActionClass
+              : 'border-transparent bg-muted/30 text-muted-foreground/40 hover:bg-primary/15 hover:text-primary',
         )}
       >
         <MessageCircle className="h-3.5 w-3.5" />
@@ -383,6 +397,7 @@ export function PatientCardClient({
   const [pendingPrefillService, setPendingPrefillService] = useState<string | null>(null);
   const [pendingPrefillDurationMin, setPendingPrefillDurationMin] = useState<number | null>(null);
   const [newVisitRequestId, setNewVisitRequestId] = useState(0);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
   const selectTab = useCallback((tab: TabId) => {
     setActiveTab(tab);
@@ -427,6 +442,39 @@ export function PatientCardClient({
     window.addEventListener('patient:open-tab', handleOpenTab);
     return () => window.removeEventListener('patient:open-tab', handleOpenTab);
   }, [selectTab]);
+
+  useEffect(() => {
+    const patientUserId = header?.identity.userId;
+    if (!patientUserId) {
+      setChatUnreadCount(0);
+      return;
+    }
+
+    let cancelled = false;
+    void fetch('/api/doctor/messages/conversations/unread-by-patient', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ patientUserId }),
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as { ok?: boolean; unreadCount?: number };
+        if (
+          !cancelled &&
+          response.ok &&
+          payload.ok &&
+          typeof payload.unreadCount === 'number'
+        ) {
+          setChatUnreadCount(payload.unreadCount);
+        }
+      })
+      .catch(() => {
+        // The badge is optional; chat remains available when the count cannot be loaded.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [header?.identity.userId]);
 
   const mobileBottomTabs = useMemo(
     () =>
@@ -578,7 +626,7 @@ export function PatientCardClient({
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                   {/* FIO row */}
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="text-base font-bold text-foreground leading-tight">
+                    <span id="doctor-client-display-name" className={doctorClientDisplayNameClass}>
                       {fioDisplay}
                     </span>
                     <Button
@@ -673,7 +721,7 @@ export function PatientCardClient({
               )}
 
               {/* Дата рождения — read-only; edit via pencil */}
-              <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              <div className={cn(doctorMetaTextClass, 'mt-2.5 flex flex-wrap items-center gap-1.5')}>
                 <span>
                   Дата рождения: {resolvedBirthDate ? fmtBirthDate(resolvedBirthDate) : '—'}
                 </span>
@@ -715,6 +763,8 @@ export function PatientCardClient({
               hasMax={hasMax}
               hasEmail={hasEmail}
               chatButtonHighlighted={chatButtonHighlighted}
+              chatUnreadCount={chatUnreadCount}
+              onChatUnreadChange={setChatUnreadCount}
             />
           </div>
         ) : null}

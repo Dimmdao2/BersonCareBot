@@ -67,6 +67,39 @@ export function formatDisplayZoneDayShortFromBucket(bucket: string): string {
   return dt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
 }
 
+const RU_LONG_MONTH_INDEX: Readonly<Record<string, number>> = {
+  января: 0,
+  февраля: 1,
+  марта: 2,
+  апреля: 3,
+  мая: 4,
+  июня: 5,
+  июля: 6,
+  августа: 7,
+  сентября: 8,
+  октября: 9,
+  ноября: 10,
+  декабря: 11,
+};
+
+/** `21 августа 2026` → `21 авг.`; год добавляется только когда он не текущий. */
+export function formatRussianLongDateCompactLabel(
+  label: string,
+  currentYear: number | null | undefined,
+): string {
+  const match = label.trim().match(/^(\d{1,2})\s+([а-яё]+)\s+(\d{4})$/iu);
+  if (!match) return label;
+
+  const day = Number.parseInt(match[1]!, 10);
+  const month = RU_LONG_MONTH_INDEX[match[2]!.toLocaleLowerCase('ru-RU')];
+  const year = Number.parseInt(match[3]!, 10);
+  if (month == null || day < 1 || day > 31 || !Number.isFinite(year)) return label;
+
+  const date = new Date(Date.UTC(year, month, day, 12));
+  const monthLabel = date.toLocaleDateString('ru-RU', { month: 'short', timeZone: 'UTC' });
+  return `${day} ${monthLabel}${year === currentYear ? '' : ` ${year}`}`;
+}
+
 export function formatDisplayZoneHourFromBucket(bucket: string): string {
   const p = parsePgLocalBucket(bucket);
   if (!p) return bucket;

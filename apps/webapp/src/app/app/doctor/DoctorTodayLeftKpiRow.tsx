@@ -202,7 +202,7 @@ export function DoctorTodayLeftKpiRow({
                 : undefined
             }
             valueClassName={
-              attentionTasks.length > 0 ? attentionKpiValueClass : 'text-foreground/75'
+              attentionTasks.length > 0 ? attentionKpiValueClass : undefined
             }
           />
         ) : null}
@@ -292,7 +292,6 @@ export function DoctorTodayLeftKpiRow({
                 type="button"
                 size="sm"
                 onClick={() => {
-                  setKpiModal(null);
                   setTaskFormOpen(true);
                 }}
               >
@@ -314,7 +313,6 @@ export function DoctorTodayLeftKpiRow({
               canMutate={tasksAvailable}
               mobileFlat
               onOpen={(selected) => {
-                setKpiModal(null);
                 setSelectedTaskId(selected.id);
               }}
             />

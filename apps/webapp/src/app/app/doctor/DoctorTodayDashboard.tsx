@@ -394,6 +394,7 @@ export function DoctorTodayDashboard({
         open={mobileModal === 'calendar'}
         onClose={() => setMobileModal(null)}
         title="Записей сегодня"
+        headerSubtitle={calendarSnapshot.todayDateLabel}
         size="content"
         bodyVariant="list"
       >

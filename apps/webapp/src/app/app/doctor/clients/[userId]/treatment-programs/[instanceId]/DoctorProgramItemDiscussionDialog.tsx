@@ -30,8 +30,9 @@ export function DoctorProgramItemDiscussionDialog(props: {
   itemLabel?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onMarkedRead?: () => void;
 }) {
-  const { instanceId, itemId, itemLabel, open, onOpenChange } = props;
+  const { instanceId, itemId, itemLabel, open, onOpenChange, onMarkedRead } = props;
   const [messages, setMessages] = useState<ProgramItemDiscussionMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -39,6 +40,8 @@ export function DoctorProgramItemDiscussionDialog(props: {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [peerLastReadAt, setPeerLastReadAt] = useState<string | null>(null);
   const loadGenerationRef = useRef(0);
+  const onMarkedReadRef = useRef(onMarkedRead);
+  onMarkedReadRef.current = onMarkedRead;
 
   const basePath = useMemo(
     () =>
@@ -84,7 +87,9 @@ export function DoctorProgramItemDiscussionDialog(props: {
     setNextCursor(null);
     try {
       await loadPage(null, false, generation);
-      void markDoctorProgramDiscussionRead({ instanceId, stageItemId: itemId });
+      void markDoctorProgramDiscussionRead({ instanceId, stageItemId: itemId }).then((result) => {
+        if (result.ok) onMarkedReadRef.current?.();
+      });
     } catch (e) {
       if (generation !== loadGenerationRef.current) return;
       const msg = e instanceof Error ? e.message : 'Не удалось загрузить обсуждение';

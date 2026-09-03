@@ -53,7 +53,7 @@
 | Subtle surface             | вложенные панели, инсет-строки       | `bg-muted/15`, `#f7f9fc`         |
 | Border                     | разделение поверхностей              | `--border` (`#e3e8f0`)           |
 | Text primary               | основной текст                       | `--foreground`                   |
-| Text secondary             | подписи, мета                        | `--muted-foreground`             |
+| Text secondary             | подписи, мета                        | doctor `--muted-foreground: var(--bc-ink-2)` |
 | Primary                    | кнопки, акцент, active/focus, ссылки | doctor-zone `--primary: #4573b1` |
 | Primary soft               | hover/active фон акцентных элементов | `bg-primary/10…/15`              |
 | Success / Warning / Danger | статусы                              | мягкие, не кислотные (§17)       |
@@ -106,17 +106,18 @@
 | Роль                              | Общий класс                    | Текущая реализация                         | px      |
 | --------------------------------- | ------------------------------ | ------------------------------------------ | ------- |
 | Page title (h1)                   | `doctorPageTitleClass`         | `text-[18px] font-medium tracking-tight`   | 18      |
+| Имя пациента в entity-header     | `doctorClientDisplayNameClass` | `text-[18px] font-bold leading-6`           | 18      |
 | Section title (h2/h3)             | `doctorSectionTitleClass`      | mobile `text-base`, desktop `text-sm`      | 16 / 14 |
 | Body                              | `doctorBodyTextClass`          | mobile `text-base`, desktop `text-sm`      | 16 / 14 |
 | Первичная строка основного списка | `doctorPrimaryListTextClass`   | `text-base font-normal`                    | 16      |
 | Secondary content                 | `doctorSecondaryListTextClass` | `text-sm text-foreground/80`               | 14      |
 | Meta / status / date              | `doctorMetaTextClass`          | mobile `text-[13px]`, desktop `text-xs`    | 13 / 12 |
-| Metric (KPI)                      | `doctorMetricValueClass`       | `text-[1.3rem] font-semibold tabular-nums` | 20.8    |
+| Metric (KPI)                      | `doctorMetricValueClass`       | `text-[18px] font-semibold tabular-nums`   | 18      |
 | Строчная метрика                  | `doctorInlineMetricValueClass` | `text-base font-semibold tabular-nums`     | 16      |
 
 **Micro-роль (узкое исключение, 10–11px).** Разрешена **только** для плотных, нечитаемых-как-абзац подписей: статус-бейджи/пилюли (`Badge`, статус каталога), ячейки календаря, оси/тултипы графиков, технические mono-дампы. Класс: `text-[10px]` / `text-[11px]`. Micro-роль **не** применять к заголовкам, строкам сущностей, кнопкам и основному тексту.
 
-**Запрещено в `/app/doctor/**`(chrome):** локальный `text-[13px]`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`. Исключения: `text-[13px]` внутри общей mobile meta-роли, `text-[18px]` для Page title и `text-[1.3rem]` для Metric через общие классы.
+**Запрещено в `/app/doctor/**`(chrome):** локальный `text-[13px]`, `text-[18px]`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`. Исключения: `text-[13px]` внутри общей mobile meta-роли и `text-[18px]` для Page title и Metric через общие классы.
 
 Миграция текущего кода: header-заголовок `text-[13px]` → `text-sm`; KPI-число `text-3xl` → `text-2xl`; прочие крупные числа-метрики `text-lg`/`text-xl` → роль Metric (`text-2xl`) или `text-base` для строчных; заголовки-`text-lg` → `text-base`; page-заголовки admin/ops `text-xl` → `text-base`.
 
@@ -253,7 +254,7 @@ DOCTOR_PAGE_CONTAINER_CLASS =
 | Обычный текст                   | `p`           | mobile `text-base`, desktop `text-sm`, `text-foreground`      |
 | Описание / вторичная строка     | `p` / `span`  | `text-sm text-foreground/80`                                  |
 | Meta / статус / дата            | `p` / `span`  | mobile `text-[13px]`, desktop `text-xs`, muted                |
-| Числовая метрика (крупная, KPI) | `p`           | `text-[1.3rem] font-semibold tabular-nums`                    |
+| Числовая метрика (крупная, KPI) | `p`           | `text-[18px] font-semibold tabular-nums`                      |
 | Числовая метрика (строчная)     | `span`        | `text-base font-semibold tabular-nums`                        |
 | Inline-link                     | `Link/a`      | `text-primary underline underline-offset-2`                   |
 | Hover-link (secondary)          | `Link/a`      | `text-primary underline-offset-4 hover:underline font-medium` |
@@ -459,7 +460,7 @@ rounded-lg border border-border bg-card p-3 shadow-sm
 ```
 
 Импорт: `apps/webapp/src/app/app/doctor/analytics/clients/DoctorStatCard.tsx`  
-Внутри: подпись сверху, число снизу; метрика по роли §B.1 (`text-[1.3rem] font-semibold tabular-nums`), радиус KPI 8px, `border bg-card`.
+Внутри: подпись сверху, число снизу; метрика по роли §B.1 (`text-[18px] font-semibold tabular-nums`), радиус KPI 8px, `border bg-card`. У нейтральной числовой метрики ненулевое значение использует `text-primary`, ноль — `text-muted-foreground`; warning/attention и явно заданные статусные цвета не переопределяются.
 Tone `warning`: `border-destructive/40 bg-destructive/5`.  
 На странице «Сегодня» attention-KPI переопределяет фон на непрозрачный `#F5EDE5`, число — `text-destructive`.
 Подпись карточки — `text-xs text-muted-foreground` (не `text-[10px]`).
@@ -978,7 +979,7 @@ ml-1.5 rounded-full bg-primary-foreground px-1.5 py-0.5 text-xs font-semibold ta
 
 Канонический файл: `apps/webapp/src/shared/ui/doctor/doctorVisual.ts` (импортировать константы, не копировать строки классов в route-компоненты). Зональные токены палитры — `apps/webapp/src/app/styles/doctor.css` (`#app-shell-doctor`). Каркас/липкие классы — `apps/webapp/src/shared/ui/doctor/doctorWorkspaceLayout.ts`. Агентам: `.cursor/rules/doctor-ui-shared-primitives.mdc`.
 
-> `doctorVisual.ts` экспортирует `doctorMetricValueClass = "text-[1.3rem] font-semibold tabular-nums text-foreground"` — единый размер KPI/крупных чисел (применён в `DoctorStatCard`); локальные `text-3xl` для метрик не использовать.
+> `doctorVisual.ts` экспортирует `doctorMetricValueClass = "text-[18px] font-semibold tabular-nums text-foreground"` — единый размер KPI/крупных чисел (применён в `DoctorStatCard`); локальные `text-3xl` для метрик не использовать.
 
 Содержимое (синхронизировать при добавлении экспортов):
 
@@ -1088,7 +1089,7 @@ Overview-сетка и панели уровня 2 — в `doctorClientCardChrom
 - [ ] График — через shadcn Card + recharts по §7 (не кастомный контейнер)
 - [ ] Размеры текста — только из набора §B.1 (нет `text-[13px]`/`text-lg`/`text-xl`/`text-3xl`; `text-[10px]`/`text-[11px]` только в micro-роли)
 - [ ] Doctor button/select/input/textarea используют радиус 8px; поля белые; явные `rounded-none`/icon overrides сохранены (§B.2)
-- [ ] KPI-число — `text-[1.3rem]` через общую роль (не локальный `text-2xl`/`text-3xl`)
+- [ ] KPI-число — `text-[18px]` через общую роль (не локальный `text-2xl`/`text-3xl`)
 - [ ] KPI: радиус 8px, подпись сверху, число снизу
 - [ ] Основной flat-list: `1px` divider, padding 18px по горизонтали, первичная строка `text-base font-normal`
 - [ ] Нет `rounded-2xl`, `space-y-6`, `gap-6`, `mb-6` в doctor-зоне (§A.3, §B.3)

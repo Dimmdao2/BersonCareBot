@@ -523,8 +523,8 @@ function ListDayCard({
               )}
               data-testid={`list-appt-${appt.id}`}
             >
-              <span className="flex w-16 shrink-0 flex-col gap-0.5 overflow-hidden text-xs">
-                <span className="font-semibold tabular-nums">
+              <span className="flex w-[4.75rem] shrink-0 flex-col gap-0.5 overflow-hidden text-xs">
+                <span className="whitespace-nowrap font-semibold tabular-nums">
                   {start}–{end}
                 </span>
                 {branchLabel ? (

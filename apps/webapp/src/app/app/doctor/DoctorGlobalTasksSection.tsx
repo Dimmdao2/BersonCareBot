@@ -155,7 +155,6 @@ export function DoctorGlobalTasksSection({
               dueToday={displayIana ? isSpecialistTaskDueOnDate(task, todayIso, displayIana) : false}
               canMutate={available}
               onOpen={(selected) => {
-                setTaskModalOpen(false);
                 setSelectedTaskId(selected.id);
               }}
             />

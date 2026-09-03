@@ -21,6 +21,7 @@ type Props = {
   className?: string;
   disabled?: boolean;
   title?: string;
+  onUnreadChange?: (count: number) => void;
   /** Optional button label/content override (default: «Открыть чат»). */
   children?: ReactNode;
 };
@@ -40,6 +41,7 @@ export function DoctorOpenChatButton({
   className,
   disabled,
   title,
+  onUnreadChange,
   children,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -62,7 +64,12 @@ export function DoctorOpenChatButton({
         title={patientName ? `Переписка · ${patientName}` : 'Переписка'}
         size="content"
       >
-        {open ? <DoctorClientEmbeddedChat patientUserId={patientUserId} /> : null}
+        {open ? (
+          <DoctorClientEmbeddedChat
+            patientUserId={patientUserId}
+            onUnreadChange={onUnreadChange}
+          />
+        ) : null}
       </DoctorModal>
     </>
   );

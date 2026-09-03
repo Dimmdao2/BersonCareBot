@@ -6,7 +6,9 @@ import {
   doctorMetricValueClass,
   doctorInteractiveSurfaceButtonClass,
   doctorStatCardActionSegmentClass,
+  doctorStatCardContentPaddingClass,
   doctorStatCardInteractiveClass,
+  doctorStatCardInteractiveNeutralClass,
   doctorStatCardShellClass,
   doctorStatCardShellWarningClass,
 } from '@/shared/ui/doctor/doctorVisual';
@@ -55,17 +57,55 @@ export function DoctorStatCard({
   actionLabel,
   onActionClick,
 }: Props) {
+  const neutralNumericValueClass =
+    tone === 'neutral' && typeof value === 'number'
+      ? value === 0
+        ? 'text-muted-foreground'
+        : 'text-primary'
+      : undefined;
+  const neutralSecondaryNumericValueClass =
+    tone === 'neutral' && typeof secondaryValue === 'number'
+      ? secondaryValue === 0
+        ? 'text-muted-foreground'
+        : 'text-primary'
+      : undefined;
   const shellClass = cn(
     tone === 'warning' ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
     (href || onClick) && doctorStatCardInteractiveClass,
+    tone === 'neutral' && (href || onClick) && doctorStatCardInteractiveNeutralClass,
     selected &&
       'border-primary/35 bg-primary/15 text-primary ring-1 ring-primary/25 hover:border-primary/40 hover:bg-primary/20',
     className,
   );
+  const segmentedShellClass = cn(
+    'grid min-w-0 grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-[var(--doctor-kpi-radius,8px)]',
+    tone === 'warning' ? 'bg-destructive/5' : 'bg-card',
+    selected && 'bg-primary/15 text-primary ring-1 ring-primary/25',
+    className,
+    'border-0',
+  );
+  const segmentedMainClass = cn(
+    'min-w-0 rounded-l-[var(--doctor-kpi-radius,8px)] rounded-r-none border border-r-0 text-left',
+    doctorStatCardContentPaddingClass,
+    tone === 'warning'
+      ? 'border-destructive/40 bg-destructive/5'
+      : selected
+        ? 'border-primary/35 bg-primary/15 text-primary'
+        : onClick
+          ? 'border-primary/35 bg-card hover:border-primary/40'
+          : 'border-border/60 bg-card',
+  );
 
   const label = <p className={cn(doctorMetricLabelClass, selected && 'text-primary')}>{title}</p>;
   const valueNode = (
-    <div className={cn(doctorMetricValueClass, selected && 'text-primary', valueClassName)}>
+    <div
+      className={cn(
+        doctorMetricValueClass,
+        neutralNumericValueClass,
+        selected && 'text-primary',
+        valueClassName,
+      )}
+    >
       {value}
     </div>
   );
@@ -78,7 +118,12 @@ export function DoctorStatCard({
     <div className="flex items-baseline gap-0.5">
       {valueNode}
       {secondaryValue !== undefined ? (
-        <div className="flex items-baseline gap-0.5 font-semibold tabular-nums text-foreground/75">
+        <div
+          className={cn(
+            'flex items-baseline gap-0.5 font-semibold tabular-nums text-foreground/75',
+            neutralSecondaryNumericValueClass,
+          )}
+        >
           <span aria-hidden className="text-sm font-normal text-muted-foreground">
             /
           </span>
@@ -114,22 +159,27 @@ export function DoctorStatCard({
 
   if (actionIcon && actionLabel && onActionClick) {
     return (
-      <article
-        className={cn(shellClass, 'grid grid-cols-[minmax(0,1fr)_auto] overflow-hidden p-0')}
-      >
-        <Button
-          id={id}
-          type="button"
-          variant="ghost"
-          className={cn(
-            doctorInteractiveSurfaceButtonClass,
-            'w-full justify-start rounded-none p-2.5 text-left',
-          )}
-          onClick={onClick}
-          data-testid={testId}
-        >
-          {inner}
-        </Button>
+      <article className={segmentedShellClass}>
+        {onClick ? (
+          <Button
+            id={id}
+            type="button"
+            variant="ghost"
+            className={cn(
+              doctorInteractiveSurfaceButtonClass,
+              segmentedMainClass,
+              'w-full justify-start transition-colors focus-visible:ring-2 focus-visible:ring-primary/40',
+            )}
+            onClick={onClick}
+            data-testid={testId}
+          >
+            {inner}
+          </Button>
+        ) : (
+          <div id={id} className={segmentedMainClass} data-testid={testId}>
+            {inner}
+          </div>
+        )}
         <Button
           type="button"
           variant="ghost"

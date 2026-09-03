@@ -26,6 +26,7 @@ const APPOINTMENT_ID = '00000000-0000-4000-8000-000000000003';
 const fakeCatalog = new Set([
   'be_appointments',
   'be_branches',
+  'be_specialists',
   'be_clinic_services',
   'be_package_usages',
   'be_patient_packages',
@@ -53,6 +54,8 @@ function executeAgainstFakeCatalog(_db: unknown, fragment: SQL) {
         service_title: 'Консультация',
         duration_minutes: 60,
         branch_name: 'Главный филиал',
+        branch_short_name: 'Главный',
+        specialist_name: 'Иван Петров',
         is_package: false,
         patient_package_id: null,
         package_title: null,
@@ -77,6 +80,8 @@ describe('pgDoctorClients.listPatientAppointments', () => {
         id: APPOINTMENT_ID,
         status: 'upcoming',
         hasVisitRecord: true,
+        locationShort: 'Главный',
+        specialistName: 'Иван Петров',
       }),
     ]);
   });

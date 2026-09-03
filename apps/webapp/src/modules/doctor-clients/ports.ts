@@ -245,6 +245,10 @@ export type PatientAppointmentItem = {
   serviceName: string | null;
   /** Локация/филиал из canonical branch title. */
   location: string | null;
+  /** Сокращённое название филиала; UI использует full title как fallback. */
+  locationShort?: string | null;
+  /** ФИО специалиста canonical appointment. */
+  specialistName?: string | null;
   /** Продолжительность (мин) из canonical appointment duration. */
   durationMin: number | null;
   /**

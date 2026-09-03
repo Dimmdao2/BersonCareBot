@@ -52,7 +52,7 @@ function TodayMiniCalendarShellFallback({
         flushChrome && 'rounded-none border-0 bg-transparent p-0',
       )}
     >
-      <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle>
+      {!flushChrome ? <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle> : null}
       {appointments.length === 0 ? (
         <p className="text-xs text-muted-foreground">Записей на сегодня нет</p>
       ) : (

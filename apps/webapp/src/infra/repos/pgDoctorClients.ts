@@ -718,6 +718,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         service_title: string | null;
         duration_minutes: number | null;
         branch_name: string | null;
+        branch_short_name: string | null;
+        specialist_name: string | null;
         is_package: boolean | null;
         patient_package_id: string | null;
         package_title: string | null;
@@ -733,6 +735,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            svc.title AS service_title,
            bea.duration_minutes,
            br.title AS branch_name,
+           br.short_title AS branch_short_name,
+           spec.full_name AS specialist_name,
            (bea.package_usage_ref IS NOT NULL)::boolean AS is_package,
            u.patient_package_id::text AS patient_package_id,
            pp.title AS package_title,
@@ -746,6 +750,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            ) AS has_visit_record
          FROM be_appointments bea
          LEFT JOIN be_branches br ON br.id = bea.branch_id
+         LEFT JOIN be_specialists spec ON spec.id = bea.specialist_id
          LEFT JOIN be_clinic_services svc ON svc.id = bea.service_id
          LEFT JOIN be_package_usages u ON u.id::text = bea.package_usage_ref
          LEFT JOIN be_patient_packages pp ON pp.id = u.patient_package_id
@@ -795,6 +800,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           isLateCancellation: row.status === 'late_cancellation',
           serviceName: (row.service_title && row.service_title.trim()) || null,
           location: row.branch_name ?? null,
+          locationShort: row.branch_short_name ?? null,
+          specialistName: row.specialist_name ?? null,
           durationMin,
           isPackage: row.is_package ?? null,
           patientPackageId: row.patient_package_id ?? null,

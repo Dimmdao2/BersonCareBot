@@ -216,9 +216,10 @@ export function DoctorTodayMiniCalendar({
       className={cn(
         fillHeight && 'h-full min-h-0 overflow-hidden',
         flushChrome && 'rounded-none border-0 bg-transparent p-0',
+        flushChrome && 'doctor-today-mini-calendar-hide-scrollbar',
       )}
     >
-      <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle>
+      {!flushChrome ? <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle> : null}
 
       {/* R1: empty-state hint; the FC day stays visible regardless. */}
       {appointments.length === 0 ? (
@@ -267,6 +268,14 @@ export function DoctorTodayMiniCalendar({
           #doctor-today-mini-calendar .fc-timegrid-slot-label-cushion {
             font-size: 0.625rem !important;
             color: var(--muted-foreground) !important;
+          }
+          /* Modal calendar keeps touch/wheel scrolling but does not paint a scrollbar. */
+          #doctor-today-mini-calendar.doctor-today-mini-calendar-hide-scrollbar .fc-scroller {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+          #doctor-today-mini-calendar.doctor-today-mini-calendar-hide-scrollbar .fc-scroller::-webkit-scrollbar {
+            display: none;
           }
         `}</style>
         <FullCalendar

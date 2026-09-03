@@ -13,7 +13,10 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './primitives/sheet';
 import { useIsMobileViewport } from './primitives/useIsMobileViewport';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
-import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import {
+  doctorPageTitleClass,
+  doctorSectionTitleClass,
+} from '@/shared/ui/doctor/doctorVisual';
 
 type DoctorModalSize = 'sm' | 'md' | 'lg' | 'content';
 type DoctorModalBodyVariant = 'default' | 'list';
@@ -38,6 +41,8 @@ type DoctorModalProps = {
   footer?: ReactNode;
   /** Optional icon action in the modal header. */
   headerAction?: ReactNode;
+  /** Standard secondary heading aligned to the right of the modal title. */
+  headerSubtitle?: ReactNode;
   /** Закреплённый блок между системной шапкой и прокручиваемым телом. */
   bodyHeader?: ReactNode;
   /** Доп. классы на прокручиваемое тело (например, убрать паддинги). */
@@ -73,6 +78,7 @@ export function DoctorModal({
   size = 'md',
   footer,
   headerAction,
+  headerSubtitle,
   bodyHeader,
   bodyClassName,
   bodyVariant = 'default',
@@ -133,7 +139,7 @@ export function DoctorModal({
   );
 
   const footerNode = footer ? (
-    <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border/60 bg-muted/30 px-4 py-3 sm:flex-row sm:justify-end">
+    <div className="grid shrink-0 grid-flow-col auto-cols-fr gap-2 border-t border-border/60 bg-muted/30 px-4 py-3 [&>*]:min-w-0 [&>*]:w-full max-sm:[&>div]:contents max-sm:[&>div>*]:w-full sm:flex sm:justify-end sm:[&>*]:w-auto">
       {footer}
     </div>
   ) : null;
@@ -141,6 +147,18 @@ export function DoctorModal({
   const bodyHeaderNode = bodyHeader ? (
     <div className="shrink-0 border-b border-border/60 bg-card">{bodyHeader}</div>
   ) : null;
+
+  const headerTrailingNode =
+    headerSubtitle || headerAction ? (
+      <div className="flex min-w-0 shrink-0 items-center justify-end gap-2">
+        {headerSubtitle ? (
+          <div className={cn(doctorSectionTitleClass, 'whitespace-nowrap text-right')}>
+            {headerSubtitle}
+          </div>
+        ) : null}
+        {headerAction}
+      </div>
+    ) : null;
 
   const handleOpenChange = (v: boolean) => {
     if (!v) onClose();
@@ -153,7 +171,7 @@ export function DoctorModal({
           <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pt-3 pb-3">
             <div className="flex min-w-0 items-center justify-between gap-2">
               <DrawerTitle className={doctorPageTitleClass}>{title}</DrawerTitle>
-              {headerAction}
+              {headerTrailingNode}
             </div>
             {description && <DrawerDescription>{description}</DrawerDescription>}
           </DrawerHeader>
@@ -197,7 +215,7 @@ export function DoctorModal({
           >
             <div className="flex min-w-0 items-center justify-between gap-2">
               <SheetTitle className={doctorPageTitleClass}>{title}</SheetTitle>
-              {headerAction}
+              {headerTrailingNode}
             </div>
             {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
           </SheetHeader>
@@ -221,7 +239,7 @@ export function DoctorModal({
         <DialogHeader className="shrink-0 border-b border-border/60 px-4 pt-4 pb-3 pr-12">
           <div className="flex min-w-0 items-center justify-between gap-2">
             <DialogTitle className={doctorPageTitleClass}>{title}</DialogTitle>
-            {headerAction}
+            {headerTrailingNode}
           </div>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </DialogHeader>

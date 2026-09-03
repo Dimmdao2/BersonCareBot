@@ -80,7 +80,7 @@ export const doctorMetaTextClass =
 
 /** KPI numeric value on compact stat cards (dashboard, analytics). */
 export const doctorMetricValueClass =
-  'text-[1.3rem] font-semibold tabular-nums leading-tight text-foreground';
+  'text-[18px] font-semibold tabular-nums leading-tight text-foreground';
 
 /** Inline/secondary numeric value that belongs in a text row rather than a full KPI. */
 export const doctorInlineMetricValueClass = 'text-base font-semibold tabular-nums leading-none';
@@ -89,20 +89,30 @@ export const doctorInlineMetricValueClass = 'text-base font-semibold tabular-num
 export const doctorMetricLabelClass =
   'text-xs font-medium uppercase leading-snug tracking-wide text-foreground/85 line-clamp-3';
 
-/** Shell for KPI stat cards (`DoctorStatCard`). */
-export const doctorStatCardShellClass =
-  'rounded-[var(--doctor-kpi-radius,8px)] border border-border/60 bg-card p-2.5 min-w-0';
+/** Shared inner spacing for KPI content. */
+export const doctorStatCardContentPaddingClass = 'py-2.5 pr-4 pl-2.5 md:p-2.5';
 
-export const doctorStatCardShellWarningClass =
-  'rounded-[var(--doctor-kpi-radius,8px)] border border-destructive/40 bg-destructive/5 p-2.5 min-w-0';
+/** Shell for KPI stat cards (`DoctorStatCard`). */
+export const doctorStatCardShellClass = cn(
+  'min-w-0 rounded-[var(--doctor-kpi-radius,8px)] border border-border/60 bg-card',
+  doctorStatCardContentPaddingClass,
+);
+
+export const doctorStatCardShellWarningClass = cn(
+  'min-w-0 rounded-[var(--doctor-kpi-radius,8px)] border border-destructive/40 bg-destructive/5',
+  doctorStatCardContentPaddingClass,
+);
 
 /** Whole-card click/hover for KPI stat cards (analytics, today). */
 export const doctorStatCardInteractiveClass =
-  'cursor-pointer transition-colors hover:border-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40';
+  'cursor-pointer transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40';
+
+/** A subtle affordance for neutral KPI cards that open a destination or modal. */
+export const doctorStatCardInteractiveNeutralClass = 'border-primary/35';
 
 /** Attached action segment on the right edge of an actionable KPI card. */
 export const doctorStatCardActionSegmentClass =
-  'h-full min-w-11 rounded-none border-0 border-l border-primary/30 bg-primary/5 px-3 text-primary hover:bg-primary/15';
+  'h-full min-w-11 rounded-l-none rounded-r-[var(--doctor-kpi-radius,8px)] border border-primary/30 bg-primary/5 px-3 text-primary hover:bg-primary/15';
 
 /** Section subtitle and helper text under headings. */
 export const doctorSectionSubtitleClass = doctorMetaTextClass;

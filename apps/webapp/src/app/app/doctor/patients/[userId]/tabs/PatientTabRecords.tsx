@@ -22,8 +22,8 @@ import {
   doctorSectionItemUrgentClass,
   doctorPageStackClass,
   doctorInteractiveSurfaceButtonClass,
+  doctorMetaTextClass,
   doctorMetricValueClass,
-  doctorSecondaryListTextClass,
   doctorStatCardInteractiveClass,
   doctorStatCardShellClass,
 } from '@/shared/ui/doctor/doctorVisual';
@@ -65,6 +65,8 @@ interface DisplayAppointment {
   date: string; // YYYY-MM-DD
   time: string; // HH:MM
   location: string;
+  locationShort?: string;
+  specialistName?: string;
   service: string;
   status: AppointmentStatus;
   rescheduledToDate?: string;
@@ -93,6 +95,8 @@ function mapRealToDisplay(item: PatientAppointmentItem): DisplayAppointment {
     date,
     time,
     location: item.location ?? '',
+    locationShort: item.locationShort ?? undefined,
+    specialistName: item.specialistName ?? undefined,
     service: item.serviceName ?? 'Запись',
     status: item.status === 'rescheduled' ? 'rescheduled' : item.status,
     durationMin: item.durationMin ?? undefined,
@@ -127,6 +131,15 @@ function fmtWeekday(iso: string): string {
 function formatNextAppointment(appointment: DisplayAppointment | undefined): string | undefined {
   if (!appointment?.date) return undefined;
   return `След ${fmtDate(appointment.date).slice(0, 5)}`;
+}
+
+function specialistLastName(fullName: string | undefined): string {
+  return fullName?.trim().split(/\s+/).at(-1) ?? '';
+}
+
+function appointmentLocationLabel(shortName: string | undefined, fullName: string | undefined): string {
+  if (shortName?.trim()) return shortName.trim();
+  return fullName?.trim().split(/\s+/)[0] ?? '';
 }
 
 function formatMoney(amountMinor: number | null | undefined, currency: string | null | undefined) {
@@ -391,14 +404,12 @@ export function PatientTabRecords({
             id="patient-overview-visits"
             title="Визитов"
             value={completedCount}
-            valuePlacement="inline"
             hint={formatNextAppointment(nextAppointment)}
-            hintClassName={doctorSecondaryListTextClass}
-            onClick={() => setVisitsModalOpen(true)}
+            hintClassName={doctorMetaTextClass}
+            onClick={completedCount > 0 ? () => setVisitsModalOpen(true) : undefined}
             actionIcon={<CalendarPlus className="size-5" aria-hidden />}
             actionLabel="Добавить запись"
             onActionClick={() => setNewAppointmentModalOpen(true)}
-            className="border-primary/30"
           />
           <DoctorStatCard
             id="patient-overview-membership"
@@ -411,7 +422,7 @@ export function PatientTabRecords({
             hint={
               membershipValidUntil ? `до ${fmtDate(membershipValidUntil.slice(0, 10))}` : undefined
             }
-            onClick={() => setMembershipModalOpen(true)}
+            onClick={activePackages.length > 0 ? () => setMembershipModalOpen(true) : undefined}
             actionIcon={<BadgePlus className="size-5" aria-hidden />}
             actionLabel="Добавить абонемент"
             onActionClick={
@@ -419,7 +430,6 @@ export function PatientTabRecords({
                 ? onOpenMembershipConfiguration
                 : undefined
             }
-            className="border-primary/30"
           />
         </div>
 
@@ -461,48 +471,52 @@ export function PatientTabRecords({
             <DoctorEmptyState>Визитов нет</DoctorEmptyState>
           ) : (
             <DoctorDnaFlatList>
-              {displayList.map((appt) => (
-                <li key={appt.id} className={`${doctorDnaFlatListRowClass} justify-between`}>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className={`${doctorDnaFlatListPrimaryClass} truncate tabular-nums`}>
-                      {fmtDate(appt.date)} · {appt.time}
+              {displayList.map((appt) => {
+                const specialist = specialistLastName(appt.specialistName);
+                const location = appointmentLocationLabel(appt.locationShort, appt.location);
+                const locationAndSpecialist = [location, specialist]
+                  .filter(Boolean)
+                  .join(' · ');
+                return (
+                  <li key={appt.id} className={doctorDnaFlatListRowClass}>
+                    <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5">
+                      <span className={`${doctorDnaFlatListPrimaryClass} truncate tabular-nums`}>
+                        {fmtDate(appt.date)} · {appt.time}
+                      </span>
+                      <span className="flex shrink-0 items-center justify-end gap-2">
+                        <StatusChip
+                          status={appt.status}
+                          rescheduledToDate={appt.rescheduledToDate}
+                        />
+                        {appt.status === 'completed' && appt.hasVisitRecord ? (
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="outline"
+                            onClick={() => onOpenVisitNotes?.(appt.id)}
+                          >
+                            Открыть
+                          </Button>
+                        ) : null}
+                      </span>
+                      <span className={`${doctorDnaFlatListMetaClass} truncate`}>
+                        {appt.service}
+                        {appt.durationMin ? ` · ${appt.durationMin} мин` : ''}
+                      </span>
+                      {locationAndSpecialist ? (
+                        <span
+                          className={`${doctorDnaFlatListMetaClass} flex min-w-0 max-w-40 items-center justify-end gap-1.5 text-right`}
+                          title={locationAndSpecialist}
+                        >
+                          {location ? <span className="truncate">{location}</span> : null}
+                          {location && specialist ? <span aria-hidden="true">·</span> : null}
+                          {specialist ? <span className="shrink-0">{specialist}</span> : null}
+                        </span>
+                      ) : null}
                     </span>
-                    <span className={`${doctorDnaFlatListMetaClass} truncate`}>
-                      {appt.service}
-                      {appt.durationMin ? ` · ${appt.durationMin} мин` : ''}
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <StatusChip status={appt.status} rescheduledToDate={appt.rescheduledToDate} />
-                    {appt.status === 'completed' && appt.hasVisitRecord ? (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="outline"
-                        onClick={() => onOpenVisitNotes?.(appt.id)}
-                      >
-                        Открыть
-                      </Button>
-                    ) : null}
-                    {appt.status === 'completed' && !appt.hasVisitRecord ? (
-                      <Button
-                        type="button"
-                        size="xs"
-                        onClick={() =>
-                          onCreateVisitFromAppointment?.({
-                            id: appt.id,
-                            location: appt.location || undefined,
-                            service: appt.service || undefined,
-                            durationMin: appt.durationMin,
-                          })
-                        }
-                      >
-                        Оформить
-                      </Button>
-                    ) : null}
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </DoctorDnaFlatList>
           )}
         </DoctorModal>
