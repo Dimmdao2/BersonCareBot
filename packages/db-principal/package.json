@@ -19,7 +19,7 @@
     "test:type": "tsc -p tsconfig.type-tests.json"
   },
   "devDependencies": {
-    "@types/node": "^25.5.2",
-    "typescript": "^5.9.3"
+    "@types/node": "^26.4.1",
+    "typescript": "^6.0.3"
   }
 }

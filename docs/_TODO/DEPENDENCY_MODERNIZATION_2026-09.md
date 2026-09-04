@@ -147,10 +147,83 @@ broken input classified permanent: true     # ffmpegFailureMessage несёт 'I
 
 ### D2 — Toolchain
 
-- [ ] Обновить совместимую группу ESLint.
-- [ ] Обновить совместимую группу Vitest/Coverage/Stryker/Testing Library/jsdom.
-- [ ] Обновить TypeScript и Node types только до веток, совместимых с текущим Node 22, Next.js и workspace tools.
-- [ ] Исправить реальные breaking API/config changes минимально, без ослабления проверок.
+- [x] Обновить совместимую группу ESLint — подняты `@typescript-eslint/eslint-plugin` и
+  `@typescript-eslint/parser` 8.67.0 → 8.69.0 и `globals` 17.9.0 → 17.12.0. **Сам `eslint` остаётся 9.39.5 —
+  blocker, см. ниже.**
+- [x] Обновить совместимую группу Vitest/Coverage/Stryker/Testing Library/jsdom — `vitest` и
+  `@vitest/coverage-v8` 4.1.10 → 5.0.0 (во всех четырёх workspace с тестами), `jsdom` 26.1.0 → 30.0.1 (+ root
+  override `jsdom: ^30.0.0`), `@testing-library/jest-dom` 6.9.1 → 7.0.1. **Stryker остаётся 9.6.1 — blocker,
+  см. ниже.**
+- [x] Обновить TypeScript и Node types только до веток, совместимых с текущим Node 22, Next.js и workspace tools —
+  `typescript` 5.9.3 → **6.0.3** во всех девяти package.json, `@types/node` 25.5.2 → 26.4.1 в шести. До `7.0.2`
+  не поднимаем: peer `@typescript-eslint/*` — `typescript >=4.8.4 <6.1.0`.
+- [x] Исправить реальные breaking API/config changes минимально, без ослабления проверок:
+  - `apps/webapp/vitest.config.ts` — Vitest 5 вывел `fsModuleCache` из `test.experimental` на верхний уровень
+    `test.fsModuleCache`; опция сохранена включённой, кэш не отключался;
+  - root `pnpm.overrides` — `fdir>picomatch` и `@dotenvx/dotenvx>picomatch` 4.0.5 → 4.0.7, иначе обновлённый
+    `tinyglobby` даёт нерешаемый конфликт peer `picomatch` в дереве.
+
+#### Блокеры D2
+
+**`eslint` 10.9.1 — заблокирован цепочкой `eslint-config-next`.** Последняя совместимая поддерживаемая версия —
+`9.39.5` (она же последняя в ветке 9.x). Root-конфиг на ESLint 10 работает, но `apps/webapp` падает жёстко:
+
+```
+TypeError: Error while loading rule 'react/display-name':
+  contextOrFilename.getFilename is not a function
+  at .../eslint-plugin-react@7.37.5/lib/util/version.js:31
+```
+
+`eslint-config-next` (и 16.2.6, и 16.3.4) тянет `eslint-plugin-react ^7.37.0`, а у него `dist-tags.latest =
+7.37.5` с peer `eslint ^3 … || ^9.7`; поддержка ESLint 10 есть только в пре-релизе `7.8.0-rc.0`. Обходить это
+сужением зоны конфига значило бы ослабить проверки — не делаем.
+
+⚠️ Побочный факт для владельца: `eslint@9.39.5` при установке уже помечается upstream как deprecated («This
+version is no longer supported»), то есть вся ветка 9.x снята с поддержки. Выход появится, когда
+`eslint-plugin-react` выпустит стабильный 7.8.x; до тех пор `pnpm run dependencies:health` будет считать `eslint`
+значимой позицией.
+
+**`@stryker-mutator/*` 10.0.0 — заблокирован своим инструментатором.** Оставлен `9.6.1`. Stryker 10 падает до
+запуска любого теста, на инструментации первого же файла:
+
+```
+INFO ProjectReader Found 1 of 3854 file(s) to be mutated.
+ERROR Stryker Unexpected error occurred while running Stryker
+  TypeError: Cannot read properties of undefined (reading 'length')
+  at Printer._parameters (@babel/generator@8.0.0/lib/index.js:1187)
+  at Printer.TSFunctionType ... at print (@stryker-mutator/instrumenter@10.0.0/dist/src/printers/ts-printer.js:3)
+```
+
+`@stryker-mutator/instrumenter@10.0.0` перешёл на babel 8 (`@babel/core ~8.0.0`, `@babel/generator ~8.0.0`), и его
+TS-принтер не печатает `TSFunctionType`. Проверено, что причина не в наших overrides: снятие точечного пина
+`@stryker-mutator/instrumenter>@babel/core: 7.29.6` (он был написан под instrumenter 9 c `~7.29.0`) не помогает, и
+принудительный `@babel/parser 8.0.0` в пару к генератору тоже. На 9.6.1 инструментация проходит («Instrumented 1
+source file(s) with 224 mutant(s)»), раннер vitest 5 стартует и выполняет прогон. Пин `…>@babel/core: 7.29.6`
+поэтому возвращён на место.
+
+Отдельно (не связано с зависимостями, не чинилось): пилот `apps/webapp/stryker.pilot.json` и на 9.6.1 не
+доезжает до мутаций — dry-run падает на `ENOENT … runs/stryker-pilot/contracts/webapp-entry-token.json`, тест
+читает файл, которого нет в песочнице Stryker.
+
+#### Проверки D2
+
+```bash
+/home/dev/brain/host-orch/run-tests.sh "pnpm run typecheck"                    # → rc=0 (106s), 9 проектов
+/home/dev/brain/host-orch/run-tests.sh "pnpm run lint"                         # → rc=0 (229s)
+/home/dev/brain/host-orch/run-tests.sh "pnpm run build && pnpm run build:webapp"  # → rc=0 (272s)
+/home/dev/brain/host-orch/run-tests.sh "TEST_CPUSET=0-7 VITEST_MAX_WORKERS=6 \
+  TEST_ACCOUNT_PHONES='+12025550101' pnpm run test:webapp"
+#   → 494 files passed | 7 skipped; 2583 tests passed | 31 skipped
+/home/dev/brain/host-orch/run-tests.sh "TEST_CPUSET=0-7 VITEST_MAX_WORKERS=6 pnpm run test && \
+  pnpm run test:scripts && pnpm run test:db-principal && pnpm run test:media-worker && pnpm run test:error-tracking"
+#   → integrator 630 passed; scripts 124 passed; db-privileges 31 passed;
+#     media-worker 21 passed; error-tracking 13 passed
+```
+
+⚠️ `TEST_ACCOUNT_PHONES` задан руками: в этом clone нет `apps/webapp/.env`, поэтому
+`passwordAuth.route.test.ts` («allows the env-configured TEST patient password») падает и **на нетронутом
+baseline** (проверено `git stash` + `pnpm install --frozen-lockfile` на vitest 4.1.10 — та же 1 ошибка). С
+переменной — 17/17 зелёные. Это дефект окружения clone, не регрессия обновления.
 
 ### D3 — Auth, security and runtime
 
