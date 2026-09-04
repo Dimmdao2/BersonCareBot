@@ -21,6 +21,11 @@ export type WorkingDayBreakEditError =
 export type WorkingDayBreakEditResult =
   { ok: true; breaks: BreakInterval[] } | { ok: false; error: WorkingDayBreakEditError };
 
+/** Like `WorkingDayBreakEditResult`, but the day's working bounds can move too. */
+export type WorkingDayBoundsEditResult =
+  | { ok: true; dayStartMinute: number; dayEndMinute: number; breaks: BreakInterval[] }
+  | { ok: false; error: WorkingDayBreakEditError };
+
 export type WorkingDayBreakEditInput = {
   /** Working bounds of the day, as they are effective right now. */
   dayStartMinute: number;
@@ -114,6 +119,31 @@ export function openWorkingDayIntervalForBooking(
   }
   const remaining = normalized.flatMap((interval) => subtract(interval, input.selection));
   return { ok: true, breaks: normalizeBreaks(remaining) };
+}
+
+/**
+ * CAL-ACTION-04/07/10: widens the working day so a selection that currently falls outside its
+ * working bounds — or a day with no working hours at all — becomes bookable. Only the side the
+ * selection falls on moves; the opposite bound, existing breaks and existing appointments are
+ * left exactly as they are, so this never needs to touch `busy`.
+ */
+export function openWorkingHoursForSelection(
+  input: WorkingDayBreakEditInput,
+): WorkingDayBoundsEditResult {
+  if (input.selection.endMinute <= input.selection.startMinute) {
+    return { ok: false, error: 'invalid_interval' };
+  }
+  const hasWorkingHours = input.dayEndMinute > input.dayStartMinute;
+  return {
+    ok: true,
+    dayStartMinute: hasWorkingHours
+      ? Math.min(input.dayStartMinute, input.selection.startMinute)
+      : input.selection.startMinute,
+    dayEndMinute: hasWorkingHours
+      ? Math.max(input.dayEndMinute, input.selection.endMinute)
+      : input.selection.endMinute,
+    breaks: normalizeBreaks(input.breaks),
+  };
 }
 
 /** Whether `selection` intersects any of `intervals`. */

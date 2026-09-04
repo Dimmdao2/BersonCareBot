@@ -61,6 +61,7 @@ import {
   addBreakToWorkingDay,
   intersectsAny,
   openWorkingDayIntervalForBooking,
+  openWorkingHoursForSelection,
   type MinuteInterval,
 } from '@/modules/booking-scheduling/workingDayBreakEdits';
 import {
@@ -1946,11 +1947,14 @@ export function ScheduleCalendarTab({
     if (selectionContext.kind === 'working') {
       return canEditSchedule ? ['create', 'add-break'] : ['create'];
     }
-    if (selectionContext.kind === 'break') {
-      return canEditSchedule ? ['open-for-booking', 'create'] : ['create'];
-    }
     if (selectionContext.kind === 'mixed') {
       return canEditSchedule ? ['add-break', 'open-for-booking', 'create'] : ['create'];
+    }
+    // CAL-ACTION-04: break, closed slot and outside-working-hours selections all read as
+    // `'break'`/`'outside'` here — none of them is currently bookable, so both offer the same
+    // "reopen" action; `applySelectionScheduleChange` picks the right mutation per kind.
+    if (selectionContext.kind === 'break' || selectionContext.kind === 'outside') {
+      return canEditSchedule ? ['open-for-booking', 'create'] : ['create'];
     }
     return ['create'];
   }, [canEditSelectionSchedule, selectionContext]);
@@ -2027,10 +2031,15 @@ export function ScheduleCalendarTab({
         },
         busy: selectionContext.busy,
       };
+      // CAL-ACTION-04/07: a break/mixed selection reopens by trimming the existing break; an
+      // outside-working-hours (or closed-slot) selection has no break to trim, so it widens the
+      // working day itself onto the selected side instead — same `PUT /working-days` write below.
       const result =
         mode === 'add-break'
           ? addBreakToWorkingDay(editInput)
-          : openWorkingDayIntervalForBooking(editInput);
+          : selectionContext.kind === 'outside'
+            ? openWorkingHoursForSelection(editInput)
+            : openWorkingDayIntervalForBooking(editInput);
       if (!result.ok) {
         setSelectionActionError(
           SELECTION_MUTATION_ERRORS[result.error] ?? 'Не удалось обновить график.',
@@ -2041,6 +2050,10 @@ export function ScheduleCalendarTab({
         setSelectionActionError(SELECTION_MUTATION_ERRORS.too_many_breaks ?? null);
         return;
       }
+      const nextDayStartMinute =
+        'dayStartMinute' in result ? result.dayStartMinute : selectionContext.dayStartMinute;
+      const nextDayEndMinute =
+        'dayEndMinute' in result ? result.dayEndMinute : selectionContext.dayEndMinute;
       setSelectionActionPending(true);
       setSelectionActionError(null);
       try {
@@ -2050,8 +2063,8 @@ export function ScheduleCalendarTab({
           body: JSON.stringify({
             action: 'upsert',
             dates: [gridSelection.dateKey],
-            startMinute: selectionContext.dayStartMinute,
-            endMinute: selectionContext.dayEndMinute,
+            startMinute: nextDayStartMinute,
+            endMinute: nextDayEndMinute,
             breaks: result.breaks,
             ...(selectionContext.branchIds[0]
               ? { branchId: selectionContext.branchIds[0] }
@@ -3303,8 +3316,15 @@ export function ScheduleCalendarTab({
                     <DropdownMenu
                       open={selectionMenuOpen}
                       onOpenChange={(open) => {
+                        // CAL-ACTION-10: Base UI auto-closes the menu on the same click that runs
+                        // a rejected mutation, so this fires in the same tick as
+                        // `setSelectionActionError(...)` in `applySelectionScheduleChange`. Do NOT
+                        // clear the error here — that raced the close and silently swallowed it,
+                        // leaving the doctor with no feedback that nothing was saved. The error is
+                        // reset explicitly wherever a fresh attempt actually starts: a new
+                        // selection (`openGridSelection`/`clearGridSelection`) or picking «Новая
+                        // запись» (`runSelectionAction`).
                         setSelectionMenuOpen(open);
-                        if (!open) setSelectionActionError(null);
                       }}
                     >
                       <DropdownMenuContent
