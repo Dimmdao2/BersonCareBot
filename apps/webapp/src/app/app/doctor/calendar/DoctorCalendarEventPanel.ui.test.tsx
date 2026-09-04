@@ -595,4 +595,28 @@ describe('appointment edit save', () => {
       vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/manual-reschedule')),
     ).toHaveLength(1);
   });
+  // Мотивирующий путь владельца: сервер принял все шаги правки записи. Ловит поломку
+  // «врач сохранил, а результат уехал вместе с закрытой формой»: успех обязан уйти
+  // во всплывающее уведомление, вложенный слой правки — закрыться, детали — обновиться.
+  it('announces a fully accepted edit through the toast, leaves the edit layer and refreshes details', async () => {
+    stubEditEndpoints(() => Response.json({ ok: true }, { status: 200 }));
+    const onChanged = vi.fn();
+    renderEditablePanel(onChanged);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить' }));
+    const editComment = await screen.findByLabelText('Комментарий');
+    await waitFor(() => expect(editComment).toHaveValue('Старый'));
+    fireEvent.change(editComment, { target: { value: 'Новый комментарий' } });
+    fireEvent.change(screen.getByLabelText('Длительность, мин'), { target: { value: '45' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    // Результат объявлен именно уведомлением, а не строкой в теле формы.
+    await waitFor(() => expect(toastMock.success).toHaveBeenCalledTimes(1));
+    expect(toastMock.error).not.toHaveBeenCalled();
+    // Слой правки закрыт: вернулся просмотр записи, а не остался редактор.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Изменить' })).toBeInTheDocument());
+    expect(screen.queryByLabelText('Длительность, мин')).not.toBeInTheDocument();
+    // Детали перечитываются — иначе врач смотрит на устаревшую запись.
+    expect(onChanged).toHaveBeenCalled();
+  });
 });
