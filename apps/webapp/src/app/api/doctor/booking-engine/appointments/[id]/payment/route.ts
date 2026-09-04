@@ -3,7 +3,10 @@ import { z } from 'zod';
 import { createStaffAppointmentPaymentsService } from '@/app-layer/booking/staffAppointmentPayments';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
@@ -31,6 +34,36 @@ async function resolveAppointmentPaymentContext(appointmentId: string) {
   return { ok: true as const, gate, appointment, platformUserId };
 }
 
+/**
+ * The card is allowed to render a payment block only for a clinic whose tariff actually carries the
+ * `payments` mechanic — the same decision the POST door enforces before touching money. Online
+ * options are additionally bound to a configured provider, and the send option to the one delivery
+ * path a specialist really has for this patient (the in-app conversation plus its notification
+ * fan-out), which only exists once the patient is `linked` to the portal.
+ */
+async function resolvePaymentCapabilities(
+  ctx: { organizationId: string },
+  deps: ReturnType<typeof buildAppDeps>,
+  payments: NonNullable<ReturnType<typeof buildAppDeps>['payments']>,
+  platformUserId: string,
+) {
+  const entitlement = await getMechanicMutationAvailability(ctx, 'payments');
+  if (!entitlement.available) {
+    return { entitled: false, onlineAvailable: false, patientChatAvailable: false };
+  }
+  const [online, portal] = await Promise.all([
+    payments.getPrepaymentAvailability(ctx.organizationId),
+    withDoctorWorkspacePrincipal(ctx, 'doctor.booking.appointment-payment.read', () =>
+      deps.patientInvites.getPortalStatus(ctx.organizationId, platformUserId),
+    ).catch(() => null),
+  ]);
+  return {
+    entitled: true,
+    onlineAvailable: online.available,
+    patientChatAvailable: portal?.status === 'linked',
+  };
+}
+
 export async function GET(_request: Request, context: RouteContext) {
   const { id: appointmentId } = await context.params;
   const resolved = await resolveAppointmentPaymentContext(appointmentId);
@@ -40,6 +73,12 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!deps.payments) {
     return NextResponse.json({ ok: false, error: 'payments_unavailable' }, { status: 503 });
   }
+  const capabilities = await resolvePaymentCapabilities(
+    gate.ctx,
+    deps,
+    deps.payments,
+    platformUserId,
+  );
   const service = createStaffAppointmentPaymentsService(deps);
   const state = await withDoctorWorkspacePrincipal(
     gate.ctx,
@@ -59,6 +98,9 @@ export async function GET(_request: Request, context: RouteContext) {
     summary: state.summary,
     totalMinor: state.totalMinor,
     manualPaidMinor: state.manualPaidMinor,
+    paymentsEntitled: capabilities.entitled,
+    onlinePaymentAvailable: capabilities.onlineAvailable,
+    patientChatAvailable: capabilities.patientChatAvailable,
   });
 }
 

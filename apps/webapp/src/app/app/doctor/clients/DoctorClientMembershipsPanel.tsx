@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, useTransition } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -14,10 +15,34 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { PatientPackageCard, type PatientPackageCardRow } from './PatientPackageCard';
 import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
+import { localQrCodeDataUri } from '@/app/app/doctor/calendar/localQrCode';
+import { sendPaymentLinkToPatientChat } from '@/app/app/doctor/sendPaymentLinkToPatientChat';
 
 import { DateTime } from 'luxon';
 
 type AppointmentOption = { id: string; label: string };
+
+/**
+ * MONEY-03: a sale is one decision — «сколько» plus «как платят», not two free-floating numbers.
+ * The paid amount is never typed independently: for a staff-recorded sale the server derives it
+ * from the package price (`pgMemberships.createManualPatientPackage`,
+ * `activatePatientPackageFromDoctorSale`), and for an online sale it is the captured intent.
+ */
+type SalePaymentMethod = 'cash' | 'link' | 'free';
+
+const SALE_METHOD_LABELS: Record<SalePaymentMethod, string> = {
+  cash: 'Наличными',
+  link: 'Ссылка на оплату',
+  free: 'Бесплатно',
+};
+
+/** Result of one create call, so the sale has a visible next step instead of a silent success. */
+type SaleResult = {
+  packageId: string;
+  status: string;
+  checkoutUrl: string | null;
+  method: SalePaymentMethod;
+};
 
 function notifyPackagesChanged() {
   if (typeof window !== 'undefined') {
@@ -48,6 +73,14 @@ function formatConsumeItemLabel(
 
 const ERROR_LABELS: Record<string, string> = {
   invalid_form: 'Проверьте цену и состав абонемента.',
+  create_failed: 'Не удалось сохранить абонемент.',
+  entitlement_required: 'Действие не входит в тариф клиники.',
+  payments_disabled: 'Приём платежей выключен для клиники.',
+  payment_provider_unavailable: 'Платёжный провайдер не настроен.',
+  payments_unavailable: 'Платёжный модуль недоступен.',
+  memberships_unavailable: 'Модуль абонементов недоступен.',
+  catalog_package_not_found: 'Шаблон абонемента не найден.',
+  chat_send_failed: 'Не удалось отправить ссылку в чат пациента.',
   appointment_already_linked_to_package:
     'Запись уже связана с абонементом. Откройте абонемент и выполните действие в списке записей.',
   appointment_has_consumed_package_session:
@@ -95,6 +128,8 @@ type Props = {
   consumptionAllowed?: boolean;
   /** Configuration/detail mode can reuse the forms without duplicating the package list. */
   showPackageList?: boolean;
+  /** Host surfaces (modal, patient card) need the sale outcome to refresh and close. */
+  onCreated?: () => void;
 };
 
 export function DoctorClientMembershipsPanel({
@@ -104,12 +139,19 @@ export function DoctorClientMembershipsPanel({
   mutationsAllowed = true,
   consumptionAllowed = true,
   showPackageList = true,
+  onCreated,
 }: Props) {
   const router = useRouter();
   const [packages, setPackages] = useState<PatientPackageCardRow[]>([]);
+  const [onlinePaymentAvailable, setOnlinePaymentAvailable] = useState(false);
+  const [patientChatAvailable, setPatientChatAvailable] = useState(false);
+  const [saleResult, setSaleResult] = useState<SaleResult | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [linkSent, setLinkSent] = useState(false);
   const [priceRub, setPriceRub] = useState('');
   const [soldDate, setSoldDate] = useState('');
-  const [paidRub, setPaidRub] = useState('');
+  const [manualMethod, setManualMethod] = useState<SalePaymentMethod>('cash');
+  const [catalogMethod, setCatalogMethod] = useState<SalePaymentMethod>('cash');
   const [manualNotes, setManualNotes] = useState('');
   const [serviceId, setServiceId] = useState('');
   const [quantity, setQuantity] = useState('1');
@@ -122,7 +164,6 @@ export function DoctorClientMembershipsPanel({
   );
   const [catalogId, setCatalogId] = useState('');
   const [catalogSoldDate, setCatalogSoldDate] = useState('');
-  const [catalogPaidRub, setCatalogPaidRub] = useState('');
   const [catalogNotes, setCatalogNotes] = useState('');
   const [consumePackageId, setConsumePackageId] = useState('');
   const [consumeItemId, setConsumeItemId] = useState('');
@@ -150,12 +191,16 @@ export function DoctorClientMembershipsPanel({
         ok?: boolean;
         packages?: PatientPackageCardRow[];
         error?: string;
+        onlinePaymentAvailable?: boolean;
+        patientChatAvailable?: boolean;
       };
       if (!json.ok) {
         showError(json.error ?? 'load_failed');
         return;
       }
       setPackages(json.packages ?? []);
+      setOnlinePaymentAvailable(json.onlinePaymentAvailable === true);
+      setPatientChatAvailable(json.patientChatAvailable === true);
       setError(null);
     } catch {
       showError('load_failed');
@@ -187,7 +232,72 @@ export function DoctorClientMembershipsPanel({
     }
   }, [loadPackages, showCreateForm]);
 
+  // A method the clinic cannot actually execute must never stay selected (MONEY-03/08).
+  useEffect(() => {
+    if (onlinePaymentAvailable) return;
+    setManualMethod((current) => (current === 'link' ? 'cash' : current));
+    setCatalogMethod((current) => (current === 'link' ? 'cash' : current));
+  }, [onlinePaymentAvailable]);
+
   const compact = packages.filter((p) => p.status === 'active' || p.status === 'awaiting_payment');
+
+  const saleMethodOptions = (allowFree: boolean): SalePaymentMethod[] => [
+    'cash',
+    ...(onlinePaymentAvailable ? (['link'] as const) : []),
+    ...(allowFree ? (['free'] as const) : []),
+  ];
+
+  function applySaleResult(
+    pkg: {
+      id: string;
+      status: string;
+      checkoutUrl?: string | null;
+    },
+    method: SalePaymentMethod,
+  ) {
+    setSaleResult({
+      packageId: pkg.id,
+      status: pkg.status,
+      checkoutUrl: pkg.checkoutUrl ?? null,
+      method,
+    });
+    setLinkCopied(false);
+    setLinkSent(false);
+    void loadPackages();
+    router.refresh();
+    notifyPackagesChanged();
+    // A pay-link sale still owes the doctor a next step (QR / copy / send), so the host surface
+    // is released only once nothing is left to hand over.
+    if (!pkg.checkoutUrl) onCreated?.();
+  }
+
+  function copySaleLink() {
+    const url = saleResult?.checkoutUrl;
+    if (!url) return;
+    startTransition(async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        setLinkCopied(true);
+      } catch {
+        setLinkCopied(false);
+      }
+    });
+  }
+
+  function sendSaleLinkToChat() {
+    const url = saleResult?.checkoutUrl;
+    if (!url || !saleResult) return;
+    startTransition(async () => {
+      setError(null);
+      const ok = await sendPaymentLinkToPatientChat({
+        patientUserId: platformUserId,
+        subjectRef: `patient_package:${saleResult.packageId}`,
+        link: url,
+      }).catch(() => false);
+      if (ok) setLinkSent(true);
+      else showError('chat_send_failed');
+    });
+  }
 
   function addItem() {
     if (!serviceId) return;
@@ -196,11 +306,23 @@ export function DoctorClientMembershipsPanel({
     setItems((prev) => [...prev, { serviceId, quantity: q }]);
   }
 
+  /**
+   * One sale entrypoint, parameterized by method — not three create paths. `cash`/`free` are the
+   * existing staff-recorded sale (server stamps `soldAt`/`paidAmountMinor` from the price);
+   * `link` is the existing invoice/pay-link contract (`createPaymentOfferOrKeepOffered`).
+   */
+  function saleFields(method: SalePaymentMethod, soldAtDate: string) {
+    if (method === 'link') return { sendForPayment: true as const };
+    return {
+      sendForPayment: false as const,
+      activateImmediately: true as const,
+      soldAt: soldAtDate ? new Date(soldAtDate).toISOString() : new Date().toISOString(),
+    };
+  }
+
   function createManual() {
-    const priceMinor = Math.round(Number.parseFloat(priceRub.replace(',', '.')) * 100);
-    const paidAmountMinor = paidRub
-      ? Math.round(Number.parseFloat(paidRub.replace(',', '.')) * 100)
-      : priceMinor;
+    const priceMinor =
+      manualMethod === 'free' ? 0 : Math.round(Number.parseFloat(priceRub.replace(',', '.')) * 100);
     const selectedQuantity = Number.parseInt(quantity, 10);
     const packageItems =
       items.length > 0
@@ -208,7 +330,11 @@ export function DoctorClientMembershipsPanel({
         : serviceId && Number.isFinite(selectedQuantity) && selectedQuantity > 0
           ? [{ serviceId, quantity: selectedQuantity }]
           : [];
-    if (packageItems.length === 0 || !Number.isFinite(priceMinor)) {
+    if (packageItems.length === 0 || !Number.isFinite(priceMinor) || priceMinor < 0) {
+      showError('invalid_form');
+      return;
+    }
+    if (manualMethod === 'link' && priceMinor === 0) {
       showError('invalid_form');
       return;
     }
@@ -222,26 +348,25 @@ export function DoctorClientMembershipsPanel({
           notes: manualNotes.trim() || undefined,
           priceMinor,
           items: packageItems,
-          sendForPayment: false,
-          soldAt: soldDate ? new Date(soldDate).toISOString() : new Date().toISOString(),
-          paidAmountMinor,
-          activateImmediately: true,
+          ...saleFields(manualMethod, soldDate),
         }),
       });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!json.ok) {
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        package?: { id: string; status: string; checkoutUrl?: string | null };
+      };
+      if (!json.ok || !json.package) {
         showError(json.error ?? 'create_failed');
         return;
       }
       toast.success('Абонемент создан');
       setPriceRub('');
-      setPaidRub('');
       setSoldDate('');
       setManualNotes('');
       setItems([]);
-      void loadPackages();
-      router.refresh();
-      notifyPackagesChanged();
+      setError(null);
+      applySaleResult(json.package, manualMethod);
     });
   }
 
@@ -250,10 +375,6 @@ export function DoctorClientMembershipsPanel({
       showError('invalid_form');
       return;
     }
-    const selected = catalog.find((c) => c.id === catalogId);
-    const paidAmountMinor = catalogPaidRub
-      ? Math.round(Number.parseFloat(catalogPaidRub.replace(',', '.')) * 100)
-      : (selected?.priceMinor ?? 0);
     startTransition(async () => {
       const res = await fetch(apiBase, {
         method: 'POST',
@@ -263,26 +384,24 @@ export function DoctorClientMembershipsPanel({
           platformUserId,
           subscriptionPackageId: catalogId,
           notes: catalogNotes.trim() || undefined,
-          soldAt: catalogSoldDate
-            ? new Date(catalogSoldDate).toISOString()
-            : new Date().toISOString(),
-          paidAmountMinor,
-          activateImmediately: true,
+          ...saleFields(catalogMethod, catalogSoldDate),
         }),
       });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!json.ok) {
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        package?: { id: string; status: string; checkoutUrl?: string | null };
+      };
+      if (!json.ok || !json.package) {
         showError(json.error ?? 'create_failed');
         return;
       }
       toast.success('Абонемент создан');
       setCatalogId('');
-      setCatalogPaidRub('');
       setCatalogSoldDate('');
       setCatalogNotes('');
-      void loadPackages();
-      router.refresh();
-      notifyPackagesChanged();
+      setError(null);
+      applySaleResult(json.package, catalogMethod);
     });
   }
 
@@ -378,15 +497,7 @@ export function DoctorClientMembershipsPanel({
               ) : (
                 <>
                   <Label htmlFor="pkg-catalog">Шаблон</Label>
-                  <Select
-                    value={catalogId}
-                    onValueChange={(v) => {
-                      const val = v ?? '';
-                      setCatalogId(val);
-                      const row = catalog.find((c) => c.id === val);
-                      if (row) setCatalogPaidRub(String(row.priceMinor / 100));
-                    }}
-                  >
+                  <Select value={catalogId} onValueChange={(v) => setCatalogId(v ?? '')}>
                     <SelectTrigger
                       id="pkg-catalog"
                       className="w-full"
@@ -407,18 +518,34 @@ export function DoctorClientMembershipsPanel({
                     value={catalogNotes}
                     onChange={(e) => setCatalogNotes(e.target.value)}
                   />
-                  <Label htmlFor="pkg-catalog-sold">Дата продажи</Label>
-                  <DoctorDatePicker
-                    value={catalogSoldDate}
-                    onChange={setCatalogSoldDate}
-                    max={today}
-                  />
-                  <Label htmlFor="pkg-catalog-paid">Оплачено, ₽</Label>
-                  <Input
-                    id="pkg-catalog-paid"
-                    value={catalogPaidRub}
-                    onChange={(e) => setCatalogPaidRub(e.target.value)}
-                  />
+                  <Label htmlFor="pkg-catalog-method">Способ оплаты</Label>
+                  <Select
+                    value={catalogMethod}
+                    onValueChange={(v) => setCatalogMethod((v as SalePaymentMethod) ?? 'cash')}
+                  >
+                    <SelectTrigger
+                      id="pkg-catalog-method"
+                      className="w-full"
+                      displayLabel={SALE_METHOD_LABELS[catalogMethod]}
+                    />
+                    <SelectContent>
+                      {saleMethodOptions(false).map((method) => (
+                        <SelectItem key={method} value={method}>
+                          {SALE_METHOD_LABELS[method]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {catalogMethod === 'link' ? null : (
+                    <>
+                      <Label htmlFor="pkg-catalog-sold">Дата продажи</Label>
+                      <DoctorDatePicker
+                        value={catalogSoldDate}
+                        onChange={setCatalogSoldDate}
+                        max={today}
+                      />
+                    </>
+                  )}
                   <Button type="button" size="sm" disabled={pending} onClick={offerCatalog}>
                     Назначить
                   </Button>
@@ -438,16 +565,41 @@ export function DoctorClientMembershipsPanel({
                 value={manualNotes}
                 onChange={(e) => setManualNotes(e.target.value)}
               />
-              <Label htmlFor="pkg-price">Цена, ₽</Label>
-              <Input
-                id="pkg-price"
-                value={priceRub}
-                onChange={(e) => setPriceRub(e.target.value)}
-              />
-              <Label htmlFor="pkg-sold">Дата продажи</Label>
-              <DoctorDatePicker value={soldDate} onChange={setSoldDate} max={today} />
-              <Label htmlFor="pkg-paid">Оплачено, ₽</Label>
-              <Input id="pkg-paid" value={paidRub} onChange={(e) => setPaidRub(e.target.value)} />
+              <Label htmlFor="pkg-manual-method">Способ оплаты</Label>
+              <Select
+                value={manualMethod}
+                onValueChange={(v) => setManualMethod((v as SalePaymentMethod) ?? 'cash')}
+              >
+                <SelectTrigger
+                  id="pkg-manual-method"
+                  className="w-full"
+                  displayLabel={SALE_METHOD_LABELS[manualMethod]}
+                />
+                <SelectContent>
+                  {saleMethodOptions(true).map((method) => (
+                    <SelectItem key={method} value={method}>
+                      {SALE_METHOD_LABELS[method]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {manualMethod === 'free' ? null : (
+                <>
+                  <Label htmlFor="pkg-price">Цена, ₽</Label>
+                  <Input
+                    id="pkg-price"
+                    inputMode="decimal"
+                    value={priceRub}
+                    onChange={(e) => setPriceRub(e.target.value)}
+                  />
+                </>
+              )}
+              {manualMethod === 'link' ? null : (
+                <>
+                  <Label htmlFor="pkg-sold">Дата продажи</Label>
+                  <DoctorDatePicker value={soldDate} onChange={setSoldDate} max={today} />
+                </>
+              )}
               <div className="flex flex-wrap items-end gap-2">
                 <div className="min-w-[8rem] flex-1">
                   <Label htmlFor="pkg-svc">Услуга</Label>
@@ -510,6 +662,67 @@ export function DoctorClientMembershipsPanel({
             </div>
           </details>
         </>
+      ) : null}
+
+      {saleResult && saleResult.method === 'link' ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/10 p-3 text-sm">
+          {saleResult.checkoutUrl ? (
+            <>
+              <a
+                className="break-all text-primary underline"
+                href={saleResult.checkoutUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {saleResult.checkoutUrl}
+              </a>
+              <Image
+                width={144}
+                height={144}
+                alt="QR-код платёжной ссылки"
+                src={localQrCodeDataUri(saleResult.checkoutUrl)}
+                unoptimized
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={copySaleLink}
+                >
+                  {linkCopied ? 'Ссылка скопирована' : 'Скопировать ссылку'}
+                </Button>
+                {patientChatAvailable ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={sendSaleLinkToChat}
+                  >
+                    {linkSent ? 'Отправлено в чат' : 'Отправить в чат'}
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setSaleResult(null);
+                    onCreated?.();
+                  }}
+                >
+                  Готово
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p className="text-destructive">
+              Ссылка на оплату не создана — платёжный провайдер не настроен. Абонемент сохранён и
+              ждёт оплаты.
+            </p>
+          )}
+        </div>
       ) : null}
 
       {consumptionAllowed ? (

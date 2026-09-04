@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   catalogPatientPackageCreatesOnlinePayment,
@@ -63,7 +66,26 @@ export async function GET(request: Request) {
       platformUserId,
       gate.ctx.organizationId,
     );
-    return NextResponse.json({ ok: true, packages });
+    // The sale form may offer «ссылка на оплату» only when a new online payment can really be
+    // created (`memberships.md`: `payments` mechanic + configured provider), and «отправить в
+    // чат» only when the patient is actually linked to the portal that carries the conversation.
+    const paymentsEntitlement = await getMechanicMutationAvailability(gate.ctx, 'payments');
+    const [onlineAvailability, portal] = await Promise.all([
+      paymentsEntitlement.available && deps.payments
+        ? deps.payments.getPrepaymentAvailability(gate.ctx.organizationId)
+        : Promise.resolve({ available: false as const }),
+      withDoctorWorkspacePrincipal(
+        gate.ctx,
+        'doctor.booking-engine.patient-packages.portal-status',
+        () => deps.patientInvites.getPortalStatus(gate.ctx.organizationId, platformUserId),
+      ).catch(() => null),
+    ]);
+    return NextResponse.json({
+      ok: true,
+      packages,
+      onlinePaymentAvailable: onlineAvailability.available,
+      patientChatAvailable: portal?.status === 'linked',
+    });
   } catch (err) {
     return membershipErrorResponse(err);
   }

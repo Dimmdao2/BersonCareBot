@@ -4,6 +4,7 @@ const fakes = vi.hoisted(() => ({
   requireDoctorBookingEngine: vi.fn(),
   resolveDoctorAppointmentAccess: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
+  getMechanicMutationAvailability: vi.fn(),
   buildAppDeps: vi.fn(),
   loadStaffAppointmentPaymentSummary: vi.fn(),
   listAppointmentPayments: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('../../../_resolveDoctorAppointmentAccess', () => ({
 }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   requireEntitlementForMutation: fakes.requireEntitlementForMutation,
+  getMechanicMutationAvailability: fakes.getMechanicMutationAvailability,
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
 vi.mock('@/app-layer/booking/staffAppointmentPaymentSummary', () => ({
@@ -65,6 +67,7 @@ beforeEach(() => {
     platformUserId: PATIENT_ID,
   });
   fakes.requireEntitlementForMutation.mockResolvedValue({ ok: true });
+  fakes.getMechanicMutationAvailability.mockResolvedValue({ available: true });
   fakes.loadStaffAppointmentPaymentSummary.mockResolvedValue({
     appointmentId: APPOINTMENT_ID,
     appointmentStatus: 'confirmed',

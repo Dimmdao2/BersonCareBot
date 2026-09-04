@@ -13,6 +13,18 @@ Validity: `packageValidity.ts` (auto `expired` when `valid_until` passed).
 Создание нового онлайн-платежа требует одновременно `subscriptions=full_access` и `payments=full_access`. Проверка `payments` применяется только к платной отправке на оплату: бесплатная выдача и зафиксированная сотрудником офлайн-продажа остаются доступны. Уже купленные абонементы, история и расходование не зависят от возможности создавать новые платежи.
 `GET /api/booking/memberships/payment-status` сохраняет чтение статуса существующего абонемента, но возвращает `checkoutUrl=null`, когда новые платежи недоступны по тарифу.
 
+### Продажа из кабинета: один вход, способ оплаты — параметр
+
+`DoctorClientMembershipsPanel` не спрашивает «Цена» и «Оплачено» двумя независимыми числами. Форма продажи задаёт цену и **способ оплаты**, а оплаченную сумму выводит сервер:
+
+| Способ | Что уходит в `POST .../patient-packages` | Что делает сервер |
+| ------ | ---------------------------------------- | ----------------- |
+| Наличными | `sendForPayment:false`, `activateImmediately:true`, `soldAt` | staff-sale: `paidAmountMinor` ← `priceMinor` (`pgMemberships.createManualPatientPackage`, `activatePatientPackageFromDoctorSale`), статус `active` |
+| Ссылка на оплату | `sendForPayment:true` | `createPaymentOfferOrKeepOffered` → intent + `checkoutUrl`, статус `awaiting_payment` |
+| Бесплатно | `priceMinor:0`, `activateImmediately:true`, `soldAt` | активация без платежа |
+
+Клиент **не** присылает `paidAmountMinor` — иначе цена и оплаченная сумма расходятся без правила. Способ «Ссылка на оплату» показывается только когда `GET .../patient-packages` вернул `onlinePaymentAvailable` (мехáника `payments` + настроенный провайдер); «Отправить в чат» — только при `patientChatAvailable` (пациент `linked` к порталу). QR и отправка ссылки переиспользуют `localQrCode` и `sendPaymentLinkToPatientChat` — второй реализации нет.
+
 ## Booking integration
 
 **Canonical-only debit path:** reserve/consume/FEFO и ручные действия staff опираются на **canonical `serviceId`** записи и позиций пакета. В UI сеансов абонемента: `mappingStatus` + бейдж «нет связи услуги».

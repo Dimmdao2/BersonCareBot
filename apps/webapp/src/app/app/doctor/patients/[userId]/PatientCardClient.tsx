@@ -967,6 +967,7 @@ function PatientCardTabPanels({
           showPackageList={false}
           mutationsAllowed={membershipMutationsAllowed}
           consumptionAllowed
+          onCreated={() => setMembershipConfigurationOpen(false)}
         />
       </DoctorModal>
     </>

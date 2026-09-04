@@ -685,7 +685,11 @@ function DoctorCalendarEventPanelInner({
         </dl>
         {selected.prepaymentPending ? <Badge variant="secondary">Ожидает предоплаты</Badge> : null}
         {selected.platformUserId ? (
-          <AppointmentPaymentSection apiBase={apiBase} appointmentId={selected.id} />
+          <AppointmentPaymentSection
+            apiBase={apiBase}
+            appointmentId={selected.id}
+            patientUserId={selected.platformUserId}
+          />
         ) : null}
         {selected.platformUserId ? (
           <div className="flex justify-center py-1">
