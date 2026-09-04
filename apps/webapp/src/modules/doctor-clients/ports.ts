@@ -44,9 +44,9 @@ export type DoctorClientsFilters = {
   includeArchived?: boolean;
   /** `on` — `doctor_patient_support.on_support`; `programWithoutSupport` — активная doctor-программа без сопровождения. */
   supportStatus?: 'on' | 'programWithoutSupport';
-  /** Есть действующий абонемент (`be_patient_packages.status = 'active'`). */
+  /** Есть действующий абонемент с доступными сеансами. */
   hasMemberships?: boolean;
-  /** Есть истёкший абонемент (`be_patient_packages.status = 'expired'`). */
+  /** Есть абонемент с истёкшим сроком действия и оставшимися сеансами. */
   hasExpiredMemberships?: boolean;
   /**
    * Сегмент «Новые»: есть будущая запись, но ещё не было прошедшего посещения.
@@ -105,9 +105,9 @@ export type ClientListItem = {
   isOnSupport?: boolean;
   /** Есть приобретённый абонемент: active либо awaiting_payment (client evidence / информационный индикатор). */
   hasMemberships?: boolean;
-  /** Есть действующий абонемент (`status = 'active'`). */
+  /** Есть действующий абонемент с доступными сеансами. */
   hasActiveMemberships?: boolean;
-  /** Есть истёкший абонемент (`status = 'expired'`). */
+  /** Есть абонемент с истёкшим сроком действия и оставшимися сеансами. */
   hasExpiredMemberships?: boolean;
 };
 
@@ -211,9 +211,9 @@ export type DoctorDashboardPatientMetrics = {
   visitedThisCalendarMonthCount: number;
   /** Клиенты с хотя бы одной активной программой лечения (`treatment_program_instances.status = 'active'`). */
   withProgramCount: number;
-  /** Клиенты с действующим абонементом (`be_patient_packages.status = 'active'`). */
+  /** Клиенты с действующим абонементом и доступными сеансами. */
   membershipsCount: number;
-  /** Клиенты с истёкшим абонементом (`be_patient_packages.status = 'expired'`). */
+  /** Клиенты с истёкшим по сроку абонементом и оставшимися сеансами. */
   expiredMembershipsCount: number;
   /** «Подписчики»: role=client, нет ни одной неотменённой записи. */
   subscriberCount: number;
@@ -321,9 +321,25 @@ export type DoctorClientsPort = {
    */
   applyPlatformSupportAccountAction(
     input:
-      | { action: 'set_blocked'; userId: string; blocked: boolean; reason: string | null; actorId: string }
-      | { action: 'revoke_contact'; userId: string; contactKind: 'phone' | 'email'; valueNormalized: string }
-      | { action: 'revoke_channel_binding'; userId: string; channelCode: 'telegram' | 'max' | 'vk'; externalId: string },
+      | {
+          action: 'set_blocked';
+          userId: string;
+          blocked: boolean;
+          reason: string | null;
+          actorId: string;
+        }
+      | {
+          action: 'revoke_contact';
+          userId: string;
+          contactKind: 'phone' | 'email';
+          valueNormalized: string;
+        }
+      | {
+          action: 'revoke_channel_binding';
+          userId: string;
+          channelCode: 'telegram' | 'max' | 'vk';
+          externalId: string;
+        },
   ): Promise<{ changed: boolean }>;
   /** Архив связи пациента с конкретной организацией; глобальную учётку не меняет. */
   setOrganizationClientArchived(params: {

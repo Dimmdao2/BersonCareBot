@@ -30,6 +30,7 @@ function mapRow(row: typeof specialistTasks.$inferSelect): SpecialistTaskRow {
     title: row.title,
     description: row.description,
     dueAt: row.dueAt,
+    dueHasTime: row.dueHasTime,
     remindAt: row.remindAt,
     isImportant: row.isImportant,
     completedAt: row.completedAt,
@@ -110,6 +111,7 @@ export function createPgSpecialistTasksPort(
             title: input.title,
             description: input.description ?? null,
             dueAt: input.dueAt ?? null,
+            dueHasTime: input.dueHasTime ?? true,
             remindAt: input.remindAt ?? null,
             isImportant: input.isImportant ?? false,
             updatedAt: now,
@@ -134,6 +136,7 @@ export function createPgSpecialistTasksPort(
       if (patch.title !== undefined) set.title = patch.title;
       if (patch.description !== undefined) set.description = patch.description;
       if (patch.dueAt !== undefined) set.dueAt = patch.dueAt;
+      if (patch.dueHasTime !== undefined) set.dueHasTime = patch.dueHasTime;
       if (patch.remindAt !== undefined) {
         set.remindAt = patch.remindAt;
         if (patch.clearReminderSent) set.reminderSentAt = null;

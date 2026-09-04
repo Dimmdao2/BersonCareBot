@@ -9,10 +9,7 @@ import { cn } from '@/lib/utils';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
-import {
-  DoctorModal,
-  type DoctorModalDesktopPresentation,
-} from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, type DoctorModalDesktopPresentation } from '@/shared/ui/doctor/DoctorModal';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   doctorBodyTextClass,
@@ -52,11 +49,7 @@ function formatDaysRu(days: number): string {
   return `${days} дней`;
 }
 
-function getOverdueDays(
-  dueAt: string | null,
-  nowMs: number,
-  displayIana?: string,
-): number | null {
+function getOverdueDays(dueAt: string | null, nowMs: number, displayIana?: string): number | null {
   if (!dueAt) return null;
   const zone = displayIana ?? DEFAULT_APP_DISPLAY_TIMEZONE;
   const dueAtMs = Date.parse(dueAt);
@@ -77,7 +70,7 @@ export function SpecialistTaskDetailsContent({
   const [nowMs] = useState(() => Date.now());
   const overdue = isSpecialistTaskOverdue(task, nowMs);
   const completed = Boolean(task.completedAt);
-  const dueLabel = formatSpecialistTaskWhen(task.dueAt, displayIana);
+  const dueLabel = formatSpecialistTaskWhen(task.dueAt, displayIana, task.dueHasTime !== false);
   const reminderLabel = formatSpecialistTaskWhen(task.remindAt, displayIana);
   const reminderAtMs = task.remindAt ? Date.parse(task.remindAt) : Number.NaN;
   const reminderPassed = !Number.isNaN(reminderAtMs) && reminderAtMs < nowMs;
@@ -126,11 +119,7 @@ export function SpecialistTaskDetailsContent({
         </div>
       </div>
       {reminderLabel ? (
-        <div
-          className={cn(
-            reminderPassed ? 'text-muted-foreground' : 'text-foreground',
-          )}
-        >
+        <div className={cn(reminderPassed ? 'text-muted-foreground' : 'text-foreground')}>
           <div className="flex items-center gap-1">
             <Bell className="size-3.5 shrink-0" aria-hidden />
             <p className={cn(doctorSecondaryListTextClass, 'text-current')}>Напомнить</p>

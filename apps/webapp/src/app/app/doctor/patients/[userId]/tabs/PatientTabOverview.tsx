@@ -53,7 +53,7 @@ import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { formatPatientPackageLongLabel } from '@/modules/memberships/display';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorCatalogMediaStaticThumb } from '@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb';
 import {
@@ -953,6 +953,7 @@ export function PatientTabOverview({
   const [editingTask, setEditingTask] = useState<SpecialistTaskRow | null>(null);
   const [stageExercisesModalOpen, setStageExercisesModalOpen] = useState(false);
   const [selectedStageExerciseId, setSelectedStageExerciseId] = useState<string | null>(null);
+  const [stageExerciseDiscussionOpen, setStageExerciseDiscussionOpen] = useState(false);
   const [clientNowIso, setClientNowIso] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1598,6 +1599,12 @@ export function PatientTabOverview({
       };
     });
   };
+
+  const openStageExerciseDiscussion = (stageItemId: string) => {
+    setSelectedStageExerciseId(stageItemId);
+    setStageExerciseDiscussionOpen(false);
+    window.requestAnimationFrame(() => setStageExerciseDiscussionOpen(true));
+  };
   const attentionTasks =
     tasksTodayIso && tasksDisplayIana
       ? selectSpecialistTasksDueTodayOrOverdue(data?.tasks ?? [], tasksTodayIso, tasksDisplayIana)
@@ -2115,18 +2122,18 @@ export function PatientTabOverview({
           open={stageExercisesModalOpen}
           onClose={() => {
             setStageExercisesModalOpen(false);
+            setStageExerciseDiscussionOpen(false);
             setSelectedStageExerciseId(null);
           }}
-          title={`Упражнения этапа ${displayStageIndex + 1}`}
+          title={
+            <DoctorModalStackedTitle
+              label={`Этап ${displayStageIndex + 1} из ${data?.programStages.length ?? 0}`}
+              entity={displayStage?.title}
+              patientName={patientHeaderName}
+            />
+          }
           size="lg"
           bodyVariant="list"
-          bodyHeader={
-            displayStage ? (
-              <div className="px-[var(--doctor-block-padding,18px)] py-3">
-                <p className={doctorSectionTitleClass}>{displayStage.title}</p>
-              </div>
-            ) : null
-          }
         >
           {displayStageExercises.length > 0 ? (
             <DoctorDnaFlatList>
@@ -2137,7 +2144,7 @@ export function PatientTabOverview({
                   title={stageItemSnapshotTitle(item.snapshot, item.itemType)}
                   media={primaryMediaForStageItem(item)}
                   unread={stageExerciseUnread(item.id)}
-                  onOpen={setSelectedStageExerciseId}
+                  onOpen={openStageExerciseDiscussion}
                 />
               ))}
             </DoctorDnaFlatList>
@@ -2153,9 +2160,9 @@ export function PatientTabOverview({
               itemId={selectedExerciseTarget.itemId}
               itemLabel={selectedExerciseTarget.label}
               patientName={patientHeaderName}
-              open
+              open={stageExerciseDiscussionOpen}
               onOpenChange={(nextOpen) => {
-                if (!nextOpen) setSelectedStageExerciseId(null);
+                setStageExerciseDiscussionOpen(nextOpen);
               }}
               onMarkedRead={() => markStageExerciseCommentsRead(selectedExerciseTarget.itemId)}
             />

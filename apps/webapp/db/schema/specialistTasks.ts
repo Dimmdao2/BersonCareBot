@@ -16,6 +16,8 @@ export const specialistTasks = pgTable(
     title: text().notNull(),
     description: text(),
     dueAt: timestamp('due_at', { withTimezone: true, mode: 'string' }),
+    /** false = срок действует до конца календарного дня, без явно выбранного времени */
+    dueHasTime: boolean('due_has_time').default(true).notNull(),
     remindAt: timestamp('remind_at', { withTimezone: true, mode: 'string' }),
     isImportant: boolean('is_important').default(false).notNull(),
     completedAt: timestamp('completed_at', { withTimezone: true, mode: 'string' }),

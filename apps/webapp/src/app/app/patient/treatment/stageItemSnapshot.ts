@@ -30,7 +30,7 @@ export function stageItemSnapshotTitle(
   itemType: string,
 ): string {
   const title = snapshot?.title;
-  return typeof title === 'string' && title.trim() ? title.trim() : itemType;
+  return typeof title === 'string' && title.trim() ? title.trim().normalize('NFC') : itemType;
 }
 
 function pickFirstFiniteNumber(...values: unknown[]): number | null {
@@ -59,11 +59,7 @@ export function resolveStageItemExerciseLoad(item: {
   return {
     reps: pickFirstFiniteNumber(settings.reps, snapshot.reps),
     sets: pickFirstFiniteNumber(settings.sets, snapshot.sets),
-    maxPain: pickFirstFiniteNumber(
-      settings.maxPain,
-      snapshot.maxPain,
-      snapshot.difficulty,
-    ),
+    maxPain: pickFirstFiniteNumber(settings.maxPain, snapshot.maxPain, snapshot.difficulty),
     weightKg: pickFirstFiniteNumber(settings.weightKg, snapshot.weightKg),
   };
 }

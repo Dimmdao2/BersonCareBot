@@ -5,6 +5,10 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { ChatBubbleOutgoingMeta } from '@/shared/ui/chat/ChatBubbleOutgoingMeta';
 import {
+  DOCTOR_CHAT_BUBBLE_MAX_WIDTH,
+  DoctorChatBubbleMeta,
+} from '@/shared/ui/chat/DoctorChatBubbleMeta';
+import {
   chatBubbleOwnClass,
   chatBubblePeerClass,
   chatThreadSurfaceClass,
@@ -91,7 +95,6 @@ type ChatViewProps = {
   className?: string;
   onReplyToMessage?: (message: SerializedSupportMessage) => void;
   messageTextClassName?: string;
-  timestampClassName?: string;
   dayLabelClassName?: string;
 };
 
@@ -105,7 +108,6 @@ export function ChatView({
   className,
   onReplyToMessage,
   messageTextClassName,
-  timestampClassName,
   dayLabelClassName,
 }: ChatViewProps) {
   const patientRelative = variant === 'patient' && relativeFooters;
@@ -257,20 +259,16 @@ export function ChatView({
                         className={cn('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}
                       >
                         <div
-                          className={cn('flex max-w-full items-end gap-1.5', mine && 'justify-end')}
+                          className={cn('flex w-full max-w-full items-end', mine && 'justify-end')}
                         >
-                          {mine ? (
-                            <p className={timestampClassName}>
-                              {formatChatMessageTimeRu(m.createdAt)}
-                            </p>
-                          ) : null}
                           <div
                             className={cn(
-                              'min-w-0 max-w-[min(100%,22rem)] rounded-md px-3 py-2 shadow-sm',
+                              'relative min-w-0 w-fit rounded-md px-3 py-2 shadow-sm',
                               messageTextClassName,
                               mine ? chatBubbleOwnClass : chatBubblePeerClass,
                               !mine && onReplyToMessage && 'cursor-pointer',
                             )}
+                            style={{ maxWidth: DOCTOR_CHAT_BUBBLE_MAX_WIDTH }}
                             onClick={
                               !mine && onReplyToMessage ? () => onReplyToMessage(m) : undefined
                             }
@@ -289,20 +287,20 @@ export function ChatView({
                             {m.text ? (
                               <p className="whitespace-pre-wrap break-words">
                                 {renderMessageText(m.text)}
+                                <DoctorChatBubbleMeta
+                                  timeLabel={formatChatMessageTimeRu(m.createdAt)}
+                                  deliveryStatus={deliveryStatus}
+                                />
                               </p>
-                            ) : null}
-                            {mine && deliveryStatus ? (
-                              <ChatBubbleOutgoingMeta
-                                deliveryStatus={deliveryStatus}
-                                ticksClassName="text-primary"
-                              />
-                            ) : null}
+                            ) : (
+                              <p className="h-3">
+                                <DoctorChatBubbleMeta
+                                  timeLabel={formatChatMessageTimeRu(m.createdAt)}
+                                  deliveryStatus={deliveryStatus}
+                                />
+                              </p>
+                            )}
                           </div>
-                          {!mine ? (
-                            <p className={timestampClassName}>
-                              {formatChatMessageTimeRu(m.createdAt)}
-                            </p>
-                          ) : null}
                         </div>
                       </div>
                     );

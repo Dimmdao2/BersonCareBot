@@ -139,6 +139,34 @@ export function DoctorModalCompositeTitle({
   );
 }
 
+/** Two-row modal title: modal kind + patient on top, entity name below. */
+export function DoctorModalStackedTitle({
+  label,
+  entity,
+  patientName,
+}: {
+  label: ReactNode;
+  entity?: ReactNode;
+  patientName?: ReactNode;
+}) {
+  return (
+    <span className="flex w-full min-w-0 flex-col items-start gap-0.5 text-left">
+      <span className="flex w-full min-w-0 items-baseline justify-between gap-3">
+        <span>{label}</span>
+        {patientName ? (
+          <span
+            className="min-w-0 truncate text-right text-sm leading-5 font-medium text-primary"
+            style={{ maxWidth: '55%' }}
+          >
+            {patientName}
+          </span>
+        ) : null}
+      </span>
+      {entity ? <span className={doctorSectionTitleClass}>{entity}</span> : null}
+    </span>
+  );
+}
+
 /**
  * Канонический контейнер-модалка доктора.
  *
@@ -341,7 +369,7 @@ export function DoctorModal({
           >
             <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pt-1.5 pb-3">
               <div className="flex min-w-0 items-center justify-between gap-2">
-                <div className="flex min-w-0 flex-col gap-0.5">
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <DrawerTitle className={doctorModalTitleClass}>{title}</DrawerTitle>
                   {titleSubjectNode}
                 </div>
@@ -391,7 +419,7 @@ export function DoctorModal({
               style={{ minHeight: 'var(--doctor-page-header-h, 2.75rem)' }}
             >
               <div className="flex min-w-0 items-center justify-between gap-2">
-                <div className="flex min-w-0 flex-col gap-0.5">
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <SheetTitle className={doctorModalTitleClass}>{title}</SheetTitle>
                   {titleSubjectNode}
                 </div>
@@ -421,7 +449,7 @@ export function DoctorModal({
         >
           <DialogHeader className="shrink-0 border-b border-border/60 px-4 pt-4 pb-3 pr-12">
             <div className="flex min-w-0 items-center justify-between gap-2">
-              <div className="flex min-w-0 flex-col gap-0.5">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <DialogTitle className={doctorModalTitleClass}>{title}</DialogTitle>
                 {titleSubjectNode}
               </div>

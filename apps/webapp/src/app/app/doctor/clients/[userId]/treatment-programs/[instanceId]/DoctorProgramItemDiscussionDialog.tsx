@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
-import { useDoctorPatientSubjectLine } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 import {
   DoctorProgramDiscussionMessagesPanel,
@@ -56,7 +55,6 @@ export function DoctorProgramItemDiscussionDialog(props: {
   onMarkedRead?: () => void;
 }) {
   const { instanceId, itemId, itemLabel, patientName, open, onOpenChange, onMarkedRead } = props;
-  const patientSubject = useDoctorPatientSubjectLine(patientName);
   const [messages, setMessages] = useState<ProgramItemDiscussionMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -186,8 +184,9 @@ export function DoctorProgramItemDiscussionDialog(props: {
     <DoctorModal
       open={open}
       onClose={() => onOpenChange(false)}
-      title={itemLabel ?? 'Упражнение'}
-      titleSubject={patientSubject}
+      title={
+        <DoctorModalStackedTitle label="Упражнение" entity={itemLabel} patientName={patientName} />
+      }
       size="content"
       bodyClassName="!p-0"
     >
@@ -261,7 +260,6 @@ export function DoctorProgramItemDiscussionDialog(props: {
           itemId={itemId}
           exerciseTitle={itemLabel ?? 'Упражнение'}
           patientName={patientName}
-          media={assignment.media}
           initialValue={assignment}
           onSaved={({ value }) => {
             setAssignment((current) => (current ? { ...current, ...value } : current));

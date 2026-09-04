@@ -274,15 +274,17 @@ export function ExerciseExecutionGraph({
       {/* ── Line chart ── */}
       {hasAnyMetric ? (
         <div className="mb-3">
-          <p
-            className={cn(
-              doctorMetaTextClass,
-              'mb-1 font-medium',
-              centerChartTitle && 'text-center',
-            )}
-          >
-            {chartTitle}
-          </p>
+          {chartTitle ? (
+            <p
+              className={cn(
+                doctorMetaTextClass,
+                'mb-1 font-medium',
+                centerChartTitle && 'text-center',
+              )}
+            >
+              {chartTitle}
+            </p>
+          ) : null}
           <div className="doctor-weekly-chart-scroll min-w-0 overflow-x-auto overscroll-x-contain">
             <svg
               viewBox={`0 0 ${viewWidth} ${CHART_H}`}
@@ -309,7 +311,7 @@ export function ExerciseExecutionGraph({
                         y={y + 3}
                         textAnchor="end"
                         fontSize={10}
-                        fill="#9ca3af"
+                        fill="#6b7280"
                       >
                         {pct}
                       </text>
@@ -389,7 +391,7 @@ export function ExerciseExecutionGraph({
                     y={CHART_H - 4}
                     textAnchor="middle"
                     fontSize={11}
-                    fill="#9ca3af"
+                    fill="#6b7280"
                   >
                     {label}
                   </text>
@@ -398,7 +400,7 @@ export function ExerciseExecutionGraph({
             </svg>
           </div>
           {/* Legend */}
-          <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-0.5">
             {hasDifficulty && (
               <span className={cn(doctorMetaTextClass, 'flex items-center gap-1')}>
                 <span className="inline-block h-1.5 w-4 rounded bg-red-500" />
@@ -537,7 +539,7 @@ export function ExerciseExecutionGraph({
                         y={PADDING.top + barInnerH + 12}
                         textAnchor="middle"
                         fontSize={11}
-                        fill={isHovered ? '#6b7280' : '#9ca3af'}
+                        fill={isHovered ? '#4b5563' : '#6b7280'}
                         fontWeight={isHovered ? '600' : 'normal'}
                       >
                         {label}
@@ -550,7 +552,7 @@ export function ExerciseExecutionGraph({
           </div>
 
           {/* Legend */}
-          <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-0.5">
             <span className={cn(doctorMetaTextClass, 'flex items-center gap-1')}>
               <span className="inline-block h-2 w-2 rounded-sm bg-green-500" />
               всё выполнено

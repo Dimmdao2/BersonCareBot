@@ -10,6 +10,7 @@ export const specialistTaskBodySchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(8000).nullable().optional(),
   dueAt: isoDateTime.nullable().optional(),
+  dueHasTime: z.boolean().optional(),
   remindAt: isoDateTime.nullable().optional(),
   isImportant: z.boolean().optional(),
   patientUserId: z.string().uuid().nullable().optional(),
@@ -19,6 +20,7 @@ export const specialistTaskPatchSchema = z.object({
   title: z.string().min(1).max(500).optional(),
   description: z.string().max(8000).nullable().optional(),
   dueAt: isoDateTime.nullable().optional(),
+  dueHasTime: z.boolean().optional(),
   remindAt: isoDateTime.nullable().optional(),
   isImportant: z.boolean().optional(),
 });

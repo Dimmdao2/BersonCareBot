@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import {
   Dialog,
@@ -20,8 +21,9 @@ export function ProgramItemDiscussionMessageBody(props: {
   message: ProgramItemDiscussionMessage;
   mine: boolean;
   textClassName?: string;
+  trailingContent?: ReactNode;
 }) {
-  const { message, mine, textClassName } = props;
+  const { message, mine, textClassName, trailingContent } = props;
   const [playerOpen, setPlayerOpen] = useState(false);
   const [playbackResult, setPlaybackResult] = useState<{
     mediaId: string;
@@ -69,7 +71,8 @@ export function ProgramItemDiscussionMessageBody(props: {
       previewMdUrl: playback?.preview.mdUrl ?? null,
       standardRendition: playback?.preview.standardRendition === true,
     };
-    const videoThumbMedia: import('@/modules/recommendations/types').RecommendationMediaItem | null =
+    const videoThumbMedia:
+      import('@/modules/recommendations/types').RecommendationMediaItem | null =
       isVideo && playback?.posterUrl
         ? {
             mediaType: 'video',
@@ -86,7 +89,10 @@ export function ProgramItemDiscussionMessageBody(props: {
           type="button"
           className="block max-w-full overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))]"
           onClick={() => {
-            if (playback && (isVideo || imagePreview.previewSmUrl || imagePreview.standardRendition))
+            if (
+              playback &&
+              (isVideo || imagePreview.previewSmUrl || imagePreview.standardRendition)
+            )
               setPlayerOpen(true);
           }}
         >
@@ -145,6 +151,7 @@ export function ProgramItemDiscussionMessageBody(props: {
       )}
     >
       {message.body}
+      {trailingContent}
     </p>
   );
 }

@@ -94,10 +94,13 @@ body:has(#app-shell-doctor),
 }
 
 .doctor-day-picker [data-today='true'] .rdp-day_button {
-  border-radius: var(--doctor-control-radius, 8px);
-  background-color: rgba(219, 113, 93, 0.85);
-  color: #ffffff;
+  background-color: transparent;
+  color: rgba(196, 91, 72, 1);
   font-weight: 600;
+}
+
+.doctor-day-picker .doctor-day-picker-past:not([data-selected='true']) .rdp-day_button {
+  color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
 }
 
 .doctor-day-picker [data-selected='true'] .rdp-day_button {

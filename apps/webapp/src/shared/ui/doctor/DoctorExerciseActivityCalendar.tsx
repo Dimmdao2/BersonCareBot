@@ -104,13 +104,13 @@ function CalendarCell({ value }: { value: CalendarCellData }) {
       case 'partial':
         return value.ratio && value.ratio > 0.4
           ? 'bg-[hsl(215_45%_76%)] font-semibold text-white'
-          : 'bg-[hsl(215_45%_89%)] text-muted-foreground';
+          : 'bg-[hsl(215_45%_89%)] text-muted-foreground/90';
       case 'missed':
-        return 'border border-border bg-background text-muted-foreground';
+        return 'border border-border bg-background text-muted-foreground/90';
       case 'future':
-        return 'bg-muted/20 text-muted-foreground/40';
+        return 'bg-muted/20 text-muted-foreground/90';
       case 'no-assign':
-        return 'bg-muted/40 text-muted-foreground/50';
+        return 'bg-muted/40 text-muted-foreground/90';
     }
   })();
 
@@ -174,11 +174,16 @@ export function DoctorExerciseActivityCalendar({
           size="sm"
           aria-label="Предыдущий месяц"
           onClick={() => onMonthChange(-1)}
-          className="size-7 p-0 text-muted-foreground"
+          className="size-8 p-0 text-muted-foreground"
         >
-          <ChevronLeft className="size-4" />
+          <ChevronLeft className="size-5" />
         </Button>
-        <span className="flex-1 text-center text-xs font-medium capitalize text-foreground">
+        <span
+          className={cn(
+            doctorMetaTextClass,
+            'flex-1 text-center font-medium capitalize text-foreground',
+          )}
+        >
           {monthLabelFor(year, month)}
         </span>
         <Button
@@ -188,9 +193,9 @@ export function DoctorExerciseActivityCalendar({
           aria-label="Следующий месяц"
           onClick={() => onMonthChange(1)}
           disabled={disableNext}
-          className="size-7 p-0 text-muted-foreground disabled:opacity-30"
+          className="size-8 p-0 text-muted-foreground disabled:opacity-30"
         >
-          <ChevronRight className="size-4" />
+          <ChevronRight className="size-5" />
         </Button>
       </div>
 
@@ -206,7 +211,7 @@ export function DoctorExerciseActivityCalendar({
             {['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'].map((day) => (
               <div
                 key={day}
-                className="flex h-4 items-center justify-center text-[10px] uppercase text-muted-foreground/70"
+                className="flex h-4 items-center justify-center text-[10px] uppercase text-muted-foreground"
               >
                 {day}
               </div>
@@ -220,7 +225,7 @@ export function DoctorExerciseActivityCalendar({
               <CalendarCell key={day.day} value={day} />
             ))}
           </div>
-          <div className={cn(doctorMetaTextClass, 'mt-1.5 flex flex-wrap gap-3')}>
+          <div className={cn(doctorMetaTextClass, 'mt-3 flex flex-wrap gap-3')}>
             <span className="flex items-center gap-1">
               <span className="size-2.5 rounded-sm bg-primary" />
               {mode === 'exercise' ? 'Выполнено' : 'Полностью'}

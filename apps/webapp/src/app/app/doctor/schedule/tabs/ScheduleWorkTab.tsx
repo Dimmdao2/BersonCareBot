@@ -39,6 +39,7 @@ import { DoctorSection } from '@/shared/ui/doctor/DoctorSection';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
 import {
+  DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
   DoctorSchedulePeriodNav,
@@ -1347,7 +1348,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
             DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
             allBranchesSelected
               ? DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS
-              : 'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5',
+              : DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
           )}
           onClick={() => setBranchPickerOpen(true)}
           aria-label="Выбрать филиалы"
@@ -1377,7 +1378,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           className={cn(
             DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
             multiSelectEnabled
-              ? 'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5'
+              ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
               : DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
           )}
           onClick={() => setMultiSelectEnabled((enabled) => !enabled)}

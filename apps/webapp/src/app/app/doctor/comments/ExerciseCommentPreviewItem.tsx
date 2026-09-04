@@ -2,6 +2,7 @@
 
 import type { ComponentProps, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { DoctorSupportStar } from '@/shared/ui/doctor/DoctorSupportStar';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import {
@@ -41,25 +42,14 @@ export function ExerciseCommentPreviewItemContent({
             )}
           >
             {item.patientDisplayName}
-            {isOnSupport ? (
-              <span
-                className="ml-1.5 text-[10px] font-semibold text-primary"
-                title="На сопровождении"
-              >
-                ★
-              </span>
-            ) : null}
+            {isOnSupport ? <DoctorSupportStar /> : null}
           </span>
           <span className={cn('ml-auto shrink-0', doctorDnaFlatListMetaClass)}>
             {item.latestMessageAtLabel}
           </span>
         </div>
-        <p className={cn('mt-0.5 truncate', doctorDnaFlatListMetaClass)}>
-          {item.stageItemTitle}
-        </p>
-        <p className={cn('mt-0.5 line-clamp-2', doctorDnaFlatListSecondaryClass)}>
-          {bodyPreview}
-        </p>
+        <p className={cn('mt-0.5 truncate', doctorDnaFlatListMetaClass)}>{item.stageItemTitle}</p>
+        <p className={cn('mt-0.5 line-clamp-2', doctorDnaFlatListSecondaryClass)}>{bodyPreview}</p>
       </div>
     </div>
   );

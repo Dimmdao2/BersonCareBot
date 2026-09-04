@@ -77,6 +77,7 @@ export async function POST(request: Request, context: { params: Promise<{ userId
         title: parsed.data.title,
         description: parsed.data.description ?? null,
         dueAt: parsed.data.dueAt ?? null,
+        dueHasTime: parsed.data.dueHasTime ?? true,
         remindAt: parsed.data.remindAt ?? null,
         isImportant: parsed.data.isImportant ?? false,
       }),

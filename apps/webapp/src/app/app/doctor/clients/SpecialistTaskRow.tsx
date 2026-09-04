@@ -16,13 +16,17 @@ import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 
-export function formatSpecialistTaskWhen(iso: string | null, displayIana?: string): string | null {
+export function formatSpecialistTaskWhen(
+  iso: string | null,
+  displayIana?: string,
+  includeTime = true,
+): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleString('ru-RU', {
     dateStyle: 'short',
-    timeStyle: 'short',
+    ...(includeTime ? { timeStyle: 'short' as const } : {}),
     timeZone: displayIana ?? DEFAULT_APP_DISPLAY_TIMEZONE,
   });
 }
@@ -58,25 +62,21 @@ export function SpecialistTaskRow({
 }: Props) {
   const overdue = isSpecialistTaskOverdue(task);
   const completed = Boolean(task.completedAt);
-  const dueLabel = formatSpecialistTaskWhen(task.dueAt, displayIana);
+  const dueLabel = formatSpecialistTaskWhen(task.dueAt, displayIana, task.dueHasTime !== false);
   const Container = as;
 
   if (onOpen) {
     return (
-      <Container>
+      <Container className={cn(mobileFlat && overdue && '!border-t-destructive/25')}>
         <button
           type="button"
           className={cn(
             'grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
-            getDoctorSectionItemClass(
-              !completed && (overdue || dueToday || task.isImportant) ? 'urgent' : 'neutral',
-            ),
+            getDoctorSectionItemClass(!completed && overdue ? 'urgent' : 'neutral'),
             mobileFlat &&
               cn(
                 'rounded-none border-0 bg-card px-[var(--doctor-list-inline-padding,18px)] py-2.5 md:rounded-lg md:border md:p-3',
-                !completed && (overdue || dueToday || task.isImportant)
-                  ? 'bg-destructive/5 md:bg-destructive/5'
-                  : 'md:bg-muted/15',
+                !completed && overdue ? 'bg-destructive/5 md:bg-destructive/5' : 'md:bg-muted/15',
               ),
             active && doctorCatalogRowActiveClass,
           )}
@@ -98,26 +98,35 @@ export function SpecialistTaskRow({
               </span>
             ) : null}
           </span>
-          <span
-            className={cn(
-              'flex shrink-0 flex-col items-end gap-0.5 text-right',
-              doctorMetaTextClass,
-            )}
-          >
+          {dueLabel || completed ? (
             <span
               className={cn(
-                'font-medium',
-                overdue || dueToday ? 'text-destructive' : 'text-muted-foreground',
+                'flex shrink-0 flex-col items-end gap-0.5 text-right',
+                doctorMetaTextClass,
               )}
             >
-              {completed ? 'Выполнена' : overdue ? 'Просрочено' : 'Открыта'}
+              {dueLabel ? (
+                <span
+                  className={cn(
+                    overdue
+                      ? 'text-destructive'
+                      : dueToday
+                        ? 'text-primary'
+                        : 'text-muted-foreground',
+                  )}
+                >
+                  {dueLabel}
+                </span>
+              ) : null}
+              {completed ? (
+                <span className="font-medium text-muted-foreground">Выполнена</span>
+              ) : overdue ? (
+                <span className="font-semibold text-destructive">Просрочено</span>
+              ) : dueToday ? (
+                <span className="font-medium text-primary">Сегодня</span>
+              ) : null}
             </span>
-            {dueLabel ? (
-              <span className={overdue || dueToday ? 'text-destructive' : 'text-muted-foreground'}>
-                {dueLabel}
-              </span>
-            ) : null}
-          </span>
+          ) : null}
         </button>
       </Container>
     );
@@ -142,7 +151,6 @@ export function SpecialistTaskRow({
           {overdue ? (
             <span className="text-xs font-medium text-destructive">Просрочено</span>
           ) : null}
-          <span className="text-xs text-muted-foreground">Открыта</span>
         </div>
         {/* Patient link (S2.8): show when task is linked to a patient */}
         {task.patientUserId ? (
