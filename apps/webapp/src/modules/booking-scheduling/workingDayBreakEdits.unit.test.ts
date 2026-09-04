@@ -3,6 +3,7 @@ import {
   addBreakToWorkingDay,
   normalizeBreaks,
   openWorkingDayIntervalForBooking,
+  openWorkingHoursForSelection,
 } from '@/modules/booking-scheduling/workingDayBreakEdits';
 
 /**
@@ -13,6 +14,12 @@ import {
  * записи, если сломать: перерыв «поверх» рабочих часов, перерыв поверх существующей записи, неполное
  * снятие перерыва при частичном пересечении, отсутствие слияния соприкасающихся перерывов и ложное
  * отклонение вплотную стоящих (но не пересекающихся) интервалов.
+ *
+ * Коррекция 04.09.2026 (CAL-ACTION-04): `openWorkingHoursForSelection` — та же поломка-класс,
+ * теперь на расширении рабочих часов, которое до этой коррекции не существовало для «нерабочего
+ * времени»/«закрытого слота». Молчаливая порча здесь — врач тапнул «Открыть для записи» на
+ * нерабочем интервале, экран отчитался об успехе, а нужная сторона дня не сдвинулась (или сдвинулась
+ * не та) — слот остаётся недоступным для записи, хотя выглядит открытым.
  */
 describe('addBreakToWorkingDay', () => {
   it('отклоняет выделение, выходящее за рабочие часы дня', () => {
@@ -80,6 +87,53 @@ describe('openWorkingDayIntervalForBooking', () => {
       selection: { startMinute: 900, endMinute: 960 },
     });
     expect(result).toEqual({ ok: false, error: 'no_break_in_selection' });
+  });
+});
+
+describe('openWorkingHoursForSelection', () => {
+  it('расширяет конец рабочего дня под выделение после текущих часов, не трогая начало', () => {
+    const result = openWorkingHoursForSelection({
+      dayStartMinute: 540, // 09:00
+      dayEndMinute: 1020, // 17:00
+      breaks: [{ startMinute: 720, endMinute: 750 }], // 12:00–12:30, уже существующий перерыв
+      selection: { startMinute: 1020, endMinute: 1080 }, // 17:00–18:00, после конца дня
+    });
+    expect(result).toEqual({
+      ok: true,
+      dayStartMinute: 540,
+      dayEndMinute: 1080,
+      breaks: [{ startMinute: 720, endMinute: 750 }],
+    });
+  });
+
+  it('расширяет начало рабочего дня под выделение до текущих часов, не трогая конец', () => {
+    const result = openWorkingHoursForSelection({
+      dayStartMinute: 540, // 09:00
+      dayEndMinute: 1020, // 17:00
+      breaks: [],
+      selection: { startMinute: 420, endMinute: 480 }, // 07:00–08:00, до начала дня
+    });
+    expect(result).toEqual({ ok: true, dayStartMinute: 420, dayEndMinute: 1020, breaks: [] });
+  });
+
+  it('на дне без рабочих часов открывает ровно выделенный интервал, а не весь день', () => {
+    const result = openWorkingHoursForSelection({
+      dayStartMinute: 0,
+      dayEndMinute: 0, // выходной — рабочих часов нет вовсе
+      breaks: [],
+      selection: { startMinute: 600, endMinute: 660 }, // 10:00–11:00
+    });
+    expect(result).toEqual({ ok: true, dayStartMinute: 600, dayEndMinute: 660, breaks: [] });
+  });
+
+  it('отклоняет пустое/перевёрнутое выделение', () => {
+    const result = openWorkingHoursForSelection({
+      dayStartMinute: 540,
+      dayEndMinute: 1020,
+      breaks: [],
+      selection: { startMinute: 1080, endMinute: 1080 },
+    });
+    expect(result).toEqual({ ok: false, error: 'invalid_interval' });
   });
 });
 
