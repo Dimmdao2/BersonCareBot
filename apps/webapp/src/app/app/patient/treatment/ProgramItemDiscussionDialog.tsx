@@ -32,6 +32,7 @@ import {
 import { ProgramItemDiscussionMediaPicker } from '@/app/app/patient/treatment/ProgramItemDiscussionMediaPicker';
 import { ProgramItemDiscussionMessageBody } from '@/app/app/patient/treatment/ProgramItemDiscussionMessageBody';
 import { notifyPatientSupportUnreadCountChanged } from '@/modules/messaging/hooks/useSupportUnreadPolling';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -90,7 +91,7 @@ export function ProgramItemDiscussionDialog(props: {
       const res = await fetch(url.toString());
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
-        throw new Error(data?.error ?? 'Не удалось загрузить комментарии');
+        throw new Error(readSafeApiErrorText(data, 'Не удалось загрузить комментарии'));
       }
       const loaded = data.messages;
       setMessages((prev) => {
@@ -161,7 +162,7 @@ export function ProgramItemDiscussionDialog(props: {
         message?: ProgramItemDiscussionMessage | null;
       } | null;
       if (!res.ok || !data?.ok) {
-        setError(data?.error ?? 'Не удалось отправить комментарий');
+        setError(readSafeApiErrorText(data, 'Не удалось отправить комментарий'));
         return;
       }
       setDraft('');

@@ -14,6 +14,7 @@ import {
   normalizeClinicalTestScoringOrder,
 } from '@/modules/tests/clinicalTestScoring';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
+import { safeActionErrorText } from '@/app-layer/errors/safeUserError';
 
 export type SaveClinicalTestState = { ok: boolean; error?: string };
 
@@ -30,8 +31,7 @@ export type ArchiveClinicalTestCoreResult =
 export type UnarchiveClinicalTestState = { ok: true } | { ok: false; error: string };
 
 export type UnarchiveClinicalTestCoreResult =
-  | { kind: 'unarchived'; id: string }
-  | { kind: 'invalid'; error: string };
+  { kind: 'unarchived'; id: string } | { kind: 'invalid'; error: string };
 
 function parseAcknowledgeUsageWarning(fd: FormData): boolean {
   const v = fd.get('acknowledgeUsageWarning');
@@ -206,7 +206,10 @@ export async function saveClinicalTestCore(
     );
     return { ok: true, testId: row.id, wasUpdate: false };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Ошибка сохранения' };
+    return {
+      ok: false,
+      error: safeActionErrorText('app/doctor/clinical-tests', e, 'Ошибка сохранения'),
+    };
   }
 }
 

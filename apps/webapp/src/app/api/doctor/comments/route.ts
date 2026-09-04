@@ -5,6 +5,7 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { COMMENT_TARGET_TYPES, COMMENT_TYPES } from '@/modules/comments/types';
 import type { CommentTargetType } from '@/modules/comments/types';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const listQuerySchema = z.object({
   targetType: z.enum(COMMENT_TARGET_TYPES),
@@ -73,8 +74,10 @@ export async function GET(request: Request) {
     );
     return NextResponse.json({ ok: true, items });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/doctor/comments#list', e, {
+      fallbackCode: 'comments_load_failed',
+      fallbackStatus: 500,
+    });
   }
 }
 
@@ -116,7 +119,9 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/doctor/comments#create', e, {
+      fallbackCode: 'comment_save_failed',
+      fallbackStatus: 500,
+    });
   }
 }

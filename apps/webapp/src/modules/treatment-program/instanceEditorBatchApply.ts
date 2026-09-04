@@ -22,6 +22,7 @@ import type {
   UpdateTreatmentProgramInstanceStageMetadataInput,
 } from './types';
 import { isStageZero, assertTreatmentProgramStageItemFitsSystemGroup } from './stage-semantics';
+import { UserFacingError } from '@/shared/errors/userFacingError';
 
 const DRAFT_ID_PREFIX = 'draft:';
 
@@ -44,7 +45,7 @@ function resolveBatchId(id: string, idMap: Map<string, string>, label: string): 
     return id;
   }
   const resolved = idMap.get(id);
-  if (!resolved) throw new Error(`${label}: неизвестный черновой идентификатор`);
+  if (!resolved) throw new UserFacingError(`${label}: неизвестный черновой идентификатор`);
   return resolved;
 }
 
@@ -63,10 +64,14 @@ async function assertStageItemAllowsStructuralChange(
   testAttempts: TreatmentProgramTestAttemptsPort | undefined,
 ): Promise<void> {
   if (item.completedAt) {
-    throw new Error('Нельзя удалить или заменить элемент с отметкой выполнения или историей теста');
+    throw new UserFacingError(
+      'Нельзя удалить или заменить элемент с отметкой выполнения или историей теста',
+    );
   }
   if (testAttempts && (await testAttempts.hasAnyAttemptForStageItem(item.id))) {
-    throw new Error('Нельзя удалить или заменить элемент с отметкой выполнения или историей теста');
+    throw new UserFacingError(
+      'Нельзя удалить или заменить элемент с отметкой выполнения или историей теста',
+    );
   }
 }
 
@@ -91,7 +96,7 @@ function mergeLoadSettings(
     }
     const n = Math.round(incoming);
     if (!Number.isFinite(n) || n < min || n > max) {
-      throw new Error(`${label}: целое число от ${min} до ${max}`);
+      throw new UserFacingError(`${label}: целое число от ${min} до ${max}`);
     }
     prev[key] = n;
   };
@@ -130,12 +135,12 @@ function assertPersistedStageInDetail(
 ): void {
   if (isInstanceEditorBatchClientId(stageId)) {
     if (!previewIdMap.has(stageId)) {
-      throw new Error('Этап: неизвестный черновой идентификатор');
+      throw new UserFacingError('Этап: неизвестный черновой идентификатор');
     }
     return;
   }
   if (!detail.stages.some((s) => s.id === stageId)) {
-    throw new Error('Этап не найден');
+    throw new UserFacingError('Этап не найден');
   }
 }
 
@@ -151,7 +156,7 @@ function sameIdSet(ordered: string[], expected: Set<string>): boolean {
 
 function assertSameIdSet(ordered: string[], expected: Set<string>, label: string): void {
   if (!sameIdSet(ordered, expected)) {
-    throw new Error(`Некорректный порядок: ${label}`);
+    throw new UserFacingError(`Некорректный порядок: ${label}`);
   }
 }
 
@@ -185,7 +190,7 @@ function validateLoadSettingsPatch(
   patch: { reps?: number | null; sets?: number | null; maxPain?: number | null },
 ): void {
   if (item.itemType !== 'exercise') {
-    throw new Error('Нагрузку можно менять только для упражнений');
+    throw new UserFacingError('Нагрузку можно менять только для упражнений');
   }
   mergeLoadSettings(item.settings as Record<string, unknown> | null, patch);
 }
@@ -197,20 +202,22 @@ function validateItemStructuralGroupPatch(
   previewIdMap: Map<string, string>,
 ): void {
   const stage = detail.stages.find((s) => s.id === item.stageId);
-  if (!stage) throw new Error('Этап не найден');
+  if (!stage) throw new UserFacingError('Этап не найден');
   let nextGroupId = resolveOptionalBatchId(patch.groupId, previewIdMap, 'Группа') ?? null;
   if (isStageZero(stage)) {
     if (item.itemType !== 'recommendation') {
-      throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
+      throw new UserFacingError('На этапе «Общие рекомендации» разрешены только рекомендации');
     }
     if (patch.groupId != null) {
-      throw new Error('На этапе «Общие рекомендации» элементы не привязываются к группам');
+      throw new UserFacingError(
+        'На этапе «Общие рекомендации» элементы не привязываются к группам',
+      );
     }
     return;
   }
   if (!nextGroupId) {
     if (item.itemType === 'recommendation' || item.itemType === 'clinical_test') return;
-    throw new Error('Выберите группу для этого типа элемента');
+    throw new UserFacingError('Выберите группу для этого типа элемента');
   }
   const g = stage.groups.find((gr) => gr.id === nextGroupId);
   assertTreatmentProgramStageItemFitsSystemGroup(g, item.itemType);
@@ -234,7 +241,7 @@ async function validateInstanceEditorBatchDraft(
     );
     const stageZero = detail.stages.find((s) => s.sortOrder === 0);
     if (stageZero && orderedStageIds[0] !== stageZero.id) {
-      throw new Error('Этап «Общие рекомендации» должен оставаться первым');
+      throw new UserFacingError('Этап «Общие рекомендации» должен оставаться первым');
     }
     const expectedStageIds = new Set([
       ...detail.stages.map((s) => s.id),
@@ -250,7 +257,7 @@ async function validateInstanceEditorBatchDraft(
     const stageId = resolveBatchId(stageIdRaw, previewIdMap, 'Этап');
     assertPersistedStageInDetail(detail, stageId, previewIdMap);
     if (patch.title !== undefined && !patch.title.trim()) {
-      throw new Error('Название этапа не может быть пустым');
+      throw new UserFacingError('Название этапа не может быть пустым');
     }
   }
 
@@ -258,10 +265,10 @@ async function validateInstanceEditorBatchDraft(
     const groupId = resolveBatchId(groupIdRaw, previewIdMap, 'Группа');
     if (!isInstanceEditorBatchClientId(groupId)) {
       const gr = detail.stages.flatMap((s) => s.groups).find((g) => g.id === groupId);
-      if (!gr) throw new Error('Группа не найдена');
+      if (!gr) throw new UserFacingError('Группа не найдена');
     }
     if (patch.title !== undefined && !patch.title.trim()) {
-      throw new Error('Название группы не может быть пустым');
+      throw new UserFacingError('Название группы не может быть пустым');
     }
   }
 
@@ -276,20 +283,22 @@ async function validateInstanceEditorBatchDraft(
   for (const create of draft.itemCreates) {
     if (create.kind === 'library_item') {
       if ((create.itemType as string) === 'lfk_complex') {
-        throw new Error('Для комплекса ЛФК используйте разворот комплекса');
+        throw new UserFacingError('Для комплекса ЛФК используйте разворот комплекса');
       }
       await itemRefs.assertItemRefExists(create.itemType, create.itemRefId);
       const stageId = resolveBatchId(create.stageId, previewIdMap, 'Этап');
       const stage = detail.stages.find((s) => s.id === stageId);
       if (!stage && !previewIdMap.has(create.stageId)) {
-        throw new Error('Этап не найден');
+        throw new UserFacingError('Этап не найден');
       }
       if (stage && isStageZero(stage)) {
         if (create.itemType !== 'recommendation') {
-          throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
+          throw new UserFacingError('На этапе «Общие рекомендации» разрешены только рекомендации');
         }
         if (create.groupId != null) {
-          throw new Error('На этапе «Общие рекомендации» элементы не привязываются к группам');
+          throw new UserFacingError(
+            'На этапе «Общие рекомендации» элементы не привязываются к группам',
+          );
         }
       }
       if (create.itemType === 'exercise' && create.loadSettings) {
@@ -308,11 +317,11 @@ async function validateInstanceEditorBatchDraft(
       const stage = detail.stages.find((row) => row.id === stageId);
       if (stage) {
         if (isStageZero(stage)) {
-          throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
+          throw new UserFacingError('На этапе «Общие рекомендации» разрешены только рекомендации');
         }
         const group = stage.groups.find((row) => row.id === groupId);
         if (!group && !isInstanceEditorBatchClientId(create.groupId)) {
-          throw new Error('Группа не найдена');
+          throw new UserFacingError('Группа не найдена');
         }
         assertTreatmentProgramStageItemFitsSystemGroup(group, 'exercise');
       }
@@ -322,7 +331,7 @@ async function validateInstanceEditorBatchDraft(
           create.mediaId,
           'exercise',
         );
-        if (!duration.ok) throw new Error(duration.error);
+        if (!duration.ok) throw new UserFacingError(duration.error);
       }
     } else if (create.kind === 'test_set_expand') {
       const stageId = resolveBatchId(create.stageId, previewIdMap, 'Этап');
@@ -349,7 +358,7 @@ async function validateInstanceEditorBatchDraft(
     const gr = detail.stages.flatMap((s) => s.groups).find((g) => g.id === groupId);
     if (!gr) continue;
     if (gr.systemKind === 'recommendations' || gr.systemKind === 'tests') {
-      throw new Error('Системную группу нельзя скрыть');
+      throw new UserFacingError('Системную группу нельзя скрыть');
     }
   }
 
@@ -365,13 +374,13 @@ async function validateInstanceEditorBatchDraft(
     if (isInstanceEditorBatchClientId(itemIdRaw)) continue;
     const itemId = resolveBatchId(itemIdRaw, previewIdMap, 'Элемент');
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === itemId);
-    if (!item) throw new Error('Элемент не найден');
+    if (!item) throw new UserFacingError('Элемент не найден');
     if (patch.replace) {
       await assertStageItemAllowsStructuralChange(item, testAttempts);
       await itemRefs.assertItemRefExists(patch.replace.itemType, patch.replace.itemRefId);
     }
     if (patch.isActionable !== undefined && item.itemType !== 'recommendation') {
-      throw new Error('Режим выполнения задаётся только для рекомендаций');
+      throw new UserFacingError('Режим выполнения задаётся только для рекомендаций');
     }
     if (patch.groupId !== undefined) {
       validateItemStructuralGroupPatch(detail, item, patch, previewIdMap);
@@ -382,7 +391,7 @@ async function validateInstanceEditorBatchDraft(
     const stageId = resolveBatchId(stageIdRaw, previewIdMap, 'Этап');
     assertPersistedStageInDetail(detail, stageId, previewIdMap);
     const stage = detail.stages.find((s) => s.id === stageId);
-    if (!stage) throw new Error('Этап не найден');
+    if (!stage) throw new UserFacingError('Этап не найден');
     const userGroupIds = stage.groups
       .filter((g) => g.systemKind !== 'recommendations' && g.systemKind !== 'tests')
       .map((g) => g.id);
@@ -411,13 +420,13 @@ async function validateInstanceEditorBatchDraft(
     if (isInstanceEditorBatchClientId(itemIdRaw)) continue;
     const itemId = resolveBatchId(itemIdRaw, previewIdMap, 'Элемент');
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === itemId);
-    if (!item) throw new Error('Элемент не найден');
+    if (!item) throw new UserFacingError('Элемент не найден');
     if (patch.loadSettings) {
       validateLoadSettingsPatch(item, patch.loadSettings);
     }
     if (patch.personalTitle !== undefined) {
       if (item.itemType !== 'exercise' || item.snapshot.exerciseScope !== 'personal') {
-        throw new Error('Название можно менять только у личного упражнения');
+        throw new UserFacingError('Название можно менять только у личного упражнения');
       }
     }
   }
@@ -443,7 +452,7 @@ export async function applyInstanceEditorBatch(
   assertUuid(input.instanceId);
   if (isInstanceEditorBatchDraftEmpty(input.draft)) {
     const detail = await deps.instances.getInstanceById(input.instanceId);
-    if (!detail) throw new Error('Программа не найдена');
+    if (!detail) throw new UserFacingError('Программа не найдена');
     return { detail, diff: createEmptyProgramChangedDiff() };
   }
 
@@ -452,7 +461,7 @@ export async function applyInstanceEditorBatch(
   const { instances, itemRefs, testAttempts, snapshots } = deps;
 
   let detail = await instances.getInstanceById(input.instanceId);
-  if (!detail) throw new Error('Программа не найдена');
+  if (!detail) throw new UserFacingError('Программа не найдена');
   const baselineDetail = detail;
 
   await validateInstanceEditorBatchDraft(deps, {
@@ -477,7 +486,7 @@ export async function applyInstanceEditorBatch(
         status: !hadPipelineStageBeforeCreates && stageCreateIndex === 0 ? 'available' : 'locked',
         sourceStageId: null,
       });
-      if (!stage) throw new Error('Не удалось добавить этап');
+      if (!stage) throw new UserFacingError('Не удалось добавить этап');
       idMap.set(stageCreate.clientId, stage.id);
       diff.stagesAdded += 1;
 
@@ -515,7 +524,7 @@ export async function applyInstanceEditorBatch(
         description: groupCreate.description ?? undefined,
         scheduleText: groupCreate.scheduleText ?? undefined,
       });
-      if (!row) throw new Error('Не удалось добавить группу');
+      if (!row) throw new UserFacingError('Не удалось добавить группу');
       idMap.set(groupCreate.clientId, row.id);
       diff.groupsAdded += 1;
       detail = (await instances.getInstanceById(input.instanceId))!;
@@ -524,29 +533,33 @@ export async function applyInstanceEditorBatch(
     for (const create of input.draft.itemCreates) {
       if (create.kind === 'library_item') {
         if ((create.itemType as string) === 'lfk_complex') {
-          throw new Error('Для комплекса ЛФК используйте разворот комплекса');
+          throw new UserFacingError('Для комплекса ЛФК используйте разворот комплекса');
         }
         await itemRefs.assertItemRefExists(create.itemType, create.itemRefId);
         const stageId = resolveBatchId(create.stageId, idMap, 'Элемент');
         const stage = detail.stages.find((s) => s.id === stageId);
-        if (!stage) throw new Error('Этап не найден');
+        if (!stage) throw new UserFacingError('Этап не найден');
         let resolvedGroupId =
           resolveOptionalBatchId(create.groupId, idMap, 'Группа элемента') ?? null;
         if (isStageZero(stage)) {
           if (create.itemType !== 'recommendation') {
-            throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
+            throw new UserFacingError(
+              'На этапе «Общие рекомендации» разрешены только рекомендации',
+            );
           }
           if (resolvedGroupId) {
-            throw new Error('На этапе «Общие рекомендации» элементы не привязываются к группам');
+            throw new UserFacingError(
+              'На этапе «Общие рекомендации» элементы не привязываются к группам',
+            );
           }
         } else if (!resolvedGroupId) {
           if (create.itemType === 'recommendation' || create.itemType === 'clinical_test') {
             const want = create.itemType === 'recommendation' ? 'recommendations' : 'tests';
             const sg = stage.groups.find((g) => g.systemKind === want);
-            if (!sg) throw new Error('Системная группа этапа не найдена');
+            if (!sg) throw new UserFacingError('Системная группа этапа не найдена');
             resolvedGroupId = sg.id;
           } else {
-            throw new Error('Выберите группу для этого типа элемента');
+            throw new UserFacingError('Выберите группу для этого типа элемента');
           }
         } else {
           const g = stage.groups.find((gr) => gr.id === resolvedGroupId);
@@ -573,7 +586,7 @@ export async function applyInstanceEditorBatch(
           status: create.status ?? 'active',
           groupId: resolvedGroupId,
         });
-        if (!row) throw new Error('Не удалось добавить элемент');
+        if (!row) throw new UserFacingError('Не удалось добавить элемент');
         idMap.set(create.clientId, row.id);
         if (create.localComment !== undefined) {
           await instances.updateStageItemLocalComment(
@@ -592,7 +605,7 @@ export async function applyInstanceEditorBatch(
           bodyMd: create.bodyMd.trim(),
           createdBy: null,
         });
-        if (!result) throw new Error('Не удалось добавить рекомендацию');
+        if (!result) throw new UserFacingError('Не удалось добавить рекомендацию');
         idMap.set(create.clientId, result.item.id);
         if (create.localComment !== undefined) {
           await instances.updateStageItemLocalComment(
@@ -614,19 +627,19 @@ export async function applyInstanceEditorBatch(
             result.item.id,
             freeformPatch,
           );
-          if (!row) throw new Error('Элемент не найден');
+          if (!row) throw new UserFacingError('Элемент не найден');
         }
         diff.itemsAdded += 1;
       } else if (create.kind === 'individual_exercise') {
         const stageId = resolveBatchId(create.stageId, idMap, 'Элемент');
         const groupId = resolveBatchId(create.groupId, idMap, 'Группа');
         const stage = detail.stages.find((row) => row.id === stageId);
-        if (!stage) throw new Error('Этап не найден');
+        if (!stage) throw new UserFacingError('Этап не найден');
         if (isStageZero(stage)) {
-          throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
+          throw new UserFacingError('На этапе «Общие рекомендации» разрешены только рекомендации');
         }
         const group = stage.groups.find((row) => row.id === groupId);
-        if (!group) throw new Error('Группа не найдена');
+        if (!group) throw new UserFacingError('Группа не найдена');
         assertTreatmentProgramStageItemFitsSystemGroup(group, 'exercise');
         const settings = create.loadSettings ? mergeLoadSettings(null, create.loadSettings) : null;
         const result = await instances.createIndividualExerciseAndStageItem({
@@ -646,15 +659,15 @@ export async function applyInstanceEditorBatch(
           settings,
           localComment: create.localComment?.trim() || null,
         });
-        if (!result) throw new Error('Не удалось создать личное упражнение');
+        if (!result) throw new UserFacingError('Не удалось создать личное упражнение');
         idMap.set(create.clientId, result.item.id);
         diff.itemsAdded += 1;
       } else if (create.kind === 'test_set_expand') {
         const stageId = resolveBatchId(create.stageId, idMap, 'Элемент');
         const stage = detail.stages.find((s) => s.id === stageId);
-        if (!stage) throw new Error('Этап не найден');
+        if (!stage) throw new UserFacingError('Этап не найден');
         const testsGroup = stage.groups.find((g) => g.systemKind === 'tests');
-        if (!testsGroup) throw new Error('Системная группа «Тестирование» не найдена');
+        if (!testsGroup) throw new UserFacingError('Системная группа «Тестирование» не найдена');
         let sortOrder = stage.items.reduce((m, i) => Math.max(m, i.sortOrder), -1);
         for (const line of create.items) {
           await itemRefs.assertItemRefExists('clinical_test', line.itemRefId);
@@ -678,7 +691,7 @@ export async function applyInstanceEditorBatch(
             status: line.status ?? 'active',
             groupId: resolvedGroupId,
           });
-          if (!row) throw new Error('Не удалось добавить элемент');
+          if (!row) throw new UserFacingError('Не удалось добавить элемент');
           idMap.set(line.clientId, row.id);
           if (line.localComment !== undefined) {
             await instances.updateStageItemLocalComment(
@@ -692,7 +705,7 @@ export async function applyInstanceEditorBatch(
       } else {
         const stageId = resolveBatchId(create.stageId, idMap, 'Элемент');
         const stage = detail.stages.find((s) => s.id === stageId);
-        if (!stage) throw new Error('Этап не найден');
+        if (!stage) throw new UserFacingError('Этап не найден');
         let sortOrder = stage.items.reduce((m, i) => Math.max(m, i.sortOrder), -1);
         for (const line of create.items) {
           await itemRefs.assertItemRefExists('exercise', line.itemRefId);
@@ -711,7 +724,7 @@ export async function applyInstanceEditorBatch(
             status: line.status ?? 'active',
             groupId,
           });
-          if (!row) throw new Error('Не удалось добавить элемент');
+          if (!row) throw new UserFacingError('Не удалось добавить элемент');
           idMap.set(line.clientId, row.id);
           if (line.localComment !== undefined) {
             await instances.updateStageItemLocalComment(
@@ -731,7 +744,7 @@ export async function applyInstanceEditorBatch(
       const norm: UpdateTreatmentProgramInstanceStageMetadataInput = {};
       if (patch.title !== undefined) {
         const t = patch.title.trim();
-        if (!t) throw new Error('Название этапа не может быть пустым');
+        if (!t) throw new UserFacingError('Название этапа не может быть пустым');
         norm.title = t;
       }
       if (patch.description !== undefined) {
@@ -750,7 +763,7 @@ export async function applyInstanceEditorBatch(
       }
       if (Object.keys(norm).length === 0) continue;
       const row = await instances.updateInstanceStageMetadata(input.instanceId, stageId, norm);
-      if (!row) throw new Error('Этап не найден');
+      if (!row) throw new UserFacingError('Этап не найден');
       diff.stagesMetadataUpdated += 1;
     }
 
@@ -761,7 +774,7 @@ export async function applyInstanceEditorBatch(
       const norm: UpdateTreatmentProgramInstanceStageGroupInput = {};
       if (patch.title !== undefined && !isSystemGroup) {
         const t = patch.title.trim();
-        if (!t) throw new Error('Название группы не может быть пустым');
+        if (!t) throw new UserFacingError('Название группы не может быть пустым');
         norm.title = t;
       }
       if (patch.description !== undefined && !isSystemGroup) {
@@ -772,7 +785,7 @@ export async function applyInstanceEditorBatch(
       }
       if (Object.keys(norm).length === 0) continue;
       const row = await instances.updateInstanceStageGroup(input.instanceId, groupId, norm);
-      if (!row) throw new Error('Группа не найдена');
+      if (!row) throw new UserFacingError('Группа не найдена');
       diff.groupsMetadataUpdated += 1;
     }
 
@@ -782,7 +795,7 @@ export async function applyInstanceEditorBatch(
       if (isInstanceEditorBatchClientId(itemIdRaw)) continue;
       const itemId = resolveBatchId(itemIdRaw, idMap, 'Элемент');
       const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === itemId);
-      if (!item) throw new Error('Элемент не найден');
+      if (!item) throw new UserFacingError('Элемент не найден');
 
       if (patch.replace) {
         await assertStageItemAllowsStructuralChange(item, testAttempts);
@@ -796,7 +809,7 @@ export async function applyInstanceEditorBatch(
             patch.replace.itemRefId,
           ),
         });
-        if (!row) throw new Error('Не удалось заменить элемент');
+        if (!row) throw new UserFacingError('Не удалось заменить элемент');
         diff.itemsStructuralUpdated += 1;
         continue;
       }
@@ -810,30 +823,34 @@ export async function applyInstanceEditorBatch(
       if (patch.status !== undefined) itemPatch.status = patch.status;
       if (patch.isActionable !== undefined) {
         if (item.itemType !== 'recommendation') {
-          throw new Error('Режим выполнения задаётся только для рекомендаций');
+          throw new UserFacingError('Режим выполнения задаётся только для рекомендаций');
         }
         itemPatch.isActionable = patch.isActionable;
       }
       if (patch.groupId !== undefined) {
         const stage = detail.stages.find((s) => s.id === item.stageId);
-        if (!stage) throw new Error('Этап не найден');
+        if (!stage) throw new UserFacingError('Этап не найден');
         let nextGroupId = resolveOptionalBatchId(patch.groupId, idMap, 'Группа') ?? null;
         if (isStageZero(stage)) {
           if (item.itemType !== 'recommendation') {
-            throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
+            throw new UserFacingError(
+              'На этапе «Общие рекомендации» разрешены только рекомендации',
+            );
           }
           if (patch.groupId != null) {
-            throw new Error('На этапе «Общие рекомендации» элементы не привязываются к группам');
+            throw new UserFacingError(
+              'На этапе «Общие рекомендации» элементы не привязываются к группам',
+            );
           }
           nextGroupId = null;
         } else if (!nextGroupId) {
           if (item.itemType === 'recommendation' || item.itemType === 'clinical_test') {
             const want = item.itemType === 'recommendation' ? 'recommendations' : 'tests';
             const sg = stage.groups.find((g) => g.systemKind === want);
-            if (!sg) throw new Error('Системная группа этапа не найдена');
+            if (!sg) throw new UserFacingError('Системная группа этапа не найдена');
             nextGroupId = sg.id;
           } else {
-            throw new Error('Выберите группу для этого типа элемента');
+            throw new UserFacingError('Выберите группу для этого типа элемента');
           }
         } else {
           const g = stage.groups.find((gr) => gr.id === nextGroupId);
@@ -844,7 +861,7 @@ export async function applyInstanceEditorBatch(
 
       if (Object.keys(itemPatch).length === 0) continue;
       const row = await instances.patchInstanceStageItem(input.instanceId, itemId, itemPatch);
-      if (!row) throw new Error('Элемент не найден');
+      if (!row) throw new UserFacingError('Элемент не найден');
       diff.itemsStructuralUpdated += 1;
     }
 
@@ -857,7 +874,7 @@ export async function applyInstanceEditorBatch(
       if (!item) continue;
       await assertStageItemAllowsStructuralChange(item, testAttempts);
       const ok = await instances.deleteInstanceStageItem(input.instanceId, itemId);
-      if (!ok) throw new Error('Элемент не найден');
+      if (!ok) throw new UserFacingError('Элемент не найден');
       diff.itemsRemoved += 1;
     }
 
@@ -869,7 +886,7 @@ export async function applyInstanceEditorBatch(
       const gr = detail.stages.flatMap((s) => s.groups).find((g) => g.id === groupId);
       if (!gr) continue;
       if (gr.systemKind === 'recommendations' || gr.systemKind === 'tests') {
-        throw new Error('Системную группу нельзя скрыть');
+        throw new UserFacingError('Системную группу нельзя скрыть');
       }
       const itemsInGroup = detail.stages
         .flatMap((s) => s.items)
@@ -880,7 +897,7 @@ export async function applyInstanceEditorBatch(
         }
       }
       const ok = await instances.deleteInstanceStageGroup(input.instanceId, groupId);
-      if (!ok) throw new Error('Группа не найдена');
+      if (!ok) throw new UserFacingError('Группа не найдена');
       diff.groupsHidden += 1;
     }
 
@@ -892,10 +909,10 @@ export async function applyInstanceEditorBatch(
       );
       const stageZero = detail.stages.find((s) => s.sortOrder === 0);
       if (stageZero && orderedStageIds[0] !== stageZero.id) {
-        throw new Error('Этап «Общие рекомендации» должен оставаться первым');
+        throw new UserFacingError('Этап «Общие рекомендации» должен оставаться первым');
       }
       const ok = await instances.reorderInstanceStages(input.instanceId, orderedStageIds);
-      if (!ok) throw new Error('Некорректный порядок этапов');
+      if (!ok) throw new UserFacingError('Некорректный порядок этапов');
       diff.stagesReordered = true;
       detail = (await instances.getInstanceById(input.instanceId))!;
     }
@@ -904,7 +921,7 @@ export async function applyInstanceEditorBatch(
       const stageId = resolveBatchId(stageIdRaw, idMap, 'Этап');
       const resolved = orderedGroupIds.map((id, i) => resolveBatchId(id, idMap, `Группа ${i + 1}`));
       const ok = await instances.reorderInstanceStageGroups(input.instanceId, stageId, resolved);
-      if (!ok) throw new Error('Некорректный порядок групп этапа');
+      if (!ok) throw new UserFacingError('Некорректный порядок групп этапа');
       diff.groupsReordered = true;
     }
 
@@ -912,7 +929,7 @@ export async function applyInstanceEditorBatch(
       const stageId = resolveBatchId(stageIdRaw, idMap, 'Этап');
       const resolved = orderedItemIds.map((id, i) => resolveBatchId(id, idMap, `Элемент ${i + 1}`));
       const ok = await instances.reorderInstanceStageItems(input.instanceId, stageId, resolved);
-      if (!ok) throw new Error('Некорректный порядок элементов этапа');
+      if (!ok) throw new UserFacingError('Некорректный порядок элементов этапа');
       diff.itemsReordered = true;
     }
 
@@ -925,7 +942,7 @@ export async function applyInstanceEditorBatch(
           itemId,
           patch.personalTitle,
         );
-        if (!row) throw new Error('Название можно менять только у личного упражнения');
+        if (!row) throw new UserFacingError('Название можно менять только у личного упражнения');
         diff.itemsMetadataUpdated += 1;
       }
       if (patch.localComment !== undefined) {
@@ -934,14 +951,14 @@ export async function applyInstanceEditorBatch(
           itemId,
           patch.localComment,
         );
-        if (!row) throw new Error('Элемент не найден');
+        if (!row) throw new UserFacingError('Элемент не найден');
         diff.itemsMetadataUpdated += 1;
       }
       if (patch.loadSettings) {
         const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === itemId);
-        if (!item) throw new Error('Элемент не найден');
+        if (!item) throw new UserFacingError('Элемент не найден');
         if (item.itemType !== 'exercise') {
-          throw new Error('Нагрузку можно менять только для упражнений');
+          throw new UserFacingError('Нагрузку можно менять только для упражнений');
         }
         const nextSettings = mergeLoadSettings(
           item.settings as Record<string, unknown> | null,
@@ -950,13 +967,13 @@ export async function applyInstanceEditorBatch(
         const row = await instances.patchInstanceStageItem(input.instanceId, itemId, {
           settings: nextSettings,
         });
-        if (!row) throw new Error('Элемент не найден');
+        if (!row) throw new UserFacingError('Элемент не найден');
         diff.itemsMetadataUpdated += 1;
       }
     }
 
     detail = (await instances.getInstanceById(input.instanceId))!;
-    if (!detail) throw new Error('Программа не найдена');
+    if (!detail) throw new UserFacingError('Программа не найдена');
     if (isProgramChangedDiffEmpty(diff)) {
       return { detail, diff };
     }

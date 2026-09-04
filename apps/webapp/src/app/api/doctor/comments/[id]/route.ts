@@ -8,6 +8,7 @@ import {
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { COMMENT_TYPES } from '@/modules/comments/types';
 import type { EntityComment } from '@/modules/comments/types';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const patchBodySchema = z
   .object({
@@ -83,8 +84,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     );
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/doctor/comments/[id]#update', e, {
+      fallbackCode: 'comment_save_failed',
+      fallbackStatus: 500,
+    });
   }
 }
 

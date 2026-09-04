@@ -462,11 +462,12 @@ function AccessNotificationsEditor({
           Добавить уведомление
         </Button>
       </div>
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Уведомлений нет.</p>
-      ) : null}
+      {rows.length === 0 ? <p className="text-sm text-muted-foreground">Уведомлений нет.</p> : null}
       {rows.map((row, index) => (
-        <div key={index} className="grid gap-2 rounded-xl border border-border/70 p-3 sm:grid-cols-2">
+        <div
+          key={index}
+          className="grid gap-2 rounded-xl border border-border/70 p-3 sm:grid-cols-2"
+        >
           <Label className="space-y-1">
             <span>Срок, дней от окончания периода</span>
             <Input
@@ -579,13 +580,15 @@ export function CommercialConstructorClient() {
   const [trialDuration, setTrialDuration] = useState('');
   const [trialDiscountWindow, setTrialDiscountWindow] = useState('');
   const [trialStartEvent, setTrialStartEvent] = useState<TrialPolicy['startEvent']>('');
-  const [postTrialBehavior, setPostTrialBehavior] =
-    useState<TrialPolicy['postTrialBehavior'] | null>(null);
+  const [postTrialBehavior, setPostTrialBehavior] = useState<
+    TrialPolicy['postTrialBehavior'] | null
+  >(null);
   const [postTrialTariffId, setPostTrialTariffId] = useState('none');
   const [trialActive, setTrialActive] = useState(false);
   const [registrationTariffId, setRegistrationTariffId] = useState('none');
-  const [postPaidPeriodBehavior, setPostPaidPeriodBehavior] =
-    useState<PaidPeriodPolicy['postPaidPeriodBehavior'] | null>(null);
+  const [postPaidPeriodBehavior, setPostPaidPeriodBehavior] = useState<
+    PaidPeriodPolicy['postPaidPeriodBehavior'] | null
+  >(null);
   const [postPaidPeriodTariffId, setPostPaidPeriodTariffId] = useState('none');
   const [paidPeriodPolicyActive, setPaidPeriodPolicyActive] = useState(true);
   const selectableBillingPeriods = useMemo(
@@ -682,8 +685,8 @@ export function CommercialConstructorClient() {
   const selectedManualTariffId = assignedTariffId === 'none' ? null : assignedTariffId;
   const manualAssignmentChanged = Boolean(
     selectedOrganization &&
-      (selectedManualTariffId !== selectedOrganization.manualTariffId ||
-        selectedOrganization.scheduledTariff !== null),
+    (selectedManualTariffId !== selectedOrganization.manualTariffId ||
+      selectedOrganization.scheduledTariff !== null),
   );
   const assignmentEndsTrial = Boolean(
     selectedOrganization?.trial && selectedOrganization.trial.status !== 'ended',
@@ -692,9 +695,9 @@ export function CommercialConstructorClient() {
   // assign one first (above) before a trial can start.
   const canStartTrial = Boolean(
     selectedOrganization &&
-      selectedOrganization.tariffId &&
-      selectedOrganization.trial === null &&
-      state.trialPolicy?.isActive,
+    selectedOrganization.tariffId &&
+    selectedOrganization.trial === null &&
+    state.trialPolicy?.isActive,
   );
 
   useEffect(() => {
@@ -791,7 +794,6 @@ export function CommercialConstructorClient() {
         <DataLoadFailureNotice
           title="Не удалось загрузить коммерческие настройки."
           digest="COMMERCIAL-SETTINGS"
-          devMessage={loadError}
           onRetry={() => {
             setLoading(true);
             setLoadError(null);
@@ -1118,7 +1120,10 @@ export function CommercialConstructorClient() {
                   {state.tariffs.find(
                     (item) => item.id === selectedOrganization.scheduledTariff?.tariffId,
                   )?.name ?? 'не найден'}{' '}
-                  вступит {new Date(selectedOrganization.scheduledTariff.effectiveAt).toLocaleString('ru-RU')}
+                  вступит{' '}
+                  {new Date(selectedOrganization.scheduledTariff.effectiveAt).toLocaleString(
+                    'ru-RU',
+                  )}
                 </p>
               ) : null}
               {selectedOrganization.trial ? (
@@ -1205,9 +1210,7 @@ export function CommercialConstructorClient() {
               <Label>{MECHANIC_REGISTRY[overrideMechanic].label} для организации</Label>
               <NumericLimitEditor
                 label={`${MECHANIC_REGISTRY[overrideMechanic].label} для организации`}
-                unit={
-                  MECHANIC_REGISTRY[overrideMechanic].class === 'объём' ? 'bytes' : 'items'
-                }
+                unit={MECHANIC_REGISTRY[overrideMechanic].class === 'объём' ? 'bytes' : 'items'}
                 warnable={quotaMechanicSupportsWarning(overrideMechanic)}
                 quota={overrideQuota}
                 onChange={setOverrideQuota}
@@ -1328,8 +1331,7 @@ export function CommercialConstructorClient() {
                   displayLabel={
                     registrationTariffId === 'none'
                       ? 'Не выдавать — человек выбирает тариф сам'
-                      : (state.tariffs.find((item) => item.id === registrationTariffId)?.name ??
-                        '')
+                      : (state.tariffs.find((item) => item.id === registrationTariffId)?.name ?? '')
                   }
                 >
                   <SelectValue />
@@ -1660,10 +1662,10 @@ export function CommercialConstructorClient() {
             ) : (
               <>
                 <p className="text-sm text-muted-foreground">
-                  Срок, условие и какое письмо уходит. Сами письма правятся на вкладке
-                  «Рассылки» — там полноценный редактор с картинками и форматированием.
-                  Льготные триггеры («Льготный период начат/завершён») уходят только тем клиникам,
-                  которые ещё не оплатили после триала.
+                  Срок, условие и какое письмо уходит. Сами письма правятся на вкладке «Рассылки» —
+                  там полноценный редактор с картинками и форматированием. Льготные триггеры
+                  («Льготный период начат/завершён») уходят только тем клиникам, которые ещё не
+                  оплатили после триала.
                 </p>
                 {tariff.systemAccessPolicy ? (
                   <AccessNotificationsEditor
@@ -1774,7 +1776,9 @@ export function CommercialConstructorClient() {
 
         <DoctorSection>
           <DoctorSectionHeader>
-            <DoctorSectionTitle>{selectedMailingTemplate ? 'Письмо' : 'Выберите письмо'}</DoctorSectionTitle>
+            <DoctorSectionTitle>
+              {selectedMailingTemplate ? 'Письмо' : 'Выберите письмо'}
+            </DoctorSectionTitle>
           </DoctorSectionHeader>
           {!tariff.id ? (
             <p className="text-sm text-muted-foreground">Выберите тариф слева.</p>
@@ -1831,7 +1835,9 @@ export function CommercialConstructorClient() {
                   setTariff((current) => ({
                     ...current,
                     mailingTemplates: current.mailingTemplates.map((template) =>
-                      template.id === selectedMailingTemplate.id ? { ...template, body: next } : template,
+                      template.id === selectedMailingTemplate.id
+                        ? { ...template, body: next }
+                        : template,
                     ),
                   }))
                 }
@@ -1855,11 +1861,16 @@ export function CommercialConstructorClient() {
                 <Label>Предпросмотр (на примерных данных)</Label>
                 <div className="rounded-lg border bg-background p-3 text-sm">
                   <div className="mb-2 font-medium">
-                    {renderAccessNotification(selectedMailingTemplate.subject, MAILING_PREVIEW_VARIABLES) ||
-                      '(тема не заполнена)'}
+                    {renderAccessNotification(
+                      selectedMailingTemplate.subject,
+                      MAILING_PREVIEW_VARIABLES,
+                    ) || '(тема не заполнена)'}
                   </div>
                   <MarkdownContent
-                    text={renderAccessNotification(selectedMailingTemplate.body, MAILING_PREVIEW_VARIABLES)}
+                    text={renderAccessNotification(
+                      selectedMailingTemplate.body,
+                      MAILING_PREVIEW_VARIABLES,
+                    )}
                     bodyFormat="markdown"
                   />
                 </div>

@@ -10,6 +10,7 @@ import {
   isTestSetUsageConfirmationRequiredError,
 } from '@/modules/tests/errors';
 import type { TestSetItemInput, TestSetUsageSnapshot } from '@/modules/tests/types';
+import { safeActionErrorText } from '@/app-layer/errors/safeUserError';
 
 export type SaveTestSetState = { ok: boolean; error?: string };
 
@@ -26,8 +27,7 @@ export type ArchiveTestSetCoreResult =
 export type UnarchiveTestSetState = { ok: true } | { ok: false; error: string };
 
 export type UnarchiveTestSetCoreResult =
-  | { kind: 'unarchived'; id: string }
-  | { kind: 'invalid'; error: string };
+  { kind: 'unarchived'; id: string } | { kind: 'invalid'; error: string };
 
 export const NEW_TEST_SET_DRAFT_TITLE = 'Новый набор тестов';
 
@@ -89,7 +89,10 @@ export async function saveTestSetCore(
     } catch (e) {
       if (e instanceof z.ZodError)
         return { ok: false, error: 'Некорректный формат состава набора' };
-      return { ok: false, error: e instanceof Error ? e.message : 'Ошибка разбора состава' };
+      return {
+        ok: false,
+        error: safeActionErrorText('app/doctor/test-sets', e, 'Ошибка разбора состава'),
+      };
     }
   }
 
@@ -125,7 +128,10 @@ export async function saveTestSetCore(
         } catch (e) {
           if (e instanceof z.ZodError)
             return { ok: false, error: 'Некорректный формат состава набора' };
-          return { ok: false, error: e instanceof Error ? e.message : 'Ошибка разбора состава' };
+          return {
+            ok: false,
+            error: safeActionErrorText('app/doctor/test-sets', e, 'Ошибка разбора состава'),
+          };
         }
       }
       return { ok: true, setId: id, wasUpdate: true };
@@ -151,7 +157,10 @@ export async function saveTestSetCore(
     }
     return { ok: true, setId: row.id, wasUpdate: false };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Ошибка сохранения' };
+    return {
+      ok: false,
+      error: safeActionErrorText('app/doctor/test-sets', e, 'Ошибка сохранения'),
+    };
   }
 }
 
@@ -184,7 +193,7 @@ export async function createTestSetDraftCore(
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : 'Не удалось создать черновик набора',
+      error: safeActionErrorText('app/doctor/test-sets', e, 'Не удалось создать черновик набора'),
     };
   }
 }
@@ -207,7 +216,10 @@ export async function saveTestSetItemsCore(
     if (e instanceof z.ZodError) {
       return { ok: false, error: 'Некорректный формат состава набора' };
     }
-    return { ok: false, error: e instanceof Error ? e.message : 'Ошибка разбора состава' };
+    return {
+      ok: false,
+      error: safeActionErrorText('app/doctor/test-sets', e, 'Ошибка разбора состава'),
+    };
   }
 
   const deps = buildAppDeps();
@@ -223,7 +235,10 @@ export async function saveTestSetItemsCore(
     });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Ошибка сохранения состава' };
+    return {
+      ok: false,
+      error: safeActionErrorText('app/doctor/test-sets', e, 'Ошибка сохранения состава'),
+    };
   }
 }
 

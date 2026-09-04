@@ -228,7 +228,6 @@ export function AdminAuthRegistrationEventsSection() {
           <DataLoadFailureNotice
             title="Не удалось загрузить события регистрации."
             digest="AUTH-REGISTRATION-EVENTS"
-            devMessage={error}
             onRetry={() => void load()}
             retrying={loading}
           />

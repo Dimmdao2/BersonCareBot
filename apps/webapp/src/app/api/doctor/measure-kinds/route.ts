@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const postBodySchema = z.object({
   label: z.string().min(1).max(500),
@@ -48,8 +49,11 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, item: row, created });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 422 });
+    return respondWithSafeApiError('api/doctor/measure-kinds#create', e, {
+      fallbackCode: 'measure_kind_save_failed',
+      fallbackStatus: 500,
+      domainStatus: 422,
+    });
   }
 }
 
@@ -74,7 +78,10 @@ export async function PATCH(request: Request) {
     );
     return NextResponse.json({ ok: true, items });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 422 });
+    return respondWithSafeApiError('api/doctor/measure-kinds#save-order', e, {
+      fallbackCode: 'measure_kinds_save_failed',
+      fallbackStatus: 500,
+      domainStatus: 422,
+    });
   }
 }

@@ -10,6 +10,7 @@ import {
   resolveDoctorScheduleScope,
   type ResolvedDoctorScheduleScope,
 } from '../_resolveDoctorScheduleScope';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 function scopeCalendarFilterMeta(
   filters: CalendarFilterMeta,
@@ -80,7 +81,9 @@ export async function GET(request: Request) {
       resolvedScope: scheduleScope.value,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'calendar_load_failed';
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return respondWithSafeApiError('api/doctor/booking-engine/calendar', err, {
+      fallbackCode: 'calendar_load_failed',
+      fallbackStatus: 500,
+    });
   }
 }

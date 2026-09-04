@@ -36,10 +36,6 @@ export function SegmentRouteError({
   const [supportContactHref, setSupportContactHref] = useState(DEFAULT_SUPPORT_CONTACT_URL);
 
   useEffect(() => {
-    console.error(error);
-  }, [error]);
-
-  useEffect(() => {
     let cancelled = false;
     void fetch('/api/public/support-contact-url')
       .then((res) => (res.ok ? res.json() : null))
@@ -68,7 +64,10 @@ export function SegmentRouteError({
     void safeReload('chunk-load-error');
   }, [isChunkError]);
 
-  const message = error.message || 'Не удалось загрузить раздел.';
+  // Текст фиксирован: `error.message` в проде несёт произвольный текст исключения — SQL
+  // драйвера с параметрами, ответ провайдера, клинические значения. Наружу идёт только он
+  // и непрозрачный `digest`, по которому поддержка находит закрытую запись в серверном логе.
+  const message = 'Не удалось загрузить раздел.';
   const backFallback = backFallbackHref ?? resolveBackFallback(pathname);
 
   const onBack = () => {

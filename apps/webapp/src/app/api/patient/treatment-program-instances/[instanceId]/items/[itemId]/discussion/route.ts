@@ -7,6 +7,7 @@ import { exerciseTitleFromSnapshot } from '@/modules/messaging/programNoteReplyC
 import { assertPatientProgramCommentsAllowed } from '@/modules/doctor-clients/assertPatientProgramInteraction';
 import { listDiscussionPageMerged } from '@/modules/program-item-discussion/listDiscussionPage';
 import { isPatientProgramDiscussionUiEnabled } from '@/modules/program-item-discussion/discussionFeatureGates';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const directionSchema = z.enum(['backward', 'forward']);
 const postBodySchema = z.object({
@@ -278,8 +279,10 @@ export async function POST(
       });
     return NextResponse.json({ ok: true, message });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = msg.includes('не найден') ? 404 : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError('api/patient/treatment-program-instances/item-discussion', e, {
+      fallbackCode: 'discussion_append_failed',
+      fallbackStatus: 500,
+      domainStatus: (text) => (text.includes('не найден') ? 404 : 400),
+    });
   }
 }

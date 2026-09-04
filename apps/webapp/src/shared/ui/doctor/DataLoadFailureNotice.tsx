@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 
 type Props = {
@@ -8,32 +7,28 @@ type Props = {
   title?: string;
   /** Короткий код из логов сервера (поддержка). */
   digest: string;
-  /** Только в development: деталь в UI и в консоли браузера для отладки. */
-  devMessage?: string;
   /** Повторить загрузку без раскрытия технической ошибки пользователю. */
   onRetry?: () => void;
   retrying?: boolean;
 };
 
 /**
- * Мягкая деградация при сбое загрузки данных на сервере: сообщение пользователю,
- * код для поддержки; в dev — подсказка и `console.error` в браузере.
+ * Мягкая деградация при сбое загрузки данных на сервере: сообщение пользователю и код для
+ * поддержки.
+ *
+ * Технической детали здесь нет ни в каком режиме. Раньше компонент принимал `devMessage`
+ * (вызывающие передавали `${error.name}: ${error.message}`), рисовал его в DOM и дублировал
+ * в `console.error` браузера при `NODE_ENV === 'development'`. Это второй экземпляр текста
+ * исключения на клиенте: он попадал в разметку, в консоль и в любые расширения/скриншоты
+ * DEV-окружения, где база — реальная копия. Диагностика живёт в серверном логе, найти её
+ * по `digest`.
  */
 export function DataLoadFailureNotice({
   title = 'Не удалось загрузить данные. Попробуйте обновить страницу позже.',
   digest,
-  devMessage,
   onRetry,
   retrying = false,
 }: Props) {
-  const visibleDevMessage = process.env.NODE_ENV === 'development' ? devMessage : undefined;
-
-  useEffect(() => {
-    if (visibleDevMessage) {
-      console.error('[DataLoadFailure]', { digest, message: visibleDevMessage });
-    }
-  }, [digest, visibleDevMessage]);
-
   return (
     <div
       role="alert"
@@ -54,11 +49,6 @@ export function DataLoadFailureNotice({
         >
           {retrying ? 'Повторяем…' : 'Повторить'}
         </Button>
-      ) : null}
-      {visibleDevMessage ? (
-        <pre className="mt-3 max-h-40 overflow-auto rounded-md border border-border/80 bg-muted/40 p-2 font-mono text-xs whitespace-pre-wrap">
-          {visibleDevMessage}
-        </pre>
       ) : null}
     </div>
   );
