@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const postBodySchema = z.object({
   orderedStageIds: z.array(z.string().uuid()).min(1),
@@ -36,8 +37,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = msg.includes('не найден') ? 404 : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-templates/[id]/stages/reorder',
+      e,
+      {
+        fallbackCode: 'stages_reorder_failed',
+        fallbackStatus: 500,
+        domainStatus: (text) => (text.includes('не найден') ? 404 : 400),
+      },
+    );
   }
 }

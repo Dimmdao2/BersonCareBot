@@ -4,6 +4,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { testSetListFilterFromDoctorApiGetQuery } from '@/shared/lib/doctorCatalogListStatus';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const postBodySchema = z.object({
   title: z.string().min(1).max(2000),
@@ -61,7 +62,9 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/doctor/test-sets', e, {
+      fallbackCode: 'doctor_test_sets_failed',
+      fallbackStatus: 500,
+    });
   }
 }

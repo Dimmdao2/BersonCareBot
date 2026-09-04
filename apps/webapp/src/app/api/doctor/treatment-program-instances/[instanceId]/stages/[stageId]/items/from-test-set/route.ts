@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const bodySchema = z.object({
   testSetId: z.string().uuid(),
@@ -44,7 +45,13 @@ export async function POST(
     );
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/items/from-test-set',
+      e,
+      {
+        fallbackCode: 'items_from_test_set_failed',
+        fallbackStatus: 500,
+      },
+    );
   }
 }

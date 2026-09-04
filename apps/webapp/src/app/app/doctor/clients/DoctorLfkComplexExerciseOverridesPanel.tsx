@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import type { LfkComplexExerciseLine } from '@/modules/diaries/types';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 function ExerciseRowEditor({
   patientUserId,
@@ -68,7 +69,7 @@ function ExerciseRowEditor({
                   error?: string;
                 };
                 if (!res.ok || !data.ok) {
-                  toast.error(data.error ?? 'Не удалось сохранить');
+                  toast.error(readSafeApiErrorText(data, 'Не удалось сохранить'));
                   return;
                 }
                 toast.success('Сохранено');
@@ -99,7 +100,7 @@ function ExerciseRowEditor({
                   error?: string;
                 };
                 if (!res.ok || !data.ok) {
-                  toast.error(data.error ?? 'Не удалось сбросить');
+                  toast.error(readSafeApiErrorText(data, 'Не удалось сбросить'));
                   return;
                 }
                 toast.success('Сброшено');

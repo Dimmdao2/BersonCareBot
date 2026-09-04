@@ -15,6 +15,7 @@ import {
   requireEntitlementForMutation,
 } from '@/app-layer/guards/requireEntitlement';
 import { requirePatientWarmupReminderMutation } from '@/app-layer/reminders/patientWarmupReminderMutationGuard';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const LINKED_TYPES = new Set<ReminderLinkedObjectType>([
   'lfk_complex',
@@ -148,8 +149,10 @@ export async function POST(req: Request) {
         });
         linkedObjectId = ensured.id;
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'error';
-        return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+        return respondWithSafeApiError('api/patient/reminders/create', e, {
+          fallbackCode: 'reminders_create_failed',
+          fallbackStatus: 500,
+        });
       }
     }
   }
@@ -185,10 +188,7 @@ export async function POST(req: Request) {
   return NextResponse.json(
     {
       ok: true,
-      reminder: reminderRuleToPatientJson(
-        res.data,
-        await getAppDisplayTimeZone(),
-      ),
+      reminder: reminderRuleToPatientJson(res.data, await getAppDisplayTimeZone()),
     },
     { status: 201 },
   );

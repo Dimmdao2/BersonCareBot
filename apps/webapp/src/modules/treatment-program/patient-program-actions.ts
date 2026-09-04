@@ -27,6 +27,13 @@ import {
 import { logger, serializeError } from '@/infra/logging/logger';
 import { UserFacingError } from '@/shared/errors/userFacingError';
 
+/**
+ * Текст отказа «программы нет» в пациентском кабинете. Вынесен в константу, чтобы маршрут выбирал
+ * HTTP-статус по совпадению с этим доменным контрактом, а не по подстроке в тексте исключения:
+ * подстрока сработала бы и на постороннем сообщении драйвера.
+ */
+export const PATIENT_PROGRAM_NOT_FOUND_MESSAGE = 'Программа не найдена';
+
 export type { PatientPlanPassageStats } from './patient-plan-passage-stats';
 
 export function utcDayWindowIso(now = new Date()): { start: string; end: string } {
@@ -249,7 +256,7 @@ export function createTreatmentProgramPatientActionService(deps: {
       assertUuid(patientUserId);
       assertUuid(instanceId);
       const detail = await deps.instances.getInstanceForPatient(patientUserId, instanceId);
-      if (!detail) throw new UserFacingError('Программа не найдена');
+      if (!detail) throw new UserFacingError(PATIENT_PROGRAM_NOT_FOUND_MESSAGE);
 
       const appDefault = await deps.getAppDefaultTimezoneIana();
       const personal = await getPersonalTz(patientUserId);

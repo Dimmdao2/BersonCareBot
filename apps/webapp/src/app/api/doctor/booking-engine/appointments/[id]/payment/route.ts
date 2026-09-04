@@ -11,6 +11,7 @@ import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
 import { resolveDoctorAppointmentAccess } from '../../../_resolveDoctorAppointmentAccess';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -143,7 +144,10 @@ export async function POST(request: Request, context: RouteContext) {
     if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 409 });
     return NextResponse.json(result);
   } catch (error) {
-    const code = error instanceof Error ? error.message : 'payment_provider_unavailable';
-    return NextResponse.json({ ok: false, error: code }, { status: 503 });
+    return respondWithSafeApiError('api/doctor/booking-engine/appointments/[id]/payment', error, {
+      fallbackCode: 'appointments_payment_failed',
+      fallbackStatus: 500,
+      domainStatus: 503,
+    });
   }
 }

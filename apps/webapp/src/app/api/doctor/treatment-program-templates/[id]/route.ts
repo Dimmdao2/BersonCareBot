@@ -8,6 +8,7 @@ import {
   isTreatmentProgramTemplateArchiveNotFoundError,
   isTreatmentProgramTemplateUsageConfirmationRequiredError,
 } from '@/modules/treatment-program/errors';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const patchBodySchema = z.object({
   title: z.string().min(1).max(2000).optional(),
@@ -65,9 +66,11 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     if (isTreatmentProgramTemplateArchiveNotFoundError(e)) {
       return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = msg.includes('не найден') ? 404 : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError('api/doctor/treatment-program-templates/[id]', e, {
+      fallbackCode: 'treatment_program_template_update_failed',
+      fallbackStatus: 500,
+      domainStatus: (text) => (text.includes('не найден') ? 404 : 400),
+    });
   }
 }
 

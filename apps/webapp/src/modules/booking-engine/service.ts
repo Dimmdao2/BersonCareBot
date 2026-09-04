@@ -14,13 +14,14 @@ import type {
 } from './types';
 import { resolveBookingLocationPalette } from './locationPalette';
 import { isReservedOnlineLocationIdentity, setBuiltInOnlineLocationState } from './onlineLocation';
+import { UserFacingError } from '@/shared/errors/userFacingError';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ONLINE_SLOT_MINUTE_MS = 60_000;
 const MAX_ONLINE_CHAIN_MINUTES = 8 * 60;
 
 function assertUuid(id: string, label = 'id'): void {
-  if (!UUID_RE.test(id.trim())) throw new Error(`Некорректный UUID: ${label}`);
+  if (!UUID_RE.test(id.trim())) throw new UserFacingError(`Некорректный UUID: ${label}`);
 }
 
 function assertAppointmentStatus(s: string): asserts s is AppointmentStatus {
@@ -39,7 +40,7 @@ function assertAppointmentStatus(s: string): asserts s is AppointmentStatus {
     'charged_to_package',
     'manual_review_required',
   ];
-  if (!statuses.includes(s)) throw new Error('Неизвестный статус записи');
+  if (!statuses.includes(s)) throw new UserFacingError('Неизвестный статус записи');
 }
 
 type BookingEngineServiceDependencies = {
@@ -99,7 +100,7 @@ export function createBookingEngineService(
       const status = input.status ?? 'created';
       assertAppointmentStatus(status);
       if (new Date(input.endAt).getTime() <= new Date(input.startAt).getTime()) {
-        throw new Error('Время окончания должно быть позже начала');
+        throw new UserFacingError('Время окончания должно быть позже начала');
       }
       return port.createAppointment({ ...input, status });
     },
@@ -116,7 +117,7 @@ export function createBookingEngineService(
         const startMs = new Date(input.startAt).getTime();
         const endMs = new Date(input.endAt).getTime();
         if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-          throw new Error('Время окончания должно быть позже начала');
+          throw new UserFacingError('Время окончания должно быть позже начала');
         }
         if (!Number.isInteger(input.durationMinutes) || input.durationMinutes <= 0) {
           throw new Error('invalid_appointment_duration');
@@ -173,7 +174,7 @@ export function createBookingEngineService(
       if (
         new Date(input.appointment.endAt).getTime() <= new Date(input.appointment.startAt).getTime()
       ) {
-        throw new Error('Время окончания должно быть позже начала');
+        throw new UserFacingError('Время окончания должно быть позже начала');
       }
       return port.createManualPatientVisit({
         ...input,
@@ -188,7 +189,7 @@ export function createBookingEngineService(
         const status = input.status ?? 'created';
         assertAppointmentStatus(status);
         if (new Date(input.endAt).getTime() <= new Date(input.startAt).getTime()) {
-          throw new Error('Время окончания должно быть позже начала');
+          throw new UserFacingError('Время окончания должно быть позже начала');
         }
       }
       return port.createAppointmentChain(
@@ -200,7 +201,7 @@ export function createBookingEngineService(
       assertUuid(input.appointmentId, 'appointmentId');
       assertAppointmentStatus(input.toStatus);
       const current = await port.getAppointment(input.appointmentId);
-      if (!current) throw new Error('Запись не найдена');
+      if (!current) throw new UserFacingError('Запись не найдена');
       assertValidAppointmentStatusTransition(current.status, input.toStatus);
       return port.transitionAppointmentStatus(input);
     },
@@ -271,9 +272,7 @@ function createCatalogFacade(
       assertUuid(id);
       return port.getBranch(id);
     },
-    async upsertBranch(
-      input: Parameters<OrganizationCatalogPort['upsertBranch']>[0],
-    ) {
+    async upsertBranch(input: Parameters<OrganizationCatalogPort['upsertBranch']>[0]) {
       if (!isReservedOnlineLocationIdentity(input)) {
         assertBranchesWriteClearance();
       }
@@ -349,9 +348,7 @@ function createServiceAvailabilityFacade(
   return {
     listServices: port.listServices.bind(port),
     getService: port.getService.bind(port),
-    async upsertService(
-      input: Parameters<ServiceAvailabilityPort['upsertService']>[0],
-    ) {
+    async upsertService(input: Parameters<ServiceAvailabilityPort['upsertService']>[0]) {
       assertBookingWriteClearance();
       return port.upsertService(input);
     },

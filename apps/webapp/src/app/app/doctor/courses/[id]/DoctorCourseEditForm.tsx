@@ -35,6 +35,7 @@ import {
   courseUsageSections,
   type CourseUsageSection,
 } from '../courseUsageSummaryText';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 type TemplateOption = { id: string; title: string; status: string };
 
@@ -247,7 +248,7 @@ export function DoctorCourseEditForm({
         return;
       }
       if (!first.ok) {
-        setError(first.error ?? 'Не удалось сохранить');
+        setError(readSafeApiErrorText(first, 'Не удалось сохранить'));
         return;
       }
       setSavedAt(Date.now());
@@ -273,7 +274,7 @@ export function DoctorCourseEditForm({
     try {
       const r = await persistToServer(true);
       if (!r.ok) {
-        setError(r.error ?? 'Не удалось отправить курс в архив');
+        setError(readSafeApiErrorText(r, 'Не удалось отправить курс в архив'));
         return;
       }
       setWarnOpen(false);

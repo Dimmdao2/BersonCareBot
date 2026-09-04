@@ -6,6 +6,7 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import { TREATMENT_PROGRAM_ITEM_TYPES } from '@/modules/treatment-program/types';
 import { revalidatePatientTreatmentProgramUi } from '@/app-layer/cache/revalidatePatientTreatmentProgramUi';
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from '@/modules/treatment-program/doctorInstanceRouteErrorStatus';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const postBodySchema = z.object({
   itemType: z.enum(TREATMENT_PROGRAM_ITEM_TYPES),
@@ -64,8 +65,14 @@ export async function POST(
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/items',
+      e,
+      {
+        fallbackCode: 'stages_items_failed',
+        fallbackStatus: 500,
+        domainStatus: doctorTreatmentProgramInstanceRouteErrorStatus,
+      },
+    );
   }
 }

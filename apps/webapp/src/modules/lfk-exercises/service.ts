@@ -13,6 +13,7 @@ import type {
   UpdateExerciseInput,
 } from './types';
 import { exerciseArchiveRequiresAcknowledgement } from './types';
+import { UserFacingError } from '@/shared/errors/userFacingError';
 
 export type LfkExerciseWriteOptions = {
   runExerciseWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
@@ -46,7 +47,7 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
     ) {
       const title = input.title?.trim() ?? '';
       if (!title) {
-        throw new Error('Название упражнения обязательно');
+        throw new UserFacingError('Название упражнения обязательно');
       }
       return runExerciseWrite(options, () =>
         port.create(
@@ -67,14 +68,14 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
       options?: LfkExerciseWriteOptions,
     ) {
       const existing = await port.getById(id);
-      if (!existing) throw new Error('Упражнение не найдено');
+      if (!existing) throw new UserFacingError('Упражнение не найдено');
       if (existing.isArchived) {
-        throw new Error('Упражнение в архиве. Верните из архива, чтобы редактировать.');
+        throw new UserFacingError('Упражнение в архиве. Верните из архива, чтобы редактировать.');
       }
       const patch: UpdateExerciseInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new Error('Название упражнения обязательно');
+        if (!t) throw new UserFacingError('Название упражнения обязательно');
         patch.title = t;
       }
       if (input.description !== undefined) {
@@ -84,7 +85,7 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
         patch.contraindications = input.contraindications?.trim() || null;
       }
       const row = await runExerciseWrite(options, () => port.update(id, patch));
-      if (!row) throw new Error('Упражнение не найдено');
+      if (!row) throw new UserFacingError('Упражнение не найдено');
       return row;
     },
 

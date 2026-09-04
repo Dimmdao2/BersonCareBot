@@ -4,6 +4,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from '@/modules/treatment-program/doctorInstanceRouteErrorStatus';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const postBodySchema = z.object({
   orderedGroupIds: z.array(z.string().uuid()).min(1),
@@ -51,8 +52,14 @@ export async function POST(
     );
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/groups/reorder',
+      e,
+      {
+        fallbackCode: 'groups_reorder_failed',
+        fallbackStatus: 500,
+        domainStatus: doctorTreatmentProgramInstanceRouteErrorStatus,
+      },
+    );
   }
 }

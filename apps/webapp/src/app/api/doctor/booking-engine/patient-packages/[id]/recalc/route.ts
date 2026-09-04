@@ -5,6 +5,7 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -46,7 +47,9 @@ export async function POST(_request: Request, context: RouteContext) {
     }
     return NextResponse.json({ ok: true, summary });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'recalc_failed';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/doctor/booking-engine/patient-packages/[id]/recalc', e, {
+      fallbackCode: 'patient_packages_recalc_failed',
+      fallbackStatus: 500,
+    });
   }
 }

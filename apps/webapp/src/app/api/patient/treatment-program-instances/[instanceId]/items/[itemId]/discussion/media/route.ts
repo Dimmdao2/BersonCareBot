@@ -7,6 +7,7 @@ import { getMediaRowForProgramSubmissionAttach } from '@/app-layer/media/s3Media
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 import { assertPatientProgramMediaAllowed } from '@/modules/doctor-clients/assertPatientProgramInteraction';
 import { isPatientProgramDiscussionMediaFlowEnabled } from '@/modules/program-item-discussion/discussionFeatureGates';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const postBodySchema = z.object({
   mediaFileId: z.string().uuid(),
@@ -124,8 +125,14 @@ export async function POST(
     const latest = await listLatestDiscussionMessage(itemContext.deps, itemId);
     return NextResponse.json({ ok: true, message: latest });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = msg.includes('не найден') ? 404 : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/patient/treatment-program-instances/[instanceId]/items/[itemId]/discussion/media',
+      e,
+      {
+        fallbackCode: 'discussion_media_failed',
+        fallbackStatus: 500,
+        domainStatus: (text) => (text.includes('не найден') ? 404 : 400),
+      },
+    );
   }
 }

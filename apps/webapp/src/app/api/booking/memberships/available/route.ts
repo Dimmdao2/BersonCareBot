@@ -6,6 +6,7 @@ import {
   InPersonBookingResolveError,
   resolveCurrentPatientInPersonBookingContext,
 } from '@/modules/patient-booking/inPersonBookingResolve';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 async function resolveServiceIdForBooking(
   deps: ReturnType<typeof buildAppDeps>,
@@ -19,7 +20,11 @@ async function resolveServiceIdForBooking(
       return { organizationId: ctx.organizationId, serviceId };
     } catch (err) {
       if (err instanceof InPersonBookingResolveError) {
-        return NextResponse.json({ ok: false, error: err.message }, { status: 404 });
+        return respondWithSafeApiError('api/booking/memberships/available', err, {
+          fallbackCode: 'branch_service_not_found',
+          fallbackStatus: 404,
+          domainStatus: 404,
+        });
       }
       throw err;
     }

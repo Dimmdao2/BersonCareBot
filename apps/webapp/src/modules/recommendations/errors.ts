@@ -1,3 +1,4 @@
+import { UserFacingError } from '@/shared/errors/userFacingError';
 import type { RecommendationUsageSnapshot } from './types';
 
 export const USAGE_CONFIRMATION_REQUIRED = 'USAGE_CONFIRMATION_REQUIRED' as const;
@@ -56,7 +57,7 @@ export function isRecommendationUnarchiveNotArchivedError(
   return e instanceof RecommendationUnarchiveNotArchivedError;
 }
 
-export class RecommendationInvalidDomainError extends Error {
+export class RecommendationInvalidDomainError extends UserFacingError {
   constructor() {
     super('Некорректный тип рекомендации');
     this.name = 'RecommendationInvalidDomainError';

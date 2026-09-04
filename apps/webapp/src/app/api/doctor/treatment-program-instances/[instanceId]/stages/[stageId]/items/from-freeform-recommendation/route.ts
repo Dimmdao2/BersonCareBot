@@ -5,6 +5,7 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { revalidatePatientTreatmentProgramUi } from '@/app-layer/cache/revalidatePatientTreatmentProgramUi';
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from '@/modules/treatment-program/doctorInstanceRouteErrorStatus';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const postBodySchema = z.object({
   title: z.string().min(1).max(2000),
@@ -61,10 +62,17 @@ export async function POST(
       recommendationId: result.recommendationId,
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = msg.includes('только на этап')
-      ? 400
-      : doctorTreatmentProgramInstanceRouteErrorStatus(msg);
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/items/from-freeform-recommendation',
+      e,
+      {
+        fallbackCode: 'items_from_freeform_recommendation_failed',
+        fallbackStatus: 500,
+        domainStatus: (text) =>
+          text.includes('только на этап')
+            ? 400
+            : doctorTreatmentProgramInstanceRouteErrorStatus(text),
+      },
+    );
   }
 }

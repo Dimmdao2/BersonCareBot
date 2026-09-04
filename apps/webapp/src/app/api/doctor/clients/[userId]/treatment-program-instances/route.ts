@@ -5,6 +5,7 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { revalidatePatientTreatmentProgramUi } from '@/app-layer/cache/revalidatePatientTreatmentProgramUi';
 import { SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE } from '@/modules/treatment-program/instance-service';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const postBodySchema = z.preprocess(
   (raw) => {
@@ -95,8 +96,10 @@ export async function POST(request: Request, context: { params: Promise<{ userId
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = msg === SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE ? 409 : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError('api/doctor/clients/[userId]/treatment-program-instances', e, {
+      fallbackCode: 'clients_treatment_program_instances_failed',
+      fallbackStatus: 500,
+      domainStatus: (text) => (text === SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE ? 409 : 400),
+    });
   }
 }

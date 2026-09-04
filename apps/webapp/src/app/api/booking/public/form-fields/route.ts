@@ -8,6 +8,7 @@ import {
   InPersonBookingResolveError,
   resolveSlugBoundPublicInPersonBookingOrganization,
 } from '@/modules/patient-booking/inPersonBookingResolve';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const querySchema = z.object({
   orgSlug: z.string().trim().min(1).max(120),
@@ -42,9 +43,7 @@ export async function GET(request: Request) {
     );
     return NextResponse.json({ ok: true, fields });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'ambiguous_booking_tenant';
     if (error instanceof InPersonBookingResolveError) {
-      const status = message === 'branch_service_mapping_missing' ? 404 : 400;
       // Reason stays server-side: distinct wire errors would let anonymous callers enumerate clinics/services.
       logger.warn(
         {
@@ -55,8 +54,11 @@ export async function GET(request: Request) {
         },
         '[booking/public/form-fields] in-person booking resolution refused',
       );
-      return NextResponse.json({ ok: false, error: message }, { status });
     }
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    return respondWithSafeApiError('api/booking/public/form-fields', error, {
+      fallbackCode: 'ambiguous_booking_tenant',
+      fallbackStatus: 500,
+      domainStatus: (code) => (code === 'branch_service_mapping_missing' ? 404 : 400),
+    });
   }
 }

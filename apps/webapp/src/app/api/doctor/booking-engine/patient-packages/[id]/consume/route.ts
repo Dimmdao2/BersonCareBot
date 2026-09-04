@@ -5,6 +5,7 @@ import { emitPackageLinkedCalendarSync } from '@/app-layer/booking/emitPackageCa
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const bodySchema = z.object({
   patientPackageItemId: z.string().uuid(),
@@ -51,7 +52,9 @@ export async function POST(request: Request, context: RouteContext) {
     }
     return NextResponse.json({ ok: true, usage });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'consume_failed';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/doctor/booking-engine/patient-packages/[id]/consume', e, {
+      fallbackCode: 'patient_packages_consume_failed',
+      fallbackStatus: 500,
+    });
   }
 }

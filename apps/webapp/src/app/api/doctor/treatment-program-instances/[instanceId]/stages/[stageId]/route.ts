@@ -4,6 +4,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from '@/modules/treatment-program/doctorInstanceRouteErrorStatus';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const patchBodySchema = z
   .object({
@@ -124,9 +125,15 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true, item: detail });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]',
+      e,
+      {
+        fallbackCode: 'treatment_program_instances_stages_failed',
+        fallbackStatus: 500,
+        domainStatus: doctorTreatmentProgramInstanceRouteErrorStatus,
+      },
+    );
   }
 }
 
@@ -165,8 +172,14 @@ export async function DELETE(
     );
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]',
+      e,
+      {
+        fallbackCode: 'treatment_program_instances_stages_failed',
+        fallbackStatus: 500,
+        domainStatus: doctorTreatmentProgramInstanceRouteErrorStatus,
+      },
+    );
   }
 }

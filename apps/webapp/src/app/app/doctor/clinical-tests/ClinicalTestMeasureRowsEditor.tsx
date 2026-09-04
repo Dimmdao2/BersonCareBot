@@ -27,6 +27,7 @@ import {
   type CreatableComboboxItem,
 } from '@/shared/ui/doctor/CreatableComboboxInput';
 import { MEASURE_KINDS_CATALOG_CHANGED_EVENT } from '@/modules/tests/measureKindsClientEvent';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 export type ClinicalTestMeasureRowModel = {
   id: string;
@@ -165,10 +166,10 @@ export function ClinicalTestMeasureRowsEditor({
           items?: { code: string; label: string; sortOrder?: number }[];
         };
         if (!res.ok) {
-          throw new Error(d.error ?? `Ошибка загрузки (${res.status})`);
+          throw new Error(readSafeApiErrorText(d, `Ошибка загрузки (${res.status})`));
         }
         if (!d.ok || !Array.isArray(d.items)) {
-          throw new Error(d.error ?? 'Справочник видов измерений недоступен');
+          throw new Error(readSafeApiErrorText(d, 'Справочник видов измерений недоступен'));
         }
         if (cancelled) return;
         setKindItems(
@@ -210,7 +211,7 @@ export function ClinicalTestMeasureRowsEditor({
       error?: string;
     };
     if (!res.ok || !data.ok || !data.item) {
-      throw new Error(data.error ?? 'Ошибка создания вида измерения');
+      throw new Error(readSafeApiErrorText(data, 'Ошибка создания вида измерения'));
     }
     const next: CreatableComboboxItem = { value: data.item.code, label: data.item.label };
     setReloadToken((t) => t + 1);

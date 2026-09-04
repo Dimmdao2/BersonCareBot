@@ -10,6 +10,7 @@ import {
   resolveSlugBoundPublicInPersonBookingOrganization,
 } from '@/modules/patient-booking/inPersonBookingResolve';
 import { inPersonSlotsQuerySchema } from '@/modules/patient-booking/inPersonApiSchemas';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const onlineQuery = z.object({
   type: z.literal('online'),
@@ -67,9 +68,7 @@ export async function GET(request: Request) {
     );
     return NextResponse.json({ ok: true, slots }, { status: 200 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'slots_unavailable';
     if (err instanceof InPersonBookingResolveError) {
-      const status = msg === 'branch_service_mapping_missing' ? 404 : 400;
       // Reason stays server-side: distinct wire errors would let anonymous callers enumerate clinics/services.
       logger.warn(
         {
@@ -85,12 +84,16 @@ export async function GET(request: Request) {
         },
         '[booking/public/slots] in-person booking resolution refused',
       );
-      return NextResponse.json({ ok: false, error: msg }, { status });
     }
-    if (msg === 'branch_service_not_found') {
-      return NextResponse.json({ ok: false, error: msg }, { status: 404 });
-    }
-    logger.error({ err }, '[booking/public/slots] failed');
-    return NextResponse.json({ ok: false, error: msg }, { status: 503 });
+    return respondWithSafeApiError('api/booking/public/slots', err, {
+      fallbackCode: 'slots_unavailable',
+      fallbackStatus: 503,
+      domainStatus: (code) => {
+        if (!(err instanceof InPersonBookingResolveError)) {
+          return code === 'branch_service_not_found' ? 404 : 503;
+        }
+        return code === 'branch_service_mapping_missing' ? 404 : 400;
+      },
+    });
   }
 }

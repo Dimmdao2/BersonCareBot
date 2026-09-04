@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const bodySchema = z.object({
   testId: z.string().uuid(),
@@ -43,8 +44,14 @@ export async function POST(
     });
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = msg.includes('не найден') ? 404 : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/patient/treatment-program-instances/[instanceId]/items/[itemId]/progress/test-result',
+      e,
+      {
+        fallbackCode: 'progress_test_result_failed',
+        fallbackStatus: 500,
+        domainStatus: (text) => (text.includes('не найден') ? 404 : 400),
+      },
+    );
   }
 }

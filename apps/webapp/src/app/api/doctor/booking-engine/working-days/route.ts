@@ -5,6 +5,7 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 import { resolveDoctorOwnSpecialistId } from '../_resolveDoctorSpecialistId';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 // Doctor-self-scoped per-date schedule overrides. The server resolves the doctor's own
 // specialist and FORCES it on list/upsert/close/clear;
@@ -143,10 +144,9 @@ export async function PUT(request: Request) {
     }
     return NextResponse.json({ ok: true });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'unknown';
-    return NextResponse.json(
-      { ok: false, error: 'operation_failed', detail: msg },
-      { status: 400 },
-    );
+    return respondWithSafeApiError('api/doctor/booking-engine/working-days', err, {
+      fallbackCode: 'operation_failed',
+      fallbackStatus: 500,
+    });
   }
 }

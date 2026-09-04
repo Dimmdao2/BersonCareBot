@@ -1,3 +1,4 @@
+import { UserFacingError } from '@/shared/errors/userFacingError';
 import type { TreatmentProgramTemplateUsageSnapshot } from './types';
 
 export const USAGE_CONFIRMATION_REQUIRED = 'USAGE_CONFIRMATION_REQUIRED' as const;
@@ -46,7 +47,7 @@ export function isTreatmentProgramTemplateAlreadyArchivedError(
   return e instanceof TreatmentProgramTemplateAlreadyArchivedError;
 }
 
-export class TreatmentProgramTemplateGroupDescriptionConflictError extends Error {
+export class TreatmentProgramTemplateGroupDescriptionConflictError extends UserFacingError {
   readonly code = GROUP_DESCRIPTION_CONFLICT;
 
   constructor(
@@ -67,7 +68,7 @@ export function isTreatmentProgramTemplateGroupDescriptionConflictError(
  * Ресурс не найден или не принадлежит контексту запроса (развёртывание комплекса ЛФК в шаблон программы).
  * Маршрут `POST .../items/from-lfk-complex` отвечает **404**.
  */
-export class TreatmentProgramExpandNotFoundError extends Error {
+export class TreatmentProgramExpandNotFoundError extends UserFacingError {
   constructor(message: string) {
     super(message);
     this.name = 'TreatmentProgramExpandNotFoundError';

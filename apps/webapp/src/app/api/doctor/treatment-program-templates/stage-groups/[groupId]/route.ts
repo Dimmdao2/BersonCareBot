@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const patchBodySchema = z.object({
   title: z.string().min(1).max(2000).optional(),
@@ -39,10 +40,14 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ groupId: 
     });
     return NextResponse.json({ ok: true, group });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json(
-      { ok: false, error: msg },
-      { status: msg.includes('не найден') ? 404 : 400 },
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-templates/stage-groups/[groupId]',
+      e,
+      {
+        fallbackCode: 'treatment_program_templates_stage_groups_failed',
+        fallbackStatus: 500,
+        domainStatus: (text) => (text.includes('не найден') ? 404 : 400),
+      },
     );
   }
 }
@@ -69,7 +74,14 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ groupId
     });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 404 });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-templates/stage-groups/[groupId]',
+      e,
+      {
+        fallbackCode: 'treatment_program_templates_stage_groups_failed',
+        fallbackStatus: 500,
+        domainStatus: 404,
+      },
+    );
   }
 }

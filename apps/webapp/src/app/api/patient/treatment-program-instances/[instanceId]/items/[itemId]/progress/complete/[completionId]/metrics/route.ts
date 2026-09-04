@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const metricsSchema = z
   .object({
@@ -40,8 +41,15 @@ export async function PATCH(
     });
     return NextResponse.json({ ok: true, metrics });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'error';
-    const status = message.includes('not_found') || message.includes('не найден') ? 404 : 400;
-    return NextResponse.json({ ok: false, error: message }, { status });
+    return respondWithSafeApiError(
+      'api/patient/treatment-program-instances/[instanceId]/items/[itemId]/progress/complete/[completionId]/metrics',
+      error,
+      {
+        fallbackCode: 'complete_metrics_failed',
+        fallbackStatus: 500,
+        domainStatus: (text) =>
+          text.includes('not_found') || text.includes('не найден') ? 404 : 400,
+      },
+    );
   }
 }

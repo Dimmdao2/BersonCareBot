@@ -8,13 +8,17 @@ import {
   parseDoctorScheduleScopeQuery,
   resolveDoctorScheduleScope,
 } from '../../_resolveDoctorScheduleScope';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const FeedQuerySchema = z.object({
   from: z.string().datetime({ offset: true }).optional(),
   to: z.string().datetime({ offset: true }).optional(),
   q: z.string().trim().min(3).max(160).optional(),
   order: z.enum(['asc', 'desc']).default('asc'),
-  includeCancelled: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+  includeCancelled: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
   limit: z.coerce.number().int().min(1).max(200).default(100),
   offset: z.coerce.number().int().min(0).default(0),
   branchId: z.string().uuid().optional(),
@@ -67,7 +71,10 @@ export async function GET(request: Request) {
     });
     return NextResponse.json({ ok: true, timeZone, ...page });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'appointment_feed_load_failed';
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return respondWithSafeApiError('api/doctor/booking-engine/appointments/feed', error, {
+      fallbackCode: 'appointments_feed_failed',
+      fallbackStatus: 500,
+      domainStatus: 500,
+    });
   }
 }

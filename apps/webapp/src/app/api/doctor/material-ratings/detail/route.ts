@@ -8,6 +8,7 @@ import { resolveMaterialRatingDetailLocalRange } from '@/modules/material-rating
 import { MaterialRatingAccessError } from '@/modules/material-rating/types';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const dayParam = z
   .string()
@@ -64,16 +65,12 @@ export async function GET(request: Request) {
       toRaw ?? undefined,
     );
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    if (
-      msg === 'custom_range_required' ||
-      msg === 'range_inverted' ||
-      msg === 'range_too_long' ||
-      msg === 'invalid_date'
-    ) {
-      return NextResponse.json({ ok: false, error: msg }, { status: 400 });
-    }
-    throw e;
+    // Коды диапазона (`range_inverted` и соседние) проходят как машинные коды, всё остальное —
+    // закрытый лог плюс digest: клиент читает поле `error` и рисует его врачу.
+    return respondWithSafeApiError('api/doctor/material-ratings/detail', e, {
+      fallbackCode: 'material_rating_detail_failed',
+      fallbackStatus: 500,
+    });
   }
 
   try {

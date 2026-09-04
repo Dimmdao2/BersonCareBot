@@ -15,6 +15,7 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { cn } from '@/lib/utils';
 import { TREATMENT_PROGRAM_TEMPLATES_PATH } from '../paths';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 const TEMPLATE_STATUS_LABEL: Record<'draft' | 'published' | 'archived', string> = {
   draft: 'Черновик',
@@ -66,7 +67,7 @@ export function NewTemplateForm({
       });
       const json = (await res.json()) as { ok?: boolean; item?: { id: string }; error?: string };
       if (!res.ok || !json.ok || !json.item) {
-        setError(json.error ?? 'Не удалось создать');
+        setError(readSafeApiErrorText(json, 'Не удалось создать'));
         return;
       }
       router.push(`${TREATMENT_PROGRAM_TEMPLATES_PATH}/${json.item.id}`);

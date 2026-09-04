@@ -129,6 +129,7 @@ export type {
   TreatmentProgramLibraryPickers,
   TreatmentProgramLibraryRow,
 } from '@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 type Props = {
   templateId: string;
@@ -393,7 +394,7 @@ function TemplateStageItemCommentBlock({
               );
               const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
               if (!res.ok || !json.ok) {
-                setMsg(json.error ?? 'Не удалось сохранить');
+                setMsg(readSafeApiErrorText(json, 'Не удалось сохранить'));
                 return;
               }
               await onReload();
@@ -585,7 +586,7 @@ export function TreatmentProgramConstructorClient({
         error?: string;
       };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? 'Не удалось сохранить название и описание');
+        setError(readSafeApiErrorText(json, 'Не удалось сохранить название и описание'));
         return;
       }
       await reload();
@@ -624,7 +625,7 @@ export function TreatmentProgramConstructorClient({
       setArchiveWarnOpen(true);
       return false;
     }
-    setError(json.error ?? 'Не удалось отправить шаблон в архив');
+    setError(readSafeApiErrorText(json, 'Не удалось отправить шаблон в архив'));
     return false;
   }
 
@@ -676,7 +677,7 @@ export function TreatmentProgramConstructorClient({
         });
         const json = (await res.json()) as { ok?: boolean; error?: string };
         if (!res.ok || !json.ok) {
-          setError(json.error ?? 'Не удалось обновить статус шаблона');
+          setError(readSafeApiErrorText(json, 'Не удалось обновить статус шаблона'));
           return;
         }
         await reload();
@@ -904,7 +905,7 @@ export function TreatmentProgramConstructorClient({
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setStageMetaMsg(json.error ?? 'Не удалось сохранить');
+        setStageMetaMsg(readSafeApiErrorText(json, 'Не удалось сохранить'));
         return;
       }
       await reload();
@@ -925,7 +926,7 @@ export function TreatmentProgramConstructorClient({
     );
     const json = (await res.json()) as { ok?: boolean; error?: string };
     if (!res.ok || !json.ok) {
-      setError(json.error ?? 'Не удалось изменить порядок этапов');
+      setError(readSafeApiErrorText(json, 'Не удалось изменить порядок этапов'));
       return false;
     }
     return true;
@@ -942,7 +943,7 @@ export function TreatmentProgramConstructorClient({
     );
     const json = (await res.json()) as { ok?: boolean; error?: string };
     if (!res.ok || !json.ok) {
-      setError(json.error ?? 'Не удалось изменить порядок элементов');
+      setError(readSafeApiErrorText(json, 'Не удалось изменить порядок элементов'));
       return false;
     }
     return true;
@@ -1112,7 +1113,7 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? 'Не удалось добавить группу');
+        setError(readSafeApiErrorText(json, 'Не удалось добавить группу'));
         return;
       }
       setNewGroupTitle('');
@@ -1151,7 +1152,7 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? 'Не удалось изменить порядок групп');
+        setError(readSafeApiErrorText(json, 'Не удалось изменить порядок групп'));
         return;
       }
       await reload();
@@ -1220,7 +1221,7 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? 'Не удалось сохранить группу');
+        setError(readSafeApiErrorText(json, 'Не удалось сохранить группу'));
         return;
       }
       setGroupEditOpen(false);
@@ -1248,7 +1249,7 @@ export function TreatmentProgramConstructorClient({
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? 'Не удалось добавить этап');
+        setError(readSafeApiErrorText(json, 'Не удалось добавить этап'));
         return;
       }
       setNewStageTitle('');
@@ -1320,7 +1321,7 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? 'Не удалось добавить элемент');
+        setError(readSafeApiErrorText(json, 'Не удалось добавить элемент'));
         return;
       }
       setItemDialogOpen(false);
@@ -1358,7 +1359,7 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? 'Не удалось добавить тесты из набора');
+        setError(readSafeApiErrorText(json, 'Не удалось добавить тесты из набора'));
         return;
       }
       setItemDialogOpen(false);
@@ -1418,7 +1419,7 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string; code?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? 'Не удалось добавить упражнения из комплекса');
+        setError(readSafeApiErrorText(json, 'Не удалось добавить упражнения из комплекса'));
         return;
       }
       setItemDialogOpen(false);

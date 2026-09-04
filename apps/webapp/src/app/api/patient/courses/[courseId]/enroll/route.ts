@@ -6,6 +6,7 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const paramsSchema = z.object({
   courseId: z.string().uuid(),
@@ -47,7 +48,9 @@ export async function POST(_request: Request, context: { params: Promise<{ cours
     );
     return NextResponse.json({ ok: true, instance });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/patient/courses/[courseId]/enroll', e, {
+      fallbackCode: 'courses_enroll_failed',
+      fallbackStatus: 500,
+    });
   }
 }

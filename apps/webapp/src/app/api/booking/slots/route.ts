@@ -9,6 +9,7 @@ import {
   resolveCurrentPatientInPersonBookingContext,
 } from '@/modules/patient-booking/inPersonBookingResolve';
 import { inPersonSlotsQuerySchema } from '@/modules/patient-booking/inPersonApiSchemas';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const slotCountSchema = z.coerce.number().int().min(1).max(8).optional();
 
@@ -61,8 +62,11 @@ export async function GET(request: Request) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'slots_unavailable';
     if (err instanceof InPersonBookingResolveError) {
-      const status = msg === 'branch_service_mapping_missing' ? 404 : 400;
-      return NextResponse.json({ ok: false, error: msg }, { status });
+      return respondWithSafeApiError('api/booking/slots', err, {
+        fallbackCode: 'slots_unavailable',
+        fallbackStatus: 503,
+        domainStatus: (code) => (code === 'branch_service_mapping_missing' ? 404 : 400),
+      });
     }
     if (msg === 'branch_service_not_found') {
       return NextResponse.json({ ok: false, error: 'branch_service_not_found' }, { status: 404 });
