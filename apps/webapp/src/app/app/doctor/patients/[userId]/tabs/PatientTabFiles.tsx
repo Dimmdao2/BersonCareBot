@@ -1,44 +1,35 @@
 'use client';
 
 /**
- * PatientTabFiles — two-panel UI (list+filters / preview + actions).
- * Left: file list with category filters + list/cards view toggle + upload control.
- * Right: preview panel with Скачать · Открыть · Привязать к визиту (dropdown).
+ * PatientTabFiles — «Файлы и медиа» (FILES-01..11, 2026-09-04 mobile redesign).
+ *
+ * Fixed-height card with an internal scroll list; three header actions (камера, медиатека,
+ * документ) trigger native browser capture/accept file inputs — no custom upload UI, no new
+ * upload backend. Tap on a row opens the standard preview modal with real file info and the
+ * existing actions (привязать к визиту, удалить).
  *
  * Data: fetches from GET /api/doctor/patients/[userId]/files
- * Upload: POST /api/doctor/patients/[userId]/files → presigned PUT → fetch PUT to S3.
+ * Upload: POST /api/doctor/patients/[userId]/files → presigned PUT → PUT to S3 → confirm.
  * Link: PATCH /api/doctor/patients/[userId]/files/[fileId] { visitId }.
  * Visits: GET /api/doctor/patients/[userId]/clinical → visits[].
  *
  * «Единый источник с файлами визита»: files linked via visit_id are shown here too.
- *
- * Graceful fallback: if fetch fails or returns empty, renders empty state without crashing.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Camera, FilePlus, Image as ImageIcon } from 'lucide-react';
 import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
 import type { PatientFileCategory } from '@/modules/patient-files/ports';
-import { PATIENT_FILE_CATEGORIES } from '@/modules/patient-files/ports';
 import type { Visit } from '@/modules/patient-clinical/ports';
 import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { Input } from '@/shared/ui/doctor/primitives/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/ui/doctor/primitives/select';
-import {
-  doctorSectionTitleClass,
-  doctorSectionSubtitleClass,
-  doctorCatalogRowClass,
-  doctorCatalogRowActiveClass,
-} from '@/shared/ui/doctor/doctorVisual';
-import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
-import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
-import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/shared/ui/doctor/primitives/dropdown-menu';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import {
   Dialog,
   DialogContent,
@@ -47,6 +38,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
+import {
+  doctorSectionCardClass,
+  doctorSectionTitleClass,
+  doctorEmptyStateClass,
+  doctorMetaTextClass,
+} from '@/shared/ui/doctor/doctorVisual';
 
 // ---------------------------------------------------------------------------
 // Types — match API response
@@ -68,6 +65,9 @@ export type FileRecord = {
   createdAt: string; // ISO
   previewUrl: string | null; // presigned GET from API
 };
+
+/** Default category for files uploaded via the compact camera/library/document actions (FILES-04). */
+const DEFAULT_UPLOAD_CATEGORY: PatientFileCategory = 'прочее';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -116,108 +116,8 @@ function visitLabel(v: Visit): string {
   return `${v.date} · ${typeLabel}`;
 }
 
-type FileFilterCategory = 'all' | PatientFileCategory;
-
-// ---------------------------------------------------------------------------
-// Category filter pills
-// ---------------------------------------------------------------------------
-
-function CategoryFilters({
-  active,
-  files,
-  onChange,
-}: {
-  active: FileFilterCategory;
-  files: FileRecord[];
-  onChange: (c: FileFilterCategory) => void;
-}) {
-  const total = files.length;
-  const counts = Object.fromEntries(
-    PATIENT_FILE_CATEGORIES.map((cat) => [cat, files.filter((f) => f.category === cat).length]),
-  ) as Record<PatientFileCategory, number>;
-
-  return (
-    <div className="flex flex-wrap gap-1 px-1 py-1">
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={() => onChange('all')}
-        className={cn(
-          'rounded-md px-2 py-0.5 text-xs font-medium transition-colors select-none',
-          active === 'all'
-            ? 'bg-primary/15 text-primary'
-            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-        )}
-      >
-        {`Все · ${total}`}
-      </Button>
-      {PATIENT_FILE_CATEGORIES.map((cat) => {
-        const count = counts[cat];
-        if (count === 0) return null;
-        return (
-          <Button
-            key={cat}
-            type="button"
-            variant="ghost"
-            onClick={() => onChange(cat)}
-            className={cn(
-              'rounded-md px-2 py-0.5 text-xs font-medium transition-colors select-none',
-              active === cat
-                ? 'bg-primary/15 text-primary'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-            )}
-          >
-            {`${categoryLabel(cat)} · ${count}`}
-          </Button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// View toggle
-// ---------------------------------------------------------------------------
-
-type ViewMode = 'list' | 'cards';
-
-function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode) => void }) {
-  return (
-    <div className="flex gap-0.5 rounded-md border border-border bg-muted/40 p-0.5">
-      {(['list', 'cards'] as ViewMode[]).map((m) => (
-        <Button
-          key={m}
-          type="button"
-          variant="ghost"
-          onClick={() => onChange(m)}
-          title={m === 'list' ? 'Список' : 'Карточки'}
-          className={cn(
-            'flex h-6 w-7 items-center justify-center rounded text-xs transition-colors select-none',
-            mode === m
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          {m === 'list' ? '☰' : '▦'}
-        </Button>
-      ))}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Upload panel
-// ---------------------------------------------------------------------------
-
-type UploadState =
-  | { phase: 'idle' }
-  | { phase: 'pending'; fileName: string; progress: number }
-  | { phase: 'error'; message: string };
-
 function uploadErrorMessage(error: string | undefined): string {
   if (error === 'file_storage_limit_not_configured') {
-    // Решение владельца 18.08 (L-1): пустое число файлов в тарифе означает «без лимита», поэтому
-    // отказ остался ровно у одного случая — у клиники нет тарифа вообще (#1069 §2.13).
     return 'Невозможно загрузить файл: у клиники нет действующего тарифа. Назначьте клинике тариф, чтобы загружать файлы.';
   }
   if (error === 'file_storage_limit_reached') {
@@ -226,255 +126,111 @@ function uploadErrorMessage(error: string | undefined): string {
   return error ?? 'Ошибка создания метаданных';
 }
 
-function UploadPanel({
-  userId,
-  onUploaded,
-  onClose,
-}: {
-  userId: string;
-  onUploaded: () => void;
-  onClose: () => void;
-}) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [category, setCategory] = useState<PatientFileCategory>('прочее');
-  const [displayName, setDisplayName] = useState<string>('');
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [uploadState, setUploadState] = useState<UploadState>({ phase: 'idle' });
+// ---------------------------------------------------------------------------
+// Header actions — камера (Фото/Видео) · медиатека · документ (FILES-04..07)
+// ---------------------------------------------------------------------------
 
-  async function uploadSingleFile(file: File): Promise<boolean> {
-    const fileName = displayName.trim() || file.name;
+type FilesHeaderActionsProps = {
+  disabled: boolean;
+  onPickFile: (file: File) => void;
+};
 
-    setUploadState({ phase: 'pending', fileName, progress: 0 });
+/**
+ * Три действия справа от заголовка. Все три — нативные `<input type="file">` с разным
+ * accept/capture (браузерное поведение, без кастомного UI выбора): камера открывает
+ * компактный выбор «Фото / Видео» и затем нужный capture-mode; медиатека — библиотека без
+ * предложения камеры; документ — системный выбор файлов (без accept-фильтра под изображения).
+ */
+function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
+  const cameraPhotoRef = useRef<HTMLInputElement>(null);
+  const cameraVideoRef = useRef<HTMLInputElement>(null);
+  const libraryRef = useRef<HTMLInputElement>(null);
+  const documentRef = useRef<HTMLInputElement>(null);
 
-    // Step 1: POST to create metadata + get presigned PUT url.
-    let uploadUrl: string | null = null;
-    let pendingFileId: string | null = null;
-    try {
-      const res = await fetch(`/api/doctor/patients/${userId}/files`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category,
-          fileName,
-          mimeType: file.type || 'application/octet-stream',
-          sizeBytes: file.size,
-        }),
-      });
-      const data = (await res.json().catch(() => null)) as {
-        ok?: boolean;
-        file?: FileRecord;
-        uploadUrl?: string | null;
-        error?: string;
-      } | null;
-
-      if (!res.ok || !data?.ok) {
-        setUploadState({ phase: 'error', message: uploadErrorMessage(data?.error) });
-        return false;
-      }
-
-      uploadUrl = data.uploadUrl ?? null;
-      pendingFileId = data.file?.id ?? null;
-    } catch {
-      setUploadState({ phase: 'error', message: 'Сетевая ошибка при создании записи' });
-      return false;
-    }
-
-    // Step 2: PUT, then confirm. Neither a missing URL nor a failed confirm is a successful upload.
-    if (!uploadUrl || !pendingFileId) {
-      setUploadState({ phase: 'error', message: 'Не удалось подготовить загрузку' });
-      return false;
-    }
-    setUploadState({ phase: 'pending', fileName, progress: 10 });
-    try {
-      const s3Res = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
-      });
-      if (!s3Res.ok) {
-        setUploadState({ phase: 'error', message: `S3 ошибка: ${s3Res.status}` });
-        return false;
-      }
-      const confirmRes = await fetch(
-        `/api/doctor/patients/${userId}/files/${pendingFileId}/confirm`,
-        {
-          method: 'POST',
-        },
-      );
-      const confirm = (await confirmRes.json().catch(() => null)) as {
-        ok?: boolean;
-        error?: string;
-      } | null;
-      if (!confirmRes.ok || !confirm?.ok) {
-        setUploadState({ phase: 'error', message: uploadErrorMessage(confirm?.error) });
-        return false;
-      }
-      setUploadState({ phase: 'pending', fileName, progress: 100 });
-    } catch {
-      setUploadState({ phase: 'error', message: 'Ошибка загрузки в S3' });
-      return false;
-    }
-    return true;
-  }
-
-  async function handleDroppedFiles(fileList: FileList) {
-    for (const file of Array.from(fileList)) {
-      const uploaded = await uploadSingleFile(file);
-      if (!uploaded) return;
-    }
-    onUploaded();
-    onClose();
-  }
-
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!displayName.trim()) setDisplayName(file.name);
-
-    const uploaded = await uploadSingleFile(file);
-    if (!uploaded) return;
-
-    // Refresh list and close panel.
-    onUploaded();
-    onClose();
+    e.target.value = '';
+    if (file) onPickFile(file);
   }
 
   return (
-    <div className="mx-1 mb-1 rounded-lg border border-border bg-muted/30 px-3 py-2.5 flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-foreground">Загрузить файл</span>
-        <Button
+    <div className="flex shrink-0 items-center gap-1">
+      <input
+        ref={cameraPhotoRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
+        onChange={handleChange}
+      />
+      <input
+        ref={cameraVideoRef}
+        type="file"
+        accept="video/*"
+        capture="environment"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
+        onChange={handleChange}
+      />
+      <input
+        ref={libraryRef}
+        type="file"
+        accept="image/*,video/*"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
+        onChange={handleChange}
+      />
+      <input
+        ref={documentRef}
+        type="file"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
+        onChange={handleChange}
+      />
+
+      <DropdownMenu>
+        <DropdownMenuTrigger
           type="button"
-          variant="ghost"
-          onClick={() => {
-            setDisplayName('');
-            onClose();
-          }}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          disabled={uploadState.phase === 'pending'}
+          title="Камера"
+          disabled={disabled}
+          className={cn(
+            'inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50',
+          )}
         >
-          ✕
-        </Button>
-      </div>
+          <Camera className="size-4" aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => cameraPhotoRef.current?.click()}>Фото</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => cameraVideoRef.current?.click()}>Видео</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-      {/* Category select */}
-      <div className="flex items-center gap-2">
-        <label htmlFor="upload-category" className="text-xs text-muted-foreground shrink-0">
-          Категория
-        </label>
-        <Select
-          value={category}
-          onValueChange={(v) => setCategory(v as PatientFileCategory)}
-          disabled={uploadState.phase === 'pending'}
-        >
-          <SelectTrigger className="flex-1 min-w-0 text-xs h-7">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PATIENT_FILE_CATEGORIES.map((cat) => (
-              <SelectItem key={cat} value={cat}>
-                {categoryLabel(cat)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        title="Медиатека"
+        disabled={disabled}
+        onClick={() => libraryRef.current?.click()}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+      >
+        <ImageIcon className="size-4" aria-hidden />
+      </Button>
 
-      {/* Filename input */}
-      <div className="flex items-center gap-2">
-        <label htmlFor="upload-display-name" className="text-xs text-muted-foreground shrink-0">
-          Название
-        </label>
-        <Input
-          id="upload-display-name"
-          type="text"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Имя файла"
-          disabled={uploadState.phase === 'pending'}
-          className="flex-1 min-w-0 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
-        />
-      </div>
-
-      {/* File picker + drag-drop zone */}
-      {uploadState.phase === 'idle' && (
-        <>
-          <Input
-            ref={fileInputRef}
-            type="file"
-            id="upload-file-input"
-            multiple
-            className="sr-only"
-            onChange={handleFileChange}
-          />
-          <label
-            htmlFor="upload-file-input"
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragOver(true);
-            }}
-            onDragEnter={(e) => {
-              e.preventDefault();
-              setIsDragOver(true);
-            }}
-            onDragLeave={() => setIsDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragOver(false);
-              const files = e.dataTransfer.files;
-              if (files.length > 0) {
-                void handleDroppedFiles(files);
-              }
-            }}
-            className={cn(
-              'cursor-pointer flex flex-col items-center justify-center gap-1 rounded-md border border-dashed px-3 py-3 text-xs transition-colors',
-              isDragOver
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-primary/40 bg-primary/5 text-primary hover:bg-primary/10',
-            )}
-          >
-            <span>{isDragOver ? 'Отпустите файл…' : 'Перетащите файл или нажмите для выбора'}</span>
-            <span className="text-muted-foreground text-[10px]">Выбрать файл…</span>
-          </label>
-        </>
-      )}
-
-      {/* Upload progress */}
-      {uploadState.phase === 'pending' && (
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground truncate">{uploadState.fileName}</span>
-          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-300"
-              style={{ width: `${uploadState.progress}%` }}
-            />
-          </div>
-          <span className="text-[10px] text-muted-foreground">
-            {uploadState.progress < 100 ? 'Загрузка…' : 'Завершено'}
-          </span>
-        </div>
-      )}
-
-      {/* Error state */}
-      {uploadState.phase === 'error' && (
-        <div className="flex flex-col gap-1">
-          <p className="text-xs text-destructive">{uploadState.message}</p>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setUploadState({ phase: 'idle' });
-              setDisplayName('');
-              // Reset file input so the same file can be re-picked.
-              if (fileInputRef.current) fileInputRef.current.value = '';
-            }}
-            className="self-start text-xs text-primary hover:underline"
-          >
-            Попробовать снова
-          </Button>
-        </div>
-      )}
+      <Button
+        type="button"
+        variant="ghost"
+        title="Документ"
+        disabled={disabled}
+        onClick={() => documentRef.current?.click()}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+      >
+        <FilePlus className="size-4" aria-hidden />
+      </Button>
     </div>
   );
 }
@@ -483,194 +239,28 @@ function UploadPanel({
 // List row
 // ---------------------------------------------------------------------------
 
-function FileListRow({
-  file,
-  isActive,
-  onClick,
-}: {
-  file: FileRecord;
-  isActive: boolean;
-  onClick: () => void;
-}) {
+function FileListRow({ file, onClick }: { file: FileRecord; onClick: () => void }) {
   return (
-    <Button
+    <button
       type="button"
-      variant="ghost"
       onClick={onClick}
-      className={cn(
-        doctorCatalogRowClass,
-        'w-full text-left items-start gap-2.5',
-        isActive && doctorCatalogRowActiveClass,
-      )}
+      className="flex w-full items-center gap-2.5 border-b border-border/60 px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-muted/60"
     >
-      <span className="text-base leading-tight shrink-0 mt-0.5">{fileIcon(file.mimeType)}</span>
-      <div className="flex-1 min-w-0">
+      <span className="mt-0.5 shrink-0 text-base leading-tight">{fileIcon(file.mimeType)}</span>
+      <div className="min-w-0 flex-1">
         <div className="truncate text-sm text-foreground">{file.fileName}</div>
-        <div className={cn(doctorSectionSubtitleClass, 'text-xs mt-0.5')}>
+        <div className={cn(doctorMetaTextClass, 'mt-0.5')}>
           {categoryLabel(file.category)} · {formatDate(file.createdAt)}
-          {file.visitId ? ' · привязан к визиту' : ' · без привязки'}
-          {file.visitId && (
-            <span className="ml-1.5 inline-flex items-center rounded bg-primary/8 px-1 py-px text-[10px] text-primary/70">
-              из визита
-            </span>
-          )}
-          {file.mediaFileId && (
-            <span className="ml-1.5 inline-flex items-center rounded bg-emerald-50 px-1 py-px text-[10px] text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-              В библиотеке
-            </span>
-          )}
+          {file.visitId ? ' · привязан к визиту' : null}
         </div>
       </div>
-      <span className="text-xs text-muted-foreground shrink-0 mt-0.5">
-        {formatBytes(file.sizeBytes)}
-      </span>
-    </Button>
+      <span className={cn(doctorMetaTextClass, 'shrink-0')}>{formatBytes(file.sizeBytes)}</span>
+    </button>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Card tile
-// ---------------------------------------------------------------------------
-
-function FileCardTile({
-  file,
-  isActive,
-  userId,
-  onClick,
-  onRenamed,
-}: {
-  file: FileRecord;
-  isActive: boolean;
-  userId: string;
-  onClick: () => void;
-  onRenamed: (newName: string) => void;
-}) {
-  const [editingName, setEditingName] = useState<string | null>(null);
-  const [renameError, setRenameError] = useState<string | null>(null);
-
-  function startEdit(e: React.MouseEvent) {
-    e.stopPropagation();
-    setEditingName(file.fileName);
-    setRenameError(null);
-  }
-
-  function cancelEdit() {
-    setEditingName(null);
-    setRenameError(null);
-  }
-
-  async function commitEdit() {
-    if (editingName === null) return;
-    const trimmed = editingName.trim();
-    if (!trimmed) {
-      cancelEdit();
-      return;
-    }
-    if (trimmed === file.fileName) {
-      cancelEdit();
-      return;
-    }
-    try {
-      const res = await fetch(`/api/doctor/patients/${userId}/files/${file.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: trimmed }),
-      });
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-      if (data?.ok) {
-        onRenamed(trimmed);
-        setEditingName(null);
-        setRenameError(null);
-      } else {
-        setRenameError(data?.error ?? 'Ошибка переименования');
-      }
-    } catch {
-      setRenameError('Сетевая ошибка');
-    }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      void commitEdit();
-    } else if (e.key === 'Escape') {
-      cancelEdit();
-    }
-  }
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={editingName === null ? onClick : undefined}
-      onKeyDown={(e) => {
-        if (editingName === null && (e.key === 'Enter' || e.key === ' ')) onClick();
-      }}
-      className={cn(
-        'flex flex-col gap-1.5 rounded-lg border p-2.5 text-left transition-colors cursor-pointer overflow-hidden',
-        isActive
-          ? 'border-primary/30 bg-primary/10'
-          : 'border-border bg-background/60 hover:bg-muted/40',
-      )}
-    >
-      <div className="flex items-start justify-between gap-1">
-        <span className="text-2xl leading-none shrink-0">{fileIcon(file.mimeType)}</span>
-        {editingName === null && (
-          <Button
-            type="button"
-            variant="ghost"
-            title="Переименовать"
-            onClick={startEdit}
-            className="shrink-0 text-[10px] text-muted-foreground/60 hover:text-primary transition-colors leading-none mt-0.5"
-            aria-label="Переименовать файл"
-          >
-            ✎
-          </Button>
-        )}
-      </div>
-      <div className="min-w-0">
-        {editingName !== null ? (
-          <Input
-            type="text"
-            value={editingName}
-            autoFocus
-            onChange={(e) => setEditingName(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={() => void commitEdit()}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full rounded border border-primary/40 bg-background px-1 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-          />
-        ) : (
-          <div className="truncate text-xs font-medium text-foreground leading-snug">
-            {file.fileName}
-          </div>
-        )}
-        {renameError && (
-          <div className="text-[10px] text-destructive mt-0.5 truncate">{renameError}</div>
-        )}
-        <div className="text-[10px] text-muted-foreground mt-0.5">
-          {categoryLabel(file.category)} · {formatDate(file.createdAt)}
-        </div>
-        <div className="text-[10px] text-muted-foreground">{formatBytes(file.sizeBytes)}</div>
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {file.visitId && (
-          <span className="inline-flex items-center rounded bg-primary/8 px-1 py-px text-[10px] text-primary/70">
-            из визита
-          </span>
-        )}
-        {file.mediaFileId && (
-          <span className="inline-flex items-center rounded bg-emerald-50 px-1 py-px text-[10px] text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-            В библиотеке
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Visit selector dropdown (for «Привязать к визиту»)
+// Visit selector (for «Привязать к визиту») — unchanged contract
 // ---------------------------------------------------------------------------
 
 function VisitSelector({
@@ -691,7 +281,6 @@ function VisitSelector({
   const [linkError, setLinkError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Fetch visits on first open.
   useEffect(() => {
     if (!open || visits.length > 0) return;
     setLoadingVisits(true);
@@ -708,7 +297,6 @@ function VisitSelector({
       .finally(() => setLoadingVisits(false));
   }, [open, userId, visits.length]);
 
-  // Close on outside click.
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
@@ -756,7 +344,7 @@ function VisitSelector({
         variant="ghost"
         disabled={linking}
         onClick={() => setOpen((o) => !o)}
-        className="text-xs text-primary hover:underline transition-colors disabled:opacity-50 flex items-center gap-0.5"
+        className="h-auto p-0 text-xs text-primary hover:underline disabled:opacity-50"
         title="Привязать к визиту"
       >
         {linking
@@ -767,7 +355,7 @@ function VisitSelector({
       </Button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-72 rounded-lg border border-border bg-background shadow-lg">
+        <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg border border-border bg-background shadow-lg">
           <div className="border-b border-border px-3 py-2">
             <span className="text-xs font-semibold text-foreground">Выберите визит</span>
           </div>
@@ -814,129 +402,100 @@ function VisitSelector({
 }
 
 // ---------------------------------------------------------------------------
-// Preview panel
+// Preview modal (FILES-10) — standard DoctorModal, real file info + actions
 // ---------------------------------------------------------------------------
 
-function FilePreviewPanel({
+function FilePreviewModal({
   file,
   userId,
+  onClose,
   onLinked,
   onDeleteRequested,
 }: {
   file: FileRecord | null;
   userId: string;
-  onLinked?: (visitId: string) => void;
-  onDeleteRequested?: (file: FileRecord) => void;
+  onClose: () => void;
+  onLinked: (visitId: string) => void;
+  onDeleteRequested: (file: FileRecord) => void;
 }) {
-  if (!file) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-        <span className="text-3xl opacity-30">📁</span>
-        <p className="text-sm text-muted-foreground">Выберите файл для предпросмотра</p>
-      </div>
-    );
-  }
-
-  const isImage = file.mimeType.startsWith('image/');
-  const isPdf = file.mimeType === 'application/pdf';
+  const isImage = file?.mimeType.startsWith('image/') ?? false;
+  const isPdf = file?.mimeType === 'application/pdf';
 
   return (
-    <div className="flex flex-1 flex-col min-h-0">
-      {/* Header */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-muted/20 px-4 py-2.5">
-        <span className="text-base leading-none shrink-0">{fileIcon(file.mimeType)}</span>
-        <span className="flex-1 min-w-0 truncate text-sm font-semibold text-foreground">
-          {file.fileName}
-        </span>
-        <div className="flex shrink-0 items-center gap-2">
-          {file.previewUrl && (
-            <>
-              <a
-                href={file.previewUrl}
-                download={file.fileName}
-                className="text-xs text-primary hover:underline transition-colors"
-                title="Скачать файл"
-              >
-                Скачать
-              </a>
-              <span className="text-muted-foreground/40 select-none">·</span>
-              <a
-                href={file.previewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-primary hover:underline transition-colors"
-                title="Открыть в новой вкладке"
-              >
-                Открыть
-              </a>
-              <span className="text-muted-foreground/40 select-none">·</span>
-            </>
-          )}
-          <VisitSelector
-            userId={userId}
-            currentVisitId={file.visitId}
-            fileId={file.id}
-            onLinked={(visitId) => onLinked?.(visitId)}
-          />
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => onDeleteRequested?.(file)}
-            className="h-auto px-2 py-1 text-xs"
-          >
-            Удалить
-          </Button>
-        </div>
-      </div>
-
-      {/* Preview area */}
-      <div className="flex flex-1 items-center justify-center bg-[repeating-linear-gradient(45deg,hsl(var(--muted)/0.4),hsl(var(--muted)/0.4)_12px,hsl(var(--muted)/0.7)_12px,hsl(var(--muted)/0.7)_24px)] min-h-48 overflow-auto">
-        {file.previewUrl && isImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={file.previewUrl}
-            alt={file.fileName}
-            className="max-w-full max-h-full object-contain"
-          />
-        ) : file.previewUrl && isPdf ? (
-          <iframe
-            src={file.previewUrl}
-            title={file.fileName}
-            className="w-full h-full min-h-[400px] border-0"
-          />
-        ) : (
-          <div className="flex flex-col items-center gap-2 rounded-lg bg-background/80 px-6 py-4 text-center shadow-sm">
-            <span className="text-4xl">{fileIcon(file.mimeType)}</span>
-            <span className="text-xs text-muted-foreground">
-              {file.previewUrl
-                ? 'Предпросмотр недоступен для этого типа файла'
-                : 'Предпросмотр доступен после загрузки файла в S3'}
-            </span>
+    <DoctorModal open={file !== null} onClose={onClose} title={file?.fileName ?? 'Файл'} size="lg">
+      {file ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-center overflow-hidden rounded-lg bg-[repeating-linear-gradient(45deg,hsl(var(--muted)/0.4),hsl(var(--muted)/0.4)_12px,hsl(var(--muted)/0.7)_12px,hsl(var(--muted)/0.7)_24px)]">
+            {file.previewUrl && isImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={file.previewUrl}
+                alt={file.fileName}
+                className="max-h-[50vh] w-full object-contain"
+              />
+            ) : file.previewUrl && isPdf ? (
+              <iframe
+                src={file.previewUrl}
+                title={file.fileName}
+                className="h-[50vh] w-full border-0"
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+                <span className="text-4xl">{fileIcon(file.mimeType)}</span>
+                <span className="text-xs text-muted-foreground">
+                  {file.previewUrl
+                    ? 'Предпросмотр недоступен для этого типа файла'
+                    : 'Предпросмотр появится после загрузки файла'}
+                </span>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Footer meta */}
-      <div className="shrink-0 border-t border-border bg-muted/20 px-4 py-2">
-        <p className="text-xs text-muted-foreground">
-          {categoryLabel(file.category)} · загружен {formatDate(file.createdAt)}
-          {file.visitId ? ' · привязан к визиту' : ' · без привязки к визиту'}
-          {' · '}
-          {formatBytes(file.sizeBytes)}
-        </p>
-        {file.mediaFileId && (
-          <p className="mt-1 flex items-center gap-1.5 text-[10px] text-emerald-700 dark:text-emerald-400">
-            <span className="inline-flex items-center rounded bg-emerald-50 px-1 py-px dark:bg-emerald-950/40">
-              В библиотеке
-            </span>
-            <span className="text-muted-foreground/70">— файл сохранён в медиатеке пациента</span>
-          </p>
-        )}
-        <p className="mt-1 text-[10px] text-muted-foreground/70">
-          Файлы из визитов отображаются здесь — единый источник с вкладкой «Карта».
-        </p>
-      </div>
-    </div>
+          <div className="flex flex-col gap-1">
+            <p className="text-sm text-muted-foreground">
+              {categoryLabel(file.category)} · {formatDate(file.createdAt)} ·{' '}
+              {formatBytes(file.sizeBytes)}
+            </p>
+            <VisitSelector
+              userId={userId}
+              currentVisitId={file.visitId}
+              fileId={file.id}
+              onLinked={onLinked}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {file.previewUrl && (
+              <>
+                <a
+                  href={file.previewUrl}
+                  download={file.fileName}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Скачать
+                </a>
+                <a
+                  href={file.previewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline"
+                >
+                  Открыть
+                </a>
+              </>
+            )}
+            <Button
+              type="button"
+              variant="destructive"
+              className="ml-auto h-8 px-3 text-xs"
+              onClick={() => onDeleteRequested(file)}
+            >
+              Удалить
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </DoctorModal>
   );
 }
 
@@ -957,14 +516,10 @@ export function PatientTabFiles({
   const [files, setFiles] = useState<FileRecord[]>(() => initialFiles ?? []);
   const [loading, setLoading] = useState(initialFiles == null);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const [activeCategory, setActiveCategory] = useState<FileFilterCategory>('all');
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [selectedFileId, setSelectedFileId] = useState<string | null>(
-    () => initialFiles?.[0]?.id ?? null,
-  );
-  const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
-  const [showUpload, setShowUpload] = useState(false);
+  const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [filePendingDelete, setFilePendingDelete] = useState<FileRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -983,8 +538,6 @@ export function PatientTabFiles({
       } | null;
       if (res.ok && data?.ok && Array.isArray(data.files)) {
         setFiles(data.files);
-        // Auto-select first file if none selected.
-        setSelectedFileId((prev) => prev ?? data.files?.[0]?.id ?? null);
       } else {
         setError(data?.error ?? 'fetch_failed');
       }
@@ -995,34 +548,72 @@ export function PatientTabFiles({
     }
   }, [userId]);
 
-  // Skip initial fetch when SSR data provided; loadFiles() is still called after uploads.
   useEffect(() => {
     if (initialFiles != null) return;
     void loadFiles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filteredFiles =
-    activeCategory === 'all' ? files : files.filter((f) => f.category === activeCategory);
+  const previewFile = files.find((f) => f.id === previewFileId) ?? null;
 
-  const selectedFile = files.find((f) => f.id === selectedFileId) ?? null;
+  async function uploadPickedFile(file: File) {
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/files`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: DEFAULT_UPLOAD_CATEGORY,
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          sizeBytes: file.size,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        file?: FileRecord;
+        uploadUrl?: string | null;
+        error?: string;
+      } | null;
+      if (!res.ok || !data?.ok || !data.uploadUrl || !data.file?.id) {
+        setUploadError(uploadErrorMessage(data?.error));
+        return;
+      }
+      const pendingFileId = data.file.id;
 
-  function handleSelectFile(file: FileRecord) {
-    setSelectedFileId(file.id);
-    setMobileView('detail');
+      const s3Res = await fetch(data.uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      });
+      if (!s3Res.ok) {
+        setUploadError(`S3 ошибка: ${s3Res.status}`);
+        return;
+      }
+
+      const confirmRes = await fetch(
+        `/api/doctor/patients/${userId}/files/${pendingFileId}/confirm`,
+        { method: 'POST' },
+      );
+      const confirm = (await confirmRes.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+      } | null;
+      if (!confirmRes.ok || !confirm?.ok) {
+        setUploadError(uploadErrorMessage(confirm?.error));
+        return;
+      }
+      await loadFiles();
+    } catch {
+      setUploadError('Сетевая ошибка при загрузке файла');
+    } finally {
+      setUploading(false);
+    }
   }
 
   function handleLinked(visitId: string) {
-    // Optimistically update the selected file's visitId in state.
-    setFiles((prev) => prev.map((f) => (f.id === selectedFileId ? { ...f, visitId } : f)));
-  }
-
-  function handleRenamed(fileId: string, newName: string) {
-    setFiles((prev) => prev.map((f) => (f.id === fileId ? { ...f, fileName: newName } : f)));
-  }
-
-  function handleUploaded() {
-    void loadFiles();
+    setFiles((prev) => prev.map((f) => (f.id === previewFileId ? { ...f, visitId } : f)));
   }
 
   async function deleteSelectedFile(confirmUsed = false) {
@@ -1034,9 +625,7 @@ export function PatientTabFiles({
       const confirmUsedQuery = confirmUsed ? '?confirmUsed=true' : '';
       const response = await fetch(
         `/api/doctor/patients/${userId}/files/${file.id}${confirmUsedQuery}`,
-        {
-          method: 'DELETE',
-        },
+        { method: 'DELETE' },
       );
       const data = (await response.json().catch(() => null)) as {
         ok?: boolean;
@@ -1057,12 +646,9 @@ export function PatientTabFiles({
         return;
       }
       setFiles((previous) => previous.filter((item) => item.id !== file.id));
-      setSelectedFileId((current) => {
-        if (current !== file.id) return current;
-        return files.find((item) => item.id !== file.id)?.id ?? null;
-      });
       setFilePendingDelete(null);
       setDeleteUsageCount(0);
+      setPreviewFileId((current) => (current === file.id ? null : current));
       setDeletionNotice('Файл удалён. Место в хранилище освобождено.');
     } catch {
       setDeleteError('Сетевая ошибка. Файл не удалён.');
@@ -1071,97 +657,54 @@ export function PatientTabFiles({
     }
   }
 
-  const leftPane = (
-    <CatalogLeftPane
-      stickySplit={false}
-      headerSlot={
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2 py-1">
-            <span className={cn(doctorSectionTitleClass, 'flex-1')}>Файлы пациента</span>
+  return (
+    <div className={cn(doctorSectionCardClass, 'h-full min-h-0 gap-2 overflow-hidden')}>
+      <div className="flex items-center justify-between gap-2">
+        <span className={doctorSectionTitleClass}>Файлы и медиа</span>
+        <FilesHeaderActions disabled={uploading} onPickFile={(f) => void uploadPickedFile(f)} />
+      </div>
+      {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
+      {deletionNotice && (
+        <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">
+          {deletionNotice}
+        </p>
+      )}
+
+      {/* FILES-09: fills whatever height PatientCardClient reserves for the active Files tab
+          (flex-1 against the shared full-height tab-panel contract, PatientCardClient.tsx) —
+          only this list scrolls, the card/page above never grows past its allotted space. */}
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border/60">
+        {loading ? (
+          <p className="px-3 py-4 text-sm text-muted-foreground animate-pulse">
+            Загрузка файлов…
+          </p>
+        ) : error ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 px-3 text-center">
+            <p className="text-sm text-muted-foreground">Не удалось загрузить файлы.</p>
             <Button
               type="button"
               variant="ghost"
-              title="Загрузить файл"
-              onClick={() => setShowUpload((v) => !v)}
-              className={cn(
-                'inline-flex h-6 w-6 items-center justify-center rounded-md border border-border text-sm transition-colors',
-                showUpload
-                  ? 'bg-primary/15 border-primary/30 text-primary'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
+              className="h-auto p-0 text-sm text-primary hover:underline"
+              onClick={() => void loadFiles()}
             >
-              +
+              Повторить
             </Button>
-            <ViewToggle mode={viewMode} onChange={setViewMode} />
           </div>
-          <CategoryFilters active={activeCategory} files={files} onChange={setActiveCategory} />
-        </div>
-      }
-    >
-      {/* Upload panel — shown when + is toggled */}
-      {showUpload && (
-        <UploadPanel
-          userId={userId}
-          onUploaded={handleUploaded}
-          onClose={() => setShowUpload(false)}
-        />
-      )}
+        ) : files.length === 0 ? (
+          <div className="flex h-full items-center justify-center">
+            <p className={doctorEmptyStateClass}>Файлов нет</p>
+          </div>
+        ) : (
+          files.map((file) => (
+            <FileListRow key={file.id} file={file} onClick={() => setPreviewFileId(file.id)} />
+          ))
+        )}
+      </div>
 
-      {loading ? (
-        <p className="px-2 py-2 text-sm text-muted-foreground animate-pulse">Загрузка файлов…</p>
-      ) : error ? (
-        <p className="px-2 py-2 text-sm text-muted-foreground">
-          Не удалось загрузить файлы.{' '}
-          <Button
-            type="button"
-            variant="ghost"
-            className="text-primary hover:underline"
-            onClick={() => void loadFiles()}
-          >
-            Повторить
-          </Button>
-        </p>
-      ) : filteredFiles.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-          <p className="text-sm text-muted-foreground">
-            {activeCategory === 'all'
-              ? 'Файлов пока нет. Перетащите файлы сюда или нажмите «Загрузить».'
-              : 'Нет файлов в этой категории.'}
-          </p>
-        </div>
-      ) : viewMode === 'list' ? (
-        <div className="flex flex-col gap-0.5 py-0.5">
-          {filteredFiles.map((file) => (
-            <FileListRow
-              key={file.id}
-              file={file}
-              isActive={selectedFileId === file.id}
-              onClick={() => handleSelectFile(file)}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-2 py-1">
-          {filteredFiles.map((file) => (
-            <FileCardTile
-              key={file.id}
-              file={file}
-              isActive={selectedFileId === file.id}
-              userId={userId}
-              onClick={() => handleSelectFile(file)}
-              onRenamed={(newName) => handleRenamed(file.id, newName)}
-            />
-          ))}
-        </div>
-      )}
-    </CatalogLeftPane>
-  );
-
-  const rightPane = (
-    <CatalogRightPane contentClassName="px-0 py-0">
-      <FilePreviewPanel
-        file={selectedFile}
+      <FilePreviewModal
+        file={previewFile}
         userId={userId}
+        onClose={() => setPreviewFileId(null)}
         onLinked={handleLinked}
         onDeleteRequested={(file) => {
           setFilePendingDelete(file);
@@ -1169,11 +712,7 @@ export function PatientTabFiles({
           setDeleteUsageCount(0);
         }}
       />
-    </CatalogRightPane>
-  );
 
-  return (
-    <div className="flex flex-col gap-3">
       <Dialog
         open={filePendingDelete !== null}
         onOpenChange={(open) => {
@@ -1223,29 +762,6 @@ export function PatientTabFiles({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {deletionNotice && (
-        <p role="status" className="px-0.5 text-sm text-emerald-700 dark:text-emerald-400">
-          {deletionNotice}
-        </p>
-      )}
-      <CatalogSplitLayout
-        left={leftPane}
-        right={rightPane}
-        mobileView={mobileView}
-        mobileBackSlot={
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setMobileView('list')}
-            className="mb-2 text-xs text-primary hover:underline"
-          >
-            ← Назад к списку файлов
-          </Button>
-        }
-      />
-      <p className="text-xs text-muted-foreground px-0.5">
-        Будущее: AI-разбор загруженных PDF (выписки, анализы) в структурированную историю.
-      </p>
     </div>
   );
 }

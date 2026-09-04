@@ -107,6 +107,8 @@ const shellMeta: DoctorPatientCardShellMeta = {
       patronymic: null,
       phone: null,
       email: null,
+      emailVerifiedAt: null,
+      telegramUsername: null,
       bindings: {},
       hasConversation: false,
       isArchived: false,

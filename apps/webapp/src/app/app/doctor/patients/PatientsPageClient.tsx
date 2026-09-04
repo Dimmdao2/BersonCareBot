@@ -24,16 +24,7 @@ import {
 } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  ArrowDown,
-  ArrowUp,
-  Bell,
-  CalendarDays,
-  Dumbbell,
-  Filter,
-  Handshake,
-  Ticket,
-} from 'lucide-react';
+import { ArrowDown, ArrowUp, Bell, CalendarDays, Filter, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ClientListItem, DoctorDashboardPatientMetrics } from '@/modules/doctor-clients/ports';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
@@ -738,7 +729,6 @@ function PatientsContent({
               >
                 {filtered.map((c, index) => {
                   const futureAppointmentCount = c.activeAppointmentsCount ?? 0;
-                  const programOrSupervision = c.isOnSupport === true || c.activeTreatmentProgram;
                   const cardHref = patientCardHrefWithReturnTo(c.userId, workspaceState);
                   return (
                     <li key={c.userId} id={`doctor-patients-item-${c.userId}`}>
@@ -756,40 +746,24 @@ function PatientsContent({
                           index === 0 && 'border-t-0',
                         )}
                       >
-                        <div className="min-w-0 flex-1">
-                          <span className={cn('block truncate', doctorDnaFlatListPrimaryClass)}>
+                        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                          <span className={cn('truncate', doctorDnaFlatListPrimaryClass)}>
                             {clientPrimaryName(c)}
                           </span>
+                          {c.isOnSupport === true ? (
+                            <Star
+                              className="size-3.5 shrink-0 fill-primary text-primary"
+                              aria-label="Клиент на сопровождении"
+                            />
+                          ) : null}
                         </div>
-                        <div
-                          className="grid w-[5.75rem] shrink-0 grid-cols-3 gap-1"
-                          aria-label="Статусы клиента"
+                        <IconSlot
+                          visible={futureAppointmentCount > 0}
+                          label={`Будущие записи: ${futureAppointmentCount}`}
+                          badge={futureAppointmentCount}
                         >
-                          <IconSlot visible={c.hasMemberships === true} label="Есть абонемент">
-                            <Ticket className="size-3.5" aria-hidden />
-                          </IconSlot>
-                          <IconSlot
-                            visible={programOrSupervision}
-                            label={
-                              c.isOnSupport === true
-                                ? 'Клиент на сопровождении'
-                                : 'Назначенная программа'
-                            }
-                          >
-                            {c.isOnSupport === true ? (
-                              <Handshake className="size-3.5" aria-hidden />
-                            ) : (
-                              <Dumbbell className="size-3.5" aria-hidden />
-                            )}
-                          </IconSlot>
-                          <IconSlot
-                            visible={futureAppointmentCount > 0}
-                            label={`Будущие записи: ${futureAppointmentCount}`}
-                            badge={futureAppointmentCount}
-                          >
-                            <CalendarDays className="size-3.5" aria-hidden />
-                          </IconSlot>
-                        </div>
+                          <CalendarDays className="size-3.5" aria-hidden />
+                        </IconSlot>
                       </Link>
                     </li>
                   );

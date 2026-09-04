@@ -34,6 +34,8 @@ const patientHeader = {
     patronymic: null,
     phone: '+79990000000',
     email: null,
+    emailVerifiedAt: null,
+    telegramUsername: null,
     bindings: {},
     hasConversation: false,
     isArchived: false,

@@ -1,34 +1,45 @@
 'use client';
 
 /**
- * PatientTabAccount — S2.5 cleaned-up version.
+ * PatientTabAccount — 2026-09-04 mobile redesign (ACCOUNT/CONTACTS/ACCESS).
  *
  * Kept:
- *  1. Личные данные     — READ-ONLY (edit form moved to header, S4.1)
- *  2. Контакты и каналы — channels (phone, telegram, email, MAX)
- *  3. Блокировки и доступ — POST /api/doctor/clients/{userId}/block
- *  4. Архив             — PATCH /api/doctor/clients/{userId}/archive
- *  5. Администрирование — AdminMergeAccountsPanel (collapsed by default) + audit log
+ *  1. Личные данные     — read-only canonical ФИО + дата рождения + пол; edit via standard modal
+ *     (PATCH /api/doctor/patients/[userId]/fio — the same endpoint the old header inline-edit used).
+ *  2. Контакты и каналы — only actually-existing contacts/bindings.
+ *  3. Доступ к аккаунту — two equal-width Заблокировать/В архив buttons, no heading.
+ *  4. Администрирование — AdminMergeAccountsPanel (collapsed by default) + audit log (admin-only,
+ *     untouched — out of scope for this pass).
  *
- * Removed from here (moved to other tabs):
+ * Removed from here (moved to other tabs, pre-existing):
  *  - Сопровождение → PatientTabOverview
  *  - Платежи       → PatientTabRecords
- *  - Репутация записи → PatientTabRecords already shows KPIs
  */
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
-import { Phone, Send, Smartphone, Mail, Key } from 'lucide-react';
+import { Check, Mail, Pencil, Phone, Send } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/doctor/primitives/select';
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
-  doctorSectionSubtitleClass,
-  doctorHistoryRowClass,
-  doctorSectionItemClass,
+  doctorBodyTextClass,
+  doctorMetaTextClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { cn } from '@/lib/utils';
+import { formatDoctorFio } from '@/shared/lib/fio';
+import { formatTelegramUsernameMention } from '@/modules/messaging/patientTelegramUsernameMention';
 import { AdminMergeAccountsPanel } from '@/app/app/doctor/clients/AdminMergeAccountsPanel';
 import { AdminClientAuditHistorySection } from '@/app/app/doctor/clients/AdminClientAuditHistorySection';
 
@@ -53,6 +64,8 @@ type Props = {
   isAdmin?: boolean;
 };
 
+type Gender = 'male' | 'female';
+
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
@@ -62,6 +75,14 @@ function fmtBirthDateDisplay(iso: string | null | undefined): string {
   const [year, month, day] = iso.split('-');
   if (!year || !month || !day) return '—';
   return `${day}.${month}.${year}`;
+}
+
+function todayInputDate(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 async function copyText(text: string) {
@@ -76,24 +97,26 @@ async function copyText(text: string) {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-/** Section card wrapper with title row */
+/** Section card wrapper with title row (ACCOUNT-02: shared section-title style). */
 function SectionCard({
   title,
   titleRight,
   children,
   className,
 }: {
-  title: string;
+  title?: string;
   titleRight?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <div className={cn(doctorSectionCardClass, className)}>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className={doctorSectionTitleClass}>{title}</span>
-        {titleRight && <span className="ml-auto">{titleRight}</span>}
-      </div>
+      {title || titleRight ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          {title ? <span className={doctorSectionTitleClass}>{title}</span> : null}
+          {titleRight && <span className="ml-auto">{titleRight}</span>}
+        </div>
+      ) : null}
       {children}
     </div>
   );
@@ -103,78 +126,80 @@ function SectionCard({
 function KVRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <tr>
-      <td className="py-0.5 pr-3 text-xs text-muted-foreground w-[42%] align-top">{label}</td>
-      <td className="py-0.5 text-xs text-foreground align-top">{children}</td>
+      <td className={cn(doctorMetaTextClass, 'py-1 pr-3 w-[42%] align-top')}>{label}</td>
+      <td className={cn(doctorBodyTextClass, 'py-1 align-top')}>{children}</td>
     </tr>
   );
 }
 
-/** Channel binding row */
+/**
+ * Channel binding row (CONTACTS-02..08): rendered ONLY for a channel that actually exists — no
+ * placeholder "не привязан" rows. Confirmation is a compact check/label, never the word
+ * «подключён» (CONTACTS-04), and there is no navigation chevron (CONTACTS-11).
+ */
 function ChannelRow({
   icon,
   label,
   value,
-  hint,
-  status,
+  confirmed,
+  confirmedLabel = 'подтверждён',
+  unconfirmedLabel = 'не подтверждён',
+  blocked,
   actionLabel,
   onAction,
-  warning,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
-  hint?: string;
-  status: 'active' | 'problem' | 'none';
+  /** undefined — channel has no confirmation concept (e.g. phone is the login identity itself). */
+  confirmed?: boolean;
+  confirmedLabel?: string;
+  unconfirmedLabel?: string;
+  /** CONTACTS-07: shown only when the caller passes an already-known true/false from the shared contract. */
+  blocked?: boolean;
   actionLabel?: string;
   onAction?: () => void;
-  warning?: boolean;
 }) {
-  const chipStyles =
-    status === 'active'
-      ? 'bg-primary/10 text-primary border border-primary/20'
-      : status === 'problem'
-        ? 'bg-destructive/10 text-destructive border border-destructive/20'
-        : 'bg-muted text-muted-foreground border border-border';
-  const chipText = status === 'active' ? 'подключён' : status === 'problem' ? 'не подтв.' : 'нет';
-
   return (
-    <div
-      className={cn(
-        'flex items-center gap-2 rounded-lg border px-2.5 py-1.5',
-        warning ? 'border-orange-200 bg-orange-50/60' : 'border-border bg-background',
-      )}
-    >
-      <span
-        className={cn(
-          'w-5 flex-none flex items-center justify-center',
-          status === 'active' ? 'text-primary' : 'text-muted-foreground',
-        )}
-      >
+    <div className="flex items-center gap-2.5 rounded-lg border border-border bg-background px-2.5 py-2">
+      <span className="w-5 flex-none flex items-center justify-center text-muted-foreground">
         {icon}
       </span>
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-mono leading-tight text-foreground truncate">{value}</div>
-        <div className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>{hint ?? label}</div>
+        <div className={cn(doctorBodyTextClass, 'truncate leading-tight')}>{value}</div>
+        <div className={cn(doctorMetaTextClass, 'flex items-center gap-1')}>
+          <span>{label}</span>
+          {confirmed === true ? (
+            <span className="inline-flex items-center gap-0.5 text-primary">
+              <Check className="size-3" aria-hidden />
+              {confirmedLabel}
+            </span>
+          ) : confirmed === false ? (
+            <span className="text-muted-foreground">{unconfirmedLabel}</span>
+          ) : null}
+          {blocked ? <span className="text-destructive">· бот заблокирован пациентом</span> : null}
+        </div>
       </div>
-      <span
-        className={cn(
-          'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium',
-          chipStyles,
-        )}
-      >
-        {chipText}
-      </span>
       {actionLabel && (
         <Button
           type="button"
           variant="ghost"
           onClick={onAction}
-          className="inline-flex h-5 items-center justify-center px-1.5 text-[10px] text-muted-foreground"
+          className="inline-flex h-6 items-center justify-center px-1.5 text-xs text-muted-foreground"
         >
           {actionLabel}
         </Button>
       )}
     </div>
+  );
+}
+
+/** CONTACTS-06: Max has no brand icon in the shared icon set — the cabinet's accepted stand-in is a plain «M» monogram. */
+function MaxMonogram() {
+  return (
+    <span className="flex size-4 items-center justify-center rounded-full bg-muted text-[10px] font-semibold leading-none text-foreground">
+      M
+    </span>
   );
 }
 
@@ -286,23 +311,23 @@ function SecondaryPhones({
   };
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       {phones?.map((p) => (
         <div
           key={p.id}
-          className="flex items-center gap-2 rounded-lg border border-border bg-muted/10 px-2.5 py-1.5 text-xs"
+          className="flex items-center gap-2.5 rounded-lg border border-border bg-muted/10 px-2.5 py-2"
         >
           <span className="w-5 flex-none flex items-center justify-center text-muted-foreground">
-            <Phone className="h-3.5 w-3.5" />
+            <Phone className="size-3.5" aria-hidden />
           </span>
-          <span className="flex-1 min-w-0 truncate font-mono">{p.value}</span>
-          <span className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>доп. телефон</span>
+          <span className={cn(doctorBodyTextClass, 'flex-1 min-w-0 truncate')}>{p.value}</span>
+          <span className={doctorMetaTextClass}>доп. телефон</span>
           <Button
             type="button"
             variant="ghost"
             title="Удалить"
             onClick={() => remove(p.id)}
-            className="h-5 w-5 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            className="h-6 w-6 p-0 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           >
             ×
           </Button>
@@ -310,7 +335,9 @@ function SecondaryPhones({
       ))}
 
       {error && phones?.length === 0 && (
-        <span className="text-[11px] text-destructive">Не удалось загрузить доп. телефоны.</span>
+        <span className={cn(doctorMetaTextClass, 'text-destructive')}>
+          Не удалось загрузить доп. телефоны.
+        </span>
       )}
 
       {adding ? (
@@ -328,15 +355,9 @@ function SecondaryPhones({
               }
             }}
             placeholder="+7 999 000-00-00"
-            className="flex-1 text-xs py-1"
+            className="flex-1 text-sm"
           />
-          <Button
-            type="button"
-            variant="default"
-            onClick={() => void add()}
-            disabled={saving}
-            className="px-2 py-1 text-[11px]"
-          >
+          <Button type="button" variant="default" onClick={() => void add()} disabled={saving}>
             {saving ? '…' : 'Добавить'}
           </Button>
           <Button
@@ -344,7 +365,7 @@ function SecondaryPhones({
             variant="outline"
             onClick={() => setAdding(false)}
             disabled={saving}
-            className="px-2 py-1 text-[11px] text-muted-foreground"
+            className="text-muted-foreground"
           >
             Отмена
           </Button>
@@ -354,12 +375,14 @@ function SecondaryPhones({
           type="button"
           variant="link"
           onClick={() => setAdding(true)}
-          className="self-start text-[11px] h-auto p-0"
+          className="self-start h-auto p-0 text-sm"
         >
           + доп. телефон
         </Button>
       )}
-      {addError && <span className="text-[11px] text-destructive">{addError}</span>}
+      {addError && (
+        <span className={cn(doctorMetaTextClass, 'text-destructive')}>{addError}</span>
+      )}
     </div>
   );
 }
@@ -429,21 +452,19 @@ function EmailChange({ userId }: { userId: string }) {
   };
 
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/10 px-2.5 py-1.5">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/10 px-2.5 py-2">
+      <div className="flex items-center gap-2.5">
         <span className="w-5 flex-none flex items-center justify-center text-muted-foreground">
-          <Key className="h-3.5 w-3.5" />
+          <Mail className="size-3.5" aria-hidden />
         </span>
         <div className="flex-1 min-w-0">
-          <div className="text-xs text-foreground leading-tight">Смена email (админ)</div>
+          <div className={cn(doctorBodyTextClass, 'leading-tight')}>Смена email (админ)</div>
           {pending ? (
-            <div className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
+            <div className={doctorMetaTextClass}>
               ожидает подтверждения пациентом: <span className="font-mono">{pending.email}</span>
             </div>
           ) : (
-            <div className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
-              применится после подтверждения кодом пациентом
-            </div>
+            <div className={doctorMetaTextClass}>применится после подтверждения кодом пациентом</div>
           )}
         </div>
         {!editing && (
@@ -451,7 +472,7 @@ function EmailChange({ userId }: { userId: string }) {
             type="button"
             variant="link"
             onClick={() => setEditing(true)}
-            className="flex-none text-[11px] h-auto p-0"
+            className="flex-none h-auto p-0 text-sm"
           >
             {pending ? 'сменить другой' : 'сменить email'}
           </Button>
@@ -472,15 +493,9 @@ function EmailChange({ userId }: { userId: string }) {
               } else if (e.key === 'Escape') setEditing(false);
             }}
             placeholder="новый email пациента"
-            className="flex-1 text-xs py-1"
+            className="flex-1 text-sm"
           />
-          <Button
-            type="button"
-            variant="default"
-            onClick={() => void submit()}
-            disabled={saving}
-            className="px-2 py-1 text-[11px]"
-          >
+          <Button type="button" variant="default" onClick={() => void submit()} disabled={saving}>
             {saving ? '…' : 'Отправить код'}
           </Button>
           <Button
@@ -488,14 +503,174 @@ function EmailChange({ userId }: { userId: string }) {
             variant="outline"
             onClick={() => setEditing(false)}
             disabled={saving}
-            className="px-2 py-1 text-[11px] text-muted-foreground"
+            className="text-muted-foreground"
           >
             Отмена
           </Button>
         </div>
       )}
-      {error && <span className="text-[11px] text-destructive">{error}</span>}
+      {error && <span className={cn(doctorMetaTextClass, 'text-destructive')}>{error}</span>}
     </div>
+  );
+}
+
+/**
+ * ACCOUNT-04/05: standard modal, not an inline form. Reuses the same
+ * PATCH /api/doctor/patients/[userId]/fio contract the old header inline-edit used.
+ */
+function PersonalDataEditModal({
+  open,
+  onClose,
+  userId,
+  lastName,
+  firstName,
+  patronymic,
+  birthDate,
+  gender,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  userId: string;
+  lastName: string | null;
+  firstName: string | null;
+  patronymic: string | null;
+  birthDate: string | null;
+  gender: Gender | null;
+  onSaved: () => void;
+}) {
+  const formId = 'patient-account-personal-data-form';
+  const [draftLastName, setDraftLastName] = useState(lastName ?? '');
+  const [draftFirstName, setDraftFirstName] = useState(firstName ?? '');
+  const [draftPatronymic, setDraftPatronymic] = useState(patronymic ?? '');
+  const [draftBirthDate, setDraftBirthDate] = useState(birthDate ?? '');
+  const [draftGender, setDraftGender] = useState<Gender | ''>(gender ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Re-seed drafts from the latest saved values each time the modal opens.
+  useEffect(() => {
+    if (!open) return;
+    setDraftLastName(lastName ?? '');
+    setDraftFirstName(firstName ?? '');
+    setDraftPatronymic(patronymic ?? '');
+    setDraftBirthDate(birthDate ?? '');
+    setDraftGender(gender ?? '');
+    setError(null);
+  }, [open, lastName, firstName, patronymic, birthDate, gender]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/fio`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lastName: draftLastName.trim() || null,
+          firstName: draftFirstName.trim() || null,
+          patronymic: draftPatronymic.trim() || null,
+          birthDate: draftBirthDate.trim() || null,
+          gender: draftGender || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as
+          | { error?: string; message?: string }
+          | null;
+        setError(body?.message ?? body?.error ?? 'Ошибка сохранения');
+        return;
+      }
+      onSaved();
+      onClose();
+    } catch {
+      setError('Ошибка сети');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <DoctorModal
+      open={open}
+      onClose={onClose}
+      title="Личные данные"
+      size="sm"
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+            Отмена
+          </Button>
+          <Button type="submit" form={formId} disabled={saving}>
+            {saving ? 'Сохранение…' : 'Сохранить'}
+          </Button>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <label className={doctorMetaTextClass} htmlFor="account-fio-last-name">
+            Фамилия
+          </label>
+          <Input
+            id="account-fio-last-name"
+            value={draftLastName}
+            onChange={(e) => setDraftLastName(e.target.value)}
+            placeholder="Иванов"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className={doctorMetaTextClass} htmlFor="account-fio-first-name">
+            Имя
+          </label>
+          <Input
+            id="account-fio-first-name"
+            value={draftFirstName}
+            onChange={(e) => setDraftFirstName(e.target.value)}
+            placeholder="Иван"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className={doctorMetaTextClass} htmlFor="account-fio-patronymic">
+            Отчество
+          </label>
+          <Input
+            id="account-fio-patronymic"
+            value={draftPatronymic}
+            onChange={(e) => setDraftPatronymic(e.target.value)}
+            placeholder="Иванович"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className={doctorMetaTextClass}>Дата рождения</span>
+          {/* ACCOUNT-08: exact date, no month-only mode. */}
+          <DoctorDatePicker
+            value={draftBirthDate}
+            onChange={setDraftBirthDate}
+            placeholder="Не указана"
+            max={todayInputDate()}
+            ariaLabel="Дата рождения"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className={doctorMetaTextClass}>Пол</span>
+          <Select
+            value={draftGender || undefined}
+            onValueChange={(v) => setDraftGender(v as Gender)}
+          >
+            <SelectTrigger aria-label="Пол">
+              <SelectValue placeholder="Не указан" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="male">Мужской</SelectItem>
+              <SelectItem value="female">Женский</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </form>
+    </DoctorModal>
   );
 }
 
@@ -510,21 +685,30 @@ export function PatientTabAccount({
   initialSupplementaryContacts,
   isAdmin = false,
 }: Props) {
+  const router = useRouter();
   const identity = header?.identity;
 
   // Derived channel info from header
   const hasTelegram = Boolean(identity?.bindings?.telegramId);
   const hasMax = Boolean(identity?.bindings?.maxId);
   const hasEmail = Boolean(identity?.email);
-  const telegramId = identity?.bindings?.telegramId ?? null;
-  const maxId = identity?.bindings?.maxId ?? null;
+  const telegramBotBlocked = identity?.bindings?.telegramBotBlocked ?? false;
+  const maxBotBlocked = identity?.bindings?.maxBotBlocked ?? false;
+  const telegramMention = formatTelegramUsernameMention(identity?.telegramUsername ?? null);
 
   // Personal data — read-only display values from header
-  const displayName = identity?.displayName ?? '';
-  const firstName = identity?.firstName ?? null;
   const lastName = identity?.lastName ?? null;
+  const firstName = identity?.firstName ?? null;
+  const patronymic = identity?.patronymic ?? null;
   const birthDate = identity?.birthDate ?? null;
   const gender = identity?.gender ?? null;
+  const fioDisplay = formatDoctorFio({ lastName, firstName, patronymic }, 'не указано');
+
+  // CONTACTS-10: confirmed only after an actual successful code confirmation/login, never inferred
+  // from "an email is on file" — the oracle is `emailVerifiedAt` (user_contacts.confirmed_at).
+  const emailConfirmed = Boolean(identity?.emailVerifiedAt);
+
+  const [personalDataModalOpen, setPersonalDataModalOpen] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Block state (optimistic from header; confirmed by POST)
@@ -618,87 +802,45 @@ export function PatientTabAccount({
           LEFT COLUMN
       ==================================================================== */}
       <div className="flex flex-col gap-3">
-        {/* ── 1. Личные данные (read-only) ─────────────────────────── */}
+        {/* ── 1. Личные данные (read-only; edit via standard modal) ──── */}
         <SectionCard
           title="Личные данные"
           titleRight={
-            <span className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
-              редактирование — в заголовке карточки
-            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title="Редактировать личные данные"
+              onClick={() => setPersonalDataModalOpen(true)}
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            >
+              <Pencil className="size-3.5" aria-hidden />
+            </Button>
           }
         >
           <table className="w-full border-separate border-spacing-0">
             <tbody>
-              {/* displayName — bold primary name */}
-              <KVRow label="Отображаемое имя">
-                <span className="font-semibold">{displayName || '—'}</span>
+              <KVRow label="ФИО">
+                <span className="font-medium">{fioDisplay}</span>
               </KVRow>
-              {/* Hidden real name */}
-              <KVRow label="ФИО (скрытое)">
-                {firstName || lastName ? (
-                  <span className="text-muted-foreground text-[11px]">
-                    {[lastName, firstName].filter(Boolean).join(' ')}
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground text-[11px]">не указано</span>
-                )}
-              </KVRow>
-              {/* Phone */}
-              <KVRow label="Телефон">
-                {identity?.phone ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    title="Скопировать"
-                    onClick={() => void copyText(identity.phone!)}
-                    className="h-auto p-0 font-mono text-[11px] hover:text-primary"
-                  >
-                    {identity.phone} ⧉
-                  </Button>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </KVRow>
-              {/* Email */}
-              <KVRow label="Email">
-                {identity?.email ? (
-                  <span className="font-mono text-[11px]">{identity.email}</span>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </KVRow>
-              {/* Birth date */}
               <KVRow label="Дата рождения">
                 <span>{fmtBirthDateDisplay(birthDate)}</span>
               </KVRow>
-              {/* Gender */}
               <KVRow label="Пол">
                 <span>{gender === 'male' ? 'Мужской' : gender === 'female' ? 'Женский' : '—'}</span>
               </KVRow>
             </tbody>
           </table>
-          <p className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
-            ФИО видит только специалист, пациенту показывается отображаемое имя.
-          </p>
         </SectionCard>
 
         {/* ── 2. Контакты и каналы ─────────────────────────────────── */}
-        <SectionCard
-          title="Контакты и каналы"
-          titleRight={
-            <Button type="button" variant="link" className="text-xs h-auto p-0">
-              + добавить
-            </Button>
-          }
-        >
+        <SectionCard title="Контакты и каналы">
           <div className="flex flex-col gap-1.5">
-            {/* Phone */}
+            {/* Основной телефон — всегда есть (это identity), не редактируется. */}
             <ChannelRow
-              icon={<Phone className="h-3.5 w-3.5" />}
-              label="Телефон"
+              icon={<Phone className="size-3.5" aria-hidden />}
+              label="Основной телефон"
               value={identity?.phone ?? '—'}
-              hint="основной телефон · не редактируется"
-              status={identity?.phone ? 'active' : 'none'}
               actionLabel="⧉"
               onAction={() => void copyText(identity?.phone ?? '')}
             />
@@ -709,56 +851,39 @@ export function PatientTabAccount({
               initialContacts={initialSupplementaryContacts ?? undefined}
             />
 
-            {/* Telegram */}
-            <ChannelRow
-              icon={<Send className="h-3.5 w-3.5" />}
-              label="Telegram"
-              value={hasTelegram ? `id ${telegramId}` : 'не привязан'}
-              hint="Telegram"
-              status={hasTelegram ? 'active' : 'none'}
-            />
+            {/* Telegram — только если реально привязан (CONTACTS-02) */}
+            {hasTelegram ? (
+              <ChannelRow
+                icon={<Send className="size-3.5" aria-hidden />}
+                label="Telegram"
+                value={telegramMention ?? 'привязан'}
+                blocked={telegramBotBlocked}
+              />
+            ) : null}
 
-            {/* MAX */}
-            <ChannelRow
-              icon={<Smartphone className="h-3.5 w-3.5" />}
-              label="MAX"
-              value={hasMax ? `id ${maxId}` : 'не привязан'}
-              hint="MAX"
-              status={hasMax ? 'active' : 'none'}
-            />
+            {/* MAX — только если реально привязан; буква «M», не иконка телефона (CONTACTS-06) */}
+            {hasMax ? (
+              <ChannelRow
+                icon={<MaxMonogram />}
+                label="MAX"
+                value="привязан"
+                blocked={maxBotBlocked}
+              />
+            ) : null}
 
-            {/* Email */}
+            {/* Email — показан, если контакт есть (независимо от подтверждения) */}
             {hasEmail ? (
               <ChannelRow
-                icon={<Mail className="h-3.5 w-3.5" />}
+                icon={<Mail className="size-3.5" aria-hidden />}
                 label="Email"
                 value={identity?.email ?? '—'}
-                hint="Email · статус неизвестен"
-                status="problem"
-                warning
-                actionLabel="→"
-                onAction={() => window.open(`mailto:${identity?.email}`, '_blank')}
+                confirmed={emailConfirmed}
               />
-            ) : (
-              <ChannelRow
-                icon={<Mail className="h-3.5 w-3.5" />}
-                label="Email"
-                value="не указан"
-                hint="Email"
-                status="none"
-              />
-            )}
+            ) : null}
 
             {/* Смена email — только админ, применяется после подтверждения кодом пациентом */}
             {isAdmin && active ? <EmailChange userId={userId} /> : null}
-
-            {/* PWA / App — скрыто до реализации backend (push/install status не отслеживается в текущей схеме) */}
           </div>
-          <p className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
-            <span className="text-primary font-medium">подключён</span> → иконка активна и
-            кликабельна · <span className="text-destructive font-medium">проблема</span> —
-            подсвечена.
-          </p>
         </SectionCard>
       </div>
 
@@ -766,135 +891,80 @@ export function PatientTabAccount({
           RIGHT COLUMN
       ==================================================================== */}
       <div className="flex flex-col gap-3">
-        {/* ── 3. Блокировки и доступ ───────────────────────────────── */}
-        <SectionCard title="Блокировки и доступ">
-          <div className="flex flex-col gap-1.5">
-            {/* Telegram bot status */}
-            <div className={cn(doctorHistoryRowClass, 'flex items-center gap-2 text-xs')}>
-              <Send
-                className={cn(
-                  'h-3.5 w-3.5 flex-none',
-                  hasTelegram ? 'text-primary' : 'text-muted-foreground',
-                )}
-              />
-              <span className="flex-1">Telegram-бот</span>
-              {hasTelegram ? (
-                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
-                  привязан
-                </span>
-              ) : (
-                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border">
-                  не привязан
-                </span>
-              )}
+        {/* ── 3. Доступ к аккаунту (ACCESS-01..04) ─────────────────── */}
+        <SectionCard>
+          {isBlocked && (
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-2.5 py-2">
+              <span className="text-destructive flex-none font-bold">✕</span>
+              <span className={cn(doctorBodyTextClass, 'text-destructive font-medium')}>
+                Пациент заблокирован
+              </span>
             </div>
+          )}
 
-            {/* MAX bot */}
-            <div className={cn(doctorHistoryRowClass, 'flex items-center gap-2 text-xs')}>
-              <Smartphone
+          {/* Two equal-width buttons: Заблокировать | В архив (ACCESS-03) */}
+          {!archiveConfirm ? (
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={isBlocked ? 'destructive' : 'outline'}
+                disabled={blockPending}
+                onClick={() => void handleBlockToggle()}
                 className={cn(
-                  'h-3.5 w-3.5 flex-none',
-                  hasMax ? 'text-primary' : 'text-muted-foreground',
-                )}
-              />
-              <span className="flex-1">{hasMax ? 'MAX-бот' : 'MAX-бот не привязан'}</span>
-              {hasMax ? (
-                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
-                  привязан
-                </span>
-              ) : (
-                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border">
-                  нет
-                </span>
-              )}
-            </div>
-
-            {/* Block status indicator */}
-            {isBlocked && (
-              <div
-                className={cn(
-                  doctorSectionItemClass,
-                  'flex items-center gap-2 text-xs border-destructive/30 bg-destructive/5',
+                  isBlocked &&
+                    'bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/40',
                 )}
               >
-                <span className="text-destructive flex-none font-bold">✕</span>
-                <span className="flex-1 text-destructive font-medium">Пациент заблокирован</span>
-              </div>
-            )}
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex gap-2 flex-wrap">
-            {/* Block / Unblock — POST /api/doctor/clients/{userId}/block {blocked, reason?} */}
-            <Button
-              type="button"
-              variant={isBlocked ? 'destructive' : 'outline'}
-              disabled={blockPending}
-              onClick={() => void handleBlockToggle()}
-              className={cn(
-                'px-2.5 py-1 text-xs',
-                isBlocked &&
-                  'bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/40',
-              )}
-            >
-              {blockPending ? '…' : isBlocked ? 'Снять блокировку' : 'Заблокировать учётку'}
-            </Button>
-
-            {/* Archive / Unarchive — PATCH /api/doctor/clients/{userId}/archive {archived} */}
-            {!archiveConfirm ? (
+                {blockPending ? '…' : isBlocked ? 'Снять блокировку' : 'Заблокировать'}
+              </Button>
               <Button
                 type="button"
                 variant="outline"
                 disabled={archivePending}
                 onClick={() => setArchiveConfirm(true)}
                 className={cn(
-                  'px-2.5 py-1 text-xs',
-                  isArchived
-                    ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
-                    : '',
+                  isArchived && 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20',
                 )}
               >
                 {archivePending ? '…' : isArchived ? 'Вернуть из архива' : 'В архив'}
               </Button>
-            ) : (
-              <span className="flex items-center gap-1.5 text-xs text-destructive">
-                Подтвердить?{' '}
-                <Button
-                  type="button"
-                  variant="link"
-                  onClick={() => void handleArchiveToggle()}
-                  className="h-auto p-0 text-xs underline text-destructive"
-                >
-                  Да
-                </Button>{' '}
-                <Button
-                  type="button"
-                  variant="link"
-                  onClick={() => setArchiveConfirm(false)}
-                  className="h-auto p-0 text-xs text-muted-foreground underline"
-                >
-                  Нет
-                </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className={cn(doctorBodyTextClass, 'text-destructive')}>
+                Перенести в архив?
               </span>
-            )}
-          </div>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => void handleArchiveToggle()}
+                className="ml-auto"
+              >
+                Да
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setArchiveConfirm(false)}>
+                Отмена
+              </Button>
+            </div>
+          )}
 
-          {blockError && <p className="text-[11px] text-destructive">Блокировка: {blockError}</p>}
-          {archiveError && <p className="text-[11px] text-destructive">Архив: {archiveError}</p>}
-
+          {blockError && (
+            <p className={cn(doctorMetaTextClass, 'text-destructive')}>
+              Блокировка: {blockError}
+            </p>
+          )}
+          {archiveError && (
+            <p className={cn(doctorMetaTextClass, 'text-destructive')}>Архив: {archiveError}</p>
+          )}
         </SectionCard>
 
-        {/* ── 4. Администрирование ─────────────────────────────────── */}
+        {/* ── 4. Администрирование (не в скоупе этой правки) ──────── */}
         {isAdmin && (
           <SectionCard title="Администрирование">
-            {/* Technical IDs */}
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Технические идентификаторы
-            </p>
             <table className="w-full border-separate border-spacing-0 mb-1">
               <tbody>
                 <KVRow label="ID пациента">
-                  <span className="font-mono text-[11px]">
+                  <span className="font-mono text-xs">
                     {userId.slice(0, 12)}…{userId.slice(-4)}{' '}
                     <Button
                       type="button"
@@ -906,15 +976,6 @@ export function PatientTabAccount({
                       ⧉
                     </Button>
                   </span>
-                </KVRow>
-                {telegramId && (
-                  <KVRow label="Telegram ID">
-                    <span className="font-mono text-[11px]">{telegramId}</span>
-                  </KVRow>
-                )}
-                <KVRow label="Регистрация">
-                  {/* TODO(backend): identity.createdAt not in PatientCardHeader; available in ClientIdentity */}
-                  <span className="text-muted-foreground">—</span>
                 </KVRow>
               </tbody>
             </table>
@@ -950,6 +1011,18 @@ export function PatientTabAccount({
           </SectionCard>
         )}
       </div>
+
+      <PersonalDataEditModal
+        open={personalDataModalOpen}
+        onClose={() => setPersonalDataModalOpen(false)}
+        userId={userId}
+        lastName={lastName}
+        firstName={firstName}
+        patronymic={patronymic}
+        birthDate={birthDate}
+        gender={gender}
+        onSaved={() => router.refresh()}
+      />
     </div>
   );
 }
