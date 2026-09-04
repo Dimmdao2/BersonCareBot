@@ -165,6 +165,8 @@ export function DoctorCourseEditForm({
   async function persistToServer(acknowledgeArchive: boolean): Promise<{
     ok: boolean;
     error?: string;
+    /** Авторский текст отказа из тела ответа — его читает `readSafeApiErrorText` у вызывающего. */
+    message?: string;
     code?: string;
     usage?: CourseUsageSnapshot;
   }> {
@@ -193,6 +195,7 @@ export function DoctorCourseEditForm({
     const data = (await res.json()) as {
       ok?: boolean;
       error?: string;
+      message?: string;
       code?: string;
       usage?: CourseUsageSnapshot;
     };
@@ -204,6 +207,7 @@ export function DoctorCourseEditForm({
       return {
         ok: false,
         error: typeof data.error === 'string' ? data.error : 'Не удалось сохранить',
+        message: typeof data.message === 'string' ? data.message : undefined,
       };
     }
     return { ok: true };

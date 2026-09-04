@@ -45,12 +45,12 @@ export function assertValidIntroLessonPage(
     throw new UserFacingError('Страница вступительного урока не найдена');
   }
   if (!isCourseLessonSection(row.section)) {
-    throw new UserFacingError(
-      `Вступительный урок должен быть в секции lessons или course_lessons (сейчас: ${row.section})`,
-    );
+    throw new UserFacingError('Вступительным уроком может быть только страница из раздела «Уроки»');
   }
   if (!row.requiresAuth) {
-    throw new UserFacingError('Урок курса должен быть с requires_auth = true');
+    throw new UserFacingError(
+      'Страница вступительного урока должна быть отмечена «Только для залогиненных»',
+    );
   }
   if (!row.isPublished || row.archivedAt || row.deletedAt) {
     throw new UserFacingError(
