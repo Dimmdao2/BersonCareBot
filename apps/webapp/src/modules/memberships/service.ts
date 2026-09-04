@@ -32,6 +32,11 @@ function runMembershipWrite<T>(
 }
 
 import { parsePatientPackageProductRef } from './patientPackageProductRef';
+import {
+  saleAttemptKey,
+  saleAttemptMatchesPackage,
+  type SaleAttemptRequest,
+} from './saleAttemptIdentity';
 import { isPatientPackageExpired, isPatientPackageWithinValidity } from './packageValidity';
 import { buildManualPatientPackageTitle } from './packageManualTitle';
 import {
@@ -175,7 +180,10 @@ export function createMembershipsService(deps: {
   }
 
   async function withBalance(pkg: PatientPackageRecord): Promise<PatientPackageListItem> {
-    const fresh = await refreshPatientPackageRecord(pkg);
+    // The stored pay link is dropped here on purpose: every list and card in both cabinets goes
+    // through this one function, and only the sale that issued the link — and the tariff-gated
+    // payment-status read — may hand it out.
+    const { checkoutUrl: _issuedLink, ...fresh } = await refreshPatientPackageRecord(pkg);
     const usages = await deps.port.listUsagesForPackage(fresh.id, fresh.organizationId);
     const itemBalances = computeItemBalances(fresh.items, usages);
     const items = await Promise.all(
@@ -231,20 +239,34 @@ export function createMembershipsService(deps: {
      * Create the package, or return the one this exact sale attempt already created. The read comes
      * first for the ordinary retry; the unique-violation catch covers the concurrent race the read
      * cannot see.
+     *
+     * `attempt` is what makes «this exact sale attempt» mean something: the persisted key is the
+     * caller's key bound to the request (`saleAttemptIdentity`), and whatever a lookup hands back
+     * is refused unless it is still the package this request asked for. Without that second read
+     * of reality, a key retained from a failed attempt settles the next sale onto the earlier
+     * package, at the earlier price.
      */
     async createOrFindSoldPackage(
       organizationId: string,
-      saleIdempotencyKey: string | null | undefined,
-      create: () => Promise<PatientPackageRecord>,
+      callerKey: string | null | undefined,
+      attempt: SaleAttemptRequest,
+      create: (persistedKey: string | null) => Promise<PatientPackageRecord>,
     ): Promise<{ pkg: PatientPackageRecord; created: boolean }> {
-      if (!saleIdempotencyKey) return { pkg: await create(), created: true };
+      if (!callerKey) return { pkg: await create(null), created: true };
+      const saleIdempotencyKey = saleAttemptKey(callerKey, attempt);
+      const claim = (found: PatientPackageRecord) => {
+        if (!saleAttemptMatchesPackage(attempt, found)) {
+          throw new Error('sale_attempt_key_conflict');
+        }
+        return { pkg: found, created: false };
+      };
       const existing = await deps.port.findPatientPackageBySaleIdempotencyKey(
         organizationId,
         saleIdempotencyKey,
       );
-      if (existing) return { pkg: existing, created: false };
+      if (existing) return claim(existing);
       try {
-        return { pkg: await create(), created: true };
+        return { pkg: await create(saleIdempotencyKey), created: true };
       } catch (err) {
         if (!isUniqueViolation(err)) throw err;
         const raced = await deps.port.findPatientPackageBySaleIdempotencyKey(
@@ -252,7 +274,7 @@ export function createMembershipsService(deps: {
           saleIdempotencyKey,
         );
         if (!raced) throw err;
-        return { pkg: raced, created: false };
+        return claim(raced);
       }
     },
 
@@ -270,7 +292,20 @@ export function createMembershipsService(deps: {
       const { pkg, created } = await this.createOrFindSoldPackage(
         input.organizationId,
         input.saleIdempotencyKey,
-        () => runMembershipWrite(options, () => deps.port.createManualPatientPackage({ ...input, title })),
+        {
+          kind: 'manual',
+          platformUserId: input.platformUserId,
+          method: input.sale?.method ?? 'offer',
+          priceMinor: input.priceMinor,
+          currency: input.currency ?? 'RUB',
+          validityDays: input.validityDays ?? null,
+          deductionMode: input.deductionMode ?? 'auto_on_visit_confirmed',
+          items: input.items,
+        },
+        (saleIdempotencyKey) =>
+          runMembershipWrite(options, () =>
+            deps.port.createManualPatientPackage({ ...input, title, saleIdempotencyKey }),
+          ),
       );
       if (created) {
         await runMembershipWrite(options, () =>
@@ -293,7 +328,16 @@ export function createMembershipsService(deps: {
       const { pkg, created } = await this.createOrFindSoldPackage(
         input.organizationId,
         input.saleIdempotencyKey,
-        () => runMembershipWrite(options, () => deps.port.offerCatalogPackageToPatient(input)),
+        {
+          kind: 'catalog',
+          platformUserId: input.platformUserId,
+          method: input.sale?.method ?? 'offer',
+          subscriptionPackageId: input.subscriptionPackageId,
+        },
+        (saleIdempotencyKey) =>
+          runMembershipWrite(options, () =>
+            deps.port.offerCatalogPackageToPatient({ ...input, saleIdempotencyKey }),
+          ),
       );
       if (created) {
         await runMembershipWrite(options, () =>
@@ -320,7 +364,14 @@ export function createMembershipsService(deps: {
       platformUserId: string,
       options?: MembershipWriteOptions,
     ) {
-      if (pkg.status !== 'offered') return withBalance(pkg);
+      // A package that is no longer an offer has already been settled or invoiced by the attempt
+      // that created it, so nothing is re-run here — it answers with the link that attempt already
+      // issued. The retried pay-link sale used to come back empty, and the route read that
+      // emptiness as «платёжный провайдер не настроен» while the invoice it had issued was live —
+      // sending the doctor to collect cash for something the patient could already pay online.
+      if (pkg.status !== 'offered') {
+        return { ...(await withBalance(pkg)), checkoutUrl: pkg.checkoutUrl };
+      }
       if (sale?.method === 'cash') return withBalance(pkg);
       if (sale?.method === 'free') {
         if (pkg.priceMinor !== 0) throw new Error('sale_free_requires_zero_price');
@@ -422,6 +473,10 @@ export function createMembershipsService(deps: {
           'awaiting_payment',
           {
             paymentIntentId: intent.id,
+            // The link is stored with the invoice that issued it, in one statement: a package that
+            // names an invoice must be able to show it. This is what a retry, a reopened card or a
+            // second tab reads instead of asking the provider for a second invoice.
+            checkoutUrl: intent.checkoutUrl ?? null,
           },
         );
         await deps.port.appendHistoryEvent({

@@ -10,6 +10,7 @@ const ERROR_STATUS: Record<string, number> = {
   sale_link_requires_price: 400,
   sale_cash_requires_price: 400,
   sale_free_requires_zero_price: 400,
+  sale_attempt_key_conflict: 409,
   package_not_found: 404,
   appointment_not_found: 404,
   platform_user_id_required: 400,

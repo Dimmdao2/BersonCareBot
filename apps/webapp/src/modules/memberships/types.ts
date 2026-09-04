@@ -63,6 +63,12 @@ export type PatientPackageRecord = {
   validUntil: string | null;
   deductionMode: PackageDeductionMode;
   paymentIntentId: string | null;
+  /**
+   * The pay link the package's own payment offer issued. Kept on the package so a retried sale,
+   * a reopened card or a second tab hands back the link that already exists instead of asking the
+   * provider for a second invoice.
+   */
+  checkoutUrl: string | null;
   paymentRef: string | null;
   soldAt: string | null;
   paidAmountMinor: number | null;
@@ -94,7 +100,13 @@ export type PatientPackageBalanceView = {
   items: PackageItemBalance[];
 };
 
-export type PatientPackageListItem = PatientPackageRecord & {
+/**
+ * The read shape of a package. `checkoutUrl` is deliberately NOT part of it: the pay link is
+ * answered only by the sale that issued it and by the tariff-gated
+ * `GET /api/booking/memberships/payment-status`, so a list or a card can never hand out a live
+ * invoice for a clinic that no longer has the `payments` mechanic.
+ */
+export type PatientPackageListItem = Omit<PatientPackageRecord, 'checkoutUrl'> & {
   balance: PatientPackageBalanceView;
 };
 

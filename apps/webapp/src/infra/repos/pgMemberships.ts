@@ -151,6 +151,7 @@ function mapPatientPackage(
     validUntil: row.validUntil,
     deductionMode: row.deductionMode as PatientPackageRecord['deductionMode'],
     paymentIntentId: row.paymentIntentId,
+    checkoutUrl: row.checkoutUrl,
     paymentRef: row.paymentRef,
     soldAt: row.soldAt,
     paidAmountMinor: row.paidAmountMinor,
@@ -738,6 +739,7 @@ export function createPgMembershipsPort(): MembershipsPort {
       const now = new Date().toISOString();
       const set: Partial<typeof bePatientPackages.$inferInsert> = { status, updatedAt: now };
       if (patch?.paymentIntentId !== undefined) set.paymentIntentId = patch.paymentIntentId;
+      if (patch?.checkoutUrl !== undefined) set.checkoutUrl = patch.checkoutUrl;
       if (patch?.paymentRef !== undefined) set.paymentRef = patch.paymentRef;
       if (patch?.validFrom !== undefined) set.validFrom = patch.validFrom;
       if (patch?.validUntil !== undefined) set.validUntil = patch.validUntil;

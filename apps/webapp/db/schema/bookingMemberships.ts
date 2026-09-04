@@ -118,6 +118,8 @@ export const bePatientPackages = pgTable(
     validUntil: timestamp('valid_until', { withTimezone: true, mode: 'string' }),
     deductionMode: text('deduction_mode').notNull().default('auto_on_visit_confirmed'),
     paymentIntentId: uuid('payment_intent_id'),
+    /** The checkout URL the offer above really issued, so a retry can hand back that same link. */
+    checkoutUrl: text('checkout_url'),
     paymentRef: text('payment_ref'),
     soldAt: timestamp('sold_at', { withTimezone: true, mode: 'string' }),
     paidAmountMinor: integer('paid_amount_minor'),

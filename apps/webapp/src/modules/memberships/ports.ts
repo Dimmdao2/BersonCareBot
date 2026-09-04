@@ -197,6 +197,7 @@ export type MembershipsPort = {
     status: PatientPackageRecord['status'],
     patch?: Partial<{
       paymentIntentId: string | null;
+      checkoutUrl: string | null;
       paymentRef: string | null;
       validFrom: string | null;
       validUntil: string | null;

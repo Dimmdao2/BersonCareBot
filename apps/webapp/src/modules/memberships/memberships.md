@@ -29,13 +29,21 @@ Validity: `packageValidity.ts` (auto `expired` when `valid_until` passed).
 | Способ | Что делает сервер |
 | ------ | ----------------- |
 | Наличными | пакет создаётся `offered` → `addCashPayment` (`amountMinor` ← `price_minor` пакета, `idempotencyKey` = `staff-package-cash:{id}`) → `settleStaffCashSale` → `activatePatientPackageFromDoctorSale` (`paidAmountMinor` ← `price_minor`, статус `active`). Порядок именно такой: сбой между шагами оставляет `offered`-пакет без денег, а не активный пакет без строки в кассе. Требует `price_minor > 0`, иначе `sale_cash_requires_price` |
-| Ссылка на оплату | `createPaymentOfferOrKeepOffered` → intent + `checkoutUrl`, статус `awaiting_payment`. Требует `price_minor > 0`, иначе `sale_link_requires_price` |
+| Ссылка на оплату | `createPaymentOfferOrKeepOffered` → intent + `checkoutUrl`, статус `awaiting_payment`. Ссылка кладётся в `be_patient_packages.checkout_url` тем же statement, что и `payment_intent_id`, поэтому повтор попытки отдаёт уже выданную ссылку, а не выставляет второй счёт. Наружу её отдаёт только сам ответ продажи: `withBalance` (все списки и карточки обоих кабинетов) поле снимает, пациент получает ссылку через `payment-status`, где она закрыта тарифным гейтом. Требует `price_minor > 0`, иначе `sale_link_requires_price` |
 | Бесплатно | `activatePatientPackageFromDoctorSale` с `paidAmountMinor: 0`. Требует `price_minor = 0`, иначе `sale_free_requires_zero_price` |
 
 **Идемпотентность продажи.** `be_patient_packages.sale_idempotency_key` + partial unique index
 `uq_be_patient_packages_sale_idempotency (organization_id, sale_idempotency_key)`. Повтор той же попытки —
 после сетевой ошибки, во второй вкладке, после сбоя на шаге кассы — находит уже созданный пакет и доводит его
-до конца; двух активных пакетов и двойной оплаты не возникает. Ключ скоупится организацией. Наличная строка
+до конца; двух активных пакетов и двойной оплаты не возникает. Ключ скоупится организацией.
+
+Хранится не голый ключ вызывающего, а ключ, связанный с самим запросом: `saleAttemptIdentity.ts` добавляет к
+нему отпечаток того, что продаётся (покупатель, способ, каталожный шаблон либо цена/валюта/срок/режим
+списания/позиции). Свободный текст (`title`, `notes`) и `soldAt` в отпечаток не входят: первое правится по ходу
+попытки, второе панель штампует «сейчас» на каждой отправке. Поэтому повтор той же продажи сходится, а другая
+продажа под сохранённым ключом получает свой пакет, а не цену предыдущего. Найденный по ключу пакет
+дополнительно сверяется с запросом (`saleAttemptMatchesPackage`); расхождение — `sale_attempt_key_conflict`
+(409), а не тихая продажа чужого пакета. Панель держит ключи ручной и каталожной формы раздельно. Наличная строка
 кассы держится вторым partial unique index `uq_patient_payment_package_idempotency
 (organization_id, patient_package_id, idempotency_key)`: существующий appointment-индекс для неё не работает,
 потому что `appointment_id` там NULL, а NULL в unique index не сравниваются.

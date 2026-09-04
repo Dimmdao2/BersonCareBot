@@ -1,5 +1,5 @@
 -- BCB-MIGRATION-OWNER: app_object_owner
--- BCB-MIGRATION-VERIFY: SELECT (SELECT count(*) = 1 FROM pg_catalog.pg_indexes WHERE schemaname = 'public' AND indexname = 'uq_be_patient_packages_sale_idempotency') AND (SELECT count(*) = 1 FROM pg_catalog.pg_indexes WHERE schemaname = 'public' AND indexname = 'uq_patient_payment_package_idempotency') AND (SELECT count(*) = 1 FROM pg_catalog.pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_patient_payment_patient_package_id')
+-- BCB-MIGRATION-VERIFY: SELECT (SELECT count(*) = 1 FROM pg_catalog.pg_indexes WHERE schemaname = 'public' AND indexname = 'uq_be_patient_packages_sale_idempotency') AND (SELECT count(*) = 1 FROM pg_catalog.pg_indexes WHERE schemaname = 'public' AND indexname = 'uq_patient_payment_package_idempotency') AND (SELECT count(*) = 1 FROM pg_catalog.pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_patient_payment_patient_package_id') AND (SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'be_patient_packages' AND column_name = 'checkout_url')
 --
 -- Owner requirement (docs/_TODO/DOCTOR_MOBILE_UI_OWNER_ACCEPTANCE_2026-09-04.md §K, MONEY-04 and
 -- MONEY-11): «Наличная оплата использует существующий server-authorized cash contract», and the
@@ -56,3 +56,13 @@ CREATE INDEX IF NOT EXISTS idx_patient_payment_patient_package_id
 CREATE UNIQUE INDEX IF NOT EXISTS uq_patient_payment_package_idempotency
   ON public.patient_payment (organization_id, patient_package_id, idempotency_key)
   WHERE (patient_package_id IS NOT NULL AND idempotency_key IS NOT NULL);
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_object_owner
+-- The pay link this package's offer really handed out. `payment_intent_id` alone names the invoice
+-- but cannot show it: a retried sale, a reopened card or a second tab has no way back to the URL,
+-- and the sale answered that emptiness with «платёжный провайдер не настроен» while the invoice was
+-- live — pushing the doctor to collect cash for something the patient could already pay online.
+-- Written in the same statement as `payment_intent_id`, so the row never names an invoice it cannot
+-- show; NULL for every package that was never offered online.
+ALTER TABLE public.be_patient_packages
+  ADD COLUMN checkout_url text;

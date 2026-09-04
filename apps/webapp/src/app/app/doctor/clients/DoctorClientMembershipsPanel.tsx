@@ -52,6 +52,11 @@ type SaleResult = {
  * One sale attempt has one identity, and a retry of the SAME attempt reuses it — that is what makes
  * a repeated tap converge on one package and one payment instead of selling twice. It is cleared
  * only on success, so every failure path retries under the original key.
+ *
+ * The two forms hold their keys separately: a manual sale and a catalog offer are two different
+ * sales, and one shared key carried the failed one's identity into whichever the doctor submitted
+ * next. The server binds the key to the request it identifies as well — this side just stops
+ * handing it the wrong question.
  */
 function newSaleIdempotencyKey(): string {
   return globalThis.crypto?.randomUUID?.() ?? `sale-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -172,7 +177,8 @@ export function DoctorClientMembershipsPanel({
   const [onlinePaymentAvailable, setOnlinePaymentAvailable] = useState(false);
   const [patientChatAvailable, setPatientChatAvailable] = useState(false);
   const [saleResult, setSaleResult] = useState<SaleResult | null>(null);
-  const [saleKey, setSaleKey] = useState<string | null>(null);
+  const [manualSaleKey, setManualSaleKey] = useState<string | null>(null);
+  const [catalogSaleKey, setCatalogSaleKey] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [linkSent, setLinkSent] = useState(false);
   const [priceRub, setPriceRub] = useState('');
@@ -392,8 +398,8 @@ export function DoctorClientMembershipsPanel({
       showError('invalid_form');
       return;
     }
-    const attemptKey = saleKey ?? newSaleIdempotencyKey();
-    setSaleKey(attemptKey);
+    const attemptKey = manualSaleKey ?? newSaleIdempotencyKey();
+    setManualSaleKey(attemptKey);
     startTransition(async () => {
       const res = await fetch(apiBase, {
         method: 'POST',
@@ -419,7 +425,7 @@ export function DoctorClientMembershipsPanel({
         return;
       }
       toast.success('Абонемент создан');
-      setSaleKey(null);
+      setManualSaleKey(null);
       setPriceRub('');
       setSoldDate('');
       setManualNotes('');
@@ -437,8 +443,8 @@ export function DoctorClientMembershipsPanel({
       showError('invalid_form');
       return;
     }
-    const attemptKey = saleKey ?? newSaleIdempotencyKey();
-    setSaleKey(attemptKey);
+    const attemptKey = catalogSaleKey ?? newSaleIdempotencyKey();
+    setCatalogSaleKey(attemptKey);
     startTransition(async () => {
       const res = await fetch(apiBase, {
         method: 'POST',
@@ -463,7 +469,7 @@ export function DoctorClientMembershipsPanel({
         return;
       }
       toast.success('Абонемент создан');
-      setSaleKey(null);
+      setCatalogSaleKey(null);
       setCatalogId('');
       setCatalogSoldDate('');
       setCatalogNotes('');
