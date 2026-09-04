@@ -14,6 +14,7 @@
  * Fault injection (each must turn the matching assertion red):
  *   ACQUIRING_WEBHOOK_SETTLEMENT_FAULT=tenant_scope   — drop the accepted-tenant filter from the match
  *   ACQUIRING_WEBHOOK_SETTLEMENT_FAULT=terminal_guard — let a repeat callback overwrite a settled row
+ *   ACQUIRING_WEBHOOK_SETTLEMENT_FAULT=key_set        — open the config door to any `admin` setting
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -29,7 +30,7 @@ const FAULT = process.env.ACQUIRING_WEBHOOK_SETTLEMENT_FAULT ?? '';
 if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(DATABASE)) {
   throw new Error(`unsafe database identifier '${DATABASE}'`);
 }
-if (!['', 'tenant_scope', 'terminal_guard'].includes(FAULT)) {
+if (!['', 'tenant_scope', 'terminal_guard', 'key_set'].includes(FAULT)) {
   throw new Error(`unknown ACQUIRING_WEBHOOK_SETTLEMENT_FAULT '${FAULT}'`);
 }
 
@@ -67,6 +68,13 @@ function candidateBlock(marker) {
     .split('--> statement-breakpoint')
     .find((candidate) => candidate.includes(`CREATE OR REPLACE FUNCTION ${marker}`));
   assert.ok(block, `candidate block for ${marker} is missing from the migration`);
+
+  if (marker === 'app.read_acquiring_webhook_booking_payment_setting') {
+    if (FAULT !== 'key_set') return block;
+    const healthy = "     OR p_key NOT IN ('booking_payment_enabled', 'booking_payment_providers') THEN";
+    assert.ok(block.includes(healthy), 'key-set fault injection target is missing');
+    return block.replace(healthy, '     OR FALSE THEN');
+  }
   if (marker !== 'app.settle_patient_acquiring_webhook_payment') return block;
 
   if (FAULT === 'tenant_scope') {
@@ -115,6 +123,7 @@ const OTHER_ORGANIZATION_ID = '00000000-0000-4000-8000-0000000c12ec';
 const OWN_REF = 'proof-own-ref';
 const OTHER_REF = 'proof-other-ref';
 const PROVIDER = 'alfabank';
+const DECOY_KEY = 'telegram_bot_token';
 
 /**
  * The declared typed-argument hash for one exact call, computed the way the DB itself computes it.
@@ -228,7 +237,11 @@ VALUES
   ('booking_payment_providers', 'admin', '${f.ownOrganizationId}'::uuid,
    '{"value":{"defaultProviderId":"alfabank","providers":[{"id":"alfabank","label":"own","enabled":true,"webhookSecret":"own-secret"}]}}'::jsonb),
   ('booking_payment_providers', 'admin', '${OTHER_ORGANIZATION_ID}'::uuid,
-   '{"value":{"defaultProviderId":"alfabank","providers":[{"id":"alfabank","label":"other","enabled":true,"webhookSecret":"other-secret"}]}}'::jsonb)
+   '{"value":{"defaultProviderId":"alfabank","providers":[{"id":"alfabank","label":"other","enabled":true,"webhookSecret":"other-secret"}]}}'::jsonb),
+  -- A decoy the door must never return: same clinic, same admin scope, but a key outside the
+  -- closed pair. Seeded here rather than borrowed from DEV so the refusal is observed against a row
+  -- that certainly exists — otherwise "the door refused" and "there was nothing to read" look alike.
+  ('${DECOY_KEY}', 'admin', '${f.ownOrganizationId}'::uuid, '{"value":"decoy-secret"}'::jsonb)
 ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL DO UPDATE
 SET value_json = EXCLUDED.value_json;
 `;
@@ -295,10 +308,24 @@ SELECT '<<' || coalesce(
   app.read_acquiring_webhook_booking_payment_setting('${key}')
     #>> '{value,providers,0,webhookSecret}', 'none') || '>>';`;
 
+    /**
+     * For a key outside the closed pair the WHOLE return value is the subject, not a provider-secret
+     * path inside it. Digging for `{value,providers,0,webhookSecret}` reports `none` for every
+     * setting that is not a provider list, so it reads the same whether the door refused the key or
+     * handed back this clinic's bot token — and the door is the only thing standing between an
+     * acquiring callback and every other `admin` secret of the clinic it was accepted for.
+     */
+    const outsidePairCall = (organizationId, key) => `${openTenantContext(
+      config, organizationId, CONFIG_PURPOSE, CONFIG_IDENTITY, hashedArgs([key]),
+    )}
+SELECT '<<' || CASE
+  WHEN app.read_acquiring_webhook_booking_payment_setting('${key}') IS NULL THEN 'none'
+  ELSE 'leaked' END || '>>';`;
+
     const output = psql(`${setupSql(f, settle, config)}
 ${readCall(f.ownOrganizationId, 'booking_payment_providers')}
 ${readCall(OTHER_ORGANIZATION_ID, 'booking_payment_providers')}
-${readCall(f.ownOrganizationId, 'telegram_bot_token')}
+${outsidePairCall(f.ownOrganizationId, DECOY_KEY)}
 ROLLBACK;`);
 
     const secrets = [...output.matchAll(/<<([\w-]+)>>/gu)].map((match) => match[1]);
