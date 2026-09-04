@@ -109,7 +109,7 @@ const nextConfig: NextConfig = {
     ];
   },
   /** Native dependencies used by the media preview worker stay external to the server bundle. */
-  serverExternalPackages: ['sharp', 'fluent-ffmpeg'],
+  serverExternalPackages: ['sharp'],
   transpilePackages: ['react-phone-number-input', '@bersoncare/operator-db-schema'],
   experimental: {
     /** Allow importing canonical `normalizeToUtcInstant` from integrator shared (single source of truth). */

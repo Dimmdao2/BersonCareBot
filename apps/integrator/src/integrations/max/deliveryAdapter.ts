@@ -15,7 +15,8 @@ import { readChannel } from '../../infra/adapters/channelRouting.js';
 /**
  * MAX Platform API: `open_app` открывает мини-приложение внутри клиента (MAX Bridge + initData).
  * Схема полей: `schemes.OpenAppButton` в max-bot-api-client-go (`type`, `text`, `web_app`, `payload?`, `contact_id?`).
- * SDK `@maxhub/max-bot-api@0.2.2` в типе `Button` этого варианта ещё не содержит — отправляем JSON как в API.
+ * SDK `@maxhub/max-bot-api@0.3.1` уже несёт `OpenAppButton` в объединении `Button`, но объявляет там
+ * `web_app` необязательным. Локальный тип оставлен строже — без адреса мини-приложения кнопка бессмысленна.
  */
 export type MaxOpenAppButtonPayload = {
   type: 'open_app';
@@ -92,7 +93,7 @@ function toMaxInlineKeyboard(
   const buttons = rows.map((row) =>
     row.map((btn): Button | MaxOpenAppButtonPayload => {
       if (btn.request_contact === true) {
-        return { type: 'request_contact', text: btn.text ?? 'Поделиться номером' } as Button;
+        return { type: 'request_contact', text: btn.text ?? 'Поделиться номером' };
       }
       const webAppUrl = typeof btn.web_app?.url === 'string' ? btn.web_app.url.trim() : '';
       if (webAppUrl.length > 0) {
@@ -114,7 +115,7 @@ function toMaxInlineKeyboard(
   return [
     {
       type: 'inline_keyboard',
-      payload: { buttons: buttons as unknown as Button[][] },
+      payload: { buttons },
     },
   ];
 }

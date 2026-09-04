@@ -5,8 +5,6 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
-import ffmpeg from 'fluent-ffmpeg';
-import type { FfmpegCommand } from 'fluent-ffmpeg';
 import sharp from 'sharp';
 import { and, asc, eq, isNotNull, isNull, lte, notInArray, or, sql } from 'drizzle-orm';
 import { env } from '@/config/env';
@@ -28,16 +26,30 @@ import {
   buildImageStandardRendition,
   encodeStandardImageRendition,
 } from '@/modules/media/imageStandardRendition';
+import {
+  FFMPEG_STDERR_TAIL_BYTES,
+  FFPROBE_STDOUT_MAX_BYTES,
+  buildPosterArgs,
+  buildProbeDimensionsArgs,
+  ffmpegFailureMessage,
+  ffprobeCandidates,
+  parseProbeDimensions,
+  runFirstAvailable,
+  runProcess,
+} from '@/infra/media/ffmpegPreview';
 import { MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
 import { resolveHostedVideoThumbnail } from '@/shared/lib/hostedVideoThumbnail';
 
 const resolvedFfmpegPath = env.FFMPEG_PATH || 'ffmpeg';
-try {
-  ffmpeg.setFfmpegPath(resolvedFfmpegPath);
-  logger.info({ path: resolvedFfmpegPath }, '[mediaPreviewWorker] ffmpeg path set');
-} catch (e) {
-  logger.warn({ err: e, path: resolvedFfmpegPath }, '[mediaPreviewWorker] ffmpeg path not set');
-}
+/**
+ * `FFPROBE_PATH` читается напрямую из окружения: так его брала снятая обёртка `fluent-ffmpeg`,
+ * отдельным объявленным ключом конфигурации он никогда не был.
+ */
+const resolvedFfprobeCandidates = ffprobeCandidates(resolvedFfmpegPath, process.env.FFPROBE_PATH);
+logger.info(
+  { path: resolvedFfmpegPath, ffprobe: resolvedFfprobeCandidates },
+  '[mediaPreviewWorker] ffmpeg path set',
+);
 
 const MAX_PREVIEW_ATTEMPTS = 5;
 /** Avoid loading multi‑hundred‑MB originals into Node for sharp (heap OOM). */
@@ -86,87 +98,47 @@ function isPermanentPreviewError(e: unknown): boolean {
 }
 
 /** Best-effort width/height from ffprobe (video or still image in container). */
-function ffprobeSourceDimensions(url: string): Promise<{ width: number; height: number } | null> {
-  return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(url, (err, metadata) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      const streams = metadata.streams ?? [];
-      const withDims = streams.filter(
-        (s) =>
-          typeof s.width === 'number' &&
-          typeof s.height === 'number' &&
-          s.width > 0 &&
-          s.height > 0,
-      );
-      if (withDims.length === 0) {
-        resolve(null);
-        return;
-      }
-      const best = withDims.reduce((a, b) =>
-        a.width! * a.height! >= b.width! * b.height! ? a : b,
-      );
-      resolve({ width: best.width!, height: best.height! });
-    });
-  });
+async function ffprobeSourceDimensions(
+  url: string,
+): Promise<{ width: number; height: number } | null> {
+  const result = await runFirstAvailable(
+    resolvedFfprobeCandidates,
+    buildProbeDimensionsArgs(url),
+    {
+      timeoutMs: FFMPEG_EXTRACT_TIMEOUT_MS,
+      maxStderrBytes: FFMPEG_STDERR_TAIL_BYTES,
+      maxStdoutBytes: FFPROBE_STDOUT_MAX_BYTES,
+    },
+  );
+  if (result.signal || result.code !== 0) {
+    throw new Error(ffmpegFailureMessage(result, 'ffprobe'));
+  }
+  return parseProbeDimensions(result.stdout);
 }
 
-function extractVideoPosterJpeg(presignedUrl: string, seekSeconds: number): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    void (async () => {
-      let dir: string | null = null;
-      const cleanup = async () => {
-        if (!dir) return;
-        const d = dir;
-        dir = null;
-        try {
-          await rm(d, { recursive: true, force: true });
-        } catch {
-          /* ignore */
-        }
-      };
-
-      try {
-        dir = await mkdtemp(join(tmpdir(), 'media-prev-v-'));
-        const outPath = join(dir, 'poster.jpg');
-        const cmd: FfmpegCommand = ffmpeg(presignedUrl);
-        const killTimer = setTimeout(() => {
-          try {
-            cmd.kill('SIGKILL');
-          } catch {
-            /* ignore */
-          }
-        }, FFMPEG_EXTRACT_TIMEOUT_MS);
-
-        cmd
-          .seekInput(seekSeconds)
-          .outputOptions(['-frames:v', '1', '-q:v', '3'])
-          .output(outPath)
-          .on('end', async () => {
-            clearTimeout(killTimer);
-            try {
-              const buf = await readFile(outPath);
-              await cleanup();
-              resolve(buf);
-            } catch (e) {
-              await cleanup();
-              reject(e);
-            }
-          })
-          .on('error', async (err) => {
-            clearTimeout(killTimer);
-            await cleanup();
-            reject(err);
-          })
-          .run();
-      } catch (e) {
-        await cleanup();
-        reject(e);
-      }
-    })().catch(reject);
-  });
+async function extractVideoPosterJpeg(
+  presignedUrl: string,
+  seekSeconds: number,
+): Promise<Buffer> {
+  const dir = await mkdtemp(join(tmpdir(), 'media-prev-v-'));
+  try {
+    const outPath = join(dir, 'poster.jpg');
+    const result = await runProcess(
+      resolvedFfmpegPath,
+      buildPosterArgs(presignedUrl, outPath, seekSeconds),
+      {
+        timeoutMs: FFMPEG_EXTRACT_TIMEOUT_MS,
+        maxStderrBytes: FFMPEG_STDERR_TAIL_BYTES,
+        maxStdoutBytes: 0,
+      },
+    );
+    if (result.signal || result.code !== 0) {
+      throw new Error(ffmpegFailureMessage(result));
+    }
+    return await readFile(outPath);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 async function videoPosterJpegRaw(s3Key: string): Promise<Buffer> {

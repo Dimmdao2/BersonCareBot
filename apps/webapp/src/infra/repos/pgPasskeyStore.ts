@@ -1,4 +1,4 @@
-import type { AuthenticatorTransportFuture, CredentialDeviceType } from '@simplewebauthn/server';
+import type { CredentialDeviceType } from '@simplewebauthn/server';
 import { sql } from 'drizzle-orm';
 import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import type {
@@ -7,24 +7,9 @@ import type {
   PasskeyCredentialSummary,
   PasskeyStore,
 } from '@/modules/auth/passkeyStore';
+import { parsePasskeyTransports } from '@/modules/auth/passkeyStore';
 
-const TRANSPORTS = new Set<AuthenticatorTransportFuture>([
-  'ble',
-  'cable',
-  'hybrid',
-  'internal',
-  'nfc',
-  'smart-card',
-  'usb',
-]);
-
-function parseTransports(value: unknown): AuthenticatorTransportFuture[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(
-    (entry): entry is AuthenticatorTransportFuture =>
-      typeof entry === 'string' && TRANSPORTS.has(entry as AuthenticatorTransportFuture),
-  );
-}
+const parseTransports = parsePasskeyTransports;
 
 function parseDeviceType(value: string): CredentialDeviceType {
   return value === 'multiDevice' ? 'multiDevice' : 'singleDevice';

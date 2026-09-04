@@ -90,11 +90,13 @@ organization/submission access row, что playback. Знание UUID файл�
 
 ## Зависимости
 
-В `apps/webapp`: `sharp`, `fluent-ffmpeg` и системный `ffmpeg`. Для HEIC fallback в production нужен установленный `ImageMagick` (`magick` или `convert` в `PATH`, либо `MAGICK_PATH` в env).
+В `apps/webapp`: `sharp` и системный `ffmpeg`/`ffprobe`. Для HEIC fallback в production нужен установленный `ImageMagick` (`magick` или `convert` в `PATH`, либо `MAGICK_PATH` в env).
 
-Воркер сначала читает `FFMPEG_PATH` из env (на сервере канонично `/usr/bin/ffmpeg`), иначе разрешает `ffmpeg` через `PATH`. Для HEIC fallback можно задать `MAGICK_PATH` (например `/usr/bin/magick`).
+Node-обёртка `fluent-ffmpeg` снята (upstream deprecated, без релизов): движок остался тем же системным FFmpeg, воркер запускает его напрямую через [`apps/webapp/src/infra/media/ffmpegPreview.ts`](../apps/webapp/src/infra/media/ffmpegPreview.ts) — argv массивом без `shell`, SIGKILL по таймауту 120 c, ограниченный хвост `stderr`, временный каталог убирается всегда. Тексты ошибок (`ffmpeg exited with code N: …`, `ffmpeg was killed with signal …`) сохранены дословно: по ним воркер отличает постоянную ошибку файла (`skipped`) от временной (retry/backoff).
 
-**Next.js production build:** в [`apps/webapp/next.config.ts`](../apps/webapp/next.config.ts) нативные `sharp` и `fluent-ffmpeg` остаются в `serverExternalPackages`. Для preview-route исключены исходники и test/config-файлы, которые NFT ошибочно захватывал из-за динамических временных путей. Платформенный `@ffmpeg-installer` из webapp удалён отдельно: сервер использует системный ffmpeg, а bundled-бинарь уже давал `SIGSEGV` на хосте.
+Воркер сначала читает `FFMPEG_PATH` из env (на сервере канонично `/usr/bin/ffmpeg`), иначе разрешает `ffmpeg` через `PATH`. Для `ffprobe` (размеры источника) порядок прежний: `FFPROBE_PATH` из env → `ffprobe` из `PATH` → сосед указанного `ffmpeg`. Для HEIC fallback можно задать `MAGICK_PATH` (например `/usr/bin/magick`).
+
+**Next.js production build:** в [`apps/webapp/next.config.ts`](../apps/webapp/next.config.ts) нативный `sharp` остаётся в `serverExternalPackages` (`fluent-ffmpeg` оттуда убран вместе с пакетом). Для preview-route исключены исходники и test/config-файлы, которые NFT ошибочно захватывал из-за динамических временных путей. Платформенный `@ffmpeg-installer` из webapp удалён отдельно: сервер использует системный ffmpeg, а bundled-бинарь уже давал `SIGSEGV` на хосте.
 
 ## Миграции
 

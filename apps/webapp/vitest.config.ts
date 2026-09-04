@@ -17,10 +17,9 @@ export default defineConfig({
     // §owner 28.06: КАП ВОРКЕРОВ — тесты не форкаются на все ядра (вешали коробку и голодили мозг — инцидент #214).
     // Дефолт 2 (~25% от 8 vCPU). Полная мощность ОСОЗНАННО: VITEST_MAX_WORKERS=8 pnpm test.
     maxWorkers: Number(process.env.VITEST_MAX_WORKERS ?? 2),
-    /** Кэш модулей между прогонами (путь по умолчанию: node_modules/.experimental-vitest-cache) */
-    experimental: {
-      fsModuleCache: true,
-    },
+    /** Кэш модулей между прогонами (путь по умолчанию: node_modules/.vitest-cache).
+        Vitest 5 вывел опцию из `experimental` на верхний уровень — поведение то же. */
+    fsModuleCache: true,
     projects: [
       {
         extends: true,
