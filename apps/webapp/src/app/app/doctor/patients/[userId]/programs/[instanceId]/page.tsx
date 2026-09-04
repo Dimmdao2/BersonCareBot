@@ -10,7 +10,6 @@ import { z } from 'zod';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { routePaths } from '@/app-layer/routes/paths';
 import { formatDoctorFioShort } from '@/shared/lib/fio';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
@@ -151,20 +150,16 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     />
   );
 
+  // `PatientCardClient` сам открывает `DoctorAppShell`: второй shell вокруг него давал
+  // вложенный `#app-shell-content` — двойные боковые поля и нижний отступ у вкладки ЛФК и
+  // у любой вкладки, открытой с этого маршрута (`LFK-LAYOUT-01/02`).
   return (
-    <DoctorAppShell
-      title="Карточка пациента"
-      user={session.user}
-      backHref={routePaths.doctorPatients}
-      mobileBottomGutter
-    >
-      <PatientCardClient
-        shellMeta={shellMeta}
-        tabPromise={tabPromise}
-        initialTab="program"
-        embeddedProgramContent={embeddedEditor}
-        patientListHref={routePaths.doctorPatients}
-      />
-    </DoctorAppShell>
+    <PatientCardClient
+      shellMeta={shellMeta}
+      tabPromise={tabPromise}
+      initialTab="program"
+      embeddedProgramContent={embeddedEditor}
+      patientListHref={routePaths.doctorPatients}
+    />
   );
 }

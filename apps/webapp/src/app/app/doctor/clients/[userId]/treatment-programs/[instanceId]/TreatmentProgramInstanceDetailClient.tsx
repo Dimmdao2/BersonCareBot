@@ -44,7 +44,7 @@ import type {
 } from '@/modules/treatment-program/types';
 import type { TreatmentProgramTestResultDetailRow } from '@/modules/treatment-program/types';
 import { DoctorProgramItemDiscussionDialog } from './DoctorProgramItemDiscussionDialog';
-import { DoctorProgramInstanceDiscussionDialog } from './DoctorProgramInstanceDiscussionDialog';
+import { DoctorLfkCommentsModal } from '@/app/app/doctor/comments/DoctorLfkCommentsModal';
 import {
   formatNormalizedTestDecisionRu,
   formatTreatmentProgramStageStatusRu,
@@ -859,17 +859,6 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     [stageZero],
   );
 
-  const discussionProgramItems = useMemo(
-    () =>
-      sortedStages.flatMap((stage) =>
-        sortByOrderThenId(stage.items).map((item) => ({
-          id: item.id,
-          label: itemTitles.get(item.id) ?? 'Элемент',
-        })),
-      ),
-    [sortedStages, itemTitles],
-  );
-
   const refresh = useCallback(async () => {
     setError(null);
     try {
@@ -1007,12 +996,13 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         stageZeroId={stageZero?.id ?? null}
         pipelineStages={pipelineStages.map((s) => ({ id: s.id, title: s.title }))}
       />
-      <DoctorProgramInstanceDiscussionDialog
+      <DoctorLfkCommentsModal
         open={instanceDiscussionOpen}
-        onOpenChange={setInstanceDiscussionOpen}
-        instanceId={detail.id}
-        programItems={discussionProgramItems}
-        onRead={handleDiscussionRead}
+        onClose={() => setInstanceDiscussionOpen(false)}
+        patientUserId={detail.patientUserId}
+        patientName={patientName ?? ''}
+        stageTitle={currentStage?.title ?? null}
+        onUnreadCleared={({ stageItemId }) => handleDiscussionRead([stageItemId])}
       />
       {error ? (
         <p className="text-sm text-destructive" role="alert">

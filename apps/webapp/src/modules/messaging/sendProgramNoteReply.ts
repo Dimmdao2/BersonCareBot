@@ -6,6 +6,7 @@ import {
 import type { PatientInboundChatPort } from '@/modules/messaging/ports';
 import { parsePlatformUserIdFromWebappConversationId } from '@/modules/messaging/supportConversationIds';
 import type { ProgramItemDiscussionService } from '@/modules/program-item-discussion/service';
+import { logger, serializeError } from '@/infra/logging/logger';
 
 const MAX_LEN = 4000;
 
@@ -89,13 +90,19 @@ export function createSendProgramNoteReply(deps: {
     });
 
     if (supportMessage.created) {
-      await deps.notifyPatientOfDoctorReply({
-        organizationId: ctx.organizationId,
-        platformUserId,
-        messageId: integratorMessageId,
-        text: chatText,
-        senderDisplayName: input.senderDisplayName,
-      });
+      // The canonical support-chat path returns after the durable write as well: external channel
+      // retries must never keep the doctor's composer pending for minutes when DEV relay is down.
+      deps
+        .notifyPatientOfDoctorReply({
+          organizationId: ctx.organizationId,
+          platformUserId,
+          messageId: integratorMessageId,
+          text: chatText,
+          senderDisplayName: input.senderDisplayName,
+        })
+        .catch((error: unknown) => {
+          logger.error({ err: serializeError(error) }, '[programNoteReply] patient notify error');
+        });
     }
 
     return { ok: true, platformUserId, chatText, supportMessageId: supportMessage.id };

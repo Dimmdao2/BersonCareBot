@@ -6815,6 +6815,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "body",
           "created_at",
+          "id",
           "instance_stage_item_id",
           "media_file_id",
           "organization_id",

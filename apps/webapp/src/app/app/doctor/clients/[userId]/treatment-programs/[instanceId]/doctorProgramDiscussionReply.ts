@@ -15,6 +15,7 @@ export type SendDoctorProgramDiscussionReplyResult =
 
 function mapReplyErrorToRu(errorCode: string | null | undefined): string {
   if (errorCode === 'feature_disabled') return 'Ответы временно отключены';
+  if (errorCode === 'setting_unavailable') return 'Ответы временно недоступны, повторите позже';
   if (errorCode === 'program_not_doctor_assigned')
     return 'Ответ доступен только для программ, назначенных врачом';
   if (errorCode === 'program_item_not_active') return 'Нельзя ответить по неактивному пункту';
