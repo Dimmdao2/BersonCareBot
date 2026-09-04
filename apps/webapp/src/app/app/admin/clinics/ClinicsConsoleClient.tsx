@@ -16,6 +16,7 @@ import {
 import { DOCTOR_CATALOG_FILTER_MISSING } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
 import type { ReferenceItemDto } from '@/modules/references/referenceCache';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
 import {
   DoctorSection,
@@ -780,7 +781,7 @@ function ClinicDetail({
         <SaasBillingOverview billing={billing} showProviderEvents />
       ) : (
         <DoctorSection>
-          <DoctorEmptyState>Загружаем биллинг…</DoctorEmptyState>
+          <DoctorPanelLoading className="py-6" />
         </DoctorSection>
       )}
     </>
@@ -919,7 +920,7 @@ export function ClinicsConsoleClient({
   if (!data || (organizationId && !members)) {
     return (
       <DoctorSection>
-        <DoctorEmptyState>Загружаем клиники…</DoctorEmptyState>
+        <DoctorPanelLoading className="py-6" />
       </DoctorSection>
     );
   }

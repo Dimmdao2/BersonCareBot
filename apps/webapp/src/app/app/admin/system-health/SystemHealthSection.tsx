@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { apiJson } from '@/shared/lib/apiJson';
 import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
 import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
@@ -935,9 +936,7 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
             />
           ) : null}
           {loading ? (
-            <p role="status" className="text-muted-foreground">
-              Загружаем состояние системы…
-            </p>
+            <DoctorPanelLoading className="py-6" />
           ) : null}
           {!loading && !error && (
             <>

@@ -32,6 +32,7 @@ import {
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
 import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -781,9 +782,7 @@ export function CommercialConstructorClient() {
   if (loading) {
     return (
       <DoctorSection>
-        <p role="status" className="text-sm text-muted-foreground">
-          Загружаем коммерческие настройки…
-        </p>
+        <DoctorPanelLoading className="py-6" />
       </DoctorSection>
     );
   }

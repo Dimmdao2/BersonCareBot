@@ -12,6 +12,7 @@ import { apiJson } from '@/shared/lib/apiJson';
 import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
 import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type PolicyChange = {
   mechanic: string | null;
@@ -89,9 +90,7 @@ export function TariffPolicyHistoryPanel({ displayTimeZone }: { displayTimeZone:
         />
       )}
       {loading && (
-        <p role="status" className="text-sm text-muted-foreground">
-          Загружаем журнал изменений…
-        </p>
+        <DoctorPanelLoading className="py-6" />
       )}
 
       {!loading && !error && items.length === 0 && (

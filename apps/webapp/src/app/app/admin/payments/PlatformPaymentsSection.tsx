@@ -22,6 +22,7 @@ import {
 } from '@/shared/ui/doctor/primitives/card';
 import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -221,11 +222,7 @@ function PlatformPaymentsSummarySection({
   }, [load]);
 
   if (loading) {
-    return (
-      <p role="status" className="text-sm text-muted-foreground">
-        Загружаем сводку…
-      </p>
-    );
+    return <DoctorPanelLoading className="py-6" />;
   }
   if (error) {
     return (
@@ -811,9 +808,7 @@ function ManualInvoiceDialog({
               />
             )}
             {loadingOptions ? (
-              <p role="status" className="text-sm text-muted-foreground">
-                Загружаем список клиник…
-              </p>
+              <DoctorPanelLoading className="py-2" />
             ) : null}
             <div className="space-y-1.5">
               <Label htmlFor="manual-invoice-org">Кому (клиника)</Label>
@@ -1121,9 +1116,7 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
               retrying={loading}
             />
           ) : loading ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              Загружаем платежи…
-            </p>
+            <DoctorPanelLoading className="py-6" />
           ) : (
             <div className="overflow-x-auto rounded-md border border-border/60">
               <table className="w-full min-w-[980px] text-left text-sm">
