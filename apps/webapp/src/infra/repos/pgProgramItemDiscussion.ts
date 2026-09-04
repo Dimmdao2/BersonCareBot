@@ -4,7 +4,7 @@ import {
   getCurrentDbPrincipalOrganizationId,
 } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import {
   programItemDiscussionMessages,
@@ -31,33 +31,6 @@ import type {
   ProgramItemDiscussionSenderRole,
   StageItemViewerUnreadCount,
 } from '@/modules/program-item-discussion/types';
-
-type ProgramItemDiscussionMessageRow = {
-  id: string;
-  organization_id: string | null;
-  instance_stage_item_id: string;
-  patient_user_id: string;
-  sender_role: string;
-  origin: string;
-  body: string | null;
-  media_file_id: string | null;
-  support_message_id: string | null;
-  created_at: string;
-};
-
-function mapInsertedRow(row: ProgramItemDiscussionMessageRow): ProgramItemDiscussionMessage {
-  return {
-    id: row.id,
-    instanceStageItemId: row.instance_stage_item_id,
-    patientUserId: row.patient_user_id,
-    senderRole: row.sender_role as ProgramItemDiscussionSenderRole,
-    origin: row.origin as ProgramItemDiscussionOrigin,
-    body: row.body,
-    mediaFileId: row.media_file_id,
-    supportMessageId: row.support_message_id,
-    createdAt: row.created_at,
-  };
-}
 
 function mapMessage(
   row: typeof programItemDiscussionMessages.$inferSelect,
@@ -303,33 +276,22 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
           const stageItem = await tx.query.treatmentProgramInstanceStageItems.findFirst({
             where: eq(treatmentProgramInstanceStageItems.id, input.instanceStageItemId),
           });
-          // Список колонок задан явно и БЕЗ `id`: у staff-порта нет INSERT на колонку `id`
-          // (её вставляет только seam-owner пациентского корня), а Drizzle `.values()`
-          // перечисляет все колонки таблицы и подставляет `default` — из-за этого ответ врача
-          // падал `permission denied for table program_item_discussion_messages`. `id`
-          // отдаём табличному DEFAULT, как в остальных staff-вставках репозиториев.
-          const inserted = await runWebappSql<ProgramItemDiscussionMessageRow>(
-            tx,
-            sql`INSERT INTO program_item_discussion_messages (
-              organization_id, instance_stage_item_id, patient_user_id, sender_role, origin,
-              body, media_file_id, support_message_id, created_at
-            ) VALUES (
-              ${currentWriteOrganizationId(stageItem?.organizationId)}::uuid,
-              ${input.instanceStageItemId}::uuid,
-              ${input.patientUserId}::uuid,
-              ${input.senderRole}::text,
-              ${input.origin}::text,
-              ${input.body ?? null}::text,
-              ${input.mediaFileId ?? null}::uuid,
-              ${input.supportMessageId ?? null}::uuid,
-              ${input.createdAt ?? new Date().toISOString()}::timestamptz
-            )
-            RETURNING id, organization_id, instance_stage_item_id, patient_user_id, sender_role,
-                      origin, body, media_file_id, support_message_id, created_at::text`,
-          );
-          const row = inserted.rows[0];
+          const [row] = await tx
+            .insert(programItemDiscussionMessages)
+            .values({
+              organizationId: currentWriteOrganizationId(stageItem?.organizationId),
+              instanceStageItemId: input.instanceStageItemId,
+              patientUserId: input.patientUserId,
+              senderRole: input.senderRole,
+              origin: input.origin,
+              body: input.body ?? null,
+              mediaFileId: input.mediaFileId ?? null,
+              supportMessageId: input.supportMessageId ?? null,
+              createdAt: input.createdAt ?? new Date().toISOString(),
+            })
+            .returning();
           if (!row) throw new Error('program_item_discussion_insert_failed');
-          return mapInsertedRow(row);
+          return mapMessage(row);
         });
       } catch (error) {
         const code =

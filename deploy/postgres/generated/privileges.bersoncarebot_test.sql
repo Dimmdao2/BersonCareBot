@@ -16797,7 +16797,7 @@ GRANT SELECT ("body", "created_at", "id", "instance_stage_item_id", "media_file_
 GRANT SELECT ("instance_stage_item_id", "media_file_id", "organization_id") ON TABLE "public"."program_item_discussion_messages" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("body", "created_at", "id", "instance_stage_item_id", "media_file_id", "organization_id", "origin", "patient_user_id", "sender_role", "support_message_id") ON TABLE "public"."program_item_discussion_messages" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT, DELETE ON TABLE "public"."program_item_discussion_messages" TO "app_staff";
-GRANT INSERT ("body", "created_at", "instance_stage_item_id", "media_file_id", "organization_id", "origin", "patient_user_id", "sender_role", "support_message_id") ON TABLE "public"."program_item_discussion_messages" TO "app_staff";
+GRANT INSERT ("body", "created_at", "id", "instance_stage_item_id", "media_file_id", "organization_id", "origin", "patient_user_id", "sender_role", "support_message_id") ON TABLE "public"."program_item_discussion_messages" TO "app_staff";
 -- последовательности public.program_item_discussion_messages: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
