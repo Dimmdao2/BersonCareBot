@@ -98,6 +98,7 @@ export function DoctorTimezoneSelect({
   return (
     /* react-timezone-select/react-select value types conflict at TS level; runtime is correct */
     <TimezoneSelect
+      classNamePrefix="doctor-timezone-select"
       instanceId={instanceId}
       inputId={inputId}
       aria-label={rest['aria-label']}

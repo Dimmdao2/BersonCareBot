@@ -5,7 +5,8 @@ import { Bar, CartesianGrid, ComposedChart, Line, ReferenceDot, XAxis, YAxis } f
 import type { TodayWeeklyTimelinePoint } from './loadDoctorTodayDashboard';
 import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
+import { Card, CardContent, CardHeader } from '@/shared/ui/doctor/primitives/card';
 
 const WEEK_WIDTH = 72;
 
@@ -84,12 +85,12 @@ export function DoctorTodayWeeklyAppointmentsChart({
   return (
     <Card className="flex h-full min-h-0 min-w-0 flex-col gap-2 py-3">
       <CardHeader className="shrink-0 px-3">
-        <CardTitle>Записи по неделям</CardTitle>
+        <DoctorSectionTitle>Записи по неделям</DoctorSectionTitle>
       </CardHeader>
       <CardContent className="min-h-0 min-w-0 flex-1 px-0 pb-0">
         <div
           ref={scrollAreaRef}
-          className="doctor-weekly-chart-scroll h-full w-full overflow-x-auto overscroll-x-contain"
+          className="doctor-weekly-chart-scroll doctor-touch-focus-surface h-full w-full overflow-x-auto overscroll-x-contain"
         >
           <div className="h-full min-h-0 px-2 pb-2" style={{ width: chartWidth, minWidth: '100%' }}>
             <PositiveSizeResponsiveContainer width="100%" height="100%">

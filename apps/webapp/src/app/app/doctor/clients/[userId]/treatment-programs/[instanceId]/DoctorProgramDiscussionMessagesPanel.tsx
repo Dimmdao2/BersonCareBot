@@ -31,6 +31,7 @@ import { ProgramItemDiscussionMessageBody } from '@/app/app/patient/treatment/Pr
 import type { ExerciseMedia } from '@/modules/lfk-exercises/types';
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import { DoctorExerciseMediaPlayer } from '@/shared/ui/doctor/media/DoctorExerciseMediaPlayer';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import {
   doctorChatMessageTextClass,
   doctorChatTimestampClass,
@@ -80,21 +81,18 @@ function AssignmentToolbar({
         doctorPanelBottomShadowClass,
       )}
     >
-      {videoOpen ? (
-        <div className="relative px-4 pt-2.5" data-testid="assignment-toolbar-video">
-          <DoctorExerciseMediaPlayer media={assignment.media} title="Видео упражнения" />
-          <Button
-            type="button"
-            size="icon"
-            variant="secondary"
-            className="absolute top-4 right-6 size-8 rounded-full opacity-90 shadow-sm"
-            onClick={() => setVideoOpen(false)}
-            aria-label="Свернуть видео"
-          >
-            <X className="size-4" aria-hidden />
-          </Button>
-        </div>
-      ) : null}
+      <DoctorModal
+        open={videoOpen}
+        onClose={() => setVideoOpen(false)}
+        title="Видео упражнения"
+        presentation="fullscreen-media"
+      >
+        <DoctorExerciseMediaPlayer
+          media={assignment.media}
+          title="Видео упражнения"
+          presentation="fullscreen"
+        />
+      </DoctorModal>
       {/* Превью, первая строка рекомендаций и действия выровнены по ВЕРХНЕМУ краю блока;
           кнопки живут в первой строке (её высоту и задают), поэтому заметку они не перекрывают. */}
       <div className="flex items-start gap-3 px-4 py-2.5">

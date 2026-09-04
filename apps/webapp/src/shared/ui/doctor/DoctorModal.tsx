@@ -1,7 +1,9 @@
 'use client';
 
 import { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from './primitives/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './primitives/dialog';
 import {
   Drawer,
@@ -14,6 +16,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from './primitives/sheet
 import { useIsMobileViewport } from './primitives/useIsMobileViewport';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import {
+  DoctorModalLayerProvider,
+  useDoctorModalLayer,
+  useDoctorModalOverlay,
+} from '@/shared/ui/doctor/DoctorModalLayerContext';
+import {
   doctorModalEntityTitleClass,
   doctorModalTitleClass,
   doctorModalTitleSubjectClass,
@@ -22,6 +29,7 @@ import {
 
 type DoctorModalSize = 'sm' | 'md' | 'lg' | 'content';
 type DoctorModalBodyVariant = 'default' | 'list';
+type DoctorModalPresentation = 'standard' | 'fullscreen-media';
 export type DoctorModalDesktopPresentation = 'dialog' | 'right-sheet';
 
 /** Десктоп: ограничение ширины по размеру. Мобила — всегда bottom-sheet во всю ширину. */
@@ -60,6 +68,10 @@ type DoctorModalProps = {
   desktopPresentation?: DoctorModalDesktopPresentation;
   /** Called before a non-modal right sheet closes from a pointer press outside it. */
   onRightSheetOutsidePress?: () => void;
+  /** Explicit compatibility escape hatch; automatic nesting is preferred. */
+  nested?: boolean;
+  /** Full-viewport media viewer which keeps the underlying modal mounted. */
+  presentation?: DoctorModalPresentation;
 };
 
 export function DoctorModalCompositeTitle({
@@ -112,8 +124,12 @@ export function DoctorModal({
   bodyVariant = 'default',
   desktopPresentation = 'dialog',
   onRightSheetOutsidePress,
+  nested = false,
+  presentation = 'standard',
 }: DoctorModalProps) {
   const isMobile = useIsMobileViewport();
+  const { isNestedLayer, parentDepth } = useDoctorModalLayer(nested);
+  const showOverlay = useDoctorModalOverlay(open, isNestedLayer);
   const isWideDesktop = useViewportMinWidth(1280);
   const isContent = size === 'content';
   const isListBody = bodyVariant === 'list';
@@ -200,10 +216,72 @@ export function DoctorModal({
     if (!v) onClose();
   };
 
+  const layerDepth = parentDepth + (open ? 1 : 0);
+
+  if (presentation === 'fullscreen-media') {
+    const fullscreenBody = (
+      <div className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-black text-white">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-end px-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
+          <Button
+            type="button"
+            size="icon"
+            variant="secondary"
+            className="pointer-events-auto size-10 rounded-full border-white/20 bg-black/55 text-white hover:bg-black/70 hover:text-white"
+            onClick={onClose}
+            aria-label="Закрыть видео"
+          >
+            <X className="size-5" aria-hidden />
+          </Button>
+        </div>
+        <div className="sr-only">{title}</div>
+        {children}
+      </div>
+    );
+
+    if (isMobile) {
+      return (
+        <DoctorModalLayerProvider depth={layerDepth}>
+          <Drawer open={open} onOpenChange={handleOpenChange}>
+            <DrawerContent
+              showCloseButton={false}
+              showHandle={false}
+              showOverlay={showOverlay}
+              className="!h-dvh !max-h-dvh gap-0 rounded-none border-0 bg-black p-0 shadow-none"
+            >
+              <DrawerTitle className="sr-only">{title}</DrawerTitle>
+              {fullscreenBody}
+            </DrawerContent>
+          </Drawer>
+        </DoctorModalLayerProvider>
+      );
+    }
+
+    return (
+      <DoctorModalLayerProvider depth={layerDepth}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
+          <DialogContent
+            fullScreen
+            showCloseButton={false}
+            showOverlay={showOverlay}
+            className="flex bg-black p-0 shadow-none"
+          >
+            <DialogTitle className="sr-only">{title}</DialogTitle>
+            {fullscreenBody}
+          </DialogContent>
+        </Dialog>
+      </DoctorModalLayerProvider>
+    );
+  }
+
   if (isMobile) {
     return (
+      <DoctorModalLayerProvider depth={layerDepth}>
       <Drawer open={open} onOpenChange={handleOpenChange}>
-        <DrawerContent showCloseButton={false} className="gap-0 bg-card p-0">
+        <DrawerContent
+          showCloseButton={false}
+          showOverlay={showOverlay}
+          className="gap-0 bg-card p-0"
+        >
           <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pt-1.5 pb-3">
             <div className="flex min-w-0 items-center justify-between gap-2">
               <div className="flex min-w-0 flex-col gap-0.5">
@@ -220,11 +298,13 @@ export function DoctorModal({
           {mobileSafeAreaNode}
         </DrawerContent>
       </Drawer>
+      </DoctorModalLayerProvider>
     );
   }
 
   if (desktopPresentation === 'right-sheet') {
     return (
+      <DoctorModalLayerProvider depth={layerDepth}>
       <Sheet
         open={open}
         modal={false}
@@ -267,13 +347,16 @@ export function DoctorModal({
           {footerNode}
         </SheetContent>
       </Sheet>
+      </DoctorModalLayerProvider>
     );
   }
 
   return (
+    <DoctorModalLayerProvider depth={layerDepth}>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton
+        showOverlay={showOverlay}
         className={cn(
           'flex max-h-[calc(100dvh-3rem)] flex-col gap-0 overflow-hidden bg-card p-0',
           sizeMaxWidth[size],
@@ -294,5 +377,6 @@ export function DoctorModal({
         {footerNode}
       </DialogContent>
     </Dialog>
+    </DoctorModalLayerProvider>
   );
 }

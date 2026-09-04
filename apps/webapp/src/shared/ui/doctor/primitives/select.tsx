@@ -19,7 +19,10 @@ import { cn } from '@/lib/utils';
 export function SelectTrigger({ className, ...props }: ComponentProps<typeof SharedSelectTrigger>) {
   return (
     <SharedSelectTrigger
-      className={cn('rounded-[var(--doctor-button-radius,8px)] bg-white', className)}
+      className={cn(
+        'rounded-[var(--doctor-button-radius,8px)] bg-white text-base md:text-sm',
+        className,
+      )}
       {...props}
     />
   );

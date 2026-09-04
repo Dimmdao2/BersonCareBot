@@ -19,16 +19,22 @@ function DrawerContent({
   className,
   children,
   showCloseButton = true,
+  showOverlay = true,
+  showHandle = true,
   ...props
 }: DrawerPrimitive.Popup.Props & {
   showCloseButton?: boolean;
+  showOverlay?: boolean;
+  showHandle?: boolean;
 }) {
   return (
     <DrawerPrimitive.Portal>
-      <DrawerPrimitive.Backdrop
-        data-slot="drawer-overlay"
-        className="fixed inset-0 z-50 bg-black/25 transition-opacity duration-300 ease-out [opacity:calc(1-var(--drawer-swipe-progress))] data-ending-style:opacity-0 data-starting-style:opacity-0 data-swiping:duration-0 supports-backdrop-filter:backdrop-blur-[2px]"
-      />
+      {showOverlay ? (
+        <DrawerPrimitive.Backdrop
+          data-slot="drawer-overlay"
+          className="fixed inset-0 z-50 bg-black/25 transition-opacity duration-300 ease-out [opacity:calc(1-var(--drawer-swipe-progress))] data-ending-style:opacity-0 data-starting-style:opacity-0 data-swiping:duration-0 supports-backdrop-filter:backdrop-blur-[2px]"
+        />
+      ) : null}
       <DrawerPrimitive.Viewport className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center">
         <DrawerPrimitive.Popup
           data-slot="drawer-content"
@@ -38,10 +44,12 @@ function DrawerContent({
           )}
           {...props}
         >
-          <div
-            aria-hidden="true"
-            className="mx-auto mt-2.5 mb-1 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/35"
-          />
+          {showHandle ? (
+            <div
+              aria-hidden="true"
+              className="mx-auto mt-2.5 mb-1 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/35"
+            />
+          ) : null}
           <DrawerPrimitive.Content className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {children}
           </DrawerPrimitive.Content>

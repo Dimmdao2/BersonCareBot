@@ -723,7 +723,7 @@ export function PatientTabFiles({
           }
         }}
       >
-        <DialogContent showCloseButton={!deleting}>
+        <DialogContent showCloseButton={!deleting} showOverlay={previewFile === null}>
           <DialogHeader>
             <DialogTitle>
               {deleteUsageCount > 0 ? 'Файл используется в материалах' : 'Удалить файл?'}
