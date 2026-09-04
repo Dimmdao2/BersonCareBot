@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { BookingPublicAttributionSection } from '@/app/app/settings/BookingPublicAttributionSection';
 import { BookingPublicWidgetSection } from '@/app/app/settings/BookingPublicWidgetSection';
 import { BookingPrepaymentSection } from '@/app/app/settings/BookingPrepaymentSection';
@@ -22,6 +22,7 @@ import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { BOOKING_CARD_GRID_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
+import { DoctorShellMobileSubsectionTabsRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
@@ -866,6 +867,7 @@ function SectionNotifications() {
 export function ScheduleSetupTab({
   deepLinkParams,
   onDeepLinkChange,
+  isActive,
   doctorStatisticsEnabled,
   paymentsVisible = true,
   paymentsReadOnly = false,
@@ -873,17 +875,21 @@ export function ScheduleSetupTab({
   packagesVisible = true,
   packagesReadOnly = false,
 }: ScheduleTabProps) {
-  const sectionVisibility: SetupSectionVisibility = {
-    payments: paymentsVisible,
-    notifications: notificationTemplatesVisible,
-    packages: packagesVisible,
-  };
+  const sectionVisibility: SetupSectionVisibility = useMemo(
+    () => ({
+      payments: paymentsVisible,
+      notifications: notificationTemplatesVisible,
+      packages: packagesVisible,
+    }),
+    [notificationTemplatesVisible, packagesVisible, paymentsVisible],
+  );
   const [activeSection, setActiveSectionState] = useState<SetupSectionId>(() =>
     resolveSectionId(deepLinkParams.section, sectionVisibility),
   );
 
-  const visibleSections = SETUP_SECTIONS.filter((section) =>
-    sectionIsVisible(section, sectionVisibility),
+  const visibleSections = useMemo(
+    () => SETUP_SECTIONS.filter((section) => sectionIsVisible(section, sectionVisibility)),
+    [sectionVisibility],
   );
 
   const setActiveSection = useCallback(
@@ -894,15 +900,26 @@ export function ScheduleSetupTab({
     [onDeepLinkChange],
   );
 
+  // CAL-NAV-01/02: the subsection row is docked as the third mobile chrome row above the
+  // section tabs instead of scrolling inside the page header. Memoised because the shell
+  // registration stores the node — a new element every render would re-register forever.
+  const mobileSubsectionTabs = useMemo(
+    () =>
+      isActive === false ? null : (
+        <DoctorMobileSectionTabs
+          tabs={visibleSections}
+          activeTab={activeSection}
+          onTabChange={setActiveSection}
+          ariaLabel="Разделы настроек"
+          scrollable
+        />
+      ),
+    [activeSection, isActive, setActiveSection, visibleSections],
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-3" data-testid="schedule-setup-tab">
-      <DoctorMobileSectionTabs
-        tabs={visibleSections}
-        activeTab={activeSection}
-        onTabChange={setActiveSection}
-        ariaLabel="Разделы настроек"
-        scrollable
-      />
+      <DoctorShellMobileSubsectionTabsRegistration content={mobileSubsectionTabs} />
       {/* Sub-navigation */}
       <nav
         className="hidden flex-wrap gap-1 md:flex"

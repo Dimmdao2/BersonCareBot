@@ -17,6 +17,11 @@ type DoctorShellChrome = {
   backLabel?: string;
   mobileActions?: ReactNode;
   mobileBottomTabs?: ReactNode;
+  /**
+   * Third mobile chrome row above `mobileBottomTabs`: subsection navigation of the
+   * currently open section. Bottom-up order stays global nav → section tabs → subsections.
+   */
+  mobileSubsectionTabs?: ReactNode;
 };
 
 type Registration = DoctorShellChrome & { token: symbol };
@@ -26,6 +31,7 @@ type DoctorShellChromeContextValue = {
   chrome: DoctorShellChrome | null;
   register: (chrome: DoctorShellChrome, token: symbol) => () => void;
   registerMobileBottomTabs: (content: ReactNode, token: symbol) => () => void;
+  registerMobileSubsectionTabs: (content: ReactNode, token: symbol) => () => void;
 };
 
 const DoctorShellChromeContext = createContext<DoctorShellChromeContextValue | null>(null);
@@ -33,6 +39,8 @@ const DoctorShellChromeContext = createContext<DoctorShellChromeContextValue | n
 export function DoctorShellChromeProvider({ children }: { children: ReactNode }) {
   const [registration, setRegistration] = useState<Registration | null>(null);
   const [mobileBottomTabsRegistration, setMobileBottomTabsRegistration] =
+    useState<MobileBottomTabsRegistration | null>(null);
+  const [mobileSubsectionTabsRegistration, setMobileSubsectionTabsRegistration] =
     useState<MobileBottomTabsRegistration | null>(null);
   const register = useCallback((chrome: DoctorShellChrome, token: symbol) => {
     setRegistration({ ...chrome, token });
@@ -46,6 +54,12 @@ export function DoctorShellChromeProvider({ children }: { children: ReactNode })
       setMobileBottomTabsRegistration((current) => (current?.token === token ? null : current));
     };
   }, []);
+  const registerMobileSubsectionTabs = useCallback((content: ReactNode, token: symbol) => {
+    setMobileSubsectionTabsRegistration({ content, token });
+    return () => {
+      setMobileSubsectionTabsRegistration((current) => (current?.token === token ? null : current));
+    };
+  }, []);
   const chrome = useMemo(
     () =>
       registration
@@ -53,13 +67,15 @@ export function DoctorShellChromeProvider({ children }: { children: ReactNode })
             ...registration,
             mobileBottomTabs:
               mobileBottomTabsRegistration?.content ?? registration.mobileBottomTabs,
+            mobileSubsectionTabs:
+              mobileSubsectionTabsRegistration?.content ?? registration.mobileSubsectionTabs,
           }
         : null,
-    [mobileBottomTabsRegistration, registration],
+    [mobileBottomTabsRegistration, mobileSubsectionTabsRegistration, registration],
   );
   const value = useMemo(
-    () => ({ chrome, register, registerMobileBottomTabs }),
-    [chrome, register, registerMobileBottomTabs],
+    () => ({ chrome, register, registerMobileBottomTabs, registerMobileSubsectionTabs }),
+    [chrome, register, registerMobileBottomTabs, registerMobileSubsectionTabs],
   );
   return (
     <DoctorShellChromeContext.Provider value={value}>{children}</DoctorShellChromeContext.Provider>
@@ -77,12 +93,24 @@ export function DoctorShellMobileBottomTabsRegistration({ content }: { content: 
   return null;
 }
 
+export function DoctorShellMobileSubsectionTabsRegistration({ content }: { content: ReactNode }) {
+  const context = useContext(DoctorShellChromeContext);
+  const registerMobileSubsectionTabs = context?.registerMobileSubsectionTabs;
+  const tokenRef = useRef(Symbol('doctor-shell-mobile-subsection-tabs'));
+  useEffect(() => {
+    if (!registerMobileSubsectionTabs) return;
+    return registerMobileSubsectionTabs(content, tokenRef.current);
+  }, [content, registerMobileSubsectionTabs]);
+  return null;
+}
+
 export function DoctorShellChromeRegistration({
   title,
   backHref,
   backLabel,
   mobileActions,
   mobileBottomTabs,
+  mobileSubsectionTabs,
 }: DoctorShellChrome) {
   const context = useContext(DoctorShellChromeContext);
   const register = context?.register;
@@ -90,10 +118,10 @@ export function DoctorShellChromeRegistration({
   useEffect(() => {
     if (!register) return;
     return register(
-      { title, backHref, backLabel, mobileActions, mobileBottomTabs },
+      { title, backHref, backLabel, mobileActions, mobileBottomTabs, mobileSubsectionTabs },
       tokenRef.current,
     );
-  }, [backHref, backLabel, mobileActions, mobileBottomTabs, register, title]);
+  }, [backHref, backLabel, mobileActions, mobileBottomTabs, mobileSubsectionTabs, register, title]);
   return null;
 }
 

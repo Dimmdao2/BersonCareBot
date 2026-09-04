@@ -15,6 +15,7 @@ export function DoctorMobileSectionTabs<T extends string>({
   onTabChange,
   ariaLabel,
   scrollable = false,
+  elevated = true,
 }: {
   tabs: readonly DoctorMobileSectionTab<T>[];
   activeTab: T;
@@ -22,11 +23,19 @@ export function DoctorMobileSectionTabs<T extends string>({
   ariaLabel: string;
   /** Use the canonical mobile tabs as a horizontally scrollable subsection row. */
   scrollable?: boolean;
+  /**
+   * Owns the single top shadow of the docked mobile chrome stack. Only the topmost row
+   * of the stack keeps it, so two stacked rows never draw two shadows.
+   */
+  elevated?: boolean;
 }) {
   return (
     <nav
       aria-label={ariaLabel}
-      className="relative z-40 shrink-0 border-t border-border/70 bg-background/95 shadow-[0_-2px_6px_rgba(15,23,42,0.08)] backdrop-blur-md md:hidden"
+      className={cn(
+        'relative z-40 shrink-0 border-t border-border/70 bg-background/95 backdrop-blur-md md:hidden',
+        elevated && 'shadow-[0_-2px_6px_rgba(15,23,42,0.08)]',
+      )}
     >
       <div
         className={cn(

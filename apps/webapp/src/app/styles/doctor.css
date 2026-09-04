@@ -51,6 +51,23 @@ body:has(#app-shell-doctor),
   opacity: 1 !important;
 }
 
+/*
+ * Canonical «today» marker of doctor calendar surfaces: rounded rectangle on the doctor
+ * control radius. Never a circle or an oval — see `doctorCalendarPresentation.ts`.
+ */
+.doctor-calendar-today-marker {
+  display: inline-flex;
+  min-width: 2.05rem;
+  min-height: 1.8rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.35rem;
+  border-radius: var(--doctor-control-radius, 8px);
+  background-color: rgba(219, 113, 93, 0.85);
+  color: #ffffff;
+  font-weight: 600;
+}
+
 .doctor-weekly-chart-scroll {
   scrollbar-width: none;
 }

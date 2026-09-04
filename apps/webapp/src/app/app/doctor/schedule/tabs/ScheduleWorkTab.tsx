@@ -11,7 +11,7 @@ import {
   type MouseEvent,
 } from 'react';
 import { DateTime } from 'luxon';
-import { Check, Layers, MapPin, Play } from 'lucide-react';
+import { Check, Layers, MapPin } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
@@ -20,7 +20,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import {
   Dialog,
@@ -39,6 +38,11 @@ import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doc
 import { DoctorSection } from '@/shared/ui/doctor/DoctorSection';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
+import {
+  DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
+  DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
+  DoctorSchedulePeriodNav,
+} from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { emitDoctorScheduleCalendarRefresh } from '../scheduleCalendarEvents';
@@ -65,6 +69,20 @@ const DEFAULT_PANEL_END = '18:00';
 // all tagged `data-slot="select-*"` by the primitive) so opening/using that dropdown is
 // never mistaken for a "click outside" that should clear the in-progress selection.
 const INTERACTIVE_PORTAL_SELECTOR = "[data-slot^='select'],[data-slot^='popover']";
+
+/**
+ * WORK-01: one grid for «Начало», «Конец» and the break rows — two equal time columns plus a
+ * trailing column for the remove action, so every label sits above its own field.
+ */
+const SCHEDULE_FIELD_GRID_CLASS =
+  'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem] items-end gap-x-2 gap-y-2';
+
+/**
+ * CAL-NAV-06: on mobile the schedule panels reach the real screen edges instead of leaving a
+ * canvas strip on both sides; the page-block radius and side border return from `md` up.
+ */
+const WORK_PANEL_SURFACE_CLASS =
+  'rounded-none border-x-0 md:rounded-[var(--doctor-page-block-radius,12px)] md:border-x';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -117,6 +135,18 @@ type EffectiveHours =
   | { source: 'closed' }
   | null;
 
+/**
+ * One rendered schedule row of a calendar day. A day can carry several rows when the
+ * weekday template assigns more than one location to it, so each row keeps its own hours
+ * and its own location colour instead of collapsing to a single line.
+ */
+type DayScheduleLine = {
+  source: 'template' | 'override';
+  startMinute: number;
+  endMinute: number;
+  branchId: string | null;
+};
+
 /** A single break row state in the hours panel or template form. */
 type BreakRow = { from: string; to: string };
 
@@ -159,6 +189,20 @@ function parseMonth(raw: string | undefined): { year: number; month: number } {
 function formatMonth(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, '0')}`;
 }
+
+/**
+ * WORK-06: a weekday selection saves a permanent weekday schedule, so its heading names the
+ * weekday itself instead of counting how many of its dates the open month happens to contain.
+ */
+const WD_EVERY_LABEL: Record<number, string> = {
+  0: 'воскресеньям',
+  1: 'понедельникам',
+  2: 'вторникам',
+  3: 'средам',
+  4: 'четвергам',
+  5: 'пятницам',
+  6: 'субботам',
+};
 
 /** Russian month names (1-indexed). */
 const RU_MONTHS = [
@@ -221,6 +265,42 @@ function resolveEffectiveHours(
     };
   }
   return null;
+}
+
+/**
+ * Effective schedule rows of a date: the per-date override when present, otherwise every
+ * active weekday-template row of that weekday (WORK-03/04/05). Concrete dates that only
+ * inherit the weekly template therefore render exactly like the template that produced them.
+ */
+function resolveDayScheduleLines(
+  dateKey: string,
+  dayMap: Map<string, WorkingDayRecord>,
+  workingHours: WorkingHoursRow[],
+): DayScheduleLine[] {
+  const record = dayMap.get(dateKey);
+  if (record) {
+    if (record.isClosed) return [];
+    if (record.startMinute != null && record.endMinute != null) {
+      return [
+        {
+          source: 'override',
+          startMinute: record.startMinute,
+          endMinute: record.endMinute,
+          branchId: record.branchId,
+        },
+      ];
+    }
+  }
+  const wd = DateTime.fromISO(dateKey).weekday % 7;
+  return workingHours
+    .filter((row) => row.weekday === wd && row.isActive)
+    .map((row) => ({
+      source: 'template' as const,
+      startMinute: row.startMinute,
+      endMinute: row.endMinute,
+      branchId: row.branchId,
+    }))
+    .sort((a, b) => a.startMinute - b.startMinute);
 }
 
 function resolvePanelDefaultsForDate(
@@ -379,19 +459,14 @@ function branchDisplayLabel(branch: Branch): string {
   return branch.shortTitle ?? branch.title;
 }
 
-function weekdayTemplateSummaries(
-  weekday: number,
-  workingHours: WorkingHoursRow[],
-  branches: Branch[],
-): string[] {
+/**
+ * WORK-03: the weekday plate shows only the template hours. The location already reads from
+ * the coloured day cells below it, so repeating its name here is duplicated signal.
+ */
+function weekdayTemplateSummaries(weekday: number, workingHours: WorkingHoursRow[]): string[] {
   return workingHours
     .filter((row) => row.weekday === weekday && row.isActive)
-    .map((row) => {
-      const branch = row.branchId ? branches.find((item) => item.id === row.branchId) : undefined;
-      const location = branch ? branchDisplayLabel(branch) : null;
-      const hours = formatHourRange(row.startMinute, row.endMinute);
-      return location ? `${hours} · ${location}` : hours;
-    })
+    .map((row) => formatHourRange(row.startMinute, row.endMinute))
     .filter((summary, index, all) => all.indexOf(summary) === index);
 }
 
@@ -403,22 +478,22 @@ type DayCellProps = {
   cellIndex?: number;
   dateKey: string | null;
   today: string;
-  record: WorkingDayRecord | undefined;
   branches: Branch[];
   isSelected: boolean;
   onToggle: (date: string, shift: boolean, meta: boolean) => void;
   effectiveHours?: EffectiveHours;
+  scheduleLines?: DayScheduleLine[];
 };
 
 function DayCell({
   cellIndex,
   dateKey,
   today,
-  record,
   branches,
   isSelected,
   onToggle,
   effectiveHours,
+  scheduleLines,
 }: DayCellProps) {
   if (!dateKey) {
     return (
@@ -432,20 +507,12 @@ function DayCell({
   const isToday = dateKey === today;
   // §3.15: «выходной»/isClosed removed — a day either has a schedule or falls
   // back to weekday hours (no explicit closed state surfaced in the grid).
-  const hasSchedule =
-    record?.startMinute != null ||
-    effectiveHours?.source === 'override' ||
-    effectiveHours?.source === 'template';
-  const effectiveBranchId =
-    record?.branchId ??
-    (effectiveHours?.source === 'override' || effectiveHours?.source === 'template'
-      ? effectiveHours.branchId
-      : null);
-  const branchHex =
-    hasSchedule && effectiveBranchId ? resolveBranchHex(branches, effectiveBranchId) : undefined;
-
-  // Resolved breaks for display
-  const breaks = record ? resolveBreaks(record) : [];
+  const lines = scheduleLines ?? [];
+  const hasSchedule = lines.length > 0;
+  // The surface keeps the location signal of the first row; every further row keeps its
+  // own colour on its own line (WORK-04).
+  const primaryBranchId = lines.find((line) => line.branchId)?.branchId ?? null;
+  const branchHex = primaryBranchId ? resolveBranchHex(branches, primaryBranchId) : undefined;
 
   let cellClass =
     'rounded-md border p-1 min-h-[52px] cursor-pointer select-none transition-colors ';
@@ -463,8 +530,8 @@ function DayCell({
   } else if (isToday) {
     // §3.17 / §3.10–3.12: muted transparent-green «сегодня» (no yellow).
     cellClass += 'bg-emerald-500/10 border-emerald-500/30 ';
-  } else if (effectiveHours?.source === 'override') {
-    // SCH-R-06: override = light blue tint
+  } else if (hasSchedule) {
+    // SCH-R-06: scheduled day without a location = light blue tint
     cellClass += 'bg-primary/10 border-primary/20 hover:bg-primary/15 ';
   } else if (effectiveHours?.source === 'closed') {
     // SCH-R-06: closed/выходной = light red tint
@@ -475,21 +542,12 @@ function DayCell({
 
   const day = DateTime.fromISO(dateKey).day;
 
-  // Per-date overrides keep their local details. Weekday-template time/location
-  // live once in the corresponding weekday header instead of repeating here.
-  const branchForRecord = effectiveBranchId
-    ? branches.find((b) => b.id === effectiveBranchId)
-    : undefined;
-  const branchShortLabel =
-    branchForRecord && effectiveHours?.source !== 'template'
-      ? (branchForRecord.shortTitle ?? branchForRecord.title.split(' ')[0] ?? branchForRecord.title)
-      : null;
-  const displayStartMinute =
-    effectiveHours?.source === 'override'
-      ? effectiveHours.startMinute
-      : (record?.startMinute ?? null);
-  const displayEndMinute =
-    effectiveHours?.source === 'override' ? effectiveHours.endMinute : (record?.endMinute ?? null);
+  function branchShortLabel(branchId: string | null): string | null {
+    if (!branchId) return null;
+    const branch = branches.find((item) => item.id === branchId);
+    if (!branch) return null;
+    return branch.shortTitle ?? branch.title.split(' ')[0] ?? branch.title;
+  }
 
   return (
     <div
@@ -497,7 +555,11 @@ function DayCell({
       tabIndex={0}
       className={cellClass}
       aria-pressed={isSelected}
-      aria-label={`${dateKey}${hasSchedule ? ` ${formatHourRange(displayStartMinute, displayEndMinute)}` : ''}`}
+      aria-label={`${dateKey}${
+        hasSchedule
+          ? ` ${lines.map((line) => formatHourRange(line.startMinute, line.endMinute)).join(', ')}`
+          : ''
+      }`}
       style={branchHex ? branchStyle(branchHex) : undefined}
       onClick={(e) => onToggle(dateKey, e.shiftKey, e.metaKey || e.ctrlKey)}
       onKeyDown={(e) => {
@@ -520,42 +582,30 @@ function DayCell({
       >
         {isSelected ? `${day} ●` : day}
       </div>
-      {effectiveHours?.source === 'override' && effectiveHours.startMinute != null && (
-        <div
-          className={cn(
-            'mt-0.5 text-[11px] font-semibold leading-none',
-            branchHex ? 'text-[color:var(--branch-fg)]' : 'text-primary',
-          )}
-        >
-          {formatHourRange(effectiveHours.startMinute, effectiveHours.endMinute)}
-        </div>
-      )}
-      {effectiveHours?.source === 'closed' && (
-        <div className="mt-0.5 text-[10px] leading-none text-destructive/70">выходной</div>
-      )}
-      {/* Keep existing block for backward compat when effectiveHours not passed */}
-      {!effectiveHours &&
-        hasSchedule &&
-        record?.startMinute != null &&
-        record?.endMinute != null && (
+      {/* WORK-02/03/04/05: number, hours and the short location per schedule row — no break text. */}
+      {lines.map((line, index) => {
+        const lineHex = line.branchId ? resolveBranchHex(branches, line.branchId) : null;
+        const shortLabel = branchShortLabel(line.branchId);
+        return (
           <div
-            className={cn(
-              'mt-0.5 text-[11px] font-semibold leading-none',
-              branchHex ? 'text-[color:var(--branch-fg)]' : 'text-primary',
-            )}
+            key={`${line.source}:${line.startMinute}:${line.endMinute}:${line.branchId ?? 'none'}:${index}`}
+            className="mt-0.5 leading-none"
+            data-testid={`day-cell-line-${dateKey}-${index}`}
           >
-            {formatHourRange(record.startMinute, record.endMinute)}
+            <span
+              className={cn('text-[11px] font-semibold', !lineHex && 'text-primary')}
+              style={lineHex ? { color: lineHex } : undefined}
+            >
+              {formatHourRange(line.startMinute, line.endMinute)}
+            </span>
+            {shortLabel ? (
+              <span className="ml-1 truncate text-[10px] text-muted-foreground">{shortLabel}</span>
+            ) : null}
           </div>
-        )}
-      {branchShortLabel && hasSchedule && (
-        <div className="mt-0.5 text-[10px] text-muted-foreground leading-none truncate">
-          {branchShortLabel}
-        </div>
-      )}
-      {hasSchedule && breaks.length > 0 && (
-        <div className="mt-0.5 text-[10px] text-muted-foreground leading-none truncate">
-          {formatBreakSummary(breaks)}
-        </div>
+        );
+      })}
+      {!hasSchedule && effectiveHours?.source === 'closed' && (
+        <div className="mt-0.5 text-[10px] leading-none text-destructive/70">выходной</div>
       )}
     </div>
   );
@@ -572,39 +622,48 @@ type BreakRowFieldProps = {
   onRemove: (idx: number) => void;
 };
 
+/**
+ * WORK-01: schedule fields share one grid — «Начало», «Конец» and every «Перерыв» keep their
+ * label above the time field and their columns aligned. Rendered as bare grid cells so the
+ * hours panel and the template dialog can host the rows in the same
+ * {@link SCHEDULE_FIELD_GRID_CLASS} container.
+ */
 function BreakRowField({ index, row, onChange, onRemove }: BreakRowFieldProps) {
   return (
-    <div className="flex items-center gap-1.5" data-testid={`break-row-${index}`}>
-      <span className="text-xs text-muted-foreground min-w-[60px]">Перерыв {index + 1}</span>
-      <DoctorDateTimePicker
-        mode="time"
-        className="h-7 w-24 text-xs"
-        value={row.from}
-        onChange={(value) => onChange(index, 'from', value)}
-        ariaLabel={`Начало перерыва ${index + 1}`}
-        testId={`break-from-${index}`}
-      />
-      <span className="text-xs text-muted-foreground">–</span>
-      <DoctorDateTimePicker
-        mode="time"
-        className="h-7 w-24 text-xs"
-        value={row.to}
-        onChange={(value) => onChange(index, 'to', value)}
-        ariaLabel={`Конец перерыва ${index + 1}`}
-        testId={`break-to-${index}`}
-      />
+    <>
+      <div className="flex min-w-0 flex-col gap-1" data-testid={`break-row-${index}`}>
+        <Label className="text-xs">Перерыв {index + 1}</Label>
+        <DoctorDateTimePicker
+          mode="time"
+          className="w-full"
+          value={row.from}
+          onChange={(value) => onChange(index, 'from', value)}
+          ariaLabel={`Начало перерыва ${index + 1}`}
+          testId={`break-from-${index}`}
+        />
+      </div>
+      <div className="flex min-w-0 flex-col justify-end gap-1">
+        <DoctorDateTimePicker
+          mode="time"
+          className="w-full"
+          value={row.to}
+          onChange={(value) => onChange(index, 'to', value)}
+          ariaLabel={`Конец перерыва ${index + 1}`}
+          testId={`break-to-${index}`}
+        />
+      </div>
       <Button
         type="button"
-        size="sm"
+        size="icon"
         variant="ghost"
-        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+        className="size-8 self-end p-0 text-muted-foreground hover:text-destructive"
         onClick={() => onRemove(index)}
         aria-label={`Удалить перерыв ${index + 1}`}
         data-testid={`break-remove-${index}`}
       >
         ×
       </Button>
-    </div>
+    </>
   );
 }
 
@@ -942,17 +1001,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
-  // ── Weekday label lookup (0=Вс,1=Пн..6=Сб) ──────────────────────────────
-  const WD_LABEL: Record<number, string> = {
-    0: 'Вс',
-    1: 'Пн',
-    2: 'Вт',
-    3: 'Ср',
-    4: 'Чт',
-    5: 'Пт',
-    6: 'Сб',
-  };
-
   function run(fn: () => Promise<void>) {
     setActionError(null);
     startTransition(async () => {
@@ -1280,7 +1328,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
       data-testid="schedule-work-tab"
       onMouseDown={handleSurfaceMouseDown}
     >
@@ -1296,9 +1344,10 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           size="icon"
           variant="outline"
           className={cn(
-            'size-8',
-            !allBranchesSelected &&
-              'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5',
+            DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
+            allBranchesSelected
+              ? DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS
+              : 'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5',
           )}
           onClick={() => setBranchPickerOpen(true)}
           aria-label="Выбрать филиалы"
@@ -1307,49 +1356,29 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         >
           <MapPin className="size-4" aria-hidden />
         </Button>
-        <div className="flex min-w-0 items-center justify-center gap-1">
-          <Button
-            type="button"
-            size="icon"
-            variant="outline"
-            className="size-8 shrink-0"
-            onClick={() => navigateMonth(-1)}
-            aria-label="Предыдущий месяц"
-            data-testid="month-prev"
-          >
-            <Play className="size-3 rotate-180" fill="currentColor" aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 min-w-0 max-w-48 flex-1 truncate px-3 text-sm font-medium"
-            onClick={() => setMonthPickerOpen(true)}
-            aria-label="Выбрать месяц"
-            data-testid="month-label"
-          >
-            {RU_MONTHS[viewMonth]} {viewYear}
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant="outline"
-            className="size-8 shrink-0"
-            onClick={() => navigateMonth(1)}
-            aria-label="Следующий месяц"
-            data-testid="month-next"
-          >
-            <Play className="size-3" fill="currentColor" aria-hidden />
-          </Button>
-        </div>
+        <DoctorSchedulePeriodNav
+          className="justify-center"
+          labelClassName="max-w-48"
+          label={`${RU_MONTHS[viewMonth]} ${viewYear}`}
+          onPrev={() => navigateMonth(-1)}
+          onNext={() => navigateMonth(1)}
+          onLabelClick={() => setMonthPickerOpen(true)}
+          prevAriaLabel="Предыдущий месяц"
+          nextAriaLabel="Следующий месяц"
+          labelAriaLabel="Выбрать месяц"
+          prevTestId="month-prev"
+          nextTestId="month-next"
+          labelTestId="month-label"
+        />
         <Button
           type="button"
           size="icon"
           variant="outline"
           className={cn(
-            'size-8',
-            multiSelectEnabled &&
-              'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5',
+            DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
+            multiSelectEnabled
+              ? 'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5'
+              : DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
           )}
           onClick={() => setMultiSelectEnabled((enabled) => !enabled)}
           aria-pressed={multiSelectEnabled}
@@ -1361,16 +1390,18 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         </Button>
       </DoctorCatalogStickyToolbar>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pb-3 [scrollbar-width:thin]">
-        <div className="flex flex-col gap-3">
+      {/* CAL-NAV-07: the outer full-bleed container owns the scroll, so its indicator runs along
+          the screen edge instead of across the inner content of a panel. */}
+      <div className="-mx-3 min-h-0 flex-1 overflow-y-auto md:mx-0 [scrollbar-width:thin]">
+        <div className="flex flex-col gap-3 py-3">
           {/* Errors / feedback */}
           {loadError ? (
-            <p className="text-sm text-destructive" data-testid="load-error">
+            <p className="px-3 text-sm text-destructive md:px-0" data-testid="load-error">
               {loadError}
             </p>
           ) : null}
           {actionError ? (
-            <p className="text-sm text-destructive" data-testid="action-error">
+            <p className="px-3 text-sm text-destructive md:px-0" data-testid="action-error">
               {actionError}
             </p>
           ) : null}
@@ -1403,7 +1434,11 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
             {/* LEFT: month grid */}
             <div className="flex flex-col gap-2">
               <div
-                className={cn(doctorSectionCardClass, 'p-0 overflow-hidden')}
+                className={cn(
+                  doctorSectionCardClass,
+                  WORK_PANEL_SURFACE_CLASS,
+                  'overflow-hidden p-0',
+                )}
                 data-testid="month-grid"
               >
                 {/* Weekday header — click selects entire weekday column (SCH-R-03) */}
@@ -1411,11 +1446,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((d, colIndex) => {
                     const wd = [1, 2, 3, 4, 5, 6, 0][colIndex]!;
                     const isActiveWd = selectionMode === 'weekday' && selectedWeekday === wd;
-                    const templateSummaries = weekdayTemplateSummaries(
-                      wd,
-                      visibleWorkingHours,
-                      branches,
-                    );
+                    const templateSummaries = weekdayTemplateSummaries(wd, visibleWorkingHours);
                     return (
                       <Button
                         key={d}
@@ -1455,13 +1486,17 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                       cellIndex={idx}
                       dateKey={dateKey}
                       today={today}
-                      record={dateKey ? dayMap.get(dateKey) : undefined}
                       branches={branches}
                       isSelected={dateKey ? selected.has(dateKey) : false}
                       onToggle={toggleDay}
                       effectiveHours={
                         dateKey
                           ? resolveEffectiveHours(dateKey, dayMap, visibleWorkingHours)
+                          : undefined
+                      }
+                      scheduleLines={
+                        dateKey
+                          ? resolveDayScheduleLines(dateKey, dayMap, visibleWorkingHours)
                           : undefined
                       }
                     />
@@ -1473,10 +1508,13 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
             {/* RIGHT: hours panel (E4) */}
             <div>
               {selectedCount > 0 ? (
-                <DoctorSection className="bg-card" data-testid="hours-panel">
+                <DoctorSection
+                  className={cn('bg-card', WORK_PANEL_SURFACE_CLASS)}
+                  data-testid="hours-panel"
+                >
                   <h3 className={doctorSectionTitleClass}>
                     {selectionMode === 'weekday' && selectedWeekday !== null
-                      ? `Расписание для всех ${WD_LABEL[selectedWeekday] ?? ''} (${selectedCount} дн.)`
+                      ? `Постоянное расписание по ${WD_EVERY_LABEL[selectedWeekday] ?? ''}`
                       : `Задать расписание для ${selectedCount} ${selectedCount === 1 ? 'дня' : 'дней'} (${
                           selectedDates.length <= 3
                             ? selectedDates
@@ -1492,42 +1530,38 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   {/* #232: чекбокс «постоянное расписание» УДАЛЁН. Выбор дня недели
                   всегда сохраняется как постоянный шаблон weekday. */}
 
-                  {/* E4 — строчная раскладка */}
+                  {/* WORK-01 — «Начало», «Конец» и перерывы на одной сетке */}
                   <div className="flex flex-col gap-2">
-                    {/* Start / End row */}
-                    <div className="flex flex-wrap items-end gap-2">
-                      <div className="flex flex-col gap-1">
+                    <div className={SCHEDULE_FIELD_GRID_CLASS} data-testid="panel-breaks">
+                      <div className="flex min-w-0 flex-col gap-1">
                         <Label htmlFor="panel-start" className="text-xs">
                           Начало
                         </Label>
                         <DoctorDateTimePicker
                           mode="time"
                           id="panel-start"
-                          className="w-26"
+                          className="w-full"
                           value={panelStart}
                           onChange={setPanelStart}
                           ariaLabel="Начало рабочего дня"
                           testId="panel-start"
                         />
                       </div>
-                      <div className="flex flex-col gap-1">
+                      <div className="flex min-w-0 flex-col gap-1">
                         <Label htmlFor="panel-end" className="text-xs">
                           Конец
                         </Label>
                         <DoctorDateTimePicker
                           mode="time"
                           id="panel-end"
-                          className="w-26"
+                          className="w-full"
                           value={panelEnd}
                           onChange={setPanelEnd}
                           ariaLabel="Конец рабочего дня"
                           testId="panel-end"
                         />
                       </div>
-                    </div>
-
-                    {/* E4 — Break rows */}
-                    <div className="flex flex-col gap-1.5" data-testid="panel-breaks">
+                      <div />
                       {panelBreaks.map((row, i) => (
                         <BreakRowField
                           key={i}
@@ -1539,27 +1573,29 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                           onRemove={(idx) => setPanelBreaks(removeBreakRow(panelBreaks, idx))}
                         />
                       ))}
-                      {panelBreaks.length < 6 && (
-                        <Button
-                          type="button"
-                          variant="link"
-                          size="sm"
-                          className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit h-auto p-0"
-                          onClick={() => setPanelBreaks(addBreakRow(panelBreaks))}
-                          data-testid="btn-add-break"
-                        >
-                          + перерыв
-                        </Button>
-                      )}
                     </div>
+                    {panelBreaks.length < 6 && (
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="inline-flex h-auto w-fit items-center gap-1 p-0 text-xs text-primary/70 hover:text-primary"
+                        onClick={() => setPanelBreaks(addBreakRow(panelBreaks))}
+                        data-testid="btn-add-break"
+                      >
+                        + перерыв
+                      </Button>
+                    )}
 
                     {/* Location selector (E3 — in right panel, not filter bar) */}
                     <div className="flex flex-col gap-1">
                       <Label className="text-xs">Локация</Label>
                       <Select value={panelBranchId} onValueChange={(v) => v && setPanelBranchId(v)}>
-                        <SelectTrigger className="h-8" data-testid="panel-branch">
-                          <SelectValue />
-                        </SelectTrigger>
+                        <SelectTrigger
+                          className="h-8"
+                          displayLabel={branches.find((b) => b.id === panelBranchId)?.title}
+                          data-testid="panel-branch"
+                        />
                         <SelectContent>
                           {branches.map((b) => (
                             <SelectItem key={b.id} value={b.id} label={b.title}>
@@ -1571,30 +1607,33 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={pending}
-                      onClick={handleSave}
-                      data-testid="btn-save"
-                    >
-                      Установить
-                    </Button>
+                  {/* WORK-07 — «Очистить …» слева, «Сохранить» справа, поровну по ширине */}
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
+                      className={cn('w-full', DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS)}
                       disabled={pending || !hasScheduleForSelection}
                       onClick={handleClearSchedule}
                       data-testid="btn-clear-schedule"
                     >
                       {selectionMode === 'weekday' ? 'Очистить шаблон' : 'Очистить расписание'}
                     </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="w-full"
+                      disabled={pending}
+                      onClick={handleSave}
+                      data-testid="btn-save"
+                    >
+                      Сохранить
+                    </Button>
                   </div>
                 </DoctorSection>
               ) : (
-                <DoctorSection className="border-dashed">
+                <DoctorSection className={cn('border-dashed', WORK_PANEL_SURFACE_CLASS)}>
                   <DoctorEmptyState size="xs">
                     Выберите дни в сетке — появится панель настройки часов.
                   </DoctorEmptyState>
@@ -1604,13 +1643,14 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           </div>
 
           {/* BOTTOM (full width): templates panel (E5) */}
-          <DoctorSection data-testid="templates-panel">
+          <DoctorSection className={WORK_PANEL_SURFACE_CLASS} data-testid="templates-panel">
             <div className="flex items-center justify-between gap-2">
               <h3 className={doctorSectionTitleClass}>Шаблоны расписаний</h3>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
+                className={DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS}
                 onClick={() => {
                   setTplBranchId(panelBranchId);
                   setTplDialogOpen(true);
@@ -1656,7 +1696,10 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="h-7 px-2 text-xs"
+                            className={cn(
+                              'h-7 px-2 text-xs',
+                              DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
+                            )}
                             disabled={pending || selectedCount === 0}
                             title={selectedCount === 0 ? 'Выберите дни для применения' : undefined}
                             onClick={() => handleApplyTemplate(tpl.id)}
@@ -1711,36 +1754,60 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                 data-testid="tpl-name"
               />
             </div>
-            <div className="flex flex-wrap gap-3">
-              <div className="flex flex-col gap-1">
+            <div className={SCHEDULE_FIELD_GRID_CLASS} data-testid="tpl-breaks">
+              <div className="flex min-w-0 flex-col gap-1">
                 <Label htmlFor="tpl-start" className="text-xs">
                   Начало
                 </Label>
                 <DoctorDateTimePicker
                   mode="time"
                   id="tpl-start"
-                  className="w-28"
+                  className="w-full"
                   value={tplStart}
                   onChange={setTplStart}
                   ariaLabel="Начало шаблона"
                   testId="tpl-start"
                 />
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex min-w-0 flex-col gap-1">
                 <Label htmlFor="tpl-end" className="text-xs">
                   Конец
                 </Label>
                 <DoctorDateTimePicker
                   mode="time"
                   id="tpl-end"
-                  className="w-28"
+                  className="w-full"
                   value={tplEnd}
                   onChange={setTplEnd}
                   ariaLabel="Конец шаблона"
                   testId="tpl-end"
                 />
               </div>
+              <div />
+              {tplBreaks.map((row, i) => (
+                <BreakRowField
+                  key={i}
+                  index={i}
+                  row={row}
+                  onChange={(idx, field, val) =>
+                    setTplBreaks(updateBreakRow(tplBreaks, idx, field, val))
+                  }
+                  onRemove={(idx) => setTplBreaks(removeBreakRow(tplBreaks, idx))}
+                />
+              ))}
             </div>
+            {tplBreaks.length < 6 && (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="inline-flex h-auto w-fit items-center gap-1 p-0 text-xs text-primary/70 hover:text-primary"
+                onClick={() => setTplBreaks(addBreakRow(tplBreaks))}
+                data-testid="tpl-btn-add-break"
+              >
+                + перерыв
+              </Button>
+            )}
             <div className="flex flex-col gap-1">
               <Label className="text-xs">Локация</Label>
               <Select value={tplBranchId} onValueChange={(value) => value && setTplBranchId(value)}>
@@ -1757,32 +1824,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            {/* E5 — Template breaks */}
-            <div className="flex flex-col gap-1.5" data-testid="tpl-breaks">
-              {tplBreaks.map((row, i) => (
-                <BreakRowField
-                  key={i}
-                  index={i}
-                  row={row}
-                  onChange={(idx, field, val) =>
-                    setTplBreaks(updateBreakRow(tplBreaks, idx, field, val))
-                  }
-                  onRemove={(idx) => setTplBreaks(removeBreakRow(tplBreaks, idx))}
-                />
-              ))}
-              {tplBreaks.length < 6 && (
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit h-auto p-0"
-                  onClick={() => setTplBreaks(addBreakRow(tplBreaks))}
-                  data-testid="tpl-btn-add-break"
-                >
-                  + перерыв
-                </Button>
-              )}
             </div>
           </div>
           <DialogFooter>
