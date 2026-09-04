@@ -376,7 +376,9 @@ describe('ScheduleCalendarTab scope requests', () => {
     );
 
     await waitFor(() => expect(screen.getByTestId('full-calendar')).toBeEnabled());
+    // CAL-ACTION-01: the grid tap selects the slot; the form is reached from «Новая запись».
     fireEvent.click(screen.getByTestId('full-calendar'));
+    fireEvent.click(await screen.findByTestId('calendar-selection-action-create'));
 
     const panel = await screen.findByTestId('calendar-event-panel');
     expect(panel).toHaveAttribute('data-default-specialist', OTHER_ID);

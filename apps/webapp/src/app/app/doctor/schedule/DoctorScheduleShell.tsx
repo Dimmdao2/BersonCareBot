@@ -276,6 +276,10 @@ export function DoctorScheduleShell({
     [handleTabChange],
   );
 
+  // CAL-NAV-02/03: «Настройки» dock their own subsection row above this one, and only the
+  // topmost row of the docked stack carries the shadow.
+  const hasSubsectionRow = activeTab === 'setup' && canManageOrganization;
+
   const mobileBottomTabs = useMemo(
     () => (
       <DoctorMobileSectionTabs
@@ -283,9 +287,10 @@ export function DoctorScheduleShell({
         activeTab={activeTab}
         onTabChange={handleTabChange}
         ariaLabel="Разделы расписания"
+        elevated={!hasSubsectionRow}
       />
     ),
-    [activeTab, canManageOrganization, handleTabChange],
+    [activeTab, canManageOrganization, handleTabChange, hasSubsectionRow],
   );
 
   return (
