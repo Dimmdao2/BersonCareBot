@@ -10,6 +10,7 @@ import {
   requireEntitlementForMutation,
 } from '@/app-layer/guards/requireEntitlement';
 import { refreshDefaultPromoPrograms } from '@/app-layer/treatment-program/refreshDefaultPromoPrograms';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 export async function POST() {
   const auth = await requireDoctorWorkspaceApiContext();
@@ -33,7 +34,9 @@ export async function POST() {
       refreshedCount: result.refreshedCount,
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/doctor/treatment-program-promo/refresh', e, {
+      fallbackCode: 'treatment_program_promo_refresh_failed',
+      fallbackStatus: 500,
+    });
   }
 }

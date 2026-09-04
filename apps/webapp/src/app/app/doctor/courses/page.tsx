@@ -79,8 +79,6 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
     loadError = logServerRuntimeError('app/doctor/courses', err);
   }
 
-  const isDev = process.env.NODE_ENV === 'development';
-
   return (
     <DoctorAppShell title="Курсы" user={workspace.session.user} backHref="/app/doctor">
       <DoctorPageHeader id="doctor-courses-header" title="Курсы" />
@@ -105,12 +103,7 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">Курсы</p>
         </div>
-        {loadError ? (
-          <DataLoadFailureNotice
-            digest={loadError.digest}
-            devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
-          />
-        ) : null}
+        {loadError ? <DataLoadFailureNotice digest={loadError.digest} /> : null}
         {courses.length === 0 && !loadError ? (
           <p className={doctorEmptyStateClass}>Нет курсов по выбранному фильтру.</p>
         ) : null}

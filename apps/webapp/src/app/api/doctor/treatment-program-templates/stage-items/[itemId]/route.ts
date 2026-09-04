@@ -4,6 +4,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { TREATMENT_PROGRAM_ITEM_TYPES } from '@/modules/treatment-program/types';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const patchBodySchema = z.object({
   itemType: z.enum(TREATMENT_PROGRAM_ITEM_TYPES).optional(),
@@ -39,10 +40,14 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ itemId: s
     });
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json(
-      { ok: false, error: msg },
-      { status: msg.includes('не найден') ? 404 : 400 },
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-templates/stage-items/[itemId]',
+      e,
+      {
+        fallbackCode: 'treatment_program_templates_stage_items_failed',
+        fallbackStatus: 500,
+        domainStatus: (text) => (text.includes('не найден') ? 404 : 400),
+      },
     );
   }
 }
@@ -65,7 +70,14 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ itemId:
     });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 404 });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-templates/stage-items/[itemId]',
+      e,
+      {
+        fallbackCode: 'treatment_program_templates_stage_items_failed',
+        fallbackStatus: 500,
+        domainStatus: 404,
+      },
+    );
   }
 }

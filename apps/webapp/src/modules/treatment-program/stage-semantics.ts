@@ -8,6 +8,7 @@ import type {
   TreatmentProgramItemType,
   TreatmentProgramTemplateStageGroup,
 } from './types';
+import { UserFacingError } from '@/shared/errors/userFacingError';
 
 /** Системная группа шаблона этапа («Рекомендации» / «Тестирование»). */
 export function isTreatmentProgramTemplateSystemStageGroup(
@@ -26,10 +27,10 @@ export function assertTreatmentProgramStageItemFitsSystemGroup(
 ): void {
   if (!group?.systemKind) return;
   if (group.systemKind === 'recommendations' && itemType !== 'recommendation') {
-    throw new Error('В группу «Рекомендации» можно помещать только рекомендации');
+    throw new UserFacingError('В группу «Рекомендации» можно помещать только рекомендации');
   }
   if (group.systemKind === 'tests' && itemType !== 'clinical_test') {
-    throw new Error('В группу «Тестирование» можно помещать только клинические тесты');
+    throw new UserFacingError('В группу «Тестирование» можно помещать только клинические тесты');
   }
 }
 
@@ -349,9 +350,7 @@ export function omitDisabledInstanceStageItemsForPatientApi(
  * У пациента отдельного маршрута `/stages/[stageId]` нет — контент встроен во вкладку «Программа» на `/app/patient/treatment/[instanceId]`.
  */
 export type PatientTreatmentProgramStageScreenVariant =
-  | 'interactive'
-  | 'pastReadOnly'
-  | 'futureLocked';
+  'interactive' | 'pastReadOnly' | 'futureLocked';
 
 /**
  * Этап 0 всегда интерактивный контент (общие рекомендации).

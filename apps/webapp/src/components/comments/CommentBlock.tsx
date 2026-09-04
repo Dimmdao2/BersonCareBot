@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import type { CommentTargetType, CommentType, EntityComment } from '@/modules/comments/types';
 import { COMMENT_TYPES } from '@/modules/comments/types';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 const COMMENT_TYPE_LABEL: Record<CommentType, string> = {
   template: 'Шаблон',
@@ -116,7 +117,7 @@ export function CommentBlock({
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setError(data.error ?? 'Ошибка сохранения');
+        setError(readSafeApiErrorText(data, 'Ошибка сохранения'));
         return;
       }
       setNewBody('');
@@ -138,7 +139,7 @@ export function CommentBlock({
     });
     const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
     if (!res.ok || !data.ok) {
-      setError(data.error ?? 'Ошибка обновления');
+      setError(readSafeApiErrorText(data, 'Ошибка обновления'));
       return;
     }
     setEditingId(null);
@@ -150,7 +151,7 @@ export function CommentBlock({
     const res = await fetch(`/api/doctor/comments/${encodeURIComponent(id)}`, { method: 'DELETE' });
     const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
     if (!res.ok || !data.ok) {
-      setError(data.error ?? 'Ошибка удаления');
+      setError(readSafeApiErrorText(data, 'Ошибка удаления'));
       return;
     }
     await load();

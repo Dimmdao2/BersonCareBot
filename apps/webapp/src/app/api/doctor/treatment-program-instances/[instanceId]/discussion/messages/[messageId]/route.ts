@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 export async function DELETE(
   _request: Request,
@@ -40,13 +41,19 @@ export async function DELETE(
     );
     return NextResponse.json({ ok: true, deleted: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status =
-      msg === 'message_not_found'
-        ? 404
-        : msg === 'message_not_media' || msg === 'message_not_deletable'
-          ? 400
-          : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-instances/[instanceId]/discussion/messages/[messageId]',
+      e,
+      {
+        fallbackCode: 'discussion_messages_failed',
+        fallbackStatus: 500,
+        domainStatus: (text) =>
+          text === 'message_not_found'
+            ? 404
+            : text === 'message_not_media' || text === 'message_not_deletable'
+              ? 400
+              : 400,
+      },
+    );
   }
 }

@@ -7,6 +7,7 @@ import { DoctorProgramDiscussionMessagesPanel } from './DoctorProgramDiscussionM
 import { markDoctorProgramDiscussionReadForStageItems } from '@/app/app/doctor/doctorProgramDiscussionMarkRead';
 import { sendDoctorProgramDiscussionReply } from './doctorProgramDiscussionReply';
 import { deleteDoctorProgramDiscussionMediaMessage } from './doctorProgramDiscussionDeleteMedia';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 export type DoctorProgramInstanceDiscussionItemOption = {
   id: string;
@@ -76,7 +77,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
       if (generation !== loadGenerationRef.current) return null;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
-        throw new Error(data?.error ?? 'Не удалось загрузить обсуждения');
+        throw new Error(readSafeApiErrorText(data, 'Не удалось загрузить обсуждения'));
       }
       const loaded = data.messages;
       setMessages((prev) => {

@@ -35,6 +35,7 @@ import {
   courseUsageSections,
   type CourseUsageSection,
 } from '../courseUsageSummaryText';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 type TemplateOption = { id: string; title: string; status: string };
 
@@ -164,6 +165,8 @@ export function DoctorCourseEditForm({
   async function persistToServer(acknowledgeArchive: boolean): Promise<{
     ok: boolean;
     error?: string;
+    /** Авторский текст отказа из тела ответа — его читает `readSafeApiErrorText` у вызывающего. */
+    message?: string;
     code?: string;
     usage?: CourseUsageSnapshot;
   }> {
@@ -192,6 +195,7 @@ export function DoctorCourseEditForm({
     const data = (await res.json()) as {
       ok?: boolean;
       error?: string;
+      message?: string;
       code?: string;
       usage?: CourseUsageSnapshot;
     };
@@ -203,6 +207,7 @@ export function DoctorCourseEditForm({
       return {
         ok: false,
         error: typeof data.error === 'string' ? data.error : 'Не удалось сохранить',
+        message: typeof data.message === 'string' ? data.message : undefined,
       };
     }
     return { ok: true };
@@ -247,7 +252,7 @@ export function DoctorCourseEditForm({
         return;
       }
       if (!first.ok) {
-        setError(first.error ?? 'Не удалось сохранить');
+        setError(readSafeApiErrorText(first, 'Не удалось сохранить'));
         return;
       }
       setSavedAt(Date.now());
@@ -273,7 +278,7 @@ export function DoctorCourseEditForm({
     try {
       const r = await persistToServer(true);
       if (!r.ok) {
-        setError(r.error ?? 'Не удалось отправить курс в архив');
+        setError(readSafeApiErrorText(r, 'Не удалось отправить курс в архив'));
         return;
       }
       setWarnOpen(false);

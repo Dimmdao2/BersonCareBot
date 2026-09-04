@@ -6,6 +6,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { revalidatePatientTreatmentProgramUi } from '@/app-layer/cache/revalidatePatientTreatmentProgramUi';
 import { assertPatientProgramCommentsAllowed } from '@/modules/doctor-clients/assertPatientProgramInteraction';
 import { isPatientProgramDiscussionUiEnabled } from '@/modules/program-item-discussion/discussionFeatureGates';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const bodySchema = z.object({
   note: z.string().min(1).max(4000),
@@ -75,15 +76,21 @@ export async function POST(
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status =
-      msg.includes('не найден') ||
-      msg.includes('не найдена') ||
-      msg.includes('Элемент не найден') ||
-      msg.includes('Этап не найден') ||
-      msg.includes('Программа не найдена')
-        ? 404
-        : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/patient/treatment-program-instances/[instanceId]/items/[itemId]/progress/observation-note',
+      e,
+      {
+        fallbackCode: 'progress_observation_note_failed',
+        fallbackStatus: 500,
+        domainStatus: (text) =>
+          text.includes('не найден') ||
+          text.includes('не найдена') ||
+          text.includes('Элемент не найден') ||
+          text.includes('Этап не найден') ||
+          text.includes('Программа не найдена')
+            ? 404
+            : 400,
+      },
+    );
   }
 }

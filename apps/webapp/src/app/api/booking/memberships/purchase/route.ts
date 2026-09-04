@@ -6,6 +6,7 @@ import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole'
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
 import { resolvePatientEnrollmentOrganizationId } from '../../bookingTenant';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const bodySchema = z.object({
   subscriptionPackageId: z.string().uuid(),
@@ -22,10 +23,7 @@ export async function POST(request: Request) {
   if (!deps.memberships) {
     return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
-  const resolvedOrg = await resolvePatientEnrollmentOrganizationId(
-    deps,
-    gate.session.user.userId,
-  );
+  const resolvedOrg = await resolvePatientEnrollmentOrganizationId(deps, gate.session.user.userId);
   if (!resolvedOrg.ok) return resolvedOrg.response;
   const organizationId = resolvedOrg.organizationId;
   const entitlement = await requireEntitlementForMutation({ organizationId }, 'subscriptions');
@@ -53,7 +51,9 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, package: pkg });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'purchase_failed';
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    return respondWithSafeApiError('api/booking/memberships/purchase', error, {
+      fallbackCode: 'memberships_purchase_failed',
+      fallbackStatus: 500,
+    });
   }
 }

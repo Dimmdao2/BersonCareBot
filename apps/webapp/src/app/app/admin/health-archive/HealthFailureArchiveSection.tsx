@@ -162,7 +162,6 @@ export function HealthFailureArchiveSection({
           <DataLoadFailureNotice
             title="Не удалось загрузить архив сбоев."
             digest="HEALTH-FAILURE-ARCHIVE"
-            devMessage={error}
             onRetry={() => void loadPage(null, false)}
             retrying={loading}
           />

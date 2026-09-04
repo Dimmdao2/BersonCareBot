@@ -9,6 +9,7 @@ import {
   isTreatmentProgramTemplateAlreadyArchivedError,
   isTreatmentProgramTemplateGroupDescriptionConflictError,
 } from '@/modules/treatment-program/errors';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const expandBodySchema = z.discriminatedUnion('mode', [
   z.object({
@@ -62,19 +63,21 @@ export async function POST(request: Request, ctx: { params: Promise<{ stageId: s
     );
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
-    if (isTreatmentProgramTemplateGroupDescriptionConflictError(e)) {
-      return NextResponse.json(
-        { ok: false, code: GROUP_DESCRIPTION_CONFLICT, error: e.message },
-        { status: 409 },
-      );
-    }
     if (isTreatmentProgramTemplateAlreadyArchivedError(e)) {
       return NextResponse.json({ ok: false, error: 'already_archived' }, { status: 400 });
     }
-    if (isTreatmentProgramExpandNotFoundError(e)) {
-      return NextResponse.json({ ok: false, error: e.message }, { status: 404 });
-    }
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    // Статус выбирается по типу пойманной ошибки, а текст для врача — только помеченный автором.
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-templates/stages/[stageId]/items/from-lfk-complex',
+      e,
+      {
+        fallbackCode: 'expand_lfk_complex_failed',
+        fallbackStatus: 500,
+        domainStatus: () => {
+          if (isTreatmentProgramTemplateGroupDescriptionConflictError(e)) return 409;
+          return isTreatmentProgramExpandNotFoundError(e) ? 404 : 400;
+        },
+      },
+    );
   }
 }

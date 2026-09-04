@@ -5,6 +5,7 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { revalidatePatientTreatmentProgramUi } from '@/app-layer/cache/revalidatePatientTreatmentProgramUi';
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from '@/modules/treatment-program/doctorInstanceRouteErrorStatus';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 export async function POST(
   _request: Request,
@@ -42,8 +43,14 @@ export async function POST(
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-instances/[instanceId]/stage-groups/[groupId]/hide',
+      e,
+      {
+        fallbackCode: 'stage_groups_hide_failed',
+        fallbackStatus: 500,
+        domainStatus: doctorTreatmentProgramInstanceRouteErrorStatus,
+      },
+    );
   }
 }

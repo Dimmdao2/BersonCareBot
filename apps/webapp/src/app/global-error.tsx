@@ -27,7 +27,9 @@ export default function GlobalError({
 }): ReactNode {
   const staleAutoReloadTriggeredRef = useRef(false);
   const chunkAutoReloadTriggeredRef = useRef(false);
-  const message = error.message || 'Не удалось загрузить страницу.';
+  // Фиксированный текст: `error.message` наружу не показываем — он несёт произвольный текст
+  // исключения (SQL драйвера с параметрами, ответ провайдера). Человеку остаётся `digest`.
+  const message = 'Не удалось загрузить страницу.';
   const isChunkError = isChunkLoadFailure(error);
   const isStaleAction = isStaleServerActionError(error);
 

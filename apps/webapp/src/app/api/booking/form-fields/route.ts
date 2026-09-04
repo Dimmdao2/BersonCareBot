@@ -6,6 +6,7 @@ import {
   InPersonBookingResolveError,
   resolveCurrentPatientInPersonBookingContext,
 } from '@/modules/patient-booking/inPersonBookingResolve';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 export async function GET(request: Request) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientBooking });
@@ -24,11 +25,11 @@ export async function GET(request: Request) {
     const fields = await deps.bookingForm.listPatientFields(ctx.organizationId);
     return NextResponse.json({ ok: true, fields });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'ambiguous_booking_tenant';
-    if (error instanceof InPersonBookingResolveError) {
-      const status = message === 'branch_service_mapping_missing' ? 404 : 400;
-      return NextResponse.json({ ok: false, error: message }, { status });
-    }
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    // Коды `InPersonBookingResolveError` проходят как машинные коды; всё прочее — код + digest.
+    return respondWithSafeApiError('api/booking/form-fields', error, {
+      fallbackCode: 'ambiguous_booking_tenant',
+      fallbackStatus: 500,
+      domainStatus: (code) => (code === 'branch_service_mapping_missing' ? 404 : 400),
+    });
   }
 }

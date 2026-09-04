@@ -7,6 +7,7 @@ import {
 } from '@/app-layer/guards/requireEntitlement';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const courseStatusSchema = z.enum(['draft', 'published', 'archived']);
 
@@ -83,7 +84,9 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/doctor/courses', e, {
+      fallbackCode: 'doctor_courses_failed',
+      fallbackStatus: 500,
+    });
   }
 }

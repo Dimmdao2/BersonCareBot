@@ -8,6 +8,8 @@ import {
   parseRecommendationDomain,
 } from '@/modules/recommendations/recommendationDomain';
 import { isRecommendationInvalidDomainError } from '@/modules/recommendations/errors';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
+import { userFacingMessage } from '@/shared/errors/userFacingError';
 
 const mediaItemSchema = z.object({
   mediaUrl: z.string().min(1),
@@ -133,9 +135,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {
     if (isRecommendationInvalidDomainError(e)) {
-      return NextResponse.json({ ok: false, error: e.message, field: 'domain' }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: 'invalid_domain', message: userFacingMessage(e), field: 'domain' },
+        { status: 400 },
+      );
     }
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/doctor/recommendations', e, {
+      fallbackCode: 'recommendation_save_failed',
+      fallbackStatus: 500,
+    });
   }
 }

@@ -33,8 +33,9 @@ import { cn } from '@/lib/utils';
 import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorPageToolbar } from '@/shared/ui/doctor/shell/DoctorPageToolbar';
 import { MEASURE_KINDS_CATALOG_CHANGED_EVENT } from '@/modules/tests/measureKindsClientEvent';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
-type MeasureKindsJsonBody = { ok?: boolean; error?: string; items?: unknown; item?: unknown };
+type MeasureKindsJsonBody = { ok?: boolean; message?: string; items?: unknown; item?: unknown };
 
 /** Разбор тела ответа measure-kinds: не-JSON от прокси/ошибок не маскируется как «сбой сети». */
 async function readMeasureKindsJsonBody(res: Response): Promise<{
@@ -48,7 +49,7 @@ async function readMeasureKindsJsonBody(res: Response): Promise<{
   } catch {
     return {
       httpOk: res.ok,
-      body: { error: 'Ошибка соединения с сервером' },
+      body: { message: 'Ошибка соединения с сервером' },
       transportError: true,
     };
   }
@@ -65,7 +66,7 @@ async function readMeasureKindsJsonBody(res: Response): Promise<{
     return {
       httpOk: res.ok,
       body: {
-        error: res.ok ? 'Некорректный ответ сервера' : `Ответ не JSON (HTTP ${res.status})`,
+        message: res.ok ? 'Некорректный ответ сервера' : `Ответ не JSON (HTTP ${res.status})`,
       },
       transportError: false,
     };
@@ -211,15 +212,15 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
         });
         const { httpOk, body, transportError } = await readMeasureKindsJsonBody(res);
         if (transportError) {
-          fail(body.error ?? 'Ошибка соединения с сервером');
+          fail(readSafeApiErrorText(body, 'Ошибка соединения с сервером'));
           return;
         }
         if (!httpOk) {
-          fail(body.error ?? `Ошибка (${res.status})`);
+          fail(readSafeApiErrorText(body, `Ошибка (${res.status})`));
           return;
         }
         if (!body.ok) {
-          fail(body.error ?? 'Не удалось сохранить');
+          fail(readSafeApiErrorText(body, 'Не удалось сохранить'));
           return;
         }
         window.dispatchEvent(new CustomEvent(MEASURE_KINDS_CATALOG_CHANGED_EVENT));
@@ -248,15 +249,15 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
         });
         const { httpOk, body, transportError } = await readMeasureKindsJsonBody(res);
         if (transportError) {
-          fail(body.error ?? 'Ошибка соединения с сервером');
+          fail(readSafeApiErrorText(body, 'Ошибка соединения с сервером'));
           return;
         }
         if (!httpOk) {
-          fail(body.error ?? `Ошибка (${res.status})`);
+          fail(readSafeApiErrorText(body, `Ошибка (${res.status})`));
           return;
         }
         if (!body.ok) {
-          fail(body.error ?? 'Не удалось создать');
+          fail(readSafeApiErrorText(body, 'Не удалось создать'));
           return;
         }
         setNewLabel('');

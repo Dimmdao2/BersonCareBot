@@ -42,6 +42,7 @@ import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { TreatmentProgramTemplateStatusBadge } from './TreatmentProgramTemplateStatusBadge';
 import { loadTreatmentProgramLibrary } from './loadTreatmentProgramLibrary';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 /** Краткая строка счётчиков + подпись для aria (список шаблонов). */
 function templateListCountsText(
@@ -248,7 +249,7 @@ function TreatmentProgramTemplatesContent({
           setDetail(json.item);
         } else {
           setDetail(null);
-          setDetailError(json.error ?? 'Не удалось загрузить шаблон');
+          setDetailError(readSafeApiErrorText(json, 'Не удалось загрузить шаблон'));
         }
       })
       .catch((err: unknown) => {

@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
+import { PATIENT_PROGRAM_NOT_FOUND_MESSAGE } from '@/modules/treatment-program/patient-program-actions';
 
 const completeBodySchema = z
   .object({
@@ -50,7 +52,12 @@ export async function POST(
       instanceId,
     );
     if (!detail?.organizationId) {
-      return NextResponse.json({ ok: false, error: 'Программа не найдена' }, { status: 404 });
+      // Текст для человека живёт в `message` — там же, куда его кладёт общая дверь, поэтому
+      // экран на «голом» fetch читает оба отказа одним `readSafeApiErrorText`.
+      return NextResponse.json(
+        { ok: false, error: 'not_found', message: PATIENT_PROGRAM_NOT_FOUND_MESSAGE },
+        { status: 404 },
+      );
     }
     const repeatCooldownMinutes = await deps.runtimeConfig.getInteger(
       'patient_treatment_plan_item_done_repeat_cooldown_minutes',
@@ -65,8 +72,15 @@ export async function POST(
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = msg === 'completion_cooldown_active' ? 409 : msg.includes('не найден') ? 404 : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/patient/treatment-program-instances/[instanceId]/items/[itemId]/progress/complete',
+      e,
+      {
+        fallbackCode: 'progress_complete_failed',
+        fallbackStatus: 500,
+        domainStatus: (text) =>
+          text === 'completion_cooldown_active' ? 409 : text.includes('не найден') ? 404 : 400,
+      },
+    );
   }
 }

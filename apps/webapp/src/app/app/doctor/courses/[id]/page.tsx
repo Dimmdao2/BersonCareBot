@@ -92,8 +92,6 @@ export default async function DoctorCourseEditPage(props: PageProps) {
     loadError = logServerRuntimeError('app/doctor/courses/[id]', err, { courseId: id });
   }
 
-  const isDev = process.env.NODE_ENV === 'development';
-
   return (
     <DoctorAppShell
       title={course.title}
@@ -103,10 +101,7 @@ export default async function DoctorCourseEditPage(props: PageProps) {
       <section className={doctorCatalogEditorSectionClass}>
         <p className="font-mono text-xs text-muted-foreground">{course.id}</p>
         {loadError ? (
-          <DataLoadFailureNotice
-            digest={loadError.digest}
-            devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
-          />
+          <DataLoadFailureNotice digest={loadError.digest} />
         ) : templates.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Нет шаблонов программ лечения — сначала создайте шаблон, затем вернитесь к

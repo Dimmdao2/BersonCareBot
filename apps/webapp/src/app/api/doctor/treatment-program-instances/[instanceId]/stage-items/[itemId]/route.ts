@@ -6,6 +6,7 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import { TREATMENT_PROGRAM_ITEM_TYPES } from '@/modules/treatment-program/types';
 import { revalidatePatientTreatmentProgramUi } from '@/app-layer/cache/revalidatePatientTreatmentProgramUi';
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from '@/modules/treatment-program/doctorInstanceRouteErrorStatus';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const deleteBodySchema = z.object({
   reason: z.string().max(500).optional(),
@@ -168,9 +169,15 @@ export async function PATCH(
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-instances/[instanceId]/stage-items/[itemId]',
+      e,
+      {
+        fallbackCode: 'treatment_program_instances_stage_items_failed',
+        fallbackStatus: 500,
+        domainStatus: doctorTreatmentProgramInstanceRouteErrorStatus,
+      },
+    );
   }
 }
 
@@ -219,8 +226,14 @@ export async function DELETE(
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-instances/[instanceId]/stage-items/[itemId]',
+      e,
+      {
+        fallbackCode: 'treatment_program_instances_stage_items_failed',
+        fallbackStatus: 500,
+        domainStatus: doctorTreatmentProgramInstanceRouteErrorStatus,
+      },
+    );
   }
 }

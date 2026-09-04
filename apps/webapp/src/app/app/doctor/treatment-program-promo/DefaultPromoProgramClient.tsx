@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 type TemplateOption = { id: string; title: string };
 
@@ -46,7 +47,7 @@ export function DefaultPromoProgramClient(props: {
         message?: string;
       } | null;
       if (!res.ok || !data?.ok) {
-        toast.error(data?.message ?? data?.error ?? 'Не удалось сохранить');
+        toast.error(readSafeApiErrorText(data, 'Не удалось сохранить'));
         return;
       }
       toast.success('Сохранено');
@@ -67,7 +68,7 @@ export function DefaultPromoProgramClient(props: {
         message?: string;
       };
       if (!res.ok || !data.ok) {
-        toast.error(data?.message ?? data?.error ?? 'Не удалось обновить');
+        toast.error(readSafeApiErrorText(data, 'Не удалось обновить'));
         return;
       }
       const count = data.refreshedCount ?? 0;

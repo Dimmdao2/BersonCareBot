@@ -112,6 +112,7 @@ import {
   stageItemSnapshotTitle,
 } from '@/app/app/patient/treatment/stageItemSnapshot';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 function itemTitleById(detail: TreatmentProgramInstanceDetail): Map<string, string> {
   const m = new Map<string, string>();
@@ -539,7 +540,7 @@ function ProgramInstanceCompleteControl(props: {
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setMsg(data.error ?? 'Ошибка');
+        setMsg(readSafeApiErrorText(data, 'Ошибка'));
         return;
       }
       setOpen(false);
@@ -2038,7 +2039,7 @@ function StageDoctorControls(props: {
             );
             const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
             if (!res.ok || !data.ok) {
-              setMsg(data.error ?? 'Ошибка');
+              setMsg(readSafeApiErrorText(data, 'Ошибка'));
               return;
             }
             await onPatched();
@@ -2077,7 +2078,7 @@ function StageDoctorControls(props: {
             );
             const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
             if (!res.ok || !data.ok) {
-              setSkipDialogError(data.error ?? 'Ошибка');
+              setSkipDialogError(readSafeApiErrorText(data, 'Ошибка'));
               return;
             }
             await onPatched();

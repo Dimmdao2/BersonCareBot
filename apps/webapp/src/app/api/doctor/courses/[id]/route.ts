@@ -11,6 +11,7 @@ import {
   isCourseArchiveNotFoundError,
   isCourseUsageConfirmationRequiredError,
 } from '@/modules/courses/errors';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const courseStatusSchema = z.enum(['draft', 'published', 'archived']);
 
@@ -90,7 +91,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (isCourseArchiveNotFoundError(e)) {
       return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/doctor/courses/[id]', e, {
+      fallbackCode: 'course_update_failed',
+      fallbackStatus: 500,
+    });
   }
 }

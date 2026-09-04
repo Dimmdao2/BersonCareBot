@@ -9,6 +9,7 @@ import {
   isRecommendationInvalidDomainError,
   isRecommendationUsageConfirmationRequiredError,
 } from '@/modules/recommendations/errors';
+import { userFacingMessage } from '@/shared/errors/userFacingError';
 
 const mediaItemSchema = z.object({
   mediaUrl: z.string().min(1),
@@ -88,7 +89,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ ok: true, item });
   } catch (e) {
     if (isRecommendationInvalidDomainError(e)) {
-      return NextResponse.json({ ok: false, error: e.message, field: 'domain' }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: 'invalid_domain', message: userFacingMessage(e), field: 'domain' },
+        { status: 400 },
+      );
     }
     return NextResponse.json({ ok: false, error: 'not_found_or_invalid' }, { status: 400 });
   }

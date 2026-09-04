@@ -15,6 +15,7 @@ import { firstSnapshotMedia } from '@/app/app/doctor/comments/exerciseCommentThu
 import { thumbToExerciseMedia } from '@/app/app/doctor/comments/exerciseCommentThumb';
 import { DoctorExerciseRecommendationsModal } from '@/app/app/doctor/treatment-program-shared/DoctorExerciseRecommendationsModal';
 import { DoctorExerciseStatisticsModal } from '@/app/app/doctor/treatment-program-shared/DoctorExerciseStatisticsModal';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -86,7 +87,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
       if (generation !== loadGenerationRef.current) return;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
-        throw new Error(data?.error ?? 'Не удалось загрузить обсуждение');
+        throw new Error(readSafeApiErrorText(data, 'Не удалось загрузить обсуждение'));
       }
       const loaded = data.messages;
       setMessages((prev) => {

@@ -96,8 +96,7 @@ function formatDate(value: string, displayTimeZone: string): string {
 const REFUND_ERROR_LABELS: Record<string, string> = {
   invoice_not_found: 'Платёж не найден.',
   invoice_not_refundable: 'Возврат недоступен: платёж ещё не оплачен.',
-  seat_overage_partial_refund_forbidden:
-    'Дополнительное место можно вернуть только полной суммой.',
+  seat_overage_partial_refund_forbidden: 'Дополнительное место можно вернуть только полной суммой.',
   amount_exceeds_remaining: 'Сумма превышает остаток по платежу.',
   provider_error: 'Провайдер не принял возврат. Попробуйте ещё раз.',
   invalid_refund_request: 'Некорректная сумма возврата.',
@@ -115,8 +114,10 @@ const MANUAL_INVOICE_ERROR_LABELS: Record<string, string> = {
   saas_billing_no_tariff_assigned: 'У клиники нет назначенного тарифа — сначала назначьте его.',
   saas_billing_manual_invoice_amount_must_be_positive_integer: 'Сумма должна быть больше нуля.',
   saas_billing_manual_invoice_description_required: 'Укажите, за что счёт.',
-  saas_billing_payment_provider_unavailable: 'У провайдера нет рабочих ключей для платформенного магазина.',
-  saas_billing_provider_invoices_unsupported: 'Выбранный провайдер не поддерживает выставление счетов.',
+  saas_billing_payment_provider_unavailable:
+    'У провайдера нет рабочих ключей для платформенного магазина.',
+  saas_billing_provider_invoices_unsupported:
+    'Выбранный провайдер не поддерживает выставление счетов.',
   saas_billing_provider_rejected_invoice: 'Провайдер отклонил выставление счёта.',
   saas_billing_checkout_unavailable: 'Провайдер не вернул ссылку на оплату.',
   invalid_manual_invoice_request: 'Проверьте заполнение формы.',
@@ -171,8 +172,7 @@ type ReconcileOkResult = {
 };
 
 type ReconcileApiResponse =
-  | { ok: true; result: ReconcileOkResult }
-  | { ok: false; error?: string; providerId?: string };
+  { ok: true; result: ReconcileOkResult } | { ok: false; error?: string; providerId?: string };
 
 /**
  * К3 item 1/2 — deliberately filtered by period+payer only, NOT status: it always shows all four
@@ -232,7 +232,6 @@ function PlatformPaymentsSummarySection({
       <DataLoadFailureNotice
         title="Не удалось загрузить сводку платежей."
         digest="SAAS-PAYMENTS-SUMMARY"
-        devMessage={error}
         onRetry={() => void load()}
       />
     );
@@ -502,12 +501,10 @@ type FilterState = {
 const emptyFilters = (): FilterState => ({ status: '', from: '', to: '', payer: '' });
 
 type ApiResponse =
-  | { ok: true; payments: SaasBillingPlatformInvoiceRow[] }
-  | { ok: false; error?: string };
+  { ok: true; payments: SaasBillingPlatformInvoiceRow[] } | { ok: false; error?: string };
 
 type RefundApiResponse =
-  | { ok: true; refund: SaasBillingRefund; duplicate: boolean }
-  | { ok: false; error?: string };
+  { ok: true; refund: SaasBillingRefund; duplicate: boolean } | { ok: false; error?: string };
 
 /**
  * К2 — "в обработке" until the provider webhook confirms the refund (plan requirement: never show
@@ -655,8 +652,7 @@ type TariffOption = {
 
 /** `datetime-local` input value, three days out — a visible, editable default, not a hidden one. */
 type ManualInvoiceApiResponse =
-  | { ok: true; invoice: SaasBillingPlatformInvoiceRow }
-  | { ok: false; error?: string };
+  { ok: true; invoice: SaasBillingPlatformInvoiceRow } | { ok: false; error?: string };
 
 /**
  * К4 — form: клиника, сумма, за что, срок действия. Selecting a clinic prefills amount/currency/
@@ -664,7 +660,13 @@ type ManualInvoiceApiResponse =
  * per plan К4 item 1. On success the returned checkout link is shown so the admin can copy it to the
  * clinic; the list only reloads once the dialog is dismissed, so the link stays visible meanwhile.
  */
-function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function ManualInvoiceDialog({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+}) {
   const [organizations, setOrganizations] = useState<OrganizationOption[] | null>(null);
   const [tariffs, setTariffs] = useState<TariffOption[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -716,7 +718,9 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
     );
     setCurrency((prev) => selectedTariff.currency ?? prev);
     setDescription((prev) =>
-      prev ? prev : `${selectedTariff.name}, ${BILLING_PERIOD_LABELS(selectedTariff.billingPeriod)}`,
+      prev
+        ? prev
+        : `${selectedTariff.name}, ${BILLING_PERIOD_LABELS(selectedTariff.billingPeriod)}`,
     );
   }, [selectedTariff]);
 
@@ -737,17 +741,20 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
     setSubmitting(true);
     setError(null);
     try {
-      const json = await apiJson<ManualInvoiceApiResponse>('/api/admin/saas-billing/payments/manual', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          organizationId,
-          amountMinor,
-          currency,
-          description: description.trim(),
-        }),
-      });
+      const json = await apiJson<ManualInvoiceApiResponse>(
+        '/api/admin/saas-billing/payments/manual',
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            organizationId,
+            amountMinor,
+            currency,
+            description: description.trim(),
+          }),
+        },
+      );
       if (json.ok) {
         setCheckoutUrl(json.invoice.providerCheckoutUrl ?? '');
         onCreated();
@@ -765,8 +772,8 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
         <DialogHeader>
           <DialogTitle>Выставить счёт</DialogTitle>
           <DialogDescription>
-            Счёт уходит провайдеру и получает ссылку на оплату — передайте её клинике. Срок оплаты
-            — общий для всех счетов, он задаётся ниже, в настройках магазина.
+            Счёт уходит провайдеру и получает ссылку на оплату — передайте её клинике. Срок оплаты —
+            общий для всех счетов, он задаётся ниже, в настройках магазина.
           </DialogDescription>
         </DialogHeader>
 
@@ -775,7 +782,12 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
             {checkoutUrl ? (
               <div className="space-y-1.5">
                 <Label htmlFor="manual-invoice-link">Ссылка на оплату</Label>
-                <Input id="manual-invoice-link" readOnly value={checkoutUrl} onFocus={(e) => e.currentTarget.select()} />
+                <Input
+                  id="manual-invoice-link"
+                  readOnly
+                  value={checkoutUrl}
+                  onFocus={(e) => e.currentTarget.select()}
+                />
               </div>
             ) : (
               <p className="text-sm text-destructive" role="alert">
@@ -794,7 +806,6 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
               <DataLoadFailureNotice
                 title="Не удалось загрузить список клиник."
                 digest="MANUAL-INVOICE-ORGANIZATIONS"
-                devMessage={loadError}
                 onRetry={() => void loadOptions()}
                 retrying={loadingOptions}
               />
@@ -871,8 +882,7 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
 }
 
 type CancelApiResponse =
-  | { ok: true; invoice: SaasBillingPlatformInvoiceRow }
-  | { ok: false; error?: string };
+  { ok: true; invoice: SaasBillingPlatformInvoiceRow } | { ok: false; error?: string };
 
 /** К4 — cancel: only offered for `draft`/`pending` rows (see `CancelCell` below). */
 function CancelInvoiceDialog({
@@ -1107,7 +1117,6 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
             <DataLoadFailureNotice
               title="Не удалось загрузить список платежей."
               digest="SAAS-PAYMENTS-LIST"
-              devMessage={error}
               onRetry={() => void load()}
               retrying={loading}
             />

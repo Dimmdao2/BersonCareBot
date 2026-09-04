@@ -4,6 +4,7 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { isTreatmentProgramExpandNotFoundError } from '@/modules/treatment-program/errors';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const bodySchema = z.object({
   complexTemplateId: z.string().uuid(),
@@ -54,10 +55,14 @@ export async function POST(
     );
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
-    if (isTreatmentProgramExpandNotFoundError(e)) {
-      return NextResponse.json({ ok: false, error: e.message }, { status: 404 });
-    }
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/items/from-lfk-complex',
+      e,
+      {
+        fallbackCode: 'expand_lfk_complex_failed',
+        fallbackStatus: 500,
+        domainStatus: () => (isTreatmentProgramExpandNotFoundError(e) ? 404 : 400),
+      },
+    );
   }
 }

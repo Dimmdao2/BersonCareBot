@@ -1,10 +1,8 @@
 import type { ProgramItemCompleteDialogPayload } from '@/app/app/patient/treatment/ProgramItemCompleteDialog';
 import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
-export async function postProgramItemComplete(params: {
-  base: string;
-  itemId: string;
-}): Promise<
+export async function postProgramItemComplete(params: { base: string; itemId: string }): Promise<
   | {
       ok: true;
       item: TreatmentProgramInstanceDetail | null;
@@ -13,9 +11,12 @@ export async function postProgramItemComplete(params: {
   | { ok: false; error: string }
 > {
   try {
-    const res = await fetch(`${params.base}/${encodeURIComponent(params.itemId)}/progress/complete`, {
-      method: 'POST',
-    });
+    const res = await fetch(
+      `${params.base}/${encodeURIComponent(params.itemId)}/progress/complete`,
+      {
+        method: 'POST',
+      },
+    );
     const data = (await res.json().catch(() => null)) as {
       ok?: boolean;
       error?: string;
@@ -23,7 +24,7 @@ export async function postProgramItemComplete(params: {
       completion?: { id?: string; createdAt?: string };
     } | null;
     if (!res.ok || !data?.ok || !data.completion?.id || !data.completion.createdAt) {
-      return { ok: false, error: data?.error ?? 'Не удалось отметить выполнение' };
+      return { ok: false, error: readSafeApiErrorText(data, 'Не удалось отметить выполнение') };
     }
     return {
       ok: true,
@@ -53,7 +54,7 @@ export async function patchProgramItemCompletionMetrics(params: {
     const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
     return res.ok && data?.ok
       ? { ok: true }
-      : { ok: false, error: data?.error ?? 'Не удалось сохранить параметры' };
+      : { ok: false, error: readSafeApiErrorText(data, 'Не удалось сохранить параметры') };
   } catch {
     return { ok: false, error: 'Не удалось сохранить параметры' };
   }

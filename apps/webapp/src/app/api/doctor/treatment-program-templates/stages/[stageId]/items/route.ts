@@ -4,6 +4,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { TREATMENT_PROGRAM_ITEM_TYPES } from '@/modules/treatment-program/types';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const postBodySchema = z.object({
   itemType: z.enum(TREATMENT_PROGRAM_ITEM_TYPES),
@@ -49,7 +50,13 @@ export async function POST(request: Request, ctx: { params: Promise<{ stageId: s
     );
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError(
+      'api/doctor/treatment-program-templates/stages/[stageId]/items',
+      e,
+      {
+        fallbackCode: 'stages_items_failed',
+        fallbackStatus: 500,
+      },
+    );
   }
 }

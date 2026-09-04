@@ -4,6 +4,7 @@ import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole'
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { revalidatePatientTreatmentProgramUi } from '@/app-layer/cache/revalidatePatientTreatmentProgramUi';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 export async function POST(
   _request: Request,
@@ -28,8 +29,14 @@ export async function POST(
     }
     return NextResponse.json({ ok: true, recorded });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = msg.includes('не найден') ? 404 : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/patient/treatment-program-instances/[instanceId]/plan-opened',
+      e,
+      {
+        fallbackCode: 'treatment_program_instances_plan_opened_failed',
+        fallbackStatus: 500,
+        domainStatus: (text) => (text.includes('не найден') ? 404 : 400),
+      },
+    );
   }
 }

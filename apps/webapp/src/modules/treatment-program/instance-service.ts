@@ -39,6 +39,7 @@ import {
   isProgramChangedDiffEmpty,
   type InstanceEditorBatchDraft,
 } from './instanceEditorBatchSchema';
+import { UserFacingError } from '@/shared/errors/userFacingError';
 
 /** Второй экземпляр со `status: active` для того же пациента запрещён (POST назначения). */
 export const SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE =
@@ -86,12 +87,12 @@ export function createTreatmentProgramInstanceService(deps: {
     item: TreatmentProgramInstanceStageItemRow,
   ): Promise<void> {
     if (item.completedAt) {
-      throw new Error(
+      throw new UserFacingError(
         'Нельзя удалить или заменить элемент с отметкой выполнения или историей теста',
       );
     }
     if (testAttempts && (await testAttempts.hasAnyAttemptForStageItem(item.id))) {
-      throw new Error(
+      throw new UserFacingError(
         'Нельзя удалить или заменить элемент с отметкой выполнения или историей теста',
       );
     }
@@ -115,7 +116,7 @@ export function createTreatmentProgramInstanceService(deps: {
 
       if (deps.snapshotDiaryDaysBeforePromoRefresh) {
         if (!row.organizationId) {
-          throw new Error('Не определена организация промо-программы');
+          throw new UserFacingError('Не определена организация промо-программы');
         }
         await deps.snapshotDiaryDaysBeforePromoRefresh({
           patientUserId: row.patientUserId,
@@ -179,7 +180,7 @@ export function createTreatmentProgramInstanceService(deps: {
 
       const tpl = await templates.getTemplate(input.templateId);
       if (tpl.status !== 'published') {
-        throw new Error('Назначать можно только опубликованный шаблон');
+        throw new UserFacingError('Назначать можно только опубликованный шаблон');
       }
 
       const stagesSorted = [...tpl.stages].sort(
@@ -340,11 +341,11 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.patientUserId);
       const getId = deps.getDefaultPromoTemplateId;
       if (!getId) {
-        throw new Error('Промо-программа не настроена');
+        throw new UserFacingError('Промо-программа не настроена');
       }
       const templateId = (await getId())?.trim() ?? '';
       if (!templateId) {
-        throw new Error('Промо-программа не настроена');
+        throw new UserFacingError('Промо-программа не настроена');
       }
       return this.assignTemplateToPatient({
         templateId,
@@ -361,16 +362,16 @@ export function createTreatmentProgramInstanceService(deps: {
       deps.assertWriteClearance?.('promo');
       const getId = deps.getDefaultPromoTemplateId;
       if (!getId) {
-        throw new Error('Промо-программа не настроена');
+        throw new UserFacingError('Промо-программа не настроена');
       }
       const templateId = (await getId({ organizationId: input.organizationId }))?.trim() ?? '';
       if (!templateId) {
-        throw new Error('Промо-программа не настроена');
+        throw new UserFacingError('Промо-программа не настроена');
       }
 
       const tpl = await templates.getTemplate(templateId);
       if (!tpl || tpl.status !== 'published') {
-        throw new Error('Назначать можно только опубликованный шаблон');
+        throw new UserFacingError('Назначать можно только опубликованный шаблон');
       }
 
       const activePromo = await instances.listInstancesWhere({
@@ -486,14 +487,14 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(patientUserId);
       assertUuid(instanceId);
       const row = await instances.getInstanceForPatient(patientUserId.trim(), instanceId);
-      if (!row) throw new Error('Программа не найдена');
+      if (!row) throw new UserFacingError('Программа не найдена');
       return row;
     },
 
     async getInstanceById(instanceId: string) {
       assertUuid(instanceId);
       const row = await instances.getInstanceById(instanceId);
-      if (!row) throw new Error('Программа не найдена');
+      if (!row) throw new UserFacingError('Программа не найдена');
       return row;
     },
 
@@ -552,7 +553,7 @@ export function createTreatmentProgramInstanceService(deps: {
         input.stageItemId,
         input.localComment,
       );
-      if (!row) throw new Error('Элемент программы не найден');
+      if (!row) throw new UserFacingError('Элемент программы не найден');
       const afterEffective = effectiveInstanceStageItemComment(row);
       if (beforeEffective !== afterEffective) {
         await appendEvent({
@@ -578,13 +579,14 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
 
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error('Программа не найдена');
-      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error('Этап не найден');
+      if (!detail) throw new UserFacingError('Программа не найдена');
+      if (!detail.stages.some((s) => s.id === input.stageId))
+        throw new UserFacingError('Этап не найден');
 
       const norm: UpdateTreatmentProgramInstanceStageMetadataInput = {};
       if (input.patch.title !== undefined) {
         const t = input.patch.title.trim();
-        if (!t) throw new Error('Название этапа не может быть пустым');
+        if (!t) throw new UserFacingError('Название этапа не может быть пустым');
         norm.title = t;
       }
       if (input.patch.description !== undefined) {
@@ -607,14 +609,16 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.patch.expectedDurationDays !== undefined) {
         const d = input.patch.expectedDurationDays;
         if (d !== null && (!Number.isInteger(d) || d < 0)) {
-          throw new Error('Ожидаемый срок в днях должен быть неотрицательным целым числом');
+          throw new UserFacingError(
+            'Ожидаемый срок в днях должен быть неотрицательным целым числом',
+          );
         }
         norm.expectedDurationDays = d;
       }
 
       if (Object.keys(norm).length === 0) {
         const unchanged = await instances.getInstanceById(input.instanceId);
-        if (!unchanged) throw new Error('Программа не найдена');
+        if (!unchanged) throw new UserFacingError('Программа не найдена');
         return unchanged;
       }
 
@@ -623,9 +627,9 @@ export function createTreatmentProgramInstanceService(deps: {
         input.stageId,
         norm,
       );
-      if (!updated) throw new Error('Этап не найден');
+      if (!updated) throw new UserFacingError('Этап не найден');
       const out = await instances.getInstanceById(input.instanceId);
-      if (!out) throw new Error('Программа не найдена');
+      if (!out) throw new UserFacingError('Программа не найдена');
       return out;
     },
 
@@ -639,17 +643,17 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new Error('Название не может быть пустым');
+        if (!t) throw new UserFacingError('Название не может быть пустым');
       }
       const prev = await instances.getInstanceById(input.instanceId);
-      if (!prev) throw new Error('Программа не найдена');
+      if (!prev) throw new UserFacingError('Программа не найдена');
       const beforeStatus = prev.status;
 
       const row = await instances.updateInstanceMeta(input.instanceId, {
         title: input.title?.trim(),
         status: input.status,
       });
-      if (!row) throw new Error('Программа не найдена');
+      if (!row) throw new UserFacingError('Программа не найдена');
 
       if (input.status !== undefined && input.status !== beforeStatus) {
         await appendEvent({
@@ -695,9 +699,9 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.instanceId);
       if (input.actorId) assertUuid(input.actorId);
       const t = input.title.trim();
-      if (!t) throw new Error('Название этапа не может быть пустым');
+      if (!t) throw new UserFacingError('Название этапа не может быть пустым');
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error('Программа не найдена');
+      if (!detail) throw new UserFacingError('Программа не найдена');
       const maxOrder = detail.stages.reduce((m, s) => Math.max(m, s.sortOrder), -1);
       const sortOrder = input.sortOrder ?? maxOrder + 1;
       const stage = await instances.addInstanceStage(input.instanceId, {
@@ -707,7 +711,7 @@ export function createTreatmentProgramInstanceService(deps: {
         status: input.status ?? 'locked',
         sourceStageId: null,
       });
-      if (!stage) throw new Error('Не удалось добавить этап');
+      if (!stage) throw new UserFacingError('Не удалось добавить этап');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -730,12 +734,12 @@ export function createTreatmentProgramInstanceService(deps: {
       const st = (await instances.getInstanceById(input.instanceId))?.stages.find(
         (s) => s.id === input.stageId,
       );
-      if (!st) throw new Error('Этап не найден');
+      if (!st) throw new UserFacingError('Этап не найден');
       for (const it of st.items) {
         await assertStageItemAllowsStructuralChange(it);
       }
       const ok = await instances.removeInstanceStage(input.instanceId, input.stageId);
-      if (!ok) throw new Error('Этап не найден');
+      if (!ok) throw new UserFacingError('Этап не найден');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -763,30 +767,34 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       if (input.groupId) assertUuid(input.groupId);
       if ((input.itemType as string) === 'lfk_complex') {
-        throw new Error('Для комплекса ЛФК используйте разворот комплекса (from-lfk-complex)');
+        throw new UserFacingError(
+          'Для комплекса ЛФК используйте разворот комплекса (from-lfk-complex)',
+        );
       }
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId);
       const snapshot = await snapshots.buildSnapshot(input.itemType, input.itemRefId);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error('Программа не найдена');
+      if (!detail) throw new UserFacingError('Программа не найдена');
       const stage = detail.stages.find((s) => s.id === input.stageId);
-      if (!stage) throw new Error('Этап не найден');
+      if (!stage) throw new UserFacingError('Этап не найден');
       let resolvedGroupId = input.groupId ?? null;
       if (isStageZero(stage)) {
         if (input.itemType !== 'recommendation') {
-          throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
+          throw new UserFacingError('На этапе «Общие рекомендации» разрешены только рекомендации');
         }
         if (resolvedGroupId) {
-          throw new Error('На этапе «Общие рекомендации» элементы не привязываются к группам');
+          throw new UserFacingError(
+            'На этапе «Общие рекомендации» элементы не привязываются к группам',
+          );
         }
       } else if (!resolvedGroupId) {
         if (input.itemType === 'recommendation' || input.itemType === 'clinical_test') {
           const want = input.itemType === 'recommendation' ? 'recommendations' : 'tests';
           const sg = stage.groups.find((g) => g.systemKind === want);
-          if (!sg) throw new Error('Системная группа этапа не найдена');
+          if (!sg) throw new UserFacingError('Системная группа этапа не найдена');
           resolvedGroupId = sg.id;
         } else {
-          throw new Error('Выберите группу для этого типа элемента');
+          throw new UserFacingError('Выберите группу для этого типа элемента');
         }
       } else {
         const g = stage.groups.find((gr) => gr.id === resolvedGroupId);
@@ -805,7 +813,7 @@ export function createTreatmentProgramInstanceService(deps: {
         status: 'active',
         groupId: resolvedGroupId,
       });
-      if (!row) throw new Error('Не удалось добавить элемент');
+      if (!row) throw new UserFacingError('Не удалось добавить элемент');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -834,14 +842,16 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
 
       const title = input.title.trim();
-      if (!title) throw new Error('Название рекомендации обязательно');
+      if (!title) throw new UserFacingError('Название рекомендации обязательно');
 
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error('Программа не найдена');
+      if (!detail) throw new UserFacingError('Программа не найдена');
       const stage = detail.stages.find((s) => s.id === input.stageId);
-      if (!stage) throw new Error('Этап не найден');
+      if (!stage) throw new UserFacingError('Этап не найден');
       if (!isStageZero(stage)) {
-        throw new Error('Свободный текст можно добавить только на этап «Общие рекомендации»');
+        throw new UserFacingError(
+          'Свободный текст можно добавить только на этап «Общие рекомендации»',
+        );
       }
 
       const bodyMd = input.bodyMd.trim();
@@ -853,7 +863,7 @@ export function createTreatmentProgramInstanceService(deps: {
         bodyMd,
         createdBy: input.actorId,
       });
-      if (!result) throw new Error('Не удалось добавить рекомендацию');
+      if (!result) throw new UserFacingError('Не удалось добавить рекомендацию');
 
       await appendEvent({
         instanceId: input.instanceId,
@@ -888,7 +898,7 @@ export function createTreatmentProgramInstanceService(deps: {
         stageId: input.stageId,
         testSetId: input.testSetId.trim(),
       });
-      if (!out) throw new Error('Этап не найден');
+      if (!out) throw new UserFacingError('Этап не найден');
       for (const row of out.items) {
         await appendEvent({
           instanceId: input.instanceId,
@@ -922,8 +932,8 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
 
       const preview = await templates.getLfkComplexExpandPreview(input.complexTemplateId.trim());
-      if (!preview) throw new Error('Комплекс ЛФК не найден или в архиве');
-      if (preview.exerciseIds.length === 0) throw new Error('В комплексе нет упражнений');
+      if (!preview) throw new UserFacingError('Комплекс ЛФК не найден или в архиве');
+      if (preview.exerciseIds.length === 0) throw new UserFacingError('В комплексе нет упражнений');
 
       for (const id of preview.exerciseIds) {
         await itemRefs.assertItemRefExists('exercise', id);
@@ -936,7 +946,7 @@ export function createTreatmentProgramInstanceService(deps: {
         groupId: input.groupId,
         expectedExerciseIds: preview.exerciseIds,
       });
-      if (!out) throw new Error('Этап не найден');
+      if (!out) throw new UserFacingError('Этап не найден');
       for (const row of out.items) {
         await appendEvent({
           instanceId: input.instanceId,
@@ -967,7 +977,7 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new Error('Элемент не найден');
+      if (!item) throw new UserFacingError('Элемент не найден');
       if (item.status === 'disabled') return item;
       if (events) {
         const row = await instances.patchInstanceStageItemWithEvent(
@@ -983,13 +993,13 @@ export function createTreatmentProgramInstanceService(deps: {
             payload: { stageId: item.stageId, itemType: item.itemType, itemRefId: item.itemRefId },
           }),
         );
-        if (!row) throw new Error('Элемент не найден');
+        if (!row) throw new UserFacingError('Элемент не найден');
         return row;
       }
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         status: 'disabled',
       });
-      if (!row) throw new Error('Элемент не найден');
+      if (!row) throw new UserFacingError('Элемент не найден');
       return row;
     },
 
@@ -1003,7 +1013,7 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new Error('Элемент не найден');
+      if (!item) throw new UserFacingError('Элемент не найден');
       if (item.status === 'active') return item;
       if (events) {
         const row = await instances.patchInstanceStageItemWithEvent(
@@ -1019,13 +1029,13 @@ export function createTreatmentProgramInstanceService(deps: {
             payload: { stageId: item.stageId, itemType: item.itemType, itemRefId: item.itemRefId },
           }),
         );
-        if (!row) throw new Error('Элемент не найден');
+        if (!row) throw new UserFacingError('Элемент не найден');
         return row;
       }
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         status: 'active',
       });
-      if (!row) throw new Error('Элемент не найден');
+      if (!row) throw new UserFacingError('Элемент не найден');
       return row;
     },
 
@@ -1040,14 +1050,14 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new Error('Элемент не найден');
+      if (!item) throw new UserFacingError('Элемент не найден');
       if (item.itemType !== 'recommendation') {
-        throw new Error('Режим выполнения задаётся только для рекомендаций');
+        throw new UserFacingError('Режим выполнения задаётся только для рекомендаций');
       }
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         isActionable: input.isActionable,
       });
-      if (!row) throw new Error('Элемент не найден');
+      if (!row) throw new UserFacingError('Элемент не найден');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1075,10 +1085,10 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new Error('Элемент не найден');
+      if (!item) throw new UserFacingError('Элемент не найден');
       await assertStageItemAllowsStructuralChange(item);
       const ok = await instances.deleteInstanceStageItem(input.instanceId, input.itemId);
-      if (!ok) throw new Error('Элемент не найден');
+      if (!ok) throw new UserFacingError('Элемент не найден');
       const reasonTrim = input.reason?.trim();
       const reason =
         reasonTrim && reasonTrim.length > 0 ? reasonTrim : 'Удаление врачом из программы пациента';
@@ -1111,7 +1121,7 @@ export function createTreatmentProgramInstanceService(deps: {
       const detail = await instances.getInstanceById(input.instanceId);
       const prev = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId) as
         TreatmentProgramInstanceStageItemRow | undefined;
-      if (!prev) throw new Error('Элемент не найден');
+      if (!prev) throw new UserFacingError('Элемент не найден');
       await assertStageItemAllowsStructuralChange(prev);
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId);
       const snapshot = await snapshots.buildSnapshot(input.itemType, input.itemRefId);
@@ -1120,7 +1130,7 @@ export function createTreatmentProgramInstanceService(deps: {
         itemRefId: input.itemRefId,
         snapshot,
       });
-      if (!row) throw new Error('Не удалось заменить элемент');
+      if (!row) throw new UserFacingError('Не удалось заменить элемент');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1144,14 +1154,14 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.instanceId);
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error('Программа не найдена');
+      if (!detail) throw new UserFacingError('Программа не найдена');
       for (const id of input.orderedStageIds) assertUuid(id);
       const stageZero = detail.stages.find((s) => s.sortOrder === 0);
       if (stageZero && input.orderedStageIds[0] !== stageZero.id) {
-        throw new Error('Этап «Общие рекомендации» должен оставаться первым');
+        throw new UserFacingError('Этап «Общие рекомендации» должен оставаться первым');
       }
       const ok = await instances.reorderInstanceStages(input.instanceId, input.orderedStageIds);
-      if (!ok) throw new Error('Некорректный порядок этапов');
+      if (!ok) throw new UserFacingError('Некорректный порядок этапов');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1172,15 +1182,16 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.stageId);
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error('Программа не найдена');
-      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error('Этап не найден');
+      if (!detail) throw new UserFacingError('Программа не найдена');
+      if (!detail.stages.some((s) => s.id === input.stageId))
+        throw new UserFacingError('Этап не найден');
       for (const id of input.orderedItemIds) assertUuid(id);
       const ok = await instances.reorderInstanceStageItems(
         input.instanceId,
         input.stageId,
         input.orderedItemIds,
       );
-      if (!ok) throw new Error('Некорректный порядок элементов этапа');
+      if (!ok) throw new UserFacingError('Некорректный порядок элементов этапа');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1204,10 +1215,11 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.stageId);
       if (input.actorId) assertUuid(input.actorId);
       const title = input.title.trim();
-      if (!title) throw new Error('Название группы не может быть пустым');
+      if (!title) throw new UserFacingError('Название группы не может быть пустым');
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error('Программа не найдена');
-      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error('Этап не найден');
+      if (!detail) throw new UserFacingError('Программа не найдена');
+      if (!detail.stages.some((s) => s.id === input.stageId))
+        throw new UserFacingError('Этап не найден');
       const payload: CreateTreatmentProgramInstanceStageGroupInput = {
         title,
         description:
@@ -1221,7 +1233,7 @@ export function createTreatmentProgramInstanceService(deps: {
         input.stageId,
         payload,
       );
-      if (!row) throw new Error('Не удалось добавить группу');
+      if (!row) throw new UserFacingError('Не удалось добавить группу');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1249,15 +1261,15 @@ export function createTreatmentProgramInstanceService(deps: {
       const isSystemGroup =
         grpGuard?.systemKind === 'recommendations' || grpGuard?.systemKind === 'tests';
       if (isSystemGroup && input.patch.title !== undefined) {
-        throw new Error('Нельзя менять название системной группы');
+        throw new UserFacingError('Нельзя менять название системной группы');
       }
       if (isSystemGroup && input.patch.sortOrder !== undefined) {
-        throw new Error('Нельзя менять порядок системной группы');
+        throw new UserFacingError('Нельзя менять порядок системной группы');
       }
       const norm: UpdateTreatmentProgramInstanceStageGroupInput = {};
       if (input.patch.title !== undefined && !isSystemGroup) {
         const t = input.patch.title.trim();
-        if (!t) throw new Error('Название группы не может быть пустым');
+        if (!t) throw new UserFacingError('Название группы не может быть пустым');
         norm.title = t;
       }
       if (input.patch.description !== undefined && !isSystemGroup) {
@@ -1273,11 +1285,11 @@ export function createTreatmentProgramInstanceService(deps: {
       if (Object.keys(norm).length === 0) {
         const d = await instances.getInstanceById(input.instanceId);
         const g = d?.stages.flatMap((s) => s.groups).find((gr) => gr.id === input.groupId);
-        if (!g) throw new Error('Группа не найдена');
+        if (!g) throw new UserFacingError('Группа не найдена');
         return g;
       }
       const row = await instances.updateInstanceStageGroup(input.instanceId, input.groupId, norm);
-      if (!row) throw new Error('Группа не найдена');
+      if (!row) throw new UserFacingError('Группа не найдена');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1299,12 +1311,12 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const gr = detail?.stages.flatMap((s) => s.groups).find((g) => g.id === input.groupId);
-      if (!gr) throw new Error('Группа не найдена');
+      if (!gr) throw new UserFacingError('Группа не найдена');
       if (gr.systemKind === 'recommendations' || gr.systemKind === 'tests') {
-        throw new Error('Системную группу нельзя удалить');
+        throw new UserFacingError('Системную группу нельзя удалить');
       }
       const ok = await instances.deleteInstanceStageGroup(input.instanceId, input.groupId);
-      if (!ok) throw new Error('Группа не найдена');
+      if (!ok) throw new UserFacingError('Группа не найдена');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1335,9 +1347,9 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const gr = detail?.stages.flatMap((s) => s.groups).find((g) => g.id === input.groupId);
-      if (!gr) throw new Error('Группа не найдена');
+      if (!gr) throw new UserFacingError('Группа не найдена');
       if (gr.systemKind === 'recommendations' || gr.systemKind === 'tests') {
-        throw new Error('Системную группу нельзя скрыть');
+        throw new UserFacingError('Системную группу нельзя скрыть');
       }
       const itemsInGroup = detail!.stages
         .flatMap((s) => s.items)
@@ -1368,15 +1380,16 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.stageId);
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error('Программа не найдена');
-      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error('Этап не найден');
+      if (!detail) throw new UserFacingError('Программа не найдена');
+      if (!detail.stages.some((s) => s.id === input.stageId))
+        throw new UserFacingError('Этап не найден');
       for (const id of input.orderedGroupIds) assertUuid(id);
       const ok = await instances.reorderInstanceStageGroups(
         input.instanceId,
         input.stageId,
         input.orderedGroupIds,
       );
-      if (!ok) throw new Error('Некорректный порядок групп этапа');
+      if (!ok) throw new UserFacingError('Некорректный порядок групп этапа');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1399,26 +1412,28 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.groupId) assertUuid(input.groupId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new Error('Элемент не найден');
+      if (!item) throw new UserFacingError('Элемент не найден');
       const stage = detail!.stages.find((s) => s.id === item.stageId);
-      if (!stage) throw new Error('Этап не найден');
+      if (!stage) throw new UserFacingError('Этап не найден');
       let nextGroupId: string | null = input.groupId ?? null;
       if (isStageZero(stage)) {
         if (item.itemType !== 'recommendation') {
-          throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
+          throw new UserFacingError('На этапе «Общие рекомендации» разрешены только рекомендации');
         }
         if (input.groupId != null) {
-          throw new Error('На этапе «Общие рекомендации» элементы не привязываются к группам');
+          throw new UserFacingError(
+            'На этапе «Общие рекомендации» элементы не привязываются к группам',
+          );
         }
         nextGroupId = null;
       } else if (!nextGroupId) {
         if (item.itemType === 'recommendation' || item.itemType === 'clinical_test') {
           const want = item.itemType === 'recommendation' ? 'recommendations' : 'tests';
           const sg = stage.groups.find((g) => g.systemKind === want);
-          if (!sg) throw new Error('Системная группа этапа не найдена');
+          if (!sg) throw new UserFacingError('Системная группа этапа не найдена');
           nextGroupId = sg.id;
         } else {
-          throw new Error('Выберите группу для этого типа элемента');
+          throw new UserFacingError('Выберите группу для этого типа элемента');
         }
       } else {
         const g = stage.groups.find((gr) => gr.id === nextGroupId);
@@ -1427,7 +1442,7 @@ export function createTreatmentProgramInstanceService(deps: {
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         groupId: nextGroupId,
       });
-      if (!row) throw new Error('Элемент не найден');
+      if (!row) throw new UserFacingError('Элемент не найден');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1461,13 +1476,13 @@ export function createTreatmentProgramInstanceService(deps: {
         input.sets !== undefined ||
         input.maxPain !== undefined ||
         input.weightKg !== undefined;
-      if (!hasAny) throw new Error('Пустой запрос настроек нагрузки');
+      if (!hasAny) throw new UserFacingError('Пустой запрос настроек нагрузки');
 
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new Error('Элемент не найден');
+      if (!item) throw new UserFacingError('Элемент не найден');
       if (item.itemType !== 'exercise') {
-        throw new Error('Нагрузку можно менять только для упражнений');
+        throw new UserFacingError('Нагрузку можно менять только для упражнений');
       }
 
       const prevRaw = item.settings;
@@ -1490,7 +1505,7 @@ export function createTreatmentProgramInstanceService(deps: {
         }
         const n = Math.round(incoming);
         if (!Number.isFinite(n) || n < min || n > max) {
-          throw new Error(`${label}: целое число от ${min} до ${max}`);
+          throw new UserFacingError(`${label}: целое число от ${min} до ${max}`);
         }
         prev[key] = n;
       };
@@ -1503,7 +1518,7 @@ export function createTreatmentProgramInstanceService(deps: {
         if (input.weightKg === null) {
           delete prev.weightKg;
         } else if (!Number.isFinite(input.weightKg) || input.weightKg < 0 || input.weightKg > 500) {
-          throw new Error('Вес: число от 0 до 500');
+          throw new UserFacingError('Вес: число от 0 до 500');
         } else {
           prev.weightKg = Math.round(input.weightKg * 100) / 100;
         }
@@ -1515,7 +1530,7 @@ export function createTreatmentProgramInstanceService(deps: {
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         settings: nextSettings,
       });
-      if (!row) throw new Error('Элемент не найден');
+      if (!row) throw new UserFacingError('Элемент не найден');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1539,7 +1554,7 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.patientUserId);
       assertUuid(input.instanceId);
       const d = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!d) throw new Error('Программа не найдена');
+      if (!d) throw new UserFacingError('Программа не найдена');
       if (d.status !== 'active') return { recorded: false };
       await instances.touchPatientPlanLastOpenedAt(input.patientUserId, input.instanceId);
       return { recorded: true };
@@ -1554,9 +1569,9 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.instanceId);
       assertUuid(input.stageItemId);
       const d = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!d) throw new Error('Программа не найдена');
+      if (!d) throw new UserFacingError('Программа не найдена');
       const hit = d.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
-      if (!hit) throw new Error('Элемент не найден');
+      if (!hit) throw new UserFacingError('Элемент не найден');
       if (hit.status !== 'active') return { updated: false };
       return instances.markStageItemViewedIfNever(
         input.patientUserId,

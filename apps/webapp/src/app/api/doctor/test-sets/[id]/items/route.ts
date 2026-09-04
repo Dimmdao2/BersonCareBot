@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const putBodySchema = z.object({
   items: z.array(
@@ -36,8 +37,10 @@ export async function PUT(request: Request, ctx: { params: Promise<{ id: string 
     const item = await deps.testSets.getTestSet(id);
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = msg.includes('не найден') ? 404 : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError('api/doctor/test-sets/[id]/items', e, {
+      fallbackCode: 'test_sets_items_failed',
+      fallbackStatus: 500,
+      domainStatus: (text) => (text.includes('не найден') ? 404 : 400),
+    });
   }
 }

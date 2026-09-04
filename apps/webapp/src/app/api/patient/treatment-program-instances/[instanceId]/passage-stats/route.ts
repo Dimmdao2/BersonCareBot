@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { PATIENT_PROGRAM_NOT_FOUND_MESSAGE } from '@/modules/treatment-program/patient-program-actions';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 export async function GET(_request: Request, context: { params: Promise<{ instanceId: string }> }) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patient });
@@ -21,8 +23,15 @@ export async function GET(_request: Request, context: { params: Promise<{ instan
     );
     return NextResponse.json({ ok: true, stats });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = msg.includes('не найден') ? 404 : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError(
+      'api/patient/treatment-program-instances/[instanceId]/passage-stats',
+      e,
+      {
+        fallbackCode: 'treatment_program_instances_passage_stats_failed',
+        fallbackStatus: 500,
+        // Явная ветка доменного контракта, а не поиск подстроки в тексте пойманного исключения.
+        domainStatus: (text) => (text === PATIENT_PROGRAM_NOT_FOUND_MESSAGE ? 404 : 400),
+      },
+    );
   }
 }

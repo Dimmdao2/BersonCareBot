@@ -7,6 +7,7 @@ import {
   CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
   assessmentKindWriteAllowSet,
 } from '@/modules/tests/clinicalTestAssessmentKind';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const mediaItemSchema = z.object({
   mediaUrl: z.string().min(1),
@@ -107,7 +108,9 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/doctor/clinical-tests', e, {
+      fallbackCode: 'doctor_clinical_tests_failed',
+      fallbackStatus: 500,
+    });
   }
 }

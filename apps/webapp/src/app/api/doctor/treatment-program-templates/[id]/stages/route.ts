@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const postBodySchema = z.object({
   title: z.string().min(1).max(2000),
@@ -48,7 +49,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     );
     return NextResponse.json({ ok: true, stage });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/doctor/treatment-program-templates/[id]/stages', e, {
+      fallbackCode: 'treatment_program_templates_stages_failed',
+      fallbackStatus: 500,
+    });
   }
 }

@@ -14,6 +14,7 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { cn } from '@/lib/utils';
 import type { PatientHomeCmsReturnQuery } from '@/modules/patient-home/patientHomeCmsReturnUrls';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 type TemplateOption = { id: string; title: string; status: string };
 
@@ -56,7 +57,7 @@ export function DoctorCourseDraftCreateForm({ templates, returnContext }: Props)
       });
       const data = (await res.json()) as { ok?: boolean; error?: string; item?: { id: string } };
       if (!res.ok || !data.ok || !data.item?.id) {
-        setError(data.error ?? 'Не удалось создать курс');
+        setError(readSafeApiErrorText(data, 'Не удалось создать курс'));
         return;
       }
       setCreatedId(data.item.id);

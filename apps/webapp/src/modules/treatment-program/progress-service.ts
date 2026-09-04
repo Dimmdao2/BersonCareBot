@@ -26,6 +26,7 @@ import type {
   TreatmentProgramTestAttemptRow,
 } from './types';
 import { testIdsFromTestSetSnapshot } from './testSetSnapshotView';
+import { UserFacingError } from '@/shared/errors/userFacingError';
 
 export { testIdsFromTestSetSnapshot };
 
@@ -216,16 +217,16 @@ export function createTreatmentProgramProgressService(deps: {
 
   function resolveItemAndStage(detail: TreatmentProgramInstanceDetail, stageItemId: string) {
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === stageItemId);
-    if (!item) throw new Error('Элемент не найден');
+    if (!item) throw new UserFacingError('Элемент не найден');
     const stage = detail.stages.find((s) => s.id === item.stageId);
-    if (!stage) throw new Error('Этап не найден');
+    if (!stage) throw new UserFacingError('Этап не найден');
     return { item, stage };
   }
 
   function assertStageAccessibleForPatient(stage: { status: string; sortOrder: number }): void {
     if (isStageZero(stage)) return;
     if (stage.status === 'locked' || stage.status === 'skipped') {
-      throw new Error('Этап недоступен');
+      throw new UserFacingError('Этап недоступен');
     }
   }
 
@@ -240,11 +241,11 @@ export function createTreatmentProgramProgressService(deps: {
     if (instances.touchCurrentPatientProgramItem) {
       await instances.touchCurrentPatientProgramItem(input.instanceId, input.stageItemId);
       const next = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!next) throw new Error('Программа не найдена');
+      if (!next) throw new UserFacingError('Программа не найдена');
       return next;
     }
     const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-    if (!detail) throw new Error('Программа не найдена');
+    if (!detail) throw new UserFacingError('Программа не найдена');
     const { stage } = resolveItemAndStage(detail, input.stageItemId);
     assertStageAccessibleForPatient(stage);
     if (stage.status === 'available') {
@@ -263,14 +264,12 @@ export function createTreatmentProgramProgressService(deps: {
       }
     }
     const next = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-    if (!next) throw new Error('Программа не найдена');
+    if (!next) throw new UserFacingError('Программа не найдена');
     return next;
   }
 
   function runPatientMutation<T>(fn: () => Promise<T>): Promise<T> {
-    return instances.touchCurrentPatientProgramItem
-      ? fn()
-      : instances.runInMutationTransaction(fn);
+    return instances.touchCurrentPatientProgramItem ? fn() : instances.runInMutationTransaction(fn);
   }
 
   return {
@@ -308,7 +307,7 @@ export function createTreatmentProgramProgressService(deps: {
           metrics: input.completion ?? {},
         });
         const item = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-        if (!item) throw new Error('Программа не найдена');
+        if (!item) throw new UserFacingError('Программа не найдена');
         return { item, completion };
       }
       return runPatientMutation(async () => {
@@ -317,17 +316,17 @@ export function createTreatmentProgramProgressService(deps: {
         assertUuid(input.stageItemId);
         await patientTouchStageItemInner(input);
         const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-        if (!detail) throw new Error('Программа не найдена');
+        if (!detail) throw new UserFacingError('Программа не найдена');
         const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
         assertStageAccessibleForPatient(stage);
         if (!isInstanceStageItemActiveForPatient(item)) {
-          throw new Error('Элемент отключён');
+          throw new UserFacingError('Элемент отключён');
         }
         if (isPersistentRecommendation(item)) {
-          throw new Error('Постоянная рекомендация не отмечается выполненной');
+          throw new UserFacingError('Постоянная рекомендация не отмечается выполненной');
         }
         if (item.itemType === 'clinical_test') {
-          throw new Error('Для клинического теста используйте отправку результатов');
+          throw new UserFacingError('Для клинического теста используйте отправку результатов');
         }
         const latest = await actionLog.lockSimpleCompletionTargetAndGetLatest({
           instanceId: input.instanceId,
@@ -344,7 +343,7 @@ export function createTreatmentProgramProgressService(deps: {
         const hadCompleted = item.completedAt != null;
         const ts = nowIso();
         const row = await instances.setStageItemCompletedAt(input.instanceId, item.id, ts);
-        if (!row) throw new Error('Не удалось сохранить');
+        if (!row) throw new UserFacingError('Не удалось сохранить');
         const completionPayload: Record<string, unknown> = {
           source: 'simple_item_complete',
           itemType: item.itemType,
@@ -388,7 +387,7 @@ export function createTreatmentProgramProgressService(deps: {
           });
         }
         const out = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-        if (!out) throw new Error('Программа не найдена');
+        if (!out) throw new UserFacingError('Программа не найдена');
         return { item: out, completion };
       });
     },
@@ -435,7 +434,7 @@ export function createTreatmentProgramProgressService(deps: {
       assertUuid(input.stageItemId);
       assertUuid(input.completionId);
       const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!detail) throw new Error('Программа не найдена');
+      if (!detail) throw new UserFacingError('Программа не найдена');
       resolveItemAndStage(detail, input.stageItemId);
       const row = await actionLog.updateSimpleDonePayload({
         completionId: input.completionId,
@@ -468,21 +467,21 @@ export function createTreatmentProgramProgressService(deps: {
         assertUuid(input.stageItemId);
         await patientTouchStageItemInner(input);
         const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-        if (!detail) throw new Error('Программа не найдена');
+        if (!detail) throw new UserFacingError('Программа не найдена');
         const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
         assertStageAccessibleForPatient(stage);
         if (!isInstanceStageItemActiveForPatient(item)) {
-          throw new Error('Элемент отключён');
+          throw new UserFacingError('Элемент отключён');
         }
         if (item.itemType !== 'clinical_test')
-          throw new Error('Элемент не является клиническим тестом');
+          throw new UserFacingError('Элемент не является клиническим тестом');
         const open = await tests.findOpenAttempt(item.id, input.patientUserId);
         if (open) return open;
         const prior = await tests.listAttemptsForStageItem(item.id, input.patientUserId, 5);
         if (prior.length === 0) {
           return tests.createAttempt({ stageItemId: item.id, patientUserId: input.patientUserId });
         }
-        throw new Error('Сначала начните новую попытку');
+        throw new UserFacingError('Сначала начните новую попытку');
       });
     },
 
@@ -501,14 +500,14 @@ export function createTreatmentProgramProgressService(deps: {
           stageItemId: input.stageItemId,
         });
         const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-        if (!detail) throw new Error('Программа не найдена');
+        if (!detail) throw new UserFacingError('Программа не найдена');
         const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
         assertStageAccessibleForPatient(stage);
         if (!isInstanceStageItemActiveForPatient(item)) {
-          throw new Error('Элемент отключён');
+          throw new UserFacingError('Элемент отключён');
         }
         if (item.itemType !== 'clinical_test')
-          throw new Error('Элемент не является клиническим тестом');
+          throw new UserFacingError('Элемент не является клиническим тестом');
         return tests.startNewAttemptAfterSubmitted({
           instanceId: input.instanceId,
           stageItemId: item.id,
@@ -536,18 +535,18 @@ export function createTreatmentProgramProgressService(deps: {
           stageItemId: input.stageItemId,
         });
         const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-        if (!detail) throw new Error('Программа не найдена');
+        if (!detail) throw new UserFacingError('Программа не найдена');
         const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
         assertStageAccessibleForPatient(stage);
         if (!isInstanceStageItemActiveForPatient(item)) {
-          throw new Error('Элемент отключён');
+          throw new UserFacingError('Элемент отключён');
         }
         if (item.itemType !== 'clinical_test')
-          throw new Error('Элемент не является клиническим тестом');
+          throw new UserFacingError('Элемент не является клиническим тестом');
 
         const expectedTests = testIdsFromTestSetSnapshot(item.snapshot);
         if (!expectedTests.includes(input.testId)) {
-          throw new Error('Тест не соответствует пункту программы');
+          throw new UserFacingError('Тест не соответствует пункту программы');
         }
 
         let attempt = await tests.findOpenAttempt(item.id, input.patientUserId);
@@ -559,7 +558,7 @@ export function createTreatmentProgramProgressService(deps: {
               patientUserId: input.patientUserId,
             });
           } else {
-            throw new Error('Сначала начните попытку');
+            throw new UserFacingError('Сначала начните попытку');
           }
         }
 
@@ -575,7 +574,7 @@ export function createTreatmentProgramProgressService(deps: {
           decision = 'partial';
         }
         if (!decision) {
-          throw new Error(
+          throw new UserFacingError(
             'Укажите итог (passed / failed / partial) или числовой score при настроенных порогах',
           );
         }
@@ -639,7 +638,7 @@ export function createTreatmentProgramProgressService(deps: {
         }
 
         const out = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-        if (!out) throw new Error('Программа не найдена');
+        if (!out) throw new UserFacingError('Программа не найдена');
         return out;
       });
     },
@@ -657,17 +656,17 @@ export function createTreatmentProgramProgressService(deps: {
         if (input.doctorUserId) assertUuid(input.doctorUserId);
         if (input.status === 'skipped') {
           const r = input.reason?.trim();
-          if (!r) throw new Error('Для пропуска этапа укажите причину');
+          if (!r) throw new UserFacingError('Для пропуска этапа укажите причину');
         }
         const detail0 = await instances.getInstanceById(input.instanceId);
         const st0 = detail0?.stages.find((s) => s.id === input.stageId);
-        if (!st0) throw new Error('Этап не найден');
+        if (!st0) throw new UserFacingError('Этап не найден');
         const beforeStatus = st0.status;
         const row = await instances.updateInstanceStage(input.instanceId, input.stageId, {
           status: input.status,
           skipReason: input.status === 'skipped' ? (input.reason?.trim() ?? null) : null,
         });
-        if (!row) throw new Error('Этап не найден');
+        if (!row) throw new UserFacingError('Этап не найден');
         await recordStageStatusChange({
           instanceId: input.instanceId,
           stageId: input.stageId,
@@ -677,7 +676,7 @@ export function createTreatmentProgramProgressService(deps: {
           doctorReason: input.reason,
         });
         const out = await instances.getInstanceById(input.instanceId);
-        if (!out) throw new Error('Программа не найдена');
+        if (!out) throw new UserFacingError('Программа не найдена');
         return out;
       });
     },
@@ -693,13 +692,13 @@ export function createTreatmentProgramProgressService(deps: {
       assertUuid(input.doctorUserId);
       const inInstance = await tests.listResultDetailsForInstance(input.instanceId);
       if (!inInstance.some((r) => r.id === input.resultId)) {
-        throw new Error('Результат не найден');
+        throw new UserFacingError('Результат не найден');
       }
       const row = await tests.overrideResultDecision(input.resultId, {
         normalizedDecision: input.normalizedDecision,
         decidedBy: input.doctorUserId,
       });
-      if (!row) throw new Error('Результат не найден');
+      if (!row) throw new UserFacingError('Результат не найден');
       return row;
     },
 

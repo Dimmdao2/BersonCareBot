@@ -5,6 +5,7 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 import { resolveDoctorOwnSpecialistId } from '../_resolveDoctorSpecialistId';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 // Doctor workspace schedule templates. Templates are org-level named presets (no specialist
 // column), so list/create/
@@ -93,8 +94,10 @@ export async function POST(request: Request) {
       );
       return NextResponse.json({ ok: true });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'unknown';
-      return NextResponse.json({ ok: false, error: 'apply_failed', detail: msg }, { status: 400 });
+      return respondWithSafeApiError('api/doctor/booking-engine/working-schedule-templates', err, {
+        fallbackCode: 'apply_failed',
+        fallbackStatus: 500,
+      });
     }
   }
 
@@ -120,8 +123,10 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, row });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'unknown';
-    return NextResponse.json({ ok: false, error: 'create_failed', detail: msg }, { status: 400 });
+    return respondWithSafeApiError('api/doctor/booking-engine/working-schedule-templates', err, {
+      fallbackCode: 'create_failed',
+      fallbackStatus: 500,
+    });
   }
 }
 

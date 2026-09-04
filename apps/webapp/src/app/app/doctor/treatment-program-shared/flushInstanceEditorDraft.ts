@@ -10,6 +10,7 @@ import {
 } from './instanceEditorDraft';
 import { validateInstanceEditorDraftLoadSettings } from './instanceEditorLoadSettings';
 import { serializeInstanceEditorBatchDraftForApi } from './serializeInstanceEditorBatchDraftForApi';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 /** Сохранить накопленный черновик редактора одним POST editor-batch. */
 export async function flushInstanceEditorDraft(input: {
@@ -41,9 +42,12 @@ export async function flushInstanceEditorDraft(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ draft: wireDraft }),
   });
-  const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+  const data = (await res.json().catch(() => null)) as {
+    ok?: boolean;
+    message?: string;
+  } | null;
   if (!res.ok || !data?.ok) {
-    return { ok: false, error: data?.error ?? 'Ошибка сохранения' };
+    return { ok: false, error: readSafeApiErrorText(data, 'Ошибка сохранения') };
   }
   return { ok: true };
 }

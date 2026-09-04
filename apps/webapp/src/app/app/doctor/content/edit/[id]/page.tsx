@@ -72,9 +72,7 @@ export default async function DoctorContentEditPage({ params }: Props) {
   } catch (err) {
     loadError = logServerRuntimeError('app/doctor/content/edit', err, { pageId: id });
   }
-  sections = sections.filter(
-    (section) => contentMechanicForSection(section) === mechanic,
-  );
+  sections = sections.filter((section) => contentMechanicForSection(section) === mechanic);
   try {
     const agg = await withDoctorWorkspacePrincipal(
       workspace,
@@ -91,8 +89,6 @@ export default async function DoctorContentEditPage({ params }: Props) {
     materialRatingSummary = null;
   }
 
-  const isDev = process.env.NODE_ENV === 'development';
-
   return (
     <DoctorAppShell
       title="Редактировать страницу"
@@ -100,12 +96,7 @@ export default async function DoctorContentEditPage({ params }: Props) {
       backHref="/app/doctor/content"
     >
       <section className={cn(doctorSectionCardClass, 'gap-4')}>
-        {loadError ? (
-          <DataLoadFailureNotice
-            digest={loadError.digest}
-            devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
-          />
-        ) : null}
+        {loadError ? <DataLoadFailureNotice digest={loadError.digest} /> : null}
         <ContentForm
           key={`${page.id}-${page.slug}`}
           page={page}

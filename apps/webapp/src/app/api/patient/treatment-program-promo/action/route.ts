@@ -11,6 +11,7 @@ import {
   entitlementMutationRefusalResponse,
   requireEntitlementForMutation,
 } from '@/app-layer/guards/requireEntitlement';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const bodySchema = z.object({
   templateStageItemId: z.string().uuid(),
@@ -85,8 +86,10 @@ export async function POST(req: Request) {
       patientUserId: userId,
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    return respondWithSafeApiError('api/patient/treatment-program-promo/action', e, {
+      fallbackCode: 'treatment_program_promo_action_failed',
+      fallbackStatus: 500,
+    });
   }
 
   const mappedId = mapTemplateStageItemToInstanceStageItemId(
@@ -110,8 +113,10 @@ export async function POST(req: Request) {
         actorId: userId,
       });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'error';
-      return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+      return respondWithSafeApiError('api/patient/treatment-program-promo/action', e, {
+        fallbackCode: 'treatment_program_promo_action_failed',
+        fallbackStatus: 500,
+      });
     }
   }
 
@@ -131,8 +136,10 @@ export async function POST(req: Request) {
         repeatCooldownMinutes,
       });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'error';
-      return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+      return respondWithSafeApiError('api/patient/treatment-program-promo/action', e, {
+        fallbackCode: 'treatment_program_promo_action_failed',
+        fallbackStatus: 500,
+      });
     }
   }
 

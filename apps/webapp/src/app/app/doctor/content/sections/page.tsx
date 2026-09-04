@@ -37,8 +37,6 @@ export default async function DoctorContentSectionsPage() {
     loadError = logServerRuntimeError('app/doctor/content/sections', err);
   }
 
-  const isDev = process.env.NODE_ENV === 'development';
-
   const pageCountBySection = new Map<string, number>();
   for (const p of pages) {
     pageCountBySection.set(p.section, (pageCountBySection.get(p.section) ?? 0) + 1);
@@ -77,12 +75,7 @@ export default async function DoctorContentSectionsPage() {
         }
       />
       <DoctorSection id="doctor-content-sections-section">
-        {loadError ? (
-          <DataLoadFailureNotice
-            digest={loadError.digest}
-            devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
-          />
-        ) : null}
+        {loadError ? <DataLoadFailureNotice digest={loadError.digest} /> : null}
         <div id="doctor-content-sections-list">
           <ContentSectionsListClient
             initialSections={initialSections}

@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 type TemplateOption = { id: string; title: string };
 
@@ -110,7 +111,7 @@ export function PatientTreatmentProgramsPanel(props: {
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setAssignError(data?.error ?? 'Ошибка назначения');
+        setAssignError(readSafeApiErrorText(data, 'Ошибка назначения'));
         return;
       }
       toast.success('Программа лечения назначена');
@@ -143,7 +144,7 @@ export function PatientTreatmentProgramsPanel(props: {
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setAssignError(data?.error ?? 'Ошибка назначения');
+        setAssignError(readSafeApiErrorText(data, 'Ошибка назначения'));
         return;
       }
       toast.success('Программа лечения назначена');

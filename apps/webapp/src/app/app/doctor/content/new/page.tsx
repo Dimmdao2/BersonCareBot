@@ -73,8 +73,6 @@ export default async function DoctorContentNewPage({
     loadError = logServerRuntimeError('app/doctor/content/new', err);
   }
 
-  const isDev = process.env.NODE_ENV === 'development';
-
   let filteredSections = allSections;
   if (systemParentFilter) {
     filteredSections = allSections.filter(
@@ -121,12 +119,7 @@ export default async function DoctorContentNewPage({
     >
       <div className="flex flex-col gap-4">
         <section className={`${doctorSectionCardClass} min-w-0 gap-4`}>
-          {loadError ? (
-            <DataLoadFailureNotice
-              digest={loadError.digest}
-              devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
-            />
-          ) : null}
+          {loadError ? <DataLoadFailureNotice digest={loadError.digest} /> : null}
           {emptySectionsBlock}
           {!loadError && filteredSections.length > 0 ? (
             <ContentForm

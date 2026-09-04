@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { isSafeApiErrorCode } from '@/shared/http/apiErrorCode';
+import { userFacingMessage } from '@/shared/errors/userFacingError';
 
 export type JsonPrimitive = boolean | number | string | null;
 
@@ -101,4 +103,30 @@ export function jsonError<
   init?: ResponseInit,
 ): NextResponse<{ ok: false; error: Code } & Payload> {
   return NextResponse.json({ ok: false, error, ...publicFields }, init);
+}
+
+/** Что из пойманного исключения разрешено показать наружу. */
+export type ClassifiedApiError = Readonly<{
+  /** Машинный код: либо собственный код маршрута/сервиса, либо fallback. Свободного текста не несёт. */
+  code: string;
+  /** Текст для человека — только если автор кода пометил ошибку `UserFacingError`. */
+  userMessage?: string;
+}>;
+
+/**
+ * Единственный разрешённый способ превратить произвольное пойманное исключение в публичный ответ.
+ *
+ * До неё маршруты писали `e instanceof Error ? e.message : 'error'` и отдавали наружу текст
+ * драйвера БД (`Failed query: select … params: …`), сообщения провайдера и stack-производные
+ * строки. Здесь наружу проходит ровно три вещи: descriptor доверенной `TypedApiResponseError`,
+ * помеченный человеку текст `UserFacingError` и `message`, который сам по себе уже является
+ * машинным кодом по форме `isSafeApiErrorCode` (так объявлены доменные коды вроде `slot_overlap`).
+ * Всё остальное схлопывается в `fallbackCode`.
+ */
+export function classifyApiError(error: unknown, fallbackCode: string): ClassifiedApiError {
+  if (error instanceof TypedApiResponseError) return { code: error.descriptor.code };
+  const userMessage = userFacingMessage(error);
+  if (userMessage !== undefined) return { code: fallbackCode, userMessage };
+  if (error instanceof Error && isSafeApiErrorCode(error.message)) return { code: error.message };
+  return { code: fallbackCode };
 }
