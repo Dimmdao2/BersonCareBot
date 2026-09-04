@@ -4,19 +4,10 @@ import { useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
-import {
-  DoctorDnaFlatList,
-  doctorDnaFlatListClickableClass,
-  doctorDnaFlatListMetaClass,
-  doctorDnaFlatListRowClass,
-} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { DoctorDnaFlatList } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
-import {
-  doctorListPreviewTextClass,
-  doctorSectionTitleClass,
-} from '@/shared/ui/doctor/doctorVisual';
+import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import { DoctorProgramItemDiscussionDialog } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramItemDiscussionDialog';
 import { formatDoctorFioShort } from '@/shared/lib/fio';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
@@ -24,7 +15,7 @@ import {
   groupExerciseCommentAttentionByPatient,
   type ExerciseCommentAttentionPatientGroup,
 } from './exerciseCommentAttentionGrouping';
-import { thumbToExerciseMedia } from './exerciseCommentThumb';
+import { ExerciseCommentExerciseRow } from './ExerciseCommentPreviewItem';
 
 /** «Фамилия Имя» пациента для второй строки шапки модалки упражнения. */
 function patientHeaderName(item: TodayExerciseCommentAttentionItem): string {
@@ -35,54 +26,6 @@ function patientHeaderName(item: TodayExerciseCommentAttentionItem): string {
       patronymic: null,
     },
     item.patientDisplayName,
-  );
-}
-
-function latestCommentPreview(item: TodayExerciseCommentAttentionItem): string {
-  return (
-    item.latestMessage.body
-      ?.trim()
-      .replace(/^\d{1,2}[./]\d{1,2}[./]\d{4}(?:,\s*\d{1,2}:\d{2})?\s*/, '') ||
-    'Комментарий без текста'
-  );
-}
-
-function ExerciseCommentRow({
-  item,
-  onOpen,
-}: {
-  item: TodayExerciseCommentAttentionItem;
-  onOpen: () => void;
-}) {
-  return (
-    <li>
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={onOpen}
-        className={cn(
-          doctorDnaFlatListRowClass,
-          doctorDnaFlatListClickableClass,
-          'h-auto w-full items-start whitespace-normal rounded-none bg-transparent text-left shadow-none',
-        )}
-      >
-        <ExerciseListCatalogThumb media={thumbToExerciseMedia(item.thumb)} />
-        <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-2">
-            <span
-              className="min-w-0 flex-1 truncate text-[15px] leading-5 font-semibold text-foreground"
-            >
-              {item.stageItemTitle}
-            </span>
-            <DoctorAttentionBadge count={item.unreadCount ?? 1} className="shrink-0" />
-          </span>
-          <span className={cn(doctorDnaFlatListMetaClass, 'mt-0.5 block')}>
-            {item.latestMessageAtLabel}
-          </span>
-          <span className={doctorListPreviewTextClass}>{latestCommentPreview(item)}</span>
-        </span>
-      </Button>
-    </li>
   );
 }
 
@@ -134,7 +77,7 @@ function PatientCommentGroup({
           className="border-t border-border/60"
         >
           {group.items.map((item) => (
-            <ExerciseCommentRow
+            <ExerciseCommentExerciseRow
               key={`${item.instanceId}:${item.stageItemId}`}
               item={item}
               onOpen={() => onOpen(item)}

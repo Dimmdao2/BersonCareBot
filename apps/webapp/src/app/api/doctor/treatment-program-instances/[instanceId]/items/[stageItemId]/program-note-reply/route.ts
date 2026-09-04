@@ -7,15 +7,11 @@ import { buildWebappProgramNoteReplyIntegratorMessageId } from '@/modules/messag
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { selectPersonalChatSenderDisplayName } from '@/modules/messaging/notifyPatientDoctorReply';
 import { webappPlatformConversationId } from '@/modules/messaging/supportConversationIds';
+import { RuntimeSettingUnavailableError } from '@/modules/system-settings/runtimeSettingUnavailable';
 
 const bodySchema = z.object({
   text: z.string().min(1).max(4000),
 });
-
-function isSettingEnabled(valueJson: unknown): boolean {
-  if (valueJson === null || typeof valueJson !== 'object') return false;
-  return (valueJson as Record<string, unknown>).value === true;
-}
 
 export async function POST(
   request: Request,
@@ -45,13 +41,6 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
-  const enabledFlag = await deps.systemSettings.getSetting(
-    'patient_program_discussion_doctor_reply_from_log_enabled',
-    'admin',
-  );
-  if (!isSettingEnabled(enabledFlag?.valueJson ?? null)) {
-    return NextResponse.json({ ok: false, error: 'feature_disabled' }, { status: 403 });
-  }
 
   const instance = await deps.treatmentProgramInstance.getInstanceById(instanceId);
   if (!instance || instance.organizationId !== gate.ctx.organizationId)
@@ -61,6 +50,30 @@ export async function POST(
     stage.items.some((item) => item.id === stageItemId),
   );
   if (!hasItem) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+
+  // Флаг читаем объявленным runtime-корнем под принципалом врача. Прямое чтение
+  // `system_settings` со staff-порта запрещено RLS для глобальных admin-строк (видны только
+  // `organization_id = current_org_id()` и `scope = 'doctor'`), поэтому раньше строка
+  // «включено» приходила как `null` и отправка комментария падала `feature_disabled`.
+  let replyEnabled: boolean;
+  try {
+    replyEnabled = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.runtimeConfig.getBoolean('patient_program_discussion_doctor_reply_from_log_enabled', {
+        patientUserId: instance.patientUserId,
+        organizationId: gate.ctx.organizationId,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof RuntimeSettingUnavailableError) {
+      // Настройка не прочиталась — у нас нет ответа «включено/выключено». Не выдаём это за
+      // «функция отключена» и не показываем внутреннюю ошибку: отвечаем «временно недоступно».
+      return NextResponse.json({ ok: false, error: 'setting_unavailable' }, { status: 503 });
+    }
+    throw error;
+  }
+  if (!replyEnabled) {
+    return NextResponse.json({ ok: false, error: 'feature_disabled' }, { status: 403 });
+  }
 
   const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     deps.sendProgramNoteReply({

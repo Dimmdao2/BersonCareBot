@@ -35,7 +35,16 @@ import type {
   TreatmentProgramInstanceSummary,
   TreatmentProgramInstanceStageStatus,
 } from '@/modules/treatment-program/types';
-import type { StageItemViewerUnreadCount } from '@/modules/program-item-discussion/types';
+import type {
+  ProgramItemDiscussionMessage,
+  StageItemViewerUnreadCount,
+} from '@/modules/program-item-discussion/types';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { formatCommentDateRu } from '../doctorTodayFormat';
+import {
+  DISCUSSION_LATEST_MESSAGE_SCAN_LIMIT,
+  pickLatestPatientFacingMessage,
+} from '../pickLatestPatientFacingMessage';
 import { firstSnapshotMedia, type ExerciseCommentThumbMedia } from './exerciseCommentThumb';
 
 /** Строка упражнения в drill-down правом пейне. */
@@ -52,6 +61,14 @@ export type ExerciseCommentItem = {
   unreadComments: number;
   /** ISO дата последнего комментария (для сортировки). */
   latestCommentAt: string | null;
+  /**
+   * Последнее сообщение треда, показываемое в строке списка: комментарий пациента, если он
+   * есть в просмотренном окне, иначе последнее сообщение треда. Тот же выбор, что в KPI
+   * «Сегодня», — строка комментариев у обоих входов одна.
+   */
+  latestMessage: ProgramItemDiscussionMessage | null;
+  /** Локализованная подпись даты последнего сообщения для строки списка. */
+  latestMessageAtLabel: string;
 };
 
 /** Группа по этапу. */
@@ -98,6 +115,12 @@ export type LoadDoctorPatientExercisesWithCommentsDeps = {
       stageItemIds: string[];
       viewerUserId: string;
     }): Promise<StageItemViewerUnreadCount[]>;
+    listMessagesPage(input: {
+      stageItemId: string;
+      limit: number;
+      direction: 'backward' | 'forward';
+      cursor: null;
+    }): Promise<ProgramItemDiscussionMessage[]>;
   };
 };
 
@@ -169,6 +192,22 @@ export async function loadDoctorPatientExercisesWithComments(
     return counts !== undefined && counts.total > 0;
   });
 
+  // Превью строки — последнее сообщение треда, тем же правилом, что и в KPI «Сегодня».
+  // Окно берём только по упражнениям, которые реально попадут в список.
+  const appDisplayTimeZone = await getAppDisplayTimeZone();
+  const latestMessageEntries = await Promise.all(
+    itemsWithComments.map(async (item) => {
+      const page = await deps.programItemDiscussion.listMessagesPage({
+        stageItemId: item.id,
+        limit: DISCUSSION_LATEST_MESSAGE_SCAN_LIMIT,
+        direction: 'backward',
+        cursor: null,
+      });
+      return [item.id, pickLatestPatientFacingMessage(page)] as const;
+    }),
+  );
+  const latestMessageByStageItemId = new Map(latestMessageEntries);
+
   // Group by stage
   const stageGroupMap = new Map<
     string,
@@ -182,6 +221,8 @@ export async function loadDoctorPatientExercisesWithComments(
 
   for (const item of itemsWithComments) {
     const counts = unreadMap.get(item.id)!;
+    const latestMessage = latestMessageByStageItemId.get(item.id) ?? null;
+    const latestMessageAt = latestMessage?.createdAt ?? counts.latestMessageAt;
     const exerciseItem: ExerciseCommentItem = {
       stageItemId: item.id,
       stageId: item.stage.id,
@@ -190,6 +231,10 @@ export async function loadDoctorPatientExercisesWithComments(
       totalComments: counts.total,
       unreadComments: counts.unread,
       latestCommentAt: counts.latestMessageAt,
+      latestMessage,
+      latestMessageAtLabel: latestMessageAt
+        ? formatCommentDateRu(latestMessageAt, appDisplayTimeZone)
+        : '',
     };
 
     const stageId = item.stage.id;

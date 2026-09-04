@@ -31,18 +31,16 @@ import {
   firstSnapshotMedia,
   type ExerciseCommentThumbMedia,
 } from './comments/exerciseCommentThumb';
+import {
+  DISCUSSION_LATEST_MESSAGE_SCAN_LIMIT,
+  pickLatestPatientFacingMessage,
+} from './pickLatestPatientFacingMessage';
 export {
   groupExerciseCommentAttentionByPatient,
   type ExerciseCommentAttentionPatientGroup,
 } from './comments/exerciseCommentAttentionGrouping';
 
 export const DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT = 30;
-
-/**
- * Сколько последних сообщений треда просматриваем, чтобы найти последний комментарий пациента.
- * Совпадает с размером страницы самой модалки обсуждения.
- */
-const LATEST_PATIENT_COMMENT_SCAN_LIMIT = 50;
 
 export type TodayExerciseCommentAttentionItem = {
   patientUserId: string;
@@ -183,15 +181,11 @@ export async function loadDoctorExerciseCommentAttention(
             // а не выпадает из списка (иначе «последний отправитель» вернулся бы как unread-гейт).
             const page = await deps.programItemDiscussion!.listMessagesPage({
               stageItemId,
-              limit: LATEST_PATIENT_COMMENT_SCAN_LIMIT,
+              limit: DISCUSSION_LATEST_MESSAGE_SCAN_LIMIT,
               direction: 'backward',
               cursor: null,
             });
-            let latest: ProgramItemDiscussionMessage | null = null;
-            for (const message of page) {
-              if (message.senderRole === 'patient') latest = message;
-            }
-            if (!latest) latest = page[page.length - 1] ?? null;
+            const latest = pickLatestPatientFacingMessage(page);
             if (!latest) return null;
             return {
               patientUserId,

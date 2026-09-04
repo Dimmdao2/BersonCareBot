@@ -27,6 +27,10 @@ export const RUNTIME_BOOLEAN_SETTING_DEFINITIONS = {
     key: 'patient_program_discussion_media_submission_enabled',
     scope: 'admin',
   },
+  patient_program_discussion_doctor_reply_from_log_enabled: {
+    key: 'patient_program_discussion_doctor_reply_from_log_enabled',
+    scope: 'admin',
+  },
   doctor_patient_support_comments_without_support_default_enabled: {
     key: 'doctor_patient_support_comments_without_support_default_enabled',
     scope: 'doctor',

@@ -2,35 +2,15 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { DoctorSupportStar } from '@/shared/ui/doctor/DoctorSupportStar';
-import {
-  chatBubbleOwnClass,
-  chatBubblePeerClass,
-  chatThreadSurfaceClass,
-} from '@/shared/ui/chat/chatThreadSurface';
-import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
 import type { DoctorExerciseCommentCursor } from '@/modules/program-item-discussion/types';
-import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
-import {
-  dayKeyFromIso,
-  formatChatMessageTimeRu,
-  formatChatRelativeDateLabelRu,
-} from '@/modules/messaging/messageFormatting';
 import type { CommentPatientRow } from './loadDoctorCommentPatients';
-import type {
-  PatientExercisesWithCommentsResult,
-  ExerciseCommentStageGroup,
-  ExerciseCommentItem,
-} from './loadDoctorPatientExercisesWithComments';
-import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import {
   DoctorDnaFlatListSelectionStrip,
   doctorDnaFlatListClass,
   doctorDnaFlatListClickableClass,
-  doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
   doctorDnaFlatListSelectedPrimaryClass,
@@ -38,58 +18,14 @@ import {
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
-import {
-  doctorChatMessageTextClass,
-  doctorInlineLinkClass,
-  doctorMetaTextClass,
-} from '@/shared/ui/doctor/doctorVisual';
-import {
-  DOCTOR_CHAT_BUBBLE_MAX_WIDTH,
-  DoctorChatBubbleMeta,
-} from '@/shared/ui/chat/DoctorChatBubbleMeta';
-import { patientCardHref } from '../patients/patientCardHref';
-import { patientProgramInstanceHref } from '../patients/patientProgramInstanceHref';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
-import { type ExerciseMetricPoint } from '@/shared/ui/doctor/ExerciseMicroChart';
-import { ExerciseExecutionGraph, type DayBar } from '@/shared/ui/doctor/ExerciseExecutionGraph';
-import { thumbToExerciseMedia } from './exerciseCommentThumb';
+import { DoctorLfkCommentsModal } from './DoctorLfkCommentsModal';
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-type ExercisesApiResponse = {
-  ok: boolean;
-  data: PatientExercisesWithCommentsResult | null;
-};
-
-type DiscussionMessage = ProgramItemDiscussionMessage;
-
-type ThreadApiResponse = {
-  ok: boolean;
-  messages: DiscussionMessage[];
-  pageInfo: {
-    direction: string;
-    limit: number;
-    nextCursor: string | null;
-    hasMore: boolean;
-  };
-  totalCount: number;
-  peerLastReadAt: string | null;
-};
-
-type MetricsApiResponse = {
-  ok: boolean;
-  points?: ExerciseMetricPoint[];
-};
-
-type DayActivityApiResponse = {
-  ok: boolean;
-  days?: DayBar[];
-};
 
 export type DoctorCommentsTabProps = {
   initialItems: TodayExerciseCommentAttentionItem[];
@@ -99,16 +35,6 @@ export type DoctorCommentsTabProps = {
   /** IANA timezone string for displaying dates in clinic's local time. */
   displayIana?: string;
   active?: boolean;
-};
-
-// ── Constants ────────────────────────────────────────────────────────────────
-
-const REPLY_ERROR_LABELS: Record<string, string> = {
-  empty: 'Введите текст ответа',
-  too_long: 'Ответ слишком длинный (максимум 4000 символов)',
-  program_not_doctor_assigned: 'Нельзя ответить: программа не назначена врачом',
-  program_item_not_active: 'Нельзя ответить: элемент программы неактивен',
-  feature_disabled: 'Функция временно недоступна',
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -123,20 +49,6 @@ function filterPatients(patients: CommentPatientRow[], query: string): CommentPa
     if (p.maxId?.toLowerCase().includes(q)) return true;
     return false;
   });
-}
-
-function formatRelativeTime(isoDate: string | null): string {
-  if (!isoDate) return '';
-  const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) return '';
-  const now = new Date();
-  const isToday =
-    date.getDate() === now.getDate() &&
-    date.getMonth() === now.getMonth() &&
-    date.getFullYear() === now.getFullYear();
-  const time = date.toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  if (isToday) return time;
-  return date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit' }) + ' · ' + time;
 }
 
 // ── Left pane: patient row ───────────────────────────────────────────────────
@@ -191,274 +103,17 @@ function PatientRow({
   );
 }
 
-// ── State B: exercise row ────────────────────────────────────────────────────
-
-function ExerciseRow({
-  item,
-  isSelected,
-  onClick,
-  isFirst,
-}: {
-  item: ExerciseCommentItem;
-  isSelected: boolean;
-  onClick: () => void;
-  isFirst: boolean;
-}) {
-  const hasUnread = item.unreadComments > 0;
-  return (
-    <li>
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={onClick}
-        className={cn(
-          doctorDnaFlatListRowClass,
-          doctorDnaFlatListClickableClass,
-          'h-auto min-h-12 w-full rounded-none bg-transparent text-left shadow-none',
-          isFirst && 'border-t-0',
-        )}
-      >
-        {isSelected ? <DoctorDnaFlatListSelectionStrip /> : null}
-        {/* Превью первого медиа упражнения (канон-миниатюра 36×36). */}
-        <ExerciseListCatalogThumb media={thumbToExerciseMedia(item.thumb)} />
-        <div className="min-w-0 flex-1 overflow-hidden">
-          {/* Название упражнения: жирное если есть непрочитанные, обычное если всё прочитано */}
-          <p
-            className={cn(
-              'truncate',
-              doctorDnaFlatListPrimaryClass,
-              hasUnread && doctorDnaFlatListUnreadTextClass,
-              isSelected && doctorDnaFlatListSelectedPrimaryClass,
-            )}
-          >
-            {item.title}
-          </p>
-          {item.latestCommentAt && (
-            <p className={cn('truncate', doctorDnaFlatListMetaClass)}>
-              {formatRelativeTime(item.latestCommentAt)}
-            </p>
-          )}
-        </div>
-        <div className="shrink-0 text-right">
-          {hasUnread ? (
-            <DoctorAttentionBadge count={item.unreadComments} />
-          ) : (
-            <span className={doctorDnaFlatListMetaClass}>{item.totalComments}</span>
-          )}
-        </div>
-      </Button>
-    </li>
-  );
-}
-
-// ── State B: stage group ─────────────────────────────────────────────────────
-
-function StageGroup({
-  group,
-  selectedItemId,
-  onSelectItem,
-  entryUnreadSnapshot,
-}: {
-  group: ExerciseCommentStageGroup;
-  selectedItemId: string | null;
-  onSelectItem: (item: ExerciseCommentItem) => void;
-  /** stageItemId → было ли непрочитано на входе в пациента (для ранжирования без перетасовки). */
-  entryUnreadSnapshot: ReadonlyMap<string, boolean>;
-}) {
-  const [collapsed, setCollapsed] = useState(!group.isActive);
-
-  // Ранжирование: непрочитанные (на момент входа) сверху, прочитанные ниже.
-  // Внутри группы сохраняем серверный порядок (latestCommentAt DESC) как вторичный ключ —
-  // используем стабильную сортировку. Ключ берётся из снимка входа, поэтому
-  // дочитанные «в этой сессии» НЕ переезжают вверх/вниз, пока врач внутри пациента.
-  const orderedExercises = group.exercises
-    .map((ex, idx) => ({ ex, idx }))
-    .sort((a, b) => {
-      const aUnread = entryUnreadSnapshot.get(a.ex.stageItemId) ? 0 : 1;
-      const bUnread = entryUnreadSnapshot.get(b.ex.stageItemId) ? 0 : 1;
-      if (aUnread !== bUnread) return aUnread - bUnread;
-      return a.idx - b.idx;
-    })
-    .map((e) => e.ex);
-
-  return (
-    <div className="border-b border-border last:border-b-0">
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={() => setCollapsed((c) => !c)}
-        className="flex w-full items-center gap-1.5 rounded-none px-3 py-1.5 text-left hover:bg-muted/30 transition-colors"
-      >
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex-1">
-          {group.stageTitle}
-        </span>
-        {!group.isActive && (
-          <span className="text-[10px] text-muted-foreground border border-border rounded px-1 py-0.5">
-            {collapsed ? '▶' : '▼'}
-          </span>
-        )}
-        {group.isActive && <span className="text-[10px] text-primary font-medium">активный</span>}
-      </Button>
-      {!collapsed && (
-        <ul className={doctorDnaFlatListClass}>
-          {orderedExercises.map((ex, index) => (
-            <ExerciseRow
-              key={ex.stageItemId}
-              item={ex}
-              isSelected={selectedItemId === ex.stageItemId}
-              onClick={() => onSelectItem(ex)}
-              isFirst={index === 0}
-            />
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-// ── State C: thread message ──────────────────────────────────────────────────
-
-function ThreadMessage({
-  message,
-  instanceId,
-  stageItemId,
-  peerLastReadAt,
-  onReplied,
-}: {
-  message: DiscussionMessage;
-  instanceId: string;
-  stageItemId: string;
-  peerLastReadAt: string | null;
-  onReplied: () => void;
-}) {
-  const [replyOpen, setReplyOpen] = useState(false);
-  const [replyText, setReplyText] = useState('');
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-
-  const isPatient = message.senderRole === 'patient';
-  // Внутри треда визуально различаем прочитано/непрочитано. peerLastReadAt — курсор
-  // последнего прочтения врачом, снятый при ОТКРЫТИИ треда (не обновляется после
-  // mark-read), поэтому подсветка «непрочитано» заморожена на время просмотра.
-  // Если врач ещё не открывал тред (курсор null) — все сообщения пациента непрочитаны.
-  const isUnread = isPatient && (peerLastReadAt === null || message.createdAt > peerLastReadAt);
-
-  async function handleSend() {
-    if (!replyText.trim()) return;
-    setSending(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(stageItemId)}/program-note-reply`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: replyText.trim() }),
-        },
-      );
-      const data = (await res.json()) as { ok: boolean; error?: string };
-      if (!data.ok) {
-        setError(REPLY_ERROR_LABELS[data.error ?? ''] ?? 'Ошибка отправки. Попробуйте ещё раз.');
-      } else {
-        setSuccess(true);
-        setReplyText('');
-        setReplyOpen(false);
-        onReplied();
-      }
-    } catch {
-      setError('Ошибка сети. Попробуйте ещё раз.');
-    } finally {
-      setSending(false);
-    }
-  }
-
-  return (
-    <div className={cn('flex flex-col gap-1 px-4 py-2.5', isPatient ? 'items-start' : 'items-end')}>
-      <div className={cn('flex w-full max-w-full items-end', !isPatient && 'justify-end')}>
-        <div
-          className={cn(
-            'min-w-0 w-fit rounded-md px-3 py-2 shadow-sm',
-            doctorChatMessageTextClass,
-            isPatient ? chatBubblePeerClass : chatBubbleOwnClass,
-            isUnread && 'border-l-2 border-l-primary',
-            isPatient && !success && !replyOpen && 'cursor-pointer',
-          )}
-          style={{ maxWidth: DOCTOR_CHAT_BUBBLE_MAX_WIDTH }}
-          onClick={() => {
-            if (isPatient && !success && !replyOpen) setReplyOpen(true);
-          }}
-        >
-          <div className="relative">
-            {message.body && (
-              <p className="whitespace-pre-wrap break-words">
-                {message.body}
-                <DoctorChatBubbleMeta timeLabel={formatChatMessageTimeRu(message.createdAt)} />
-              </p>
-            )}
-            {!message.body && !message.mediaFileId && (
-              <p className="text-sm text-muted-foreground italic">
-                —
-                <DoctorChatBubbleMeta timeLabel={formatChatMessageTimeRu(message.createdAt)} />
-              </p>
-            )}
-            {!message.body && message.mediaFileId ? (
-              <p className="h-3">
-                <DoctorChatBubbleMeta timeLabel={formatChatMessageTimeRu(message.createdAt)} />
-              </p>
-            ) : null}
-          </div>
-
-          {success && <p className="mt-1.5 text-xs text-primary">Ответ отправлен</p>}
-
-          {isPatient && !success && replyOpen && (
-            <div className="mt-1.5">
-              <MessageComposer
-                value={replyText}
-                onValueChange={setReplyText}
-                onSubmit={handleSend}
-                submitting={sending}
-                placeholder="Ответить…"
-                ariaLabel="Текст ответа"
-                submitLabel="Ответить"
-                submittingLabel="Отправка…"
-                rows={2}
-                className="flex flex-col gap-1.5"
-                actionsClassName="flex gap-2"
-                status={error ? <p className="text-xs text-destructive">{error}</p> : null}
-                secondaryActions={
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setReplyOpen(false);
-                      setReplyText('');
-                      setError(null);
-                    }}
-                  >
-                    Отмена
-                  </Button>
-                }
-                renderTextarea={(props) => <Textarea {...props} className="resize-none text-sm" />}
-                renderSubmit={(props) => <Button {...props} size="sm" />}
-              />
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
-function DoctorCommentsDesktopTab({
-  initialPatients,
-  displayIana,
-  active = true,
-}: DoctorCommentsTabProps) {
+/**
+ * Страница «Комментарии» нижнего меню.
+ *
+ * Список пациентов — единственный собственный экран таба. Тап по пациенту открывает общую
+ * модалку «Комментарии к ЛФК», тап по упражнению внутри неё — общую модалку упражнения.
+ * Прежний drill-down правым пейном (упражнения + тред + отдельный график) удалён: у
+ * комментариев ЛФК один путь на весь кабинет.
+ */
+function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCommentsTabProps) {
   // ── View mode: «Непрочитанные» (unread) or «Все» (all) ──
   // Default: «Все» — показать всю историю комментариев; «Непрочитанные» — только непрочитанные.
   const [viewMode, setViewMode] = useState<'unread' | 'all'>('all');
@@ -477,67 +132,21 @@ function DoctorCommentsDesktopTab({
   const [allModePatientsError, setAllModePatientsError] = useState<string | null>(null);
   const allModeFetchedRef = useRef(false);
 
-  // ── Drill-down navigation state ──
+  // ── Выбранный пациент = открытая модалка «Комментарии к ЛФК» ──
   const [selectedPatient, setSelectedPatient] = useState<CommentPatientRow | null>(null);
 
-  // State B: exercises
-  const [exercisesData, setExercisesData] = useState<PatientExercisesWithCommentsResult | null>(
-    null,
-  );
-  const [exercisesLoading, setExercisesLoading] = useState(false);
-  const [exercisesError, setExercisesError] = useState<string | null>(null);
-
-  // State C: thread
-  const [selectedExercise, setSelectedExercise] = useState<ExerciseCommentItem | null>(null);
-  const [threadMessages, setThreadMessages] = useState<DiscussionMessage[]>([]);
-  const [threadLoading, setThreadLoading] = useState(false);
-  const [threadError, setThreadError] = useState<string | null>(null);
-  const [markReadSent, setMarkReadSent] = useState(false);
-  const [peerLastReadAt, setPeerLastReadAt] = useState<string | null>(null);
-
-  // State C: exercise metrics chart (CMT-01..04)
-  const [metricsPoints, setMetricsPoints] = useState<ExerciseMetricPoint[] | null>(null);
-  const [metricsLoading, setMetricsLoading] = useState(false);
-  const [dayBars, setDayBars] = useState<DayBar[]>([]);
-  const [chartWindowDays, setChartWindowDays] = useState<7 | 30>(7);
-
-  const threadVersionRef = useRef(0);
-  // Снимок «непрочитанности» упражнений на момент входа в пациента (state B):
-  // stageItemId → было ли непрочитано при входе. Используется для ранжирования
-  // (непрочитанные сверху) БЕЗ живой перетасовки — порядок фиксируется на входе
-  // и не меняется, пока врач внутри пациента; пересчитывается при смене пациента.
-  const entryUnreadSnapshotRef = useRef<ReadonlyMap<string, boolean>>(new Map());
-  // Зеркало exercisesData для синхронного чтения cleared-count в applyLocalRead.
-  const exercisesDataRef = useRef<PatientExercisesWithCommentsResult | null>(null);
-
-  // ── Read-state (D3) ──────────────────────────────────────────────────────
-  // Локальный набор stageItemId, помеченных прочитанными в этой сессии (просмотр треда).
-  // Используется, чтобы бейджи/счётчики сходились без рефетча, и чтобы прочитанное
-  // уезжало вниз/выпадало из фильтра «непрочитанные» — но БЕЗ живой перетасовки,
-  // пока врач внутри пациента (см. snapshot-логику ниже).
-  const [locallyReadItems, setLocallyReadItems] = useState<ReadonlySet<string>>(() => new Set());
-  // Зеркала для синхронного чтения внутри applyLocalRead (без устаревших замыканий
-  // и без двойного учёта в StrictMode).
-  const locallyReadItemsRef = useRef<ReadonlySet<string>>(locallyReadItems);
-  // Локальная копия списка пациентов: server-данные + декремент unreadCount по мере чтения.
+  // Локальная копия списка пациентов: server-данные + декремент unreadCount по мере чтения,
+  // чтобы бейджи сходились без рефетча.
   const [patients, setPatients] = useState<CommentPatientRow[]>(initialPatients ?? []);
   useEffect(() => {
     setPatients(initialPatients ?? []);
-    // Новый набор пациентов от сервера => сбрасываем локальный read-стейт сессии.
-    locallyReadItemsRef.current = new Set();
-    setLocallyReadItems(locallyReadItemsRef.current);
   }, [initialPatients]);
-
-  useEffect(() => {
-    exercisesDataRef.current = exercisesData;
-  }, [exercisesData]);
 
   // ── Fetch all-mode patients ──
   const fetchAllMode = useCallback(async () => {
     if (allModeFetchedRef.current) return;
     allModeFetchedRef.current = true;
 
-    // Patients
     setAllModePatientsLoading(true);
     setAllModePatientsError(null);
     try {
@@ -587,228 +196,18 @@ function DoctorCommentsDesktopTab({
         )
       : patientsToShowRaw;
 
-  // ── Load exercises for selected patient (state B) ──
-  const loadExercises = useCallback(async (patientUserId: string) => {
-    setExercisesLoading(true);
-    setExercisesError(null);
-    setExercisesData(null);
-    try {
-      const res = await fetch(
-        `/api/doctor/comments/patients/${encodeURIComponent(patientUserId)}/exercises?includePastPrograms=true`,
-      );
-      const data = (await res.json()) as ExercisesApiResponse;
-      if (!data.ok) throw new Error('api_error');
-      // Заморозить ранжирование на входе: фиксируем, какие упражнения были
-      // непрочитаны (учитывая ранее прочитанное в этой сессии), чтобы порядок
-      // не «прыгал», пока врач читает треды внутри пациента.
-      const snapshot = new Map<string, boolean>();
-      for (const group of data.data?.groups ?? []) {
-        for (const ex of group.exercises) {
-          snapshot.set(ex.stageItemId, ex.unreadComments > 0);
-        }
-      }
-      entryUnreadSnapshotRef.current = snapshot;
-      setExercisesData(data.data);
-    } catch {
-      setExercisesError('Не удалось загрузить упражнения пациента.');
-    } finally {
-      setExercisesLoading(false);
-    }
-  }, []);
-
-  // Reload exercises when patient changes
-  useEffect(() => {
-    if (!selectedPatient) return;
-    void loadExercises(selectedPatient.patientUserId);
-  }, [selectedPatient, loadExercises]);
-
-  // ── Load thread for selected exercise (state C) ──
-  const loadThread = useCallback(async (instanceId: string, stageItemId: string) => {
-    const version = ++threadVersionRef.current;
-    setThreadLoading(true);
-    setThreadError(null);
-    setThreadMessages([]);
-    setMarkReadSent(false);
-    setPeerLastReadAt(null);
-    try {
-      const res = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(stageItemId)}/discussion?limit=50&direction=backward`,
-      );
-      const data = (await res.json()) as ThreadApiResponse;
-      if (version !== threadVersionRef.current) return;
-      if (!data.ok) throw new Error('api_error');
-      // Sort ascending for display
-      const sorted = [...(data.messages ?? [])].sort((a, b) =>
-        a.createdAt.localeCompare(b.createdAt),
-      );
-      setThreadMessages(sorted);
-      setPeerLastReadAt(data.peerLastReadAt ?? null);
-    } catch {
-      if (version !== threadVersionRef.current) return;
-      setThreadError('Не удалось загрузить тред.');
-    } finally {
-      if (version === threadVersionRef.current) setThreadLoading(false);
-    }
-  }, []);
-
-  // Локальная сходимость счётчиков при просмотре треда: помечаем элемент прочитанным
-  // и декрементируем бейджи упражнения/пациента, чтобы цифры сошлись без рефетча.
-  // Перетасовки списков здесь НЕТ — порядок заморожен, пока врач внутри пациента.
-  const applyLocalRead = useCallback((patientUserId: string, stageItemId: string) => {
-    if (locallyReadItemsRef.current.has(stageItemId)) return;
-    locallyReadItemsRef.current = new Set(locallyReadItemsRef.current).add(stageItemId);
-    setLocallyReadItems(locallyReadItemsRef.current);
-
-    // Сколько непрочитанных снимаем — читаем из актуального снимка exercisesData (ref),
-    // чтобы декремент счётчиков пациента/итога был согласован и без двойного учёта.
-    const current = exercisesDataRef.current;
-    let clearedUnread = 0;
-    for (const group of current?.groups ?? []) {
-      for (const ex of group.exercises) {
-        if (ex.stageItemId === stageItemId) clearedUnread = ex.unreadComments;
-      }
-    }
-    if (clearedUnread === 0) return;
-
-    setExercisesData((prev) =>
-      prev
-        ? {
-            ...prev,
-            groups: prev.groups.map((g) => ({
-              ...g,
-              exercises: g.exercises.map((ex) =>
-                ex.stageItemId === stageItemId ? { ...ex, unreadComments: 0 } : ex,
-              ),
-            })),
-            totalUnreadComments: Math.max(0, prev.totalUnreadComments - clearedUnread),
-          }
-        : prev,
-    );
-    setPatients((pp) =>
-      pp.map((p) =>
+  /** Тред прочитан внутри модалки — гасим ровно столько непрочитанных у пациента. */
+  const applyPatientUnreadCleared = useCallback((patientUserId: string, clearedUnread: number) => {
+    if (clearedUnread <= 0) return;
+    const decrement = (list: CommentPatientRow[]) =>
+      list.map((p) =>
         p.patientUserId === patientUserId
           ? { ...p, unreadCount: Math.max(0, p.unreadCount - clearedUnread) }
           : p,
-      ),
-    );
+      );
+    setPatients(decrement);
+    setAllModePatients((current) => (current ? decrement(current) : current));
   }, []);
-
-  // Mark thread as read
-  const markThreadRead = useCallback(
-    async (instanceId: string, stageItemId: string, patientUserId: string) => {
-      if (markReadSent) return;
-      setMarkReadSent(true);
-      applyLocalRead(patientUserId, stageItemId);
-      try {
-        await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(stageItemId)}/discussion/read`,
-          { method: 'POST' },
-        );
-      } catch {
-        // silently ignore mark-read errors
-      }
-    },
-    [markReadSent, applyLocalRead],
-  );
-
-  useEffect(() => {
-    if (!selectedExercise || !exercisesData) return;
-    void loadThread(exercisesData.instanceId, selectedExercise.stageItemId);
-  }, [selectedExercise, exercisesData, loadThread]);
-
-  // ── Load exercise metrics for chart (CMT-01..04) ──
-  const loadMetrics = useCallback(
-    async (instanceId: string, stageItemId: string, windowDays: 7 | 30 = 7) => {
-      setMetricsLoading(true);
-      setMetricsPoints(null);
-      try {
-        const params = new URLSearchParams({
-          instanceId,
-          stageItemId,
-          windowDays: String(windowDays),
-        });
-        const res = await fetch(`/api/doctor/comments/exercise-metrics?${params.toString()}`);
-        const data = (await res.json()) as MetricsApiResponse;
-        if (data.ok && data.points) {
-          setMetricsPoints(data.points);
-        } else {
-          setMetricsPoints([]);
-        }
-      } catch {
-        setMetricsPoints([]);
-      } finally {
-        setMetricsLoading(false);
-      }
-    },
-    [],
-  );
-
-  // ── Load day-activity bars for chart (CMT-02) ──
-  const loadDayBars = useCallback(
-    async (patientUserId: string, instanceId: string, windowDays: 7 | 30 = 7) => {
-      try {
-        const params = new URLSearchParams({ instanceId, windowDays: String(windowDays) });
-        const res = await fetch(
-          `/api/doctor/clients/${encodeURIComponent(patientUserId)}/program-day-activity?${params.toString()}`,
-        );
-        const data = (await res.json()) as DayActivityApiResponse;
-        if (data.ok && data.days) {
-          setDayBars(data.days);
-        } else {
-          setDayBars([]);
-        }
-      } catch {
-        setDayBars([]);
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!selectedExercise || !exercisesData) return;
-    void loadMetrics(exercisesData.instanceId, selectedExercise.stageItemId, chartWindowDays);
-    void loadDayBars(exercisesData.patientUserId, exercisesData.instanceId, chartWindowDays);
-  }, [selectedExercise, exercisesData, loadMetrics, loadDayBars, chartWindowDays]);
-
-  useEffect(() => {
-    if (!selectedExercise || !exercisesData || threadMessages.length === 0 || markReadSent) return;
-    void markThreadRead(
-      exercisesData.instanceId,
-      selectedExercise.stageItemId,
-      exercisesData.patientUserId,
-    );
-  }, [selectedExercise, exercisesData, threadMessages.length, markReadSent, markThreadRead]);
-
-  // ── Navigation handlers ──
-  function handleSelectPatient(patient: CommentPatientRow) {
-    setSelectedPatient(patient);
-    setSelectedExercise(null);
-    setThreadMessages([]);
-    setMarkReadSent(false);
-    setMetricsPoints(null);
-  }
-
-  function handleDeselectPatient() {
-    setSelectedPatient(null);
-    setSelectedExercise(null);
-    setThreadMessages([]);
-    setExercisesData(null);
-    setMarkReadSent(false);
-    setMetricsPoints(null);
-  }
-
-  function handleSelectExercise(exercise: ExerciseCommentItem) {
-    setSelectedExercise(exercise);
-    setMarkReadSent(false);
-    setMetricsPoints(null);
-  }
-
-  function handleCloseThread() {
-    setSelectedExercise(null);
-    setThreadMessages([]);
-    setMarkReadSent(false);
-    setMetricsPoints(null);
-  }
 
   // ── Left pane ────────────────────────────────────────────────────────────
 
@@ -822,24 +221,13 @@ function DoctorCommentsDesktopTab({
   // Handle view mode switch: reset navigation + query, then switch mode.
   function handleSwitchViewMode(mode: 'unread' | 'all') {
     if (mode === viewMode) return;
-    // Reset drill-down + search so we don't leave stale state.
     setSelectedPatient(null);
-    setSelectedExercise(null);
-    setThreadMessages([]);
-    setExercisesData(null);
-    setMarkReadSent(false);
-    setMetricsPoints(null);
     setQuery('');
     setViewMode(mode);
   }
 
   function handleToggleOnSupportOnly() {
     setSelectedPatient(null);
-    setSelectedExercise(null);
-    setThreadMessages([]);
-    setExercisesData(null);
-    setMarkReadSent(false);
-    setMetricsPoints(null);
     setOnSupportOnly((v) => !v);
   }
 
@@ -938,7 +326,7 @@ function DoctorCommentsDesktopTab({
                 key={patient.patientUserId}
                 patient={patient}
                 isSelected={selectedPatient?.patientUserId === patient.patientUserId}
-                onClick={() => handleSelectPatient(patient)}
+                onClick={() => setSelectedPatient(patient)}
                 isFirst={index === 0}
               />
             ))}
@@ -948,240 +336,14 @@ function DoctorCommentsDesktopTab({
     </div>
   );
 
-  // ── Right pane ───────────────────────────────────────────────────────────
-
-  let rightPane: React.ReactNode;
-
-  if (!selectedPatient) {
-    // State A: no patient selected. The right pane is a real empty state;
-    // the background comment feed is intentionally not rendered (owner-review §6).
-    rightPane = (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
-        <DoctorEmptyState size="sm" className="flex flex-1 items-center justify-center py-10">
-          Выберите клиента, чтобы открыть комментарии
-        </DoctorEmptyState>
-      </div>
-    );
-  } else if (!selectedExercise) {
-    // State B: exercises of selected patient
-    const totalComments = exercisesData?.totalExercisesWithComments ?? 0;
-    const unreadComments = exercisesData?.totalUnreadComments ?? 0;
-
-    rightPane = (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
-        {/* Header */}
-        <div className="shrink-0 border-b border-border bg-primary/10 px-4 py-2.5">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <Link
-                  href={patientCardHref(selectedPatient.patientUserId)}
-                  className={cn(doctorInlineLinkClass, 'text-sm font-semibold')}
-                >
-                  {selectedPatient.displayName}
-                </Link>
-                {selectedPatient.isOnSupport && (
-                  <span className="text-[10px] font-semibold text-primary">★ на сопровождении</span>
-                )}
-              </div>
-              {exercisesData && (
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Упражнений с комментариями: {totalComments}
-                  {unreadComments > 0 && (
-                    <span className="ml-1.5 text-destructive font-semibold">
-                      · {unreadComments} новых
-                    </span>
-                  )}
-                </p>
-              )}
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleDeselectPatient}
-              className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors text-sm leading-none h-auto"
-              aria-label="Сбросить выбор пациента"
-            >
-              ×
-            </Button>
-          </div>
-        </div>
-
-        {/* Exercise list */}
-        <div className="flex flex-1 flex-col overflow-y-auto">
-          {exercisesLoading && <DoctorPanelLoading />}
-          {exercisesError && (
-            <DoctorEmptyState
-              size="xs"
-              className="flex flex-1 items-center justify-center py-8 text-destructive"
-            >
-              {exercisesError}
-            </DoctorEmptyState>
-          )}
-          {!exercisesLoading && !exercisesError && exercisesData && (
-            <>
-              {exercisesData.groups.length === 0 ? (
-                <DoctorEmptyState
-                  size="xs"
-                  className="flex flex-1 items-center justify-center py-8"
-                >
-                  Нет упражнений с комментариями
-                </DoctorEmptyState>
-              ) : (
-                <div className="flex flex-col">
-                  {exercisesData.groups.map((group) => (
-                    <StageGroup
-                      key={group.stageId}
-                      group={group}
-                      selectedItemId={null}
-                      onSelectItem={handleSelectExercise}
-                      entryUnreadSnapshot={entryUnreadSnapshotRef.current}
-                    />
-                  ))}
-                </div>
-              )}
-              {exercisesData.instanceTitle && (
-                <div className="shrink-0 border-t border-border px-3 py-2">
-                  <Link
-                    href={patientProgramInstanceHref(
-                      selectedPatient.patientUserId,
-                      exercisesData.instanceId,
-                    )}
-                    className={cn(doctorInlineLinkClass, 'text-xs')}
-                  >
-                    Открыть программу пациента →
-                  </Link>
-                </div>
-              )}
-            </>
-          )}
-          {!exercisesLoading && !exercisesError && !exercisesData && (
-            <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-8">
-              Нет активной программы с комментариями
-            </DoctorEmptyState>
-          )}
-        </div>
-      </div>
-    );
-  } else {
-    // State C: thread for selected exercise
-    const instanceId = exercisesData?.instanceId ?? '';
-
-    rightPane = (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
-        {/* Header: breadcrumb */}
-        <div className="shrink-0 border-b border-border bg-primary/10 px-4 py-2.5">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-1.5 flex-wrap text-xs text-muted-foreground">
-                <Link
-                  href={patientCardHref(selectedPatient.patientUserId)}
-                  className={cn(doctorInlineLinkClass, 'text-xs')}
-                >
-                  {selectedPatient.displayName}
-                </Link>
-                <span>→</span>
-                <span className="text-foreground font-medium">{selectedExercise.title}</span>
-              </div>
-              <div className="mt-0.5 flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground">
-                  {selectedExercise.totalComments} сообщ.
-                  {selectedExercise.unreadComments > 0 && (
-                    <span className="ml-1 text-destructive font-semibold">
-                      · {selectedExercise.unreadComments} новых
-                    </span>
-                  )}
-                </span>
-              </div>
-              {/* График выполнения упражнения (CMT-01..04) */}
-              {metricsLoading && (
-                <p className="mt-1.5 text-[10px] text-muted-foreground">Загрузка статистики…</p>
-              )}
-              {!metricsLoading && (metricsPoints !== null || dayBars.length > 0) && (
-                <div className="mt-2">
-                  <ExerciseExecutionGraph
-                    metricPoints={metricsPoints ?? []}
-                    dayBars={dayBars}
-                    windowDays={chartWindowDays}
-                    onWindowChange={setChartWindowDays}
-                    displayIana={displayIana}
-                  />
-                </div>
-              )}
-            </div>
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              onClick={handleCloseThread}
-              className={cn(doctorInlineLinkClass, 'shrink-0 text-xs h-auto p-0')}
-            >
-              Закрыть
-            </Button>
-          </div>
-        </div>
-
-        {/* Thread messages */}
-        <div className={cn('flex flex-1 flex-col overflow-y-auto', chatThreadSurfaceClass)}>
-          {threadLoading && <DoctorPanelLoading />}
-          {threadError && (
-            <DoctorEmptyState
-              size="xs"
-              className="flex flex-1 items-center justify-center py-8 text-destructive"
-            >
-              {threadError}
-            </DoctorEmptyState>
-          )}
-          {!threadLoading && !threadError && threadMessages.length === 0 && (
-            <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-8">
-              Нет сообщений
-            </DoctorEmptyState>
-          )}
-          {!threadLoading && !threadError && threadMessages.length > 0 && (
-            <div className="flex flex-col">
-              {threadMessages.map((msg, index) => {
-                const previousMessage = index > 0 ? threadMessages[index - 1] : null;
-                const startsNewDay =
-                  !previousMessage ||
-                  dayKeyFromIso(previousMessage.createdAt) !== dayKeyFromIso(msg.createdAt);
-                return (
-                  <div key={msg.id}>
-                    {startsNewDay ? (
-                      <p className={cn(doctorMetaTextClass, 'px-4 pt-3 pb-1 text-center')}>
-                        {formatChatRelativeDateLabelRu(msg.createdAt, new Date())}
-                      </p>
-                    ) : null}
-                    <ThreadMessage
-                      message={msg}
-                      instanceId={instanceId}
-                      stageItemId={selectedExercise.stageItemId}
-                      peerLastReadAt={peerLastReadAt}
-                      onReplied={() => void loadThread(instanceId, selectedExercise.stageItemId)}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Layout ───────────────────────────────────────────────────────────────
-
-  const mobileView = selectedPatient ? 'detail' : 'list';
-
-  const mobileBackSlot = selectedExercise ? (
-    <Button variant="ghost" size="sm" onClick={handleCloseThread} className="mb-2 h-9 px-2">
-      ← Назад
-    </Button>
-  ) : selectedPatient ? (
-    <Button variant="ghost" size="sm" onClick={handleDeselectPatient} className="mb-2 h-9 px-2">
-      ← Назад
-    </Button>
-  ) : null;
+  // Комментарии пациента живут в модалке, поэтому правый пейн остаётся подсказкой выбора.
+  const rightPane = (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+      <DoctorEmptyState size="sm" className="flex flex-1 items-center justify-center py-10">
+        Выберите клиента, чтобы открыть комментарии
+      </DoctorEmptyState>
+    </div>
+  );
 
   return (
     <>
@@ -1190,15 +352,24 @@ function DoctorCommentsDesktopTab({
         mobileEdgeToEdge
         left={leftPane}
         right={rightPane}
-        mobileView={mobileView}
-        mobileBackSlot={mobileBackSlot}
+        mobileView="list"
         desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
         className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}
+      />
+      <DoctorLfkCommentsModal
+        open={selectedPatient !== null}
+        onClose={() => setSelectedPatient(null)}
+        patientUserId={selectedPatient?.patientUserId ?? null}
+        patientName={selectedPatient?.displayName ?? ''}
+        onUnreadCleared={({ unreadCount }) => {
+          if (!selectedPatient) return;
+          applyPatientUnreadCleared(selectedPatient.patientUserId, unreadCount);
+        }}
       />
     </>
   );
 }
 
 export function DoctorCommentsTab(props: DoctorCommentsTabProps) {
-  return <DoctorCommentsDesktopTab {...props} />;
+  return <DoctorCommentsPatientsTab {...props} />;
 }
