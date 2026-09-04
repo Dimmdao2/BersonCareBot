@@ -74,7 +74,12 @@ body:has(#app-shell-doctor),
  * смонтирован doctor shell. Выбранный день повторяет выбранный слот времени
  * (`DoctorTimeColumn`), «сегодня» — канонический маркер календаря врача выше.
  */
-.doctor-day-picker {
+/*
+ * Специфичность обязана перебивать `.rdp-root` библиотеки: она объявляет те же переменные на
+ * этом же элементе, и при равном весе выигрывает более поздний по порядку файл — тогда акцент
+ * пикера остаётся библиотечным `blue` (PICKER-01/02).
+ */
+.rdp-root.doctor-day-picker {
   --rdp-accent-color: var(--primary);
   --rdp-accent-background-color: color-mix(in srgb, var(--primary) 12%, transparent);
   --rdp-today-color: var(--primary);

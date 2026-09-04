@@ -13,7 +13,8 @@ import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userId
 
 export type ResolveOrCreateDoctorClientByPhoneInput = {
   phoneNormalized: string | null;
-  lastName: string;
+  /** APPT-FORM-05: у нового пациента обязательно только имя, фамилия может отсутствовать. */
+  lastName: string | null;
   firstName: string;
   patronymic: string | null;
   emailRaw: string | null;
@@ -57,7 +58,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
   const lastName = normalizeFioPart(input.lastName);
   const firstName = normalizeFioPart(input.firstName);
   const patronymic = normalizeFioPart(input.patronymic);
-  if (!lastName || !firstName) {
+  if (!firstName) {
     throw new DoctorClientIdentityError('create_failed');
   }
   const displayName = formatDoctorFio({ lastName, firstName, patronymic });

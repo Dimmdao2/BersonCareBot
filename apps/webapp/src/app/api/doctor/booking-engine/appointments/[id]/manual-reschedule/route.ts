@@ -17,6 +17,8 @@ const bodySchema = z.object({
   branchId: z.string().uuid().nullable().optional(),
   specialistId: z.string().uuid().nullable().optional(),
   serviceId: z.string().uuid().nullable().optional(),
+  /** APPT-FORM-13: правка записи меняет пациента через этот же контракт, без второго endpoint. */
+  platformUserId: z.string().uuid().nullable().optional(),
 });
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -59,6 +61,15 @@ export async function POST(request: Request, context: RouteContext) {
   const bookingRow = deps.patientBooking
     ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
     : null;
+  const patientChanged =
+    parsed.data.platformUserId !== undefined &&
+    (parsed.data.platformUserId ?? null) !== appointment.platformUserId;
+  if (patientChanged && bookingRow) {
+    // Запись, пришедшая из самозаписи пациента, держит проекцию с контактами прежнего пациента:
+    // именно из неё интегратор берёт получателя уведомления. Пока проекция не переносится вместе
+    // с записью, смена пациента здесь молча уведомила бы прежнего — отказываем явно.
+    return NextResponse.json({ ok: false, error: 'patient_change_not_allowed' }, { status: 409 });
+  }
   let result: Awaited<ReturnType<typeof lifecycle.staffReschedule>> | null = null;
   try {
     result = await withDoctorWorkspacePrincipal(
@@ -78,6 +89,7 @@ export async function POST(request: Request, context: RouteContext) {
           branchId: parsed.data.branchId,
           specialistId: appointment.specialistId,
           serviceId: parsed.data.serviceId,
+          ...(patientChanged ? { platformUserId: parsed.data.platformUserId ?? null } : {}),
           manualOverride: true,
         }),
     );
@@ -87,6 +99,12 @@ export async function POST(request: Request, context: RouteContext) {
     }
     if (err instanceof Error && err.message === 'appointment_not_found') {
       return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+    }
+    if (err instanceof Error && err.message === 'patient_change_not_allowed') {
+      return NextResponse.json({ ok: false, error: 'patient_change_not_allowed' }, { status: 409 });
+    }
+    if (err instanceof Error && err.message === 'patient_not_available') {
+      return NextResponse.json({ ok: false, error: 'patient_not_available' }, { status: 409 });
     }
     return NextResponse.json({ ok: false, error: 'reschedule_failed' }, { status: 500 });
   }

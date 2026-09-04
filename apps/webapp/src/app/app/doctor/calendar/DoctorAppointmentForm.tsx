@@ -50,8 +50,6 @@ type Props = {
    * (APPT-FORM-07). Во всех остальных случаях поле остаётся видимым.
    */
   hideSpecialist: boolean;
-  /** У переноса записи на другого пациента нет серверного контракта — поле только читается. */
-  patientLocked: boolean;
   /** Достижимые статусы: только те, за которыми стоит существующий контракт. */
   statusOptions: AppointmentStatusOption[];
   pending: boolean;
@@ -66,7 +64,6 @@ export function DoctorAppointmentForm({
   serviceOptions,
   activeFilters,
   hideSpecialist,
-  patientLocked,
   statusOptions,
   pending,
   message,
@@ -88,24 +85,17 @@ export function DoctorAppointmentForm({
 
   return (
     <div className="flex flex-col gap-3">
-      {patientLocked ? (
-        <div className="flex flex-col gap-1">
-          <Label>Пациент</Label>
-          <Input
-            readOnly
-            aria-label="Пациент"
-            className="w-full"
-            value={draft.patient?.displayName ?? '—'}
-          />
-        </div>
-      ) : (
-        <DoctorCalendarPatientSearch
-          value={draft.patient}
-          onChange={(patient) => onDraftChange({ patient })}
-          disabled={pending}
-          deferNewPatientCreation
-        />
-      )}
+      {/*
+        APPT-FORM-13: пациента можно сменить и при правке записи. Создание записи фиксирует
+        нового пациента вместе с записью одним запросом, правка же меняет уже существующую
+        запись — там карточка пациента должна получить id до сохранения.
+      */}
+      <DoctorCalendarPatientSearch
+        value={draft.patient}
+        onChange={(patient) => onDraftChange({ patient })}
+        disabled={pending}
+        deferNewPatientCreation={mode === 'create'}
+      />
 
       <div className="flex flex-col gap-1">
         <Label>Начало</Label>
@@ -142,14 +132,14 @@ export function DoctorAppointmentForm({
       />
 
       <DoctorCalendarCreateFormField
-        fieldLabel="Услуга"
+        fieldLabel="Сеанс"
         mode={serviceMode}
         options={serviceOptions}
         value={draft.serviceId}
-        noneLabel="Услуга"
+        noneLabel="Сеанс"
         emptyLabel={
           draft.specialistId && draft.branchId
-            ? 'Нет доступных услуг для выбранных специалиста и филиала.'
+            ? 'Нет доступных сеансов для выбранных специалиста и филиала.'
             : 'Сначала выберите специалиста и филиал.'
         }
         disabled={pending}

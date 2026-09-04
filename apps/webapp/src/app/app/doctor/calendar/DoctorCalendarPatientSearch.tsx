@@ -155,8 +155,9 @@ export function DoctorCalendarPatientSearch({
     const lastName = newLastName.trim();
     const firstName = newFirstName.trim();
     const phone = newPhone.trim();
-    if (!lastName || !firstName) {
-      setCreateError('Укажите фамилию и имя');
+    // APPT-FORM-05: обязательно только имя — фамилия, отчество, телефон и email необязательны.
+    if (!firstName) {
+      setCreateError('Укажите имя');
       return;
     }
     if (!phone && newEmail.trim()) {
@@ -168,8 +169,8 @@ export function DoctorCalendarPatientSearch({
       const patronymic = newPatronymic.trim() || null;
       pick({
         id: null,
-        displayName: formatDoctorFio({ lastName, firstName, patronymic }),
-        lastName,
+        displayName: formatDoctorFio({ lastName: lastName || null, firstName, patronymic }),
+        lastName: lastName || null,
         firstName,
         patronymic,
         phone: phone || null,
@@ -192,7 +193,7 @@ export function DoctorCalendarPatientSearch({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: createRequestIdRef.current,
-          lastName,
+          lastName: lastName || null,
           firstName,
           patronymic: newPatronymic.trim() || null,
           phone: phone || null,
@@ -210,7 +211,7 @@ export function DoctorCalendarPatientSearch({
           data.message
             ? data.message
             : data.error === 'invalid_fio'
-              ? 'Укажите фамилию и имя'
+              ? 'Укажите имя'
               : data.error === 'invalid_phone'
                 ? 'Неверный телефон'
                 : data.error === 'invalid_email'
@@ -361,7 +362,7 @@ export function DoctorCalendarPatientSearch({
       {createOpen ? (
         <div className="space-y-2 rounded-md border border-border p-2">
           <Input
-            placeholder="Фамилия *"
+            placeholder="Фамилия"
             value={newLastName}
             onChange={(e) => setNewLastName(e.target.value)}
             disabled={disabled || creating}

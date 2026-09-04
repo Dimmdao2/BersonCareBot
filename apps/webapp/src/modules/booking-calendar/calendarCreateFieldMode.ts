@@ -65,18 +65,20 @@ export function resolveCalendarCreateSubmission(
   if (!start) missing.push('начало записи');
   if (!specialistId) missing.push('специалиста');
   if (!branchId) missing.push('филиал');
-  if (!serviceId) missing.push('услугу');
+  // APPT-FORM-08: в пользовательской форме это поле называется «Сеанс» — сообщение обязано
+  // называть тот же элемент, иначе оно указывает на поле, которого на экране нет.
+  if (!serviceId) missing.push('сеанс');
   if (!start || !specialistId || !branchId || !serviceId) {
     return { ok: false, message: `Укажите ${missing.join(', ')}.` };
   }
   if (!draft.serviceIsOffered) {
     return {
       ok: false,
-      message: 'Выбранная услуга недоступна для выбранных специалиста и филиала.',
+      message: 'Выбранный сеанс недоступен для выбранных специалиста и филиала.',
     };
   }
   if (!durationMinutes) {
-    return { ok: false, message: 'У выбранной услуги не задана длительность.' };
+    return { ok: false, message: 'У выбранного сеанса не задана длительность.' };
   }
   return { ok: true, start, durationMinutes, specialistId, branchId, serviceId };
 }

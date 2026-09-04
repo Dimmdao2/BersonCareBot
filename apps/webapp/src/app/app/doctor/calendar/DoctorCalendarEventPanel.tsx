@@ -232,6 +232,17 @@ function DoctorCalendarEventPanelInner({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelDraft, setCancelDraft] = useState<AppointmentCancelDraft>(EMPTY_CANCEL_DRAFT);
   const [message, setMessage] = useState<string | null>(null);
+  // APPT-FORM-13: правка идёт двумя контрактами (запись и комментарий). Отказ комментария
+  // обязан оставить форму с ошибкой на экране, поэтому обновление календаря откладывается
+  // до ухода из формы — `onChanged` закрывает панель и стёр бы сообщение.
+  const [pendingRefresh, setPendingRefresh] = useState(false);
+  // ...и уже применённые шаги запоминаются: повторное «Сохранить» после отказа комментария
+  // не переносит запись второй раз.
+  const appliedEditRef = useRef<{ id: string; schedule: string | null; status: string | null }>({
+    id: '',
+    schedule: null,
+    status: null,
+  });
   const [pending, startTransition] = useTransition();
   const [lifecycle, setLifecycle] = useState<LifecycleResponse | null>(null);
   const [primaryComment, setPrimaryComment] = useState('');
@@ -282,6 +293,34 @@ function DoctorCalendarEventPanelInner({
   useEffect(() => {
     void loadPrimaryComment();
   }, [loadPrimaryComment]);
+
+  /**
+   * Основной комментарий записи (APPT-DETAIL-07): один и тот же контракт и пишет текст, и
+   * снимает его пустым значением. Возвращает `false`, если сервер отказал, — вызывающий обязан
+   * не показывать успех и не терять набранный пользователем текст (APPT-FORM-13).
+   */
+  const savePrimaryComment = useCallback(
+    async (appointmentId: string, body: string): Promise<boolean> => {
+      const url = `${apiBase}/appointments/${encodeURIComponent(appointmentId)}/comments`;
+      try {
+        const res = await fetch(
+          url,
+          body
+            ? {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ body }),
+              }
+            : { method: 'DELETE' },
+        );
+        const json = (await res.json().catch(() => null)) as { ok?: boolean } | null;
+        return res.ok && json?.ok === true;
+      } catch {
+        return false;
+      }
+    },
+    [apiBase],
+  );
 
   // §3.6: при startInCreate=true инициализируем поля создания сразу, как делает openCreateForm
   useEffect(() => {
@@ -344,10 +383,11 @@ function DoctorCalendarEventPanelInner({
   );
 
   /**
-   * Скрыть выбор специалиста можно только против серверного каталога клиники;
-   * без него поле остаётся видимым (APPT-FORM-07).
+   * Скрыть выбор специалиста можно только когда сервер доказал, что специалист в клинике
+   * ровно один (APPT-FORM-07). Ноль доступных специалистов — не «единственный»: поле остаётся
+   * с честным пустым состоянием, иначе исправить нечем.
    */
-  const hideSpecialist = clinicSpecialists != null && clinicSpecialists.length <= 1;
+  const hideSpecialist = clinicSpecialists != null && clinicSpecialists.length === 1;
 
   const submitCreate = () => {
     const submission = resolveCalendarCreateSubmission({
@@ -370,8 +410,8 @@ function DoctorCalendarEventPanelInner({
     const startAt = start.toUTC().toISO()!;
     const endAt = start.plus({ minutes: submission.durationMinutes }).toUTC().toISO()!;
     const patient = draft.patient;
-    if (patient?.isNew === true && (!patient.lastName?.trim() || !patient.firstName?.trim())) {
-      setMessage('Укажите фамилию и имя пациента.');
+    if (patient?.isNew === true && !patient.firstName?.trim()) {
+      setMessage('Укажите имя пациента.');
       return;
     }
     startTransition(async () => {
@@ -388,7 +428,7 @@ function DoctorCalendarEventPanelInner({
               ? {
                   requestId: createManualRequestIdRef.current,
                   kind: 'scheduled',
-                  lastName: patient.lastName,
+                  lastName: patient.lastName?.trim() || null,
                   firstName: patient.firstName,
                   patronymic: patient.patronymic ?? null,
                   phone: patient.phone,
@@ -413,23 +453,31 @@ function DoctorCalendarEventPanelInner({
         message?: string;
         appointment?: { id?: string };
       };
-      setMessage(json.ok ? 'Создано' : (json.message ?? panelErrorLabel(json.error)));
-      if (json.ok) {
-        createManualRequestIdRef.current = crypto.randomUUID();
-        // R16: после создания (есть id) добавляем комментарий записи отдельным запросом.
-        const newId = json.appointment?.id;
-        if (newId && draft.comment.trim()) {
-          await fetch(`${apiBase}/appointments/${encodeURIComponent(newId)}/comments`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ body: draft.comment.trim() }),
-          }).catch(() => undefined);
-        }
-        setMode('view');
-        onChanged();
-      } else if (json.error === 'external_slot_taken') {
-        onChanged();
+      if (!json.ok) {
+        setMessage(json.message ?? panelErrorLabel(json.error));
+        if (json.error === 'external_slot_taken') onChanged();
+        return;
       }
+      // R16: после создания (есть id) комментарий записи уходит отдельным запросом. Его отказ
+      // не имеет права выглядеть как полный успех: форма остаётся с набранным текстом, а
+      // requestId не обновляется — повторное «Сохранить» воспроизводит ту же запись и
+      // повторяет комментарий, а не создаёт вторую (APPT-FORM-13).
+      const newId = json.appointment?.id;
+      const commentBody = draft.comment.trim();
+      const commentSaved = !commentBody
+        ? true
+        : newId
+          ? await savePrimaryComment(newId, commentBody)
+          : false;
+      if (!commentSaved) {
+        setMessage('Запись создана, комментарий не сохранён.');
+        setPendingRefresh(true);
+        return;
+      }
+      createManualRequestIdRef.current = crypto.randomUUID();
+      setMessage('Создано');
+      setMode('view');
+      onChanged();
     });
   };
 
@@ -461,13 +509,17 @@ function DoctorCalendarEventPanelInner({
           serviceOptions={draftServiceOptions}
           activeFilters={activeFilters}
           hideSpecialist={hideSpecialist}
-          patientLocked={false}
           statusOptions={[]}
           pending={pending}
           message={message}
         />
         <DoctorModalFooter>
-          <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={pendingRefresh ? onChanged : onClose}
+          >
             Отмена
           </Button>
           <Button type="button" disabled={pending} onClick={submitCreate}>
@@ -543,21 +595,36 @@ function DoctorCalendarEventPanelInner({
       return;
     }
     if (!draft.branchId || !draft.serviceId) {
-      setMessage('Укажите филиал и услугу.');
+      setMessage('Укажите филиал и сеанс.');
       return;
     }
     const currentStart = parseEventDateTime(selected.startAt, timeZone);
+    const nextPatientId = draft.patient?.id ?? null;
+    const patientChanged = nextPatientId !== selected.platformUserId;
     const scheduleChanged =
       !currentStart.isValid ||
       currentStart.toMillis() !== start.toMillis() ||
       nextDurationMinutes !== durationMinutes ||
       draft.branchId !== selected.branchId ||
-      draft.serviceId !== selected.serviceId;
+      draft.serviceId !== selected.serviceId ||
+      patientChanged;
     const commentChanged = draft.comment.trim() !== primaryComment.trim();
     const statusChanged = draft.status !== null && draft.status !== selected.status;
+    const applied =
+      appliedEditRef.current.id === selected.id
+        ? appliedEditRef.current
+        : { id: selected.id, schedule: null, status: null };
+    appliedEditRef.current = applied;
+    const scheduleSignature = JSON.stringify([
+      start.toUTC().toISO(),
+      nextDurationMinutes,
+      draft.branchId,
+      draft.serviceId,
+      nextPatientId,
+    ]);
 
     startTransition(async () => {
-      if (scheduleChanged) {
+      if (scheduleChanged && applied.schedule !== scheduleSignature) {
         const res = await fetch(
           `${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-reschedule`,
           {
@@ -569,6 +636,8 @@ function DoctorCalendarEventPanelInner({
               durationMinutes: nextDurationMinutes,
               branchId: draft.branchId,
               serviceId: draft.serviceId,
+              // APPT-FORM-13: пациента меняет тот же lifecycle-контракт, отдельного endpoint нет.
+              ...(patientChanged ? { platformUserId: nextPatientId } : {}),
             }),
           },
         );
@@ -578,15 +647,10 @@ function DoctorCalendarEventPanelInner({
           if (json.error === 'external_slot_taken') onChanged();
           return;
         }
+        applied.schedule = scheduleSignature;
+        setPendingRefresh(true);
       }
-      if (commentChanged && draft.comment.trim()) {
-        await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/comments`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ body: draft.comment.trim() }),
-        }).catch(() => undefined);
-      }
-      if (statusChanged && draft.status === 'no_show') {
+      if (statusChanged && draft.status === 'no_show' && applied.status !== draft.status) {
         const res = await fetch(
           `${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-no-show`,
           {
@@ -600,6 +664,14 @@ function DoctorCalendarEventPanelInner({
           setMessage(panelErrorLabel(json.error));
           return;
         }
+        applied.status = draft.status;
+        setPendingRefresh(true);
+      }
+      // Комментарий идёт последним и через тот же контракт, что и очистка: пока он не сохранён,
+      // объявлять запись сохранённой нельзя — иначе набранный текст пропадает молча.
+      if (commentChanged && !(await savePrimaryComment(selected.id, draft.comment.trim()))) {
+        setMessage('Комментарий не сохранён.');
+        return;
       }
       setMessage('Сохранено');
       setMode('view');
@@ -609,20 +681,11 @@ function DoctorCalendarEventPanelInner({
 
   const submitPrimaryComment = () => {
     const body = commentDraft.trim();
-    if (!body || body === primaryComment.trim()) return;
+    if (body === primaryComment.trim()) return;
     setCommentSaving(true);
     void (async () => {
       try {
-        const res = await fetch(
-          `${apiBase}/appointments/${encodeURIComponent(selected.id)}/comments`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ body }),
-          },
-        );
-        const json = (await res.json()) as { ok?: boolean };
-        if (!json.ok) {
+        if (!(await savePrimaryComment(selected.id, body))) {
           setMessage('Не удалось сохранить комментарий.');
           return;
         }
@@ -688,7 +751,6 @@ function DoctorCalendarEventPanelInner({
           serviceOptions={editServiceOptions}
           activeFilters={activeFilters}
           hideSpecialist={hideSpecialist}
-          patientLocked
           statusOptions={statusOptions}
           pending={pending}
           message={message}
@@ -700,6 +762,10 @@ function DoctorCalendarEventPanelInner({
             disabled={pending}
             onClick={() => {
               setMessage(null);
+              if (pendingRefresh) {
+                onChanged();
+                return;
+              }
               setMode('view');
             }}
           >

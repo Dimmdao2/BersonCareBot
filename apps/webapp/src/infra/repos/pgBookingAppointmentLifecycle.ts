@@ -7,6 +7,9 @@ import {
   runWebappNamedRoot,
 } from '@/infra/db/runWebappSql';
 import { readCurrentPatientBookingAppointment } from '@/infra/repos/pgBookingEngine';
+import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPatientOrganizationEnrollment';
+import { ensureActivePatientSpecialistLink } from '@/infra/repos/pgPatientVisibilityLinks';
+import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 import { assertValidAppointmentStatusTransition } from '@/modules/booking-engine/appointmentStatusFsm';
 import type { BeAppointment } from '@/modules/booking-engine/types';
 import { normalizeAppointmentReminderSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
@@ -26,6 +29,7 @@ import {
   beAppointments,
   bePatientTimelineEvents,
 } from '../../../db/schema/bookingEngine';
+import { platformUsers } from '../../../db/schema/schema';
 
 function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment {
   const reminderSettings = normalizeAppointmentReminderSettings({
@@ -364,6 +368,44 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           .where(eq(beAppointments.id, input.appointmentId));
 
         const originalStartAt = current.originalStartAt ?? current.startAt;
+        const nextSpecialistId = input.specialistId ?? current.specialistId;
+        // APPT-FORM-13: пациента записи можно заменить только внутри той же клиники и только
+        // пока к записи не привязаны деньги — абонемент или платёж принадлежат прежнему
+        // пациенту, и перенос их на другого человека здесь не решается.
+        const nextPatientUserId = input.platformUserId ?? null;
+        const patientChanged =
+          input.platformUserId !== undefined && nextPatientUserId !== current.platformUserId;
+        let nextPhoneNormalized = current.phoneNormalized;
+        if (patientChanged) {
+          if (current.packageUsageRef || current.paymentRef) {
+            throw new Error('patient_change_not_allowed');
+          }
+          nextPhoneNormalized = null;
+        }
+        if (patientChanged && nextPatientUserId) {
+          await ensureInvitedOrganizationClientRelationship(
+            tx,
+            input.organizationId,
+            nextPatientUserId,
+            { reactivateArchived: true },
+          );
+          if (nextSpecialistId) {
+            await ensureActivePatientSpecialistLink(tx, {
+              organizationId: input.organizationId,
+              patientUserId: nextPatientUserId,
+              specialistId: nextSpecialistId,
+              createdVia: 'first_appointment',
+            });
+          }
+          // Контактный снимок записи ведёт напоминания: со сменой пациента он обязан уехать
+          // на канонический телефон нового пациента, иначе уведомление уйдёт прежнему.
+          const [nextPatient] = await tx
+            .select({ phoneNormalized: drizzlePrimaryPhoneCol })
+            .from(platformUsers)
+            .where(eq(platformUsers.id, nextPatientUserId))
+            .limit(1);
+          nextPhoneNormalized = nextPatient?.phoneNormalized ?? null;
+        }
         await tx
           .update(beAppointments)
           .set({
@@ -372,8 +414,11 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
             durationMinutes: input.durationMinutes,
             branchId: input.branchId ?? current.branchId,
             roomId: input.roomId ?? current.roomId,
-            specialistId: input.specialistId ?? current.specialistId,
+            specialistId: nextSpecialistId,
             serviceId: input.serviceId ?? current.serviceId,
+            ...(patientChanged
+              ? { platformUserId: nextPatientUserId, phoneNormalized: nextPhoneNormalized }
+              : {}),
             originalStartAt,
             rescheduleCount: current.rescheduleCount + 1,
             status: 'confirmed',
@@ -420,10 +465,16 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           payload,
           occurredAt: now,
         });
-        if (current.platformUserId) {
+        // Лента ведётся по пациенту: при смене пациента событие принадлежит обоим — прежний
+        // теряет запись, новый её получает.
+        for (const timelineUserId of new Set(
+          [current.platformUserId, patientChanged ? nextPatientUserId : null].filter(
+            (value): value is string => typeof value === 'string' && value.length > 0,
+          ),
+        )) {
           await tx.insert(bePatientTimelineEvents).values({
             organizationId: input.organizationId,
-            platformUserId: current.platformUserId,
+            platformUserId: timelineUserId,
             domain: 'appointment',
             eventType: 'appointment_rescheduled',
             linkedObjectType: 'appointment',

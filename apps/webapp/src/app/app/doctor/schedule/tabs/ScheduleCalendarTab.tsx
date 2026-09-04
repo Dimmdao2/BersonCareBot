@@ -614,9 +614,12 @@ function ListDayCard({
               onClick={() => onSelect(appt)}
               className={cn(
                 'flex h-auto min-h-0 w-full items-start gap-3 whitespace-normal rounded-none border-0 border-b border-border/60 px-3 py-2 text-left text-sm md:rounded-md md:border md:px-3 md:py-2',
-                // APPT-LIST-01: ближайшую запись отмечает одна верхняя линия, не рамка.
-                isNext ? 'border-t-2 border-t-primary' : '',
                 listRowClass(appt, timeZone),
+                // APPT-LIST-01: отметка ближайшей записи идёт ПОСЛЕ палитры строки — иначе
+                // tailwind-merge считает `border-primary/30` из палитры конфликтующим и
+                // выбрасывает цвет верхней линии. Нижняя линия остаётся обычным разделителем,
+                // чтобы синей была ровно одна линия и только сверху.
+                isNext ? 'border-t-2 border-t-primary border-b-border/60' : '',
               )}
               data-testid={`list-appt-${appt.id}`}
             >

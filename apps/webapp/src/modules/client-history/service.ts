@@ -54,6 +54,10 @@ export function createClientHistoryService(port: ClientHistoryPort) {
       if (!body) throw new Error('empty_comment');
       return port.createAppointmentComment({ ...input, body });
     },
+
+    clearAppointmentComments(organizationId: string, appointmentId: string) {
+      return port.clearAppointmentComments(organizationId, appointmentId);
+    },
   };
 }
 
