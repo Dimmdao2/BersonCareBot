@@ -92,9 +92,6 @@ export type DoctorTodayDashboardDeps = {
     getInstanceById(instanceId: string): Promise<TreatmentProgramInstanceDetail>;
   };
   programItemDiscussion?: {
-    listAttentionSummaryForStageItems(
-      stageItemIds: string[],
-    ): Promise<Array<{ stageItemId: string; comments: number; media: number }>>;
     listMessagesPage(input: {
       stageItemId: string;
       limit: number;

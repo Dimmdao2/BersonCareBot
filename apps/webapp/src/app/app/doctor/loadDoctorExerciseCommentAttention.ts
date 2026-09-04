@@ -70,9 +70,6 @@ export type DoctorExerciseCommentAttentionDeps = {
     getInstanceById(instanceId: string): Promise<TreatmentProgramInstanceDetail>;
   };
   programItemDiscussion?: {
-    listAttentionSummaryForStageItems(
-      stageItemIds: string[],
-    ): Promise<Array<{ stageItemId: string; comments: number; media: number }>>;
     listMessagesPage(input: {
       stageItemId: string;
       limit: number;
@@ -148,18 +145,20 @@ export async function loadDoctorExerciseCommentAttention(
         );
         if (activeExerciseItems.length === 0) return [] as TodayExerciseCommentAttentionItem[];
 
-        const summary = await deps.programItemDiscussion!.listAttentionSummaryForStageItems(
-          activeExerciseItems.map((item) => item.id),
+        // Курсорный подсчёт идёт ПЕРВЫМ и по ВСЕМ активным упражнениям этапов программы.
+        // Прежде здесь стоял предфильтр `listAttentionSummaryForStageItems` («последнее сообщение
+        // треда — текст от пациента»): он вырезал отвеченные и медиа-only треды ДО подсчёта, и
+        // пациент с 7 непрочитанными в трёх упражнениях доходил до KPI как 2 в одном (UNREAD-05/06).
+        const unreadCounts = await deps.programItemDiscussion!.listUnreadCountsForViewerByStageItems(
+          {
+            stageItemIds: activeExerciseItems.map((item) => item.id),
+            viewerUserId: deps.doctorUserId!,
+          },
         );
-        const attentionStageItemIds = summary
-          .filter((row) => row.comments > 0)
+        const attentionStageItemIds = unreadCounts
+          .filter((row) => row.unread > 0)
           .map((row) => row.stageItemId);
         if (attentionStageItemIds.length === 0) return [] as TodayExerciseCommentAttentionItem[];
-
-        const unreadCounts = await deps.programItemDiscussion!.listUnreadCountsForViewerByStageItems({
-          stageItemIds: attentionStageItemIds,
-          viewerUserId: deps.doctorUserId!,
-        });
         const unreadCountByStageItemId = new Map(
           unreadCounts.map((row) => [row.stageItemId, row.unread]),
         );
@@ -179,8 +178,10 @@ export async function loadDoctorExerciseCommentAttention(
             const item = itemById.get(stageItemId);
             if (!item) return null;
             // Превью — последний комментарий ПАЦИЕНТА в треде (ответы врача после него не заменяют
-            // его в списке). Окно совпадает со страницей самого треда; если в нём одни ответы врача,
-            // строка не выдумывает превью и пропускается.
+            // его в списке). Окно совпадает со страницей самого треда. Это ТОЛЬКО выбор текста для
+            // строки: попадание в список уже решено курсором выше, поэтому упражнение с unread > 0,
+            // у которого в окне оказались одни ответы врача, показывает последнее сообщение треда,
+            // а не выпадает из списка (иначе «последний отправитель» вернулся бы как unread-гейт).
             const page = await deps.programItemDiscussion!.listMessagesPage({
               stageItemId,
               limit: LATEST_PATIENT_COMMENT_SCAN_LIMIT,
@@ -191,6 +192,7 @@ export async function loadDoctorExerciseCommentAttention(
             for (const message of page) {
               if (message.senderRole === 'patient') latest = message;
             }
+            if (!latest) latest = page[page.length - 1] ?? null;
             if (!latest) return null;
             return {
               patientUserId,

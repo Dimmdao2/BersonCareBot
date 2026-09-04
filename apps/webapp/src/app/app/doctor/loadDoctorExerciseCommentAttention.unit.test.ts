@@ -68,9 +68,18 @@ type ProgramItemDiscussionDeps = NonNullable<
   DoctorExerciseCommentAttentionDeps['programItemDiscussion']
 >;
 
+/**
+ * Снятый предфильтр `listAttentionSummaryForStageItems`. Загрузчик его больше НЕ объявляет в своих
+ * deps, но мок остаётся подключённым к объекту зависимостей намеренно: если фильтр вернут в
+ * загрузчик, эти тесты снова станут красными.
+ */
+type ObsoleteAttentionSummary = (
+  stageItemIds: string[],
+) => Promise<Array<{ stageItemId: string; comments: number; media: number }>>;
+
 function buildDeps(overrides: {
   listMessagesPage: ProgramItemDiscussionDeps['listMessagesPage'];
-  listAttentionSummaryForStageItems?: ProgramItemDiscussionDeps['listAttentionSummaryForStageItems'];
+  listAttentionSummaryForStageItems?: ObsoleteAttentionSummary;
 }): DoctorExerciseCommentAttentionDeps {
   const instanceSummary: TreatmentProgramInstanceSummary = {
     id: INSTANCE_ID,
@@ -113,6 +122,19 @@ function buildDeps(overrides: {
     ],
   };
 
+  const programItemDiscussion = {
+    listAttentionSummaryForStageItems:
+      overrides.listAttentionSummaryForStageItems ??
+      (async (stageItemIds: string[]) =>
+        stageItemIds.map((stageItemId) => ({ stageItemId, comments: 1, media: 0 }))),
+    listMessagesPage: overrides.listMessagesPage,
+    listUnreadCountsForViewerByStageItems: vi.fn(async () => [
+      { stageItemId: ANSWERED_ITEM, unread: 2 },
+      { stageItemId: MEDIA_ITEM, unread: 1 },
+      { stageItemId: PLAIN_ITEM, unread: 4 },
+    ]),
+  };
+
   return {
     doctorUserId: DOCTOR_ID,
     organizationId: undefined,
@@ -120,19 +142,7 @@ function buildDeps(overrides: {
       listForPatientClinicalView: vi.fn(async () => [instanceSummary]),
       getInstanceById: vi.fn(async () => instanceDetail),
     },
-    programItemDiscussion: {
-      listAttentionSummaryForStageItems:
-        overrides.listAttentionSummaryForStageItems ??
-        vi.fn(async (stageItemIds: string[]) =>
-          stageItemIds.map((stageItemId) => ({ stageItemId, comments: 1, media: 0 })),
-        ),
-      listMessagesPage: overrides.listMessagesPage,
-      listUnreadCountsForViewerByStageItems: vi.fn(async () => [
-        { stageItemId: ANSWERED_ITEM, unread: 2 },
-        { stageItemId: MEDIA_ITEM, unread: 1 },
-        { stageItemId: PLAIN_ITEM, unread: 4 },
-      ]),
-    },
+    programItemDiscussion,
   };
 }
 
@@ -228,21 +238,22 @@ describe('loadDoctorExerciseCommentAttention unread semantics', () => {
 
 /**
  * `listAttentionSummaryForStageItems` (real implementation:
- * `apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts:335-366`) is an EARLIER pre-filter gate,
- * upstream of the unread-count fix verified above. It inspects only the single latest message per
- * stage item and returns `comments: 0` whenever that latest message is not a text message from the
- * patient — i.e. exactly for an answered thread (latest = admin reply) or a media-only latest
- * message. `loadDoctorExerciseCommentAttention` filters candidate stage items on
- * `row.comments > 0` (this file, `attentionStageItemIds`) BEFORE ever calling the fixed
- * `listUnreadCountsForViewerByStageItems`, so an exercise with real unread messages is dropped here
- * regardless of the (correct) counting logic exercised above.
+ * `apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts:335-366`) used to be an EARLIER pre-filter
+ * gate, upstream of the unread-count logic verified above. It inspects only the single latest
+ * message per stage item and returns `comments: 0` whenever that latest message is not a text
+ * message from the patient — i.e. exactly for an answered thread (latest = admin reply) or a
+ * media-only latest message. `loadDoctorExerciseCommentAttention` used to filter candidate stage
+ * items on `row.comments > 0` BEFORE ever calling `listUnreadCountsForViewerByStageItems`, so an
+ * exercise with real unread messages was dropped there regardless of the (correct) counting logic.
  *
- * This mock reproduces that real SQL behavior in-process (no DB) so the regression is provable at
- * this layer's boundary — see `pgProgramItemDiscussion.ts:355-365` for the exact logic mirrored.
+ * The loader no longer consults that summary at all: the read cursor is the only gate. This mock
+ * reproduces the real SQL behavior in-process (no DB) and stays wired into the deps object, so the
+ * test goes red again if the pre-filter is ever put back in front of the cursor — see
+ * `pgProgramItemDiscussion.ts:355-365` for the exact logic mirrored.
  */
 function productionLikeAttentionSummary(
   messagesByStageItem: Record<string, ProgramItemDiscussionMessage[]>,
-): ProgramItemDiscussionDeps['listAttentionSummaryForStageItems'] {
+): ObsoleteAttentionSummary {
   return vi.fn(async (stageItemIds: string[]) =>
     stageItemIds.map((stageItemId) => {
       const messages = messagesByStageItem[stageItemId] ?? [];
@@ -258,7 +269,7 @@ function productionLikeAttentionSummary(
 }
 
 describe('loadDoctorExerciseCommentAttention vs. the real attention-summary pre-filter', () => {
-  it('FAIL (live-confirmed, 2026-09-04): drops an answered thread and a media-only thread even though both have unread > 0', async () => {
+  it('keeps an answered thread and a media-only thread with unread > 0 despite the pre-filter', async () => {
     const messagesByStageItem: Record<string, ProgramItemDiscussionMessage[]> = {
       [ANSWERED_ITEM]: [
         msg('a1', ANSWERED_ITEM, 'patient', '2026-09-03T10:00:00.000Z'),
@@ -280,6 +291,7 @@ describe('loadDoctorExerciseCommentAttention vs. the real attention-summary pre-
     // across all three exercises, none dropped — this is what UNREAD-05/UNREAD-06 require.
     // Live-reproduced 2026-09-04 on candidate `1a9e6bb00` with a real patient (Берсон Дмитрий,
     // stage items 1775c14e/a62d836f/5c2a0ad5): the app showed total=2 and only 1 of 3 exercises.
+    // Fixed by dropping the pre-filter from the loader; the mock above still simulates it.
     expect(result.total).toBe(7);
     expect(result.items.map((row) => row.stageItemId).sort()).toEqual(
       [ANSWERED_ITEM, MEDIA_ITEM, PLAIN_ITEM].sort(),

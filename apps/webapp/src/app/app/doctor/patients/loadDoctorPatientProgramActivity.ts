@@ -23,8 +23,15 @@ import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimez
 import { formatDateTimeRu } from '../doctorTodayFormat';
 
 export type DoctorPatientProgramActivity = {
-  /** Кол-во непрочитанных врачом сообщений пациента по упражнениям программы. */
+  /** Кол-во непрочитанных врачом сообщений пациента по упражнениям программы (вся программа). */
   unreadCount: number;
+  /**
+   * Разбивка того же числа по элементам этапа: `stageItemId → непрочитанные СООБЩЕНИЯ`.
+   * Нужна виджету «Программа», чтобы точка/счётчик на плашке текущего этапа считались ПО ЭТОМУ
+   * ЭТАПУ, а бейджи упражнений в модалке «Упражнения этапа N» брались из того же источника и
+   * сходились с ним. Program-wide остаётся `unreadCount` и KPI «Комментарии» на «Сегодня».
+   */
+  unreadByStageItemId: Record<string, number>;
   /** Последняя отметка пациента по любому упражнению (или null, если их нет). */
   lastMark: {
     atIso: string;
@@ -77,6 +84,10 @@ export async function loadDoctorPatientProgramActivity(
         })
       : [];
   const unreadCount = unreadCounts.reduce((sum, row) => sum + row.unread, 0);
+  const unreadByStageItemId: Record<string, number> = {};
+  for (const row of unreadCounts) {
+    if (row.unread > 0) unreadByStageItemId[row.stageItemId] = row.unread;
+  }
 
   const latest = latestRows[0] ?? null;
   const lastMark = latest
@@ -88,5 +99,5 @@ export async function loadDoctorPatientProgramActivity(
       }
     : null;
 
-  return { unreadCount, lastMark };
+  return { unreadCount, unreadByStageItemId, lastMark };
 }

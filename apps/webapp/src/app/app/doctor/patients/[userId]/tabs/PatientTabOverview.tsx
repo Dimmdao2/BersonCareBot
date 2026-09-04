@@ -25,11 +25,6 @@ import {
   type SerializedSupportMessage,
 } from '@/modules/messaging/serializeSupportMessage';
 import type { DoctorPatientProgramActivity } from '@/app/app/doctor/patients/loadDoctorPatientProgramActivity';
-import type {
-  ExerciseCommentItem,
-  PatientExercisesWithCommentsResult,
-} from '@/app/app/doctor/comments/loadDoctorPatientExercisesWithComments';
-import { thumbToExerciseMedia } from '@/app/app/doctor/comments/exerciseCommentThumb';
 import type { RecommendationMediaItem } from '@/modules/recommendations/types';
 import type { DoctorPatientExerciseCalendarSnapshot } from '@/app/app/doctor/patients/loadDoctorPatientExerciseCalendar';
 import type { DoctorPatientMessagesSnapshot } from '@/app/app/doctor/patients/loadDoctorPatientMessagesSnapshot';
@@ -958,75 +953,12 @@ export function PatientTabOverview({
   const [editingTask, setEditingTask] = useState<SpecialistTaskRow | null>(null);
   const [stageExercisesModalOpen, setStageExercisesModalOpen] = useState(false);
   const [selectedStageExerciseId, setSelectedStageExerciseId] = useState<string | null>(null);
-  const [stageExerciseComments, setStageExerciseComments] = useState<{
-    userId: string;
-    counts: Record<string, { total: number; unread: number }>;
-  } | null>(null);
-  /**
-   * Упражнения с непрочитанными комментариями ВНЕ текущего этапа. Агрегат по пациенту
-   * (`programActivity.unreadCount`) считает всю программу, поэтому список этапа не имеет права их
-   * терять: иначе плашка красная, а суммы бейджей не сходятся с ней (UNREAD-06).
-   */
-  const [otherStageUnread, setOtherStageUnread] = useState<{
-    userId: string;
-    instanceId: string;
-    groups: Array<{ stageId: string; stageTitle: string; exercises: ExerciseCommentItem[] }>;
-  } | null>(null);
   const [clientNowIso, setClientNowIso] = useState<string | null>(null);
 
   useEffect(() => {
     // Time-dependent labels are intentionally absent from SSR and the first client render.
     setClientNowIso(new Date().toISOString());
   }, []);
-
-  const currentStageId = data?.programCurrentStage?.id ?? null;
-
-  useEffect(() => {
-    if (!stageExercisesModalOpen) return;
-    let active = true;
-
-    void fetch(`/api/doctor/comments/patients/${encodeURIComponent(userId)}/exercises`, {
-      credentials: 'include',
-    })
-      .then((response) =>
-        response.ok
-          ? (response.json() as Promise<{
-              ok: boolean;
-              data: PatientExercisesWithCommentsResult | null;
-            }>)
-          : null,
-      )
-      .catch(() => null)
-      .then((response) => {
-        if (!active || !response?.ok) return;
-        const counts: Record<string, { total: number; unread: number }> = {};
-        for (const group of response.data?.groups ?? []) {
-          for (const exercise of group.exercises) {
-            counts[exercise.stageItemId] = {
-              total: exercise.totalComments,
-              unread: exercise.unreadComments,
-            };
-          }
-        }
-        setStageExerciseComments({ userId, counts });
-        setOtherStageUnread({
-          userId,
-          instanceId: response.data?.instanceId ?? '',
-          groups: (response.data?.groups ?? [])
-            .filter((group) => group.stageId !== currentStageId)
-            .map((group) => ({
-              stageId: group.stageId,
-              stageTitle: group.stageTitle,
-              exercises: group.exercises.filter((exercise) => exercise.unreadComments > 0),
-            }))
-            .filter((group) => group.exercises.length > 0),
-        });
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [stageExercisesModalOpen, userId, currentStageId]);
 
   const hasSsrData =
     initialClinicalState != null &&
@@ -1612,17 +1544,13 @@ export function PatientTabOverview({
     : [];
   const selectedStageExercise =
     displayStageExercises.find((item) => item.id === selectedStageExerciseId) ?? null;
-  const otherStageUnreadGroups = otherStageUnread?.userId === userId ? otherStageUnread.groups : [];
-  const selectedOtherStageExercise =
-    otherStageUnreadGroups
-      .flatMap((group) => group.exercises)
-      .find((exercise) => exercise.stageItemId === selectedStageExerciseId) ?? null;
   /**
-   * Строка выбранного упражнения — из текущего этапа или из «непрочитанных» другого этапа.
-   * Без известного instanceId модалку не открываем: она грузит тред по паре instance/item.
+   * Строка выбранного упражнения — только из текущего этапа: модалка озаглавлена «Упражнения
+   * этапа N» и не показывает упражнения других этапов. Без известного instanceId модалку не
+   * открываем: она грузит тред по паре instance/item.
    */
-  const selectedExerciseTargetRaw = selectedStageExercise
-    ? data?.programInstanceId
+  const selectedExerciseTargetRaw =
+    selectedStageExercise && data?.programInstanceId
       ? {
           instanceId: data.programInstanceId,
           itemId: selectedStageExercise.id,
@@ -1631,50 +1559,44 @@ export function PatientTabOverview({
             selectedStageExercise.itemType,
           ),
         }
-      : null
-    : selectedOtherStageExercise
-      ? {
-          instanceId: otherStageUnread?.instanceId || (data?.programInstanceId ?? ''),
-          itemId: selectedOtherStageExercise.stageItemId,
-          label: selectedOtherStageExercise.title,
-        }
       : null;
   const selectedExerciseTarget = selectedExerciseTargetRaw?.instanceId
     ? selectedExerciseTargetRaw
     : null;
+  /**
+   * Один источник unread на весь виджет — разбивка агрегата пациента по элементам этапа. Из неё
+   * считаются и бейджи упражнений в модалке, и счётчик на плашке этапа, поэтому они сходятся
+   * между собой по построению (UNREAD-04/05).
+   */
   const stageExerciseUnread = (stageItemId: string): number =>
-    stageExerciseComments?.userId === userId
-      ? (stageExerciseComments.counts[stageItemId]?.unread ?? 0)
-      : 0;
+    data?.programActivity?.unreadByStageItemId?.[stageItemId] ?? 0;
+  /**
+   * Счётчик плашки этапа — СТАДИЙНЫЙ: сумма непрочитанных сообщений по упражнениям этого этапа.
+   * Program-wide величина живёт в KPI «Комментарии» на «Сегодня», а не здесь: модалка называется
+   * «Упражнения этапа N», и её триггер обязан считать то же, что она показывает.
+   */
+  const currentStageUnread = displayStageExercises.reduce(
+    (sum, item) => sum + stageExerciseUnread(item.id),
+    0,
+  );
 
   const markStageExerciseCommentsRead = (stageItemId: string) => {
-    const clearedUnread =
-      stageExerciseComments?.userId === userId
-        ? (stageExerciseComments.counts[stageItemId]?.unread ?? 0)
-        : 0;
-    setStageExerciseComments((prev) =>
-      prev?.userId === userId && prev.counts[stageItemId]
-        ? {
-            ...prev,
-            counts: {
-              ...prev.counts,
-              [stageItemId]: { ...prev.counts[stageItemId], unread: 0 },
-            },
-          }
-        : prev,
-    );
-    if (clearedUnread <= 0) return;
-    setData((prev) =>
-      prev?.programActivity
-        ? {
-            ...prev,
-            programActivity: {
-              ...prev.programActivity,
-              unreadCount: Math.max(0, prev.programActivity.unreadCount - clearedUnread),
-            },
-          }
-        : prev,
-    );
+    setData((prev) => {
+      const activity = prev?.programActivity;
+      if (!prev || !activity) return prev;
+      const clearedUnread = activity.unreadByStageItemId?.[stageItemId] ?? 0;
+      if (clearedUnread <= 0) return prev;
+      const nextByStageItem = { ...activity.unreadByStageItemId };
+      delete nextByStageItem[stageItemId];
+      return {
+        ...prev,
+        programActivity: {
+          ...activity,
+          unreadCount: Math.max(0, activity.unreadCount - clearedUnread),
+          unreadByStageItemId: nextByStageItem,
+        },
+      };
+    });
   };
   const attentionTasks =
     tasksTodayIso && tasksDisplayIana
@@ -2175,13 +2097,13 @@ export function PatientTabOverview({
                   onClick={() => setStageExercisesModalOpen(true)}
                   className={cn(
                     'relative h-auto min-h-9 w-full justify-start rounded-lg border px-3 py-2 text-left text-sm font-normal',
-                    (data?.programActivity?.unreadCount ?? 0) > 0
+                    currentStageUnread > 0
                       ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:text-destructive'
                       : 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary',
                   )}
                 >
                   <span className="line-clamp-2">{displayStage.title}</span>
-                  <DoctorAttentionBadge count={data?.programActivity?.unreadCount ?? 0} dot />
+                  <DoctorAttentionBadge count={currentStageUnread} dot />
                 </Button>
               ) : null}
               {exerciseCalendar}
@@ -2224,34 +2146,6 @@ export function PatientTabOverview({
               В этапе нет упражнений
             </DoctorEmptyState>
           )}
-          {/*
-            Непрочитанные комментарии из других этапов той же программы: агрегат пациента их
-            считает, поэтому список показывает их здесь, а не теряет после агрегации (UNREAD-06).
-          */}
-          {otherStageUnreadGroups.map((group) => (
-            <section key={group.stageId} className="border-t border-border/60">
-              <p
-                className={cn(
-                  doctorSectionTitleClass,
-                  'px-[var(--doctor-block-padding,18px)] py-3',
-                )}
-              >
-                {group.stageTitle}
-              </p>
-              <DoctorDnaFlatList>
-                {group.exercises.map((exercise) => (
-                  <StageExerciseRow
-                    key={exercise.stageItemId}
-                    stageItemId={exercise.stageItemId}
-                    title={exercise.title}
-                    media={thumbToExerciseMedia(exercise.thumb)}
-                    unread={stageExerciseUnread(exercise.stageItemId)}
-                    onOpen={setSelectedStageExerciseId}
-                  />
-                ))}
-              </DoctorDnaFlatList>
-            </section>
-          ))}
           {selectedExerciseTarget ? (
             <DoctorProgramItemDiscussionDialog
               key={selectedExerciseTarget.itemId}
