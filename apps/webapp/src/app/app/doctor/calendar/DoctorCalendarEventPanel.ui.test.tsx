@@ -183,10 +183,17 @@ type PaymentGetResponse = {
   };
   totalMinor: number | null;
   manualPaidMinor: number;
+  paymentsEntitled?: boolean;
+  onlinePaymentAvailable?: boolean;
+  patientChatAvailable?: boolean;
 };
 
+/** The block only exists for an entitled clinic, so every fixture states that fact explicitly. */
 function paymentResponse(body: PaymentGetResponse): Response {
-  return Response.json(body, { status: 200 });
+  return Response.json(
+    { paymentsEntitled: true, onlinePaymentAvailable: true, ...body },
+    { status: 200 },
+  );
 }
 
 describe('appointment payment owner states', () => {
@@ -266,8 +273,60 @@ describe('appointment payment owner states', () => {
 
     expect(await screen.findByText(/^Оплачено:/)).toHaveTextContent('0');
     expect(screen.queryByText('Не оплачено')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Оплачено наличными' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Выставить счёт' })).toBeDisabled();
+    // Nothing left to collect: the single collect action is absent, not a dead grey control.
+    expect(screen.queryByRole('button', { name: 'Принять оплату' })).not.toBeInTheDocument();
+  });
+
+  it('renders no payment block at all when the clinic tariff does not carry payments', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json(
+          {
+            summary: { prepaymentQuote: null, payment: null },
+            totalMinor: 10_000,
+            manualPaidMinor: 0,
+            paymentsEntitled: false,
+            onlinePaymentAvailable: false,
+          },
+          { status: 200 },
+        ),
+      ),
+    );
+
+    render(
+      <AppointmentPaymentSection apiBase="/api/doctor/booking-engine" appointmentId="appointment-1" />,
+    );
+
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled());
+    expect(screen.queryByLabelText('Оплата записи')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Принять оплату' })).not.toBeInTheDocument();
+  });
+
+  it('offers no online option when the read reports no configured provider', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        paymentResponse({
+          summary: { prepaymentQuote: null, payment: null },
+          totalMinor: 10_000,
+          manualPaidMinor: 0,
+          onlinePaymentAvailable: false,
+        }),
+      ),
+    );
+
+    render(
+      <AppointmentPaymentSection apiBase="/api/doctor/booking-engine" appointmentId="appointment-1" />,
+    );
+    await screen.findByText('Не оплачено');
+    fireEvent.click(screen.getByRole('button', { name: 'Принять оплату' }));
+
+    // Cash still works without a provider; the invoice/QR/link path must not be offered at all,
+    // otherwise the doctor promises a patient a link the provider cannot issue.
+    expect(await screen.findByRole('button', { name: 'Оплачено наличными' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Выставить счёт' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'QR-код платёжной ссылки' })).not.toBeInTheDocument();
   });
 
   it('keeps the QR on the server-returned URL and clears that identity when the appointment changes', async () => {
@@ -306,7 +365,8 @@ describe('appointment payment owner states', () => {
       <AppointmentPaymentSection apiBase="/api/doctor/booking-engine" appointmentId="appointment-1" />,
     );
     await screen.findByText('Не оплачено');
-    fireEvent.click(screen.getByRole('button', { name: 'Выставить счёт' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Выставить счёт' }));
 
     const link = await screen.findByRole('link', { name: checkoutUrl });
     expect(link).toHaveAttribute('href', checkoutUrl);

@@ -13,6 +13,7 @@ import {
 import { platformUsers } from './schema';
 import { clinicalVisit } from './patientClinical';
 import { beAppointments, beOrganizations } from './bookingEngine';
+import { bePatientPackages } from './bookingMemberships';
 
 /**
  * Ledger записей об оплате к карточке пациента (раздел «Учётка» кабинета врача).
@@ -51,6 +52,8 @@ export const patientPayment = pgTable(
     visitId: uuid('visit_id'),
     /** Canonical booking appointment this ledger row settles (when applicable). */
     appointmentId: uuid('appointment_id'),
+    /** Patient package (membership) this ledger row settles (when applicable). */
+    patientPackageId: uuid('patient_package_id'),
     /** Stable caller-owned cash mutation identity; null for legacy/non-idempotent ledger rows. */
     idempotencyKey: text('idempotency_key'),
     /** Идентификатор провайдера (заполняется при acquiring). */
@@ -69,6 +72,16 @@ export const patientPayment = pgTable(
     uniqueIndex('uq_patient_payment_appointment_idempotency')
       .on(table.organizationId, table.appointmentId, table.idempotencyKey)
       .where(sql`${table.idempotencyKey} IS NOT NULL`),
+    index('idx_patient_payment_patient_package_id').on(
+      table.patientPackageId,
+      table.createdAt.desc(),
+    ),
+    // A membership sale has no appointment, so the index above cannot bind it: `appointment_id` is
+    // NULL there and NULLs are distinct in a unique index. Both key columns sit in the predicate so
+    // a retried package cash write converges on the existing row.
+    uniqueIndex('uq_patient_payment_package_idempotency')
+      .on(table.organizationId, table.patientPackageId, table.idempotencyKey)
+      .where(sql`${table.patientPackageId} IS NOT NULL AND ${table.idempotencyKey} IS NOT NULL`),
     index('idx_patient_payment_created_at').on(table.createdAt),
     foreignKey({
       columns: [table.organizationId],
@@ -89,6 +102,11 @@ export const patientPayment = pgTable(
       columns: [table.appointmentId],
       foreignColumns: [beAppointments.id],
       name: 'patient_payment_appointment_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.patientPackageId],
+      foreignColumns: [bePatientPackages.id],
+      name: 'patient_payment_patient_package_id_fkey',
     }).onDelete('set null'),
     foreignKey({
       columns: [table.createdBy],

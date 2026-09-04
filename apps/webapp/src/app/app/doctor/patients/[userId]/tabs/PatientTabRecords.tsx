@@ -10,7 +10,7 @@
  * Note: booking-reputation & merge removed from this tab per owner decision 2026-06-14.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BadgePlus, CalendarPlus, ChevronDown, ChevronRight, Eye } from 'lucide-react';
 import type { PatientAppointmentItem, PatientCardHeader } from '@/modules/doctor-clients/ports';
 import { MembershipCardHeader } from '@/shared/ui/doctor/MembershipCardHeader';
@@ -138,7 +138,10 @@ function specialistLastName(fullName: string | undefined): string {
   return fullName?.trim().split(/\s+/).at(-1) ?? '';
 }
 
-function appointmentLocationLabel(shortName: string | undefined, fullName: string | undefined): string {
+function appointmentLocationLabel(
+  shortName: string | undefined,
+  fullName: string | undefined,
+): string {
   if (shortName?.trim()) return shortName.trim();
   return fullName?.trim().split(/\s+/)[0] ?? '';
 }
@@ -325,9 +328,13 @@ export function PatientTabRecords({
   const firstVisitDate = header?.firstVisitDate;
   const lateCancellationsCount = historyList.filter((a) => a.isLateCancellation).length;
 
+  const { packages: livePackages, error: packagesError } = usePatientPackages(
+    userId,
+    initialPackages,
+  );
   const activePackages = useMemo(
-    () => (initialPackages ?? []).filter((pkg) => isActivePackageStatus(pkg.status)),
-    [initialPackages],
+    () => (livePackages ?? []).filter((pkg) => isActivePackageStatus(pkg.status)),
+    [livePackages],
   );
   const activePackageSummaries = activePackages.map((pkg) => {
     const totals = packageTotals(pkg);
@@ -480,9 +487,7 @@ export function PatientTabRecords({
               {displayList.map((appt) => {
                 const specialist = specialistLastName(appt.specialistName);
                 const location = appointmentLocationLabel(appt.locationShort, appt.location);
-                const locationAndSpecialist = [location, specialist]
-                  .filter(Boolean)
-                  .join(' · ');
+                const locationAndSpecialist = [location, specialist].filter(Boolean).join(' · ');
                 return (
                   <li key={appt.id} className={doctorDnaFlatListRowClass}>
                     <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5">
@@ -873,8 +878,8 @@ export function PatientTabRecords({
           {/* Абонемент */}
           {membershipsVisible ? (
             <MembershipPanel
-              userId={userId}
-              initialPackages={initialPackages}
+              packages={livePackages}
+              packagesError={packagesError}
               highlightedPackageId={highlightedPackageId}
               onToggleHighlight={(packageId) => {
                 setHighlightedPackageId((current) => (current === packageId ? null : packageId));
@@ -924,6 +929,61 @@ export type ApiPackage = {
 
 const isActivePackageStatus = (s: string) => s === 'active' || s === 'activated';
 
+/**
+ * Single owner of the patient's package list for this tab.
+ *
+ * MONEY-01: the overview KPI used to read the SSR bootstrap prop directly, so a package created
+ * through «Добавить абонемент» never appeared — the `patient:packages-changed` listener lived only
+ * inside `MembershipPanel`, which the overview composition does not render. One state, one
+ * listener, both surfaces.
+ */
+function usePatientPackages(
+  userId: string,
+  initialPackages?: ApiPackage[] | null,
+): { packages: ApiPackage[] | null; error: boolean } {
+  const [packages, setPackages] = useState<ApiPackage[] | null>(() => initialPackages ?? null);
+  const [error, setError] = useState(false);
+
+  const load = useCallback(
+    (onDone?: (rows: ApiPackage[]) => void) =>
+      fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, {
+        credentials: 'include',
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error(`status ${r.status}`);
+          return r.json() as Promise<{ ok: boolean; packages: ApiPackage[] }>;
+        })
+        .then((data) => onDone?.(data.packages ?? []))
+        .catch(() => {
+          throw new Error('load_failed');
+        }),
+    [userId],
+  );
+
+  useEffect(() => {
+    let active = true;
+    const apply = (rows: ApiPackage[]) => {
+      if (!active) return;
+      setPackages(rows);
+      setError(false);
+    };
+    const fail = () => {
+      if (active) setError(true);
+    };
+    const refresh = () => void load(apply).catch(fail);
+    // Skip the initial fetch when SSR data was provided; the listener still keeps it fresh.
+    if (initialPackages == null) refresh();
+    window.addEventListener('patient:packages-changed', refresh);
+    return () => {
+      active = false;
+      window.removeEventListener('patient:packages-changed', refresh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, load]);
+
+  return { packages, error };
+}
+
 type ConsumeSession = {
   startsAt: string;
 };
@@ -972,16 +1032,16 @@ function isClosedByConsumedPastSessions(
 }
 
 function MembershipPanel({
-  userId,
-  initialPackages,
+  packages,
+  packagesError,
   highlightedPackageId,
   onToggleHighlight,
   onOpenConfiguration,
   mutationsAllowed = true,
 }: {
-  userId: string;
-  /** SSR-provided packages. When present, skips the initial client fetch. */
-  initialPackages?: ApiPackage[] | null;
+  /** Owned by `usePatientPackages` in the host tab — one list, one refresh listener. */
+  packages: ApiPackage[] | null;
+  packagesError: boolean;
   highlightedPackageId: string | null;
   onToggleHighlight: (packageId: string) => void;
   onOpenConfiguration?: () => void;
@@ -990,60 +1050,8 @@ function MembershipPanel({
   const [openHistoryPackageIds, setOpenHistoryPackageIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const [packages, setPackages] = useState<ApiPackage[] | null>(() => initialPackages ?? null);
-  const [error, setError] = useState(false);
+  const error = packagesError;
   const [packageSessions, setPackageSessions] = useState<Record<string, PackageSessionState>>({});
-
-  useEffect(() => {
-    // Skip initial fetch when SSR data provided.
-    if (initialPackages != null) return;
-    let active = true;
-    fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, {
-      credentials: 'include',
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error(`status ${r.status}`);
-        return r.json() as Promise<{ ok: boolean; packages: ApiPackage[] }>;
-      })
-      .then((d) => {
-        if (!active) return;
-        setPackages(d.packages ?? []);
-      })
-      .catch(() => {
-        if (!active) return;
-        setError(true);
-      });
-    return () => {
-      active = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
-
-  useEffect(() => {
-    let active = true;
-    const loadPackages = () => {
-      fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, {
-        credentials: 'include',
-      })
-        .then((r) => {
-          if (!r.ok) throw new Error(`status ${r.status}`);
-          return r.json() as Promise<{ ok: boolean; packages: ApiPackage[] }>;
-        })
-        .then((data) => {
-          if (!active) return;
-          setPackages(data.packages ?? []);
-          setError(false);
-        })
-        .catch(() => {
-          if (active) setError(true);
-        });
-    };
-    window.addEventListener('patient:packages-changed', loadPackages);
-    return () => {
-      active = false;
-      window.removeEventListener('patient:packages-changed', loadPackages);
-    };
-  }, [userId]);
 
   const classifiedPackages = useMemo(() => {
     const source = packages ?? [];

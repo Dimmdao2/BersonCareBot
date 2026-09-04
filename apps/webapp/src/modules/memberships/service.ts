@@ -7,7 +7,7 @@ import {
   hasAvailableForService,
 } from './balanceCalculator';
 import { pickPatientPackageFefo } from './fefoPicker';
-import type { MembershipsPort } from './ports';
+import type { MembershipsPort, StaffPackageSaleIntent } from './ports';
 import type {
   PatientPackageBalanceView,
   PatientPackageListItem,
@@ -32,6 +32,11 @@ function runMembershipWrite<T>(
 }
 
 import { parsePatientPackageProductRef } from './patientPackageProductRef';
+import {
+  saleAttemptKey,
+  saleAttemptMatchesPackage,
+  type SaleAttemptRequest,
+} from './saleAttemptIdentity';
 import { isPatientPackageExpired, isPatientPackageWithinValidity } from './packageValidity';
 import { buildManualPatientPackageTitle } from './packageManualTitle';
 import {
@@ -103,6 +108,18 @@ function hasReserveWithoutRelease(usages: PackageUsageRecord[]): boolean {
   return !usages.some((u) => u.usageKind === 'release');
 }
 
+/**
+ * Postgres unique violation. A retry finds the first attempt's package by key before inserting, but
+ * two genuinely concurrent requests both pass that read and race to the index — the loser sees this
+ * and must read back the winner's package, not fail the sale.
+ */
+function isUniqueViolation(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  const code = (err as { code?: unknown }).code;
+  if (code === '23505') return true;
+  return err instanceof Error && err.message.includes('23505');
+}
+
 function isPaymentOfferConfigurationError(code: string): boolean {
   return (
     code === 'payments_disabled' ||
@@ -163,7 +180,10 @@ export function createMembershipsService(deps: {
   }
 
   async function withBalance(pkg: PatientPackageRecord): Promise<PatientPackageListItem> {
-    const fresh = await refreshPatientPackageRecord(pkg);
+    // The stored pay link is dropped here on purpose: every list and card in both cabinets goes
+    // through this one function, and only the sale that issued the link — and the tariff-gated
+    // payment-status read — may hand it out.
+    const { checkoutUrl: _issuedLink, ...fresh } = await refreshPatientPackageRecord(pkg);
     const usages = await deps.port.listUsagesForPackage(fresh.id, fresh.organizationId);
     const itemBalances = computeItemBalances(fresh.items, usages);
     const items = await Promise.all(
@@ -215,6 +235,49 @@ export function createMembershipsService(deps: {
       };
     },
 
+    /**
+     * Create the package, or return the one this exact sale attempt already created. The read comes
+     * first for the ordinary retry; the unique-violation catch covers the concurrent race the read
+     * cannot see.
+     *
+     * `attempt` is what makes «this exact sale attempt» mean something: the persisted key is the
+     * caller's key bound to the request (`saleAttemptIdentity`), and whatever a lookup hands back
+     * is refused unless it is still the package this request asked for. Without that second read
+     * of reality, a key retained from a failed attempt settles the next sale onto the earlier
+     * package, at the earlier price.
+     */
+    async createOrFindSoldPackage(
+      organizationId: string,
+      callerKey: string | null | undefined,
+      attempt: SaleAttemptRequest,
+      create: (persistedKey: string | null) => Promise<PatientPackageRecord>,
+    ): Promise<{ pkg: PatientPackageRecord; created: boolean }> {
+      if (!callerKey) return { pkg: await create(null), created: true };
+      const saleIdempotencyKey = saleAttemptKey(callerKey, attempt);
+      const claim = (found: PatientPackageRecord) => {
+        if (!saleAttemptMatchesPackage(attempt, found)) {
+          throw new Error('sale_attempt_key_conflict');
+        }
+        return { pkg: found, created: false };
+      };
+      const existing = await deps.port.findPatientPackageBySaleIdempotencyKey(
+        organizationId,
+        saleIdempotencyKey,
+      );
+      if (existing) return claim(existing);
+      try {
+        return { pkg: await create(saleIdempotencyKey), created: true };
+      } catch (err) {
+        if (!isUniqueViolation(err)) throw err;
+        const raced = await deps.port.findPatientPackageBySaleIdempotencyKey(
+          organizationId,
+          saleIdempotencyKey,
+        );
+        if (!raced) throw err;
+        return claim(raced);
+      }
+    },
+
     async createManualPatientPackage(
       input: Parameters<MembershipsPort['createManualPatientPackage']>[0],
       options?: MembershipWriteOptions,
@@ -224,96 +287,160 @@ export function createMembershipsService(deps: {
         input.title?.trim() ||
         buildManualPatientPackageTitle({
           itemCount: input.items.length,
-          soldAtIso: input.soldAt,
+          soldAtIso: input.sale && 'soldAt' in input.sale ? input.sale.soldAt : null,
         });
-      const pkg = await runMembershipWrite(options, () =>
-        deps.port.createManualPatientPackage({ ...input, title }),
+      const { pkg, created } = await this.createOrFindSoldPackage(
+        input.organizationId,
+        input.saleIdempotencyKey,
+        {
+          kind: 'manual',
+          platformUserId: input.platformUserId,
+          method: input.sale?.method ?? 'offer',
+          priceMinor: input.priceMinor,
+          currency: input.currency ?? 'RUB',
+          validityDays: input.validityDays ?? null,
+          deductionMode: input.deductionMode ?? 'auto_on_visit_confirmed',
+          items: input.items,
+        },
+        (saleIdempotencyKey) =>
+          runMembershipWrite(options, () =>
+            deps.port.createManualPatientPackage({ ...input, title, saleIdempotencyKey }),
+          ),
       );
-      await runMembershipWrite(options, () =>
-        deps.port.appendHistoryEvent({
-          organizationId: input.organizationId,
-          patientPackageId: pkg.id,
-          eventType: 'manual_created',
-          payloadJson: { title: input.title, priceMinor: input.priceMinor },
-        }),
-      );
-      const staffSold =
-        input.activateImmediately === true ||
-        (input.soldAt != null && input.paidAmountMinor != null && input.sendForPayment === false);
-      if (input.priceMinor > 0 && input.sendForPayment !== false && !staffSold) {
-        return this.createPaymentOfferOrKeepOffered(
-          pkg.id,
-          input.organizationId,
-          input.platformUserId,
-          pkg,
-          options,
+      if (created) {
+        await runMembershipWrite(options, () =>
+          deps.port.appendHistoryEvent({
+            organizationId: input.organizationId,
+            patientPackageId: pkg.id,
+            eventType: 'manual_created',
+            payloadJson: { title: input.title, priceMinor: input.priceMinor },
+          }),
         );
       }
-      const activated = await this.activatePatientPackage(
-        pkg.id,
-        input.organizationId,
-        undefined,
-        options,
-      );
-      return activated ?? (await withBalance(pkg));
+      return this.applySalePlan(pkg, input.sale, input.platformUserId, options);
     },
 
     async offerCatalogPackageToPatient(
-      input: {
-        organizationId: string;
-        platformUserId: string;
-        subscriptionPackageId: string;
-        assignedByPlatformUserId?: string | null;
-        notes?: string | null;
-        soldAt?: string | null;
-        paidAmountMinor?: number | null;
-        paidCurrency?: string | null;
-        activateImmediately?: boolean;
-      },
+      input: Parameters<MembershipsPort['offerCatalogPackageToPatient']>[0],
       options?: MembershipWriteOptions,
     ) {
       deps.assertWriteClearance?.('subscriptions');
-      const pkg = await runMembershipWrite(options, () =>
-        deps.port.offerCatalogPackageToPatient(input),
+      const { pkg, created } = await this.createOrFindSoldPackage(
+        input.organizationId,
+        input.saleIdempotencyKey,
+        {
+          kind: 'catalog',
+          platformUserId: input.platformUserId,
+          method: input.sale?.method ?? 'offer',
+          subscriptionPackageId: input.subscriptionPackageId,
+        },
+        (saleIdempotencyKey) =>
+          runMembershipWrite(options, () =>
+            deps.port.offerCatalogPackageToPatient({ ...input, saleIdempotencyKey }),
+          ),
       );
-      await runMembershipWrite(options, () =>
-        deps.port.appendHistoryEvent({
-          organizationId: input.organizationId,
-          patientPackageId: pkg.id,
-          eventType: 'catalog_offered',
-          payloadJson: { subscriptionPackageId: input.subscriptionPackageId },
-        }),
-      );
-      const staffSold =
-        input.activateImmediately === true ||
-        (input.soldAt != null && input.paidAmountMinor != null);
-      if (staffSold || input.activateImmediately === true) {
+      if (created) {
+        await runMembershipWrite(options, () =>
+          deps.port.appendHistoryEvent({
+            organizationId: input.organizationId,
+            patientPackageId: pkg.id,
+            eventType: 'catalog_offered',
+            payloadJson: { subscriptionPackageId: input.subscriptionPackageId },
+          }),
+        );
+      }
+      return this.applySalePlan(pkg, input.sale, input.platformUserId, options);
+    },
+
+    /**
+     * The one place a freshly created package learns what happens to it next. `cash` deliberately
+     * stops here: the package stays unsettled until the caller has written the canonical cash
+     * ledger row for it, then settles it through `activatePatientPackageFromDoctorSale` — the same
+     * function the catalog sale uses, so both staff rows are stamped by one path.
+     */
+    async applySalePlan(
+      pkg: PatientPackageRecord,
+      sale: StaffPackageSaleIntent | undefined,
+      platformUserId: string,
+      options?: MembershipWriteOptions,
+    ) {
+      // A package that is no longer an offer has already been settled or invoiced by the attempt
+      // that created it, so nothing is re-run here — it answers with the link that attempt already
+      // issued. The retried pay-link sale used to come back empty, and the route read that
+      // emptiness as «платёжный провайдер не настроен» while the invoice it had issued was live —
+      // sending the doctor to collect cash for something the patient could already pay online.
+      if (pkg.status !== 'offered') {
+        return { ...(await withBalance(pkg)), checkoutUrl: pkg.checkoutUrl };
+      }
+      if (sale?.method === 'cash') return withBalance(pkg);
+      if (sale?.method === 'free') {
+        if (pkg.priceMinor !== 0) throw new Error('sale_free_requires_zero_price');
         const activated = await this.activatePatientPackageFromDoctorSale(
           pkg.id,
-          input.organizationId,
+          pkg.organizationId,
           {
-            soldAt: input.soldAt ?? null,
-            paidAmountMinor: input.paidAmountMinor ?? pkg.priceMinor,
-            paidCurrency: input.paidCurrency,
+            soldAt: sale.soldAt ?? null,
+            paidAmountMinor: 0,
             paymentRef: `doctor_sale:${pkg.id}`,
           },
           options,
         );
         return activated ?? (await withBalance(pkg));
       }
+      if (sale?.method === 'link') {
+        // An invoice for nothing is not an invoice: refusing here is what stops a zero-price
+        // template from becoming an `active` package that the card then calls «ждёт оплаты».
+        if (pkg.priceMinor <= 0) throw new Error('sale_link_requires_price');
+        return this.createPaymentOfferOrKeepOffered(
+          pkg.id,
+          pkg.organizationId,
+          platformUserId,
+          pkg,
+          options,
+        );
+      }
       if (pkg.priceMinor > 0) {
         return this.createPaymentOfferOrKeepOffered(
           pkg.id,
-          input.organizationId,
-          input.platformUserId,
+          pkg.organizationId,
+          platformUserId,
           pkg,
           options,
         );
       }
       const activated = await this.activatePatientPackage(
         pkg.id,
-        input.organizationId,
+        pkg.organizationId,
         undefined,
+        options,
+      );
+      return activated ?? (await withBalance(pkg));
+    },
+
+    /**
+     * Settle a `cash` staff sale once its money is in the canonical ledger: the paid amount is the
+     * package's own price snapshot, never a number the caller supplied. Idempotent — a package
+     * already settled is returned as it stands.
+     */
+    async settleStaffCashSale(
+      patientPackageId: string,
+      organizationId: string,
+      input: { soldAt?: string | null },
+      options?: MembershipWriteOptions,
+    ) {
+      deps.assertWriteClearance?.('subscriptions');
+      const pkg = await deps.port.getPatientPackage(patientPackageId, organizationId);
+      if (!pkg) throw new Error('package_not_found');
+      if (pkg.status === 'active') return withBalance(pkg);
+      const activated = await this.activatePatientPackageFromDoctorSale(
+        patientPackageId,
+        organizationId,
+        {
+          soldAt: input.soldAt ?? null,
+          paidAmountMinor: pkg.priceMinor,
+          paidCurrency: pkg.currency,
+          paymentRef: `doctor_sale:${patientPackageId}`,
+        },
         options,
       );
       return activated ?? (await withBalance(pkg));
@@ -346,6 +473,10 @@ export function createMembershipsService(deps: {
           'awaiting_payment',
           {
             paymentIntentId: intent.id,
+            // The link is stored with the invoice that issued it, in one statement: a package that
+            // names an invoice must be able to show it. This is what a retry, a reopened card or a
+            // second tab reads instead of asking the provider for a second invoice.
+            checkoutUrl: intent.checkoutUrl ?? null,
           },
         );
         await deps.port.appendHistoryEvent({

@@ -26,6 +26,8 @@ export type PatientPayment = {
   service: string | null;
   visitId: string | null;
   appointmentId: string | null;
+  /** Patient package (membership) this row settles; null for every other ledger row. */
+  patientPackageId: string | null;
   idempotencyKey: string | null;
   /** Заполняется провайдером при acquiring. Null для cash. */
   provider: string | null;
@@ -47,7 +49,12 @@ export type AddCashPaymentInput = {
   service?: string | null;
   visitId?: string | null;
   appointmentId?: string | null;
-  /** Stable identity for an idempotent cash write; required by appointment settlement. */
+  /**
+   * Membership this cash settles. One cash door, two subjects: an appointment remainder and a
+   * staff membership sale are variants of the same write, not two ledgers.
+   */
+  patientPackageId?: string | null;
+  /** Stable identity for an idempotent cash write; required by appointment and package settlement. */
   idempotencyKey?: string | null;
   createdBy: string;
 };

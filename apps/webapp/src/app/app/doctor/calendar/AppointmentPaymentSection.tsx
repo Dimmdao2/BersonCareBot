@@ -3,6 +3,8 @@
 import Image from 'next/image';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { sendPaymentLinkToPatientChat } from '../sendPaymentLinkToPatientChat';
 import { localQrCodeDataUri } from './localQrCode';
 
 type Summary = {
@@ -14,6 +16,12 @@ type Response = {
   error?: string;
   totalMinor?: number | null;
   manualPaidMinor?: number;
+  /** Tariff mechanic `payments`. Absent (legacy shape) is treated as not entitled. */
+  paymentsEntitled?: boolean;
+  /** Configured provider behind the existing invoice/pay-link contract. */
+  onlinePaymentAvailable?: boolean;
+  /** The patient is `linked` to the portal, so the in-app conversation actually reaches them. */
+  patientChatAvailable?: boolean;
 };
 
 const money = (amountMinor: number, currency = 'RUB') =>
@@ -26,21 +34,31 @@ function errorLabel(error: string) {
   }
   if (error === 'appointment_amount_unavailable') return 'Стоимость записи не определена.';
   if (error === 'already_paid') return 'Запись уже оплачена.';
+  if (error === 'chat_send_failed') return 'Не удалось отправить ссылку в чат пациента.';
   return 'Не удалось выполнить действие.';
 }
 
 export function AppointmentPaymentSection({
   apiBase,
   appointmentId,
+  patientUserId,
 }: {
   apiBase: string;
   appointmentId: string;
+  /** Needed only for the chat send; omitting it hides that option. */
+  patientUserId?: string | null;
 }) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [totalMinor, setTotalMinor] = useState<number | null>(null);
   const [manualPaidMinor, setManualPaidMinor] = useState(0);
+  const [entitled, setEntitled] = useState(false);
+  const [onlineAvailable, setOnlineAvailable] = useState(false);
+  const [chatAvailable, setChatAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
+  const [collectOpen, setCollectOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [chatSent, setChatSent] = useState(false);
   const [pending, startTransition] = useTransition();
   const requestVersion = useRef(0);
 
@@ -55,6 +73,9 @@ export function AppointmentPaymentSection({
       setSummary(json.summary);
       setTotalMinor(json.totalMinor ?? null);
       setManualPaidMinor(json.manualPaidMinor ?? 0);
+      setEntitled(json.paymentsEntitled === true);
+      setOnlineAvailable(json.onlinePaymentAvailable === true);
+      setChatAvailable(json.patientChatAvailable === true);
     },
     [apiBase],
   );
@@ -66,8 +87,14 @@ export function AppointmentPaymentSection({
     setSummary(null);
     setTotalMinor(null);
     setManualPaidMinor(0);
+    setEntitled(false);
+    setOnlineAvailable(false);
+    setChatAvailable(false);
     setError(null);
     setLink(null);
+    setCollectOpen(false);
+    setCopied(false);
+    setChatSent(false);
     void load(appointmentId, version).catch((cause: unknown) => {
       if (version === requestVersion.current) {
         setError(cause instanceof Error ? cause.message : 'not_found');
@@ -96,7 +123,12 @@ export function AppointmentPaymentSection({
         };
         if (!response.ok || !json.ok) throw new Error(json.error ?? 'request_failed');
         if (version !== requestVersion.current) return;
-        if (json.paymentLink) setLink(json.paymentLink);
+        if (json.paymentLink) {
+          setLink(json.paymentLink);
+          setCopied(false);
+          setChatSent(false);
+        }
+        if (action === 'cash') setCollectOpen(false);
         await load(targetAppointmentId, version);
       } catch (cause) {
         if (version === requestVersion.current) {
@@ -105,11 +137,40 @@ export function AppointmentPaymentSection({
       }
     });
 
+  const copyLink = () =>
+    startTransition(async () => {
+      if (!link) return;
+      try {
+        await navigator.clipboard.writeText(link);
+        setCopied(true);
+      } catch {
+        setCopied(false);
+      }
+    });
+
+  const sendLinkToChat = () =>
+    startTransition(async () => {
+      if (!link || !patientUserId) return;
+      setError(null);
+      const ok = await sendPaymentLinkToPatientChat({
+        patientUserId,
+        subjectRef: `appointment:${appointmentId}`,
+        link,
+      }).catch(() => false);
+      if (ok) setChatSent(true);
+      else setError('chat_send_failed');
+    });
+
   const captured = summary?.payment?.status === 'succeeded' ? summary.payment.amountMinor : 0;
   const paid = captured + manualPaidMinor;
   const quote = summary?.prepaymentQuote?.amountMinor ?? null;
   const isSettled = totalMinor !== null && paid >= totalMinor;
-  const canCollect = totalMinor !== null && totalMinor > paid;
+  const remaining = totalMinor === null ? null : Math.max(0, totalMinor - paid);
+  const canCollect = remaining !== null && remaining > 0;
+
+  // Owner acceptance MONEY-06: the block exists only for a clinic whose tariff carries payments.
+  // Until the read resolves there is nothing proven, so nothing is drawn.
+  if (!entitled) return null;
 
   return (
     <section className="space-y-2 border-t border-border pt-3 text-sm" aria-label="Оплата записи">
@@ -117,57 +178,106 @@ export function AppointmentPaymentSection({
         <p className="font-medium">Оплачено: {money(paid)}</p>
       ) : paid > 0 && totalMinor !== null ? (
         <p>
-          Частично оплачено: {money(paid)} из {money(totalMinor)} · осталось{' '}
-          {money(Math.max(0, totalMinor - paid))}
+          Частично оплачено: {money(paid)} из {money(totalMinor)} · осталось {money(remaining ?? 0)}
         </p>
       ) : quote ? (
         <p>Не оплачено · предоплата {money(quote, summary?.prepaymentQuote?.currency)}</p>
       ) : (
         <p>Не оплачено</p>
       )}
-      {error ? (
+      {totalMinor === null ? (
+        <p className="text-muted-foreground">Стоимость записи не определена.</p>
+      ) : null}
+      {error && !collectOpen ? (
         <p className="text-destructive" role="alert">
           {errorLabel(error)}
         </p>
       ) : null}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={pending || !canCollect}
-          onClick={() => run('cash')}
-        >
-          Оплачено наличными
+      {canCollect ? (
+        <Button type="button" size="sm" onClick={() => setCollectOpen(true)}>
+          Принять оплату
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          disabled={pending || !canCollect}
-          onClick={() => run('link')}
-        >
-          Выставить счёт
-        </Button>
-      </div>
-      {link ? (
-        <div className="flex items-start gap-3">
-          <a
-            className="break-all text-primary underline"
-            href={link}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {link}
-          </a>
-          <Image
-            width={144}
-            height={144}
-            alt="QR-код платёжной ссылки"
-            src={localQrCodeDataUri(link)}
-            unoptimized
-          />
-        </div>
       ) : null}
+
+      <DoctorModal
+        open={collectOpen}
+        onClose={() => setCollectOpen(false)}
+        title="Приём оплаты"
+        size="sm"
+      >
+        <div className="flex flex-col gap-3 text-sm">
+          <p className="font-medium">К оплате: {money(remaining ?? 0)}</p>
+          {error ? (
+            <p className="text-destructive" role="alert">
+              {errorLabel(error)}
+            </p>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="self-start"
+            disabled={pending}
+            onClick={() => run('cash')}
+          >
+            Оплачено наличными
+          </Button>
+          {onlineAvailable ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                className="self-start"
+                disabled={pending}
+                onClick={() => run('link')}
+              >
+                Выставить счёт
+              </Button>
+              {link ? (
+                <div className="flex flex-col gap-2">
+                  <a
+                    className="break-all text-primary underline"
+                    href={link}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {link}
+                  </a>
+                  <Image
+                    width={144}
+                    height={144}
+                    alt="QR-код платёжной ссылки"
+                    src={localQrCodeDataUri(link)}
+                    unoptimized
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={copyLink}
+                    >
+                      {copied ? 'Ссылка скопирована' : 'Скопировать ссылку'}
+                    </Button>
+                    {chatAvailable && patientUserId ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={sendLinkToChat}
+                      >
+                        {chatSent ? 'Отправлено в чат' : 'Отправить в чат'}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </DoctorModal>
     </section>
   );
 }

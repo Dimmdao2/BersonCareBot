@@ -38,6 +38,7 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
         (payment) =>
           payment.organizationId === input.organizationId &&
           payment.appointmentId === (input.appointmentId ?? null) &&
+          payment.patientPackageId === (input.patientPackageId ?? null) &&
           payment.idempotencyKey === idempotencyKey,
       );
       if (existing) return existing;
@@ -54,6 +55,7 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
       service: input.service ?? null,
       visitId: input.visitId ?? null,
       appointmentId: input.appointmentId ?? null,
+      patientPackageId: input.patientPackageId ?? null,
       idempotencyKey,
       provider: null,
       providerPaymentId: null,
@@ -121,6 +123,7 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
       service: null,
       visitId: null,
       appointmentId: input.appointmentId ?? null,
+      patientPackageId: null,
       idempotencyKey: null,
       provider: input.provider,
       providerPaymentId: input.providerPaymentId,
