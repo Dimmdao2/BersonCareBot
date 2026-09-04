@@ -8,6 +8,7 @@ import {
   doctorClientPanelStackClass,
   doctorClientSectionTitleClass,
 } from './doctorClientCardChrome';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Note = {
   id: string;
@@ -74,7 +75,7 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
 
   const body = (
     <>
-      {loading ? <p className="text-muted-foreground">Загрузка…</p> : null}
+      {loading ? <DoctorPanelLoading className="py-6" /> : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <ul id="doctor-notes-list" className="m-0 list-none space-y-2 p-0">
         {notes.map((n) => (

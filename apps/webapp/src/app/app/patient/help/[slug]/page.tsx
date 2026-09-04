@@ -10,7 +10,7 @@ import {
 import { resolvePatientCanViewContent } from '@/app-layer/platform-access';
 import { isHelpSectionSlug } from '@/modules/content-sections/types';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
-import { PatientLoadingPatternBody } from '@/shared/ui/patient/patientVisual';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 import { toHostedVideoEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
 import {
   parseApiMediaIdFromHref,
@@ -99,7 +99,7 @@ export default async function PatientHelpArticlePage({ params }: Props) {
       patientSuppressShellTitle
     >
       {slug === HELP_CANONICAL_ARTICLE_SLUG_BOOKING ? <HelpBookingAboutLink /> : null}
-      <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
+      <Suspense fallback={<AppContentLoading className="py-10" />}>
         <PatientContentSlugArticle
           slug={slug}
           session={session}

@@ -7,6 +7,7 @@ import type {
   ManagedNotifTemplateEntry,
 } from '@/modules/notif-templates/managedNotifTemplate';
 import { NotificationTemplatesPageClient } from './NotificationTemplatesPageClient';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type State =
   | { phase: 'loading' }
@@ -61,7 +62,7 @@ export function ScheduleNotificationsSection({
   }, [load]);
 
   if (state.phase === 'loading') {
-    return <p className="text-sm text-muted-foreground">Загрузка шаблонов уведомлений…</p>;
+    return <DoctorPanelLoading className="py-6" />;
   }
   if (state.phase === 'error') {
     return (

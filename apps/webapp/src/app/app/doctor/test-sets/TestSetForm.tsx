@@ -33,6 +33,7 @@ import { rowsFromTestSet, TestSetItemsForm, type TestSetEditorItemRow } from './
 import type { ClinicalTestLibraryPickRow } from './clinicalTestLibraryRows';
 import { doctorTestSetUsageHref } from './testSetUsageDocLinks';
 import { DoctorCatalogPersistPublishBar } from '@/shared/ui/doctor/DoctorCatalogPersistPublishBar';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import {
   testSetUsageHasAnyReference,
   testSetUsageSections,
@@ -532,7 +533,7 @@ export function TestSetForm({
           <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
             <p className="text-sm font-medium text-foreground">Где используется</p>
             {usageBusy ? (
-              <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+              <DoctorPanelLoading className="mt-1 py-2" />
             ) : usageLoadError ? (
               <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
             ) : !usage ? null : !testSetUsageHasAnyReference(usage) ? (

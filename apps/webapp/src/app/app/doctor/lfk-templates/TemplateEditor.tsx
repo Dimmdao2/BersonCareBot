@@ -80,6 +80,7 @@ import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
 import { exerciseMediaToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 import { PickerSearchField } from '@/shared/ui/doctor/PickerSearchField';
 import { LfkTemplateStatusBadge } from './LfkTemplateStatusBadge';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type ExerciseOption = { id: string; title: string; firstMedia: ExerciseMedia | null };
 
@@ -673,7 +674,7 @@ export function TemplateEditor({
           {!template ? (
             <p className="mt-1 text-sm text-muted-foreground">Пока не используется</p>
           ) : usageBusy ? (
-            <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+            <DoctorPanelLoading className="mt-1 py-4" />
           ) : usageLoadError ? (
             <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
           ) : !usage ? null : !lfkTemplateUsageHasAnyReference(usage) ? (

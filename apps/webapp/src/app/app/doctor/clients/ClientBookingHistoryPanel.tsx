@@ -19,6 +19,7 @@ import {
   doctorClientPanelStackClass,
   doctorClientSectionTitleClass,
 } from './doctorClientCardChrome';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type TimelineItem = {
   id: string;
@@ -237,7 +238,7 @@ export function ClientBookingHistoryPanel({ userId, displayTimeZone, embedded = 
         </Button>
       </div>
 
-      {loading ? <p className="text-muted-foreground text-sm">Загрузка…</p> : null}
+      {loading ? <DoctorPanelLoading className="py-6" /> : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
       {tab === 'timeline' && !loading ? (

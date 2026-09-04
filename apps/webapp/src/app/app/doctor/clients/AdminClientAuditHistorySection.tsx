@@ -6,6 +6,7 @@ import { doctorClientSectionTitleClass } from './doctorClientCardChrome';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { AuditLogMergeTarget } from '@/components/admin/AuditLogMergeTarget';
 import { auditActorShortLabel } from '@/infra/adminAuditLogPresentation';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type AuditItem = {
   id: string;
@@ -112,7 +113,7 @@ export function AdminClientAuditHistorySection({
           Не удалось загрузить журнал ({error}).
         </p>
       ) : null}
-      {loading ? <p className="text-sm text-muted-foreground">Загрузка…</p> : null}
+      {loading ? <DoctorPanelLoading className="py-6" /> : null}
       {!loading && !suspendLoad && items.length === 0 ? (
         <p className="text-sm text-muted-foreground">Записей по этому пользователю пока нет.</p>
       ) : null}

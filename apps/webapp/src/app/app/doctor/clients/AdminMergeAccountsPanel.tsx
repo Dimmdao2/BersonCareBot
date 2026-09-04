@@ -30,6 +30,7 @@ import {
   mergeDuplicatePrefixConfirmed,
   type MergePreviewApiOk,
 } from './adminMergeAccountsLogic';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type CandidateRow = {
   id: string;
@@ -611,9 +612,7 @@ export function AdminMergeAccountsPanel({
           </label>
         </fieldset>
 
-        {previewLoading ? (
-          <p className="text-sm text-muted-foreground">Загрузка сравнения…</p>
-        ) : null}
+        {previewLoading ? <DoctorPanelLoading className="py-6" /> : null}
         {previewError ? (
           <p className="text-sm text-destructive" role="alert">
             {previewError}

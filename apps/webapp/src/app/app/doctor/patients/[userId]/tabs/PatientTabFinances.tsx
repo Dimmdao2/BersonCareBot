@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { DoctorClientMembershipsPanel } from '@/app/app/doctor/clients/DoctorClientMembershipsPanel';
 import type { PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { acquiringErrorMessage } from '@/modules/patient-payments/acquiringErrorMessage';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -402,7 +403,7 @@ export function PatientTabFinances({
       <div className={doctorSectionCardClass}>
         <p className={doctorSectionTitleClass}>История платежей</p>
 
-        {loading && <p className="text-sm text-muted-foreground">Загрузка…</p>}
+        {loading && <DoctorPanelLoading className="py-6" />}
 
         {!loading && timelineError && <p className="text-sm text-destructive">{timelineError}</p>}
 

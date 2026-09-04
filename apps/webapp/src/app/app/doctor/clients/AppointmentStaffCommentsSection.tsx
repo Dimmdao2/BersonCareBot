@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type CommentRow = {
   id: string;
@@ -71,7 +72,7 @@ export function AppointmentStaffCommentsSection({
 
   return (
     <div className="flex flex-col gap-2 border-t border-border pt-3">
-      {loading ? <p className="text-xs text-muted-foreground">Загрузка…</p> : null}
+      {loading ? <DoctorPanelLoading className="py-4" /> : null}
       {comments.length > 0 ? (
         <ul className="m-0 list-none space-y-1 p-0">
           {comments.map((c) => (

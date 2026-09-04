@@ -14,6 +14,7 @@ import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSect
 import { buildAdminStatsQuery, type AnalyticsPeriodValue } from './analyticsPeriodUi';
 import { AppointmentsDynamicsChart } from './AppointmentsDynamicsChart';
 import { DoctorStatCard } from './DoctorStatCard';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Props = {
   period: AnalyticsPeriodValue;
@@ -90,11 +91,7 @@ export function DoctorAnalyticsAppointmentsSection({
         </p>
       ) : null}
 
-      {loading && !stats ? (
-        <p className="text-muted-foreground text-sm" aria-busy="true">
-          Загрузка…
-        </p>
-      ) : null}
+      {loading && !stats ? <DoctorPanelLoading className="py-6" /> : null}
 
       {stats ? (
         <>

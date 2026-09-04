@@ -825,11 +825,9 @@ function ListView({
       data-testid="list-view"
     >
       <div ref={earlierSentinelRef} className="h-px" aria-hidden />
-      {loadingEarlier ? (
-        <div className="py-2 text-center text-xs text-muted-foreground">Загрузка истории…</div>
-      ) : null}
+      {loadingEarlier ? <DoctorPanelLoading className="py-3" /> : null}
       {loading ? (
-        <div className="p-6 text-center text-sm text-muted-foreground">Загрузка записей…</div>
+        <DoctorPanelLoading className="p-6" />
       ) : dayGroups.length === 0 ? (
         <div
           className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground"
@@ -861,9 +859,7 @@ function ListView({
           ))}
         </>
       )}
-      {loadingLater ? (
-        <div className="py-3 text-center text-xs text-muted-foreground">Загрузка записей…</div>
-      ) : null}
+      {loadingLater ? <DoctorPanelLoading className="py-3" /> : null}
       <div ref={laterSentinelRef} className="h-px" aria-hidden />
     </div>
   );
@@ -3020,9 +3016,7 @@ export function ScheduleCalendarTab({
                 }}
               >
                 {calendarLoading ? (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 text-sm text-muted-foreground">
-                    Загрузка записей…
-                  </div>
+                  <DoctorPanelLoading className="absolute inset-0 z-10 bg-background/70" />
                 ) : null}
                 <div className="h-full min-h-0">
                   <style>{`

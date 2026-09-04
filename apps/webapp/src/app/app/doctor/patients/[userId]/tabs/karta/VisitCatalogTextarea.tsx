@@ -13,6 +13,7 @@ import {
   visitCatalogOptionToText,
   type VisitCatalogOption,
 } from './visitCatalogText';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 const fieldLabelClass = 'text-xs font-semibold text-foreground';
 const hintClass = 'text-xs text-muted-foreground';
@@ -150,7 +151,7 @@ export function VisitCatalogTextarea({
           className="overflow-hidden rounded-lg border border-border bg-background"
         >
           {loading ? (
-            <div className="px-2.5 py-1.5 text-xs text-muted-foreground">Загрузка…</div>
+            <DoctorPanelLoading className="px-2.5 py-2" />
           ) : options.length > 0 ? (
             <>
               <div className="border-b border-border p-2">

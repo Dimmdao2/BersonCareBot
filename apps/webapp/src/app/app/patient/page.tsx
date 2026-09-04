@@ -15,7 +15,7 @@ import { resolvePatientCanViewAuthOnlyContent } from '@/app-layer/platform-acces
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { LegalFooterLinks } from '@/shared/ui/patient/LegalFooterLinks';
 import { Suspense } from 'react';
-import { PatientLoadingPatternBody } from '@/shared/ui/patient/patientVisual';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 import {
   greetingPrefixFromHour,
   PatientHomeGreetingMobileHeader,
@@ -74,7 +74,7 @@ export default async function PatientHomePage() {
         />
       }
     >
-      <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
+      <Suspense fallback={<AppContentLoading className="py-10" />}>
         <PatientHomeToday
           session={session}
           personalTierOk={personalTierOk}

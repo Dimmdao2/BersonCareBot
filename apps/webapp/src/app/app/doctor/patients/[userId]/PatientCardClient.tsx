@@ -63,6 +63,7 @@ import {
 } from '@/app/app/doctor/clients/doctorClientCardChrome';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorClientMembershipsPanel } from '@/app/app/doctor/clients/DoctorClientMembershipsPanel';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 function formatSupportStartedAt(value: string): string {
   const date = new Date(value);
@@ -101,8 +102,7 @@ function formatSupportDuration(value: string, now = new Date()): string | null {
 function PatientTabPanelLoading() {
   return (
     <div className={cn(doctorSectionCardClass, 'gap-3')} aria-busy="true">
-      <div className="h-24 animate-pulse rounded-lg bg-muted/70" />
-      <span className="sr-only">Загрузка вкладки…</span>
+      <DoctorPanelLoading className="min-h-24" />
     </div>
   );
 }

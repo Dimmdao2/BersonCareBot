@@ -35,6 +35,7 @@ import {
 import { apiJson } from '@/shared/lib/apiJson';
 import toast from 'react-hot-toast';
 import type { ScheduleTabProps } from '../scheduleTabRegistry';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 // ---------------------------------------------------------------------------
 // Sub-nav section definition
@@ -141,7 +142,7 @@ function BookingPaymentsSectionLoader({ readOnly }: { readOnly: boolean }) {
   }, [load]);
 
   if (state.phase === 'loading') {
-    return <p className="text-sm text-muted-foreground">Загрузка настроек оплаты…</p>;
+    return <DoctorPanelLoading className="py-6" />;
   }
   if (state.phase === 'error') {
     return (
@@ -202,7 +203,7 @@ function BookingRulesLoader() {
   }, [load]);
 
   if (state.phase === 'loading') {
-    return <p className="text-sm text-muted-foreground">Загрузка правил записи…</p>;
+    return <DoctorPanelLoading className="py-6" />;
   }
   if (state.phase === 'error') {
     return (
@@ -345,7 +346,7 @@ function ScheduleCalendarDefaultsSection() {
   }
 
   if (state.phase === 'loading') {
-    return <p className="text-sm text-muted-foreground">Загрузка настроек календаря…</p>;
+    return <DoctorPanelLoading className="py-6" />;
   }
   if (state.phase === 'error') {
     return (
@@ -593,7 +594,7 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
   }
 
   if (state.phase === 'loading') {
-    return <p className="text-sm text-muted-foreground">Загрузка шаблонов абонементов…</p>;
+    return <DoctorPanelLoading className="py-6" />;
   }
   if (state.phase === 'error') {
     return (

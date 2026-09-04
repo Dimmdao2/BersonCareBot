@@ -30,6 +30,7 @@ import {
 } from '@/app/app/doctor/analytics/clients/analyticsPeriodUi';
 import { PlatformAnalyticsLineChart } from './PlatformAnalyticsLineChart';
 import { formatBytesAsMb } from '@/shared/lib/formatStorageMb';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 /** Подписи — презентация, поэтому живут в UI, а не рядом с доменными типами. */
 const ENTRY_CHANNEL_LABELS: Record<PlatformEntryChannel, string> = {
@@ -155,7 +156,7 @@ export function PlatformAnalyticsPageClient({
         onApplyCustom={() => applyPeriod(period)}
       />
       {loadError ? <DoctorEmptyState>{loadError}</DoctorEmptyState> : null}
-      {loading && !data ? <DoctorEmptyState>Загрузка…</DoctorEmptyState> : null}
+      {loading && !data ? <DoctorPanelLoading className="py-8" /> : null}
       {data ? <DashboardBody data={data} /> : null}
     </div>
   );

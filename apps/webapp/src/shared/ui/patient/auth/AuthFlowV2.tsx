@@ -75,6 +75,7 @@ import {
   startAuthentication,
   type PublicKeyCredentialRequestOptionsJSON,
 } from '@simplewebauthn/browser';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 const WEB_CHAT_ID_KEY = 'bersoncare_web_chat_id';
 
@@ -1310,11 +1311,8 @@ export function AuthFlowV2({
 
   if (step === 'entry_loading') {
     return (
-      <div
-        id="auth-flow-v2-entry-loading"
-        className={cn(authFlowShellClass, patientMutedTextClass, 'text-center')}
-      >
-        Загрузка…
+      <div id="auth-flow-v2-entry-loading" className={authFlowShellClass}>
+        <AppContentLoading className="py-6" />
       </div>
     );
   }

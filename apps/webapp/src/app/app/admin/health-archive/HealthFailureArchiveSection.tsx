@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { apiJson } from '@/shared/lib/apiJson';
 import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Card,
@@ -167,9 +168,7 @@ export function HealthFailureArchiveSection({
           />
         ) : null}
         {loading ? (
-          <p role="status" className="text-muted-foreground">
-            Загружаем архив…
-          </p>
+          <DoctorPanelLoading className="py-6" />
         ) : null}
 
         {!loading && !error && items.length === 0 ? (

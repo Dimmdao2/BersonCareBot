@@ -36,6 +36,7 @@ import {
   type CourseUsageSection,
 } from '../courseUsageSummaryText';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type TemplateOption = { id: string; title: string; status: string };
 
@@ -307,7 +308,7 @@ export function DoctorCourseEditForm({
       <section className="rounded-md border border-border/60 bg-card/20 p-3">
         <h2 className="text-sm font-semibold">Где используется курс</h2>
         {usageBusy ? (
-          <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+          <DoctorPanelLoading className="mt-1 py-4" />
         ) : usageLoadError ? (
           <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
         ) : usage ? (

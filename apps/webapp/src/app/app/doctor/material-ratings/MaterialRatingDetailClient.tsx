@@ -11,6 +11,7 @@ import type {
 } from '@/modules/material-rating/types';
 
 import { MaterialRatingDetailChart } from './MaterialRatingDetailChart';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 export type MaterialRatingDetailApiPayload = {
   iana: string;
@@ -151,7 +152,7 @@ export function MaterialRatingDetailClient({
       ) : null}
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {loading ? <p className="text-sm text-muted-foreground">Загрузка…</p> : null}
+      {loading ? <DoctorPanelLoading className="py-6" /> : null}
 
       {data ? (
         <>

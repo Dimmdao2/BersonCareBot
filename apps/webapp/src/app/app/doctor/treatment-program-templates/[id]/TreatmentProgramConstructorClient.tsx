@@ -130,6 +130,7 @@ export type {
   TreatmentProgramLibraryRow,
 } from '@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Props = {
   templateId: string;
@@ -1892,7 +1893,7 @@ export function TreatmentProgramConstructorClient({
         <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
           <h2 className="text-sm font-medium text-foreground">Где используется</h2>
           {usageBusy ? (
-            <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+            <DoctorPanelLoading className="mt-1 py-4" />
           ) : usageLoadError ? (
             <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
           ) : (

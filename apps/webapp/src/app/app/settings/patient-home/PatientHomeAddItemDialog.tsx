@@ -29,6 +29,7 @@ import {
   PATIENT_HOME_CMS_DEFAULT_RETURN_PATH,
 } from '@/modules/patient-home/patientHomeCmsReturnUrls';
 import { addPatientHomeItem, listPatientHomeCandidates } from './actions';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Candidate = {
   targetType: string;
@@ -138,7 +139,7 @@ export function PatientHomeAddItemDialog({
         />
         <div className="max-h-80 space-y-2 overflow-y-auto">
           {items.length === 0 && error === null && isPending ? (
-            <div className="text-sm text-muted-foreground">Загрузка списка…</div>
+            <DoctorPanelLoading className="py-6" />
           ) : null}
           {items.length > 0
             ? filtered.map((item) => (

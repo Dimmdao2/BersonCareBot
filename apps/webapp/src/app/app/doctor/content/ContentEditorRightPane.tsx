@@ -5,6 +5,7 @@ import type { ContentSectionRow } from '@/modules/content-sections/ports';
 import type { PublishedCourseOption } from './ContentForm';
 import { ContentForm } from './ContentForm';
 import { loadContentPageForInlineEdit } from './inlineEditorActions';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 // ---------------------------------------------------------------------------
 // Type for the loaded page record (matches ContentForm's `page` prop)
@@ -112,22 +113,7 @@ export function ContentEditorRightPane({
   }
 
   if (loading && !loadedPage) {
-    return (
-      <div
-        className="flex flex-col gap-4 px-6 py-6"
-        aria-busy="true"
-        aria-label="Загрузка редактора"
-      >
-        <div className="h-4 w-24 animate-pulse rounded bg-muted/50" />
-        <div className="h-10 w-full animate-pulse rounded-lg bg-muted/50" />
-        <div className="grid grid-cols-2 gap-4">
-          <div className="h-10 animate-pulse rounded-lg bg-muted/50" />
-          <div className="h-10 animate-pulse rounded-lg bg-muted/50" />
-        </div>
-        <div className="h-16 animate-pulse rounded-lg bg-muted/50" />
-        <div className="h-40 animate-pulse rounded-lg bg-muted/50" />
-      </div>
-    );
+    return <DoctorPanelLoading className="min-h-[200px] px-6 py-6" />;
   }
 
   if (!loadedPage) {

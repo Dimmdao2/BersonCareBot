@@ -14,7 +14,6 @@ import {
   patientHomeProgressValueClass,
   patientHomeProgressValueSuffixClass,
   patientHomeBlockBodySmClamp2Mt2Class,
-  patientHomeBlockBodySmClass,
 } from './patientHomeCardStyles';
 import { appLoginWithNextHref } from './patientHomeGuestNav';
 import { PatientHomeSafeImage } from './PatientHomeSafeImage';
@@ -24,6 +23,7 @@ import {
   resolvePatientHomeGoalsFlameState,
 } from './patientHomeGoalsFlame';
 import { cn } from '@/lib/utils';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 const PROGRESS_HINT = 'Сколько напоминаний в расписании, столько и занятий в Цели дня.';
 
@@ -119,13 +119,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
             {anonymousGuest ? (
               <p className={patientHomeBlockBodySmClamp2Mt2Class}>{guestCopy}</p>
             ) : !metrics ? (
-              <div className="mt-2 space-y-2" aria-busy="true">
-                <div className="h-9 min-h-[36px] w-24 animate-pulse rounded-lg bg-muted/80 sm:h-10 sm:min-h-[40px]" />
-                <div className="h-2 w-full overflow-hidden rounded-full bg-[#e5e7eb]">
-                  <div className="h-full w-1/3 rounded-full bg-muted/90" />
-                </div>
-                <p className={patientHomeBlockBodySmClass}>Загрузка прогресса…</p>
-              </div>
+              <AppContentLoading className="mt-2 min-h-[5.5rem]" />
             ) : (
               <>
                 <div className="mt-0.5 flex flex-row flex-nowrap items-start gap-x-3">

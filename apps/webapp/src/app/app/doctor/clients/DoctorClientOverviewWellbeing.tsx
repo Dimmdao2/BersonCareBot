@@ -7,7 +7,7 @@ import {
   doctorClientOverviewSecondaryCardClass,
   doctorClientSectionTitleClass,
 } from './doctorClientCardChrome';
-import { cn } from '@/lib/utils';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 const PatientWellbeingWeekComposedChart = lazy(
   () => import('@/modules/diaries/components/PatientWellbeingWeekComposedChart'),
@@ -122,9 +122,7 @@ export function DoctorClientOverviewWellbeing({ chartModel, displayTimeZone }: P
       </div>
       {!expanded ? <Sparkline model={chartModel} /> : null}
       {expanded ? (
-        <Suspense
-          fallback={<p className={cn('text-sm text-muted-foreground')}>Загрузка графика…</p>}
-        >
+        <Suspense fallback={<DoctorPanelLoading className="min-h-[220px]" />}>
           <div className="mt-1 h-[220px] w-full min-w-0">
             <PatientWellbeingWeekComposedChart model={chartModel} iana={displayTimeZone} />
           </div>

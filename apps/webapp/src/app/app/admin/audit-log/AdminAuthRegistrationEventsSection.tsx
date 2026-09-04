@@ -9,6 +9,7 @@ import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import {
   Select,
   SelectContent,
@@ -232,9 +233,7 @@ export function AdminAuthRegistrationEventsSection() {
             retrying={loading}
           />
         ) : loading && !data ? (
-          <p role="status" className="text-sm text-muted-foreground">
-            Загружаем события регистрации…
-          </p>
+          <DoctorPanelLoading className="py-6" />
         ) : !data?.items.length ? (
           <DoctorEmptyState size="xs">{emptyMessage}</DoctorEmptyState>
         ) : (

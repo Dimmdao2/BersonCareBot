@@ -13,6 +13,7 @@ import {
 import type { CommentTargetType, CommentType, EntityComment } from '@/modules/comments/types';
 import { COMMENT_TYPES } from '@/modules/comments/types';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 const COMMENT_TYPE_LABEL: Record<CommentType, string> = {
   template: 'Шаблон',
@@ -214,7 +215,7 @@ export function CommentBlock({
           Список
         </p>
         {loading ? (
-          <p className="text-sm text-muted-foreground">Загрузка…</p>
+          <AppContentLoading className="py-6" />
         ) : items.length === 0 ? (
           <p className="text-sm text-muted-foreground">Пока нет комментариев.</p>
         ) : (

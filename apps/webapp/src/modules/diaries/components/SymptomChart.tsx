@@ -8,10 +8,11 @@ import { cn } from '@/lib/utils';
 import { routePaths } from '@/app-layer/routes/paths';
 import { DIARY_SYMPTOM_ENTRY_SAVED_EVENT } from '@/modules/diaries/symptomDiaryClientEvents';
 import { DiaryStatsPeriodBar, type DiaryStatsPeriod } from './DiaryStatsPeriodBar';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 const RechartsSymptom = dynamic(() => import('./SymptomChartRecharts'), {
   ssr: false,
-  loading: () => <div className="bg-muted/50 h-[260px] w-full animate-pulse rounded-md" />,
+  loading: () => <AppContentLoading className="min-h-[260px]" />,
 });
 
 export type SymptomChartTrackingOption = { id: string; symptomTitle: string };
@@ -144,9 +145,7 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
       </div>
 
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      {showInitialSkeleton ? (
-        <div className="bg-muted/50 h-[260px] w-full animate-pulse rounded-md" />
-      ) : null}
+      {showInitialSkeleton ? <AppContentLoading className="min-h-[260px]" /> : null}
       {!showInitialSkeleton && points.length === 0 && !error ? (
         <p className="text-muted-foreground text-sm">Нет записей за выбранный период.</p>
       ) : null}

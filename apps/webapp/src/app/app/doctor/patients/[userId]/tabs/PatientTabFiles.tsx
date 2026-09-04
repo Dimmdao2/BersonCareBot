@@ -44,6 +44,7 @@ import {
   doctorEmptyStateClass,
   doctorMetaTextClass,
 } from '@/shared/ui/doctor/doctorVisual';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 // ---------------------------------------------------------------------------
 // Types — match API response
@@ -371,9 +372,7 @@ function VisitSelector({
             <span className="text-xs font-semibold text-foreground">Выберите визит</span>
           </div>
           {loadingVisits ? (
-            <p className="px-3 py-3 text-xs text-muted-foreground animate-pulse">
-              Загрузка визитов…
-            </p>
+            <DoctorPanelLoading className="px-3 py-3" />
           ) : visits.length === 0 ? (
             <p className="px-3 py-3 text-xs text-muted-foreground">Визитов пока нет</p>
           ) : (
@@ -686,7 +685,7 @@ export function PatientTabFiles({
           only this list scrolls, the card/page above never grows past its allotted space. */}
       <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border/60">
         {loading ? (
-          <p className="px-3 py-4 text-sm text-muted-foreground animate-pulse">Загрузка файлов…</p>
+          <DoctorPanelLoading className="h-full px-3 py-4" />
         ) : error ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-3 text-center">
             <p className="text-sm text-muted-foreground">Не удалось загрузить файлы.</p>

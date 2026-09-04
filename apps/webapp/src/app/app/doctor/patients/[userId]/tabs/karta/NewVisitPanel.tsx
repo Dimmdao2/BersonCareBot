@@ -49,6 +49,7 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { VisitCatalogTextarea } from './VisitCatalogTextarea';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -297,9 +298,7 @@ function DiagnosisAutocomplete({
       </div>
       {showDropdown && (
         <div className="mx-[19px] overflow-hidden rounded-b-lg border border-t-0 border-primary bg-background text-sm">
-          {loading && (
-            <div className="px-2.5 py-1.5 text-xs text-muted-foreground animate-pulse">Поиск…</div>
-          )}
+          {loading && <DoctorPanelLoading className="px-2.5 py-2" />}
           {!loading &&
             suggestions.map((s, idx) => (
               <Button

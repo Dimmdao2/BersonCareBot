@@ -25,6 +25,7 @@ import {
 } from './doctorClientCardChrome';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { cn } from '@/lib/utils';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Props = {
   userId: string;
@@ -112,10 +113,8 @@ export function DoctorProgramOverviewPanel({
         </div>
 
         {isLoading ? (
-          <div className={cn(doctorClientStackedCardClass, 'space-y-2')}>
-            <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
-            <div className="h-16 animate-pulse rounded bg-muted" />
-            <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
+          <div className={doctorClientStackedCardClass}>
+            <DoctorPanelLoading className="min-h-24" />
           </div>
         ) : (
           <div className={doctorClientStackedCardClass}>

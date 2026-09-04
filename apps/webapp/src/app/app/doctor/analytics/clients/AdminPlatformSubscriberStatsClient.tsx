@@ -10,6 +10,7 @@ import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSect
 import { AdminSubscriberLineChart } from './AdminSubscriberLineChart';
 import { buildAdminStatsQuery, type AnalyticsPeriodValue } from './analyticsPeriodUi';
 import { DoctorStatCard } from './DoctorStatCard';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Props = {
   period: AnalyticsPeriodValue;
@@ -64,11 +65,7 @@ export function AdminPlatformSubscriberStatsClient({ period, ready, onMetricClic
         </p>
       ) : null}
 
-      {loading && !data ? (
-        <p className="text-muted-foreground text-sm" aria-busy="true">
-          Загрузка…
-        </p>
-      ) : null}
+      {loading && !data ? <DoctorPanelLoading className="py-6" /> : null}
 
       {data ? (
         <>

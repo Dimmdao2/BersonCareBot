@@ -15,6 +15,7 @@ import type {
 import type { AnalyticsPeriodValue } from '@/app/app/doctor/analytics/clients/analyticsPeriodUi';
 import { buildAdminStatsQuery } from '@/app/app/doctor/analytics/clients/analyticsPeriodUi';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Props = {
   open: boolean;
@@ -180,7 +181,7 @@ export function MetricAccountsDialog({
             ))}
           </ul>
           <div ref={sentinelRef} className="h-3 w-full" />
-          {loading ? <p className="pt-2 text-xs text-muted-foreground">Загрузка…</p> : null}
+          {loading ? <DoctorPanelLoading className="pt-2" /> : null}
           {!hasMore && items.length > 0 ? (
             <p className="pt-2 text-xs text-muted-foreground">Конец списка.</p>
           ) : null}

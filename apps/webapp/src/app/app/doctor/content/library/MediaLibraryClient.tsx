@@ -61,6 +61,7 @@ import {
 import type { MediaFolderRecord } from '@/modules/media/types';
 import { libraryMediaRowToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type MediaKindFilter = 'all' | 'image' | 'video' | 'audio' | 'file';
 type SortBy = 'date' | 'size' | 'type' | 'name';
@@ -367,7 +368,7 @@ function MediaFolderTreePane({
         </div>
         <Separator className="my-2" />
         {!foldersLoaded ? (
-          <p className="px-2 text-xs text-muted-foreground">Загрузка папок…</p>
+          <DoctorPanelLoading className="px-2 py-3" />
         ) : rootFolders.length === 0 ? (
           <p className="px-2 text-xs text-muted-foreground">Папок пока нет.</p>
         ) : (
@@ -1648,7 +1649,7 @@ export function MediaLibraryClient({
               </div>
             </div>
           ) : null}
-          {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p> : null}
+          {loading ? <DoctorPanelLoading className="py-6" /> : null}
 
           {!loading &&
             (viewMode === 'media' ? (

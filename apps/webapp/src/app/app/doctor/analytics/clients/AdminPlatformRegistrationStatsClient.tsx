@@ -10,6 +10,7 @@ import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
 import { AdminRegistrationLineChart } from './AdminRegistrationLineChart';
 import { buildAdminStatsQuery, type AnalyticsPeriodValue } from './analyticsPeriodUi';
 import { DoctorStatCard } from './DoctorStatCard';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 function formatRegistrationError(code: string): string {
   if (code === 'range_too_short') return 'Период не короче 7 дней.';
@@ -69,11 +70,7 @@ export function AdminPlatformRegistrationStatsClient({ period, ready, onMetricCl
         </p>
       ) : null}
 
-      {loading && !data ? (
-        <p className="text-muted-foreground text-sm" aria-busy="true">
-          Загрузка…
-        </p>
-      ) : null}
+      {loading && !data ? <DoctorPanelLoading className="py-6" /> : null}
 
       {data ? (
         <>

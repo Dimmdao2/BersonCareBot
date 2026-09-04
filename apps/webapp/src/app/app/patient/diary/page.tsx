@@ -19,7 +19,7 @@ import { PATIENT_DIARY_UI_LABEL } from '@/app-layer/routes/navigation';
 import { PatientPlanTodayRemindersCard } from '@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard';
 import { DiarySectionGuestAccess } from '@/shared/ui/patient/guestAccess';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
-import { PatientLoadingPatternBody } from '@/shared/ui/patient/patientVisual';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 import { buildDiaryPlanReminderStrip } from '@/modules/patient-diary/buildDiaryPlanReminderStrip';
 import { resolvePatientCanViewAuthOnlyContent } from '@/app-layer/platform-access';
 import { PatientDiaryAuthenticatedMain } from './PatientDiaryAuthenticatedMain';
@@ -65,7 +65,7 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
       backLabel="Меню"
       patientShellAboveTitleSlot={<PatientPlanTodayRemindersCard {...planReminderStrip} />}
     >
-      <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
+      <Suspense fallback={<AppContentLoading className="py-10" />}>
         <PatientDiaryAuthenticatedMain
           userId={s.user.userId}
           organizationId={patientOrganization.organizationId}

@@ -475,9 +475,7 @@ export function PatientTabRecords({
             <span>Будущих {upcomingList.length}</span>
           </DoctorModalSummaryBar>
           {isLoading ? (
-            <p className="animate-pulse px-4 py-2 text-sm text-muted-foreground">
-              Загрузка записей…
-            </p>
+            <DoctorPanelLoading className="px-4 py-4" />
           ) : fetchError ? (
             <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить записи.</p>
           ) : displayList.length === 0 ? (
@@ -572,7 +570,7 @@ export function PatientTabRecords({
           {activePackages.length === 0 ? (
             <DoctorEmptyState>Активного абонемента нет</DoctorEmptyState>
           ) : membershipSessions === null ? (
-            <DoctorPanelLoading className="min-h-32" label="Загрузка сеансов" />
+            <DoctorPanelLoading className="min-h-32" />
           ) : membershipSessionsError ? (
             <p className="px-4 py-3 text-sm text-destructive">Не удалось загрузить сеансы.</p>
           ) : membershipSessions.length === 0 ? (
@@ -725,9 +723,7 @@ export function PatientTabRecords({
           </div>
 
           <div className="flex flex-col gap-1.5 max-h-[420px] overflow-y-auto pr-0.5">
-            {isLoading && (
-              <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка записей…</p>
-            )}
+            {isLoading && <DoctorPanelLoading className="py-4" />}
             {fetchError && (
               <p className="text-xs text-destructive py-1">
                 Не удалось загрузить записи. Это сбой загрузки, а не отсутствие визитов.
@@ -1146,7 +1142,7 @@ function MembershipPanel({
       </div>
 
       {packages === null && !error ? (
-        <p className={cn(doctorSectionSubtitleClass, 'text-xs')}>Загрузка…</p>
+        <DoctorPanelLoading className="py-4" />
       ) : error ? (
         <p className={cn(doctorSectionSubtitleClass, 'text-xs')}>
           Не удалось загрузить абонементы.
@@ -1491,9 +1487,7 @@ function PaymentsPanel({
         )}
       </div>
 
-      {loading && (
-        <p className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>Загрузка платежей…</p>
-      )}
+      {loading && <DoctorPanelLoading className="py-4" />}
 
       {unavailable && !loading && (
         <div className="rounded-lg border border-border bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">

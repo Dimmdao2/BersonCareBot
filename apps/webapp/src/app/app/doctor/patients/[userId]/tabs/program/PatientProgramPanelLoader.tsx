@@ -15,6 +15,7 @@
 import { useEffect, useState } from 'react';
 import { PatientTreatmentProgramsPanel } from '@/app/app/doctor/clients/PatientTreatmentProgramsPanel';
 import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type TemplateOption = { id: string; title: string };
 
@@ -52,7 +53,7 @@ export function PatientProgramPanelLoader({ userId, initialInstances }: Props) {
   }, []);
 
   if (templates === null) {
-    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+    return <DoctorPanelLoading className="py-6" />;
   }
 
   return (

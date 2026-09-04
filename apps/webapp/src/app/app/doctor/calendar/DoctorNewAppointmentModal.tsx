@@ -10,6 +10,7 @@ import type {
 } from '@/modules/doctor-schedule/scope';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import type { CalendarPatientOption } from './DoctorCalendarPatientSearch';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 const API_BASE = '/api/doctor/booking-engine';
 
@@ -139,7 +140,7 @@ export function DoctorNewAppointmentModal({
           onChanged={handleChanged}
         />
       ) : (
-        <div className="h-32 animate-pulse rounded-lg bg-muted/40" aria-label="Загрузка" />
+        <DoctorPanelLoading className="min-h-32" />
       )}
     </DoctorModal>
   );

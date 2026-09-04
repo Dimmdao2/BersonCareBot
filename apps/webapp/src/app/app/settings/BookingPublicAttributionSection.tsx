@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { apiJson } from '@/shared/lib/apiJson';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Row = {
   id: string;
@@ -72,7 +73,7 @@ function BookingPublicAttributionContent() {
           Обновить
         </Button>
       </div>
-      {loading ? <p className="mt-3 text-sm text-muted-foreground">Загрузка…</p> : null}
+      {loading ? <DoctorPanelLoading className="mt-3 py-4" /> : null}
       {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
       {!loading && !error && items.length === 0 ? (
         <p className="mt-3 text-sm text-muted-foreground">Нет записей с атрибуцией.</p>

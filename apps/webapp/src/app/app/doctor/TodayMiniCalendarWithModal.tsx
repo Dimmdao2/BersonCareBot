@@ -19,6 +19,7 @@ import type {
 } from '@/modules/doctor-schedule/scope';
 import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
 import { cn } from '@/lib/utils';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 const API_BASE = '/api/doctor/booking-engine';
 
@@ -69,7 +70,7 @@ function TodayMiniCalendarShellFallback({
           ))}
         </ul>
       )}
-      <div className="mt-2 h-48 animate-pulse rounded-lg border border-border bg-muted/30" />
+      <DoctorPanelLoading className="mt-2 min-h-48" />
     </DoctorSection>
   );
 }

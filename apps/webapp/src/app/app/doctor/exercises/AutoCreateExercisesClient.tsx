@@ -40,6 +40,7 @@ import {
   exerciseMediaTypeFromPick,
   exerciseTitleFromLibraryItem,
 } from './exerciseMediaFromLibrary';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 function folderPathLabel(folder: MediaFolderRecord, all: MediaFolderRecord[]): string {
   const byId = new Map(all.map((f) => [f.id, f]));
@@ -486,7 +487,7 @@ export function AutoCreateExercisesClient() {
 
           <div className="mt-3">
             {listError ? <p className="text-sm text-destructive">{listError}</p> : null}
-            {listLoading ? <p className="text-sm text-muted-foreground">Загрузка...</p> : null}
+            {listLoading ? <DoctorPanelLoading className="py-6" /> : null}
             {!listLoading && !listError && displayedItems.length === 0 && !serverSearchPending ? (
               <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">
                 Нет видео
