@@ -25,6 +25,7 @@ import {
   type PatientPlanPassageStats,
 } from './patient-plan-passage-stats';
 import { logger, serializeError } from '@/infra/logging/logger';
+import { UserFacingError } from '@/shared/errors/userFacingError';
 
 export type { PatientPlanPassageStats } from './patient-plan-passage-stats';
 
@@ -151,15 +152,16 @@ export function createTreatmentProgramPatientActionService(deps: {
     stageItemId: string,
   ): Promise<{ item: TreatmentProgramInstanceStageItemView }> {
     const detail = await deps.instances.getInstanceForPatient(patientUserId, instanceId);
-    if (!detail) throw new Error('Программа не найдена');
+    if (!detail) throw new UserFacingError('Программа не найдена');
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === stageItemId);
-    if (!item) throw new Error('Элемент не найден');
+    if (!item) throw new UserFacingError('Элемент не найден');
     const stage = detail.stages.find((s) => s.id === item.stageId);
-    if (!stage) throw new Error('Этап не найден');
+    if (!stage) throw new UserFacingError('Этап не найден');
     if (!isStageZero(stage) && (stage.status === 'locked' || stage.status === 'skipped')) {
-      throw new Error('Этап недоступен');
+      throw new UserFacingError('Этап недоступен');
     }
-    if (!isProgramChecklistItem(item)) throw new Error('Элемент недоступен для чек-листа');
+    if (!isProgramChecklistItem(item))
+      throw new UserFacingError('Элемент недоступен для чек-листа');
     return { item };
   }
 
@@ -197,7 +199,7 @@ export function createTreatmentProgramPatientActionService(deps: {
       assertUuid(patientUserId);
       assertUuid(instanceId);
       const detail = await deps.instances.getInstanceForPatient(patientUserId, instanceId);
-      if (!detail) throw new Error('Программа не найдена');
+      if (!detail) throw new UserFacingError('Программа не найдена');
       if (detail.status !== 'active') {
         return {
           doneItemIds: [],
@@ -247,13 +249,13 @@ export function createTreatmentProgramPatientActionService(deps: {
       assertUuid(patientUserId);
       assertUuid(instanceId);
       const detail = await deps.instances.getInstanceForPatient(patientUserId, instanceId);
-      if (!detail) throw new Error('Программа не найдена');
+      if (!detail) throw new UserFacingError('Программа не найдена');
 
       const appDefault = await deps.getAppDefaultTimezoneIana();
       const personal = await getPersonalTz(patientUserId);
       const iana = resolveCalendarDayIanaForPatient(personal, appDefault);
       const zoneProbe = DateTime.fromJSDate(nowFn()).setZone(iana);
-      if (!zoneProbe.isValid) throw new Error('Некорректная временная зона');
+      if (!zoneProbe.isValid) throw new UserFacingError('Некорректная временная зона');
 
       const endAnchorIso = detail.status === 'completed' ? detail.updatedAt : nowFn().toISOString();
       const instanceWindow = resolvePatientPlanPassageWindowUtc({
@@ -368,7 +370,7 @@ export function createTreatmentProgramPatientActionService(deps: {
       const iana = resolveCalendarDayIanaForPatient(personal, appDefault);
       const nowLocal = DateTime.fromJSDate(nowFn()).setZone(iana);
       if (!nowLocal.isValid) {
-        throw new Error('Некорректная временная зона');
+        throw new UserFacingError('Некорректная временная зона');
       }
       const daysClamped = Math.min(Math.max(Math.trunc(days), 1), 400);
       const startLocal = nowLocal.startOf('day').minus({ days: daysClamped - 1 });
@@ -436,30 +438,30 @@ export function createTreatmentProgramPatientActionService(deps: {
       assertUuid(input.instanceId);
       assertUuid(input.stageItemId);
       const noteTrim = input.note.trim();
-      if (!noteTrim) throw new Error('Введите текст наблюдения');
+      if (!noteTrim) throw new UserFacingError('Введите текст наблюдения');
       const detail = await deps.instances.getInstanceForPatient(
         input.patientUserId,
         input.instanceId,
       );
-      if (!detail) throw new Error('Программа не найдена');
+      if (!detail) throw new UserFacingError('Программа не найдена');
       const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
-      if (!item) throw new Error('Элемент не найден');
+      if (!item) throw new UserFacingError('Элемент не найден');
       const stage = detail.stages.find((s) => s.id === item.stageId);
-      if (!stage) throw new Error('Этап не найден');
+      if (!stage) throw new UserFacingError('Этап не найден');
       if (!isStageZero(stage) && (stage.status === 'locked' || stage.status === 'skipped')) {
-        throw new Error('Этап недоступен');
+        throw new UserFacingError('Этап недоступен');
       }
       if (!isInstanceStageItemActiveForPatient(item)) {
-        throw new Error('Элемент отключён');
+        throw new UserFacingError('Элемент отключён');
       }
       if (detail.assignmentSource === 'promo') {
-        throw new Error('Комментарии недоступны для промо-программы');
+        throw new UserFacingError('Комментарии недоступны для промо-программы');
       }
       if (detail.assignmentSource === 'course') {
-        throw new Error('Комментарии недоступны для программы курса');
+        throw new UserFacingError('Комментарии недоступны для программы курса');
       }
       if (item.itemType === 'clinical_test') {
-        throw new Error('Для клинического теста используйте запись результатов');
+        throw new UserFacingError('Для клинического теста используйте запись результатов');
       }
       await deps.actionLog.insertAction({
         instanceId: input.instanceId,
@@ -531,25 +533,25 @@ export function createTreatmentProgramPatientActionService(deps: {
         input.patientUserId,
         input.instanceId,
       );
-      if (!detail) throw new Error('Программа не найдена');
+      if (!detail) throw new UserFacingError('Программа не найдена');
       const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
-      if (!item) throw new Error('Элемент не найден');
+      if (!item) throw new UserFacingError('Элемент не найден');
       const stage = detail.stages.find((s) => s.id === item.stageId);
-      if (!stage) throw new Error('Этап не найден');
+      if (!stage) throw new UserFacingError('Этап не найден');
       if (!isStageZero(stage) && (stage.status === 'locked' || stage.status === 'skipped')) {
-        throw new Error('Этап недоступен');
+        throw new UserFacingError('Этап недоступен');
       }
       if (!isInstanceStageItemActiveForPatient(item)) {
-        throw new Error('Элемент отключён');
+        throw new UserFacingError('Элемент отключён');
       }
       if (detail.assignmentSource === 'promo') {
-        throw new Error('Комментарии недоступны для промо-программы');
+        throw new UserFacingError('Комментарии недоступны для промо-программы');
       }
       if (detail.assignmentSource === 'course') {
-        throw new Error('Комментарии недоступны для программы курса');
+        throw new UserFacingError('Комментарии недоступны для программы курса');
       }
       if (item.itemType === 'clinical_test') {
-        throw new Error('Для клинического теста используйте запись результатов');
+        throw new UserFacingError('Для клинического теста используйте запись результатов');
       }
       await deps.actionLog.insertAction({
         instanceId: input.instanceId,

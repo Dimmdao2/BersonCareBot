@@ -6,6 +6,7 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import { instanceEditorBatchBodySchema } from '@/modules/treatment-program/instanceEditorBatchSchema';
 import { revalidatePatientTreatmentProgramUi } from '@/app-layer/cache/revalidatePatientTreatmentProgramUi';
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from '@/modules/treatment-program/doctorInstanceRouteErrorStatus';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 export async function POST(request: Request, context: { params: Promise<{ instanceId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
@@ -44,8 +45,10 @@ export async function POST(request: Request, context: { params: Promise<{ instan
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return respondWithSafeApiError('api/doctor/treatment-program-instances/editor-batch', e, {
+      fallbackCode: 'editor_batch_failed',
+      fallbackStatus: 500,
+      domainStatus: doctorTreatmentProgramInstanceRouteErrorStatus,
+    });
   }
 }

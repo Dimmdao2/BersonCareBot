@@ -32,9 +32,7 @@ export default async function DoctorContentPage() {
   const session = workspace.session;
   const deps = buildAppDeps();
   const canManageCms = (await getMechanicMutationAvailability(workspace, 'cms_pages')).available;
-  const canManageWarmups = (
-    await getMechanicMutationAvailability(workspace, 'warmups')
-  ).available;
+  const canManageWarmups = (await getMechanicMutationAvailability(workspace, 'warmups')).available;
   const coursesEnabled =
     cmsVisibility.directUrl && (await requireEntitlementForReadAction(workspace, 'courses')).ok;
   const patientHomeTodayEnabled = patientHomeTodayVisibility.directUrl;
@@ -83,8 +81,6 @@ export default async function DoctorContentPage() {
   const visibleSectionSlugs = new Set(sections.map((section) => section.slug));
   pages = pages.filter((page) => visibleSectionSlugs.has(page.section));
 
-  const isDev = process.env.NODE_ENV === 'development';
-
   // Build hub sections (include help section, exclude it from article nav in ContentNav)
   const hubSections: ContentHubSection[] = sections.map((s) => ({
     slug: s.slug,
@@ -131,12 +127,7 @@ export default async function DoctorContentPage() {
         pagesBySectionSlug={pagesBySectionSlug}
         ratingsById={ratingsById}
         publishedCourses={publishedCourses}
-        loadError={
-          loadError
-            ? { digest: loadError.digest, name: loadError.name, message: loadError.message }
-            : null
-        }
-        isDev={isDev}
+        loadError={loadError ? { digest: loadError.digest } : null}
       />
     </DoctorAppShell>
   );

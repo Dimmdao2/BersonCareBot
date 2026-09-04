@@ -326,7 +326,6 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
           <DataLoadFailureNotice
             title="Не удалось загрузить журнал операций."
             digest="AUDIT-LOG"
-            devMessage={loadError}
             onRetry={() => void load()}
             retrying={loading}
           />

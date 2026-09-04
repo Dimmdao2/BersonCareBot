@@ -4,13 +4,17 @@ import { logger, serializeError } from './logger';
 export type ServerRuntimeLogResult = {
   /** Короткий id для ссылки пользователем в поддержку; дублируется в JSON-логе. */
   digest: string;
-  name: string;
-  message: string;
 };
 
 /**
  * Структурированная запись через pino (journald/systemd на хосте подхватывает stderr).
  * Не логируйте секреты и полные connection string.
+ *
+ * Возвращается ТОЛЬКО `digest`. Раньше функция возвращала ещё `name` и сырой `message`, и
+ * вызывающие страницы прокидывали `${name}: ${message}` в клиентский компонент — то есть текст
+ * исключения (SQL драйвера вместе с параметрами) уезжал в RSC-payload и в DOM. Сузить тип —
+ * единственный способ, при котором такой вызов перестаёт компилироваться, а не перестаёт
+ * нравиться ревьюеру.
  */
 export function logServerRuntimeError(
   scope: string,
@@ -18,22 +22,18 @@ export function logServerRuntimeError(
   extra?: Record<string, string | number | boolean | undefined>,
 ): ServerRuntimeLogResult {
   const digest = randomBytes(4).toString('hex');
-  const name = err instanceof Error ? err.name : 'UnknownError';
-  const message = err instanceof Error ? err.message : String(err);
 
   logger.error(
     {
       scope,
       digest,
-      errName: name,
-      // Raw `err.message` never goes into the log payload verbatim (same safe-by-construction
-      // contract as `serializeError`/L1) — it is only returned to the caller below for a
-      // dev-gated UI display, never logged.
+      // `serializeError` — закрытая value-free форма `{type, code?, class?}` (LOG-01/L1):
+      // ни `message`, ни `stack`, ни `cause` в payload не попадают.
       err: serializeError(err),
       ...extra,
     },
     'server_runtime_error',
   );
 
-  return { digest, name, message };
+  return { digest };
 }

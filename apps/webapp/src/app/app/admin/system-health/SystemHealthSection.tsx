@@ -930,7 +930,6 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
             <DataLoadFailureNotice
               title="Не удалось загрузить состояние системы."
               digest="SYSTEM-HEALTH"
-              devMessage={error}
               onRetry={() => void load()}
               retrying={loading}
             />
@@ -2079,7 +2078,6 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
                 }
               />
             </HealthAccordionItem>
-
           </div>
         </CardContent>
       </Card>

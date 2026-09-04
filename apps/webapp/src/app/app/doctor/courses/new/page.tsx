@@ -47,8 +47,6 @@ export default async function DoctorCoursesNewPage({
     loadError = logServerRuntimeError('app/doctor/courses/new', err);
   }
 
-  const isDev = process.env.NODE_ENV === 'development';
-
   return (
     <DoctorAppShell
       title="Новый курс (черновик)"
@@ -57,12 +55,7 @@ export default async function DoctorCoursesNewPage({
       backLabel="Назад"
     >
       <section className={doctorCatalogEditorSectionClass}>
-        {loadError ? (
-          <DataLoadFailureNotice
-            digest={loadError.digest}
-            devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
-          />
-        ) : null}
+        {loadError ? <DataLoadFailureNotice digest={loadError.digest} /> : null}
         <DoctorCourseDraftCreateForm templates={templates} returnContext={returnContext} />
       </section>
     </DoctorAppShell>

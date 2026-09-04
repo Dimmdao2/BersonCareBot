@@ -19,6 +19,7 @@ import type {
 import { EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT } from '@/modules/lfk-templates/types';
 import { sanitizeLfkTemplatesListPreserveQuery } from './lfkTemplatesListPreserveQuery';
 import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { safeActionErrorText } from '@/app-layer/errors/safeUserError';
 
 const BASE = '/app/doctor/lfk-templates';
 
@@ -149,7 +150,10 @@ export async function createLfkTemplateDraftFromEditor(payload: {
     revalidatePath(`${BASE}/${created.id}`);
     return { ok: true, id: created.id };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Не удалось создать черновик' };
+    return {
+      ok: false,
+      error: safeActionErrorText('app/doctor/lfk-templates', e, 'Не удалось создать черновик'),
+    };
   }
 }
 
@@ -190,7 +194,10 @@ export async function persistLfkTemplateDraft(payload: {
     revalidatePath(`${BASE}/${payload.templateId}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Не удалось сохранить' };
+    return {
+      ok: false,
+      error: safeActionErrorText('app/doctor/lfk-templates', e, 'Не удалось сохранить'),
+    };
   }
 }
 
@@ -208,7 +215,10 @@ export async function publishLfkTemplateAction(
     revalidatePath(`${BASE}/${templateId}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Не удалось опубликовать' };
+    return {
+      ok: false,
+      error: safeActionErrorText('app/doctor/lfk-templates', e, 'Не удалось опубликовать'),
+    };
   }
 }
 

@@ -13,6 +13,7 @@ import type {
   RecommendationUsageSnapshot,
 } from '@/modules/recommendations/types';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
+import { safeActionErrorText } from '@/app-layer/errors/safeUserError';
 
 export type SaveRecommendationState = { ok: boolean; error?: string };
 
@@ -29,8 +30,7 @@ export type ArchiveRecommendationCoreResult =
 export type UnarchiveRecommendationState = { ok: true } | { ok: false; error: string };
 
 export type UnarchiveRecommendationCoreResult =
-  | { kind: 'unarchived'; id: string }
-  | { kind: 'invalid'; error: string };
+  { kind: 'unarchived'; id: string } | { kind: 'invalid'; error: string };
 
 function parseAcknowledgeUsageWarning(fd: FormData): boolean {
   const v = fd.get('acknowledgeUsageWarning');
@@ -190,7 +190,10 @@ export async function saveRecommendationCore(
     );
     return { ok: true, recommendationId: row.id, wasUpdate: false };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Ошибка сохранения' };
+    return {
+      ok: false,
+      error: safeActionErrorText('app/doctor/recommendations', e, 'Ошибка сохранения'),
+    };
   }
 }
 

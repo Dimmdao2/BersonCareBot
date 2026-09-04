@@ -52,8 +52,7 @@ export type ContentHubShellProps = {
   ratingsById?: Record<string, ContentRatingSummary>;
   /** Published courses for ContentForm's "Связан с курсом" select. */
   publishedCourses: PublishedCourseOption[];
-  loadError?: { digest: string; name: string; message: string } | null;
-  isDev?: boolean;
+  loadError?: { digest: string } | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -283,7 +282,6 @@ export function ContentHubShell({
   ratingsById,
   publishedCourses,
   loadError,
-  isDev,
 }: ContentHubShellProps) {
   const articleSectionEntries: ContentNavSectionEntry[] = useMemo(
     () =>
@@ -398,12 +396,7 @@ export function ContentHubShell({
 
   const renderRightPanel = () => {
     if (loadError) {
-      return (
-        <DataLoadFailureNotice
-          digest={loadError.digest}
-          devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
-        />
-      );
+      return <DataLoadFailureNotice digest={loadError.digest} />;
     }
 
     if (creatingSection) {

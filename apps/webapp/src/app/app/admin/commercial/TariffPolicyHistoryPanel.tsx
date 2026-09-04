@@ -1,7 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import type { AccessLifecyclePolicy } from '@/modules/org-entitlements/types';
 import { apiJson } from '@/shared/lib/apiJson';
@@ -80,7 +84,6 @@ export function TariffPolicyHistoryPanel({ displayTimeZone }: { displayTimeZone:
         <DataLoadFailureNotice
           title="Не удалось загрузить журнал изменений."
           digest="TARIFF-POLICY-HISTORY"
-          devMessage={error}
           onRetry={() => void load()}
           retrying={loading}
         />
