@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -21,12 +22,11 @@ export function AppParametersSection({
 }: AppParametersSectionProps) {
   const [support, setSupport] = useState(supportContactUrl);
   const [timezone, setTimezone] = useState(appDisplayTimezone);
-  const [saved, setSaved] = useState(false);
+  /** Только предзапросная валидация полей; исход сохранения уходит во всплывающее уведомление. */
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleSave() {
-    setSaved(false);
     setError(null);
     startTransition(async () => {
       try {
@@ -45,12 +45,12 @@ export function AppParametersSection({
           patchAdminSetting('app_display_timezone', tzRaw),
         ]);
         if (results.some((r) => !r)) {
-          setError('Не удалось сохранить часть настроек');
+          toast.error('Не удалось сохранить часть настроек');
           return;
         }
-        setSaved(true);
+        toast.success('Сохранено');
       } catch {
-        setError('Ошибка при сохранении');
+        toast.error('Ошибка при сохранении');
       }
     });
   }
@@ -105,7 +105,6 @@ export function AppParametersSection({
           <Button variant="outline" onClick={handleSave} disabled={isPending}>
             {isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
-          {saved && <span className="text-sm text-green-600">Сохранено</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}
         </div>
       </CardContent>

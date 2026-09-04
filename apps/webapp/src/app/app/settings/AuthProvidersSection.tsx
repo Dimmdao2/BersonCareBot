@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -89,12 +90,11 @@ export function AuthProvidersSection({
   const [aKeyId, setAKeyId] = useState(appleOauthKeyId);
   const [aPem, setAPem] = useState(appleOauthPrivateKey);
   const [aRedirect, setARedirect] = useState(appleOauthRedirectUri);
-  const [saved, setSaved] = useState(false);
+  /** Только предзапросная валидация полей; исход сохранения уходит во всплывающее уведомление. */
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleSave() {
-    setSaved(false);
     setError(null);
     startTransition(async () => {
       try {
@@ -166,13 +166,13 @@ export function AuthProvidersSection({
         }
         const results = await Promise.all(patches);
         if (results.some((r) => !r)) {
-          setError('Не удалось сохранить часть настроек');
+          toast.error('Не удалось сохранить часть настроек');
           return;
         }
         setVkIdClientSecret('');
-        setSaved(true);
+        toast.success('Сохранено');
       } catch {
-        setError('Ошибка при сохранении');
+        toast.error('Ошибка при сохранении');
       }
     });
   }
@@ -536,7 +536,6 @@ export function AuthProvidersSection({
             <Button variant="outline" onClick={handleSave} disabled={isPending}>
               {isPending ? 'Сохранение…' : 'Сохранить'}
             </Button>
-            {saved && <span className="text-sm text-green-600">Сохранено</span>}
             {error && <span className="text-sm text-destructive">{error}</span>}
           </div>
         </CardContent>

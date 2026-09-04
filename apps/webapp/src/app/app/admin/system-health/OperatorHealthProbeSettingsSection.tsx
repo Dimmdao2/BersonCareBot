@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { apiJson } from '@/shared/lib/apiJson';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
@@ -155,8 +156,8 @@ export function OperatorHealthProbeSettingsSection() {
   const [config, setConfig] = useState<Config>(defaults);
   const [imap, setImap] = useState<Imap>(emptyImap);
   const [password, setPassword] = useState('');
+  /** Только отказ первичного чтения и валидация поля; исход действий уходит во всплывающее уведомление. */
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   // Owner 27.07: «ЗНАЧЕНИЕ ПО УМОЛЧАНИЮ 2 часа» — the field opens pre-filled, the cap (24 h) is separate.
@@ -193,8 +194,6 @@ export function OperatorHealthProbeSettingsSection() {
 
   async function saveProbes() {
     setBusy(true);
-    setError(null);
-    setSaved(null);
     try {
       await apiJson('/api/admin/settings', {
         method: 'PATCH',
@@ -202,9 +201,9 @@ export function OperatorHealthProbeSettingsSection() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: 'operator_health_probe_config', value: { value: config } }),
       });
-      setSaved('Настройки проб сохранены.');
+      toast.success('Настройки проб сохранены.');
     } catch (e) {
-      setError(
+      toast.error(
         `Настройки проб не сохранены: ${e instanceof Error ? e.message : 'проверьте значения и повторите'}`,
       );
     } finally {
@@ -214,8 +213,6 @@ export function OperatorHealthProbeSettingsSection() {
 
   async function resetProbes() {
     setBusy(true);
-    setError(null);
-    setSaved(null);
     try {
       await apiJson('/api/admin/settings', {
         method: 'DELETE',
@@ -226,9 +223,9 @@ export function OperatorHealthProbeSettingsSection() {
       setConfig(defaults);
       setQuietAmount(String(OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_DURATION_MS / 3_600_000));
       setResetConfirmOpen(false);
-      setSaved('Сброшено: снова действуют значения по умолчанию из кода.');
+      toast.success('Сброшено: снова действуют значения по умолчанию из кода.');
     } catch (e) {
-      setError(`Не удалось сбросить настройки: ${e instanceof Error ? e.message : 'повторите'}`);
+      toast.error(`Не удалось сбросить настройки: ${e instanceof Error ? e.message : 'повторите'}`);
     } finally {
       setBusy(false);
     }
@@ -254,7 +251,6 @@ export function OperatorHealthProbeSettingsSection() {
     }
     setBusy(true);
     setError(null);
-    setSaved(null);
     try {
       await apiJson('/api/admin/settings', {
         method: 'PATCH',
@@ -271,9 +267,9 @@ export function OperatorHealthProbeSettingsSection() {
         port,
         hasStoredPassword: value.hasStoredPassword || password.trim().length > 0,
       }));
-      setSaved('Параметры служебного IMAP-ящика сохранены.');
+      toast.success('Параметры служебного IMAP-ящика сохранены.');
     } catch (e) {
-      setError(
+      toast.error(
         `IMAP-настройки не сохранены: ${e instanceof Error ? e.message : 'проверьте поля и повторите'}`,
       );
     } finally {
@@ -526,7 +522,6 @@ export function OperatorHealthProbeSettingsSection() {
             {busy ? 'Сохранение…' : 'Сохранить IMAP'}
           </Button>
         </div>
-        {saved ? <p className="text-sm text-green-600">{saved}</p> : null}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </CardContent>
       <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>

@@ -33,7 +33,6 @@ type Props = {
   draft: AppointmentCancelDraft;
   onDraftChange: (patch: Partial<AppointmentCancelDraft>) => void;
   pending: boolean;
-  message: string | null;
   onConfirm: () => void;
 };
 
@@ -49,7 +48,6 @@ export function DoctorAppointmentCancelModal({
   draft,
   onDraftChange,
   pending,
-  message,
   onConfirm,
 }: Props) {
   return (
@@ -154,8 +152,6 @@ export function DoctorAppointmentCancelModal({
             onCheckedChange={(notify) => onDraftChange({ notify })}
           />
         </label>
-
-        {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
       </div>
     </DoctorModal>
   );

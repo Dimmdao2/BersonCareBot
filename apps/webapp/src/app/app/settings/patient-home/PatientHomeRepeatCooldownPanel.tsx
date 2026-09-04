@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { useMemo, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
@@ -39,11 +40,10 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
   const [warmupMin, setWarmupMin] = useState(String(props.initialWarmupMinutes));
   const [planMin, setPlanMin] = useState(String(props.initialPlanItemMinutes));
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  /** Только предзапросная валидация полей; исход сохранения уходит во всплывающее уведомление. */
   const [error, setError] = useState<string | null>(null);
 
   async function onSave() {
-    setMessage(null);
     setError(null);
     const w = Number.parseInt(warmupMin, 10);
     const p = Number.parseInt(planMin, 10);
@@ -65,13 +65,13 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
         planItemRepeatMinutes: p,
       });
       if (!result.ok) {
-        setError(result.error);
+        toast.error(result.error);
         return;
       }
-      setMessage('Сохранено');
+      toast.success('Сохранено');
       router.refresh();
     } catch {
-      setError('Не удалось сохранить.');
+      toast.error('Не удалось сохранить.');
     } finally {
       setPending(false);
     }
@@ -136,11 +136,6 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
       {error ? (
         <p className="mt-2 text-sm text-destructive" role="alert">
           {error}
-        </p>
-      ) : null}
-      {message ? (
-        <p className="mt-2 text-sm text-green-700" role="status">
-          {message}
         </p>
       ) : null}
     </section>

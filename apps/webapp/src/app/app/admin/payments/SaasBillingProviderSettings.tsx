@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import {
   DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID,
   parseSaasBillingPaymentProviderSettings,
@@ -79,8 +80,8 @@ export function SaasBillingProviderSettings() {
   const [taxSystemCode, setTaxSystemCode] = useState(EMPTY_VALUE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  /** Только отказ первичного чтения; исход сохранения уходит во всплывающее уведомление. */
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   const provider = useMemo(
     () =>
@@ -133,8 +134,6 @@ export function SaasBillingProviderSettings() {
   const save = async () => {
     if (!settings || !validityDaysValid) return;
     setSaving(true);
-    setSaved(false);
-    setError(null);
     const nextProvider = {
       ...(provider ?? {
         id: DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID,
@@ -173,9 +172,11 @@ export function SaasBillingProviderSettings() {
         }),
       });
       if (json.ok) applySetting(json.setting.valueJson);
-      setSaved(true);
+      toast.success('Сохранено');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'network');
+      toast.error(
+        `Настройки не сохранены (${cause instanceof Error ? cause.message : 'network'}).`,
+      );
     } finally {
       setSaving(false);
     }
@@ -291,7 +292,6 @@ export function SaasBillingProviderSettings() {
               >
                 {saving ? 'Сохраняем…' : 'Сохранить'}
               </Button>
-              {saved && <span className="text-sm text-muted-foreground">Сохранено</span>}
             </div>
           </>
         )}

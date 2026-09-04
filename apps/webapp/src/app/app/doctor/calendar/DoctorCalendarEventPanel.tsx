@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { patientCardHref } from '../patients/patientCardHref';
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { DateTime } from 'luxon';
+import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
@@ -390,6 +391,7 @@ function DoctorCalendarEventPanelInner({
   const hideSpecialist = clinicSpecialists != null && clinicSpecialists.length === 1;
 
   const submitCreate = () => {
+    setMessage(null);
     const submission = resolveCalendarCreateSubmission({
       start: draft.start,
       durationMinutes: draft.durationMinutes,
@@ -454,7 +456,7 @@ function DoctorCalendarEventPanelInner({
         appointment?: { id?: string };
       };
       if (!json.ok) {
-        setMessage(json.message ?? panelErrorLabel(json.error));
+        toast.error(json.message ?? panelErrorLabel(json.error));
         if (json.error === 'external_slot_taken') onChanged();
         return;
       }
@@ -470,12 +472,12 @@ function DoctorCalendarEventPanelInner({
           ? await savePrimaryComment(newId, commentBody)
           : false;
       if (!commentSaved) {
-        setMessage('Запись создана, комментарий не сохранён.');
+        toast.error('Запись создана, комментарий не сохранён.');
         setPendingRefresh(true);
         return;
       }
       createManualRequestIdRef.current = crypto.randomUUID();
-      setMessage('Создано');
+      toast.success('Создано');
       setMode('view');
       onChanged();
     });
@@ -584,6 +586,7 @@ function DoctorCalendarEventPanelInner({
   };
 
   const submitEdit = () => {
+    setMessage(null);
     const start = parseFormStart(draft.start, timeZone);
     if (!start.isValid) {
       setMessage('Укажите начало записи.');
@@ -643,7 +646,7 @@ function DoctorCalendarEventPanelInner({
         );
         const json = (await res.json()) as { ok?: boolean; error?: string };
         if (!json.ok) {
-          setMessage(panelErrorLabel(json.error));
+          toast.error(panelErrorLabel(json.error));
           if (json.error === 'external_slot_taken') onChanged();
           return;
         }
@@ -661,7 +664,7 @@ function DoctorCalendarEventPanelInner({
         );
         const json = (await res.json()) as { ok?: boolean; error?: string };
         if (!json.ok) {
-          setMessage(panelErrorLabel(json.error));
+          toast.error(panelErrorLabel(json.error));
           return;
         }
         applied.status = draft.status;
@@ -670,10 +673,10 @@ function DoctorCalendarEventPanelInner({
       // Комментарий идёт последним и через тот же контракт, что и очистка: пока он не сохранён,
       // объявлять запись сохранённой нельзя — иначе набранный текст пропадает молча.
       if (commentChanged && !(await savePrimaryComment(selected.id, draft.comment.trim()))) {
-        setMessage('Комментарий не сохранён.');
+        toast.error('Комментарий не сохранён.');
         return;
       }
-      setMessage('Сохранено');
+      toast.success('Изменения сохранены');
       setMode('view');
       onChanged();
     });
@@ -686,7 +689,7 @@ function DoctorCalendarEventPanelInner({
     void (async () => {
       try {
         if (!(await savePrimaryComment(selected.id, body))) {
-          setMessage('Не удалось сохранить комментарий.');
+          toast.error('Не удалось сохранить комментарий.');
           return;
         }
         await loadPrimaryComment();
@@ -712,11 +715,13 @@ function DoctorCalendarEventPanelInner({
         },
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
-      setMessage(json.ok ? 'Отменено' : panelErrorLabel(json.error));
-      if (json.ok) {
-        setCancelOpen(false);
-        onChanged();
+      if (!json.ok) {
+        toast.error(panelErrorLabel(json.error));
+        return;
       }
+      toast.success('Отменено');
+      setCancelOpen(false);
+      onChanged();
     });
   };
 
@@ -730,8 +735,12 @@ function DoctorCalendarEventPanelInner({
         body: JSON.stringify({}),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
-      setMessage(json.ok ? 'Удалено' : panelErrorLabel(json.error));
-      if (json.ok) onChanged();
+      if (!json.ok) {
+        toast.error(panelErrorLabel(json.error));
+        return;
+      }
+      toast.success('Удалено');
+      onChanged();
     });
   };
 
@@ -943,7 +952,6 @@ function DoctorCalendarEventPanelInner({
             ))}
           </div>
         ) : null}
-        {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
       </div>
 
       {/* APPT-DETAIL-08: «Изменить», «Отменить», «Создать визит» — в общем футере модалки. */}
@@ -982,10 +990,7 @@ function DoctorCalendarEventPanelInner({
               variant="outline"
               className="text-destructive"
               disabled={pending}
-              onClick={() => {
-                setMessage(null);
-                setCancelOpen(true);
-              }}
+              onClick={() => setCancelOpen(true)}
             >
               Отменить
             </Button>
@@ -1010,7 +1015,6 @@ function DoctorCalendarEventPanelInner({
         draft={cancelDraft}
         onDraftChange={(patch) => setCancelDraft((current) => ({ ...current, ...patch }))}
         pending={pending}
-        message={message}
         onConfirm={confirmCancel}
       />
     </div>

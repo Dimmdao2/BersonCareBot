@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import toast from 'react-hot-toast';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
@@ -54,6 +55,7 @@ export function AppointmentPaymentSection({
   const [entitled, setEntitled] = useState(false);
   const [onlineAvailable, setOnlineAvailable] = useState(false);
   const [chatAvailable, setChatAvailable] = useState(false);
+  /** Только отказ первичного чтения блока: результаты действий уходят во всплывающее уведомление. */
   const [error, setError] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [collectOpen, setCollectOpen] = useState(false);
@@ -132,7 +134,7 @@ export function AppointmentPaymentSection({
         await load(targetAppointmentId, version);
       } catch (cause) {
         if (version === requestVersion.current) {
-          setError(cause instanceof Error ? cause.message : 'request_failed');
+          toast.error(errorLabel(cause instanceof Error ? cause.message : 'request_failed'));
         }
       }
     });
@@ -151,14 +153,13 @@ export function AppointmentPaymentSection({
   const sendLinkToChat = () =>
     startTransition(async () => {
       if (!link || !patientUserId) return;
-      setError(null);
       const ok = await sendPaymentLinkToPatientChat({
         patientUserId,
         subjectRef: `appointment:${appointmentId}`,
         link,
       }).catch(() => false);
       if (ok) setChatSent(true);
-      else setError('chat_send_failed');
+      else toast.error(errorLabel('chat_send_failed'));
     });
 
   const captured = summary?.payment?.status === 'succeeded' ? summary.payment.amountMinor : 0;
@@ -188,7 +189,7 @@ export function AppointmentPaymentSection({
       {totalMinor === null ? (
         <p className="text-muted-foreground">Стоимость записи не определена.</p>
       ) : null}
-      {error && !collectOpen ? (
+      {error ? (
         <p className="text-destructive" role="alert">
           {errorLabel(error)}
         </p>
@@ -207,11 +208,6 @@ export function AppointmentPaymentSection({
       >
         <div className="flex flex-col gap-3 text-sm">
           <p className="font-medium">К оплате: {money(remaining ?? 0)}</p>
-          {error ? (
-            <p className="text-destructive" role="alert">
-              {errorLabel(error)}
-            </p>
-          ) : null}
           <Button
             type="button"
             size="sm"

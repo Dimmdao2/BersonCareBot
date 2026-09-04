@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
+import toast from 'react-hot-toast';
 import {
   CLINIC_PUBLIC_CARD_LIMITS,
   type ClinicPublicCardSettings,
@@ -72,8 +73,6 @@ export function ClinicPublicCardSection({
 
   const [settings, setSettings] = useState(initialSettings);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [skipPublicCardAtRoot, setSkipPublicCardAtRoot] = useState(initialSkipPublicCardAtRoot);
   const [savingRootEntry, setSavingRootEntry] = useState(false);
   const [logoPickerOpen, setLogoPickerOpen] = useState(false);
@@ -81,12 +80,10 @@ export function ClinicPublicCardSection({
 
   function patch(next: Partial<ClinicPublicCardSettings>) {
     setSettings((current) => ({ ...current, ...next }));
-    setSaved(false);
   }
 
   async function save() {
     setPending(true);
-    setError(null);
     try {
       const response = await fetch('/api/clinic/public-card', {
         method: 'POST',
@@ -97,13 +94,13 @@ export function ClinicPublicCardSection({
         | { ok: true; settings: ClinicPublicCardSettings }
         | { ok: false; error: string };
       if (!response.ok || !body.ok) {
-        setError(clinicPublicCardErrorMessage(body.ok ? 'invalid_body' : body.error));
+        toast.error(clinicPublicCardErrorMessage(body.ok ? 'invalid_body' : body.error));
         return;
       }
       setSettings(body.settings);
-      setSaved(true);
+      toast.success('Сохранено');
     } catch {
-      setError('Не удалось сохранить страницу. Повторите попытку.');
+      toast.error('Не удалось сохранить страницу. Повторите попытку.');
     } finally {
       setPending(false);
     }
@@ -113,11 +110,10 @@ export function ClinicPublicCardSection({
     const previous = skipPublicCardAtRoot;
     setSkipPublicCardAtRoot(next);
     setSavingRootEntry(true);
-    setError(null);
     const result = await patchAdminSettingWithResult('clinic_root_skip_public_card', next);
     if (!result.ok) {
       setSkipPublicCardAtRoot(previous);
-      setError('Не удалось сохранить настройку входа. Повторите попытку.');
+      toast.error('Не удалось сохранить настройку входа. Повторите попытку.');
     }
     setSavingRootEntry(false);
   }
@@ -266,12 +262,6 @@ export function ClinicPublicCardSection({
           <span>Сразу открывать вход на брендированном адресе</span>
         </label>
 
-        {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        ) : null}
-        {saved ? <p className="text-sm text-muted-foreground">Сохранено.</p> : null}
 
         <Button type="button" size="sm" className="self-start" disabled={pending} onClick={() => void save()}>
           {pending ? 'Сохранение…' : 'Сохранить'}
@@ -314,7 +304,6 @@ export function ClinicPublicCardSection({
                 ? current
                 : { ...current, photoMediaIds: [...current.photoMediaIds, item.id] },
             );
-            setSaved(false);
             setPhotoPickerOpen(false);
           }}
           exercisePicker={false}

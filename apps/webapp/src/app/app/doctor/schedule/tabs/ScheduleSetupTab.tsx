@@ -256,7 +256,6 @@ function stringOrNull(raw: unknown): string | null {
 
 function ScheduleCalendarDefaultsSection() {
   const [state, setState] = useState<CalendarSettingsState>({ phase: 'loading' });
-  const [saved, setSaved] = useState(false);
   const [, startTransition] = useTransition();
 
   const fetchCalendarSettings = useCallback(async (): Promise<CalendarSettingsState> => {
@@ -289,7 +288,6 @@ function ScheduleCalendarDefaultsSection() {
   }, []);
 
   const load = useCallback(() => {
-    setSaved(false);
     startTransition(async () => {
       try {
         setState(await fetchCalendarSettings());
@@ -326,7 +324,6 @@ function ScheduleCalendarDefaultsSection() {
 
   function updateReady(patch: Partial<Extract<CalendarSettingsState, { phase: 'ready' }>>) {
     setState((prev) => (prev.phase === 'ready' ? { ...prev, ...patch } : prev));
-    setSaved(false);
   }
 
   function save() {
@@ -338,9 +335,9 @@ function ScheduleCalendarDefaultsSection() {
           patchDoctorSetting('booking_calendar_default_service_id', state.defaultServiceId),
           patchDoctorSetting('booking_calendar_default_specialist_id', state.defaultSpecialistId),
         ]);
-        setSaved(true);
+        toast.success('Сохранено');
       } catch {
-        setState({ phase: 'error', message: 'Не удалось сохранить настройки календаря' });
+        toast.error('Не удалось сохранить настройки календаря');
       }
     });
   }
@@ -450,7 +447,6 @@ function ScheduleCalendarDefaultsSection() {
         <Button type="button" size="sm" onClick={save}>
           Сохранить
         </Button>
-        {saved ? <span className="text-sm text-green-600">Сохранено</span> : null}
       </div>
     </DoctorSection>
   );
