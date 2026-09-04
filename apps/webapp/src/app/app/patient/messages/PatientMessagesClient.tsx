@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { Textarea } from '@/shared/ui/patient/primitives/textarea';
 import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
@@ -103,7 +104,6 @@ export function PatientMessagesClient() {
     const t = draft.trim();
     if (!t || !conversationId || sending || readOnly) return;
     setSending(true);
-    setError(null);
     try {
       const res = await fetch('/api/patient/messages', {
         method: 'POST',
@@ -119,10 +119,9 @@ export function PatientMessagesClient() {
         // Обращение закрыли, пока форма была открыта — убираем форму, а не показываем код ошибки.
         if (data.error === 'conversation_closed') {
           setReadOnly(true);
-          setError(null);
           return;
         }
-        setError(data.error ?? 'Не отправлено');
+        toast.error(data.error ?? 'Не отправлено');
         return;
       }
       setDraft('');
@@ -137,7 +136,7 @@ export function PatientMessagesClient() {
         });
       }
     } catch {
-      setError('Ошибка сети');
+      toast.error('Ошибка сети');
     } finally {
       setSending(false);
     }

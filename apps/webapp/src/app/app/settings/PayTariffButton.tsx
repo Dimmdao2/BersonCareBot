@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
@@ -79,7 +80,6 @@ export function PayTariffButton({
   billingEmail: string | null;
 }) {
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [selectedTariffId, setSelectedTariffId] = useState(
     tariffChange.pendingTariffId ?? tariffChange.currentTariffId ?? '',
   );
@@ -89,7 +89,6 @@ export function PayTariffButton({
 
   async function saveBillingEmail() {
     setPending(true);
-    setError(null);
     try {
       const response = await fetch('/api/clinic/billing', {
         method: 'PATCH',
@@ -100,13 +99,13 @@ export function PayTariffButton({
         | { ok: true; billingEmail: string }
         | { ok: false; error?: string }
         | null;
-      if (!body?.ok) setError('Проверьте email для чека.');
+      if (!body?.ok) toast.error('Проверьте email для чека.');
       else {
         setBillingEmail(body.billingEmail);
         setSavedBillingEmail(body.billingEmail);
       }
     } catch {
-      setError('Не удалось сохранить email для чека.');
+      toast.error('Не удалось сохранить email для чека.');
     } finally {
       setPending(false);
     }
@@ -114,7 +113,6 @@ export function PayTariffButton({
 
   async function handlePay() {
     setPending(true);
-    setError(null);
     try {
       const response = await fetch('/api/clinic/billing', { method: 'POST' });
       const body = (await response.json().catch(() => null)) as
@@ -122,13 +120,13 @@ export function PayTariffButton({
         | { ok: false; error?: string }
         | null;
       if (!body || body.ok !== true || !body.checkoutUrl) {
-        setError(formatError(body && body.ok === false ? body.error : undefined));
+        toast.error(formatError(body && body.ok === false ? body.error : undefined));
         setPending(false);
         return;
       }
       window.location.href = body.checkoutUrl;
     } catch {
-      setError(formatError(undefined));
+      toast.error(formatError(undefined));
       setPending(false);
     }
   }
@@ -136,7 +134,6 @@ export function PayTariffButton({
   async function changeTariff() {
     if (!selectedTariffId) return;
     setPending(true);
-    setError(null);
     try {
       const response = await fetch('/api/clinic/billing', {
         method: 'PATCH',
@@ -146,11 +143,11 @@ export function PayTariffButton({
       const body = (await response.json().catch(() => null)) as
         | { ok?: boolean; error?: string; blocks?: Array<{ mechanic?: string }>; checkoutUrl?: string }
         | null;
-      if (!body?.ok) setError(formatTariffChangeError(body));
+      if (!body?.ok) toast.error(formatTariffChangeError(body));
       else if (body.checkoutUrl) window.location.href = body.checkoutUrl;
       else setPendingTariffId(selectedTariffId === tariffChange.currentTariffId ? null : selectedTariffId);
     } catch {
-      setError(formatError(undefined));
+      toast.error(formatError(undefined));
     } finally {
       setPending(false);
     }
@@ -158,17 +155,16 @@ export function PayTariffButton({
 
   async function cancelChange() {
     setPending(true);
-    setError(null);
     try {
       const response = await fetch('/api/clinic/billing', { method: 'DELETE' });
       const body = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-      if (!body?.ok) setError(formatError(body?.error));
+      if (!body?.ok) toast.error(formatError(body?.error));
       else {
         setPendingTariffId(null);
         setSelectedTariffId(tariffChange.currentTariffId ?? '');
       }
     } catch {
-      setError(formatError(undefined));
+      toast.error(formatError(undefined));
     } finally {
       setPending(false);
     }
@@ -242,7 +238,6 @@ export function PayTariffButton({
       ) : (
         <p className="text-sm text-muted-foreground">{FREE_TARIFF_LABEL}</p>
       )}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

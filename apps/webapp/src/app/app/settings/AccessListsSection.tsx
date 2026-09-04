@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
@@ -43,8 +44,6 @@ export function AccessListsSection({
     adminMaxIds,
     doctorMaxIds,
   });
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const set = (k: keyof AccessListsValues) => (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -52,8 +51,6 @@ export function AccessListsSection({
   };
 
   function handleSave() {
-    setSaved(false);
-    setError(null);
     startTransition(async () => {
       try {
         const results = await Promise.all([
@@ -65,12 +62,12 @@ export function AccessListsSection({
           patchAdminSetting('doctor_max_ids', parseIdTokens(vals.doctorMaxIds)),
         ]);
         if (results.some((r) => !r)) {
-          setError('Не удалось сохранить часть настроек');
+          toast.error('Не удалось сохранить часть настроек');
           return;
         }
-        setSaved(true);
+        toast.success('Сохранено');
       } catch {
-        setError('Ошибка при сохранении');
+        toast.error('Ошибка при сохранении');
       }
     });
   }
@@ -112,8 +109,6 @@ export function AccessListsSection({
           <Button variant="outline" onClick={handleSave} disabled={isPending}>
             {isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
-          {saved && <span className="text-sm text-green-600">Сохранено</span>}
-          {error && <span className="text-sm text-destructive">{error}</span>}
         </div>
       </CardContent>
     </Card>

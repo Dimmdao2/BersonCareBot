@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PlatformOrganizationSummary } from '@/modules/org-entitlements/ports';
 import type { Tariff, TrialPolicy } from '@/modules/org-entitlements/types';
@@ -42,7 +43,6 @@ export function OrganizationCommercialPanel({
     organization.manualTariffId ?? 'none',
   );
   const [reason, setReason] = useState('');
-  const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
   const activeTariffs = useMemo(() => tariffs.filter((tariff) => tariff.isActive), [tariffs]);
@@ -94,19 +94,15 @@ export function OrganizationCommercialPanel({
       success: string | ((result: CommercialMutationResult | undefined) => string),
     ) => {
       setBusy(true);
-      setMessage('');
       try {
         const payload = await postAdminCommercialMutation(body);
         const refreshed = await onUpdated();
         const successMessage =
           typeof success === 'function' ? success(payload.result) : success;
-        setMessage(
-          refreshed
-            ? successMessage
-            : `${successMessage}. Список не обновился — обновите страницу.`,
-        );
+        if (refreshed) toast.success(successMessage);
+        else toast.error(`${successMessage}. Список не обновился — обновите страницу.`);
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : 'Операция не выполнена');
+        toast.error(error instanceof Error ? error.message : 'Операция не выполнена');
       } finally {
         setBusy(false);
       }
@@ -227,7 +223,6 @@ export function OrganizationCommercialPanel({
       {trialPolicyError ? (
         <p className="text-sm text-destructive">Не удалось загрузить политику триала.</p>
       ) : null}
-      {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
     </DoctorSection>
   );
 }

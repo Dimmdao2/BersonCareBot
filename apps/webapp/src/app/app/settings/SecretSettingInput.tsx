@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 
@@ -31,7 +32,6 @@ export function SecretSettingInput<T extends string>({
   const [value, setValue] = useState('');
   const [previousConfigured, setPreviousConfigured] = useState(configured);
   const [saved, setSaved] = useState(configured);
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   if (configured !== previousConfigured) {
@@ -59,14 +59,13 @@ export function SecretSettingInput<T extends string>({
           disabled={pending || value.trim().length === 0}
           onClick={() =>
             startTransition(async () => {
-              setError(null);
               try {
                 await saveSetting(settingKey, value.trim());
                 setValue('');
                 setSaved(true);
                 onSaved?.();
               } catch {
-                setError('Не удалось сохранить credential');
+                toast.error('Не удалось сохранить credential');
               }
             })
           }
@@ -82,7 +81,6 @@ export function SecretSettingInput<T extends string>({
           Endpoint webhook: <code>{webhookPath}</code>
         </p>
       ) : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </section>
   );
 }

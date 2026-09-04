@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Camera, FilePlus, Image as ImageIcon } from 'lucide-react';
 import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
 import type { PatientFileCategory } from '@/modules/patient-files/ports';
@@ -534,7 +535,6 @@ export function PatientTabFiles({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteUsageCount, setDeleteUsageCount] = useState(0);
-  const [deletionNotice, setDeletionNotice] = useState<string | null>(null);
 
   const loadFiles = useCallback(async () => {
     setLoading(true);
@@ -659,7 +659,7 @@ export function PatientTabFiles({
       setFilePendingDelete(null);
       setDeleteUsageCount(0);
       setPreviewFileId((current) => (current === file.id ? null : current));
-      setDeletionNotice('Файл удалён. Место в хранилище освобождено.');
+      toast.success('Файл удалён. Место в хранилище освобождено.');
     } catch {
       setDeleteError('Сетевая ошибка. Файл не удалён.');
     } finally {
@@ -674,11 +674,6 @@ export function PatientTabFiles({
         <FilesHeaderActions disabled={uploading} onPickFile={(f) => void uploadPickedFile(f)} />
       </div>
       {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
-      {deletionNotice && (
-        <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">
-          {deletionNotice}
-        </p>
-      )}
 
       {/* FILES-09: fills whatever height PatientCardClient reserves for the active Files tab
           (flex-1 against the shared full-height tab-panel contract, PatientCardClient.tsx) —

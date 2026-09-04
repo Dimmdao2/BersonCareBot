@@ -1,5 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock('react-hot-toast', () => ({ default: toastMock }));
 
 vi.mock('./DoctorCalendarPatientSearch', () => ({
   DoctorCalendarPatientSearch: ({ value }: { value?: { displayName: string } | null }) => (
@@ -24,6 +27,10 @@ const SPECIALIST_ID = '11111111-1111-4111-8111-111111111111';
 const BRANCH_ID = '22222222-2222-4222-8222-222222222222';
 const SERVICE_ID = '33333333-3333-4333-8333-333333333333';
 
+beforeEach(() => {
+  toastMock.success.mockClear();
+  toastMock.error.mockClear();
+});
 afterEach(() => vi.unstubAllGlobals());
 
 describe('clinic calendar create form', () => {
@@ -517,7 +524,7 @@ describe('appointment edit save', () => {
       ),
     );
     // Сохранился только перенос; объявлять запись сохранённой и терять набранный текст нельзя.
-    expect(screen.queryByText('Сохранено')).not.toBeInTheDocument();
+    expect(toastMock.success).not.toHaveBeenCalled();
     expect(screen.getByDisplayValue('Новый комментарий')).toBeInTheDocument();
   });
 
@@ -553,7 +560,7 @@ describe('appointment edit save', () => {
       expect(screen.getByRole('button', { name: /^(Сохранить|Изменить)$/ })).toBeEnabled(),
     );
     // ...и её отказ не имеет права выглядеть как сохранённая запись.
-    expect(screen.queryByText('Сохранено')).not.toBeInTheDocument();
+    expect(toastMock.success).not.toHaveBeenCalled();
     // Применённый перенос не отменяет ошибку: календарю нельзя отдавать сигнал «готово»,
     // он закрывает панель и уносит сообщение с экрана — форма обязана остаться открытой.
     expect(onChanged).not.toHaveBeenCalled();

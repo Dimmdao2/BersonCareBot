@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -44,12 +45,11 @@ export function AdminSettingsSection({
   const [bookingUrl, setBookingUrl] = useState(patientBookingUrl);
   const [ratingsEnabled, setRatingsEnabled] = useState(materialRatingsEnabled);
 
-  const [saved, setSaved] = useState(false);
+  /** Только предзапросная валидация полей; исход сохранения уходит во всплывающее уведомление. */
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   async function handleSave() {
-    setSaved(false);
     setError(null);
 
     const msgRaw = maintenanceMessage.trim();
@@ -96,7 +96,7 @@ export function AdminSettingsSection({
             typeof idx === 'number'
               ? ` (элемент ${idx + 1}${key != null ? `, ключ ${key}` : ''})`
               : '';
-          setError(
+          toast.error(
             batchResult.error === 'duplicate_key_in_batch'
               ? 'В запросе повторяется один и тот же ключ настроек'
               : batchResult.error === 'ambiguous_body'
@@ -109,9 +109,9 @@ export function AdminSettingsSection({
           );
           return;
         }
-        setSaved(true);
+        toast.success('Сохранено');
       } catch {
-        setError('Ошибка при сохранении');
+        toast.error('Ошибка при сохранении');
       }
     });
   }
@@ -224,7 +224,6 @@ export function AdminSettingsSection({
           <Button variant="destructive" onClick={handleSave} disabled={isPending}>
             {isPending ? 'Сохранение...' : 'Сохранить настройки'}
           </Button>
-          {saved && <span className="text-sm text-green-600">Сохранено</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}
         </div>
       </CardContent>

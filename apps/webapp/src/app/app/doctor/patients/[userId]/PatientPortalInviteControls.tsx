@@ -36,12 +36,10 @@ export function PatientPortalInviteControls({
 }) {
   const [state, setState] = useState(initialState);
   const [pending, setPending] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
 
   async function issueAndCopy() {
     setPending(true);
-    setNotice(null);
     try {
       const response = await fetch(`/api/doctor/patients/${patientUserId}/portal-invite`, {
         method: 'POST',
@@ -54,7 +52,6 @@ export function PatientPortalInviteControls({
         typeof json.expiresAt !== 'string' ||
         typeof json.relativeUrl !== 'string'
       ) {
-        setNotice('Не удалось создать приглашение.');
         toast.error('Не удалось создать приглашение');
         return;
       }
@@ -63,16 +60,11 @@ export function PatientPortalInviteControls({
       setGeneratedUrl(absoluteUrl);
       try {
         await navigator.clipboard.writeText(absoluteUrl);
-        setNotice('Новая ссылка скопирована. Предыдущая ссылка больше не действует.');
         toast.success('Ссылка скопирована');
       } catch {
-        setNotice(
-          'Ссылка создана. Скопируйте её из поля ниже; предыдущая ссылка больше не действует.',
-        );
         toast.error('Ссылка создана, но не скопирована');
       }
     } catch {
-      setNotice('Не удалось создать приглашение.');
       toast.error('Не удалось создать приглашение');
     } finally {
       setPending(false);
@@ -82,7 +74,6 @@ export function PatientPortalInviteControls({
   async function revoke() {
     if (!state.inviteId) return;
     setPending(true);
-    setNotice(null);
     try {
       const response = await fetch(`/api/doctor/patients/${patientUserId}/portal-invite`, {
         method: 'DELETE',
@@ -90,14 +81,14 @@ export function PatientPortalInviteControls({
         body: JSON.stringify({ inviteId: state.inviteId }),
       });
       if (!response.ok) {
-        setNotice('Не удалось отозвать приглашение.');
+        toast.error('Не удалось отозвать приглашение.');
         return;
       }
       setState({ status: 'not_activated', inviteId: null, expiresAt: null });
       setGeneratedUrl(null);
-      setNotice('Приглашение отозвано.');
+      toast.success('Приглашение отозвано.');
     } catch {
-      setNotice('Не удалось отозвать приглашение.');
+      toast.error('Не удалось отозвать приглашение.');
     } finally {
       setPending(false);
     }
@@ -143,7 +134,6 @@ export function PatientPortalInviteControls({
           className="basis-full text-xs"
         />
       ) : null}
-      {notice ? <span className="basis-full text-xs text-muted-foreground">{notice}</span> : null}
     </div>
   );
 }

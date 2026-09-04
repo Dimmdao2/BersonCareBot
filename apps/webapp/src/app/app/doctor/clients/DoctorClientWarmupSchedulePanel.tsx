@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
@@ -52,8 +53,8 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
   const [daysMask, setDaysMask] = useState<string>(DEFAULT_DAYS_MASK);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Отказ первичного чтения и валидация полей; исход сохранения — во всплывающем уведомлении. */
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,7 +95,6 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
       chars[index] = chars[index] === '1' ? '0' : '1';
       return chars.join('');
     });
-    setSaved(false);
   }
 
   async function onSave() {
@@ -104,7 +104,6 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
     }
     setSaving(true);
     setError(null);
-    setSaved(false);
     try {
       const body: Record<string, unknown> = {
         timesLocal: times,
@@ -118,10 +117,10 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
       });
       const data = (await res.json()) as { ok?: boolean; error?: string; message?: string };
       if (!res.ok || !data.ok) {
-        setError(data.message ?? 'Не удалось сохранить расписание');
+        toast.error(data.message ?? 'Не удалось сохранить расписание');
         return;
       }
-      setSaved(true);
+      toast.success('Сохранено');
       await load();
     } finally {
       setSaving(false);
@@ -131,18 +130,15 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
   function addSlot() {
     if (times.length >= 10) return;
     setTimes((prev) => [...prev, '12:00']);
-    setSaved(false);
   }
 
   function removeSlot(index: number) {
     if (times.length <= 1) return;
     setTimes((prev) => prev.filter((_, i) => i !== index));
-    setSaved(false);
   }
 
   function updateSlot(index: number, value: string) {
     setTimes((prev) => prev.map((t, i) => (i === index ? value : t)));
-    setSaved(false);
   }
 
   if (loading && rule === undefined) {
@@ -169,7 +165,6 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
               value={dayFilter}
               onValueChange={(v) => {
                 setDayFilter(v as ReminderDayFilter);
-                setSaved(false);
               }}
             >
               <SelectTrigger className="h-8 w-full text-sm">
@@ -247,7 +242,6 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
           </div>
 
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          {saved ? <p className="text-sm text-green-600">Сохранено</p> : null}
 
           <Button
             type="button"

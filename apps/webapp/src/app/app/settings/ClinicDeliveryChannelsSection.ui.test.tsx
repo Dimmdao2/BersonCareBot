@@ -1,6 +1,15 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock('react-hot-toast', () => ({ default: toastMock }));
+
 import { ClinicDeliveryChannelsSection } from './ClinicDeliveryChannelsSection';
+
+beforeEach(() => {
+  toastMock.success.mockClear();
+  toastMock.error.mockClear();
+});
 
 const allEnabled = {
   version: 1 as const,
@@ -112,10 +121,10 @@ describe('ClinicDeliveryChannelsSection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить SMTP' }));
 
     await waitFor(() =>
-      expect(
-        screen.getByText('Сервер не смог проверить доступность интеграции. Повторите позже.'),
-      ).toBeInTheDocument(),
+      expect(toastMock.error).toHaveBeenCalledWith(
+        'Сервер не смог проверить доступность интеграции. Повторите позже.',
+      ),
     );
-    expect(screen.queryByText('integration_availability_unavailable')).not.toBeInTheDocument();
+    expect(toastMock.error).not.toHaveBeenCalledWith('integration_availability_unavailable');
   });
 });

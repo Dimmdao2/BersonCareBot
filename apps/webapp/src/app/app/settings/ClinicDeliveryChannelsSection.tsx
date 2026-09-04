@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
 import { apiJson } from '@/shared/lib/apiJson';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
@@ -94,8 +95,6 @@ function ClinicBotPublicSettings({
   const [destinationChatId, setDestinationChatId] = useState(
     initial.inboundForwarding?.destinationChatId ?? '',
   );
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   if (!configured) {
@@ -143,7 +142,6 @@ function ClinicBotPublicSettings({
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
-            setError(null);
             try {
               await saveBotSetting(settingKey, {
                 botPublicId: botPublicId.trim() ? botPublicId.trim() : null,
@@ -152,10 +150,9 @@ function ClinicBotPublicSettings({
                   destinationChatId: destinationChatId.trim(),
                 },
               });
-              setSaved(true);
+              toast.success('Настройки бота сохранены');
             } catch (cause) {
-              setSaved(false);
-              setError(
+              toast.error(
                 cause instanceof Error && cause.message.trim()
                   ? cause.message
                   : 'Не удалось сохранить настройки бота.',
@@ -166,8 +163,6 @@ function ClinicBotPublicSettings({
       >
         Сохранить настройки бота
       </Button>
-      {saved ? <p className="text-xs text-muted-foreground">Настройки бота сохранены</p> : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -230,12 +225,10 @@ export function ClinicDeliveryChannelsSection({
     max: initial.maxReadiness,
   });
   const [probePending, setProbePending] = useState<ProbeChannel | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const testChannel = (channel: ProbeChannel) => {
     setProbePending(channel);
-    setError(null);
     startTransition(async () => {
       try {
         const result = await apiJson<{ ok: true; readiness: ClinicDeliveryReadiness }>(
@@ -326,7 +319,6 @@ export function ClinicDeliveryChannelsSection({
                   disabled={pending}
                   onClick={() =>
                     startTransition(async () => {
-                      setError(null);
                       try {
                         await saveSetting('clinic_smtp_outbound', {
                           host: smtp.host,
@@ -343,7 +335,7 @@ export function ClinicDeliveryChannelsSection({
                           email: { status: 'pending' },
                         }));
                       } catch (cause) {
-                        setError(
+                        toast.error(
                           cause instanceof Error && cause.message.trim()
                             ? cause.message
                             : 'Сервер не смог сохранить SMTP. Повторите позже.',
@@ -363,7 +355,6 @@ export function ClinicDeliveryChannelsSection({
                   pending={probePending === 'email'}
                   onTest={() => testChannel('email')}
                 />
-                {error ? <p className="text-xs text-destructive">{error}</p> : null}
               </>
             )}
           </section>

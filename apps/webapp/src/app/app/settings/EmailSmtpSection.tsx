@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { apiJson } from '@/shared/lib/apiJson';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -32,16 +33,13 @@ export function EmailSmtpSection({
   const [user, setUser] = useState(initialUser);
   const [from, setFrom] = useState(initialFrom);
   const [password, setPassword] = useState('');
-  const [saved, setSaved] = useState(false);
+  /** Только предзапросная валидация полей; исход сохранения уходит во всплывающее уведомление. */
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [testTo, setTestTo] = useState('');
-  const [testError, setTestError] = useState<string | null>(null);
-  const [testOk, setTestOk] = useState(false);
   const [isTestPending, startTestTransition] = useTransition();
 
   function handleSave() {
-    setSaved(false);
     setError(null);
     startTransition(async () => {
       const portNum = Number.parseInt(port.trim(), 10);
@@ -59,20 +57,18 @@ export function EmailSmtpSection({
           from,
         });
         if (!ok) {
-          setError('Не удалось сохранить');
+          toast.error('Не удалось сохранить');
           return;
         }
         setPassword('');
-        setSaved(true);
+        toast.success('Сохранено');
       } catch {
-        setError('Ошибка при сохранении');
+        toast.error('Ошибка при сохранении');
       }
     });
   }
 
   function handleTestSend() {
-    setTestOk(false);
-    setTestError(null);
     startTestTransition(async () => {
       try {
         await apiJson<{ ok: boolean }>('/api/admin/smtp-test', {
@@ -80,22 +76,22 @@ export function EmailSmtpSection({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to: testTo.trim() }),
         });
-        setTestOk(true);
+        toast.success('Тестовое письмо отправлено');
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Не удалось отправить';
         if (msg === 'smtp_not_configured') {
-          setTestError('Сначала сохраните полный SMTP в БД');
+          toast.error('Сначала сохраните полный SMTP в БД');
           return;
         }
         if (msg === 'smtp_password_missing') {
-          setTestError('В настройках нет пароля SMTP');
+          toast.error('В настройках нет пароля SMTP');
           return;
         }
         if (msg === 'invalid_body') {
-          setTestError('Укажите корректный email получателя');
+          toast.error('Укажите корректный email получателя');
           return;
         }
-        setTestError(msg);
+        toast.error(msg);
       }
     });
   }
@@ -174,7 +170,6 @@ export function EmailSmtpSection({
           <Button variant="outline" onClick={handleSave} disabled={isPending}>
             {isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
-          {saved && <span className="text-sm text-green-600">Сохранено</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}
         </div>
 
@@ -189,11 +184,7 @@ export function EmailSmtpSection({
               id="smtp-test-recipient"
               type="email"
               value={testTo}
-              onChange={(e) => {
-                setTestTo(e.target.value);
-                setTestOk(false);
-                setTestError(null);
-              }}
+              onChange={(e) => setTestTo(e.target.value)}
               disabled={isTestPending}
               autoComplete="off"
               placeholder="email получателя"
@@ -208,8 +199,6 @@ export function EmailSmtpSection({
             {isTestPending ? 'Отправка…' : 'Отправить тест'}
           </Button>
         </div>
-        {testOk && <span className="text-sm text-green-600">Тестовое письмо отправлено</span>}
-        {testError && <span className="text-sm text-destructive">{testError}</span>}
       </CardContent>
     </Card>
   );

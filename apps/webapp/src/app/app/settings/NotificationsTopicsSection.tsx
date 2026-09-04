@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -20,7 +21,7 @@ export type NotificationsTopicsSectionProps = {
 export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsSectionProps) {
   const [rows, setRows] = useState<Array<{ id: string; title: string }>>(() => [...initialRows]);
   const [pending, startTransition] = useTransition();
-  const [saved, setSaved] = useState(false);
+  /** Только предзапросная валидация строк; исход сохранения уходит во всплывающее уведомление. */
   const [error, setError] = useState<string | null>(null);
 
   function addRow() {
@@ -39,7 +40,6 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
   }
 
   function handleSave() {
-    setSaved(false);
     setError(null);
     startTransition(async () => {
       if (rows.length === 0) {
@@ -69,12 +69,12 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
       const payload = rows.map((row) => ({ id: row.id.trim(), title: row.title.trim() }));
       const ok = await patchAdminSetting('notifications_topics', payload);
       if (!ok) {
-        setError(
+        toast.error(
           'Не удалось сохранить. Проверьте: код темы (латиница, цифры, _), длину подписи, уникальность кодов; при заполненной проекции рассылок код должен существовать в справочнике тем.',
         );
         return;
       }
-      setSaved(true);
+      toast.success('Сохранено');
     });
   }
 
@@ -151,7 +151,6 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
           >
             {pending ? 'Сохранение…' : 'Сохранить'}
           </Button>
-          {saved ? <span className="text-sm text-green-600">Сохранено</span> : null}
           {error ? <span className="text-sm text-destructive">{error}</span> : null}
         </div>
       </CardContent>
