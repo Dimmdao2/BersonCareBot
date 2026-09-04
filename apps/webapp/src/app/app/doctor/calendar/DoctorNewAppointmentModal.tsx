@@ -4,7 +4,10 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { CalendarFilterMeta } from '@/modules/booking-calendar/types';
-import type { ResolvedDoctorScheduleScope } from '@/modules/doctor-schedule/scope';
+import type {
+  DoctorScheduleSpecialistOption,
+  ResolvedDoctorScheduleScope,
+} from '@/modules/doctor-schedule/scope';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import type { CalendarPatientOption } from './DoctorCalendarPatientSearch';
 
@@ -39,6 +42,7 @@ type CalendarApiResponse = {
 type CreateContext = {
   filters: CalendarFilterMeta;
   ownSpecialistId: string | null;
+  clinicSpecialists: DoctorScheduleSpecialistOption[] | null;
   timeZone: string;
 };
 
@@ -67,9 +71,11 @@ export function DoctorNewAppointmentModal({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    // scope=clinic отдаёт весь каталог специалистов клиники: у пользователя без прав на
+    // чужие расписания сервер всё равно сузит его до собственного (APPT-FORM-07).
     const query = contextDate
-      ? `?${new URLSearchParams({ view: 'day', from: contextDate, to: contextDate })}`
-      : '?view=day&scope=mine';
+      ? `?${new URLSearchParams({ view: 'day', from: contextDate, to: contextDate, scope: 'clinic' })}`
+      : '?view=day&scope=clinic';
     void fetch(`${API_BASE}/calendar${query}`)
       .then((response) => response.json())
       .then((data: CalendarApiResponse) => {
@@ -81,6 +87,7 @@ export function DoctorNewAppointmentModal({
         setCreateContext({
           filters: data.filters ?? EMPTY_FILTER_META,
           ownSpecialistId: data.resolvedScope?.ownSpecialistId ?? null,
+          clinicSpecialists: data.resolvedScope?.specialists ?? null,
           timeZone: data.timeZone ?? fallbackTimeZone,
         });
       })
@@ -123,10 +130,10 @@ export function DoctorNewAppointmentModal({
           filterMeta={createContext.filters}
           activeFilters={EMPTY_ACTIVE_FILTERS}
           ownSpecialistId={createContext.ownSpecialistId}
+          clinicSpecialists={createContext.clinicSpecialists}
           createInitialSpecialistId={createContext.ownSpecialistId}
           createInitialPatient={patient}
           startInCreate
-          showCloseControl={false}
           flushChrome
           onClose={handleClose}
           onChanged={handleChanged}

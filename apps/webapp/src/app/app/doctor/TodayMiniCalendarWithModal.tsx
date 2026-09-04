@@ -13,7 +13,10 @@ import type {
   WorkingBounds,
 } from '@/modules/booking-calendar/types';
 import type { CalendarCreateActiveFilters } from '@/modules/booking-calendar/calendarCreateFieldMode';
-import type { ResolvedDoctorScheduleScope } from '@/modules/doctor-schedule/scope';
+import type {
+  DoctorScheduleSpecialistOption,
+  ResolvedDoctorScheduleScope,
+} from '@/modules/doctor-schedule/scope';
 import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
 import { cn } from '@/lib/utils';
 
@@ -142,6 +145,9 @@ export function TodayMiniCalendarWithModal({
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[] | undefined>(undefined);
   const [filterMeta, setFilterMeta] = useState<CalendarFilterMeta>(EMPTY_FILTER_META);
   const [ownSpecialistId, setOwnSpecialistId] = useState<string | null>(null);
+  const [clinicSpecialists, setClinicSpecialists] = useState<
+    DoctorScheduleSpecialistOption[] | null
+  >(null);
   const [selected, setSelected] = useState<CalendarAppointmentEvent | null>(null);
   const [showFc, setShowFc] = useState(false);
   const [workingBounds, setWorkingBounds] = useState<WorkingBounds | null | undefined>(undefined);
@@ -160,6 +166,7 @@ export function TodayMiniCalendarWithModal({
         setWorkingBounds(data.workingBounds);
         if (data.timeZone) setCalendarTimeZone(data.timeZone);
         setOwnSpecialistId(data.resolvedScope?.ownSpecialistId ?? null);
+        setClinicSpecialists(data.resolvedScope?.specialists ?? null);
         onDone?.();
       })
       .catch(() => {
@@ -177,6 +184,7 @@ export function TodayMiniCalendarWithModal({
         setWorkingBounds(data.workingBounds);
         if (data.timeZone) setCalendarTimeZone(data.timeZone);
         setOwnSpecialistId(data.resolvedScope?.ownSpecialistId ?? null);
+        setClinicSpecialists(data.resolvedScope?.specialists ?? null);
       })
       .catch(() => {
         /* silently ignore */
@@ -225,7 +233,7 @@ export function TodayMiniCalendarWithModal({
         open={selected !== null}
         onClose={() => setSelected(null)}
         title="Детали записи"
-        size="content"
+        size="lg"
         desktopPresentation="right-sheet"
       >
         {selected ? (
@@ -236,9 +244,9 @@ export function TodayMiniCalendarWithModal({
             filterMeta={filterMeta}
             activeFilters={EMPTY_ACTIVE_FILTERS}
             ownSpecialistId={ownSpecialistId}
+            clinicSpecialists={clinicSpecialists}
             onClose={() => setSelected(null)}
             onChanged={handleChanged}
-            showCloseControl={false}
             flushChrome
           />
         ) : null}

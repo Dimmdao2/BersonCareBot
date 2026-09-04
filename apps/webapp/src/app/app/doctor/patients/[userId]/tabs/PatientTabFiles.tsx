@@ -675,9 +675,7 @@ export function PatientTabFiles({
           only this list scrolls, the card/page above never grows past its allotted space. */}
       <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border/60">
         {loading ? (
-          <p className="px-3 py-4 text-sm text-muted-foreground animate-pulse">
-            Загрузка файлов…
-          </p>
+          <p className="px-3 py-4 text-sm text-muted-foreground animate-pulse">Загрузка файлов…</p>
         ) : error ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-3 text-center">
             <p className="text-sm text-muted-foreground">Не удалось загрузить файлы.</p>

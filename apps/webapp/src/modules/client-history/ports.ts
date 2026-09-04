@@ -52,4 +52,6 @@ export type ClientHistoryPort = {
   createAppointmentComment(
     input: CreateAppointmentStaffCommentInput,
   ): Promise<AppointmentStaffCommentRow>;
+  /** APPT-DETAIL-07: карточка несёт один основной комментарий, поэтому очистка снимает его целиком. */
+  clearAppointmentComments(organizationId: string, appointmentId: string): Promise<void>;
 };

@@ -12,6 +12,10 @@ vi.mock('@/shared/ui/doctor/DoctorDateTimePicker', () => ({
   ),
 }));
 
+import type {
+  CalendarAppointmentEvent,
+  CalendarFilterMeta,
+} from '@/modules/booking-calendar/types';
 import { AppointmentPaymentSection } from './AppointmentPaymentSection';
 import { DoctorCalendarEventPanel } from './DoctorCalendarEventPanel';
 
@@ -87,7 +91,7 @@ describe('clinic calendar create form', () => {
 
     expect(await screen.findByLabelText('Специалист')).toHaveValue('Доктор Иванов');
     expect(screen.getByLabelText('Филиал')).toHaveValue('Центр');
-    expect(screen.getByLabelText('Услуга')).toHaveValue('Приём');
+    expect(screen.getByLabelText('Сеанс')).toHaveValue('Приём');
 
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
 
@@ -100,6 +104,38 @@ describe('clinic calendar create form', () => {
       branchId: BRANCH_ID,
       serviceId: SERVICE_ID,
     });
+  });
+
+  // APPT-FORM-07: селектор специалиста прячется только тогда, когда выбирать НЕ ИЗ ЧЕГО —
+  // сервер вернул ровно одного специалиста клиники. Пустой список специалистов означает
+  // «сервер их не отдал», и подменять это скрытым полем нельзя: врач должен видеть поле
+  // и честную пустоту.
+  it.each([
+    { specialists: [] as { id: string; displayLabel: string }[], visible: true },
+    { specialists: [{ id: SPECIALIST_ID, displayLabel: 'Доктор Иванов' }], visible: false },
+  ])('keeps the specialist field for $specialists.length clinic specialists', async (scenario) => {
+    render(
+      <DoctorCalendarEventPanel
+        apiBase="/api/doctor/booking-engine"
+        selected={null}
+        timeZone="Europe/Moscow"
+        filterMeta={{
+          specialists: [{ id: SPECIALIST_ID, label: 'Доктор Иванов' }],
+          branches: [{ id: BRANCH_ID, label: 'Центр' }],
+          rooms: [],
+          services: [],
+        }}
+        activeFilters={{ specialistId: null, branchId: null, roomId: null, serviceId: null }}
+        ownSpecialistId={SPECIALIST_ID}
+        clinicSpecialists={scenario.specialists}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+        startInCreate
+      />,
+    );
+
+    await screen.findByLabelText('Филиал');
+    expect(screen.queryByLabelText('Специалист') !== null).toBe(scenario.visible);
   });
 
   // Owner live pass 18.08 (L-9): everything picked except the start time, and the form answered
@@ -139,7 +175,7 @@ describe('clinic calendar create form', () => {
 
     expect(await screen.findByLabelText('Специалист')).toHaveValue('Доктор Иванов');
     expect(screen.getByLabelText('Филиал')).toHaveValue('Центр');
-    expect(screen.getByLabelText('Услуга')).toHaveValue('Приём');
+    expect(screen.getByLabelText('Сеанс')).toHaveValue('Приём');
     expect(screen.getByLabelText('Начало')).toHaveValue('');
 
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
@@ -147,7 +183,7 @@ describe('clinic calendar create form', () => {
     const shown = await screen.findByText(/Укажите/);
     expect(shown).toHaveTextContent('начало записи');
     expect(shown).not.toHaveTextContent('филиал');
-    expect(shown).not.toHaveTextContent('услугу');
+    expect(shown).not.toHaveTextContent('сеанс');
     expect(shown).not.toHaveTextContent('специалиста');
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -385,5 +421,171 @@ describe('appointment payment owner states', () => {
     );
     expect(screen.queryByRole('link', { name: checkoutUrl })).not.toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'QR-код платёжной ссылки' })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Owner acceptance 2026-09-04, риск режима «Изменить»: сохранение не подменяется молчаливым
+ * частичным обновлением — ошибка любого из существующих endpoint видна пользователю, а состояние
+ * не выглядит сохранённым. Дата/время идут в `manual-reschedule`, комментарий — в `comments`;
+ * это два разных запроса, и второй из них раньше терялся без следа.
+ */
+const EDITABLE_APPOINTMENT: CalendarAppointmentEvent = {
+  kind: 'appointment',
+  id: '44444444-4444-4444-8444-444444444444',
+  startAt: '2027-03-10T09:00:00+03:00',
+  endAt: '2027-03-10T09:30:00+03:00',
+  status: 'confirmed',
+  source: 'staff',
+  specialistId: SPECIALIST_ID,
+  specialistName: 'Доктор Иванов',
+  branchId: BRANCH_ID,
+  branchTitle: 'Центр',
+  branchColor: null,
+  roomId: null,
+  roomTitle: null,
+  serviceId: SERVICE_ID,
+  serviceTitle: 'Приём',
+  platformUserId: null,
+  patientName: 'Иванова Мария',
+  patientPhone: null,
+  bookingStatus: null,
+  paymentStatus: null,
+  prepaymentPending: false,
+  packageUsageRef: null,
+  packageTitle: null,
+  packageDisplayNumber: null,
+  rescheduleCount: 0,
+  originalStartAt: null,
+  formComments: [],
+};
+
+const EDIT_FILTER_META: CalendarFilterMeta = {
+  specialists: [{ id: SPECIALIST_ID, label: 'Доктор Иванов' }],
+  branches: [{ id: BRANCH_ID, label: 'Центр' }],
+  rooms: [],
+  services: [
+    {
+      id: SERVICE_ID,
+      label: 'Приём',
+      durationMinutes: 30,
+      availability: [{ specialistId: SPECIALIST_ID, branchId: BRANCH_ID }],
+    },
+  ],
+};
+
+/** Расписание сохраняется, комментарий — нет: ровно та развилка, которую проверяет владелец. */
+function stubEditEndpoints(commentPost: () => Response) {
+  const calls: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(`${method} ${url}`);
+      if (url.endsWith('/lifecycle')) {
+        return Response.json({ ok: true, reschedules: [], cancellations: [] }, { status: 200 });
+      }
+      if (url.endsWith('/comments') && method === 'GET') {
+        return Response.json(
+          { ok: true, comments: [{ id: 'c1', body: 'Старый', createdAt: '2027-03-01T00:00:00Z' }] },
+          { status: 200 },
+        );
+      }
+      if (url.endsWith('/comments')) return commentPost();
+      if (url.endsWith('/manual-reschedule')) return Response.json({ ok: true }, { status: 200 });
+      return Response.json({ paymentsEntitled: false }, { status: 200 });
+    }),
+  );
+  return calls;
+}
+
+function renderEditablePanel(onChanged: () => void = vi.fn()) {
+  return render(
+    <DoctorCalendarEventPanel
+      apiBase="/api/doctor/booking-engine"
+      selected={EDITABLE_APPOINTMENT}
+      timeZone="Europe/Moscow"
+      filterMeta={EDIT_FILTER_META}
+      activeFilters={{ specialistId: null, branchId: null, roomId: null, serviceId: null }}
+      ownSpecialistId={SPECIALIST_ID}
+      onClose={vi.fn()}
+      onChanged={onChanged}
+    />,
+  );
+}
+
+describe('appointment edit save', () => {
+  it('does not report a save when the comment endpoint rejects it', async () => {
+    stubEditEndpoints(() => Response.json({ ok: false, error: 'boom' }, { status: 500 }));
+    renderEditablePanel();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить' }));
+    fireEvent.change(await screen.findByLabelText('Комментарий'), {
+      target: { value: 'Новый комментарий' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() =>
+      expect(
+        vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith('/comments')),
+      ).toBe(true),
+    );
+    // Сохранился только перенос; объявлять запись сохранённой и терять набранный текст нельзя.
+    expect(screen.queryByText('Сохранено')).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('Новый комментарий')).toBeInTheDocument();
+  });
+
+  it('sends the cleared comment through the contract and does not report a save when it is rejected', async () => {
+    stubEditEndpoints(() => Response.json({ ok: false, error: 'boom' }, { status: 500 }));
+    const onChanged = vi.fn();
+    renderEditablePanel(onChanged);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить' }));
+    const editComment = await screen.findByLabelText('Комментарий');
+    await waitFor(() => expect(editComment).toHaveValue('Старый'));
+    fireEvent.change(editComment, { target: { value: '' } });
+    // Расписание меняется тоже: так у сохранения есть сетевой шаг, по которому виден его конец.
+    fireEvent.change(screen.getByLabelText('Длительность, мин'), { target: { value: '45' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    const rescheduled = () =>
+      vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith('/manual-reschedule'));
+    await waitFor(() => expect(rescheduled()).toBe(true));
+    // Очистка обязана уйти в тот же контракт комментария, а не пропасть по дороге...
+    await waitFor(() =>
+      expect(
+        vi.mocked(fetch).mock.calls.some(
+          ([url, init]) =>
+            String(url).endsWith('/comments') &&
+            (init as RequestInit | undefined)?.method === 'DELETE',
+        ),
+      ).toBe(true),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^(Сохранить|Изменить)$/ })).toBeEnabled(),
+    );
+    // ...и её отказ не имеет права выглядеть как сохранённая запись.
+    expect(screen.queryByText('Сохранено')).not.toBeInTheDocument();
+    // Применённый перенос не отменяет ошибку: календарю нельзя отдавать сигнал «готово»,
+    // он закрывает панель и уносит сообщение с экрана — форма обязана остаться открытой.
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Длительность, мин')).toBeInTheDocument();
+
+    // Повтор «Сохранить» дожимает только упавший шаг: перенос уже применён, второй раз
+    // отправлять его нельзя — это ещё один перенос записи в истории пациента.
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() =>
+      expect(
+        vi.mocked(fetch).mock.calls.filter(
+          ([url, init]) =>
+            String(url).endsWith('/comments') &&
+            (init as RequestInit | undefined)?.method === 'DELETE',
+        ),
+      ).toHaveLength(2),
+    );
+    expect(
+      vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/manual-reschedule')),
+    ).toHaveLength(1);
   });
 });

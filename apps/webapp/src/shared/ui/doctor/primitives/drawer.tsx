@@ -24,7 +24,9 @@ function DrawerContent({
   ...props
 }: DrawerPrimitive.Popup.Props & {
   showCloseButton?: boolean;
+  /** A second layer opened over an already dimmed one must not dim the screen again. */
   showOverlay?: boolean;
+  /** Full-screen media hides the standard drawer grab handle. */
   showHandle?: boolean;
 }) {
   return (

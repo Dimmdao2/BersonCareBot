@@ -257,6 +257,13 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ]
       },
       {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
         "role": "app_tenant_service",
         "operations": [
           "UPDATE"
@@ -359,6 +366,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "original_start_at",
           "package_usage_ref",
           "payment_ref",
+          "phone_normalized",
+          "platform_user_id",
           "reschedule_count",
           "room_id",
           "service_id",

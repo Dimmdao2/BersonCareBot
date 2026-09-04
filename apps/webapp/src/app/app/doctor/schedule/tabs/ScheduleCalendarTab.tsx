@@ -549,6 +549,18 @@ type ListDayCardProps = {
   showSpecialist: boolean;
 };
 
+/**
+ * APPT-LIST-04: в строке показывается только реально произошедшее с записью —
+ * перенос и виды отмены. Обычные «создана/подтверждена» не дублируют саму строку.
+ */
+const LIST_FACTUAL_STATUSES = new Set<string>([
+  'rescheduled',
+  'late_cancellation',
+  'cancelled_by_patient',
+  'cancelled_by_specialist',
+  'no_show',
+]);
+
 // R29: фон строки списка повторяет статусную палитру календаря (eventClassName);
 // прошедшие приглушаются, отменённые — destructive + line-through.
 function listRowClass(appt: CalendarAppointmentEvent, timeZone: string): string {
@@ -588,6 +600,9 @@ function ListDayCard({
           const end = parseFeedInstant(appt.endAt, timeZone).toFormat('HH:mm');
           const cancelled = isCancelledAppointmentStatus(appt.status);
           const isNext = appt.id === nextApptId;
+          const factualStatusLabel = LIST_FACTUAL_STATUSES.has(appt.status)
+            ? appointmentStatusLabel(appt.status)
+            : null;
           const branchLabel = appt.branchId
             ? (branchShortLabels.get(appt.branchId) ?? appt.branchTitle)
             : appt.branchTitle;
@@ -599,8 +614,12 @@ function ListDayCard({
               onClick={() => onSelect(appt)}
               className={cn(
                 'flex h-auto min-h-0 w-full items-start gap-3 whitespace-normal rounded-none border-0 border-b border-border/60 px-3 py-2 text-left text-sm md:rounded-md md:border md:px-3 md:py-2',
-                isNext ? 'ring-2 ring-primary/70 ring-offset-1' : '',
                 listRowClass(appt, timeZone),
+                // APPT-LIST-01: отметка ближайшей записи идёт ПОСЛЕ палитры строки — иначе
+                // tailwind-merge считает `border-primary/30` из палитры конфликтующим и
+                // выбрасывает цвет верхней линии. Нижняя линия остаётся обычным разделителем,
+                // чтобы синей была ровно одна линия и только сверху.
+                isNext ? 'border-t-2 border-t-primary border-b-border/60' : '',
               )}
               data-testid={`list-appt-${appt.id}`}
             >
@@ -631,9 +650,10 @@ function ListDayCard({
                       {formatPatientPackageShortLabel(appt.packageDisplayNumber)}
                     </span>
                   ) : null}
-                  {isNext ? (
-                    <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                      Следующая
+                  {factualStatusLabel ? (
+                    // APPT-LIST-04: справа — фактический статус записи, не выдуманная отметка.
+                    <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                      {factualStatusLabel}
                     </span>
                   ) : null}
                 </span>
@@ -2548,7 +2568,7 @@ export function ScheduleCalendarTab({
       filterMeta={filters}
       activeFilters={activeFilters}
       ownSpecialistId={scopeBootstrap.ownSpecialistId}
-      showCloseControl={false}
+      clinicSpecialists={scopeBootstrap.specialists}
       flushChrome
       startInCreate={showCreatePanel && !selected}
       createInitialStart={createInitialStart}
@@ -3384,8 +3404,7 @@ export function ScheduleCalendarTab({
           onSelect={(date) => {
             if (date) jumpToDate(date);
           }}
-          className="mx-auto p-3"
-          style={{ ['--rdp-accent-color' as string]: 'var(--primary)' }}
+          className="doctor-day-picker mx-auto p-3"
         />
       </DoctorModal>
 
@@ -3426,7 +3445,7 @@ export function ScheduleCalendarTab({
           open={eventPanelOpen}
           onClose={clearDraftAndPanel}
           title={eventPanelTitle}
-          size="content"
+          size="lg"
         >
           {eventPanelNode}
         </DoctorModal>

@@ -68,6 +68,93 @@ body:has(#app-shell-doctor),
   font-weight: 600;
 }
 
+/*
+ * Общий календарь-пикер кабинета (react-day-picker). Живёт в портале, поэтому опирается
+ * на зональные токены `--primary` / `--doctor-control-radius`, доступные и на :root, когда
+ * смонтирован doctor shell. Выбранный день повторяет выбранный слот времени
+ * (`DoctorTimeColumn`), «сегодня» — канонический маркер календаря врача выше.
+ */
+/*
+ * Специфичность обязана перебивать `.rdp-root` библиотеки: она объявляет те же переменные на
+ * этом же элементе, и при равном весе выигрывает более поздний по порядку файл — тогда акцент
+ * пикера остаётся библиотечным `blue` (PICKER-01/02).
+ */
+.rdp-root.doctor-day-picker {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: color-mix(in srgb, var(--primary) 12%, transparent);
+  --rdp-today-color: var(--primary);
+  --rdp-day_button-border-radius: var(--doctor-control-radius, 8px);
+  --rdp-day_button-border: 2px solid transparent;
+  --rdp-selected-border: 2px solid transparent;
+}
+
+.doctor-day-picker .rdp-selected {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.doctor-day-picker [data-today='true'] .rdp-day_button {
+  border-radius: var(--doctor-control-radius, 8px);
+  background-color: rgba(219, 113, 93, 0.85);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.doctor-day-picker [data-selected='true'] .rdp-day_button {
+  border-radius: var(--doctor-control-radius, 8px);
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 600;
+}
+
+.doctor-day-picker [data-disabled='true'] .rdp-day_button {
+  background-color: transparent;
+  color: inherit;
+  font-weight: inherit;
+}
+
+/*
+ * Touch interaction must not leave Safari's blue tap/focus chrome behind. Keyboard focus stays
+ * visible on desktop because this override is restricted to coarse, non-hover pointers.
+ */
+@media (hover: none) and (pointer: coarse) {
+  #app-shell-doctor
+    input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='range']),
+  #app-shell-doctor textarea,
+  #app-shell-doctor select,
+  #app-shell-doctor [data-slot='input'],
+  #app-shell-doctor [data-slot='textarea'],
+  #app-shell-doctor [data-slot='select-trigger'],
+  #app-shell-doctor .doctor-timezone-select__control,
+  #app-shell-doctor .doctor-timezone-select__single-value,
+  #app-shell-doctor .doctor-timezone-select__placeholder {
+    font-size: 16px !important;
+  }
+
+  #app-shell-doctor .doctor-touch-focus-surface,
+  #app-shell-doctor .doctor-touch-focus-surface * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #app-shell-doctor .doctor-touch-focus-surface:focus,
+  #app-shell-doctor .doctor-touch-focus-surface *:focus {
+    outline: none !important;
+  }
+
+  #app-shell-doctor [data-slot='input']:not([aria-invalid='true']):focus,
+  #app-shell-doctor [data-slot='textarea']:not([aria-invalid='true']):focus,
+  #app-shell-doctor [data-slot='select-trigger']:not([aria-invalid='true']):focus {
+    border-color: var(--input) !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  #app-shell-doctor .doctor-timezone-select__control--is-focused {
+    border-color: var(--border) !important;
+    box-shadow: none !important;
+  }
+}
+
 .doctor-weekly-chart-scroll {
   scrollbar-width: none;
 }

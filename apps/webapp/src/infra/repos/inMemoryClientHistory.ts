@@ -39,4 +39,5 @@ export const inMemoryClientHistoryPort: ClientHistoryPort = {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }),
+  clearAppointmentComments: async () => undefined,
 };

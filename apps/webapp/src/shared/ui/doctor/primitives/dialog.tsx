@@ -45,10 +45,7 @@ function Dialog(props: DialogPrimitive.Root.Props) {
   const showRootOverlay = useDoctorModalOverlay(currentOpen && !isNestedLayer, isNestedLayer);
   const { onOpenChange, ...rootProps } = props;
 
-  const handleOpenChange = (
-    open: boolean,
-    details: DialogPrimitive.Root.ChangeEventDetails,
-  ) => {
+  const handleOpenChange = (open: boolean, details: DialogPrimitive.Root.ChangeEventDetails) => {
     if (props.open === undefined) setUncontrolledOpen(open);
     onOpenChange?.(open, details);
   };
@@ -69,18 +66,15 @@ function Dialog(props: DialogPrimitive.Root.Props) {
   void handle;
 
   return (
-    <DoctorDialogMobileContext.Provider
-      value={{ isMobile: true, isNestedLayer, showRootOverlay }}
-    >
+    <DoctorDialogMobileContext.Provider value={{ isMobile: true, isNestedLayer, showRootOverlay }}>
       <DoctorModalLayerProvider depth={parentDepth + (currentOpen ? 1 : 0)}>
         <DrawerPrimitive.Root
           {...drawerProps}
-          actionsRef={actionsRef as React.RefObject<DrawerPrimitive.Root.Actions | null> | undefined}
+          actionsRef={
+            actionsRef as React.RefObject<DrawerPrimitive.Root.Actions | null> | undefined
+          }
           onOpenChange={(open, details) =>
-            handleOpenChange(
-              open,
-              details as unknown as DialogPrimitive.Root.ChangeEventDetails,
-            )
+            handleOpenChange(open, details as unknown as DialogPrimitive.Root.ChangeEventDetails)
           }
           swipeDirection="down"
         >

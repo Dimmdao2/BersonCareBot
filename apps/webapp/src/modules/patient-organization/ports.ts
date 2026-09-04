@@ -14,7 +14,8 @@ export type CreateManualOrganizationClientInput = {
   /** Required only for a no-phone/no-email standalone card. */
   commandId?: string;
   phoneNormalized: string | null;
-  lastName: string;
+  /** APPT-FORM-05: обязательно только имя пациента. */
+  lastName: string | null;
   firstName: string;
   patronymic: string | null;
   emailRaw: string | null;

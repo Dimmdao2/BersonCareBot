@@ -152,7 +152,8 @@ export type CreateAppointmentInput = {
 type CreateManualPatientIdentityInput = {
   organizationId: string;
   commandId: string;
-  lastName: string;
+  /** APPT-FORM-05: обязательно только имя пациента. */
+  lastName: string | null;
   firstName: string;
   patronymic: string | null;
   phoneNormalized: string | null;

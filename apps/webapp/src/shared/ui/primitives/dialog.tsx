@@ -44,6 +44,7 @@ function DialogContent({
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
+  /** A second layer opened over an already dimmed one must not dim the screen again. */
   showOverlay?: boolean;
 }) {
   return (

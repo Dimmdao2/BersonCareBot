@@ -155,8 +155,9 @@ export function DoctorCalendarPatientSearch({
     const lastName = newLastName.trim();
     const firstName = newFirstName.trim();
     const phone = newPhone.trim();
-    if (!lastName || !firstName) {
-      setCreateError('Укажите фамилию и имя');
+    // APPT-FORM-05: обязательно только имя — фамилия, отчество, телефон и email необязательны.
+    if (!firstName) {
+      setCreateError('Укажите имя');
       return;
     }
     if (!phone && newEmail.trim()) {
@@ -168,8 +169,8 @@ export function DoctorCalendarPatientSearch({
       const patronymic = newPatronymic.trim() || null;
       pick({
         id: null,
-        displayName: formatDoctorFio({ lastName, firstName, patronymic }),
-        lastName,
+        displayName: formatDoctorFio({ lastName: lastName || null, firstName, patronymic }),
+        lastName: lastName || null,
         firstName,
         patronymic,
         phone: phone || null,
@@ -192,7 +193,7 @@ export function DoctorCalendarPatientSearch({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: createRequestIdRef.current,
-          lastName,
+          lastName: lastName || null,
           firstName,
           patronymic: newPatronymic.trim() || null,
           phone: phone || null,
@@ -210,7 +211,7 @@ export function DoctorCalendarPatientSearch({
           data.message
             ? data.message
             : data.error === 'invalid_fio'
-              ? 'Укажите фамилию и имя'
+              ? 'Укажите имя'
               : data.error === 'invalid_phone'
                 ? 'Неверный телефон'
                 : data.error === 'invalid_email'
@@ -245,114 +246,118 @@ export function DoctorCalendarPatientSearch({
 
   return (
     <div ref={rootRef} className="relative min-w-0 space-y-2">
-      <Label htmlFor={inputId}>Пациент</Label>
-      <Input
-        id={inputId}
-        type="text"
-        role="combobox"
-        aria-expanded={open}
-        aria-controls={open ? listboxId : undefined}
-        aria-autocomplete="list"
-        disabled={disabled || creating}
-        placeholder="Имя или телефон…"
-        value={displayValue}
-        onChange={(e) => {
-          const next = e.target.value;
-          setQuery(next);
-          if (value) onChange(null);
-          setOpen(true);
-          setCreateOpen(false);
-        }}
-        onFocus={() => {
-          setOpen(true);
-          if (value) {
-            setQuery('');
-            onChange(null);
-          }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            setOpen(false);
-            setQuery('');
-            return;
-          }
-          if (e.key === 'ArrowDown' && results.length > 0) {
-            e.preventDefault();
-            setActiveIdx((i) => Math.min(i + 1, results.length - 1));
-          }
-          if (e.key === 'ArrowUp' && results.length > 0) {
-            e.preventDefault();
-            setActiveIdx((i) => Math.max(i - 1, 0));
-          }
-          if (e.key === 'Enter' && open && results[activeIdx]) {
-            e.preventDefault();
-            pick(results[activeIdx]!);
-          }
-          if (e.key === 'Backspace' && !query && value) {
-            clear();
-          }
-        }}
-        autoComplete="off"
-      />
-      {open ? (
-        <div
-          id={listboxId}
-          role="listbox"
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-md border border-border bg-popover py-1 text-sm shadow-md"
-        >
-          {loading ? <p className="px-3 py-2 text-muted-foreground">Поиск…</p> : null}
-          {!loading && isDoctorClientSearchQueryAllowed(query.trim()) && results.length === 0 ? (
-            <Button
-              type="button"
-              variant="ghost"
-              className={cn(
-                doctorInteractiveSurfaceButtonClass,
-                'w-full justify-start px-3 py-2 text-left hover:bg-muted',
-              )}
-              onMouseDown={(ev) => ev.preventDefault()}
-              onClick={openCreate}
+      <div className="flex items-center justify-between gap-2">
+        {createOpen ? <Label>Новый пациент</Label> : <Label htmlFor={inputId}>Пациент</Label>}
+        {!createOpen ? (
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto p-0 text-sm font-medium text-primary"
+            disabled={disabled || creating}
+            onClick={openCreate}
+          >
+            Новый пациент
+          </Button>
+        ) : null}
+      </div>
+      {createOpen ? null : (
+        <>
+          <Input
+            id={inputId}
+            type="text"
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={open ? listboxId : undefined}
+            aria-autocomplete="list"
+            disabled={disabled || creating}
+            placeholder="Имя или телефон…"
+            value={displayValue}
+            onChange={(e) => {
+              const next = e.target.value;
+              setQuery(next);
+              if (value) onChange(null);
+              setOpen(true);
+              setCreateOpen(false);
+            }}
+            onFocus={() => {
+              setOpen(true);
+              if (value) {
+                setQuery('');
+                onChange(null);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setOpen(false);
+                setQuery('');
+                return;
+              }
+              if (e.key === 'ArrowDown' && results.length > 0) {
+                e.preventDefault();
+                setActiveIdx((i) => Math.min(i + 1, results.length - 1));
+              }
+              if (e.key === 'ArrowUp' && results.length > 0) {
+                e.preventDefault();
+                setActiveIdx((i) => Math.max(i - 1, 0));
+              }
+              if (e.key === 'Enter' && open && results[activeIdx]) {
+                e.preventDefault();
+                pick(results[activeIdx]!);
+              }
+              if (e.key === 'Backspace' && !query && value) {
+                clear();
+              }
+            }}
+            autoComplete="off"
+          />
+          {open ? (
+            <div
+              id={listboxId}
+              role="listbox"
+              className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-md border border-border bg-popover py-1 text-sm shadow-md"
             >
-              Новый пациент…
-            </Button>
+              {loading ? <p className="px-3 py-2 text-muted-foreground">Поиск…</p> : null}
+              {!loading &&
+              isDoctorClientSearchQueryAllowed(query.trim()) &&
+              results.length === 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={cn(
+                    doctorInteractiveSurfaceButtonClass,
+                    'w-full justify-start px-3 py-2 text-left hover:bg-muted',
+                  )}
+                  onMouseDown={(ev) => ev.preventDefault()}
+                  onClick={openCreate}
+                >
+                  Новый пациент…
+                </Button>
+              ) : null}
+              {!loading && minQueryHint && !value ? (
+                <p className="px-3 py-2 text-muted-foreground">{minQueryHint}</p>
+              ) : null}
+              {results.map((item, idx) => (
+                <Button
+                  key={item.id ?? `${item.displayName}:${item.phone ?? ''}`}
+                  type="button"
+                  variant="ghost"
+                  role="option"
+                  aria-selected={idx === activeIdx}
+                  className={cn(
+                    'h-auto w-full justify-start px-3 py-2 text-left',
+                    idx === activeIdx && 'bg-muted',
+                  )}
+                  onMouseEnter={() => setActiveIdx(idx)}
+                  onMouseDown={(ev) => ev.preventDefault()}
+                  onClick={() => pick(item)}
+                >
+                  {formatPatientLabel(item)}
+                </Button>
+              ))}
+            </div>
           ) : null}
-          {!loading && minQueryHint && !value ? (
-            <p className="px-3 py-2 text-muted-foreground">{minQueryHint}</p>
-          ) : null}
-          {results.map((item, idx) => (
-            <Button
-              key={item.id ?? `${item.displayName}:${item.phone ?? ''}`}
-              type="button"
-              variant="ghost"
-              role="option"
-              aria-selected={idx === activeIdx}
-              className={cn(
-                'h-auto w-full justify-start px-3 py-2 text-left',
-                idx === activeIdx && 'bg-muted',
-              )}
-              onMouseEnter={() => setActiveIdx(idx)}
-              onMouseDown={(ev) => ev.preventDefault()}
-              onClick={() => pick(item)}
-            >
-              {formatPatientLabel(item)}
-            </Button>
-          ))}
-        </div>
-      ) : null}
-
-      {!createOpen && !value ? (
-        <Button
-          type="button"
-          variant="link"
-          className="h-auto p-0 text-xs"
-          disabled={disabled || creating}
-          onClick={() => {
-            setCreateOpen(true);
-            setCreateError(null);
-          }}
-        >
-          Новый пациент
-        </Button>
-      ) : null}
+        </>
+      )}
 
       {createOpen ? (
         <div className="space-y-2 rounded-md border border-border p-2">
@@ -364,21 +369,21 @@ export function DoctorCalendarPatientSearch({
             aria-label="Фамилия пациента"
           />
           <Input
-            placeholder="Имя"
+            placeholder="Имя *"
             value={newFirstName}
             onChange={(e) => setNewFirstName(e.target.value)}
             disabled={disabled || creating}
             aria-label="Имя пациента"
           />
           <Input
-            placeholder="Отчество (если есть)"
+            placeholder="Отчество"
             value={newPatronymic}
             onChange={(e) => setNewPatronymic(e.target.value)}
             disabled={disabled || creating}
             aria-label="Отчество пациента"
           />
           <Input
-            placeholder="Телефон (если есть)"
+            placeholder="Телефон"
             value={newPhone}
             onChange={(e) => setNewPhone(e.target.value)}
             disabled={disabled || creating}
@@ -386,30 +391,19 @@ export function DoctorCalendarPatientSearch({
           />
           <Input
             type="email"
-            placeholder="Email (если есть)"
+            placeholder="Email"
             value={newEmail}
             onChange={(e) => setNewEmail(e.target.value)}
             disabled={disabled || creating}
             aria-label="Email пациента"
           />
           {createError ? <p className="text-xs text-destructive">{createError}</p> : null}
-          <div className="flex gap-2">
+          {/* APPT-FORM-06: «Отмена» слева, «Сохранить и выбрать» справа, равной ширины. */}
+          <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"
-              size="sm"
-              disabled={disabled || creating}
-              onClick={() => void submitNewPatient()}
-            >
-              {creating
-                ? 'Создание…'
-                : deferNewPatientCreation
-                  ? 'Выбрать нового'
-                  : 'Создать и выбрать'}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
               variant="outline"
+              className="w-full"
               disabled={disabled || creating}
               onClick={() => {
                 setCreateOpen(false);
@@ -417,6 +411,14 @@ export function DoctorCalendarPatientSearch({
               }}
             >
               Отмена
+            </Button>
+            <Button
+              type="button"
+              className="w-full"
+              disabled={disabled || creating}
+              onClick={() => void submitNewPatient()}
+            >
+              {creating ? 'Сохранение…' : 'Сохранить и выбрать'}
             </Button>
           </div>
         </div>

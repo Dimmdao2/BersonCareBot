@@ -19,7 +19,8 @@ type ManualPatientIdentityInput = {
   organizationId: string;
   requestId: string;
   createdByUserId: string;
-  lastName: string;
+  /** APPT-FORM-05: обязательно только имя; фамилия необязательна. */
+  lastName?: string | null;
   firstName: string;
   patronymic?: string | null;
   phone?: string | null;
@@ -60,7 +61,7 @@ function normalizeManualPatientIdentity(input: ManualPatientIdentityInput) {
   const lastName = normalizeFioPart(input.lastName);
   const firstName = normalizeFioPart(input.firstName);
   const patronymic = normalizeFioPart(input.patronymic);
-  if (!lastName || !firstName) {
+  if (!firstName) {
     return { ok: false as const, error: 'invalid_fio' as const };
   }
   return {

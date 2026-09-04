@@ -314,6 +314,8 @@ export function createBookingAppointmentLifecycleService(deps: {
       branchId?: string | null;
       specialistId?: string | null;
       serviceId?: string | null;
+      /** APPT-FORM-13: смена пациента записи в пределах той же клиники. */
+      platformUserId?: string | null;
       notificationsSent?: Record<string, unknown>;
     }) {
       const appt = await deps.lifecyclePort.getAppointment(
@@ -343,6 +345,7 @@ export function createBookingAppointmentLifecycleService(deps: {
         roomId: appt.roomId,
         specialistId: input.specialistId ?? appt.specialistId,
         serviceId: input.serviceId ?? appt.serviceId,
+        platformUserId: input.platformUserId,
         policy: reschedulePolicy,
         cancellationPolicy: cancelPolicy,
         wasInFreeRescheduleWindow: input.manualOverride ?? true,
