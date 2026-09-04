@@ -10,6 +10,10 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock('react-hot-toast', () => ({ default: toastMock }));
+
 import type { ClinicPublicCardSettings } from '@/modules/clinic-public-card/ports';
 import { ClinicPublicCardSection } from './ClinicPublicCardSection';
 
@@ -35,6 +39,8 @@ function fetchMock(ok: boolean) {
 }
 
 beforeEach(() => {
+  toastMock.success.mockClear();
+  toastMock.error.mockClear();
   vi.stubGlobal('fetch', fetchMock(true));
 });
 
@@ -74,7 +80,9 @@ describe('B5a · переключатель корня в настройках �
     await userEvent.click(screen.getByRole('checkbox', { name: ROOT_ENTRY_LABEL }));
 
     await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent('Не удалось сохранить настройку входа'),
+      expect(toastMock.error).toHaveBeenCalledWith(
+        expect.stringContaining('Не удалось сохранить настройку входа'),
+      ),
     );
     expect(screen.getByRole('checkbox', { name: ROOT_ENTRY_LABEL })).not.toBeChecked();
   });

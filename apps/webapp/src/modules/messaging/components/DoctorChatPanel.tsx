@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { ArrowUp } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
@@ -197,7 +198,6 @@ export function DoctorChatPanel({
     const t = draft.trim();
     if (!t || sending) return;
     setSending(true);
-    setError(null);
     const idempotencyKey =
       pendingSendRef.current?.text === t ? pendingSendRef.current.key : crypto.randomUUID();
     pendingSendRef.current = { text: t, key: idempotencyKey };
@@ -209,7 +209,7 @@ export function DoctorChatPanel({
       });
       const data = (await res.json()) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        setError('Не отправлено');
+        toast.error('Не отправлено');
         return;
       }
       pendingSendRef.current = null;
@@ -218,7 +218,7 @@ export function DoctorChatPanel({
       await loadMessages();
       await onSentRef.current?.();
     } catch {
-      setError('Ошибка сети');
+      toast.error('Ошибка сети');
     } finally {
       setSending(false);
     }

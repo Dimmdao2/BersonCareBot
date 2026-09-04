@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -211,8 +212,8 @@ export function PatientTabFinances({
   const [cashService, setCashService] = useState('');
   const [cashComment, setCashComment] = useState('');
   const [cashSubmitting, setCashSubmitting] = useState(false);
+  /** Только валидация суммы; исход записи платежа — во всплывающем уведомлении. */
   const [cashError, setCashError] = useState<string | null>(null);
-  const [cashSuccess, setCashSuccess] = useState(false);
 
   // ---- Acquiring form state ----
   const [acqAmount, setAcqAmount] = useState('');
@@ -268,7 +269,6 @@ export function PatientTabFinances({
 
     setCashSubmitting(true);
     setCashError(null);
-    setCashSuccess(false);
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/payments`, {
         method: 'POST',
@@ -282,16 +282,16 @@ export function PatientTabFinances({
       });
       if (!res.ok) {
         const json: { error?: string } = await res.json().catch(() => ({}));
-        setCashError(json.error ?? 'Ошибка сохранения');
+        toast.error(json.error ?? 'Ошибка сохранения');
         return;
       }
       setCashAmount('');
       setCashService('');
       setCashComment('');
-      setCashSuccess(true);
+      toast.success('Платёж записан');
       await fetchTimeline();
     } catch {
-      setCashError('Ошибка сети');
+      toast.error('Ошибка сети');
     } finally {
       setCashSubmitting(false);
     }
@@ -479,7 +479,6 @@ export function PatientTabFinances({
                   onChange={(e) => {
                     setCashAmount(e.target.value);
                     setCashError(null);
-                    setCashSuccess(false);
                   }}
                   required
                 />
@@ -512,9 +511,6 @@ export function PatientTabFinances({
               </div>
 
               {cashError && <p className="text-xs text-destructive">{cashError}</p>}
-              {cashSuccess && (
-                <p className="text-xs text-emerald-700 dark:text-emerald-400">Платёж записан</p>
-              )}
 
               <Button type="submit" size="sm" disabled={cashSubmitting} className="self-start">
                 {cashSubmitting ? 'Сохранение…' : 'Записать наличные'}

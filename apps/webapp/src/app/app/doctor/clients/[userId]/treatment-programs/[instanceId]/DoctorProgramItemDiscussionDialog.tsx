@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 import {
@@ -258,7 +259,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
             await loadPage(null, false, generation);
           } catch {
             if (generation === loadGenerationRef.current) {
-              setError('Ответ отправлен, но список не обновился. Откройте обсуждение заново.');
+              toast.error('Ответ отправлен, но список не обновился. Откройте обсуждение заново.');
             }
           }
           return { ok: true as const };
@@ -274,7 +275,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
             await loadPage(null, false, generation);
           } catch {
             if (generation === loadGenerationRef.current) {
-              setError('Файл удалён из чата, но список не обновился. Откройте обсуждение заново.');
+              toast.error('Файл удалён из чата, но список не обновился. Откройте обсуждение заново.');
             }
           }
           return { ok: true as const };

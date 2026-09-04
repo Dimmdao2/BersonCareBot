@@ -1,6 +1,15 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock('react-hot-toast', () => ({ default: toastMock }));
+
 import { PayTariffButton } from './PayTariffButton';
+
+beforeEach(() => {
+  toastMock.success.mockClear();
+  toastMock.error.mockClear();
+});
 
 afterEach(() => {
   cleanup();
@@ -105,9 +114,9 @@ describe('PayTariffButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Оплатить тариф' }));
 
     await waitFor(() =>
-      expect(
-        screen.getByText('Оплата тарифа временно недоступна: платёжный магазин платформы не настроен.'),
-      ).toBeInTheDocument(),
+      expect(toastMock.error).toHaveBeenCalledWith(
+        'Оплата тарифа временно недоступна: платёжный магазин платформы не настроен.',
+      ),
     );
   });
 

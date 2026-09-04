@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -103,8 +104,8 @@ export function DoctorCourseEditForm({
   const [priceMinor, setPriceMinor] = useState(String(initial.priceMinor));
   const [currency, setCurrency] = useState(initial.currency);
   const [pending, setPending] = useState(false);
+  /** Только предзапросная валидация полей; исход сохранения — во всплывающем уведомлении. */
   const [error, setError] = useState<string | null>(null);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const [usage, setUsage] = useState<CourseUsageSnapshot | null>(null);
   const [usageBusy, setUsageBusy] = useState(false);
@@ -120,7 +121,6 @@ export function DoctorCourseEditForm({
     setStatus(initial.status);
     setPriceMinor(String(initial.priceMinor));
     setCurrency(initial.currency);
-    setSavedAt(null);
     setError(null);
     setWarnOpen(false);
     setWarnUsage(null);
@@ -253,10 +253,10 @@ export function DoctorCourseEditForm({
         return;
       }
       if (!first.ok) {
-        setError(readSafeApiErrorText(first, 'Не удалось сохранить'));
+        toast.error(readSafeApiErrorText(first, 'Не удалось сохранить'));
         return;
       }
-      setSavedAt(Date.now());
+      toast.success('Сохранено');
       router.refresh();
       if (externalUsageSnapshot === undefined) {
         void fetch(`/api/doctor/courses/${encodeURIComponent(courseId)}/usage`)
@@ -267,7 +267,7 @@ export function DoctorCourseEditForm({
           .catch(() => {});
       }
     } catch {
-      setError('Сеть недоступна. Попробуйте ещё раз.');
+      toast.error('Сеть недоступна. Попробуйте ещё раз.');
     } finally {
       setPending(false);
     }
@@ -275,16 +275,15 @@ export function DoctorCourseEditForm({
 
   async function confirmArchiveDialog() {
     setPending(true);
-    setError(null);
     try {
       const r = await persistToServer(true);
       if (!r.ok) {
-        setError(readSafeApiErrorText(r, 'Не удалось отправить курс в архив'));
+        toast.error(readSafeApiErrorText(r, 'Не удалось отправить курс в архив'));
         return;
       }
       setWarnOpen(false);
       setWarnUsage(null);
-      setSavedAt(Date.now());
+      toast.success('Сохранено');
       router.refresh();
       if (externalUsageSnapshot === undefined) {
         void fetch(`/api/doctor/courses/${encodeURIComponent(courseId)}/usage`)
@@ -295,7 +294,7 @@ export function DoctorCourseEditForm({
           .catch(() => {});
       }
     } catch {
-      setError('Сеть недоступна. Попробуйте ещё раз.');
+      toast.error('Сеть недоступна. Попробуйте ещё раз.');
     } finally {
       setPending(false);
     }
@@ -329,11 +328,6 @@ export function DoctorCourseEditForm({
         {error ? (
           <p role="alert" className="text-sm text-destructive">
             {error}
-          </p>
-        ) : null}
-        {savedAt ? (
-          <p className="text-sm text-emerald-700 dark:text-emerald-400" role="status">
-            Сохранено
           </p>
         ) : null}
         <div className="space-y-1">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import {
   Dialog,
@@ -150,7 +151,6 @@ export function ProgramItemDiscussionDialog(props: {
     const body = draft.trim();
     if (!body || sending) return;
     setSending(true);
-    setError(null);
     try {
       const res = await fetch(basePath, {
         method: 'POST',
@@ -163,7 +163,7 @@ export function ProgramItemDiscussionDialog(props: {
         message?: ProgramItemDiscussionMessage | null;
       } | null;
       if (!res.ok || !data?.ok) {
-        setError(readSafeApiErrorText(data, 'Не удалось отправить комментарий'));
+        toast.error(readSafeApiErrorText(data, 'Не удалось отправить комментарий'));
         return;
       }
       setDraft('');
@@ -176,7 +176,7 @@ export function ProgramItemDiscussionDialog(props: {
       }
       void onRead?.();
     } catch {
-      setError('Ошибка сети');
+      toast.error('Ошибка сети');
     } finally {
       setSending(false);
     }
@@ -302,7 +302,7 @@ export function ProgramItemDiscussionDialog(props: {
                   disabled={sending || loading}
                   onUploaded={() => bootstrap()}
                   onError={(message) =>
-                    setError(
+                    toast.error(
                       message === 'video_too_short'
                         ? 'Видео должно быть не короче 10 секунд'
                         : 'Не удалось загрузить файл',
