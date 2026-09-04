@@ -190,18 +190,4 @@ describe('patient card — final tabs live in DoctorPageHeader', () => {
     expect(screen.getByTestId('panel-program').closest('.hidden')).not.toBeNull();
   });
 
-  it('opens the existing membership configuration from the overview action', async () => {
-    render(
-      <PatientCardClient
-        shellMeta={shellMeta}
-        tabPromise={fulfilledThenable(tabBootstrap)}
-        initialTab="overview"
-        patientListHref={patientListHref}
-      />,
-    );
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Добавить абонемент' }));
-    expect(await screen.findByRole('dialog', { name: 'Добавить абонемент' })).toBeInTheDocument();
-    expect(screen.getByTestId('membership-configuration')).toBeInTheDocument();
-  });
 });

@@ -199,7 +199,7 @@ function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
           title="Камера"
           disabled={disabled}
           className={cn(
-            'inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50',
+            'inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 md:hidden',
           )}
         >
           <Camera className="size-4" aria-hidden />
@@ -216,7 +216,7 @@ function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
         title="Медиатека"
         disabled={disabled}
         onClick={() => libraryRef.current?.click()}
-        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border p-0 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
       >
         <ImageIcon className="size-4" aria-hidden />
       </Button>
@@ -227,9 +227,20 @@ function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
         title="Документ"
         disabled={disabled}
         onClick={() => documentRef.current?.click()}
-        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border p-0 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
       >
         <FilePlus className="size-4" aria-hidden />
+      </Button>
+
+      <Button
+        type="button"
+        variant="secondary"
+        title="Загрузить файл"
+        disabled={disabled}
+        onClick={() => documentRef.current?.click()}
+        className="hidden md:inline-flex"
+      >
+        Загрузить файл
       </Button>
     </div>
   );

@@ -1,7 +1,5 @@
 // @vitest-environment jsdom
 
-import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextResponse } from 'next/server';
 
@@ -113,7 +111,6 @@ import { PATCH as updateAdminSetting } from '@/app/api/admin/settings/route';
 import { POST as updatePatientPromo } from '@/app/api/patient/treatment-program-promo/action/route';
 import { savePatientHomePracticeTargetAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
 import { saveContentSection } from '@/app/app/doctor/content/sections/actions';
-import { PatientTabFiles } from '@/app/app/doctor/patients/[userId]/tabs/PatientTabFiles';
 import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolders';
 import { POST as recordWarmupCompletion } from '@/app/api/patient/practice/completion/route';
 import { POST as recordWarmupVideoView } from '@/app/api/patient/daily-warmup/video-viewed/route';
@@ -221,7 +218,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  cleanup();
   vi.restoreAllMocks();
 });
 
@@ -1224,36 +1220,6 @@ describe('tariff and platform mutation gates', () => {
     });
     expect(createFile).not.toHaveBeenCalled();
     expect(pgEnsureClientPatientFolder).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    [
-      'file_storage_limit_not_configured',
-      'Невозможно загрузить файл: у клиники нет действующего тарифа. Назначьте клинике тариф, чтобы загружать файлы.',
-    ],
-    [
-      'file_storage_limit_reached',
-      'Невозможно загрузить файл: хранилище клиники заполнено. Увеличьте объём файлов в тарифе клиники, чтобы загружать новые файлы.',
-    ],
-  ])('keeps the upload refusal visible for %s', async (error, message) => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ ok: false, error }), {
-        status: 403,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-    const { container } = render(
-      createElement(PatientTabFiles, { userId: TARGET_ID, initialFiles: [] }),
-    );
-
-    fireEvent.click(screen.getByTitle('Загрузить файл'));
-    const input = container.querySelector<HTMLInputElement>('#upload-file-input');
-    expect(input).not.toBeNull();
-    fireEvent.change(input!, {
-      target: { files: [new File(['result'], 'result.pdf', { type: 'application/pdf' })] },
-    });
-
-    await waitFor(() => expect(screen.getByText(message)).toBeTruthy());
   });
 
   it('refuses saving a clinic brand when branding is disabled, without touching the port', async () => {

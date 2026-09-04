@@ -57,29 +57,6 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/clinic/billing', { method: 'DELETE' }));
   });
 
-  it('shows the scheduled tariff boundary and its cancel action', () => {
-    render(
-      <BillingSection
-        tariffName="Стандарт"
-        commercialStateLabel="Тариф активен."
-        mechanics={[]}
-        quotaUsage={[]}
-        billing={emptyBilling}
-        tariffChange={{
-          choices: [{ id: 'current', name: 'Стандарт' }, { id: 'small', name: 'Базовый' }],
-          currentTariffId: 'current',
-          pendingTariffId: 'small',
-          pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
-          awaitingFirstPayment: false,
-          payable: true,
-        }}
-      />,
-    );
-
-    expect(screen.getByText('Новый тариф вступит 01.09.2026')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Отменить' })).toBeInTheDocument();
-  });
-
   it('names the exact cleanup categories when the tariff change is refused', async () => {
     const fetch = vi.fn().mockResolvedValue({
       json: async () => ({

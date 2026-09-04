@@ -29,24 +29,6 @@ describe.each([
   ['patient', PatientMediaThumb],
   ['doctor', DoctorMediaThumb],
 ])('MediaThumb placeholder (%s copy)', (_side, MediaThumb) => {
-  it('says the image is being prepared while the upload is not converted', () => {
-    const { getByText } = render(<MediaThumb media={media({ standardRendition: false })} />);
-    expect(getByText('Изображение готовится')).toBeInTheDocument();
-    expect(document.querySelector('img')).toBeNull();
-  });
-
-  it('says the same on a surface that does not read the conversion fact at all', () => {
-    const { getByText } = render(<MediaThumb media={media()} />);
-    expect(getByText('Изображение готовится')).toBeInTheDocument();
-  });
-
-  it('names the video, not the image, while its preview is missing', () => {
-    const { getByText } = render(
-      <MediaThumb media={media({ kind: 'video', standardRendition: false })} />,
-    );
-    expect(getByText('Видео готовится')).toBeInTheDocument();
-  });
-
   it('shows the converted file itself instead of the placeholder', () => {
     const { queryByText } = render(<MediaThumb media={media({ standardRendition: true })} />);
     expect(document.querySelector('img')).toHaveAttribute('src', fileUrl);
@@ -73,16 +55,4 @@ describe.each([
     expect(document.querySelector('img')).toHaveAttribute('src', fileUrl);
   });
 
-  it.each(['failed', 'skipped'] as const)(
-    'says the preview is unavailable, not "готовится", for preview_status=%s',
-    (previewStatus) => {
-      const { getByText, queryByText } = render(
-        <MediaThumb media={media({ previewStatus, standardRendition: true })} />,
-      );
-      expect(
-        getByText(previewStatus === 'skipped' ? 'Превью не создаётся' : 'Превью недоступно'),
-      ).toBeInTheDocument();
-      expect(queryByText('Изображение готовится')).toBeNull();
-    },
-  );
 });

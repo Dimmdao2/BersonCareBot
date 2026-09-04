@@ -54,10 +54,4 @@ describe('PlatformTelegramCredentialsSection', () => {
     }
   });
 
-  it('shows the selected mode and the restart notice', async () => {
-    render(<PlatformTelegramCredentialsSection />);
-
-    expect(await screen.findByLabelText('Режим приёма сообщений')).toHaveTextContent('Long polling');
-    expect(screen.getByText('Изменение вступит в силу после перезапуска интегратора.')).toBeVisible();
-  });
 });

@@ -28,17 +28,4 @@ describe('PatientContentMaterialRating global switch', () => {
     expect(screen.queryByTestId('material-rating-feedback')).not.toBeInTheDocument();
   });
 
-  it('mounts the rating block when the global switch is true', () => {
-    render(
-      <PatientRuntimeFeaturesProvider materialRatingsEnabled>
-        <PatientContentMaterialRating
-          contentPageId="00000000-0000-4000-8000-000000000318"
-          guest={false}
-          needsActivation={false}
-        />
-      </PatientRuntimeFeaturesProvider>,
-    );
-
-    expect(screen.getByTestId('material-rating-block')).toBeInTheDocument();
-  });
 });

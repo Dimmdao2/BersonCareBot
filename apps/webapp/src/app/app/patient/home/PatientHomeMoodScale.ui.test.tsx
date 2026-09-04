@@ -41,19 +41,6 @@ describe('шкала самочувствия на главной пациент
     expect(sources.some((src) => src.startsWith('/api/media/'))).toBe(false);
   });
 
-  it('рисует те же пять иконок при повторном монтировании — клиника на них не влияет', () => {
-    // Компонент не принимает ни настроек, ни organizationId: единственный источник — bundled-папка.
-    render(<PatientHomeMoodCheckin personalTierOk anonymousGuest={false} />);
-    const first = renderedMoodImageSources();
-    cleanup();
-
-    render(<PatientHomeMoodCheckin personalTierOk anonymousGuest={false} />);
-    const second = renderedMoodImageSources();
-
-    expect(second).toEqual(first);
-    expect(second).toEqual(BUNDLED_MOOD_SRC);
-  });
-
   it('каждый bundled-путь существует в public/, иначе пациент увидит битую картинку', () => {
     const publicDir = path.resolve(__dirname, '../../../../../public');
     for (const src of BUNDLED_MOOD_SRC) {

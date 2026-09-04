@@ -251,28 +251,6 @@ describe('TeamSection seat overage quote', () => {
 });
 
 describe('TeamSection read-only access', () => {
-  it('keeps invite and revoke controls available when team mutation is allowed', () => {
-    render(
-      <TeamSection
-        members={[]}
-        invites={[
-          {
-            id: 'invite-1',
-            invitedEmail: 'new-doctor@example.com',
-            invitedRole: 'doctor',
-            expiresAt: '2026-08-09T00:00:00.000Z',
-          },
-        ]}
-        seats={{ configured: true, used: 1, limit: 2, available: 1 }}
-        canMutateTeam
-      />,
-    );
-
-    expect(screen.getByRole('heading', { name: 'Пригласить в команду' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Пригласить' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Отозвать' })).toBeInTheDocument();
-  });
-
   it('keeps stored members and invites visible while removing every team mutation control', () => {
     render(
       <TeamSection

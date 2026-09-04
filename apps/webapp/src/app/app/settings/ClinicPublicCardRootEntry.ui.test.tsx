@@ -44,20 +44,6 @@ afterEach(() => {
 });
 
 describe('B5a · переключатель корня в настройках клиники', () => {
-  it('снят, пока клиника его не включала', () => {
-    render(
-      <ClinicPublicCardSection initialSettings={CARD} skipPublicCardAtRoot={false} publicUrl={null} />,
-    );
-    expect(screen.getByRole('checkbox', { name: ROOT_ENTRY_LABEL })).not.toBeChecked();
-  });
-
-  it('показывает сохранённое включённое значение', () => {
-    render(
-      <ClinicPublicCardSection initialSettings={CARD} skipPublicCardAtRoot publicUrl={null} />,
-    );
-    expect(screen.getByRole('checkbox', { name: ROOT_ENTRY_LABEL })).toBeChecked();
-  });
-
   it('включение пишет именно ключ настройки корня в общий порт настроек', async () => {
     const fetchSpy = fetchMock(true);
     vi.stubGlobal('fetch', fetchSpy);

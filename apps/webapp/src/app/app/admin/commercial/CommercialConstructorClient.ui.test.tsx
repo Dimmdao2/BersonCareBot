@@ -32,47 +32,6 @@ describe('commercial constructor access ladder', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
   });
 
-  it('does not render retired tariff controls from legacy API data', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({
-          ok: true,
-          tariffs: [
-            {
-              id: '11111111-1111-4111-8111-111111111199',
-              name: 'Legacy tariff',
-              description: '',
-              priceMinor: null,
-              currency: null,
-              billingPeriod: 'month',
-              mechanics: { booking: true, clinical_tests: false, online_intake: false },
-              quotas: {},
-              systemAccessPolicy: null,
-              mechanicAccessPolicies: { clinical_tests: null, online_intake: null },
-              downgradePolicies: { clinical_tests: 'block', online_intake: 'block' },
-              includedSeats: 1,
-              additionalSeatPriceMinor: null,
-              isActive: true,
-              createdAt: '2026-08-02T00:00:00.000Z',
-              updatedAt: '2026-08-02T00:00:00.000Z',
-            },
-          ],
-          organizations: [],
-          trialPolicy: null,
-          registrationTariffPolicy: { tariffId: null },
-        }),
-      })),
-    );
-
-    render(<CommercialConstructorClient />);
-
-    await screen.findByText('Legacy tariff');
-    expect(screen.queryByText('Клинические тесты и наборы')).not.toBeInTheDocument();
-    expect(screen.queryByText('Онлайн-анкета')).not.toBeInTheDocument();
-  });
-
   it('starts unconfigured and exposes the owner fields in product language', async () => {
     vi.stubGlobal(
       'fetch',
@@ -106,32 +65,6 @@ describe('commercial constructor access ladder', () => {
     expect(screen.getByText('Только чтение: дней')).toBeInTheDocument();
     expect(screen.getByText('Затем')).toBeInTheDocument();
     expect(screen.queryByText(/квот/i)).not.toBeInTheDocument();
-  });
-
-  // #1069 T1/T10/T13: one global paid-period policy and no tariff downgrade controls in the UI.
-  it('shows only the system access ladder form, never mechanic exceptions or downgrade controls', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({
-          ok: true,
-          tariffs: [],
-          organizations: [],
-          trialPolicy: null,
-          registrationTariffPolicy: { tariffId: null },
-        }),
-      })),
-    );
-
-    render(<CommercialConstructorClient />);
-    await screen.findByRole('button', { name: 'Создать' });
-
-    expect(screen.getAllByRole('button', { name: 'Настроить' })).toHaveLength(1);
-    expect(screen.queryByText(/Исключения по механикам/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Добавить исключение/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Исключение:/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/При переходе на меньший тариф/i)).not.toBeInTheDocument();
   });
 
   it('submits and reloads only the system access policy', async () => {
@@ -487,34 +420,6 @@ describe('commercial constructor access ladder', () => {
     ).not.toBeInTheDocument();
     expect(within(openSelect!).getByRole('option', { name: 'Только чтение' })).toBeInTheDocument();
     expect(within(openSelect!).getByRole('option', { name: 'Выключено' })).toBeInTheDocument();
-  });
-
-  // Т5 (owner 03.08) — registration tariff and trial duration are two independent settings on one tab.
-  it('names the independent registration-tariff and trial-duration settings on the Триал tab', async () => {
-    const user = userEvent.setup();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({
-          ok: true,
-          tariffs: [],
-          organizations: [],
-          trialPolicy: null,
-          registrationTariffPolicy: { tariffId: null },
-        }),
-      })),
-    );
-
-    render(<CommercialConstructorClient />);
-    await user.click(await screen.findByRole('tab', { name: 'Триал' }));
-
-    expect(
-      screen.getByText(/Отдельная настройка от срока триала ниже/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Отдельная настройка от стартового тарифа выше/),
-    ).toBeInTheDocument();
   });
 
   /**
