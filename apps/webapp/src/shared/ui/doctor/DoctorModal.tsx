@@ -16,6 +16,7 @@ import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import {
   doctorModalEntityTitleClass,
   doctorModalTitleClass,
+  doctorModalTitleSubjectClass,
   doctorSectionTitleClass,
 } from '@/shared/ui/doctor/doctorVisual';
 
@@ -35,6 +36,11 @@ type DoctorModalProps = {
   open: boolean;
   onClose: () => void;
   title: ReactNode;
+  /**
+   * Вторая строка шапки под заголовком: контекст модалки («Пациент: Фамилия Имя»).
+   * Общий контракт — размер/начертание задаёт `doctorModalTitleSubjectClass`, не caller.
+   */
+  titleSubject?: ReactNode;
   description?: ReactNode;
   children: ReactNode;
   size?: DoctorModalSize;
@@ -94,6 +100,7 @@ export function DoctorModal({
   open,
   onClose,
   title,
+  titleSubject,
   description,
   children,
   size = 'md',
@@ -173,6 +180,10 @@ export function DoctorModal({
     <div className="shrink-0 border-b border-border/60 bg-card">{bodyHeader}</div>
   ) : null;
 
+  const titleSubjectNode = titleSubject ? (
+    <p className={doctorModalTitleSubjectClass}>{titleSubject}</p>
+  ) : null;
+
   const headerTrailingNode =
     headerSubtitle || headerAction ? (
       <div className="flex min-w-0 shrink-0 items-center justify-end gap-2">
@@ -195,7 +206,10 @@ export function DoctorModal({
         <DrawerContent showCloseButton={false} className="gap-0 bg-card p-0">
           <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pt-1.5 pb-3">
             <div className="flex min-w-0 items-center justify-between gap-2">
-              <DrawerTitle className={doctorModalTitleClass}>{title}</DrawerTitle>
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <DrawerTitle className={doctorModalTitleClass}>{title}</DrawerTitle>
+                {titleSubjectNode}
+              </div>
               {headerTrailingNode}
             </div>
             {description && <DrawerDescription>{description}</DrawerDescription>}
@@ -240,7 +254,10 @@ export function DoctorModal({
             style={{ minHeight: 'var(--doctor-page-header-h, 2.75rem)' }}
           >
             <div className="flex min-w-0 items-center justify-between gap-2">
-              <SheetTitle className={doctorModalTitleClass}>{title}</SheetTitle>
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <SheetTitle className={doctorModalTitleClass}>{title}</SheetTitle>
+                {titleSubjectNode}
+              </div>
               {headerTrailingNode}
             </div>
             {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
@@ -264,7 +281,10 @@ export function DoctorModal({
       >
         <DialogHeader className="shrink-0 border-b border-border/60 px-4 pt-4 pb-3 pr-12">
           <div className="flex min-w-0 items-center justify-between gap-2">
-            <DialogTitle className={doctorModalTitleClass}>{title}</DialogTitle>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <DialogTitle className={doctorModalTitleClass}>{title}</DialogTitle>
+              {titleSubjectNode}
+            </div>
             {headerTrailingNode}
           </div>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}

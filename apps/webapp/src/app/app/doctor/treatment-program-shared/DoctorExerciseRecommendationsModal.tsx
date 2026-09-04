@@ -21,6 +21,7 @@ import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { DoctorExerciseMediaPlayer } from '@/shared/ui/doctor/media/DoctorExerciseMediaPlayer';
+import { useDoctorPatientSubjectLine } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export type DoctorExerciseRecommendationsValue = {
   reps: number | null;
@@ -77,11 +78,24 @@ export function DoctorExerciseRecommendationsModal(props: {
   instanceId: string;
   itemId: string;
   exerciseTitle: string;
+  /** «Фамилия Имя» пациента для второй строки шапки; без него вторая строка не рисуется. */
+  patientName?: string | null;
   media: RecommendationMediaItem | null;
   initialValue: DoctorExerciseRecommendationsValue;
   onSaved: (result: DoctorExerciseRecommendationsSaveResult) => void;
 }) {
-  const { open, onClose, instanceId, itemId, exerciseTitle, media, initialValue, onSaved } = props;
+  const {
+    open,
+    onClose,
+    instanceId,
+    itemId,
+    exerciseTitle,
+    patientName,
+    media,
+    initialValue,
+    onSaved,
+  } = props;
+  const patientSubject = useDoctorPatientSubjectLine(patientName);
   const [reps, setReps] = useState('');
   const [sets, setSets] = useState('');
   const [maxPain, setMaxPain] = useState('');
@@ -160,6 +174,7 @@ export function DoctorExerciseRecommendationsModal(props: {
       open={open}
       onClose={onClose}
       title={<DoctorModalCompositeTitle label="Рекомендации" entity={exerciseTitle} />}
+      titleSubject={patientSubject}
       size="lg"
       bodyClassName="space-y-4"
       footer={

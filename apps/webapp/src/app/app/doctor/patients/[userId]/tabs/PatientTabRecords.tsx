@@ -28,7 +28,8 @@ import {
   doctorStatCardShellClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalCompositeTitle } from '@/shared/ui/doctor/DoctorModal';
+import { formatDoctorFioShort } from '@/shared/lib/fio';
 import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -391,6 +392,11 @@ export function PatientTabRecords({
     };
   }, [membershipModalOpen, activePackages]);
 
+  // «Фамилия Имя» пациента для заголовка модалки визитов.
+  const visitsPatientName = header
+    ? formatDoctorFioShort(header.identity, header.identity.displayName)
+    : null;
+
   const hasNoShows = historyList.some((a) => a.status === 'no_show');
   const cancelsHistory = historyList.filter(
     (a) => a.status === 'canceled' || a.status === 'no_show',
@@ -450,12 +456,12 @@ export function PatientTabRecords({
         <DoctorModal
           open={visitsModalOpen}
           onClose={() => setVisitsModalOpen(false)}
-          title="Визиты"
+          title={<DoctorModalCompositeTitle label="Визиты" entity={visitsPatientName} />}
           size="lg"
           bodyVariant="list"
           desktopPresentation="right-sheet"
         >
-          <DoctorModalSummaryBar className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
+          <DoctorModalSummaryBar className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
             <span>Отмен {cancelsCount}</span>
             <span>Переносов {reschedulesCount}</span>
             <span>Поздних отмен {lateCancellationsCount}</span>
@@ -532,10 +538,7 @@ export function PatientTabRecords({
           {activePackages.length > 0 ? (
             <DoctorModalSummaryBar>
               {activePackageSummaries.map(({ pkg, used, total }) => (
-                <div
-                  key={pkg.id}
-                  className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4"
-                >
+                <div key={pkg.id} className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
                   <span className="font-medium">{pkg.title}</span>
                   <span>
                     Использовано {used} из {total}
