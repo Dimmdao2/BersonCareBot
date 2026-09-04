@@ -30,6 +30,8 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import type { PatientHomeBlock } from '@/modules/patient-home/ports';
+import type { ActionFailureFields } from '@/shared/http/apiResponse';
+import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
 import { reorderPatientHomeBlocks } from './actions';
 
 function SortableBlockRow({ block }: { block: PatientHomeBlock }) {
@@ -72,7 +74,7 @@ export function PatientHomeReorderBlocksDialog({
   const [blocks, setBlocks] = useState<PatientHomeBlock[]>(() =>
     [...initialBlocks].sort((a, b) => a.sortOrder - b.sortOrder),
   );
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ActionFailureFields | null>(null);
   const [isPending, startTransition] = useTransition();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -97,7 +99,7 @@ export function PatientHomeReorderBlocksDialog({
     startTransition(async () => {
       const res = await reorderPatientHomeBlocks(blocks.map((block) => block.code));
       if (!res.ok) {
-        setError(res.error);
+        setError(res);
         return;
       }
       onSaved();
@@ -121,7 +123,7 @@ export function PatientHomeReorderBlocksDialog({
             </ul>
           </SortableContext>
         </DndContext>
-        {error ? <div className="text-sm text-destructive">{error}</div> : null}
+        <ActionFailureText failure={error} />
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>Отменить</DialogClose>
           <Button onClick={handleSave} disabled={isPending}>

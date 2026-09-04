@@ -3,12 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireOrgBrandingManagementContext } from '@/app-layer/guards/requireOrgBrandingManagementContext';
-import { safeActionErrorCode } from '@/shared/http/apiResponse';
+import { safeActionFailure, type ActionFailureFields } from '@/shared/http/apiResponse';
 
-type ActionState = { ok: true } | { ok: false; error: string };
+type ActionState = { ok: true } | ({ ok: false } & ActionFailureFields);
 
-function fail(error: string): ActionState {
-  return { ok: false, error };
+/** A code this action owns, or the shared door's verdict (code plus its support reference). */
+function fail(failure: string | ActionFailureFields): ActionState {
+  return typeof failure === 'string' ? { ok: false, error: failure } : { ok: false, ...failure };
 }
 
 /**
@@ -48,6 +49,6 @@ export async function saveOrgBranding(input: {
     revalidateOrgBrandingSurfaces();
     return { ok: true };
   } catch (error) {
-    return fail(safeActionErrorCode(error, 'save_failed', 'org_branding_save_failed'));
+    return fail(safeActionFailure(error, 'save_failed', 'org_branding_save_failed'));
   }
 }

@@ -6,7 +6,7 @@ import { LOG_SERIALIZERS, logger } from '@/infra/logging/logger';
 import {
   jsonError,
   resolveApiFailure,
-  safeActionErrorCode,
+  safeActionFailure,
   TypedApiResponseError,
 } from './apiResponse';
 
@@ -85,15 +85,24 @@ describe('shared error door — the id the user gets is the id the operator logs
     expect(operatorLog).not.toHaveBeenCalled();
   });
 
-  it('gives server actions the same decision: safe code out, full detail to the operator', () => {
+  it('gives server actions the same decision: safe code plus the logged id out, full detail to the operator', () => {
     const operatorLog = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
 
-    const code = safeActionErrorCode(dbFailure, 'toggle_failed', 'test_action_failure');
+    const failure = safeActionFailure(dbFailure, 'toggle_failed', 'test_action_failure');
 
-    expect(code).toBe('toggle_failed');
+    expect(failure.error).toBe('toggle_failed');
+    expect(JSON.stringify(failure)).not.toMatch(
+      /insert into|be_patient_package_items|permission denied|42501|SELECT|VALUES/i,
+    );
     expect(operatorLog).toHaveBeenCalledTimes(1);
-    const [payload] = operatorLog.mock.calls[0] as [{ operatorErrorDetail: unknown }];
+    const [payload] = operatorLog.mock.calls[0] as [
+      { correlationId: string; operatorErrorDetail: unknown },
+    ];
     expect(payload.operatorErrorDetail).toBe(dbFailure);
+    // The owner requirement is one requirement, not two: the id the doctor is given has to be the
+    // id the detail was filed under, or the reference on screen points at nothing.
+    expect(failure.correlationId).toBe(payload.correlationId);
+    expect(failure.correlationId).not.toBe('');
   });
 
   /**
@@ -109,20 +118,24 @@ describe('shared error door — the id the user gets is the id the operator logs
     const authored =
       'Невозможно изменить настройки главной страницы пациента: этот раздел не входит в ваш тариф.';
 
-    const trusted = safeActionErrorCode(
+    const trusted = safeActionFailure(
       new TypedApiResponseError({ code: authored, status: 403 }),
       'toggle_failed',
       'test_action_failure',
     );
-    expect(trusted).toBe(authored);
+    expect(trusted).toEqual({ error: authored });
+    // A named refusal files nothing, so it carries no reference: a support code beside a sentence
+    // the doctor can act on themselves would point at a log line that was never written.
+    expect(trusted.correlationId).toBeUndefined();
     expect(operatorLog).not.toHaveBeenCalled();
 
-    const impostor = safeActionErrorCode(
+    const impostor = safeActionFailure(
       Object.assign(new Error(authored), { code: '42501' }),
       'toggle_failed',
       'test_action_failure',
     );
-    expect(impostor).toBe('toggle_failed');
+    expect(impostor.error).toBe('toggle_failed');
+    expect(typeof impostor.correlationId).toBe('string');
     expect(operatorLog).toHaveBeenCalledTimes(1);
   });
 

@@ -11,6 +11,8 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { savePatientHomeRepeatCooldownsAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
+import type { ActionFailureFields } from '@/shared/http/apiResponse';
+import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
 import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
@@ -40,7 +42,7 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
   const [planMin, setPlanMin] = useState(String(props.initialPlanItemMinutes));
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ActionFailureFields | null>(null);
 
   async function onSave() {
     setMessage(null);
@@ -55,7 +57,7 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
       p < PATIENT_REPEAT_COOLDOWN_MINUTES_MIN ||
       p > PATIENT_REPEAT_COOLDOWN_MINUTES_MAX
     ) {
-      setError('Выберите паузу из списка.');
+      setError({ error: 'Выберите паузу из списка.' });
       return;
     }
     setPending(true);
@@ -65,13 +67,13 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
         planItemRepeatMinutes: p,
       });
       if (!result.ok) {
-        setError(result.error);
+        setError(result);
         return;
       }
       setMessage('Сохранено');
       router.refresh();
     } catch {
-      setError('Не удалось сохранить.');
+      setError({ error: 'Не удалось сохранить.' });
     } finally {
       setPending(false);
     }
@@ -133,11 +135,7 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
           {pending ? 'Сохранение…' : 'Сохранить'}
         </Button>
       </div>
-      {error ? (
-        <p className="mt-2 text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
+      <ActionFailureText failure={error} className="mt-2" />
       {message ? (
         <p className="mt-2 text-sm text-green-700" role="status">
           {message}

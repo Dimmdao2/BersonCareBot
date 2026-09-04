@@ -354,3 +354,133 @@ SQL-стейтмент снова на экране врача, при зелё�
 - **Замороженный долг 69 файлов / 87 точек не расширялся и не трогался**; `String(error)`, касты,
   деструктуризация и correlation id для server actions остаются вопросами владельцу.
 - **Строку очереди в accepted этот проход не переводит** — приёмку регистрирует ведущий.
+
+---
+
+# S4 — закрытие authority-разрыва по correlation id для server actions (04.09.2026)
+
+Роль раздела — **evidence второго correction-прохода**, не приёмка. Исторический `FAIL` артефакта
+`S4_ERROR_BOUNDARY_INDEPENDENT_AUDIT_2026-09-04.md` и раздел C выше не переписаны.
+
+База: `eb8538f79`, ветка `wt/trackd-completion-20260904`.
+
+## D1. Что было нарушено — требование плана владельца, а не находка аудитора
+
+Оракул: `docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md:210-224` + решение владельца
+`:277-281` — «S4 возвращает пользователю **короткий безопасный correlation id, общий с серверным
+логом**; внутренний текст ошибки остаётся только оператору». Исключения для API у решения нет,
+а `11 server actions` названы в семьях S4 прямо.
+
+На кандидате `resolveApiFailure` уже отдавала пару `{descriptor, correlationId}` и писала лог под
+этим id, но `safeActionErrorCode` возвращала **только** `descriptor.code`. Id создавался, логировался
+и выбрасывался. Достижимое следствие: неизвестный отказ БД в любом из этих action'ов приходил врачу
+как голый `toggle_failed` / `forbidden`, и на экране не было ничего, что можно назвать поддержке, —
+при том что строка лога с полным текстом существовала. Раздел C6 выше числил это «вопросом
+владельцу»; по строкам 277–281 это MUST FIX, и он закрыт здесь.
+
+## D2. Перепись семьи, свежий замер вместо цифры плана
+
+```bash
+grep -rl "'use server'" src --include='*.ts' --include='*.tsx' | wc -l                  → 30
+grep -rn "safeActionErrorCode" --include='*.ts' -l src | grep -v shared/http | sort      → 4 файла
+```
+
+Семья S4-мигрированных server actions — **4 файла / 18 catch-сайтов**, а не 11 файлов переписи
+владельца: план считал по паттерну `error.message`/`err.message` до миграции, а сам S4-кандидат
+уже перевёл эти сайты на общую дверь (5-й файл переписи, `doctor/references/actions.ts`, безопасен
+по построению закрытым allowlist и в семью двери не входит — см. раздел 4 выше). Закрыты все четыре:
+
+| Файл | Сайтов |
+|---|---:|
+| `src/app/app/settings/patient-home/actions.ts` | 11 |
+| `src/app/app/doctor/patient-home/patientHomeDoctorSettingsActions.ts` | 3 |
+| `src/app/app/doctor/lfk-templates/actions.ts` | 3 |
+| `src/app/app/settings/brandingActions.ts` | 1 |
+
+## D3. Конструкция: та же точка, переименованная, а не вторая рядом
+
+- **Второго маппера, второго механизма ошибки, подстрочной эвристики и второго сериализатора нет.**
+  `resolveApiFailure` не менялась вовсе; `mapApiError` не менялся; `jsonError` не менялся.
+- `safeActionErrorCode` **переименована в `safeActionFailure`** — по §5 («если после расширения имя
+  точки перестало описывать её работу, точка переименовывается в том же изменении»): она больше не
+  возвращает код, она возвращает результат решения. Возврат — новый тип `ActionFailureFields`
+  (`{ error: string; correlationId?: string }`) с **теми же именами полей**, что у
+  `ApiErrorResponseBody`: у server action нет `NextResponse`, и это его «тело ответа».
+- Каждый action-result тип стал `{ ok: false } & ActionFailureFields`, а сайты — `{ ok: false,
+  ...safeActionFailure(...) }`. Помощники `fail()` в двух файлах приняли `string | ActionFailureFields`
+  вместо расщепления на две функции.
+- Известный доменный код по-прежнему различим и **id не несёт**: под него ничего не подшито в лог,
+  и код поддержки рядом с фразой, которую врач может отработать сам, указывал бы в пустоту.
+
+## D4. UI: одна точка показа, доменный текст не заменён
+
+Новый `src/shared/ui/doctor/ActionFailureText.tsx` — единственное место, где решается, как выглядит
+отказ action'а: собственный текст/код действия плюс, **только для неназванного отказа**, строка
+`Код для поддержки: <id>` (`font-mono`, `select-all` — чтобы её можно было выделить и скопировать).
+Формулировка не выдумана: ровно та же фраза уже стоит в `DataLoadFailureNotice` (§21 — не заводить
+второй текст для того же). Экспортированный `actionFailureLine()` — тот же текст одной строкой для
+поверхностей без второй строки (тост в `TemplateEditor`).
+
+11 потребителей переведены на эту точку; `error`-состояние в них стало `ActionFailureFields | null`,
+клиентские валидации — `setError({ error: '…' })`. Доменные тексты нигде не заменены общей фразой:
+`OrgBrandingSection` по-прежнему переводит свои коды через `SAVE_ERROR_MESSAGES`, а ссылка едет рядом.
+
+```
+settings/patient-home: PatientHomeAddItemDialog, PatientHomeBlockItemsDialog,
+  PatientHomeBlockSettingsCard, PatientHomeCreateSectionInlineDialog, PatientHomeReorderBlocksDialog,
+  PatientHomeRepairTargetsDialog, PatientHomeDailyWarmupRotationPanel, PatientHomePracticeTargetPanel,
+  PatientHomeRepeatCooldownPanel
+settings: OrgBrandingSection
+doctor/lfk-templates: TemplateEditor (тост)
+```
+
+## D5. Тесты — на общей точке и на одном сквозном потребителе
+
+- `src/shared/http/safeErrorTransport.unit.test.ts` (существующий) — утверждение про action-транспорт
+  усилено: `JSON.stringify(failure)` не содержит внутреннего текста, а `failure.correlationId`
+  **равен** `correlationId` в перехваченной строке лога. Доверенный типизированный отказ проверяется
+  на `toEqual({ error: authored })` — то есть на **отсутствие** id.
+- `src/app/app/settings/patient-home/patientHomeActionFailureReference.ui.test.tsx` (новый, 2 теста) —
+  сквозной: настоящий `PatientHomePracticeTargetPanel` → настоящий
+  `savePatientHomePracticeTargetAction` → настоящая дверь, с инъекцией
+  `Object.assign(new Error('insert into "be_patient_package_items" …'), { code: '42501' })` через мок
+  порта. Утверждает: в разметке нет ни SQL, ни таблицы, ни SQLSTATE; видимая строка равна
+  `Код для поддержки: <id из перехваченного logger.error>`. Второй тест: тарифный отказ читается
+  дословно и ссылки не получает.
+
+## D6. Fault injection — по одному на независимый класс, все откачены
+
+| # | Что сломано | Покрасневшее утверждение |
+|---|---|---|
+| FI-A | `safeActionFailure` снова отдаёт только код | unit: `gives server actions the same decision…` (`expected undefined to be '36ab174d…'`), `trusts the typed authored outcome…`; ui: `expected 'forbidden' to contain 'Код для поддержки: 4d810a5e…'` — 3 failed / 7 passed |
+| FI-B | дверь верна, но action кладёт в результат только `.error` | **только** ui: `expected 'forbidden' to contain 'Код для поддержки: 284e991a…'` — 1 failed / 9 passed (доказывает, что сквозной тест держит контракт результата, которого unit не видит) |
+| FI-C | UI перестал показывать ссылку | ui: `expected 'forbidden' to contain 'Код для поддержки: 491f1721…'` — 1 failed / 9 passed |
+| FI-D | UI заменил доменный текст общей фразой | ui: `expected 'Не удалось выполнить действие.' to be 'Невозможно изменить настройки…'`; чужой `tariffMechanicsRefusals.ui.test.tsx` → `shows returned errors in every Today settings panel` — 3 failed / 11 passed |
+
+После каждой инъекции файл восстановлен; `grep -rn "void SUPPORT_REF_LABEL\|void correlationId" src/ scripts/` пуст.
+
+## D7. Прогоны (все через `/home/dev/brain/host-orch/run-tests.sh`)
+
+| Проверка | Результат |
+|---|---|
+| Целевые S4 (4 файла) + новый сквозной | **5 files / 19 passed** (было 17) |
+| Все затронутые action/UI/route-тесты (11 файлов) | **89 passed (89)** |
+| `pnpm --dir apps/webapp typecheck` | rc 0 |
+| `pnpm --dir apps/webapp lint` (eslint + все гейты и их self-test) | rc 0 |
+| `node scripts/check-safe-error-transport.mjs` | OK (69 файлов долга, без сдвига) |
+| `… --self-test` | OK (13 форм обхода отклонено, 10 канонических принято) |
+| `TEST_ACCOUNT_PHONES=… pnpm test:webapp:behavior` | unit **227/1025**, route **90/619**, ui **70/262** — всё зелёное |
+| `prettier --check` по затронутым файлам | OK |
+| `git diff --check` | чисто |
+
+## D8. НЕ СДЕЛАНО
+
+- **Независимого PASS нет.** Галочку S4 в плане владельца этот проход не ставит, очередь ночного
+  аудита не редактируется.
+- **Full CI не запускался** — по решению владельца он один раз на объединённом S1+S4 SHA и
+  делегируется отдельно.
+- **Живая проверка, DEV/TEST/PROD, deploy, push, миграции, БД, taskdb — не выполнялись.**
+- **Замороженный долг 69 файлов / 87 точек не трогался**; `String(error)`, касты и деструктуризация
+  остаются вопросами владельцу (раздел 9 выше).
+- **`doctor/references/actions.ts` не менялся** — он безопасен закрытым allowlist и в семью общей
+  двери не входит.

@@ -39,6 +39,8 @@ import {
   patientHomeBlockItemTargetTypeLabelRu,
 } from '@/modules/patient-home/patientHomeBlockItemDisplayTitle';
 import { PATIENT_HOME_USEFUL_POST_BADGE_LABEL } from '@/modules/patient-home/usefulPostPresentation';
+import type { ActionFailureFields } from '@/shared/http/apiResponse';
+import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
 import {
   deletePatientHomeItem,
   reorderPatientHomeItems,
@@ -174,7 +176,7 @@ export function PatientHomeBlockItemsDialog({
 
   const [items, setItems] = useState<PatientHomeBlockItem[]>(() => sortItems(initialItems));
   const [removedIds, setRemovedIds] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ActionFailureFields | null>(null);
   const [isPending, startTransition] = useTransition();
   const prevOpenRef = useRef(false);
 
@@ -218,7 +220,7 @@ export function PatientHomeBlockItemsDialog({
       const reorderedIds = items.map((item) => item.id);
       const reorderRes = await reorderPatientHomeItems(blockCode, reorderedIds);
       if (!reorderRes.ok) {
-        setError(reorderRes.error);
+        setError(reorderRes);
         return;
       }
       for (const item of items) {
@@ -226,7 +228,7 @@ export function PatientHomeBlockItemsDialog({
         if (source && source.isVisible !== item.isVisible) {
           const visRes = await updatePatientHomeItemVisibility(item.id, item.isVisible);
           if (!visRes.ok) {
-            setError(visRes.error);
+            setError(visRes);
             return;
           }
         }
@@ -247,7 +249,7 @@ export function PatientHomeBlockItemsDialog({
             if (prevShowTitle !== nextShowTitle) payload.showTitle = nextShowTitle;
             const pres = await updatePatientHomeItemPresentation(payload);
             if (!pres.ok) {
-              setError(pres.error);
+              setError(pres);
               return;
             }
           }
@@ -256,7 +258,7 @@ export function PatientHomeBlockItemsDialog({
       for (const itemId of removedIds) {
         const delRes = await deletePatientHomeItem(itemId);
         if (!delRes.ok) {
-          setError(delRes.error);
+          setError(delRes);
           return;
         }
       }
@@ -315,7 +317,7 @@ export function PatientHomeBlockItemsDialog({
             </ul>
           </SortableContext>
         </DndContext>
-        {error ? <div className="text-sm text-destructive">{error}</div> : null}
+        <ActionFailureText failure={error} />
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>Отменить</DialogClose>
           <Button onClick={handleSave} disabled={isPending}>

@@ -5,6 +5,8 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import { savePatientHomeWarmupRotationAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
+import type { ActionFailureFields } from '@/shared/http/apiResponse';
+import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
 import {
   DEFAULT_PATIENT_HOME_DAILY_WARMUP_ROTATION_TIMES,
   MAX_DAILY_WARMUP_ROTATION_TIMES,
@@ -25,7 +27,7 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
   );
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ActionFailureFields | null>(null);
 
   function addTimeRow() {
     if (times.length >= MAX_DAILY_WARMUP_ROTATION_TIMES) return;
@@ -41,17 +43,17 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
     setError(null);
     for (const t of times) {
       if (!/^([01]?\d|2[0-3]):([0-5]\d)$/.test(t.trim())) {
-        setError('Время: формат HH:MM.');
+        setError({ error: 'Время: формат HH:MM.' });
         return;
       }
     }
     const unique = new Set(times.map((t) => t.trim()));
     if (unique.size !== times.length) {
-      setError('Времена не должны повторяться.');
+      setError({ error: 'Времена не должны повторяться.' });
       return;
     }
     if (enabled && times.length < 1) {
-      setError('Укажите хотя бы одно время.');
+      setError({ error: 'Укажите хотя бы одно время.' });
       return;
     }
     setPending(true);
@@ -61,7 +63,7 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
         times: [...times].map((t) => t.trim()),
       });
       if (!result.ok) {
-        setError(result.error);
+        setError(result);
         return;
       }
       setMessage('Сохранено');
@@ -136,11 +138,7 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
           {pending ? 'Сохранение…' : 'Сохранить'}
         </Button>
       </div>
-      {error ? (
-        <p className="mt-2 text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
+      <ActionFailureText failure={error} className="mt-2" />
       {message ? (
         <p className="mt-2 text-sm text-green-700" role="status">
           {message}

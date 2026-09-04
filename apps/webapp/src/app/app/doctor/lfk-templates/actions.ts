@@ -19,7 +19,7 @@ import type {
 import { EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT } from '@/modules/lfk-templates/types';
 import { sanitizeLfkTemplatesListPreserveQuery } from './lfkTemplatesListPreserveQuery';
 import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
-import { safeActionErrorCode } from '@/shared/http/apiResponse';
+import { safeActionFailure, type ActionFailureFields } from '@/shared/http/apiResponse';
 
 const BASE = '/app/doctor/lfk-templates';
 
@@ -124,7 +124,7 @@ export async function createLfkTemplateDraftFromEditor(payload: {
   title: string;
   description: string | null;
   exercises: TemplateExerciseInput[];
-}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+}): Promise<{ ok: true; id: string } | ({ ok: false } & ActionFailureFields)> {
   try {
     const workspace = await requireDoctorWorkspaceContext();
     const deps = buildAppDeps();
@@ -152,7 +152,7 @@ export async function createLfkTemplateDraftFromEditor(payload: {
   } catch (e) {
     return {
       ok: false,
-      error: safeActionErrorCode(e, 'Не удалось создать черновик', 'doctor_lfk_template_failed'),
+      ...safeActionFailure(e, 'Не удалось создать черновик', 'doctor_lfk_template_failed'),
     };
   }
 }
@@ -162,7 +162,7 @@ export async function persistLfkTemplateDraft(payload: {
   title: string;
   description: string | null;
   exercises: TemplateExerciseInput[];
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<{ ok: true } | ({ ok: false } & ActionFailureFields)> {
   try {
     const workspace = await requireDoctorWorkspaceContext();
     const deps = buildAppDeps();
@@ -196,14 +196,14 @@ export async function persistLfkTemplateDraft(payload: {
   } catch (e) {
     return {
       ok: false,
-      error: safeActionErrorCode(e, 'Не удалось сохранить', 'doctor_lfk_template_failed'),
+      ...safeActionFailure(e, 'Не удалось сохранить', 'doctor_lfk_template_failed'),
     };
   }
 }
 
 export async function publishLfkTemplateAction(
   templateId: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true } | ({ ok: false } & ActionFailureFields)> {
   try {
     const workspace = await requireDoctorWorkspaceContext();
     const deps = buildAppDeps();
@@ -217,7 +217,7 @@ export async function publishLfkTemplateAction(
   } catch (e) {
     return {
       ok: false,
-      error: safeActionErrorCode(e, 'Не удалось опубликовать', 'doctor_lfk_template_failed'),
+      ...safeActionFailure(e, 'Не удалось опубликовать', 'doctor_lfk_template_failed'),
     };
   }
 }

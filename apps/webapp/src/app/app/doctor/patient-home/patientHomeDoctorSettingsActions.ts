@@ -17,7 +17,11 @@ import {
   isValidPatientHomeDailyWarmupRotationTimesPayload,
   normalizeDailyWarmupRotationTime,
 } from '@/modules/patient-home/patientHomeDailyWarmupRotationSettings';
-import { safeActionErrorCode, TypedApiResponseError } from '@/shared/http/apiResponse';
+import {
+  safeActionFailure,
+  TypedApiResponseError,
+  type ActionFailureFields,
+} from '@/shared/http/apiResponse';
 
 function revalidatePatientHomePages(): void {
   revalidatePath('/app/doctor/patient-home');
@@ -71,7 +75,7 @@ async function requireWarmupsEntitlementOrThrow(organizationId: string): Promise
 
 export async function savePatientHomePracticeTargetAction(
   target: number,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true } | ({ ok: false } & ActionFailureFields)> {
   try {
     const { userId, organizationId } = await requirePatientHomeOwnerOrThrow();
     if (!Number.isFinite(target) || target < 1 || target > 10) {
@@ -90,7 +94,10 @@ export async function savePatientHomePracticeTargetAction(
     revalidatePatientHomePages();
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: safeActionErrorCode(error, 'forbidden', 'patient_home_doctor_setting_failed') };
+    return {
+      ok: false,
+      ...safeActionFailure(error, 'forbidden', 'patient_home_doctor_setting_failed'),
+    };
   }
 }
 
@@ -110,7 +117,7 @@ const patientHomeRepeatCooldownsSaveSchema = z.object({
 /** Specialist workspace setting: паузы повтора разминки / пунктов плана. */
 export async function savePatientHomeRepeatCooldownsAction(
   input: z.infer<typeof patientHomeRepeatCooldownsSaveSchema>,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true } | ({ ok: false } & ActionFailureFields)> {
   try {
     const { userId, organizationId } = await requireDoctorWorkspaceOrThrow();
     await requireWarmupsEntitlementOrThrow(organizationId);
@@ -141,14 +148,17 @@ export async function savePatientHomeRepeatCooldownsAction(
     revalidatePatientHomePages();
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: safeActionErrorCode(error, 'forbidden', 'patient_home_doctor_setting_failed') };
+    return {
+      ok: false,
+      ...safeActionFailure(error, 'forbidden', 'patient_home_doctor_setting_failed'),
+    };
   }
 }
 
 export async function savePatientHomeWarmupRotationAction(input: {
   enabled: boolean;
   times: string[];
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<{ ok: true } | ({ ok: false } & ActionFailureFields)> {
   try {
     const { userId, organizationId } = await requirePatientHomeOwnerOrThrow();
     await requireWarmupsEntitlementOrThrow(organizationId);
@@ -184,6 +194,9 @@ export async function savePatientHomeWarmupRotationAction(input: {
     revalidatePatientHomePages();
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: safeActionErrorCode(error, 'forbidden', 'patient_home_doctor_setting_failed') };
+    return {
+      ok: false,
+      ...safeActionFailure(error, 'forbidden', 'patient_home_doctor_setting_failed'),
+    };
   }
 }

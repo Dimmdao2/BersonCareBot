@@ -20,6 +20,8 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import type { PatientHomeBlockItem } from '@/modules/patient-home/ports';
+import type { ActionFailureFields } from '@/shared/http/apiResponse';
+import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
 import {
   patientHomeBlockItemDisplayTitle,
   patientHomeBlockItemTargetTypeLabelRu,
@@ -53,7 +55,7 @@ export function PatientHomeRepairTargetsDialog({
 }) {
   const router = useRouter();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ActionFailureFields | null>(null);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [selectionByItemId, setSelectionByItemId] = useState<Record<string, string>>({});
@@ -70,7 +72,7 @@ export function PatientHomeRepairTargetsDialog({
         setError(null);
       } else {
         setCandidates([]);
-        setError(res.error);
+        setError(res);
       }
       setCandidatesLoading(false);
     })();
@@ -107,7 +109,7 @@ export function PatientHomeRepairTargetsDialog({
     const key = selectionByItemId[item.id] ?? '';
     const [tt, ref] = key.split(':');
     if (!tt || !ref) {
-      setError('Выберите цель из списка');
+      setError({ error: 'Выберите цель из списка' });
       return;
     }
     setError(null);
@@ -118,7 +120,7 @@ export function PatientHomeRepairTargetsDialog({
         targetRef: ref,
       });
       if (!res.ok) {
-        setError(res.error);
+        setError(res);
         return;
       }
       onSaved();
@@ -240,7 +242,7 @@ export function PatientHomeRepairTargetsDialog({
             );
           })}
         </div>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ActionFailureText failure={error} />
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>Закрыть</DialogClose>
         </DialogFooter>

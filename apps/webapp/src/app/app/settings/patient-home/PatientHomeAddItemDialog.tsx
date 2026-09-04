@@ -13,6 +13,8 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import type { ActionFailureFields } from '@/shared/http/apiResponse';
+import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
 import { getPatientHomeBlockEditorMetadata } from '@/modules/patient-home/blockEditorMetadata';
 import { patientHomeBlockItemTargetTypeLabelRu } from '@/modules/patient-home/patientHomeBlockItemDisplayTitle';
 import {
@@ -51,7 +53,7 @@ export function PatientHomeAddItemDialog({
 }) {
   const [items, setItems] = useState<Candidate[]>([]);
   const [query, setQuery] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ActionFailureFields | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -63,7 +65,7 @@ export function PatientHomeAddItemDialog({
         setError(null);
       } else {
         setItems([]);
-        setError(res.error);
+        setError(res);
       }
     });
   }, [open, blockCode]);
@@ -91,7 +93,7 @@ export function PatientHomeAddItemDialog({
         targetRef: item.targetRef,
       });
       if (!res.ok) {
-        setError(res.error);
+        setError(res);
         return;
       }
       onSaved();
@@ -222,7 +224,7 @@ export function PatientHomeAddItemDialog({
             <div className="text-sm text-muted-foreground">Ничего не найдено.</div>
           ) : null}
         </div>
-        {error ? <div className="text-sm text-destructive">{error}</div> : null}
+        <ActionFailureText failure={error} />
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>Закрыть</DialogClose>
         </DialogFooter>

@@ -161,15 +161,43 @@ export function resolveApiFailure(failure: ApiFailure): ResolvedApiFailure {
 }
 
 /**
+ * The failed half of a server action's own result, carrying the same two fields — and the same
+ * field names — as `ApiErrorResponseBody` above. A server action returns a plain object instead of
+ * a `NextResponse`, so this is what "the response body" means on that transport: spread it into the
+ * action's `{ ok: false }` result and both audiences get exactly what the HTTP door gives them.
+ */
+export type ActionFailureFields = Readonly<{
+  error: string;
+  /** Present only for an unmapped failure — the id its operator log line was written under. */
+  correlationId?: string;
+}>;
+
+/**
  * The non-HTTP transport of the same decision. A server action's result is rendered by the client
  * component that called it, so returning a caught error's own text puts SQL, table names and bound
  * parameters on the doctor's screen exactly like an API body did. The caller's fixed code goes to
  * the screen; the full detail goes to the operator log under the correlation id. `status` belongs
  * to the shared descriptor — a server action has no HTTP status of its own, so it declares the
  * equivalent one and nothing reads it back.
+ *
+ * Returns the id as well as the code, because the owner decision behind S4 is one requirement, not
+ * two: the internal text stays with the operator *and* the person is given the short reference that
+ * text was filed under. Dropping the id here left an unknown DB failure on a doctor's screen as a
+ * bare `toggle_failed` with nothing to quote to support — the log line existed and was unreachable.
+ * A known domain code is unchanged and carries no id: there is nothing filed to look up.
  */
-export function safeActionErrorCode(error: unknown, code: string, logEvent: string): string {
-  return resolveApiFailure({ error, fallback: { code, status: 500 }, logEvent }).descriptor.code;
+export function safeActionFailure(
+  error: unknown,
+  code: string,
+  logEvent: string,
+): ActionFailureFields {
+  const { descriptor, correlationId } = resolveApiFailure({
+    error,
+    fallback: { code, status: 500 },
+    logEvent,
+  });
+  if (correlationId === undefined) return { error: descriptor.code };
+  return { error: descriptor.code, correlationId };
 }
 
 export function jsonError<
