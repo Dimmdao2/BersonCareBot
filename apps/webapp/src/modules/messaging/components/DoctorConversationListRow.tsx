@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { DoctorSupportStar } from '@/shared/ui/doctor/DoctorSupportStar';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { doctorListPreviewTextClass } from '@/shared/ui/doctor/doctorVisual';
@@ -91,9 +92,7 @@ export function DoctorConversationListRow({
             {hasStructuredName
               ? [conversation.lastName, conversation.firstName].filter(Boolean).join(' ')
               : conversation.displayName || 'Без имени'}
-            {conversation.onSupport ? (
-              <span className="ml-1.5 text-[10px] font-semibold text-primary">★</span>
-            ) : null}
+            {conversation.onSupport ? <DoctorSupportStar /> : null}
           </span>
           <span className="flex shrink-0 items-center gap-1.5">
             <span

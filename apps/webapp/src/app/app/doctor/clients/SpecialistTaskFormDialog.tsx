@@ -14,18 +14,30 @@ import {
 } from '@/app/app/doctor/calendar/DoctorCalendarPatientSearch';
 import { formatDoctorFio } from '@/shared/lib/fio';
 
-function toLocalInput(iso: string | null): string {
+function toLocalInput(iso: string | null, includeTime = true): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return includeTime ? `${date}T${pad(d.getHours())}:${pad(d.getMinutes())}` : date;
 }
 
-function fromLocalInput(value: string): string | null {
+function fromLocalInput(value: string, endOfDay = false): string | null {
   const v = value.trim();
   if (!v) return null;
-  const d = new Date(v);
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  const d = dateOnlyMatch
+    ? new Date(
+        Number(dateOnlyMatch[1]),
+        Number(dateOnlyMatch[2]) - 1,
+        Number(dateOnlyMatch[3]),
+        endOfDay ? 23 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 999 : 0,
+      )
+    : new Date(v);
   if (Number.isNaN(d.getTime())) return null;
   return d.toISOString();
 }
@@ -53,7 +65,9 @@ export function SpecialistTaskFormContent({
 }: SpecialistTaskFormContentProps) {
   const [title, setTitle] = useState(editing?.title ?? '');
   const [description, setDescription] = useState(editing?.description ?? '');
-  const [dueAt, setDueAt] = useState(() => toLocalInput(editing?.dueAt ?? null));
+  const [dueAt, setDueAt] = useState(() =>
+    toLocalInput(editing?.dueAt ?? null, editing?.dueHasTime !== false),
+  );
   const [remindAt, setRemindAt] = useState(() => toLocalInput(editing?.remindAt ?? null));
   const [isImportant, setIsImportant] = useState(editing?.isImportant ?? false);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +140,8 @@ export function SpecialistTaskFormContent({
     const body = {
       title,
       description: description.trim() || null,
-      dueAt: fromLocalInput(dueAt),
+      dueAt: fromLocalInput(dueAt, !/T\d{2}:\d{2}/.test(dueAt)),
+      dueHasTime: Boolean(dueAt && /T\d{2}:\d{2}/.test(dueAt)),
       remindAt: fromLocalInput(remindAt),
       isImportant,
     };
@@ -206,7 +221,7 @@ export function SpecialistTaskFormContent({
       </label>
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Срок</span>
-        <DoctorDateTimePicker value={dueAt} onChange={setDueAt} />
+        <DoctorDateTimePicker value={dueAt} onChange={setDueAt} optionalTime />
       </label>
       <LabeledSwitch
         label="Важное"

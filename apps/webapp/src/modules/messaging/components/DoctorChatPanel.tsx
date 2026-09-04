@@ -4,11 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { ArrowUp, Loader } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
-import {
-  doctorChatMessageTextClass,
-  doctorChatTimestampClass,
-  doctorMetaTextClass,
-} from '@/shared/ui/doctor/doctorVisual';
+import { doctorChatMessageTextClass, doctorMetaTextClass } from '@/shared/ui/doctor/doctorVisual';
 import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import { cn } from '@/lib/utils';
 import { ChatView } from '@/modules/messaging/components/ChatView';
@@ -285,7 +281,6 @@ export function DoctorChatPanel({
         className="min-h-0 flex-1"
         onReplyToMessage={replyToMessage}
         messageTextClassName={doctorChatMessageTextClass}
-        timestampClassName={doctorChatTimestampClass}
         dayLabelClassName={doctorMetaTextClass}
       />
     </div>

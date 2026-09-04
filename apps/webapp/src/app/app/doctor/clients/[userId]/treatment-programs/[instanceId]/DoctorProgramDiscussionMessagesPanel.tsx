@@ -20,7 +20,10 @@ import {
   formatChatRelativeDateLabelRu,
 } from '@/modules/messaging/messageFormatting';
 import { chatMessageDeliveryStatus } from '@/modules/messaging/chatMessageDeliveryStatus';
-import { ChatBubbleOutgoingMeta } from '@/shared/ui/chat/ChatBubbleOutgoingMeta';
+import {
+  DOCTOR_CHAT_BUBBLE_MAX_WIDTH,
+  DoctorChatBubbleMeta,
+} from '@/shared/ui/chat/DoctorChatBubbleMeta';
 import {
   chatBubbleOwnClass,
   chatBubblePeerClass,
@@ -34,7 +37,6 @@ import { DoctorExerciseMediaPlayer } from '@/shared/ui/doctor/media/DoctorExerci
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import {
   doctorChatMessageTextClass,
-  doctorChatTimestampClass,
   doctorInteractiveSurfaceButtonClass,
   doctorListPreviewTextClass,
   doctorMetaTextClass,
@@ -77,7 +79,7 @@ function AssignmentToolbar({
   return (
     <div
       className={cn(
-        'flex shrink-0 flex-col border-b border-border/60 bg-card',
+        'relative z-10 flex shrink-0 flex-col border-b border-border/60 bg-card',
         doctorPanelBottomShadowClass,
       )}
     >
@@ -113,22 +115,34 @@ function AssignmentToolbar({
         ) : (
           <ExerciseListCatalogThumb media={assignment.media} className="!size-11 !rounded-md" />
         )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-2">
-            <div className="min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1" style={{ marginTop: '-4px' }}>
+          <div style={{ marginTop: '4px' }}>
+            <div style={{ paddingRight: onShowStatistics || onEdit ? '5rem' : undefined }}>
               {loadParts.length > 0 ? (
-                <p className="text-sm font-medium text-foreground">{loadParts.join(', ')}</p>
-              ) : assignment.note ? null : (
-                <p className="text-sm font-medium text-foreground">Нет рекомендаций</p>
+                <p className="text-sm leading-5 font-medium text-muted-foreground">
+                  {loadParts.join(', ')}
+                </p>
+              ) : (
+                <p className={cn(doctorMetaTextClass, 'font-medium')}>Нагрузка не задана</p>
               )}
             </div>
-            <div className="flex shrink-0 items-center gap-1">
+            {assignment.note ? (
+              <p className={cn(doctorListPreviewTextClass, 'font-medium text-muted-foreground')}>
+                {assignment.note}
+              </p>
+            ) : null}
+          </div>
+          {onShowStatistics || onEdit ? (
+            <div
+              className="absolute right-0 flex shrink-0 items-center gap-1"
+              style={{ top: '-5px' }}
+            >
               {onShowStatistics ? (
                 <Button
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="size-9 shrink-0 text-muted-foreground"
+                  className="size-9 shrink-0 text-foreground"
                   onClick={onShowStatistics}
                   aria-label="Открыть статистику упражнения"
                 >
@@ -140,7 +154,7 @@ function AssignmentToolbar({
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="size-9 shrink-0 text-muted-foreground"
+                  className="size-9 shrink-0 text-foreground"
                   onClick={onEdit}
                   aria-label="Изменить рекомендации"
                 >
@@ -148,9 +162,6 @@ function AssignmentToolbar({
                 </Button>
               ) : null}
             </div>
-          </div>
-          {assignment.note ? (
-            <p className={cn(doctorListPreviewTextClass, 'font-medium')}>{assignment.note}</p>
           ) : null}
         </div>
       </div>
@@ -431,21 +442,17 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                   ) : null}
                   <div
                     className={cn(
-                      'flex max-w-full items-end gap-1.5',
+                      'flex w-full max-w-full items-end',
                       !fromPatient && 'justify-end',
                     )}
                   >
-                    {!fromPatient ? (
-                      <p className={doctorChatTimestampClass}>
-                        {formatChatMessageTimeRu(m.createdAt)}
-                      </p>
-                    ) : null}
                     <div
                       className={cn(
-                        'min-w-0 max-w-[min(100%,22rem)] rounded-md border px-3 py-2 shadow-sm',
+                        'relative min-w-0 w-fit rounded-md border px-3 py-2 shadow-sm',
                         doctorChatMessageTextClass,
                         fromPatient ? chatBubblePeerClass : chatBubbleOwnClass,
                       )}
+                      style={{ maxWidth: DOCTOR_CHAT_BUBBLE_MAX_WIDTH }}
                       onTouchStart={
                         fromPatient && onSendReply && !composerStageItemId && touchEnabled
                           ? (event) => {
@@ -501,19 +508,24 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                         message={m}
                         mine={false}
                         textClassName={doctorChatMessageTextClass}
+                        trailingContent={
+                          !m.mediaFileId ? (
+                            <DoctorChatBubbleMeta
+                              timeLabel={formatChatMessageTimeRu(m.createdAt)}
+                              deliveryStatus={deliveryStatus}
+                            />
+                          ) : null
+                        }
                       />
-                      {!fromPatient && deliveryStatus ? (
-                        <ChatBubbleOutgoingMeta
-                          deliveryStatus={deliveryStatus}
-                          ticksClassName="text-primary"
-                        />
+                      {m.mediaFileId || !m.body?.trim() ? (
+                        <p className="h-3">
+                          <DoctorChatBubbleMeta
+                            timeLabel={formatChatMessageTimeRu(m.createdAt)}
+                            deliveryStatus={deliveryStatus}
+                          />
+                        </p>
                       ) : null}
                     </div>
-                    {fromPatient ? (
-                      <p className={doctorChatTimestampClass}>
-                        {formatChatMessageTimeRu(m.createdAt)}
-                      </p>
-                    ) : null}
                   </div>
                   {canDeleteMedia ? (
                     <Button

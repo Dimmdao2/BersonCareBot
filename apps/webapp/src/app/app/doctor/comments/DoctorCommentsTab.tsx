@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { DoctorSupportStar } from '@/shared/ui/doctor/DoctorSupportStar';
 import {
   chatBubbleOwnClass,
   chatBubblePeerClass,
@@ -40,10 +41,13 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   doctorChatMessageTextClass,
-  doctorChatTimestampClass,
   doctorInlineLinkClass,
   doctorMetaTextClass,
 } from '@/shared/ui/doctor/doctorVisual';
+import {
+  DOCTOR_CHAT_BUBBLE_MAX_WIDTH,
+  DoctorChatBubbleMeta,
+} from '@/shared/ui/chat/DoctorChatBubbleMeta';
 import { patientCardHref } from '../patients/patientCardHref';
 import { patientProgramInstanceHref } from '../patients/patientProgramInstanceHref';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
@@ -177,14 +181,7 @@ function PatientRow({
             >
               {patient.displayName}
               {/* ★ = на сопровождении (визуальный маркер, НЕ фильтр) */}
-              {patient.isOnSupport && (
-                <span
-                  className="ml-1 text-[10px] font-semibold text-primary"
-                  title="На сопровождении"
-                >
-                  ★
-                </span>
-              )}
+              {patient.isOnSupport && <DoctorSupportStar />}
             </span>
             <DoctorAttentionBadge count={patient.unreadCount} className="shrink-0" />
           </div>
@@ -378,26 +375,39 @@ function ThreadMessage({
 
   return (
     <div className={cn('flex flex-col gap-1 px-4 py-2.5', isPatient ? 'items-start' : 'items-end')}>
-      <div className={cn('flex max-w-full items-end gap-1.5', !isPatient && 'justify-end')}>
-        {!isPatient ? (
-          <p className={doctorChatTimestampClass}>{formatChatMessageTimeRu(message.createdAt)}</p>
-        ) : null}
+      <div className={cn('flex w-full max-w-full items-end', !isPatient && 'justify-end')}>
         <div
           className={cn(
-            'min-w-0 w-fit max-w-[min(100%,22rem)] rounded-md px-3 py-2 shadow-sm',
+            'min-w-0 w-fit rounded-md px-3 py-2 shadow-sm',
             doctorChatMessageTextClass,
             isPatient ? chatBubblePeerClass : chatBubbleOwnClass,
             isUnread && 'border-l-2 border-l-primary',
             isPatient && !success && !replyOpen && 'cursor-pointer',
           )}
+          style={{ maxWidth: DOCTOR_CHAT_BUBBLE_MAX_WIDTH }}
           onClick={() => {
             if (isPatient && !success && !replyOpen) setReplyOpen(true);
           }}
         >
-          {message.body && <p className="whitespace-pre-wrap break-words">{message.body}</p>}
-          {!message.body && !message.mediaFileId && (
-            <p className="text-sm text-muted-foreground italic">—</p>
-          )}
+          <div className="relative">
+            {message.body && (
+              <p className="whitespace-pre-wrap break-words">
+                {message.body}
+                <DoctorChatBubbleMeta timeLabel={formatChatMessageTimeRu(message.createdAt)} />
+              </p>
+            )}
+            {!message.body && !message.mediaFileId && (
+              <p className="text-sm text-muted-foreground italic">
+                —
+                <DoctorChatBubbleMeta timeLabel={formatChatMessageTimeRu(message.createdAt)} />
+              </p>
+            )}
+            {!message.body && message.mediaFileId ? (
+              <p className="h-3">
+                <DoctorChatBubbleMeta timeLabel={formatChatMessageTimeRu(message.createdAt)} />
+              </p>
+            ) : null}
+          </div>
 
           {success && <p className="mt-1.5 text-xs text-primary">Ответ отправлен</p>}
 
@@ -437,9 +447,6 @@ function ThreadMessage({
             </div>
           )}
         </div>
-        {isPatient ? (
-          <p className={doctorChatTimestampClass}>{formatChatMessageTimeRu(message.createdAt)}</p>
-        ) : null}
       </div>
     </div>
   );

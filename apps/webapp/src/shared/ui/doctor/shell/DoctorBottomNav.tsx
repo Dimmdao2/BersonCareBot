@@ -81,7 +81,7 @@ export function DoctorBottomNav({
                 active && 'bg-primary/10 text-primary',
               )}
             >
-              <span className="relative">
+              <span className="relative inline-flex">
                 <Icon className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
                 <DoctorAttentionBadge count={hasAttention ? 1 : 0} dot />
               </span>

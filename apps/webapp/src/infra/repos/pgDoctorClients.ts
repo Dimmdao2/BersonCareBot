@@ -56,7 +56,11 @@ import {
   sqlMessengerBotBlocked,
 } from '@/modules/doctor-clients/activeMessengerBindingSql';
 import { beAppointments, orgEnrollments } from '../../../db/schema/bookingEngine';
-import { bePatientPackages } from '../../../db/schema/bookingMemberships';
+import {
+  bePackageUsages,
+  bePatientPackageItems,
+  bePatientPackages,
+} from '../../../db/schema/bookingMemberships';
 import { beAppointmentReschedules } from '../../../db/schema/bookingPolicies';
 
 function rowToBindings(
@@ -214,11 +218,12 @@ async function loadClientMembershipMetrics(
 ): Promise<ClientMembershipMetrics[]> {
   if (userIds.length === 0) return [];
   const db = getDrizzle();
-  const rows = await db
+  const packageRows = await db
     .select({
+      id: bePatientPackages.id,
       userId: bePatientPackages.platformUserId,
       status: bePatientPackages.status,
-      membershipsCount: countDistinct(bePatientPackages.id),
+      validUntil: bePatientPackages.validUntil,
     })
     .from(bePatientPackages)
     .where(
@@ -227,25 +232,95 @@ async function loadClientMembershipMetrics(
         organizationId ? eq(bePatientPackages.organizationId, organizationId) : undefined,
         inArray(bePatientPackages.status, ['active', 'awaiting_payment', 'expired']),
       ),
-    )
-    .groupBy(bePatientPackages.platformUserId, bePatientPackages.status);
+    );
+
+  if (packageRows.length === 0) return [];
+
+  const packageIds = packageRows.map((row) => row.id);
+  const [itemRows, usageRows] = await Promise.all([
+    db
+      .select({
+        id: bePatientPackageItems.id,
+        patientPackageId: bePatientPackageItems.patientPackageId,
+        quantityInitial: bePatientPackageItems.quantityInitial,
+      })
+      .from(bePatientPackageItems)
+      .where(inArray(bePatientPackageItems.patientPackageId, packageIds)),
+    db
+      .select({
+        patientPackageItemId: bePackageUsages.patientPackageItemId,
+        usageKind: bePackageUsages.usageKind,
+        quantity: bePackageUsages.quantity,
+      })
+      .from(bePackageUsages)
+      .where(inArray(bePackageUsages.patientPackageId, packageIds)),
+  ]);
+
+  type UsageTotals = {
+    consumed: number;
+    released: number;
+    penalty: number;
+    refunded: number;
+  };
+  const usageByItemId = new Map<string, UsageTotals>();
+  for (const usage of usageRows) {
+    const totals = usageByItemId.get(usage.patientPackageItemId) ?? {
+      consumed: 0,
+      released: 0,
+      penalty: 0,
+      refunded: 0,
+    };
+    if (usage.usageKind === 'consume' || usage.usageKind === 'manual_adjust') {
+      totals.consumed += usage.quantity;
+    } else if (usage.usageKind === 'penalty') {
+      totals.penalty += usage.quantity;
+    } else if (usage.usageKind === 'release') {
+      totals.released += usage.quantity;
+    } else if (usage.usageKind === 'refund') {
+      totals.refunded += usage.quantity;
+    }
+    usageByItemId.set(usage.patientPackageItemId, totals);
+  }
+
+  const availableSessionsByPackageId = new Map<string, number>();
+  for (const item of itemRows) {
+    const totals = usageByItemId.get(item.id);
+    const debited = Math.max(
+      0,
+      (totals?.consumed ?? 0) + (totals?.penalty ?? 0) - (totals?.refunded ?? 0),
+    );
+    const available = Math.max(0, item.quantityInitial - debited + (totals?.released ?? 0));
+    availableSessionsByPackageId.set(
+      item.patientPackageId,
+      (availableSessionsByPackageId.get(item.patientPackageId) ?? 0) + available,
+    );
+  }
 
   const metricsByUserId = new Map<string, ClientMembershipMetrics>();
-  for (const row of rows) {
+  const now = Date.now();
+  for (const row of packageRows) {
     const current = metricsByUserId.get(row.userId) ?? {
       userId: row.userId,
       purchasedMembershipsCount: 0,
       activeMembershipsCount: 0,
       expiredMembershipsCount: 0,
     };
-    const membershipsCount = Number(row.membershipsCount ?? 0);
+    const validUntilTime = row.validUntil ? new Date(row.validUntil).getTime() : null;
+    const expiredByValidity = validUntilTime !== null && validUntilTime < now;
+    const hasAvailableSessions = (availableSessionsByPackageId.get(row.id) ?? 0) > 0;
+
     if (row.status === 'active') {
-      current.purchasedMembershipsCount += membershipsCount;
-      current.activeMembershipsCount += membershipsCount;
+      current.purchasedMembershipsCount += 1;
+      if (!expiredByValidity && hasAvailableSessions) current.activeMembershipsCount += 1;
     } else if (row.status === 'awaiting_payment') {
-      current.purchasedMembershipsCount += membershipsCount;
-    } else if (row.status === 'expired') {
-      current.expiredMembershipsCount += membershipsCount;
+      current.purchasedMembershipsCount += 1;
+    }
+    if (
+      (row.status === 'active' || row.status === 'expired') &&
+      expiredByValidity &&
+      hasAvailableSessions
+    ) {
+      current.expiredMembershipsCount += 1;
     }
     metricsByUserId.set(row.userId, current);
   }

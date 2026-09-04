@@ -6,6 +6,8 @@ export type SpecialistTaskRow = {
   title: string;
   description: string | null;
   dueAt: string | null;
+  /** false — врач выбрал только дату; dueAt хранит конец этого календарного дня. */
+  dueHasTime?: boolean;
   remindAt: string | null;
   isImportant: boolean;
   completedAt: string | null;

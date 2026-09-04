@@ -83,7 +83,7 @@ export function DoctorTimeColumn({
             disabled={slotDisabled}
             onClick={() => onChange(slot)}
             className={cn(
-              'w-full shrink-0 cursor-pointer rounded-md px-3 py-1.5 text-center text-sm tabular-nums tracking-tight outline-none transition-colors',
+              'w-full shrink-0 cursor-pointer rounded-md px-3 py-1.5 text-center text-base tabular-nums tracking-tight outline-none transition-colors md:text-sm',
               'focus-visible:ring-2 focus-visible:ring-ring/50',
               'disabled:pointer-events-none disabled:opacity-50',
               isSelected

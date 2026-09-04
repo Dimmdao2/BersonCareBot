@@ -85,7 +85,7 @@ export type DoctorExerciseCommentAttentionDeps = {
 
 function stageItemSnapshotTitle(snapshot: Record<string, unknown>): string {
   const raw = snapshot.title;
-  if (typeof raw === 'string' && raw.trim() !== '') return raw.trim();
+  if (typeof raw === 'string' && raw.trim() !== '') return raw.trim().normalize('NFC');
   return 'Упражнение';
 }
 
@@ -149,12 +149,11 @@ export async function loadDoctorExerciseCommentAttention(
         // Прежде здесь стоял предфильтр `listAttentionSummaryForStageItems` («последнее сообщение
         // треда — текст от пациента»): он вырезал отвеченные и медиа-only треды ДО подсчёта, и
         // пациент с 7 непрочитанными в трёх упражнениях доходил до KPI как 2 в одном (UNREAD-05/06).
-        const unreadCounts = await deps.programItemDiscussion!.listUnreadCountsForViewerByStageItems(
-          {
+        const unreadCounts =
+          await deps.programItemDiscussion!.listUnreadCountsForViewerByStageItems({
             stageItemIds: activeExerciseItems.map((item) => item.id),
             viewerUserId: deps.doctorUserId!,
-          },
-        );
+          });
         const attentionStageItemIds = unreadCounts
           .filter((row) => row.unread > 0)
           .map((row) => row.stageItemId);

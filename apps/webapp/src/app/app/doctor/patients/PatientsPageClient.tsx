@@ -24,7 +24,7 @@ import {
 } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowDown, ArrowUp, Bell, CalendarDays, Filter, Star } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bell, CalendarDays, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ClientListItem, DoctorDashboardPatientMetrics } from '@/modules/doctor-clients/ports';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
@@ -35,6 +35,7 @@ import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { DoctorSupportStar } from '@/shared/ui/doctor/DoctorSupportStar';
 import { TooltipProvider } from '@/shared/ui/doctor/primitives/tooltip';
 import {
   doctorDnaFlatListClass,
@@ -44,6 +45,7 @@ import {
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DOCTOR_MOBILE_SCROLL_END_INSET_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { formatDoctorFio } from '@/shared/lib/fio';
@@ -109,30 +111,32 @@ type SegmentKey = 'all' | PatientListSegmentKey;
 type SegmentDef = {
   key: SegmentKey;
   title: string;
+  titleMeta?: string;
   tooltip: string;
 };
 
 const SEGMENTS: SegmentDef[] = [
   { key: 'all', title: 'Все', tooltip: 'Все люди организации.' },
   {
-    key: 'appointments',
-    title: 'С записями',
-    tooltip: 'Есть будущая или прошедшая запись без отмены.',
+    key: 'visited_month',
+    title: 'Недавние',
+    titleMeta: '1 мес.',
+    tooltip: 'Были на приёме в текущем месяце.',
   },
   {
     key: 'on_support',
-    title: 'На сопровождении',
+    title: 'Сопровождение',
     tooltip: 'Сейчас на активном сопровождении.',
   },
   {
     key: 'with_program',
-    title: 'С программой',
+    title: 'С ЛФК',
     tooltip: 'Есть активная программа.',
   },
   {
-    key: 'without_appointments',
-    title: 'Без приёмов',
-    tooltip: 'Нет визитов и будущих записей.',
+    key: 'appointments',
+    title: 'Есть запись',
+    tooltip: 'Есть будущая запись.',
   },
   {
     key: 'visits',
@@ -140,9 +144,14 @@ const SEGMENTS: SegmentDef[] = [
     tooltip: 'Есть состоявшийся визит.',
   },
   {
-    key: 'former',
-    title: 'Без будущих',
-    tooltip: 'Визиты были, будущих записей нет.',
+    key: 'memberships',
+    title: 'С абонементами',
+    tooltip: 'Есть действующий абонемент.',
+  },
+  {
+    key: 'expired_memberships',
+    title: 'Истёкшие абонементы',
+    tooltip: 'Срок абонемента истёк, но остались сеансы.',
   },
   {
     key: 'cancellations',
@@ -153,21 +162,6 @@ const SEGMENTS: SegmentDef[] = [
     key: 'reschedules',
     title: 'С переносами',
     tooltip: 'Есть хотя бы один перенос за всё время.',
-  },
-  {
-    key: 'memberships',
-    title: 'С абонементами',
-    tooltip: 'Есть действующий абонемент.',
-  },
-  {
-    key: 'expired_memberships',
-    title: 'Истёкшие абонементы',
-    tooltip: 'Есть истёкший абонемент.',
-  },
-  {
-    key: 'visited_month',
-    title: 'Приём в этом мес.',
-    tooltip: 'Есть визит в текущем месяце.',
   },
 ];
 
@@ -244,17 +238,13 @@ function clientSegmentPredicate(item: ClientListItem, key: SegmentKey): boolean 
     case 'all':
       return true;
     case 'appointments':
-      return (item.activeAppointmentsCount ?? 0) > 0 || (item.hasAppointmentHistory ?? false);
+      return (item.activeAppointmentsCount ?? 0) > 0;
     case 'on_support':
       return item.isOnSupport === true;
     case 'with_program':
       return item.activeTreatmentProgram === true;
-    case 'without_appointments':
-      return !(item.hasAppointmentHistory ?? false) && (item.activeAppointmentsCount ?? 0) === 0;
     case 'visits':
       return item.lastAppointmentAt != null;
-    case 'former':
-      return item.lastAppointmentAt != null && (item.activeAppointmentsCount ?? 0) === 0;
     case 'cancellations':
       return item.cancellationsCount > 0;
     case 'reschedules':
@@ -363,23 +353,6 @@ function getSegmentCount(
   return clients.filter((item) => clientSegmentPredicate(item, key)).length;
 }
 
-function renderSegmentMetricValue(current: number | string, total: number | null): ReactNode {
-  if (typeof current !== 'number' || total === null || current === total) return current;
-
-  return (
-    <span className="inline-flex items-baseline gap-1.5">
-      <span>{total}</span>
-      <span
-        className="inline-flex items-center gap-0.5 text-sm font-semibold tabular-nums leading-none text-muted-foreground"
-        aria-label={`После фильтров: ${current}`}
-      >
-        <Filter className="size-3" aria-hidden />
-        {current}
-      </span>
-    </span>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // IconSlot (patient list row)
 // ---------------------------------------------------------------------------
@@ -387,7 +360,7 @@ function renderSegmentMetricValue(current: number | string, total: number | null
 function iconBadge(value: number | null): ReactNode {
   if (!value || value <= 0) return null;
   return (
-    <span className="absolute -right-1 -top-1 inline-flex min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] leading-none text-primary-foreground">
+    <span className="absolute -right-0.5 -top-1 text-[10px] leading-none font-semibold text-primary tabular-nums">
       {value}
     </span>
   );
@@ -546,6 +519,12 @@ function PatientsContent({
   }, [filtered.length, listScrollTop]);
 
   const patientPluralLabelLower = patientPluralLabel.toLocaleLowerCase('ru-RU');
+  const supportFilterActive = activeSegments.includes('on_support');
+  const hasActiveFilters =
+    activeSegments.some((segment) => segment !== 'on_support') ||
+    activeChannel !== null ||
+    archivedOnly ||
+    Object.values(legacyFilters).some(Boolean);
 
   const renderSortControls = () => (
     <div
@@ -609,17 +588,6 @@ function PatientsContent({
             )}
           >
             {SEGMENTS.map((seg) => {
-              const segmentContextBase =
-                seg.key === 'all'
-                  ? categoryBase
-                  : applySegmentFilters(
-                      categoryBase,
-                      activeSegments.filter((key) => key !== seg.key),
-                    );
-              const currentValue =
-                seg.key === 'all'
-                  ? categoryBase.length
-                  : (getSegmentCount(seg.key, metrics, segmentContextBase) ?? '—');
               const totalValue =
                 seg.key === 'all'
                   ? categoryBase.length
@@ -628,8 +596,17 @@ function PatientsContent({
                 <DoctorStatCard
                   key={seg.key}
                   id={`${idPrefix}-segment-${seg.key}`}
-                  title={seg.key === 'all' ? `Все ${patientPluralLabelLower}` : seg.title}
-                  value={renderSegmentMetricValue(currentValue, totalValue)}
+                  title={
+                    <>
+                      {seg.key === 'all' ? `Все ${patientPluralLabelLower}` : seg.title}
+                      {seg.titleMeta ? (
+                        <span className="ml-1 text-[10px] font-normal tracking-normal normal-case text-muted-foreground">
+                          ({seg.titleMeta})
+                        </span>
+                      ) : null}
+                    </>
+                  }
+                  value={totalValue ?? '—'}
                   tooltip={
                     seg.key === 'all'
                       ? `Все ${patientPluralLabelLower} этой организации.`
@@ -672,16 +649,40 @@ function PatientsContent({
             aria-label="Поиск по ФИО и контактам"
           />
           {mobile ? (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="outline"
-              className="size-8 shrink-0"
-              onClick={() => onMobileFiltersOpenChange(true)}
-              aria-label="Фильтры"
-            >
-              <Filter className="size-3.5" aria-hidden />
-            </Button>
+            <>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                className={cn(
+                  'size-8 shrink-0',
+                  supportFilterActive && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
+                )}
+                onClick={() => onSegmentToggle('on_support')}
+                aria-label="Только на сопровождении"
+                aria-pressed={supportFilterActive}
+              >
+                <DoctorSupportStar
+                  className={cn(
+                    'top-0 ml-0 text-xs',
+                    supportFilterActive ? 'text-primary' : 'text-muted-foreground',
+                  )}
+                />
+              </Button>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                className={cn(
+                  'size-8 shrink-0',
+                  hasActiveFilters && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
+                )}
+                onClick={() => onMobileFiltersOpenChange(true)}
+                aria-label="Фильтры"
+              >
+                <Filter className="size-3.5" aria-hidden />
+              </Button>
+            </>
           ) : null}
         </div>
       </div>
@@ -746,23 +747,18 @@ function PatientsContent({
                           index === 0 && 'border-t-0',
                         )}
                       >
-                        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                        <div className="flex min-w-0 flex-1 items-center">
                           <span className={cn('truncate', doctorDnaFlatListPrimaryClass)}>
                             {clientPrimaryName(c)}
+                            {c.isOnSupport === true ? <DoctorSupportStar /> : null}
                           </span>
-                          {c.isOnSupport === true ? (
-                            <Star
-                              className="size-3.5 shrink-0 fill-primary text-primary"
-                              aria-label="Клиент на сопровождении"
-                            />
-                          ) : null}
                         </div>
                         <IconSlot
                           visible={futureAppointmentCount > 0}
                           label={`Будущие записи: ${futureAppointmentCount}`}
                           badge={futureAppointmentCount}
                         >
-                          <CalendarDays className="size-3.5" aria-hidden />
+                          <CalendarDays className="size-3.5 text-muted-foreground/60" aria-hidden />
                         </IconSlot>
                       </Link>
                     </li>

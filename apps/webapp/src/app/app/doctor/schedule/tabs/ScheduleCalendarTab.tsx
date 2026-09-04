@@ -17,6 +17,7 @@ import {
   formatDoctorCalendarHour,
 } from '@/shared/ui/doctor/calendar/doctorCalendarPresentation';
 import {
+  DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
   DoctorSchedulePeriodNav,
 } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
@@ -120,8 +121,6 @@ const API_BASE = '/api/doctor/booking-engine';
 const KPIS_API = '/api/doctor/schedule-kpis';
 const SCHEDULE_FILTERS_STORAGE_KEY = 'therapysto.doctor.schedule.filters.v1';
 const INACTIVE_TOOLBAR_BUTTON_CLASS = DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS;
-const ACTIVE_FILTER_BUTTON_CLASS =
-  'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5';
 const CREATE_PANEL_REVEAL_DELAY_MS = 180;
 const APPOINTMENT_FEED_API = `${API_BASE}/appointments/feed`;
 const APPOINTMENT_FEED_PAGE_SIZE = 100;
@@ -390,9 +389,7 @@ function buildQuery(params: Record<string, string | null | undefined>): string {
   return sp.toString();
 }
 
-function mergeAppointmentPages(
-  ...pages: CalendarAppointmentEvent[][]
-): CalendarAppointmentEvent[] {
+function mergeAppointmentPages(...pages: CalendarAppointmentEvent[][]): CalendarAppointmentEvent[] {
   const byId = new Map<string, CalendarAppointmentEvent>();
   for (const item of pages.flat()) byId.set(item.id, item);
   return [...byId.values()].sort((a, b) => a.startAt.localeCompare(b.startAt));
@@ -628,7 +625,10 @@ function ListDayCard({
                   {start}–{end}
                 </span>
                 {branchLabel ? (
-                  <span className="truncate text-muted-foreground" title={appt.branchTitle ?? undefined}>
+                  <span
+                    className="truncate text-muted-foreground"
+                    title={appt.branchTitle ?? undefined}
+                  >
                     {branchLabel}
                   </span>
                 ) : null}
@@ -703,13 +703,15 @@ function ListView({
   const laterSentinelRef = useRef<HTMLDivElement>(null);
   const positionedAnchorRef = useRef<string | null>(null);
   const prependSnapshotRef = useRef<{ height: number; top: number } | null>(null);
-  const dayGroups = useMemo<Array<{
-    dateKey: string;
-    label: string;
-    monthKey: string;
-    monthLabel: string;
-    appointments: CalendarAppointmentEvent[];
-  }>>(() => {
+  const dayGroups = useMemo<
+    Array<{
+      dateKey: string;
+      label: string;
+      monthKey: string;
+      monthLabel: string;
+      appointments: CalendarAppointmentEvent[];
+    }>
+  >(() => {
     const byDay = new Map<string, CalendarAppointmentEvent[]>();
     for (const appointment of appointments) {
       const dayKey = parseFeedInstant(appointment.startAt, timeZone).toISODate();
@@ -773,13 +775,7 @@ function ListView({
     const root = scrollRef.current;
     const earlier = earlierSentinelRef.current;
     const later = laterSentinelRef.current;
-    if (
-      !root ||
-      !earlier ||
-      !later ||
-      loading ||
-      typeof IntersectionObserver === 'undefined'
-    ) {
+    if (!root || !earlier || !later || loading || typeof IntersectionObserver === 'undefined') {
       return;
     }
     const observer = new IntersectionObserver(
@@ -803,7 +799,16 @@ function ListView({
     observer.observe(earlier);
     observer.observe(later);
     return () => observer.disconnect();
-  }, [anchorDate, hasEarlier, hasLater, loading, loadingEarlier, loadingLater, onLoadEarlier, onLoadLater]);
+  }, [
+    anchorDate,
+    hasEarlier,
+    hasLater,
+    loading,
+    loadingEarlier,
+    loadingLater,
+    onLoadEarlier,
+    onLoadLater,
+  ]);
 
   useEffect(() => {
     const snapshot = prependSnapshotRef.current;
@@ -1248,10 +1253,8 @@ export function ScheduleCalendarTab({
   const loadInitialAppointmentFeed = useCallback(async () => {
     const generation = ++listLoadGenerationRef.current;
     const rawAnchor = DateTime.fromISO(anchorDate, { zone: timeZone });
-    const target = (view === 'month' ? rawAnchor.startOf('month') : rawAnchor.startOf('day'));
-    const historyStart = target
-      .minus({ months: APPOINTMENT_FEED_HISTORY_MONTHS })
-      .startOf('month');
+    const target = view === 'month' ? rawAnchor.startOf('month') : rawAnchor.startOf('day');
+    const historyStart = target.minus({ months: APPOINTMENT_FEED_HISTORY_MONTHS }).startOf('month');
     const targetIso = target.toUTC().toISO();
     const historyStartIso = historyStart.toUTC().toISO();
     if (!targetIso || !historyStartIso) return;
@@ -1365,7 +1368,13 @@ export function ScheduleCalendarTab({
     } finally {
       setServerSearchLoading(false);
     }
-  }, [fetchAppointmentFeedPage, serverSearchHasMore, serverSearchItems.length, serverSearchLoading, serverSearchQuery]);
+  }, [
+    fetchAppointmentFeedPage,
+    serverSearchHasMore,
+    serverSearchItems.length,
+    serverSearchLoading,
+    serverSearchQuery,
+  ]);
 
   useEffect(() => {
     if (renderMode !== 'list') return;
@@ -2086,9 +2095,7 @@ export function ScheduleCalendarTab({
             startMinute: nextDayStartMinute,
             endMinute: nextDayEndMinute,
             breaks: result.breaks,
-            ...(selectionContext.branchIds[0]
-              ? { branchId: selectionContext.branchIds[0] }
-              : {}),
+            ...(selectionContext.branchIds[0] ? { branchId: selectionContext.branchIds[0] } : {}),
           }),
         });
         const json: unknown = await res.json().catch(() => null);
@@ -2107,13 +2114,7 @@ export function ScheduleCalendarTab({
         setSelectionActionPending(false);
       }
     },
-    [
-      canEditSelectionSchedule,
-      clearGridSelection,
-      gridSelection,
-      load,
-      selectionContext,
-    ],
+    [canEditSelectionSchedule, clearGridSelection, gridSelection, load, selectionContext],
   );
 
   const runSelectionAction = useCallback(
@@ -2690,7 +2691,7 @@ export function ScheduleCalendarTab({
                 'size-[32px]',
                 !filtersPanelOpen &&
                   (hasActiveScheduleFilters
-                    ? ACTIVE_FILTER_BUTTON_CLASS
+                    ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
                     : INACTIVE_TOOLBAR_BUTTON_CLASS),
               )}
               onClick={toggleFiltersPanel}
@@ -2929,7 +2930,7 @@ export function ScheduleCalendarTab({
               'ml-auto gap-2 xl:hidden',
               !filtersPanelOpen &&
                 (hasActiveScheduleFilters
-                  ? ACTIVE_FILTER_BUTTON_CLASS
+                  ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
                   : INACTIVE_TOOLBAR_BUTTON_CLASS),
             )}
             onClick={toggleFiltersPanel}

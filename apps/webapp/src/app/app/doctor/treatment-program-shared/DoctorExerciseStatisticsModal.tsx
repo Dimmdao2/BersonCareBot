@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import type { ExerciseMetricPoint } from '@/modules/treatment-program/types';
-import { DoctorModal, DoctorModalCompositeTitle } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import {
   DoctorExerciseActivityCalendar,
   type DoctorExerciseActivityCalendarDay,
 } from '@/shared/ui/doctor/DoctorExerciseActivityCalendar';
 import { ExerciseExecutionGraph } from '@/shared/ui/doctor/ExerciseExecutionGraph';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
-import { useDoctorPatientSubjectLine } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type MetricsResponse = {
   ok?: boolean;
@@ -66,13 +65,12 @@ export function DoctorExerciseStatisticsModal({
   open: boolean;
   onClose: () => void;
   patientUserId: string;
-  /** «Фамилия Имя» пациента для второй строки шапки; без него вторая строка не рисуется. */
+  /** «Фамилия Имя» пациента справа в первой строке шапки. */
   patientName?: string | null;
   exerciseTitle: string;
   instanceId: string;
   itemId: string;
 }) {
-  const patientSubject = useDoctorPatientSubjectLine(patientName);
   const now = new Date();
   const [metricsState, setMetricsState] = useState<MetricsState>({
     requestKey: '',
@@ -193,21 +191,29 @@ export function DoctorExerciseStatisticsModal({
     <DoctorModal
       open={open}
       onClose={onClose}
-      title={<DoctorModalCompositeTitle label="Статистика" entity={exerciseTitle} />}
-      titleSubject={patientSubject}
+      title={
+        <DoctorModalStackedTitle
+          label="Статистика"
+          entity={exerciseTitle}
+          patientName={patientName}
+        />
+      }
       size="lg"
       bodyClassName="space-y-4"
     >
-      <DoctorExerciseActivityCalendar
-        days={calendarDays}
-        year={calendarYear}
-        month={calendarMonth}
-        state={calendarState}
-        mode="exercise"
-        todayIso={patientTodayIso}
-        disableNext={disableNext}
-        onMonthChange={navigateMonth}
-      />
+      <section className="space-y-3">
+        <p className="text-center text-sm leading-5 font-medium text-foreground">Отметки клиента</p>
+        <DoctorExerciseActivityCalendar
+          days={calendarDays}
+          year={calendarYear}
+          month={calendarMonth}
+          state={calendarState}
+          mode="exercise"
+          todayIso={patientTodayIso}
+          disableNext={disableNext}
+          onMonthChange={navigateMonth}
+        />
+      </section>
 
       <div className="border-t border-border/60 pt-4">
         {metrics === null ? (
@@ -220,8 +226,7 @@ export function DoctorExerciseStatisticsModal({
             dayBars={[]}
             windowDays={30}
             showWindowToggle={false}
-            chartTitle="Динамика"
-            centerChartTitle
+            chartTitle=""
             showRelativeYAxis
             displayIana={calendarIana ?? undefined}
           />

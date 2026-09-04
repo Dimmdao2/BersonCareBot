@@ -30,7 +30,7 @@ export function DoctorSearchInput({
         type="search"
         value={value}
         onChange={(event) => onValueChange(event.target.value)}
-        className={cn('h-8 pl-8 pr-8 text-sm', className)}
+        className={cn('h-8 pl-8 text-sm', value && onClear ? 'pr-8' : 'pr-2.5', className)}
       />
       {value && onClear ? (
         <Button

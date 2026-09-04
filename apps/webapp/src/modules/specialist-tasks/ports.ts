@@ -6,6 +6,7 @@ export type CreateSpecialistTaskInput = {
   title: string;
   description?: string | null;
   dueAt?: string | null;
+  dueHasTime?: boolean;
   remindAt?: string | null;
   isImportant?: boolean;
 };
@@ -14,6 +15,7 @@ export type UpdateSpecialistTaskInput = {
   title?: string;
   description?: string | null;
   dueAt?: string | null;
+  dueHasTime?: boolean;
   remindAt?: string | null;
   isImportant?: boolean;
   /** When remindAt changes, caller may reset reminder delivery */

@@ -22,6 +22,7 @@ import { DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS } from '@/shared/ui/doctor/navCh
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DoctorShellChromeRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
+import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
 import { SpecialistTaskRow } from '../clients/SpecialistTaskRow';
 import {
   SpecialistTaskDetailsContent,
@@ -124,7 +125,8 @@ export function DoctorTasksPageClient({
         <Button
           type="button"
           size="icon-sm"
-          variant={showingCompletedTasks ? 'default' : 'outline'}
+          variant="outline"
+          className={cn(showingCompletedTasks && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS)}
           aria-label={
             showingCompletedTasks ? 'Показать открытые задачи' : 'Показать выполненные задачи'
           }

@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils';
 
 type Props = {
   id: string;
-  title: string;
+  title: ReactNode;
   value: ReactNode;
   secondaryValue?: ReactNode;
   tone?: 'neutral' | 'warning';

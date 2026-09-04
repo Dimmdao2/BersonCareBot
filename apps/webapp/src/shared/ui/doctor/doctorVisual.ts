@@ -77,10 +77,6 @@ export const doctorBodyTextClass = 'text-base leading-6 text-foreground md:text-
 /** Message copy inside doctor chat bubbles. */
 export const doctorChatMessageTextClass = 'text-[15px] leading-[22px] text-foreground';
 
-/** Timestamp placed beside a doctor chat bubble. */
-export const doctorChatTimestampClass =
-  'shrink-0 pb-0.5 text-xs leading-4 tabular-nums text-muted-foreground/70';
-
 /** Primary entity/title line in doctor lists. */
 export const doctorPrimaryListTextClass = 'text-base font-normal text-foreground';
 
@@ -108,7 +104,7 @@ export const doctorModalSummaryTextClass = cn(doctorMetaTextClass, 'font-medium 
  * Одна лёгкая нижняя тень под закреплённой панелью, которая держит верх прокручиваемого тела.
  * Зеркало верхней тени шеллов (`DoctorBottomNav` / `DoctorMobileSectionTabs`).
  */
-export const doctorPanelBottomShadowClass = 'shadow-[0_2px_6px_rgba(15,23,42,0.08)]';
+export const doctorPanelBottomShadowClass = 'shadow-[0_1px_2px_rgba(15,23,42,0.04)]';
 
 /** KPI numeric value on compact stat cards (dashboard, analytics). */
 export const doctorMetricValueClass =

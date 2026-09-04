@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { RecommendationMediaItem } from '@/modules/recommendations/types';
 import type {
   TreatmentProgramInstanceStageItemRow,
   TreatmentProgramInstanceStageItemView,
@@ -15,13 +14,11 @@ import {
   parseInstanceEditorDecimalLoadField,
   parseInstanceEditorLoadField,
 } from './instanceEditorLoadSettings';
-import { DoctorModal, DoctorModalCompositeTitle } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
-import { DoctorExerciseMediaPlayer } from '@/shared/ui/doctor/media/DoctorExerciseMediaPlayer';
-import { useDoctorPatientSubjectLine } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export type DoctorExerciseRecommendationsValue = {
   reps: number | null;
@@ -78,24 +75,13 @@ export function DoctorExerciseRecommendationsModal(props: {
   instanceId: string;
   itemId: string;
   exerciseTitle: string;
-  /** «Фамилия Имя» пациента для второй строки шапки; без него вторая строка не рисуется. */
+  /** «Фамилия Имя» пациента справа в первой строке шапки. */
   patientName?: string | null;
-  media: RecommendationMediaItem | null;
   initialValue: DoctorExerciseRecommendationsValue;
   onSaved: (result: DoctorExerciseRecommendationsSaveResult) => void;
 }) {
-  const {
-    open,
-    onClose,
-    instanceId,
-    itemId,
-    exerciseTitle,
-    patientName,
-    media,
-    initialValue,
-    onSaved,
-  } = props;
-  const patientSubject = useDoctorPatientSubjectLine(patientName);
+  const { open, onClose, instanceId, itemId, exerciseTitle, patientName, initialValue, onSaved } =
+    props;
   const [reps, setReps] = useState('');
   const [sets, setSets] = useState('');
   const [maxPain, setMaxPain] = useState('');
@@ -173,8 +159,13 @@ export function DoctorExerciseRecommendationsModal(props: {
     <DoctorModal
       open={open}
       onClose={onClose}
-      title={<DoctorModalCompositeTitle label="Рекомендации" entity={exerciseTitle} />}
-      titleSubject={patientSubject}
+      title={
+        <DoctorModalStackedTitle
+          label="Рекомендации"
+          entity={exerciseTitle}
+          patientName={patientName}
+        />
+      }
       size="lg"
       bodyClassName="space-y-4"
       footer={
@@ -188,13 +179,9 @@ export function DoctorExerciseRecommendationsModal(props: {
         </>
       }
     >
-      <DoctorExerciseMediaPlayer media={media} title={exerciseTitle} />
-
       <div className="grid grid-cols-2 gap-3">
         <div className="min-w-0 space-y-1">
-          <Label htmlFor={`exercise-recommendations-reps-${itemId}`}>
-            Повторы
-          </Label>
+          <Label htmlFor={`exercise-recommendations-reps-${itemId}`}>Повторы</Label>
           <Input
             id={`exercise-recommendations-reps-${itemId}`}
             inputMode="numeric"
@@ -203,9 +190,7 @@ export function DoctorExerciseRecommendationsModal(props: {
           />
         </div>
         <div className="min-w-0 space-y-1">
-          <Label htmlFor={`exercise-recommendations-sets-${itemId}`}>
-            Подходы
-          </Label>
+          <Label htmlFor={`exercise-recommendations-sets-${itemId}`}>Подходы</Label>
           <Input
             id={`exercise-recommendations-sets-${itemId}`}
             inputMode="numeric"
@@ -214,9 +199,7 @@ export function DoctorExerciseRecommendationsModal(props: {
           />
         </div>
         <div className="min-w-0 space-y-1">
-          <Label htmlFor={`exercise-recommendations-pain-${itemId}`}>
-            Макс. боль
-          </Label>
+          <Label htmlFor={`exercise-recommendations-pain-${itemId}`}>Макс. боль</Label>
           <Input
             id={`exercise-recommendations-pain-${itemId}`}
             inputMode="numeric"
@@ -225,9 +208,7 @@ export function DoctorExerciseRecommendationsModal(props: {
           />
         </div>
         <div className="min-w-0 space-y-1">
-          <Label htmlFor={`exercise-recommendations-weight-${itemId}`}>
-            Вес, кг
-          </Label>
+          <Label htmlFor={`exercise-recommendations-weight-${itemId}`}>Вес, кг</Label>
           <Input
             id={`exercise-recommendations-weight-${itemId}`}
             inputMode="decimal"
@@ -238,9 +219,7 @@ export function DoctorExerciseRecommendationsModal(props: {
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor={`exercise-recommendations-note-${itemId}`}>
-          Заметка специалиста
-        </Label>
+        <Label htmlFor={`exercise-recommendations-note-${itemId}`}>Заметка специалиста</Label>
         <Textarea
           id={`exercise-recommendations-note-${itemId}`}
           rows={4}

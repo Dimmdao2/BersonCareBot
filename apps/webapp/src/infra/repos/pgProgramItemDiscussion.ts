@@ -90,7 +90,7 @@ function mapMessageFields(row: {
 
 function stageItemSnapshotTitle(snapshot: Record<string, unknown>): string {
   const raw = snapshot.title;
-  if (typeof raw === 'string' && raw.trim() !== '') return raw.trim();
+  if (typeof raw === 'string' && raw.trim() !== '') return raw.trim().normalize('NFC');
   return 'Упражнение';
 }
 
