@@ -359,7 +359,7 @@
 - [x] `GATE-07` Последний интеграционный кандидат интерактивно проверен на iPhone XR `414×896` и типовом Android
       viewport: открытие обоих путей комментариев ЛФК, отправка сообщения, вложенная модалка упражнения,
       график работы и переход ЛФК ↔ Обзор; сохранены итоговые screenshots.
-- [ ] `GATE-08` После приёмки всех worker-веток полное дерево `feat/doctor-ui-rebuild` закоммичено, на этом SHA
+- [x] `GATE-08` После приёмки всех worker-веток полное дерево `feat/doctor-ui-rebuild` закоммичено, на этом SHA
       выполнен full CI, затем ветка отправлена в origin и штатно развёрнута на TEST.
 
 ## R. Доказательства текущего интеграционного кандидата
@@ -371,6 +371,15 @@
   «Загрузка графика…» без отдельного заголовка «Динамика». Во всех трёх viewport `scrollWidth = clientWidth`,
   браузерных ошибок нет. Итоговые снимки:
   `/home/dev/dev-projects/.lead/runs/doctor-mobile-owner-20260904/integration-current/`.
+- `GATE-08`: full-CI для product HEAD `b7a5b2894` после изоляции конкурентно повреждённого generated
+  `.next/dev/types` завершён каноническим `typecheck` и разрешённым `ci:resume:after-typecheck`: все workspace
+  typecheck, тесты, обе production-сборки и SaaS/DB gates — PASS. `pnpm run push:checked` отправил
+  `d1b686de6` и дождался `Security: success`; штатный
+  `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` применил одну ожидавшую TEST-миграцию, дважды доказал
+  tenant wall `3/3`, завершил post-runtime gate с `status=okay` и выдал `deploy-test: PASS`. Runtime-проверка
+  `curl --resolve test.bersoncare.ru:443:127.0.0.1 https://test.bersoncare.ru/api/me` вернула ожидаемый HTTP 401;
+  все четыре TEST-unit (`webapp`, `api`, `scheduler`, `media-worker`) — `active`. Транскрипт deploy:
+  `/var/log/bersoncarebot/deploy-test/deploy-test.20260904T155017Z.Ojkg3q.log`.
 
 - `EX-13`, `UNREAD-03`, `MODAL-01`, `MODAL-02`: команда
   `node /tmp/bcb-orch-20260904/accept-integrated-modals.mjs` на Turbopack `127.0.0.1:5214`, viewport `390×844`,
