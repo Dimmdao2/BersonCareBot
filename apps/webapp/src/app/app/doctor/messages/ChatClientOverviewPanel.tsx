@@ -24,6 +24,7 @@ import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { appointmentStatusLabel } from '@/modules/client-history/labels';
 import { splitVisitsByActivity } from '@/modules/client-history/clientHistoryUtils';
 import type { ClientVisitHistoryRow } from '@/modules/client-history/types';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Props = {
   /** Платформенный userId пациента за диалогом (см. `patientUserId` в /api/doctor/messages/conversations). */
@@ -139,7 +140,7 @@ export function ChatClientOverviewPanel({ patientUserId, patientDisplayName, onC
             Активные записи
           </h3>
           {loading ? (
-            <p className="mt-1.5 text-sm text-muted-foreground">Загрузка…</p>
+            <DoctorPanelLoading className="mt-1.5 py-6" />
           ) : error ? (
             <p className="mt-1.5 text-sm text-destructive">{error}</p>
           ) : active.length === 0 ? (

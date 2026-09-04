@@ -18,7 +18,8 @@ import { postPatientMessengerRequestContact } from '@/shared/lib/patientMessenge
 import toast from 'react-hot-toast';
 import { PatientSharePhoneViaBotPanel } from '@/shared/ui/patient/PatientSharePhoneViaBotPanel';
 import { PatientBrowserMessengerBindPanel } from './PatientBrowserMessengerBindPanel';
-import { patientMutedTextClass, PatientShimmerPanel } from '@/shared/ui/patient/patientVisual';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
   type AuthChannelUiPolicy,
@@ -192,16 +193,7 @@ export function PatientBindPhoneClient({
 
   if (tg || mx) {
     if (useMessengerPanel !== true) {
-      return (
-        <div
-          className="flex min-h-[12rem] flex-col items-center justify-center gap-3 px-2"
-          role="status"
-          aria-busy="true"
-          aria-label="Загрузка"
-        >
-          <PatientShimmerPanel />
-        </div>
-      );
+      return <AppContentLoading className="min-h-[12rem] px-2" />;
     }
     return (
       <div id="patient-bind-phone-messenger-unified" className="flex flex-col gap-4">

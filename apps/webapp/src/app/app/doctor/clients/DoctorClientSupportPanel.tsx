@@ -7,6 +7,7 @@ import type {
   ClientSupportProfile,
   PatientProgramInteractionPolicy,
 } from '@/modules/doctor-clients/supportPolicy';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type SupportSettingsResponse = {
   ok?: boolean;
@@ -90,7 +91,7 @@ export function DoctorClientSupportPanel({
   };
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Загрузка сопровождения…</p>;
+    return <DoctorPanelLoading className="py-6" />;
   }
 
   return (

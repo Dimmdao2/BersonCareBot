@@ -6,10 +6,8 @@ import type { InstanceStageRow } from '@/app/app/patient/treatment/program-detai
 import { PatientProgramStagesTimeline } from '@/app/app/patient/treatment/program-detail/PatientProgramStagesTimeline';
 import { PatientProgramPassageStatisticsSection } from '@/app/app/patient/treatment/program-detail/PatientProgramPassageStatisticsSection';
 import { PatientProgramControlCard } from '@/app/app/patient/treatment/program-detail/PatientProgramControlCard';
-import {
-  PatientLoadingPatternBody,
-  patientInnerPageStackClass,
-} from '@/shared/ui/patient/patientVisual';
+import { patientInnerPageStackClass } from '@/shared/ui/patient/patientVisual';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 import { cn } from '@/lib/utils';
 import type { PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab';
 
@@ -84,7 +82,7 @@ export function PatientPlanTabPanels(props: {
         role="tabpanel"
         aria-label="Программа"
       >
-        <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
+        <Suspense fallback={<AppContentLoading className="py-10" />}>
           <PatientTreatmentTabProgramLazy
             instanceId={detail.id}
             currentWorkingStage={programTabStage}
@@ -108,7 +106,7 @@ export function PatientPlanTabPanels(props: {
         role="tabpanel"
         aria-label="Рекомендации"
       >
-        <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
+        <Suspense fallback={<AppContentLoading className="py-10" />}>
           <PatientTreatmentTabRecommendationsLazy
             instanceId={detail.id}
             currentWorkingStage={currentWorkingStage}

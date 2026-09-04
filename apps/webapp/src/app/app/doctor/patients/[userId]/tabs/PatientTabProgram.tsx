@@ -10,6 +10,7 @@ import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-progra
 import { pickOpenTreatmentProgramInstance } from '../../treatmentProgramInstanceOpen';
 import { PatientProgramPanelLoader } from './program/PatientProgramPanelLoader';
 import { ProgramHistoryModal } from './program/ProgramHistoryModal';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Props = {
   userId: string;
@@ -77,14 +78,7 @@ export function PatientTabProgram({
     // Skeleton mirroring the editor (toolbar + stage cards) — shown while the program route loads.
     return (
       <div className={cn(doctorSectionCardClass, 'gap-3')} aria-busy="true">
-        <div className="flex items-center justify-between gap-2">
-          <div className="h-5 w-44 animate-pulse rounded-md bg-muted" />
-          <div className="h-7 w-32 animate-pulse rounded-md bg-muted" />
-        </div>
-        <div className="h-16 animate-pulse rounded-lg bg-muted/70" />
-        <div className="h-16 animate-pulse rounded-lg bg-muted/60" />
-        <div className="h-16 animate-pulse rounded-lg bg-muted/50" />
-        <span className="sr-only">Загрузка программы…</span>
+        <DoctorPanelLoading className="min-h-48" />
       </div>
     );
   }

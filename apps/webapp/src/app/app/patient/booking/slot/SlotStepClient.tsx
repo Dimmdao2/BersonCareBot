@@ -4,15 +4,13 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { routePaths } from '@/app-layer/routes/paths';
-import {
-  patientButtonPrimaryClass,
-  patientMutedTextClass,
-} from '@/shared/ui/patient/patientVisual';
+import { patientButtonPrimaryClass } from '@/shared/ui/patient/patientVisual';
 import type { BookingCategory, BookingSlot } from '@/modules/patient-booking/types';
 import { BookingCalendar } from '../../cabinet/BookingCalendar';
 import { BookingSlotList } from '../../cabinet/BookingSlotList';
 import type { BookingSelection } from '../../cabinet/useBookingSelection';
 import { useBookingSlots } from '../../cabinet/useBookingSlots';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 type InPersonProps = {
   type: 'in_person';
@@ -148,7 +146,7 @@ export function SlotStepClient(props: Props) {
         }}
       />
 
-      {slotsState.loading ? <p className={patientMutedTextClass}>Загрузка расписания…</p> : null}
+      {slotsState.loading ? <AppContentLoading className="py-4" /> : null}
       {slotsState.error ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-destructive">{slotsState.error}</p>

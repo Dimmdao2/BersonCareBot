@@ -5,7 +5,6 @@
  */
 
 import { Suspense } from 'react';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { AuthBootstrap } from '@/shared/ui/patient/AuthBootstrap';
 import { LegalFooterLinks } from '@/shared/ui/patient/LegalFooterLinks';
 import type { MessengerSurfaceHint } from '@/shared/lib/platform';
@@ -14,6 +13,7 @@ import type { UnauthenticatedAppEntryClassification } from '@/modules/auth/appEn
 import { CLIENT_BOOT_ACTIVE_CONTENT_ID } from '@/modules/auth/clientBootWatchdog';
 import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
 import { RoleLoginPortalHeader } from '@/shared/ui/auth/RoleLoginPortalHeader';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 type AppEntryLoginContentProps = {
   supportContactHref: string;
@@ -45,7 +45,7 @@ export function AppEntryLoginContent({
       <div id="app-entry-content" className="flex flex-col gap-6">
         {roleLoginPortal ? <RoleLoginPortalHeader portal={roleLoginPortal} /> : null}
       </div>
-      <Suspense fallback={<p className={patientMutedTextClass}>Загрузка...</p>}>
+      <Suspense fallback={<AppContentLoading className="py-6" />}>
         <AuthBootstrap
           supportContactHref={supportContactHref}
           initialPublicAuthConfig={prefetchedPublicAuth ?? null}

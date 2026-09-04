@@ -32,8 +32,8 @@ import {
   patientCompactActionClass,
   patientFormSurfaceClass,
   patientMutedTextClass,
-  PatientShimmerPanel,
 } from '@/shared/ui/patient/patientVisual';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
 import {
@@ -489,10 +489,8 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
     return (
       <div
         className={cn(patientFormSurfaceClass, 'mt-3 border border-[var(--patient-border)]/70 p-3')}
-        aria-busy="true"
-        aria-label="Загрузка"
       >
-        <PatientShimmerPanel />
+        <AppContentLoading className="py-4" />
       </div>
     );
   }

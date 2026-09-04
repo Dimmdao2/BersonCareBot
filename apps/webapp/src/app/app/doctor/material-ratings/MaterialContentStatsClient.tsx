@@ -25,6 +25,7 @@ import { DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS } from '@/app/app/doctor/analytics
 import type { ContentEngagementStatsResponse } from '@/app-layer/stats/loadAdminReminderStats';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
 
@@ -224,7 +225,7 @@ export function MaterialContentStatsClient() {
             ))}
           </SelectContent>
         </Select>
-        {loading ? <span className="text-xs text-muted-foreground">Загрузка…</span> : null}
+        {loading ? <DoctorPanelLoading className="w-auto" /> : null}
         {error ? <span className="text-xs text-destructive">{error}</span> : null}
       </div>
 

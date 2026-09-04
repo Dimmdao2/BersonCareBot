@@ -8,10 +8,11 @@ import { cn } from '@/lib/utils';
 import { routePaths } from '@/app-layer/routes/paths';
 import { formatDiaryDayShortRu } from '@/modules/diaries/stats/formatDiaryDay';
 import { DiaryStatsPeriodBar, type DiaryStatsPeriod } from './DiaryStatsPeriodBar';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 const RechartsLfk = dynamic(() => import('./DiaryLineChartRecharts'), {
   ssr: false,
-  loading: () => <div className="bg-muted/50 h-[240px] w-full animate-pulse rounded-md" />,
+  loading: () => <AppContentLoading className="min-h-[240px]" />,
 });
 
 export type LfkStatsComplexOption = { id: string; title: string };
@@ -129,11 +130,7 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
       </div>
 
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      {loading ? (
-        <p className="text-muted-foreground text-sm" aria-live="polite">
-          Загрузка…
-        </p>
-      ) : null}
+      {loading ? <AppContentLoading className="py-6" /> : null}
 
       {showOverview && overview ? (
         <div className="max-w-full overflow-x-auto rounded-md border border-border">

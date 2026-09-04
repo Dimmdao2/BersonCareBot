@@ -51,6 +51,7 @@ import {
 } from './exerciseUsageSummaryText';
 import { MaterialRatingBlock } from '@/shared/ui/doctor/material-rating/MaterialRatingBlock';
 import type { ReferenceItemDto } from '@/modules/references/referenceCache';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 function ExerciseUsageSectionsView({ sections }: { sections: ExerciseUsageSection[] }) {
   if (sections.length === 0) {
@@ -504,7 +505,7 @@ export function ExerciseForm({
           <div className="mb-3 mt-3 rounded-md border border-border/60 bg-muted/20 p-3">
             <p className="text-sm font-medium text-foreground">Где используется</p>
             {usageBusy ? (
-              <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+              <DoctorPanelLoading className="mt-1 py-4" />
             ) : usageLoadError ? (
               <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
             ) : !usage ? null : !exerciseUsageHasAnyReference(usage) ? (
@@ -544,7 +545,7 @@ export function ExerciseForm({
           <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
             <p className="text-sm font-medium text-foreground">Где используется</p>
             {usageBusy ? (
-              <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+              <DoctorPanelLoading className="mt-1 py-4" />
             ) : usageLoadError ? (
               <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
             ) : !usage ? null : !exerciseUsageHasAnyReference(usage) ? (

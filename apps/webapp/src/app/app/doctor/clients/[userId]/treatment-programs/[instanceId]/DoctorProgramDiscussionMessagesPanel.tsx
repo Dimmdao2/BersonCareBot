@@ -42,6 +42,7 @@ import {
   doctorMetaTextClass,
   doctorPanelBottomShadowClass,
 } from '@/shared/ui/doctor/doctorVisual';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 export type DoctorProgramDiscussionAssignment = {
   media: ExerciseMedia | null;
@@ -394,9 +395,11 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
         data-testid="doctor-program-discussion-messages"
       >
         {sortedMessages.length === 0 ? (
-          <p className="text-center text-sm text-muted-foreground">
-            {loading ? 'Загрузка...' : 'Пока нет сообщений.'}
-          </p>
+          loading ? (
+            <DoctorPanelLoading className="py-6" />
+          ) : (
+            <p className="text-center text-sm text-muted-foreground">Пока нет сообщений.</p>
+          )
         ) : (
           sortedMessages.map((m, index) => {
             const fromPatient = m.senderRole === 'patient';

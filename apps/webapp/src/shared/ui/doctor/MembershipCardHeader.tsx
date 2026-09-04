@@ -1,5 +1,7 @@
 'use client';
 
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+
 /**
  * MembershipCardHeader — shared presentational block for a membership (patient package) card.
  *
@@ -99,7 +101,7 @@ export function MembershipCardHeader({
 
       {/* Consume dates */}
       {consumeLoading ? (
-        <p className="text-xs text-muted-foreground animate-pulse">Загрузка списаний…</p>
+        <DoctorPanelLoading className="py-2" />
       ) : sortedConsumeDates && sortedConsumeDates.length > 0 ? (
         <div>
           <p className="text-xs font-medium text-muted-foreground mb-0.5">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowUp, Loader } from 'lucide-react';
+import { ArrowUp } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { doctorChatMessageTextClass, doctorMetaTextClass } from '@/shared/ui/doctor/doctorVisual';
@@ -11,6 +11,7 @@ import { ChatView } from '@/modules/messaging/components/ChatView';
 import { notifyDoctorSupportUnreadCountChanged } from '@/modules/messaging/hooks/useSupportUnreadPolling';
 import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
 import type { SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type DoctorChatPanelProps = {
   conversationId: string;
@@ -257,17 +258,7 @@ export function DoctorChatPanel({
   );
 
   if (loading) {
-    return (
-      <div
-        className={cn(
-          'flex items-center justify-center gap-2 px-4 pt-5 text-sm text-muted-foreground/70',
-          className,
-        )}
-      >
-        <span>Загрузка сообщений…</span>
-        <Loader className="size-4 shrink-0 animate-spin" aria-hidden />
-      </div>
-    );
+    return <DoctorPanelLoading className={cn('px-4 pt-5', className)} />;
   }
 
   return (

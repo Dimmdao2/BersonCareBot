@@ -83,7 +83,7 @@ export function DoctorLfkCommentsModal({
       desktopPresentation="right-sheet"
     >
       {loading ? (
-        <DoctorPanelLoading className="py-10" label="Загрузка комментариев…" />
+        <DoctorPanelLoading className="py-10" />
       ) : error ? (
         <DoctorEmptyState size="xs" className="py-10 text-center text-destructive">
           {error}

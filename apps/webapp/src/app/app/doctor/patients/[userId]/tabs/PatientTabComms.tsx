@@ -20,6 +20,7 @@ import { pickOpenTreatmentProgramInstance } from '../../treatmentProgramInstance
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Props = {
   userId: string;
@@ -103,7 +104,7 @@ export function PatientTabComms({ userId, initialProgramInstances }: Props) {
         <p className={doctorSectionTitleClass}>Комментарии к программе</p>
 
         {instanceLoading ? (
-          <div className="h-10 animate-pulse rounded-md bg-muted/30" aria-busy />
+          <DoctorPanelLoading className="min-h-10" />
         ) : activeInstance ? (
           <>
             <p className="text-sm text-muted-foreground">

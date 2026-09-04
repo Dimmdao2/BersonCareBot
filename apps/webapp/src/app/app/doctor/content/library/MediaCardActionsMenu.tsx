@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/ui/doctor/primitives/dropdown-menu';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 export type MediaItemForMenu = {
   id: string;
@@ -159,7 +160,7 @@ export function MediaCardActionsMenu({
             ) : null}
             <p className="pt-1 font-medium text-foreground">Использование</p>
             {usageLoading ? (
-              <p>Загрузка…</p>
+              <DoctorPanelLoading className="py-2" />
             ) : usageError ? (
               <p>Не удалось загрузить</p>
             ) : usageLines && usageLines.length > 0 ? (

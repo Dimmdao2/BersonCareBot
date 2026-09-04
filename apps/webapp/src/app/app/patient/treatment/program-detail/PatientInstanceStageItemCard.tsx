@@ -25,6 +25,7 @@ import { treatmentProgramItemToRatingTarget } from '@/modules/material-rating/ma
 import { MaterialRatingBlock } from '@/shared/ui/patient/material-rating/MaterialRatingBlock';
 import { PatientProgramItemExecutionRow } from '@/app/app/patient/treatment/PatientProgramItemExecutionRow';
 import type { ProgramItemLastDoneSummary } from '@/app/app/patient/treatment/programItemExecutionDisplay';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 export function PatientInstanceStageItemCard(props: {
   instanceId: string;
@@ -367,7 +368,7 @@ export function PatientInstanceStageItemCard(props: {
                 onKeyDown={(e) => e.stopPropagation()}
               >
                 {!clinicalTestSnapLoaded ? (
-                  <p className={cn(patientMutedTextClass, 'text-xs')}>Загрузка…</p>
+                  <AppContentLoading className="py-3" />
                 ) : (
                   <PatientTestSetProgressForm
                     instanceId={instanceId}

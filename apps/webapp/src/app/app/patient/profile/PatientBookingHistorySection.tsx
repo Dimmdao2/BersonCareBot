@@ -15,6 +15,7 @@ import {
   paymentPurposeLabel,
   timelineEventTitle,
 } from '@/modules/client-history/labels';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 type TimelineItem = {
   id: string;
@@ -88,7 +89,7 @@ export function PatientBookingHistorySection({ mode = 'full' }: Props) {
     return (
       <section className={patientSectionSurfaceClass}>
         <h2 className={patientSectionTitleClass}>{mode === 'payments' ? 'Оплаты' : 'История'}</h2>
-        <p className={patientMutedTextClass}>Загрузка…</p>
+        <AppContentLoading className="py-6" />
       </section>
     );
   }

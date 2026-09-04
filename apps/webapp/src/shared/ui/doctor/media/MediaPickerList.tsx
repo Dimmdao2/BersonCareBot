@@ -10,6 +10,7 @@ import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVi
 import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
 import { libraryMediaRowToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 import { MediaPickerQuickPreviewDialog } from '@/shared/ui/doctor/media/MediaPickerQuickPreviewDialog';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 export type MediaListItem = {
   id: string;
@@ -161,15 +162,13 @@ export const MediaPickerList = memo(function MediaPickerList({
   const [quickPreviewItem, setQuickPreviewItem] = useState<MediaListItem | null>(null);
 
   if (loading && !error && items.length === 0) {
-    return <p className="text-sm text-muted-foreground">Загрузка...</p>;
+    return <DoctorPanelLoading className="py-6" />;
   }
 
   return (
     <>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {loading && items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Загрузка...</p>
-      ) : null}
+      {loading && items.length === 0 ? <DoctorPanelLoading className="py-6" /> : null}
       {!loading && items.length === 0 ? (
         <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">
           Нет файлов

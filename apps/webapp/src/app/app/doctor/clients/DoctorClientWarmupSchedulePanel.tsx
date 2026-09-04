@@ -16,6 +16,7 @@ import {
   doctorClientSectionTitleClass,
 } from './doctorClientCardChrome';
 import type { ReminderDayFilter } from '@/modules/reminders/scheduleSlots';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const;
 const DEFAULT_DAYS_MASK = '1111100'; // Mon–Fri
@@ -148,7 +149,7 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
     return (
       <div className={doctorClientOverviewSecondaryCardClass}>
         <p className={`mb-2 ${doctorClientSectionTitleClass}`}>Расписание разминок</p>
-        <p className="text-sm text-muted-foreground">Загрузка…</p>
+        <DoctorPanelLoading className="py-4" />
       </div>
     );
   }

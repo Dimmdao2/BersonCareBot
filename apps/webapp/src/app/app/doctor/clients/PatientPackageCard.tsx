@@ -9,6 +9,7 @@ import { packageHistoryEventLabel } from './packageHistoryLabels';
 import { PatientPackageSessionsList } from './PatientPackageSessionsList';
 import { MembershipCardHeader } from '@/shared/ui/doctor/MembershipCardHeader';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 export type PatientPackageCardRow = {
   id: string;
@@ -232,9 +233,7 @@ export function PatientPackageCard({
             onToggle={(e) => setHistoryOpen((e.target as HTMLDetailsElement).open)}
           >
             <summary className="cursor-pointer text-xs font-medium">История</summary>
-            {history === null && historyOpen ? (
-              <p className="text-muted-foreground mt-1 text-xs">Загрузка…</p>
-            ) : null}
+            {history === null && historyOpen ? <DoctorPanelLoading className="mt-1 py-3" /> : null}
             {history && history.length === 0 ? (
               <p className="text-muted-foreground mt-1 text-xs">Нет событий.</p>
             ) : null}

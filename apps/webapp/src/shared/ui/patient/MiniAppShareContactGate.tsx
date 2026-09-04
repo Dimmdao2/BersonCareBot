@@ -29,6 +29,7 @@ import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
   type AuthChannelUiPolicy,
 } from '@/modules/auth/otpChannelUi';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 const POLL_MS = 2000;
 const MAX_POLLS = 45;
@@ -359,12 +360,8 @@ export function MiniAppShareContactGate({
 
   if (mode === 'loading') {
     return (
-      <div
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-background text-sm text-muted-foreground"
-        role="status"
-        aria-live="polite"
-      >
-        Загрузка…
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background">
+        <AppContentLoading />
       </div>
     );
   }

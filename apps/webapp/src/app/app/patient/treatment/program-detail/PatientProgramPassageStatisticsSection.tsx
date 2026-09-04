@@ -7,8 +7,8 @@ import {
   patientBodyTextClass,
   patientCardClass,
   patientMutedTextClass,
-  PatientShimmerPanel,
 } from '@/shared/ui/patient/patientVisual';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 import { PatientProgramBlockHeading } from '@/app/app/patient/treatment/program-detail/PatientProgramBlockHeading';
 import { TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -111,9 +111,7 @@ export function PatientProgramPassageStatisticsSection(props: {
           <li>Назначений ещё не выполнялось: {stats.neverCompletedChecklistItemCount}</li>
         </ul>
       ) : (
-        <div aria-busy="true" aria-label="Загрузка статистики">
-          <PatientShimmerPanel />
-        </div>
+        <AppContentLoading className="py-6" />
       )}
     </section>
   );

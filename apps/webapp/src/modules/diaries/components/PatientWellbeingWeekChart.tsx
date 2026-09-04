@@ -2,12 +2,11 @@
 
 import dynamic from 'next/dynamic';
 import type { PatientWellbeingWeekComposedChartProps } from './PatientWellbeingWeekComposedChart';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 const Inner = dynamic(() => import('./PatientWellbeingWeekComposedChart'), {
   ssr: false,
-  loading: () => (
-    <div className="h-[220px] w-full animate-pulse rounded-[var(--patient-card-radius-mobile)] bg-[var(--patient-color-primary-soft)]/20 lg:rounded-[var(--patient-card-radius-desktop)]" />
-  ),
+  loading: () => <AppContentLoading className="min-h-[220px]" />,
 });
 
 export type PatientWellbeingWeekChartProps = PatientWellbeingWeekComposedChartProps;

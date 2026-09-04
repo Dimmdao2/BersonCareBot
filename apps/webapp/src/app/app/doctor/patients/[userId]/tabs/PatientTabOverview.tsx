@@ -85,6 +85,7 @@ import {
   DoctorExerciseActivityCalendar,
   type DoctorExerciseActivityCalendarDay,
 } from '@/shared/ui/doctor/DoctorExerciseActivityCalendar';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -1763,9 +1764,7 @@ export function PatientTabOverview({
             </Button>
           </div>
 
-          {isLoading && (
-            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка симптомов…</p>
-          )}
+          {isLoading && <DoctorPanelLoading className="py-3" />}
           {!isLoading && data?.clinicalStatus === 'error' && (
             <p className="text-xs text-destructive py-1">Не удалось загрузить симптомы.</p>
           )}
@@ -1853,9 +1852,7 @@ export function PatientTabOverview({
                 </div>
               )}
             </div>
-            {isLoading && (
-              <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка данных…</p>
-            )}
+            {isLoading && <DoctorPanelLoading className="py-3" />}
             {!isLoading &&
               data?.symptomSeries &&
               data.symptomSeries.some((s) => s.points.length >= 2) && (
@@ -1907,9 +1904,7 @@ export function PatientTabOverview({
               </Button>
             </div>
             {isLoading ? (
-              <p className="animate-pulse px-4 py-2 text-sm text-muted-foreground">
-                Загрузка заметок…
-              </p>
+              <DoctorPanelLoading className="px-4 py-4" />
             ) : data?.notesStatus === 'error' ? (
               <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить заметки.</p>
             ) : data?.notes.length ? (
@@ -1995,9 +1990,7 @@ export function PatientTabOverview({
               }
             >
               {isLoading ? (
-                <p className="animate-pulse px-4 py-2 text-sm text-muted-foreground">
-                  Загрузка задач…
-                </p>
+                <DoctorPanelLoading className="px-4 py-4" />
               ) : data?.tasksStatus === 'error' ? (
                 <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить задачи.</p>
               ) : attentionTasks.length ? (
@@ -2086,9 +2079,7 @@ export function PatientTabOverview({
             ) : null}
           </div>
 
-          {isLoading && (
-            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка программы…</p>
-          )}
+          {isLoading && <DoctorPanelLoading className="py-3" />}
           {!isLoading && data?.programStatus === 'error' && (
             <p className="text-xs text-destructive py-1">Не удалось загрузить программу.</p>
           )}
@@ -2202,11 +2193,7 @@ export function PatientTabOverview({
               </Button>
             </div>
 
-            {isLoading && (
-              <p className="text-xs text-muted-foreground animate-pulse py-2">
-                Загрузка сообщений…
-              </p>
-            )}
+            {isLoading && <DoctorPanelLoading className="py-3" />}
             {!isLoading && data?.messagesStatus === 'error' && (
               <p className="text-xs text-destructive py-1">Не удалось загрузить сообщения.</p>
             )}

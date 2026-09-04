@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 const EMPTY_VALUE = '__unset__';
 
@@ -190,7 +191,7 @@ export function SaasBillingProviderSettings() {
       </CardHeader>
       <CardContent className="space-y-4">
         {loading ? (
-          <p className="text-sm text-muted-foreground">Загрузка…</p>
+          <DoctorPanelLoading className="py-6" />
         ) : (
           <>
             <div className="grid gap-3 md:grid-cols-2">

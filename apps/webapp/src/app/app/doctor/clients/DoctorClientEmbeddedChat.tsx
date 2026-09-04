@@ -4,6 +4,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorChatPanel } from '@/modules/messaging/components/DoctorChatPanel';
 import { useDoctorPatientSupportChat } from './useDoctorPatientSupportChat';
 import { doctorClientStackedCardClass } from './doctorClientCardChrome';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Props = {
   patientUserId: string;
@@ -15,11 +16,8 @@ export function DoctorClientEmbeddedChat({ patientUserId, onUnreadChange }: Prop
 
   if (chat.loading) {
     return (
-      <div
-        className={`${doctorClientStackedCardClass} min-h-[280px] animate-pulse bg-muted/20`}
-        aria-busy
-      >
-        <p className="sr-only">Загрузка чата…</p>
+      <div className={`${doctorClientStackedCardClass} min-h-[280px]`} aria-busy>
+        <DoctorPanelLoading className="min-h-[280px]" />
       </div>
     );
   }

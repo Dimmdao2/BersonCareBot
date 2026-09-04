@@ -11,6 +11,7 @@ import {
 } from '@/shared/ui/doctor/primitives/dialog';
 import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
 import { cn } from '@/lib/utils';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Props = {
   open: boolean;
@@ -70,7 +71,7 @@ export function ProgramHistoryModal({ open, onOpenChange, userId }: Props) {
         </DialogHeader>
 
         {instances === null ? (
-          <p className="text-sm text-muted-foreground">Загрузка…</p>
+          <DoctorPanelLoading className="py-6" />
         ) : error ? (
           <p className="text-sm text-destructive" role="alert">
             Не удалось загрузить программы.

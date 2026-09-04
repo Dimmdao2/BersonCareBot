@@ -22,6 +22,7 @@ import { ProductAnalyticsActiveUsersChart } from './ProductAnalyticsActiveUsersC
 import { ProductAnalyticsEntryChannelChart } from './ProductAnalyticsEntryChannelChart';
 import { ProductAnalyticsPushByTopicChart } from './ProductAnalyticsPushByTopicChart';
 import { ProductAnalyticsTopPagesChart } from './ProductAnalyticsTopPagesChart';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
 
@@ -134,7 +135,7 @@ export function ProductAnalyticsSection() {
             ))}
           </SelectContent>
         </Select>
-        {loading ? <span className="text-xs text-muted-foreground">Загрузка…</span> : null}
+        {loading ? <DoctorPanelLoading className="w-auto" /> : null}
         {error ? <span className="text-xs text-destructive">{error}</span> : null}
       </div>
 

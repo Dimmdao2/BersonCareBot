@@ -199,9 +199,7 @@ export function DoctorExerciseActivityCalendar({
         </Button>
       </div>
 
-      {state === 'loading' ? (
-        <DoctorPanelLoading label="Загрузка календаря…" className="min-h-24" />
-      ) : null}
+      {state === 'loading' ? <DoctorPanelLoading className="min-h-24" /> : null}
       {state === 'error' ? (
         <p className={cn(doctorMetaTextClass, 'py-2')}>Данные о выполнении недоступны.</p>
       ) : null}

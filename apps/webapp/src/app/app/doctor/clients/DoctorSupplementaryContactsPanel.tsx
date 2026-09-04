@@ -14,6 +14,7 @@ import {
 import type { DoctorSupplementaryContact } from '@/modules/platform-user-contacts/bookingContactUpsert';
 import type { PlatformUserContactType } from '@/modules/platform-user-contacts/types';
 import { phoneToTelHref } from '@/shared/lib/phoneLinks';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 const CONTACT_TYPE_OPTIONS: { value: PlatformUserContactType; label: string }[] = [
   { value: 'phone', label: 'Телефон' },
@@ -115,7 +116,7 @@ export function DoctorSupplementaryContactsPanel({ userId, initialContacts }: Pr
 
   return (
     <div className="flex flex-col gap-2">
-      {loading ? <p className="text-sm text-muted-foreground">Загрузка…</p> : null}
+      {loading ? <DoctorPanelLoading className="py-6" /> : null}
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {contacts.length > 0 ? (
         <ul id="doctor-client-supplementary-contacts-list" className="m-0 list-none space-y-1 p-0">

@@ -27,6 +27,7 @@ import { apiJson } from '@/shared/lib/apiJson';
 import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
 import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type AuditItem = {
   id: string;
@@ -337,7 +338,7 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
           </p>
         ) : null}
 
-        {loading && <p className="text-sm text-muted-foreground">Загрузка…</p>}
+        {loading && <DoctorPanelLoading className="py-6" />}
 
         {!loading && data && (
           <>

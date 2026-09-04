@@ -220,7 +220,7 @@ export function DoctorExerciseStatisticsModal({
 
       <div className="border-t border-border/60 pt-4">
         {metrics === null ? (
-          <DoctorPanelLoading label="Загрузка графика…" className="min-h-32" />
+          <DoctorPanelLoading className="min-h-32" />
         ) : metricsError ? (
           <p className="text-sm text-destructive">Не удалось загрузить динамику</p>
         ) : (

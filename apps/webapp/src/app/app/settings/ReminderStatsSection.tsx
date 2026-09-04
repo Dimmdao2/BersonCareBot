@@ -12,6 +12,7 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS } from '@/app/app/doctor/analytics/shared/analyticsWindowHourPresets';
 import type { ContentEngagementStatsResponse } from '@/app-layer/stats/loadAdminReminderStats';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
 
@@ -105,7 +106,7 @@ export function ReminderStatsSection() {
             ))}
           </SelectContent>
         </Select>
-        {loading ? <span className="text-xs text-muted-foreground">Загрузка…</span> : null}
+        {loading ? <DoctorPanelLoading className="w-auto" /> : null}
         {error ? <span className="text-xs text-destructive">{error}</span> : null}
       </div>
 

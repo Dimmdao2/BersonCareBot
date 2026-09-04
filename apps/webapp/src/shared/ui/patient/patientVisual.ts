@@ -515,13 +515,9 @@ export const patientModalBodyScrollClass = cn(
   patientScrollbarHiddenClass,
 );
 
-/** Shimmer для загрузки patient-роутов (`@keyframes` только в `patient.css`). */
+/** Pending-полоска действия и shell для `loading.tsx` (`@keyframes` только в `patient.css`). */
 export {
   patientShimmerSheenClass,
   PatientShimmerLine,
-  PatientShimmerCard,
-  PatientLoadingPatternBody,
   PatientRouteLoadingShell,
-  PatientShimmerPanel,
 } from '@/shared/ui/patient/PatientLoadingShimmer';
-export type { PatientLoadingPattern } from '@/shared/ui/patient/PatientLoadingShimmer';

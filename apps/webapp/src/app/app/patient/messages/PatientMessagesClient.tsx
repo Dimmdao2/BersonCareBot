@@ -10,13 +10,13 @@ import { notifyPatientSupportUnreadCountChanged } from '@/modules/messaging/hook
 import type { SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
 import { cn } from '@/lib/utils';
 import {
-  PatientShimmerPanel,
   patientCardClass,
   patientChatComposerTextareaClass,
   patientInnerPageStackClass,
   patientMutedTextClass,
   patientPrimaryActionClass,
 } from '@/shared/ui/patient/patientVisual';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 export function PatientMessagesClient() {
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -144,15 +144,7 @@ export function PatientMessagesClient() {
   };
 
   if (loading) {
-    return (
-      <div
-        className="flex min-h-0 flex-1 flex-col justify-center py-6"
-        aria-busy="true"
-        aria-label="Загрузка"
-      >
-        <PatientShimmerPanel />
-      </div>
-    );
+    return <AppContentLoading className="flex-1 py-6" />;
   }
 
   return (

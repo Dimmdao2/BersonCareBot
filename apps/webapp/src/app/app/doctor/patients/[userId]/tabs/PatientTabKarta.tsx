@@ -78,6 +78,7 @@ import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { VisitCatalogTextarea } from './karta/VisitCatalogTextarea';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 import { overviewSymptomSeverityBadgeClass } from './PatientTabOverview';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Props = {
   userId: string;
@@ -646,9 +647,7 @@ function DiagnosisRow({
       {/* Status history (inline, collapsible) */}
       {showHistory && (
         <div className="ml-4 rounded bg-muted/20 px-2.5 py-1.5">
-          {historyLoading && (
-            <p className="animate-pulse text-[11px] text-muted-foreground">Загрузка…</p>
-          )}
+          {historyLoading && <DoctorPanelLoading className="py-2" />}
           {!historyLoading && history !== null && <DiagnosisStatusHistoryList entries={history} />}
         </div>
       )}
@@ -846,9 +845,7 @@ function Comorbidities({
           </div>
         )}
 
-        {items === null && (
-          <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка…</p>
-        )}
+        {items === null && <DoctorPanelLoading className="py-3" />}
         {items !== null && error && (
           <p className="py-1 text-xs text-destructive">Не удалось загрузить.</p>
         )}
@@ -1299,9 +1296,7 @@ function CreateVisitModeModal({
             <p className="text-xs text-muted-foreground">
               Выберите запись пациента — дата, время, филиал и услуга подтянутся автоматически
             </p>
-            {loading && (
-              <p className="animate-pulse text-xs text-muted-foreground">Загрузка записей…</p>
-            )}
+            {loading && <DoctorPanelLoading className="py-3" />}
             {!loading && appointments !== null && appointments.length === 0 && (
               <p className="text-xs text-muted-foreground italic">
                 Нет записей без привязанного визита
@@ -1903,9 +1898,7 @@ export function PatientTabKarta({
               </span>
             </div>
             <div className="flex flex-col gap-1.5">
-              {loading && (
-                <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка…</p>
-              )}
+              {loading && <DoctorPanelLoading className="py-3" />}
               {!loading && fetchError && (
                 <p className="py-1 text-xs text-destructive">Не удалось загрузить симптомы.</p>
               )}
@@ -1929,9 +1922,7 @@ export function PatientTabKarta({
               </span>
             </div>
             <div className="flex flex-col gap-1.5">
-              {loading && (
-                <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка…</p>
-              )}
+              {loading && <DoctorPanelLoading className="py-3" />}
               {!loading && fetchError && (
                 <p className="py-1 text-xs text-destructive">Не удалось загрузить диагнозы.</p>
               )}
@@ -1949,9 +1940,7 @@ export function PatientTabKarta({
           <section className={doctorSectionCardClass}>
             <div className="flex items-center justify-between">
               <h3 className={doctorSectionTitleClass}>Анамнез</h3>
-              {anamnesisLoading && (
-                <span className="animate-pulse text-xs text-muted-foreground">Загрузка…</span>
-              )}
+              {anamnesisLoading && <DoctorPanelLoading className="w-auto" />}
               {!anamnesisLoading && anamnesisError && (
                 <span className="text-xs text-destructive">Ошибка загрузки</span>
               )}
@@ -2213,11 +2202,7 @@ export function PatientTabKarta({
                     panelOpen && 'max-h-[60vh] overflow-y-auto opacity-80',
                   )}
                 >
-                  {loading && (
-                    <p className="animate-pulse py-2 text-xs text-muted-foreground">
-                      Загрузка истории визитов…
-                    </p>
-                  )}
+                  {loading && <DoctorPanelLoading className="py-3" />}
                   {!loading && fetchError && (
                     <p className="py-1 text-xs text-destructive">
                       Не удалось загрузить историю визитов.

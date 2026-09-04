@@ -33,6 +33,7 @@ import { ProgramItemDiscussionMediaPicker } from '@/app/app/patient/treatment/Pr
 import { ProgramItemDiscussionMessageBody } from '@/app/app/patient/treatment/ProgramItemDiscussionMessageBody';
 import { notifyPatientSupportUnreadCountChanged } from '@/modules/messaging/hooks/useSupportUnreadPolling';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -224,9 +225,11 @@ export function ProgramItemDiscussionDialog(props: {
             )}
           >
             {sortedMessages.length === 0 ? (
-              <p className={cn('text-center', patientMutedTextClass)}>
-                {loading ? 'Загрузка...' : 'Пока нет комментариев.'}
-              </p>
+              loading ? (
+                <AppContentLoading className="py-6" />
+              ) : (
+                <p className={cn('text-center', patientMutedTextClass)}>Пока нет комментариев.</p>
+              )
             ) : (
               sortedMessages.map((m) => {
                 const mine = m.senderRole === 'patient';

@@ -64,7 +64,7 @@ export type ExercisesViewMode = 'tiles' | 'list';
 export type ExerciseTitleSort = 'asc' | 'desc';
 
 const ExerciseForm = dynamic(() => import('./ExerciseForm').then((mod) => mod.ExerciseForm), {
-  loading: () => <DoctorPanelLoading className="min-h-48" label="Загрузка формы…" />,
+  loading: () => <DoctorPanelLoading className="min-h-48" />,
 });
 
 const LIST_ROW_VISIBILITY_STYLE = {

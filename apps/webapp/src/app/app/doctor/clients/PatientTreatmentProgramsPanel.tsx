@@ -14,6 +14,7 @@ import {
 } from '@/shared/ui/doctor/primitives/dialog';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type TemplateOption = { id: string; title: string };
 
@@ -176,7 +177,7 @@ export function PatientTreatmentProgramsPanel(props: {
             {loadError}
           </p>
         ) : loading ? (
-          <p className="text-sm text-muted-foreground">Загрузка…</p>
+          <DoctorPanelLoading className="py-6" />
         ) : !items?.length ? (
           <p className="text-sm text-muted-foreground">Пока нет назначенных программ.</p>
         ) : (

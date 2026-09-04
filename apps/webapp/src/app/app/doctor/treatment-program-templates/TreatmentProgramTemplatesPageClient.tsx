@@ -331,7 +331,7 @@ function TreatmentProgramTemplatesContent({
       );
     }
     if (detailLoading || libraryLoading) {
-      return <p className="text-sm text-muted-foreground">Загрузка конструктора…</p>;
+      return <DoctorPanelLoading className="min-h-48" />;
     }
     if (detailError) {
       return <p className="text-sm text-destructive">{detailError}</p>;
@@ -355,7 +355,7 @@ function TreatmentProgramTemplatesContent({
         />
       );
     }
-    return <p className="text-sm text-muted-foreground">Загрузка конструктора…</p>;
+    return <DoctorPanelLoading className="min-h-48" />;
   })();
 
   const desktopRight = <CatalogRightPane className="h-full">{rightInner}</CatalogRightPane>;

@@ -17,6 +17,7 @@ import type { DoctorAnalyticsMetricKey } from '@/modules/doctor-analytics-metric
 import { PeopleWithNotificationsCard } from '@/app/app/doctor/analytics/shared/PeopleWithNotificationsCard';
 import { PushOpensAnalyticsCard } from '@/app/app/doctor/analytics/shared/PushOpensAnalyticsCard';
 import { ReminderSendsHourlyClockChart } from '@/app/app/doctor/analytics/shared/ReminderSendsHourlyClockChart';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
 
@@ -96,7 +97,7 @@ export function NotificationsAnalyticsClient({ isActive = true }: { isActive?: b
             ))}
           </SelectContent>
         </Select>
-        {loading ? <span className="text-xs text-muted-foreground">Загрузка…</span> : null}
+        {loading ? <DoctorPanelLoading className="w-auto" /> : null}
         {error ? <span className="text-xs text-destructive">{error}</span> : null}
       </div>
 

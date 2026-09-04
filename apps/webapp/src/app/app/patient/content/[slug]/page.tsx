@@ -18,7 +18,7 @@ import {
 import { resolvePatientCanViewContent } from '@/app-layer/platform-access';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { PatientBackToSectionShellRow } from '@/shared/ui/patient/PatientBackToSectionShellRow';
-import { PatientLoadingPatternBody } from '@/shared/ui/patient/patientVisual';
+import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 import { toHostedVideoEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
 import {
   parseApiMediaIdFromHref,
@@ -141,7 +141,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
         ) : undefined
       }
     >
-      <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
+      <Suspense fallback={<AppContentLoading className="py-10" />}>
         <PatientContentSlugArticle
           slug={slug}
           session={session}
