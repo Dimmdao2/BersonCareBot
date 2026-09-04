@@ -274,6 +274,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
           onClose={() => setStatisticsOpen(false)}
           patientUserId={patientUserId}
           patientName={patientName}
+          exerciseTitle={itemLabel ?? 'Упражнение'}
           instanceId={instanceId}
           itemId={itemId}
         />

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { ExerciseMetricPoint } from '@/modules/treatment-program/types';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalCompositeTitle } from '@/shared/ui/doctor/DoctorModal';
 import {
   DoctorExerciseActivityCalendar,
   type DoctorExerciseActivityCalendarDay,
@@ -59,6 +59,7 @@ export function DoctorExerciseStatisticsModal({
   onClose,
   patientUserId,
   patientName,
+  exerciseTitle,
   instanceId,
   itemId,
 }: {
@@ -67,6 +68,7 @@ export function DoctorExerciseStatisticsModal({
   patientUserId: string;
   /** «Фамилия Имя» пациента для второй строки шапки; без него вторая строка не рисуется. */
   patientName?: string | null;
+  exerciseTitle: string;
   instanceId: string;
   itemId: string;
 }) {
@@ -191,7 +193,7 @@ export function DoctorExerciseStatisticsModal({
     <DoctorModal
       open={open}
       onClose={onClose}
-      title="Статистика"
+      title={<DoctorModalCompositeTitle label="Статистика" entity={exerciseTitle} />}
       titleSubject={patientSubject}
       size="lg"
       bodyClassName="space-y-4"
