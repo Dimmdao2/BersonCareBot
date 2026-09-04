@@ -59,6 +59,11 @@ export function createPatientPaymentsService({
       return patientPaymentsPort.listAppointmentPayments(appointmentId, patientUserId);
     },
 
+    /** APPT-DETAIL-11: оплаченное наличными/эквайрингом сразу по набору записей. */
+    async sumPaidMinorForAppointments(appointmentIds: string[]) {
+      return patientPaymentsPort.sumPaidMinorForAppointments(appointmentIds);
+    },
+
     async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
       assertWriteClearance?.('payments');
       if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {

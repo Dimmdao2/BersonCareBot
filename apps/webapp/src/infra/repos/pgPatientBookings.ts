@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { patientBookings as patientBookingsTable } from '../../../db/schema/schema';
@@ -455,6 +455,15 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
       .where(eq(patientBookingsTable.canonicalAppointmentId, canonicalAppointmentId))
       .limit(1);
     return row ? mapTableRow(row) : null;
+  },
+
+  async listByCanonicalAppointmentIds(canonicalAppointmentIds) {
+    if (canonicalAppointmentIds.length === 0) return [];
+    const rows = await getDrizzle()
+      .select()
+      .from(patientBookingsTable)
+      .where(inArray(patientBookingsTable.canonicalAppointmentId, canonicalAppointmentIds));
+    return rows.map(mapTableRow);
   },
 
   async listUpcomingByUser(userId, nowIso) {

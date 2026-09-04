@@ -83,6 +83,14 @@ export interface PatientPaymentsPort {
   listPayments(patientUserId: string): Promise<PatientPayment[]>;
   /** Paid/pending ledger rows for one exact appointment inside the installed tenant principal. */
   listAppointmentPayments(appointmentId: string, patientUserId: string): Promise<PatientPayment[]>;
+  /**
+   * APPT-DETAIL-11: сумма фактически оплаченного (`status='paid'`) сразу по набору записей.
+   * Карточка деталей открывается из уже загруженного диапазона календаря, поэтому поштучное
+   * чтение дало бы запрос на каждую запись месяца.
+   */
+  sumPaidMinorForAppointments(
+    appointmentIds: string[],
+  ): Promise<{ appointmentId: string; paidMinor: number }[]>;
   /** Записать ручной платёж наличными (kind='cash', status='paid'). */
   addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment>;
   /**

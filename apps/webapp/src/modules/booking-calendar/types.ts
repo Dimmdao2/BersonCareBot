@@ -62,6 +62,25 @@ export type CalendarFilterMeta = {
   services: CalendarServiceFilterOption[];
 };
 
+/**
+ * APPT-DETAIL-11: сводка оплаты записи ровно в том объёме, который рисует карточка. Один и тот же
+ * контракт наполняет первичный серверный payload деталей и обновление после платёжной мутации,
+ * поэтому блок оплаты не «доезжает» вторым запросом и не меняет вид после первого рендера.
+ */
+export type CalendarAppointmentPaymentView = {
+  /** null — запись не найдена в платёжном контуре; блок показывает «не оплачено» без суммы. */
+  prepaymentQuote: { amountMinor: number; currency: string } | null;
+  payment: { amountMinor: number; status: string } | null;
+  totalMinor: number | null;
+  manualPaidMinor: number;
+  /** Tariff mechanic `payments`: без него блока оплаты у клиники нет вовсе. */
+  paymentsEntitled: boolean;
+  /** Настроенный провайдер за существующим контрактом счёта/ссылки. */
+  onlinePaymentAvailable: boolean;
+  /** Пациент `linked` к порталу, значит ссылка в чат реально дойдёт. */
+  patientChatAvailable: boolean;
+};
+
 export type CalendarAppointmentEvent = {
   kind: 'appointment';
   id: string;
@@ -90,6 +109,16 @@ export type CalendarAppointmentEvent = {
   rescheduleCount: number;
   originalStartAt: string | null;
   formComments: { label: string; value: string }[];
+  /**
+   * APPT-DETAIL-11: основной комментарий записи приходит вместе с деталями. Пустая строка и
+   * отсутствие комментария неразличимы для человека, поэтому оба состояния — `null`.
+   */
+  primaryComment: string | null;
+  /**
+   * APPT-DETAIL-11: `null` означает «сводка оплаты не сформирована» (нет пациента, платёжный
+   * контур недоступен) — карточка в этом случае блок оплаты не рисует.
+   */
+  payment: CalendarAppointmentPaymentView | null;
 };
 
 export type CalendarBlockEvent = {

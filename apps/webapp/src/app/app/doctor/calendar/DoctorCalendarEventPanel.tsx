@@ -89,8 +89,6 @@ type LifecycleResponse = {
   cancellations: AppointmentCancellationRecord[];
 };
 
-type AppointmentCommentRow = { id: string; body: string; createdAt: string };
-
 function parseEventDateTime(iso: string, timeZone: string): DateTime {
   // R27: originalStartAt приходит из canonical-порта в Postgres timestamptz формате
   // ("2026-06-13 10:00:00+02", пробел вместо "T") — строгий fromISO даёт Invalid.
@@ -245,8 +243,12 @@ function DoctorCalendarEventPanelInner({
   });
   const [pending, startTransition] = useTransition();
   const [lifecycle, setLifecycle] = useState<LifecycleResponse | null>(null);
-  const [primaryComment, setPrimaryComment] = useState('');
-  const [commentDraft, setCommentDraft] = useState('');
+  // APPT-DETAIL-11: комментарий приезжает вместе с деталями записи. Отдельная загрузка рисовала
+  // пустое поле первым кадром, и открытое сразу «Изменить» уносило в форму пустой черновик
+  // поверх существующего текста.
+  const initialComment = selected?.primaryComment ?? '';
+  const [primaryComment, setPrimaryComment] = useState(initialComment);
+  const [commentDraft, setCommentDraft] = useState(initialComment);
   const [commentSaving, setCommentSaving] = useState(false);
   const createManualRequestIdRef = useRef(crypto.randomUUID());
   const selectedId = selected?.id ?? null;
@@ -274,25 +276,6 @@ function DoctorCalendarEventPanelInner({
       cancelled = true;
     };
   }, [apiBase, selectedId]);
-
-  const loadPrimaryComment = useCallback(async () => {
-    if (!selectedId) return;
-    try {
-      const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selectedId)}/comments`);
-      const json = (await res.json()) as { ok?: boolean; comments?: AppointmentCommentRow[] };
-      if (!json.ok) return;
-      // Порт отдаёт комментарии от новых к старым: основной — самый свежий.
-      const body = json.comments?.[0]?.body ?? '';
-      setPrimaryComment(body);
-      setCommentDraft(body);
-    } catch {
-      /* карточка остаётся читаемой и без комментария */
-    }
-  }, [apiBase, selectedId]);
-
-  useEffect(() => {
-    void loadPrimaryComment();
-  }, [loadPrimaryComment]);
 
   /**
    * Основной комментарий записи (APPT-DETAIL-07): один и тот же контракт и пишет текст, и
@@ -689,7 +672,9 @@ function DoctorCalendarEventPanelInner({
           setMessage('Не удалось сохранить комментарий.');
           return;
         }
-        await loadPrimaryComment();
+        // Контракт подтвердил запись именно этого текста — перечитывать его нечем и незачем.
+        setPrimaryComment(body);
+        setCommentDraft(body);
       } finally {
         setCommentSaving(false);
       }
@@ -914,10 +899,11 @@ function DoctorCalendarEventPanelInner({
           ) : null}
         </div>
 
-        {selected.platformUserId ? (
+        {selected.platformUserId && selected.payment ? (
           <AppointmentPaymentSection
             apiBase={apiBase}
             appointmentId={selected.id}
+            view={selected.payment}
             patientUserId={selected.platformUserId}
           />
         ) : null}

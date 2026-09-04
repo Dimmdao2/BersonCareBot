@@ -140,6 +140,12 @@ export type PatientBookingsPort = {
   getByIdForUser(bookingId: string, userId: string): Promise<PatientBookingRecord | null>;
   getById(bookingId: string): Promise<PatientBookingRecord | null>;
   getByCanonicalAppointmentId(canonicalAppointmentId: string): Promise<PatientBookingRecord | null>;
+  /**
+   * APPT-DETAIL-11: строки бронирования сразу по набору канонических записей. Цена записи
+   * (`priceMinorSnapshot`) и контекст предоплаты нужны карточке деталей при первом рендере, а
+   * карточку открывают из уже загруженного диапазона календаря.
+   */
+  listByCanonicalAppointmentIds(canonicalAppointmentIds: string[]): Promise<PatientBookingRecord[]>;
   listUpcomingByUser(userId: string, nowIso: string): Promise<PatientBookingRecord[]>;
   listHistoryByUser(userId: string, nowIso: string): Promise<PatientBookingRecord[]>;
   updateSlotsAfterReschedule(input: {
@@ -169,6 +175,9 @@ export type PatientBookingService = {
   getBookingByCanonicalAppointment(
     canonicalAppointmentId: string,
   ): Promise<PatientBookingRecord | null>;
+  listBookingsByCanonicalAppointments(
+    canonicalAppointmentIds: string[],
+  ): Promise<PatientBookingRecord[]>;
   syncLinkedPatientBookingCancelled(input: {
     canonicalAppointmentId: string;
     reason?: string;

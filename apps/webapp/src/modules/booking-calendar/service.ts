@@ -12,9 +12,14 @@ import {
 import type { WorkingDayRecord } from '@/modules/booking-scheduling/ports';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { DateTime } from 'luxon';
-import type { BookingCalendarPort, BookingCalendarService } from './ports';
+import type {
+  AppointmentDetailHydrator,
+  BookingCalendarPort,
+  BookingCalendarService,
+} from './ports';
 import type {
   CalendarAggregate,
+  CalendarAppointmentEvent,
   CalendarBreakEvent,
   CalendarBlockEvent,
   CalendarFilters,
@@ -31,6 +36,8 @@ type Deps = {
   }) => Promise<ScheduleBlockRecord[]>;
   schedulingPort?: BookingSchedulingPort;
   resolveShowWorkingHours?: () => Promise<boolean>;
+  /** APPT-DETAIL-11: один и тот же досбор для всех читателей календаря. */
+  hydrateAppointmentDetails?: AppointmentDetailHydrator;
 };
 
 function mapBlock(block: ScheduleBlockRecord): CalendarBlockEvent {
@@ -214,13 +221,30 @@ async function listWorkingAndBreakEvents(
 }
 
 export function createBookingCalendarService(deps: Deps): BookingCalendarService {
+  /**
+   * APPT-DETAIL-11: досбор стоит здесь, а не у каждого маршрута. Карточку деталей открывают из
+   * календаря, ленты и дашборда «Сегодня» — расставленный по хостам вызов один из них рано или
+   * поздно пропустит, и там блок оплаты молча исчезнет.
+   */
+  async function hydrate(
+    organizationId: string,
+    events: CalendarAppointmentEvent[],
+  ): Promise<CalendarAppointmentEvent[]> {
+    if (!deps.hydrateAppointmentDetails || events.length === 0) return events;
+    return deps.hydrateAppointmentDetails(organizationId, events);
+  }
+
   return {
-    listAppointmentsInRange(filters: CalendarFilters) {
-      return deps.calendarPort.listAppointmentsInRange(filters);
+    async listAppointmentsInRange(filters: CalendarFilters) {
+      return hydrate(
+        filters.organizationId,
+        await deps.calendarPort.listAppointmentsInRange(filters),
+      );
     },
 
-    listAppointmentFeed(filters) {
-      return deps.calendarPort.listAppointmentFeed(filters);
+    async listAppointmentFeed(filters) {
+      const page = await deps.calendarPort.listAppointmentFeed(filters);
+      return { ...page, items: await hydrate(filters.organizationId, page.items) };
     },
 
     async getCalendar(filters: CalendarFilters): Promise<CalendarAggregate> {
@@ -257,7 +281,7 @@ export function createBookingCalendarService(deps: Deps): BookingCalendarService
 
       return {
         events: [
-          ...appointmentEvents,
+          ...(await hydrate(filters.organizationId, appointmentEvents)),
           ...blockEvents,
           ...workingAndBreak.working,
           ...workingAndBreak.breaks,

@@ -210,6 +210,13 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     return null;
   },
 
+  async listByCanonicalAppointmentIds(canonicalAppointmentIds) {
+    const ids = new Set(canonicalAppointmentIds);
+    return Array.from(byId.values()).filter(
+      (row) => row.canonicalAppointmentId != null && ids.has(row.canonicalAppointmentId),
+    );
+  },
+
   async getByIdForUser(bookingId, userId) {
     const row = byId.get(bookingId);
     return row?.userId === userId ? row : null;

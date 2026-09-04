@@ -30,11 +30,12 @@ function portWithPayment(payment: PatientPayment | null): PatientPaymentsPort {
   return {
     listPayments: vi.fn(),
     listAppointmentPayments: vi.fn(),
+    sumPaidMinorForAppointments: vi.fn(),
     addCashPayment: vi.fn(),
     // The pre-principal webhook path must not fall back to the ordinary row reader.
-    findByProviderPaymentReference: vi.fn().mockRejectedValue(
-      new Error('ordinary_payment_read_forbidden'),
-    ),
+    findByProviderPaymentReference: vi
+      .fn()
+      .mockRejectedValue(new Error('ordinary_payment_read_forbidden')),
     resolveAcquiringWebhookOrganization: vi.fn().mockResolvedValue(payment?.organizationId ?? null),
     updatePatientPaymentStatus: vi.fn(),
     insertAcquiringPending: vi.fn(),
@@ -56,7 +57,9 @@ describe('patient acquiring webhook ownership resolver', () => {
     const port = portWithPayment(clinicPayment);
     const service = createPatientPaymentsService({ patientPaymentsPort: port });
 
-    await expect(service.resolveAcquiringWebhookOrganization(' ', 'clinic-provider-b')).resolves.toBeNull();
+    await expect(
+      service.resolveAcquiringWebhookOrganization(' ', 'clinic-provider-b'),
+    ).resolves.toBeNull();
     expect(port.resolveAcquiringWebhookOrganization).not.toHaveBeenCalled();
   });
 
