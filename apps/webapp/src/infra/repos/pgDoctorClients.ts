@@ -13,7 +13,6 @@ import {
 } from '@/infra/db/runWebappSql';
 import { type SQL, and, countDistinct, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
-import { loadPatientTelegramUsername } from '@/infra/repos/pgPatientTelegramUsernameMention';
 import type { ChannelBindings } from '@/shared/types/session';
 import type {
   ClientIdentity,
@@ -851,19 +850,23 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const ur = userRow.rows[0];
       if (!ur || ur.role !== 'client') return null;
 
-      // Fetch channel bindings
+      // Fetch channel bindings. `display_handle` is the doctor-visible @username the messenger
+      // webhook already recorded for this binding — reading it here stays inside the ordinary
+      // doctor-session query instead of calling the delivery-seam RPC
+      // `app.read_patient_telegram_display_handle()`, which requires `app.current_org_id()` +
+      // active org-membership and 42501s for a plain staff read (CONTACTS-05 regression).
       const bindingsRows = await runWebappSql<{
         channel_code: string;
         external_id: string;
         bot_blocked_at: string | null;
+        display_handle: string | null;
       }>(
         getWebappSqlDb(),
-        sql`SELECT channel_code, external_id, bot_blocked_at FROM user_channel_bindings WHERE user_id = ${canonicalId}::uuid`,
+        sql`SELECT channel_code, external_id, bot_blocked_at, display_handle FROM user_channel_bindings WHERE user_id = ${canonicalId}::uuid`,
       );
       const bindings = rowToBindings(bindingsRows.rows);
-      const telegramUsername = bindings.telegramId
-        ? await loadPatientTelegramUsername(canonicalId)
-        : null;
+      const telegramUsername =
+        bindingsRows.rows.find((row) => row.channel_code === 'telegram')?.display_handle ?? null;
 
       // Есть ли переписка: хотя бы одно сообщение в любой беседе пациента
       // (даёт открыть чат даже без привязанного Telegram/MAX-канала).

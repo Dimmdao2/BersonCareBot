@@ -658,7 +658,7 @@ export function PatientTabFiles({
   }
 
   return (
-    <div className={cn(doctorSectionCardClass, 'gap-2')}>
+    <div className={cn(doctorSectionCardClass, 'h-full min-h-0 gap-2 overflow-hidden')}>
       <div className="flex items-center justify-between gap-2">
         <span className={doctorSectionTitleClass}>Файлы и медиа</span>
         <FilesHeaderActions disabled={uploading} onPickFile={(f) => void uploadPickedFile(f)} />
@@ -670,8 +670,10 @@ export function PatientTabFiles({
         </p>
       )}
 
-      {/* FILES-09: fixed-height block — only this list scrolls, not the page. */}
-      <div className="h-[60vh] max-h-[520px] min-h-[240px] overflow-y-auto rounded-lg border border-border/60">
+      {/* FILES-09: fills whatever height PatientCardClient reserves for the active Files tab
+          (flex-1 against the shared full-height tab-panel contract, PatientCardClient.tsx) —
+          only this list scrolls, the card/page above never grows past its allotted space. */}
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border/60">
         {loading ? (
           <p className="px-3 py-4 text-sm text-muted-foreground animate-pulse">
             Загрузка файлов…

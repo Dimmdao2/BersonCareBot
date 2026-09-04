@@ -25,6 +25,7 @@ import {
   doctorPageStackClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { cn } from '@/lib/utils';
@@ -469,7 +470,7 @@ export function PatientCardClient({
 
   if (!header) {
     return (
-      <>
+      <DoctorAppShell title="Карточка пациента" backHref={patientListHref} mobileBottomGutter>
         <DoctorPageHeader
           id="doctor-patient-card-header"
           title="Карточка пациента"
@@ -490,9 +491,16 @@ export function PatientCardClient({
             <p className="text-sm text-muted-foreground">Пациент не найден.</p>
           </div>
         </section>
-      </>
+      </DoctorAppShell>
     );
   }
+
+  // FILES-09: the Files tab is the only panel whose own list must own scrolling while the rest
+  // of the card stays fixed between the header/tabs and the bottom panels. Reusing the existing
+  // `DoctorAppShell` full-height contract (already used for Пациенты/Коммуникации/Заявки) only
+  // while this specific tab is active keeps every other patient-card tab's current page-scroll
+  // behaviour byte-for-byte unchanged.
+  const isFilesTabActive = activeTab === 'files';
 
   const { identity, support } = header;
   const supportStartedAt = support.startedAt ?? shellMeta.currentProgramStartedAt;
@@ -513,7 +521,12 @@ export function PatientCardClient({
   const chatButtonHighlighted = hasTelegram || hasMax || hasConversationSignal;
 
   return (
-    <>
+    <DoctorAppShell
+      title="Карточка пациента"
+      backHref={patientListHref}
+      mobileBottomGutter={!isFilesTabActive}
+      layout={isFilesTabActive ? 'full-height' : 'default'}
+    >
       <DoctorShellMobileBottomTabsRegistration content={mobileBottomTabs} />
       <DoctorPageHeader
         id="doctor-patient-card-header"
@@ -535,7 +548,11 @@ export function PatientCardClient({
         }
       />
       <section
-        className={cn(doctorPageStackClass, 'flex flex-col gap-3 pt-3 pb-3 md:pt-0 md:pb-0')}
+        className={cn(
+          doctorPageStackClass,
+          'flex flex-col gap-3 pt-3 pb-3 md:pt-0 md:pb-0',
+          isFilesTabActive && 'min-h-0 flex-1 overflow-hidden',
+        )}
       >
         {/* ================================================================
           IDENTITY HEADER CARD — READ ONLY
@@ -607,45 +624,51 @@ export function PatientCardClient({
           </div>
         ) : null}
 
-        {/* TAB PANELS — mount on first visit; tab data streams in via Suspense. */}
+        {/* TAB PANELS — mount on first visit; tab data streams in via Suspense.
+            FILES-09: while the Files tab is active, this wrapper fills the remaining flex
+            space (`<section>` above is bounded by the full-height shell) so only the Files
+            tab's own file list scrolls; every other tab renders through the same plain
+            wrapper as before (no classes) and keeps its current page-scroll behaviour. */}
         <Suspense fallback={<PatientTabPanelLoading />}>
-          <PatientCardTabPanels
-            shellMeta={shellMeta}
-            tabPromise={tabPromise}
-            initialTab={initialTab}
-            createVisitFrom={createVisitFrom}
-            visitDate={visitDate}
-            embeddedProgramContent={embeddedProgramContent}
-            isAdmin={isAdmin}
-            patientListHref={patientListHref}
-            activeTab={activeTab}
-            visitedTabs={visitedTabs}
-            selectTab={selectTab}
-            pendingAppointmentId={pendingAppointmentId}
-            pendingVisitDate={pendingVisitDate}
-            pendingPrefillLocation={pendingPrefillLocation}
-            pendingPrefillService={pendingPrefillService}
-            pendingPrefillDurationMin={pendingPrefillDurationMin}
-            onPendingConsumed={() => {
-              setPendingAppointmentId(null);
-              setPendingVisitDate(null);
-              setPendingPrefillLocation(null);
-              setPendingPrefillService(null);
-              setPendingPrefillDurationMin(null);
-            }}
-            onCreateVisitFromAppointment={(prefill: AppointmentPrefill) => {
-              setPendingAppointmentId(prefill.id);
-              setPendingPrefillLocation(prefill.location ?? null);
-              setPendingPrefillService(prefill.service ?? null);
-              setPendingPrefillDurationMin(prefill.durationMin ?? null);
-              selectTab('karta');
-            }}
-            newVisitRequestId={newVisitRequestId}
-            header={header}
-          />
+          <div className={cn(isFilesTabActive && 'flex min-h-0 flex-1 flex-col overflow-hidden')}>
+            <PatientCardTabPanels
+              shellMeta={shellMeta}
+              tabPromise={tabPromise}
+              initialTab={initialTab}
+              createVisitFrom={createVisitFrom}
+              visitDate={visitDate}
+              embeddedProgramContent={embeddedProgramContent}
+              isAdmin={isAdmin}
+              patientListHref={patientListHref}
+              activeTab={activeTab}
+              visitedTabs={visitedTabs}
+              selectTab={selectTab}
+              pendingAppointmentId={pendingAppointmentId}
+              pendingVisitDate={pendingVisitDate}
+              pendingPrefillLocation={pendingPrefillLocation}
+              pendingPrefillService={pendingPrefillService}
+              pendingPrefillDurationMin={pendingPrefillDurationMin}
+              onPendingConsumed={() => {
+                setPendingAppointmentId(null);
+                setPendingVisitDate(null);
+                setPendingPrefillLocation(null);
+                setPendingPrefillService(null);
+                setPendingPrefillDurationMin(null);
+              }}
+              onCreateVisitFromAppointment={(prefill: AppointmentPrefill) => {
+                setPendingAppointmentId(prefill.id);
+                setPendingPrefillLocation(prefill.location ?? null);
+                setPendingPrefillService(prefill.service ?? null);
+                setPendingPrefillDurationMin(prefill.durationMin ?? null);
+                selectTab('karta');
+              }}
+              newVisitRequestId={newVisitRequestId}
+              header={header}
+            />
+          </div>
         </Suspense>
       </section>
-    </>
+    </DoctorAppShell>
   );
 }
 
@@ -773,7 +796,12 @@ function PatientCardTabPanels({
         </div>
       ) : null}
       {visitedTabs.has('files') ? (
-        <div className={cn(activeTab !== 'files' && 'hidden')}>
+        <div
+          className={cn(
+            'flex min-h-0 flex-1 flex-col overflow-hidden',
+            activeTab !== 'files' && 'hidden',
+          )}
+        >
           <PatientTabFiles
             userId={identity.userId}
             header={header}

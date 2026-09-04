@@ -6,7 +6,6 @@ import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { PatientCardClient } from './PatientCardClient';
 import { sanitizePatientListReturnHref } from '../patientListWorkspaceState';
 import {
@@ -80,21 +79,14 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   const patientListHref = sanitizePatientListReturnHref(sp.returnTo);
 
   return (
-    <DoctorAppShell
-      title="Карточка пациента"
-      user={session.user}
-      backHref={patientListHref}
-      mobileBottomGutter
-    >
-      <PatientCardClient
-        shellMeta={shellMeta}
-        tabPromise={tabPromise}
-        initialTab={activeTab}
-        createVisitFrom={createVisitFrom}
-        visitDate={visitDate}
-        isAdmin={session.user.role === 'admin'}
-        patientListHref={patientListHref}
-      />
-    </DoctorAppShell>
+    <PatientCardClient
+      shellMeta={shellMeta}
+      tabPromise={tabPromise}
+      initialTab={activeTab}
+      createVisitFrom={createVisitFrom}
+      visitDate={visitDate}
+      isAdmin={session.user.role === 'admin'}
+      patientListHref={patientListHref}
+    />
   );
 }
