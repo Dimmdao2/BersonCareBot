@@ -6,6 +6,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## Cash payment principal — 05.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Cash-ledger mutation principal | product `912e6196d` (`wt/cash-payment-fix-20260905`), независимый аудит — артефакт `docs/_TODO/runs/cash-payment-principal-audit-20260905.md` | **PASS — READY FOR LAND.** Blind kill-set: **8 убитых / 0 непойманных**. Корневая причина подтверждена двумя независимыми измерениями живого DEV, а не текстом коммита: в каталоге `WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON` (237 записей) ключа `tenant_service` нет, и `app_tenant_service` не имеет НИ ОДНОГО права на `public.patient_payment` — `app_staff` там единственная привилегированная роль. Живая приёмка на `bcb_webapp_dev` через worktree-сервер `:5301` под сессией доктора: cash **200** + строка ledger под `bcb_dev_webapp_staff` (0 ошибок в логе PostgreSQL), повтор **409 `already_paid`** при одной строке, `manualPaidMinor` 700000, две ОДНОВРЕМЕННЫЕ заявки → оба 200 с ОДНИМ `payment.id` и одной строкой. Ложный отказ после коммита закрыт конструктивно: оба уникальных индекса несут `idempotency_key` в ключе, совпадая с условием перечитывания. Cross-tenant путь не создан — прежний код был хуже, он переопределял арендатора аргументом; все четыре staff-двери передают `gate.ctx.organizationId` под staff-принципалом с тем же org. Вебхук эквайринга не регрессировал: организационный принципал ставит сам маршрут (`route.ts:70`), вид и арендатор идентичны до и после. Новый тест держит поведение, а не текст: настоящий `@bersoncare/db-principal`, снимок принципала в момент входа в `withTransaction`; fault injection (возврат `runWithDbOrganizationPrincipal`) → **3/3 красных**. Прогоны: целевой 3/3, затронутые webapp-тесты **7 файлов / 63 PASS**, `pnpm --dir apps/webapp typecheck` exit 0, `staff-drizzle-insert-grant-coverage` 1/1. Пробные строки ledger удалены, fault injection отменена, продуктовый код аудитом не менялся. ⚠️ ВОПРОС ВЛАДЕЛЬЦУ (вне скоупа, предсуществует с `23f9723c6` 08.07): путь вебхука `updatePatientPaymentStatus` под организационным принципалом до ledger не доходит по тем же двум измерениям — списанный платёж останется `pending`, а провайдер будет ретраить бесконечно. |
+
 ## Track D continuation — 21.08
 
 | слой | коммит | вердикт |
