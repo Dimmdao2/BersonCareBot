@@ -139,6 +139,7 @@ export function DoctorTodayExerciseCommentsModal({
           itemId={selectedItem.stageItemId}
           itemLabel={selectedItem.stageItemTitle}
           patientName={patientHeaderName(selectedItem)}
+          patientUserId={selectedItem.patientUserId}
           open={discussionOpen}
           onOpenChange={(nextOpen) => {
             setDiscussionOpen(nextOpen);

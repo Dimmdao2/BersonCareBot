@@ -411,6 +411,7 @@ export function DoctorSupportInbox({
       <DoctorConversationChatModal
         conversationId={!hasSplitChat ? selectedId : null}
         displayName={selectedConvDisplayName}
+        patientUserId={selectedConv?.patientUserId ?? null}
         onClose={() => selectConversation(null)}
         onReadStateChanged={loadList}
         onSent={loadList}

@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
@@ -189,13 +190,47 @@ export function DoctorTodayDashboard({
   specialistTasksAvailable,
   specialistTasksReadable,
 }: Props) {
+  const router = useRouter();
   const isMobile = useIsMobileViewport();
   const [mobileModal, setMobileModal] = useState<
     'support' | 'calendar' | 'week-appointments' | 'week-primary' | null
   >(null);
-  const [tasks, setTasks] = useState(data.globalOpenTasks);
-  const [taskPatientNames, setTaskPatientNames] = useState(data.globalTaskPatientNames);
+  const [taskOverrides, setTaskOverrides] = useState<Record<string, SpecialistTaskRow>>({});
+  const [taskPatientNameOverrides, setTaskPatientNameOverrides] = useState<Record<string, string>>(
+    {},
+  );
+  const [locallyCompletedTaskIds, setLocallyCompletedTaskIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [taskMutationPending, setTaskMutationPending] = useState(false);
+  const tasks = useMemo(() => {
+    const serverTaskIds = new Set(data.globalOpenTasks.map((task) => task.id));
+    const visibleServerTasks = data.globalOpenTasks
+      .filter((task) => !locallyCompletedTaskIds.has(task.id))
+      .map((task) => taskOverrides[task.id] ?? task);
+    const locallyCreatedTasks = Object.values(taskOverrides).filter(
+      (task) => !serverTaskIds.has(task.id) && !locallyCompletedTaskIds.has(task.id),
+    );
+    return [...locallyCreatedTasks, ...visibleServerTasks];
+  }, [data.globalOpenTasks, locallyCompletedTaskIds, taskOverrides]);
+  const taskPatientNames = {
+    ...data.globalTaskPatientNames,
+    ...taskPatientNameOverrides,
+  };
+
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') router.refresh();
+    };
+    const intervalId = window.setInterval(refresh, 10_000);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [router]);
   const currentWeek =
     data.weeklyTimeline.find((point) => point.isCurrent) ?? data.weeklyTimeline.at(-1);
   const activeTodayAppointments = data.todayAppointments.filter(
@@ -203,15 +238,16 @@ export function DoctorTodayDashboard({
   );
 
   const handleTaskSaved = (task: SpecialistTaskRow, patientDisplayName?: string) => {
-    setTasks((current) => {
-      const exists = current.some((item) => item.id === task.id);
-      return exists
-        ? current.map((item) => (item.id === task.id ? task : item))
-        : [task, ...current];
+    setTaskOverrides((current) => ({ ...current, [task.id]: task }));
+    setLocallyCompletedTaskIds((current) => {
+      if (!current.has(task.id)) return current;
+      const next = new Set(current);
+      next.delete(task.id);
+      return next;
     });
     if (task.patientUserId && patientDisplayName?.trim()) {
       const patientUserId = task.patientUserId;
-      setTaskPatientNames((current) => ({
+      setTaskPatientNameOverrides((current) => ({
         ...current,
         [patientUserId]: patientDisplayName.trim(),
       }));
@@ -225,7 +261,7 @@ export function DoctorTodayDashboard({
         method: 'POST',
       });
       if (!response.ok) return false;
-      setTasks((current) => current.filter((task) => task.id !== taskId));
+      setLocallyCompletedTaskIds((current) => new Set(current).add(taskId));
       return true;
     } catch {
       return false;

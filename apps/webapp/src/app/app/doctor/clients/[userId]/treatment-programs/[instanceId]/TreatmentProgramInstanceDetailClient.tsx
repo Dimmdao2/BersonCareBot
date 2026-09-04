@@ -1200,6 +1200,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
           itemId={discussionTarget.itemId}
           itemLabel={discussionTarget.label}
           patientName={patientName}
+          patientUserId={detail.patientUserId}
           open
           onOpenChange={(open) => {
             if (!open) setDiscussionTarget(null);

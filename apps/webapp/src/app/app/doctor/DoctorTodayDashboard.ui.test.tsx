@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DoctorTodayDashboard } from './DoctorTodayDashboard';
 import type { TodayDashboardData } from './loadDoctorTodayDashboard';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock('./DoctorTodayLeftKpiRow', () => ({
   DoctorTodayLeftKpiRow: () => null,
 }));

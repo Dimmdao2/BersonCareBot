@@ -81,13 +81,6 @@ const INTERACTIVE_PORTAL_SELECTOR =
 const SCHEDULE_FIELD_GRID_CLASS =
   'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem] items-end gap-x-2 gap-y-2';
 
-/**
- * CAL-NAV-06: on mobile the schedule panels reach the real screen edges instead of leaving a
- * canvas strip on both sides; the page-block radius and side border return from `md` up.
- */
-const WORK_PANEL_SURFACE_CLASS =
-  'rounded-none border-x-0 md:rounded-[var(--doctor-page-block-radius,12px)] md:border-x';
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -1565,21 +1558,15 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    // CAL-NAV-06: clipping принадлежит tab body шелла — он уже расширен до края экрана и
-    // оставляет ровно один 12px inset, который full-bleed поверхности ниже отменяют один раз.
-    // Локальный `overflow-hidden` здесь обрезал бы их обратно по inset-боксу: сетка месяца
-    // теряла бы по 12px слева и справа под серыми полями канвы.
     <div
       className="flex min-h-0 flex-1 flex-col"
       data-testid="schedule-work-tab"
       onMouseDown={handleSurfaceMouseDown}
     >
-      {/* Shared schedule toolbar: centered month navigation + branch filter action.
-          CAL-NAV-06: на mobile над панелью нет per-page шапки, поэтому отрицательный отступ
-          тулбара нечего компенсировать — он оставляет панель без верхнего зазора от chrome. */}
+      {/* Shared schedule toolbar: centered month navigation + branch filter action. */}
       <DoctorCatalogStickyToolbar
         withinRemainingHeight
-        className="mt-3 grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-1 md:-mt-3"
+        className="mt-0 grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-1 md:-mt-3"
         onMouseDown={handleTopBarMouseDown}
         data-testid="schedule-work-topbar"
       >
@@ -1634,18 +1621,16 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         </Button>
       </DoctorCatalogStickyToolbar>
 
-      {/* CAL-NAV-07: the outer full-bleed container owns the scroll, so its indicator runs along
-          the screen edge instead of across the inner content of a panel. */}
-      <div className="-mx-3 min-h-0 flex-1 overflow-y-auto md:mx-0 [scrollbar-width:thin]">
+      <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
         <div className="flex flex-col gap-3 py-3">
           {/* Errors / feedback */}
           {loadError ? (
-            <p className="px-3 text-sm text-destructive md:px-0" data-testid="load-error">
+            <p className="text-sm text-destructive" data-testid="load-error">
               {loadError}
             </p>
           ) : null}
           {actionError ? (
-            <p className="px-3 text-sm text-destructive md:px-0" data-testid="action-error">
+            <p className="text-sm text-destructive" data-testid="action-error">
               {actionError}
             </p>
           ) : null}
@@ -1680,7 +1665,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
               <div
                 className={cn(
                   doctorSectionCardClass,
-                  WORK_PANEL_SURFACE_CLASS,
                   'overflow-hidden p-0',
                 )}
                 data-testid="month-grid"
@@ -1785,7 +1769,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
             <div>
               {selectedCount > 0 ? (
                 <DoctorSection
-                  className={cn('bg-card', WORK_PANEL_SURFACE_CLASS)}
+                  className="bg-card"
                   data-testid="hours-panel"
                 >
                   <h3 className={doctorSectionTitleClass}>
@@ -1838,7 +1822,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   </div>
                 </DoctorSection>
               ) : (
-                <DoctorSection className={cn('border-dashed', WORK_PANEL_SURFACE_CLASS)}>
+                <DoctorSection className="border-dashed">
                   <DoctorEmptyState size="xs">
                     Выберите дни в сетке — появится панель настройки часов.
                   </DoctorEmptyState>
@@ -1848,7 +1832,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           </div>
 
           {/* BOTTOM (full width): templates panel (E5) */}
-          <DoctorSection className={WORK_PANEL_SURFACE_CLASS} data-testid="templates-panel">
+          <DoctorSection data-testid="templates-panel">
             <div className="flex items-center justify-between gap-2">
               <h3 className={doctorSectionTitleClass}>Шаблоны расписаний</h3>
               <Button

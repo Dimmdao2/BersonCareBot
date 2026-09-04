@@ -23,10 +23,7 @@ export function DoctorMobileSectionTabs<T extends string>({
   ariaLabel: string;
   /** Use the canonical mobile tabs as a horizontally scrollable subsection row. */
   scrollable?: boolean;
-  /**
-   * Owns the single top shadow of the docked mobile chrome stack. Only the topmost row
-   * of the stack keeps it, so two stacked rows never draw two shadows.
-   */
+  /** Controls the subtle separator shadow above this docked navigation level. */
   elevated?: boolean;
 }) {
   return (

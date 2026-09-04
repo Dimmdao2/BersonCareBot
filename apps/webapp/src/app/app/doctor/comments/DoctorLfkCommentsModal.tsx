@@ -6,6 +6,7 @@ import { DoctorDnaFlatList } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorProgramItemDiscussionDialog } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramItemDiscussionDialog';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
 import { ExerciseCommentExerciseRow } from './ExerciseCommentPreviewItem';
 import { useDoctorLfkComments } from './useDoctorLfkComments';
@@ -74,6 +75,7 @@ export function DoctorLfkCommentsModal({
           label="Комментарии к ЛФК"
           entity={stageTitle ?? activeStageTitle ?? undefined}
           patientName={patientName}
+          patientHref={patientUserId ? patientCardHref(patientUserId) : null}
         />
       }
       size="lg"
@@ -107,6 +109,7 @@ export function DoctorLfkCommentsModal({
           itemId={selectedItem.stageItemId}
           itemLabel={selectedItem.stageItemTitle}
           patientName={patientName}
+          patientUserId={patientUserId}
           open={discussionOpen}
           onOpenChange={setDiscussionOpen}
           onMarkedRead={() => {

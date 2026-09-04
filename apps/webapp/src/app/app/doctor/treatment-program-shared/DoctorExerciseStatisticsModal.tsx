@@ -9,6 +9,7 @@ import {
 } from '@/shared/ui/doctor/DoctorExerciseActivityCalendar';
 import { ExerciseExecutionGraph } from '@/shared/ui/doctor/ExerciseExecutionGraph';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 
 type MetricsResponse = {
   ok?: boolean;
@@ -195,7 +196,9 @@ export function DoctorExerciseStatisticsModal({
         <DoctorModalStackedTitle
           label="Статистика"
           entity={exerciseTitle}
+          entityClassName="text-sm leading-5"
           patientName={patientName}
+          patientHref={patientCardHref(patientUserId)}
         />
       }
       size="lg"

@@ -131,19 +131,39 @@ export function DoctorTodayLeftKpiRow({
   const [kpiModal, setKpiModal] = useState<KpiModal>(null);
   const [selectedConversation, setSelectedConversation] =
     useState<TodayUnreadConversationItem | null>(null);
+  const [locallyReadConversationIds, setLocallyReadConversationIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const router = useRouter();
   // DoctorTodayDashboard switches to its two-column desktop workspace at `md` (768px).
   // Keep KPI navigation on the same boundary so tablet widths do not open the mobile modal.
   const isDesktopViewport = useViewportMinWidth(768);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  // SEG-07: items сохраняем локально (список в KpiPreviewModal);
-  // total берётся из exerciseCommentsTotalOverride, управляемого DoctorTodayDashboard,
-  // чтобы синхронизировать с обработкой комментария в диалоге.
-  const [exerciseCommentItems, setExerciseCommentItems] = useState(
-    exerciseCommentAttentionItems,
+  const [locallyReadCommentKeys, setLocallyReadCommentKeys] = useState<Set<string>>(
+    () => new Set(),
   );
-  const [locallyReadCommentCount, setLocallyReadCommentCount] = useState(0);
+  const messageItems = unreadConversations.filter(
+    (item) => !locallyReadConversationIds.has(item.conversationId),
+  );
+  const locallyReadMessageCount = unreadConversations.reduce(
+    (total, item) =>
+      locallyReadConversationIds.has(item.conversationId)
+        ? total + item.unreadFromUserCount
+        : total,
+    0,
+  );
+  const messageTotal = Math.max(0, unreadTotal - locallyReadMessageCount);
+  const exerciseCommentItems = exerciseCommentAttentionItems.filter(
+    (item) => !locallyReadCommentKeys.has(`${item.instanceId}:${item.stageItemId}`),
+  );
+  const locallyReadCommentCount = exerciseCommentAttentionItems.reduce(
+    (total, item) =>
+      locallyReadCommentKeys.has(`${item.instanceId}:${item.stageItemId}`)
+        ? total + (item.unreadCount ?? 1)
+        : total,
+    0,
+  );
   const displayTotal = Math.max(
     0,
     (exerciseCommentsTotalOverride ?? exerciseCommentAttentionTotal) - locallyReadCommentCount,
@@ -168,12 +188,12 @@ export function DoctorTodayLeftKpiRow({
         <DoctorStatCard
           id="doctor-today-left-kpi-messages"
           title="Сообщения"
-          value={unreadTotal}
+          value={messageTotal}
           tooltip="Непрочитанные сообщения от клиентов."
-          tone={unreadTotal > 0 ? 'warning' : 'neutral'}
-          className={unreadTotal > 0 ? attentionKpiBackgroundClass : undefined}
-          valueClassName={unreadTotal > 0 ? attentionKpiValueClass : undefined}
-          onClick={unreadTotal > 0 ? () => setKpiModal('messages') : undefined}
+          tone={messageTotal > 0 ? 'warning' : 'neutral'}
+          className={messageTotal > 0 ? attentionKpiBackgroundClass : undefined}
+          valueClassName={messageTotal > 0 ? attentionKpiValueClass : undefined}
+          onClick={messageTotal > 0 ? () => setKpiModal('messages') : undefined}
         />
         {/* Комментарии к упражнениям → KpiPreviewModal (S2.8) */}
         <DoctorStatCard
@@ -229,14 +249,12 @@ export function DoctorTodayLeftKpiRow({
         onClose={() => setKpiModal(null)}
         items={exerciseCommentItems}
         onMarkedRead={(item) => {
-          setExerciseCommentItems((current) =>
-            current.filter(
-              (candidate) =>
-                candidate.instanceId !== item.instanceId ||
-                candidate.stageItemId !== item.stageItemId,
-            ),
-          );
-          setLocallyReadCommentCount((current) => current + (item.unreadCount ?? 1));
+          setLocallyReadCommentKeys((current) => {
+            const next = new Set(current);
+            next.add(`${item.instanceId}:${item.stageItemId}`);
+            return next;
+          });
+          router.refresh();
         }}
       />
 
@@ -248,7 +266,7 @@ export function DoctorTodayLeftKpiRow({
           setKpiModal(null);
         }}
         title="Сообщения"
-        count={unreadTotal}
+        count={messageTotal}
         showCount={false}
         desktopPresentation="right-sheet"
         nestedModals={
@@ -261,10 +279,21 @@ export function DoctorTodayLeftKpiRow({
                     .join(' ') || selectedConversation.displayName
                 : ''
             }
+            patientUserId={selectedConversation?.patientUserId ?? null}
             onClose={() => setSelectedConversation(null)}
+            onReadStateChanged={() => {
+              if (!selectedConversation) return;
+              const readConversationId = selectedConversation.conversationId;
+              setLocallyReadConversationIds((current) => {
+                const next = new Set(current);
+                next.add(readConversationId);
+                return next;
+              });
+              router.refresh();
+            }}
           />
         }
-        items={unreadConversations}
+        items={messageItems}
         renderItem={(item) => (
           <li>
             <UnreadConversationModalItem

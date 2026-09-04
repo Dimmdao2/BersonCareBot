@@ -69,6 +69,7 @@ import {
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorProgramItemDiscussionDialog } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramItemDiscussionDialog';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { formatDoctorFioShort } from '@/shared/lib/fio';
 import { SpecialistTaskFormDialog } from '@/app/app/doctor/clients/SpecialistTaskFormDialog';
@@ -2130,6 +2131,7 @@ export function PatientTabOverview({
               label={`Этап ${displayStageIndex + 1} из ${data?.programStages.length ?? 0}`}
               entity={displayStage?.title}
               patientName={patientHeaderName}
+              patientHref={patientCardHref(userId)}
             />
           }
           size="lg"
@@ -2160,6 +2162,7 @@ export function PatientTabOverview({
               itemId={selectedExerciseTarget.itemId}
               itemLabel={selectedExerciseTarget.label}
               patientName={patientHeaderName}
+              patientUserId={userId}
               open={stageExerciseDiscussionOpen}
               onOpenChange={(nextOpen) => {
                 setStageExerciseDiscussionOpen(nextOpen);

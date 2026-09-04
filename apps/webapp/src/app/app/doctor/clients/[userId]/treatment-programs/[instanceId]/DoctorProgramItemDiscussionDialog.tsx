@@ -16,6 +16,7 @@ import { thumbToExerciseMedia } from '@/app/app/doctor/comments/exerciseCommentT
 import { DoctorExerciseRecommendationsModal } from '@/app/app/doctor/treatment-program-shared/DoctorExerciseRecommendationsModal';
 import { DoctorExerciseStatisticsModal } from '@/app/app/doctor/treatment-program-shared/DoctorExerciseStatisticsModal';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -51,11 +52,21 @@ export function DoctorProgramItemDiscussionDialog(props: {
   itemLabel?: string;
   /** «Фамилия Имя» пациента для второй строки шапки; без него вторая строка не рисуется. */
   patientName?: string | null;
+  patientUserId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onMarkedRead?: () => void;
 }) {
-  const { instanceId, itemId, itemLabel, patientName, open, onOpenChange, onMarkedRead } = props;
+  const {
+    instanceId,
+    itemId,
+    itemLabel,
+    patientName,
+    patientUserId: initialPatientUserId,
+    open,
+    onOpenChange,
+    onMarkedRead,
+  } = props;
   const [messages, setMessages] = useState<ProgramItemDiscussionMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -63,7 +74,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [peerLastReadAt, setPeerLastReadAt] = useState<string | null>(null);
   const [assignment, setAssignment] = useState<DoctorProgramDiscussionAssignment | null>(null);
-  const [patientUserId, setPatientUserId] = useState<string | null>(null);
+  const [patientUserId, setPatientUserId] = useState<string | null>(initialPatientUserId ?? null);
   const [recommendationsEditable, setRecommendationsEditable] = useState(false);
   const [recommendationsOpen, setRecommendationsOpen] = useState(false);
   const [statisticsOpen, setStatisticsOpen] = useState(false);
@@ -127,7 +138,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
     setMessages([]);
     setNextCursor(null);
     setAssignment(null);
-    setPatientUserId(null);
+    setPatientUserId(initialPatientUserId ?? null);
     setRecommendationsEditable(false);
     setRecommendationsOpen(false);
     setStatisticsOpen(false);
@@ -145,7 +156,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
         setLoading(false);
       }
     }
-  }, [loadPage, instanceId, itemId]);
+  }, [loadPage, instanceId, itemId, initialPatientUserId]);
 
   useEffect(() => {
     if (!open) return;
@@ -186,7 +197,13 @@ export function DoctorProgramItemDiscussionDialog(props: {
       open={open}
       onClose={() => onOpenChange(false)}
       title={
-        <DoctorModalStackedTitle label="Упражнение" entity={itemLabel} patientName={patientName} />
+        <DoctorModalStackedTitle
+          label="Упражнение"
+          entity={itemLabel}
+          entityClassName="text-sm leading-5"
+          patientName={patientName}
+          patientHref={patientUserId ? patientCardHref(patientUserId) : null}
+        />
       }
       size="content"
       bodyClassName="!p-0"
@@ -261,6 +278,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
           itemId={itemId}
           exerciseTitle={itemLabel ?? 'Упражнение'}
           patientName={patientName}
+          patientUserId={patientUserId}
           initialValue={assignment}
           onSaved={({ value }) => {
             setAssignment((current) => (current ? { ...current, ...value } : current));

@@ -16,10 +16,6 @@ import {
 } from '@/shared/ui/doctor/navChrome';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import {
-  DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
-  DOCTOR_REMAINING_HEIGHT_BODY_CLASS,
-} from '@/shared/ui/doctor/doctorWorkspaceLayout';
-import {
   SCHEDULE_BASE,
   SCHEDULE_TABS,
   SCHEDULE_DEFAULT_TAB,
@@ -276,10 +272,6 @@ export function DoctorScheduleShell({
     [handleTabChange],
   );
 
-  // CAL-NAV-02/03: «Настройки» dock their own subsection row above this one, and only the
-  // topmost row of the docked stack carries the shadow.
-  const hasSubsectionRow = activeTab === 'setup' && canManageOrganization;
-
   const mobileBottomTabs = useMemo(
     () => (
       <DoctorMobileSectionTabs
@@ -287,10 +279,9 @@ export function DoctorScheduleShell({
         activeTab={activeTab}
         onTabChange={handleTabChange}
         ariaLabel="Разделы расписания"
-        elevated={!hasSubsectionRow}
       />
     ),
-    [activeTab, canManageOrganization, handleTabChange, hasSubsectionRow],
+    [activeTab, canManageOrganization, handleTabChange],
   );
 
   return (
@@ -321,10 +312,7 @@ export function DoctorScheduleShell({
           <div
             key={tabId}
             hidden={tabId !== activeTab}
-            className={cn(
-              DOCTOR_REMAINING_HEIGHT_BODY_CLASS,
-              DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
-            )}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
             data-testid={`tab-panel-${tabId}`}
           >
             <TabComponent

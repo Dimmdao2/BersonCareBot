@@ -51,6 +51,7 @@ export const DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT = 10;
 /** Minimal conversation row shape for «Сегодня» (matches doctorSupport.listOpenConversations output). */
 export type TodayConversationSourceRow = {
   conversationId: string;
+  platformUserId?: string | null;
   displayName: string;
   firstName?: string | null;
   lastName?: string | null;
@@ -161,6 +162,7 @@ export type TodayNextAppointmentItem = {
 
 export type TodayUnreadConversationItem = {
   conversationId: string;
+  patientUserId: string | null;
   displayName: string;
   firstName: string | null;
   lastName: string | null;
@@ -517,6 +519,7 @@ export function mapConversationToTodayItem(
 ): TodayUnreadConversationItem {
   return {
     conversationId: row.conversationId,
+    patientUserId: row.platformUserId ?? null,
     displayName: row.displayName.trim() || '—',
     firstName: row.firstName?.trim() || null,
     lastName: row.lastName?.trim() || null,

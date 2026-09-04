@@ -20,6 +20,7 @@ import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 
 export type DoctorExerciseRecommendationsValue = {
   reps: number | null;
@@ -78,11 +79,21 @@ export function DoctorExerciseRecommendationsModal(props: {
   exerciseTitle: string;
   /** «Фамилия Имя» пациента справа в первой строке шапки. */
   patientName?: string | null;
+  patientUserId?: string | null;
   initialValue: DoctorExerciseRecommendationsValue;
   onSaved: (result: DoctorExerciseRecommendationsSaveResult) => void;
 }) {
-  const { open, onClose, instanceId, itemId, exerciseTitle, patientName, initialValue, onSaved } =
-    props;
+  const {
+    open,
+    onClose,
+    instanceId,
+    itemId,
+    exerciseTitle,
+    patientName,
+    patientUserId,
+    initialValue,
+    onSaved,
+  } = props;
   const [reps, setReps] = useState('');
   const [sets, setSets] = useState('');
   const [maxPain, setMaxPain] = useState('');
@@ -164,7 +175,9 @@ export function DoctorExerciseRecommendationsModal(props: {
         <DoctorModalStackedTitle
           label="Рекомендации"
           entity={exerciseTitle}
+          entityClassName="text-sm leading-5"
           patientName={patientName}
+          patientHref={patientUserId ? patientCardHref(patientUserId) : null}
         />
       }
       size="lg"

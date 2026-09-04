@@ -1,11 +1,13 @@
 'use client';
 
-import { DoctorModal, DoctorModalCompositeTitle } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { DoctorChatPanel } from './DoctorChatPanel';
 
 type DoctorConversationChatModalProps = {
   conversationId: string | null;
   displayName: string;
+  patientUserId?: string | null;
   onClose: () => void;
   onReadStateChanged?: () => void | Promise<void>;
   onSent?: () => void | Promise<void>;
@@ -15,6 +17,7 @@ type DoctorConversationChatModalProps = {
 export function DoctorConversationChatModal({
   conversationId,
   displayName,
+  patientUserId,
   onClose,
   onReadStateChanged,
   onSent,
@@ -23,7 +26,13 @@ export function DoctorConversationChatModal({
     <DoctorModal
       open={conversationId != null}
       onClose={onClose}
-      title={<DoctorModalCompositeTitle label="Чат" entity={displayName || '—'} />}
+      title={
+        <DoctorModalStackedTitle
+          label="Сообщение"
+          patientName={displayName || '—'}
+          patientHref={patientUserId ? patientCardHref(patientUserId) : null}
+        />
+      }
       size="content"
       desktopPresentation="right-sheet"
       bodyClassName="p-0"

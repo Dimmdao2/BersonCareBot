@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './primitives/button';
@@ -144,25 +145,43 @@ export function DoctorModalStackedTitle({
   label,
   entity,
   patientName,
+  patientHref,
+  entityClassName,
 }: {
   label: ReactNode;
   entity?: ReactNode;
   patientName?: ReactNode;
+  patientHref?: string | null;
+  entityClassName?: string;
 }) {
+  const patientClassName = cn(doctorModalTitleClass, 'min-w-0 truncate text-right text-primary');
+
   return (
     <span className="flex w-full min-w-0 flex-col items-start gap-0.5 text-left">
       <span className="flex w-full min-w-0 items-baseline justify-between gap-3">
         <span>{label}</span>
         {patientName ? (
-          <span
-            className="min-w-0 truncate text-right text-sm leading-5 font-medium text-primary"
-            style={{ maxWidth: '55%' }}
-          >
-            {patientName}
-          </span>
+          patientHref ? (
+            <Link
+              href={patientHref}
+              className={cn(
+                patientClassName,
+                'underline decoration-1 underline-offset-2',
+              )}
+              style={{ maxWidth: '55%' }}
+            >
+              {patientName}
+            </Link>
+          ) : (
+            <span className={patientClassName} style={{ maxWidth: '55%' }}>
+              {patientName}
+            </span>
+          )
         ) : null}
       </span>
-      {entity ? <span className={doctorSectionTitleClass}>{entity}</span> : null}
+      {entity ? (
+        <span className={cn(doctorSectionTitleClass, entityClassName)}>{entity}</span>
+      ) : null}
     </span>
   );
 }
