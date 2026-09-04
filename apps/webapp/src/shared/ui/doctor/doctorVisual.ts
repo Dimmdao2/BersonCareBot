@@ -104,7 +104,7 @@ export const doctorModalSummaryTextClass = cn(doctorMetaTextClass, 'font-medium 
  * Одна лёгкая нижняя тень под закреплённой панелью, которая держит верх прокручиваемого тела.
  * Зеркало верхней тени шеллов (`DoctorBottomNav` / `DoctorMobileSectionTabs`).
  */
-export const doctorPanelBottomShadowClass = 'shadow-[0_1px_2px_rgba(15,23,42,0.04)]';
+export const doctorPanelBottomShadowClass = 'shadow-[0_1px_3px_rgba(15,23,42,0.08)]';
 
 /** KPI numeric value on compact stat cards (dashboard, analytics). */
 export const doctorMetricValueClass =
