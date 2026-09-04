@@ -324,7 +324,7 @@
       записи/отмены и money boundaries.
 - [x] `GATE-04` Каждый отдельный worker получает только свой непересекающийся scope и полный текст соответствующих
       ID; worker коммитит в `wt/*`, не пушит и не занимает общий DEV-порт.
-- [ ] `GATE-05` Перед landing выполнен один независимый audit соответствующего риска; style-аудит не превращается
+- [x] `GATE-05` Перед landing выполнен один независимый audit соответствующего риска; style-аудит не превращается
       в серийное придумывание новых требований.
 - [ ] `GATE-06` После интеграции всех принятых slices выполняются проверки по §9–§10; commit/push/TEST deploy —
       только по отдельной актуальной команде владельца.
@@ -347,3 +347,8 @@
   footer-owner в `DoctorModal`, а контент передаёт только slot-содержимое.
 - Миграционный preflight: `bash deploy/host/migrate-dev.sh --preflight --runtime-env-root
   /home/dev/dev-projects/BersonCareBot` — `PASS`, `pending=1`, транзакция завершена `ROLLBACK`.
+- `GATE-05`: независимый Claude Opus 5/high проверил кандидат `c5d6330a1` против базы `66e72844c` и дал `PASS`;
+  отчёт и 390×844 screenshots: `.lead/runs/doctor-mobile-owner-20260904/integration-final/FINAL_AUDIT.md` и
+  `.lead/runs/doctor-mobile-owner-20260904/integration-final/audit/`. Targeted evidence аудитора: `145` тестов в
+  `25` файлах и webapp typecheck PASS. После аудита ведущий отдельно прочитал тела DB-root и подтвердил
+  `CONTACTS-10`: успешные OTP-root-функции выставляют `user_contacts.confirmed_at`, одна отправка письма — нет.
