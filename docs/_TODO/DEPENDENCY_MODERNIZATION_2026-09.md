@@ -97,13 +97,53 @@ Owner-заметка (не задача, решение за владельце�
 
 ### D1 — Media wrapper retirement
 
-- [ ] Сохранить системный FFmpeg как движок обработки видео.
-- [ ] Заменить `fluent-ffmpeg` в webapp preview worker на прямой безопасный запуск `ffmpeg`/`ffprobe` без shell,
-  переиспользовав или выделив минимальные существующие primitives из `apps/media-worker/src/ffmpeg/**`.
-- [ ] Сохранить таймауты, kill, bounded stderr, временные файлы, fallback кадра `1s → 0s`, размеры источника и
-  HEIC/ImageMagick fallback.
-- [ ] Удалить `fluent-ffmpeg`, `@types/fluent-ffmpeg` и больше не нужный Next external-package entry.
-- [ ] Проверить целевыми тестами preview MP4/MOV и HEIC paths; не заводить тесты формы исходника.
+- [x] Сохранить системный FFmpeg как движок обработки видео — движок не тронут: `FFMPEG_PATH` (канонично
+  `/usr/bin/ffmpeg`) по-прежнему единственный исполнитель, изменился только способ его звать
+  (`apps/webapp/src/infra/media/ffmpegPreview.ts`).
+- [x] Заменить `fluent-ffmpeg` в webapp preview worker на прямой безопасный запуск `ffmpeg`/`ffprobe` без shell,
+  переиспользовав или выделив минимальные существующие primitives из `apps/media-worker/src/ffmpeg/**` —
+  `apps/webapp/src/infra/media/ffmpegPreview.ts` (`spawn` c `shell: false`, argv массивом).
+  **Почему не переиспользован `apps/media-worker/src/ffmpeg/**`** (доказанная граница, не «удобнее своё»):
+  1. `apps/webapp` не зависит от `@bersoncare/media-worker`, а тот пакет ничего не экспортирует — это приложение
+     без `main`/`exports`, собираемое в `dist` своим `tsconfig.build.json`;
+  2. запрет на import исходников соседнего приложения в webapp уже зафиксирован в репозитории —
+     `apps/webapp/src/app-layer/integrator/messengerPhoneHttpBindExecute.ts:9` («не импортируем из
+     `apps/integrator`, чтобы Next.js production build не тянул исходники с `.js`-специфиерами»);
+     `apps/media-worker/src/ffmpeg/*` — ровно такие `.js`-специфиеры;
+  3. контракт всё равно другой: вход — пере-подписываемый presigned URL (у media-worker локальный файл + `cwd`),
+     качество кадра `-q:v 3` (у media-worker `-q:v 2`), ffprobe нужен для размеров, а не для длительности, и текст
+     ошибки обязан нести stderr — на нём держится классификация постоянных ошибок.
+  Форма модуля при этом повторяет media-worker (`runProcess` ≈ `runFfmpeg`, `buildPosterArgs` ≈
+  `buildPosterFfmpegArgs`), новых слоёв абстракции не заведено.
+- [x] Сохранить таймауты, kill, bounded stderr, временные файлы, fallback кадра `1s → 0s`, размеры источника и
+  HEIC/ImageMagick fallback — таймаут прежний `FFMPEG_EXTRACT_TIMEOUT_MS = 120_000` + SIGKILL, stderr — хвост
+  16 KiB, временный каталог удаляется в `finally`, `videoPosterJpegRaw` по-прежнему пере-подписывает URL и
+  повторяет с `-ss 0`, ImageMagick-fallback (`runMagickConvert`) не изменён. Тексты ошибок оставлены дословно как
+  у `fluent-ffmpeg` (`ffmpeg exited with code N: <stderr>`, `ffmpeg was killed with signal SIG…`) — на них
+  завязан `PERMANENT_ERROR_PATTERNS` (`skipped` vs retry/backoff).
+- [x] Удалить `fluent-ffmpeg`, `@types/fluent-ffmpeg` и больше не нужный Next external-package entry — убраны из
+  `apps/webapp/package.json`; в `apps/webapp/next.config.ts` `serverExternalPackages` теперь `['sharp']`.
+- [x] Проверить целевыми тестами preview MP4/MOV и HEIC paths; не заводить тесты формы исходника — см. «Проверки
+  D1» ниже.
+
+#### Проверки D1
+
+```bash
+pnpm --dir apps/webapp exec vitest --run --project=unit src/infra/media/ffmpegPreview.unit.test.ts
+#   → 14 passed
+pnpm --dir apps/webapp exec vitest --run --project=unit src/infra/repos/mediaPreviewWorker.unit.test.ts
+#   → 12 passed (было 8; добавлены MP4, MOV с fallback 1s→0s, битый ролик, HEIC)
+pnpm --dir apps/webapp typecheck                                  # → OK
+/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp run lint"   # → rc=0, 203s
+```
+
+Живой прогон реального системного `ffmpeg` 6.1.1 (не мок) — сгенерированные `testsrc` MP4 и MOV:
+
+```
+src.mp4 dims: {"width":1280,"height":720}   poster exit: 0  bytes: 25594
+src.mov dims: {"width":1280,"height":720}   poster exit: 0  bytes: 25594
+broken input classified permanent: true     # ffmpegFailureMessage несёт 'Invalid data found when processing input'
+```
 
 ### D2 — Toolchain
 

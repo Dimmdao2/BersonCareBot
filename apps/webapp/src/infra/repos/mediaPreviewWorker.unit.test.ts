@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 
@@ -44,11 +45,60 @@ const claimedRow = {
   source_width: null,
   source_height: null,
 };
+const videoRow = {
+  ...claimedRow,
+  id: '00000000-0000-4000-8000-0000000000d1',
+  s3_key: 'media/00000000-0000-4000-8000-0000000000d1/source.mp4',
+  mime_type: 'video/mp4',
+  size_bytes: '40000000',
+};
+const heicRow = {
+  ...claimedRow,
+  id: '00000000-0000-4000-8000-0000000000e1',
+  s3_key: 'media/00000000-0000-4000-8000-0000000000e1/source.heic',
+  mime_type: 'image/heic',
+  size_bytes: '4000000',
+};
 
-vi.mock('fluent-ffmpeg', () => ({
-  default: Object.assign(vi.fn(), { setFfmpegPath: vi.fn(), ffprobe: vi.fn() }),
+/**
+ * Границей мокируется только сам запуск процесса: сборка argv, разбор размеров и тексты ошибок
+ * остаются настоящими — иначе тест перестал бы отвечать за то, чем ffmpeg зовут.
+ */
+type StubRun = {
+  code: number;
+  signal: NodeJS.Signals | null;
+  stdout: string;
+  stderrTail: string;
+  timedOut: boolean;
+};
+const okRun = (stdout = ''): StubRun => ({
+  code: 0,
+  signal: null,
+  stdout,
+  stderrTail: '',
+  timedOut: false,
+});
+/** Постер пишет настоящий ffmpeg, поэтому подстановка тоже создаёт выходной файл. */
+const writePoster = async (_bin: string, args: string[]): Promise<StubRun> => {
+  await writeFile(args[args.length - 1]!, 'poster-bytes');
+  return okRun();
+};
+const probeDimensions = async (): Promise<StubRun> =>
+  okRun(JSON.stringify({ streams: [{ width: 1280, height: 720 }] }));
+const runProcess = vi.fn(writePoster);
+const runFirstAvailable = vi.fn(probeDimensions);
+vi.mock('@/infra/media/ffmpegPreview', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  runProcess: (...args: unknown[]) => runProcess(...(args as [string, string[]])),
+  runFirstAvailable: (...args: unknown[]) => runFirstAvailable(...(args as [])),
 }));
-vi.mock('sharp', () => ({ default: vi.fn() }));
+const sharpChain = {
+  rotate: vi.fn(() => sharpChain),
+  resize: vi.fn(() => sharpChain),
+  jpeg: vi.fn(() => sharpChain),
+  toBuffer: vi.fn(async () => Buffer.from('thumb-bytes')),
+};
+vi.mock('sharp', () => ({ default: vi.fn(() => sharpChain) }));
 vi.mock('@/config/env', () => ({ env: {} }));
 vi.mock('@/infra/logging/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -121,6 +171,10 @@ function claimThen(row: Record<string, unknown> | null) {
 }
 
 beforeEach(() => {
+  runProcess.mockReset();
+  runProcess.mockImplementation(writePoster);
+  runFirstAvailable.mockReset();
+  runFirstAvailable.mockImplementation(probeDimensions);
   runWebappSql.mockReset();
   nextClaimRows = [];
   claimWhere = undefined;
@@ -230,5 +284,80 @@ describe('processMediaPreviewBatch: обложка ролика по ссылк�
     if (!claimWhere) throw new Error('claim predicate was not issued');
     const claim = new PgDialect().sqlToQuery(claimWhere as never);
     expect(claim.params).toContain('hosted_video_preview');
+  });
+});
+
+
+/**
+ * Ролик и HEIC — единственные ветки, которые действительно запускают системный FFmpeg. После
+ * снятия обёртки `fluent-ffmpeg` проверяется поведение: что запустили, чем, что сохранили и что
+ * неудачный кадр на первой секунде не оставляет строку без превью.
+ */
+describe('processMediaPreviewBatch: ветки системного FFmpeg', () => {
+  function ffmpegArgs(callIndex: number): string[] {
+    const call = runProcess.mock.calls[callIndex];
+    if (!call) throw new Error(`ffmpeg was not run ${callIndex + 1} time(s)`);
+    return call[1];
+  }
+
+  it('MP4: снимает кадр и размеры источника и сохраняет оба ключа превью', async () => {
+    claimThen(videoRow);
+
+    const result = await processMediaPreviewBatch(1);
+
+    expect(result).toEqual({ processed: 1, errors: 0 });
+    expect(runFirstAvailable).toHaveBeenCalledTimes(1);
+    expect(ffmpegArgs(0)).toContain('https://example.invalid/presigned');
+    const update = issuedSql().find((text) => text.includes('source_width ='));
+    expect(update).toBeDefined();
+    expect(update).toContain('preview_sm_key');
+    expect(update).toContain("preview_status = 'ready'");
+  });
+
+  it('MOV: кадра на 1-й секунде нет — берётся нулевая, а не отказ превью', async () => {
+    runProcess.mockImplementationOnce(async () => ({
+      code: 1,
+      signal: null,
+      stdout: '',
+      stderrTail: 'Output file is empty',
+      timedOut: false,
+    }));
+    claimThen({ ...videoRow, mime_type: 'video/quicktime' });
+
+    const result = await processMediaPreviewBatch(1);
+
+    expect(result).toEqual({ processed: 1, errors: 0 });
+    expect(runProcess).toHaveBeenCalledTimes(2);
+    expect(ffmpegArgs(0)[ffmpegArgs(0).indexOf('-ss') + 1]).toBe('1');
+    expect(ffmpegArgs(1)[ffmpegArgs(1).indexOf('-ss') + 1]).toBe('0');
+  });
+
+  it('битый ролик: ffmpeg сообщает о непригодных данных — строка skipped, а не вечный retry', async () => {
+    runProcess.mockResolvedValue({
+      code: 1,
+      signal: null,
+      stdout: '',
+      stderrTail: 'source.mp4: Invalid data found when processing input',
+      timedOut: false,
+    });
+    claimThen(videoRow);
+
+    await processMediaPreviewBatch(1);
+
+    const statements = issuedSql();
+    expect(statements.some((text) => text.includes("preview_status = 'skipped'"))).toBe(true);
+    expect(statements.some((text) => text.includes('preview_attempts ='))).toBe(false);
+  });
+
+  it('HEIC: декодируется системным ffmpeg и приводится к стандартному рендишену', async () => {
+    claimThen(heicRow);
+
+    const result = await processMediaPreviewBatch(1);
+
+    expect(result).toEqual({ processed: 1, errors: 0 });
+    expect(runProcess).toHaveBeenCalledTimes(1);
+    const update = issuedSql().find((text) => text.includes('s3_key ='));
+    expect(update).toBeDefined();
+    expect(update).toContain('standard_rendition_at');
   });
 });
