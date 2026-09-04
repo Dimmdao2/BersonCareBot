@@ -561,13 +561,13 @@ function DayCell({
     cellClass += isInheritedFromWeeklyTemplate
       ? 'bg-transparent border-[color:var(--branch-border)] hover:bg-[color:var(--branch-hover)] '
       : 'bg-[color:var(--branch-bg)] border-[color:var(--branch-border)] hover:bg-[color:var(--branch-hover)] ';
-    if (isSelected) cellClass += 'ring-1 ring-primary/60 ';
-    else if (isToday) cellClass += 'ring-1 ring-emerald-500/50 ';
+    if (isToday) cellClass += 'ring-1 ring-doctor-calendar-today/70 ';
+    else if (isSelected) cellClass += 'ring-1 ring-primary/60 ';
   } else if (isSelected) {
     cellClass += 'bg-primary/15 border-primary/40 ring-1 ring-primary/40 ';
   } else if (isToday) {
-    // §3.17 / §3.10–3.12: muted transparent-green «сегодня» (no yellow).
-    cellClass += 'bg-emerald-500/10 border-emerald-500/30 ';
+    cellClass +=
+      'bg-doctor-calendar-today/15 border-doctor-calendar-today/70 ring-1 ring-doctor-calendar-today/60 hover:bg-doctor-calendar-today/20 ';
   } else if (hasSchedule) {
     // SCH-R-06: scheduled day without a location = light blue tint; the same source rule applies.
     cellClass += isInheritedFromWeeklyTemplate
@@ -612,12 +612,12 @@ function DayCell({
     >
       <div
         className={cn(
-          'text-[11px] font-semibold leading-none',
-          isSelected
-            ? 'text-primary'
-            : isToday
-              ? 'text-emerald-700 dark:text-emerald-300'
-              : 'text-foreground',
+          'text-[11px] font-normal leading-none text-foreground',
+          isToday
+            ? 'font-semibold text-doctor-calendar-today'
+            : isSelected
+              ? 'text-primary'
+              : null,
         )}
       >
         {isSelected ? `${day} ●` : day}

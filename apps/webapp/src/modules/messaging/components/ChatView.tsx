@@ -112,10 +112,16 @@ export function ChatView({
 }: ChatViewProps) {
   const patientRelative = variant === 'patient' && relativeFooters;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const previousMessageCountRef = useRef(0);
   useLayoutEffect(() => {
     const scrollContainer = scrollRef.current;
     if (!scrollContainer) return;
-    scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    const hasExistingMessages = previousMessageCountRef.current > 0;
+    scrollContainer.scrollTo({
+      top: scrollContainer.scrollHeight,
+      behavior: hasExistingMessages ? 'smooth' : 'auto',
+    });
+    previousMessageCountRef.current = messages.length;
   }, [messages.length]);
 
   const grouped = groupMessagesByDay(messages);

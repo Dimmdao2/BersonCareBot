@@ -3,16 +3,8 @@
  *
  * В отличие от `loadDoctorExerciseCommentAttention` (фан-аут по пациентам, используется «Сегодня»),
  * этот загрузчик делает ОДИН doctor-wide запрос через новый метод порта.
- * On-support список резолвится здесь же; порт получает готовый массив patient_user_id.
- *
- * **Намеренное расхождение с `loadDoctorExerciseCommentAttention` (экран «Сегодня»):**
- * - Этот загрузчик охватывает ВСЕ активные инстансы пациента с `assignmentSource IN ('doctor','course')`.
- *   Promo-инстансы (`assignmentSource = 'promo'`) исключены намеренно — врач их не назначает.
- * - «Сегодня» берёт `pickActivePlanInstance` — один самый свежий активный инстанс ЛЮБОГО источника
- *   (включая promo). Это расхождение зафиксировано как допустимое: promo-комментарии видны
- *   на «Сегодня», но не на вкладке «Комментарии».
- *
- * Намеренное расхождение с «Сегодня» зафиксировано как допустимое.
+ * Список всех доступных врачу пациентов резолвится здесь же; порт получает готовый массив
+ * patient_user_id. Скоуп и unread-семантика совпадают с KPI «Сегодня».
  */
 import type { DoctorClientsFilters } from '@/modules/doctor-clients/ports';
 import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
@@ -70,20 +62,19 @@ export async function loadDoctorExerciseCommentsForTab(
     excludedUserIds: context.excludedUserIds ?? [],
   };
 
-  const onSupport = await deps.doctorClientsPort.listClients(
+  const visibleClients = await deps.doctorClientsPort.listClients(
     {
-      supportStatus: 'on',
       organizationId: context.organizationId,
       visibilityActor: context.visibilityActor,
     },
     audience,
   );
-  if (onSupport.length === 0) {
+  if (visibleClients.length === 0) {
     return { items: [], nextCursor: null, hasMore: false };
   }
 
   const nameById = new Map(
-    onSupport.map((client) => {
+    visibleClients.map((client) => {
       const firstName = client.firstName?.trim() || null;
       const lastName = client.lastName?.trim() || null;
       return [

@@ -1,6 +1,12 @@
 'use client';
 
-import { cloneElement, type ComponentPropsWithoutRef, type ReactElement, type ReactNode, useState } from 'react';
+import {
+  cloneElement,
+  type ComponentPropsWithoutRef,
+  type ReactElement,
+  type ReactNode,
+  useState,
+} from 'react';
 import { DoctorModal, type DoctorModalDesktopPresentation } from './DoctorModal';
 import { Button } from './primitives/button';
 import { Input } from './primitives/input';
@@ -165,17 +171,17 @@ export function KpiPreviewModal<T>({
         {loading ? (
           <DoctorPanelLoading className="min-h-32 px-4" />
         ) : filtered.length === 0 ? (
-          <div className="px-4">
+          <div className="flex min-h-full items-center justify-center px-4">
             {emptyState ?? (
               <p className="py-4 text-center text-sm text-muted-foreground">Нет элементов</p>
             )}
           </div>
         ) : (
           <DoctorDnaFlatList>
-            {filtered.map((item, idx) => (
+            {filtered.map((item, idx) =>
               // biome-ignore lint/suspicious/noArrayIndexKey: caller owns the row, modal owns its stable list position
-              cloneElement(renderItem(item), { key: idx })
-            ))}
+              cloneElement(renderItem(item), { key: idx }),
+            )}
           </DoctorDnaFlatList>
         )}
         {nestedModals}

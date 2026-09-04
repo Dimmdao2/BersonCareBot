@@ -8,6 +8,7 @@ import { markDoctorProgramDiscussionReadForStageItems } from '@/app/app/doctor/d
 import { sendDoctorProgramDiscussionReply } from './doctorProgramDiscussionReply';
 import { deleteDoctorProgramDiscussionMediaMessage } from './doctorProgramDiscussionDeleteMedia';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
 
 export type DoctorProgramInstanceDiscussionItemOption = {
   id: string;
@@ -35,6 +36,30 @@ function uniqueStageItemIds(messages: ProgramItemDiscussionMessage[]): string[] 
   return [...new Set(messages.map((m) => m.instanceStageItemId))];
 }
 
+function reconcileMessages(
+  current: ProgramItemDiscussionMessage[],
+  incoming: ProgramItemDiscussionMessage[],
+  appendOlder: boolean,
+): ProgramItemDiscussionMessage[] {
+  if (appendOlder) {
+    const byId = new Map(incoming.map((message) => [message.id, message]));
+    for (const message of current) byId.set(message.id, message);
+    return [...byId.values()].sort(compareMessages);
+  }
+  const currentById = new Map(current.map((message) => [message.id, message]));
+  let changed = current.length !== incoming.length;
+  const next = incoming.map((message, index) => {
+    const existing = currentById.get(message.id);
+    if (!existing) {
+      changed = true;
+      return message;
+    }
+    if (current[index] !== existing) changed = true;
+    return existing;
+  });
+  return changed ? next : current;
+}
+
 export function DoctorProgramInstanceDiscussionDialog(props: {
   instanceId: string;
   programItems: DoctorProgramInstanceDiscussionItemOption[];
@@ -52,6 +77,8 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
     Record<string, string | null>
   >({});
   const loadGenerationRef = useRef(0);
+  const onReadRef = useRef(onRead);
+  onReadRef.current = onRead;
 
   const itemLabelById = useMemo(
     () => new Map(programItems.map((item) => [item.id, item.label])),
@@ -80,12 +107,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
         throw new Error(readSafeApiErrorText(data, 'Не удалось загрузить обсуждения'));
       }
       const loaded = data.messages;
-      setMessages((prev) => {
-        if (!appendOlder) return loaded;
-        const map = new Map(prev.map((m) => [m.id, m]));
-        for (const msg of loaded) map.set(msg.id, msg);
-        return [...map.values()].sort(compareMessages);
-      });
+      setMessages((current) => reconcileMessages(current, loaded, appendOlder));
       setNextCursor(
         typeof data.pageInfo?.nextCursor === 'string' ? data.pageInfo.nextCursor : null,
       );
@@ -105,11 +127,11 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
       const stageItemIds = uniqueStageItemIds(loaded);
       void markDoctorProgramDiscussionReadForStageItems({ instanceId, stageItemIds }).then(
         (markedStageItemIds) => {
-          if (markedStageItemIds.length > 0) onRead?.(markedStageItemIds);
+          if (markedStageItemIds.length > 0) onReadRef.current?.(markedStageItemIds);
         },
       );
     },
-    [instanceId, onRead],
+    [instanceId],
   );
 
   const bootstrap = useCallback(async () => {
@@ -151,24 +173,17 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
     }
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const refreshPeerRead = async () => {
-      const url = new URL(basePath, window.location.origin);
-      url.searchParams.set('direction', 'backward');
-      url.searchParams.set('limit', '1');
-      const res = await fetch(url.toString());
-      const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
-      if (res.ok && data?.ok && data.peerLastReadAtByStageItemId) {
-        setPeerLastReadAtByStageItemId((prev) => ({
-          ...prev,
-          ...data.peerLastReadAtByStageItemId,
-        }));
-      }
-    };
-    const id = window.setInterval(() => void refreshPeerRead(), 15000);
-    return () => window.clearInterval(id);
-  }, [open, basePath]);
+  const poll = useCallback(async () => {
+    const generation = loadGenerationRef.current;
+    try {
+      const loaded = await loadPage(null, false, generation);
+      if (loaded) markVisibleDiscussionRead(loaded);
+    } catch {
+      // Открытый тред сохраняет уже загруженные сообщения при временном сетевом сбое.
+    }
+  }, [loadPage, markVisibleDiscussionRead]);
+
+  useMessagePolling(poll, open, 8000, false);
 
   return (
     <DoctorModal

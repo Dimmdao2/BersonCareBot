@@ -175,7 +175,6 @@ export function DoctorExerciseRecommendationsModal(props: {
         <DoctorModalStackedTitle
           label="Рекомендации"
           entity={exerciseTitle}
-          entityClassName="text-sm leading-5"
           patientName={patientName}
           patientHref={patientUserId ? patientCardHref(patientUserId) : null}
         />

@@ -17,6 +17,7 @@ import { DoctorExerciseRecommendationsModal } from '@/app/app/doctor/treatment-p
 import { DoctorExerciseStatisticsModal } from '@/app/app/doctor/treatment-program-shared/DoctorExerciseStatisticsModal';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
+import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -39,6 +40,30 @@ function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussi
   const byDate = a.createdAt.localeCompare(b.createdAt);
   if (byDate !== 0) return byDate;
   return a.id.localeCompare(b.id);
+}
+
+function reconcileMessages(
+  current: ProgramItemDiscussionMessage[],
+  incoming: ProgramItemDiscussionMessage[],
+  appendOlder: boolean,
+): ProgramItemDiscussionMessage[] {
+  if (appendOlder) {
+    const byId = new Map(incoming.map((message) => [message.id, message]));
+    for (const message of current) byId.set(message.id, message);
+    return [...byId.values()].sort(compareMessages);
+  }
+  const currentById = new Map(current.map((message) => [message.id, message]));
+  let changed = current.length !== incoming.length;
+  const next = incoming.map((message, index) => {
+    const existing = currentById.get(message.id);
+    if (!existing) {
+      changed = true;
+      return message;
+    }
+    if (current[index] !== existing) changed = true;
+    return existing;
+  });
+  return changed ? next : current;
 }
 
 /**
@@ -89,24 +114,23 @@ export function DoctorProgramItemDiscussionDialog(props: {
   );
 
   const loadPage = useCallback(
-    async (cursor: string | null, appendOlder: boolean, generation: number) => {
+    async (
+      cursor: string | null,
+      appendOlder: boolean,
+      generation: number,
+    ): Promise<ProgramItemDiscussionMessage[] | null> => {
       const url = new URL(basePath, window.location.origin);
       url.searchParams.set('direction', 'backward');
       url.searchParams.set('limit', '50');
       if (cursor) url.searchParams.set('cursor', cursor);
       const res = await fetch(url.toString());
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
-      if (generation !== loadGenerationRef.current) return;
+      if (generation !== loadGenerationRef.current) return null;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
         throw new Error(readSafeApiErrorText(data, 'Не удалось загрузить обсуждение'));
       }
       const loaded = data.messages;
-      setMessages((prev) => {
-        if (!appendOlder) return loaded;
-        const map = new Map(prev.map((m) => [m.id, m]));
-        for (const msg of loaded) map.set(msg.id, msg);
-        return [...map.values()].sort(compareMessages);
-      });
+      setMessages((current) => reconcileMessages(current, loaded, appendOlder));
       setNextCursor(
         typeof data.pageInfo?.nextCursor === 'string' ? data.pageInfo.nextCursor : null,
       );
@@ -126,6 +150,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
           note: data.itemContext.effectiveComment?.trim() || null,
         });
       }
+      return loaded;
     },
     [basePath],
   );
@@ -143,10 +168,12 @@ export function DoctorProgramItemDiscussionDialog(props: {
     setRecommendationsOpen(false);
     setStatisticsOpen(false);
     try {
-      await loadPage(null, false, generation);
-      void markDoctorProgramDiscussionRead({ instanceId, stageItemId: itemId }).then((result) => {
-        if (result.ok) onMarkedReadRef.current?.();
-      });
+      const loaded = await loadPage(null, false, generation);
+      if (loaded) {
+        void markDoctorProgramDiscussionRead({ instanceId, stageItemId: itemId }).then((result) => {
+          if (result.ok) onMarkedReadRef.current?.();
+        });
+      }
     } catch (e) {
       if (generation !== loadGenerationRef.current) return;
       const msg = e instanceof Error ? e.message : 'Не удалось загрузить обсуждение';
@@ -163,21 +190,20 @@ export function DoctorProgramItemDiscussionDialog(props: {
     void bootstrap();
   }, [open, bootstrap]);
 
-  useEffect(() => {
-    if (!open) return;
-    const refreshPeerRead = async () => {
-      const url = new URL(basePath, window.location.origin);
-      url.searchParams.set('direction', 'backward');
-      url.searchParams.set('limit', '1');
-      const res = await fetch(url.toString());
-      const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
-      if (res.ok && data?.ok && data.peerLastReadAt !== undefined) {
-        setPeerLastReadAt(data.peerLastReadAt);
-      }
-    };
-    const id = window.setInterval(() => void refreshPeerRead(), 15000);
-    return () => window.clearInterval(id);
-  }, [open, basePath]);
+  const poll = useCallback(async () => {
+    const generation = loadGenerationRef.current;
+    try {
+      const loaded = await loadPage(null, false, generation);
+      if (!loaded) return;
+      void markDoctorProgramDiscussionRead({ instanceId, stageItemId: itemId }).then((result) => {
+        if (result.ok) onMarkedReadRef.current?.();
+      });
+    } catch {
+      // Открытый тред сохраняет уже загруженные сообщения при временном сетевом сбое.
+    }
+  }, [instanceId, itemId, loadPage]);
+
+  useMessagePolling(poll, open, 8000, false);
 
   useEffect(() => {
     if (open) return;
@@ -200,7 +226,6 @@ export function DoctorProgramItemDiscussionDialog(props: {
         <DoctorModalStackedTitle
           label="Упражнение"
           entity={itemLabel}
-          entityClassName="text-sm leading-5"
           patientName={patientName}
           patientHref={patientUserId ? patientCardHref(patientUserId) : null}
         />

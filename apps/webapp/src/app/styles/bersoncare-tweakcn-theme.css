@@ -77,6 +77,7 @@
   --color-bc-warn-tint: var(--bc-warn-tint);
   --color-bc-danger: var(--bc-danger);
   --color-bc-danger-tint: var(--bc-danger-tint);
+  --color-doctor-calendar-today: var(--doctor-calendar-today);
   --color-bc-ok: var(--bc-ok);
   --color-bc-info: var(--bc-info);
   --shadow-bc-micro: var(--bc-shadow-micro);
@@ -107,6 +108,7 @@ body:has(#app-shell-doctor),
   --popover-foreground: var(--bc-ink);
   --primary: #4573b1;
   --primary-foreground: #ffffff;
+  --doctor-calendar-today: #db715d;
   --secondary: var(--bc-rail);
   --secondary-foreground: var(--bc-ink);
   --muted: var(--bc-rail);

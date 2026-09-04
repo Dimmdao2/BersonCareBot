@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
-import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorConversationListRow } from '@/modules/messaging/components/DoctorConversationListRow';
 import { DoctorConversationChatModal } from '@/modules/messaging/components/DoctorConversationChatModal';
 import {
@@ -168,11 +167,7 @@ export function DoctorTodayLeftKpiRow({
     0,
     (exerciseCommentsTotalOverride ?? exerciseCommentAttentionTotal) - locallyReadCommentCount,
   );
-  const attentionTasks = selectSpecialistTasksDueTodayOrOverdue(
-    tasks,
-    todayIso,
-    displayIana,
-  );
+  const attentionTasks = selectSpecialistTasksDueTodayOrOverdue(tasks, todayIso, displayIana);
   const selectedTask = selectedTaskId
     ? (tasks.find((task) => task.id === selectedTaskId) ?? null)
     : null;
@@ -237,9 +232,7 @@ export function DoctorTodayLeftKpiRow({
                   }
                 : undefined
             }
-            valueClassName={
-              attentionTasks.length > 0 ? attentionKpiValueClass : undefined
-            }
+            valueClassName={attentionTasks.length > 0 ? attentionKpiValueClass : undefined}
           />
         ) : null}
       </DoctorMetricList>
@@ -296,18 +289,12 @@ export function DoctorTodayLeftKpiRow({
         items={messageItems}
         renderItem={(item) => (
           <li>
-            <UnreadConversationModalItem
-              item={item}
-              onOpen={() => setSelectedConversation(item)}
-            />
+            <UnreadConversationModalItem item={item} onOpen={() => setSelectedConversation(item)} />
           </li>
         )}
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
-            Нет непрочитанных сообщений.{' '}
-            <Link href={routePaths.doctorCommunications} className={doctorInlineLinkClass}>
-              Открыть коммуникации
-            </Link>
+            Нет непрочитанных сообщений
           </p>
         }
       />

@@ -154,21 +154,27 @@ export function DoctorModalStackedTitle({
   patientHref?: string | null;
   entityClassName?: string;
 }) {
-  const patientClassName = cn(doctorModalTitleClass, 'min-w-0 truncate text-right text-primary');
+  const patientClassName = cn(
+    doctorModalTitleClass,
+    'min-w-0 truncate text-right text-sm text-primary',
+  );
 
   return (
-    <span className="flex w-full min-w-0 flex-col items-start gap-0.5 text-left">
+    <span className="flex w-full min-w-0 flex-col items-start gap-1 text-left">
       <span className="flex w-full min-w-0 items-baseline justify-between gap-3">
         <span>{label}</span>
         {patientName ? (
           patientHref ? (
             <Link
               href={patientHref}
-              className={cn(
-                patientClassName,
-                'underline decoration-1 underline-offset-2',
-              )}
+              className={cn(patientClassName, 'underline decoration-1 underline-offset-2')}
               style={{ maxWidth: '55%' }}
+              onClick={(event) => {
+                const target = new URL(patientHref, window.location.href);
+                if (target.pathname !== window.location.pathname) return;
+                event.preventDefault();
+                window.location.assign(target.href);
+              }}
             >
               {patientName}
             </Link>
@@ -180,7 +186,7 @@ export function DoctorModalStackedTitle({
         ) : null}
       </span>
       {entity ? (
-        <span className={cn(doctorSectionTitleClass, entityClassName)}>{entity}</span>
+        <span className={cn(doctorModalEntityTitleClass, entityClassName)}>{entity}</span>
       ) : null}
     </span>
   );

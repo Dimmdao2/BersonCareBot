@@ -40,7 +40,6 @@ import {
   doctorInteractiveSurfaceButtonClass,
   doctorListPreviewTextClass,
   doctorMetaTextClass,
-  doctorPanelBottomShadowClass,
 } from '@/shared/ui/doctor/doctorVisual';
 
 export type DoctorProgramDiscussionAssignment = {
@@ -77,12 +76,7 @@ function AssignmentToolbar({
   if (assignment.maxPain !== null) loadParts.push(`Боль ≤ ${assignment.maxPain}`);
 
   return (
-    <div
-      className={cn(
-        'relative z-10 flex shrink-0 flex-col border-b border-border/60 bg-card',
-        doctorPanelBottomShadowClass,
-      )}
-    >
+    <div className="relative z-10 flex shrink-0 flex-col bg-card">
       <DoctorModal
         open={videoOpen}
         onClose={() => setVideoOpen(false)}
@@ -97,7 +91,7 @@ function AssignmentToolbar({
       </DoctorModal>
       {/* Превью, первая строка рекомендаций и действия выровнены по ВЕРХНЕМУ краю блока;
           кнопки живут в первой строке (её высоту и задают), поэтому заметку они не перекрывают. */}
-      <div className="flex items-start gap-3 px-4 py-2.5">
+      <div className="flex items-start gap-3 px-4 pt-2.5 pb-[5px]">
         {isPlayableVideo ? (
           <Button
             type="button"
@@ -267,7 +261,10 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     const scrollContainer = scrollRef.current;
     const tailMessageId = sortedMessages.at(-1)?.id ?? null;
     if (!scrollContainer || tailMessageId === lastTailMessageIdRef.current) return;
-    scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    scrollContainer.scrollTo({
+      top: scrollContainer.scrollHeight,
+      behavior: lastTailMessageIdRef.current ? 'smooth' : 'auto',
+    });
     lastTailMessageIdRef.current = tailMessageId;
   }, [sortedMessages]);
 

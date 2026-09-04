@@ -196,7 +196,6 @@ export function DoctorExerciseStatisticsModal({
         <DoctorModalStackedTitle
           label="Статистика"
           entity={exerciseTitle}
-          entityClassName="text-sm leading-5"
           patientName={patientName}
           patientHref={patientCardHref(patientUserId)}
         />

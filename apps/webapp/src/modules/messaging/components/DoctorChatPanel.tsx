@@ -26,6 +26,42 @@ const initialMessageRequests = new Map<
   Promise<{ ok?: boolean; messages?: SerializedSupportMessage[] }>
 >();
 
+function sameMessage(a: SerializedSupportMessage, b: SerializedSupportMessage): boolean {
+  return (
+    a.id === b.id &&
+    a.integratorMessageId === b.integratorMessageId &&
+    a.conversationId === b.conversationId &&
+    a.senderRole === b.senderRole &&
+    a.messageType === b.messageType &&
+    a.text === b.text &&
+    a.source === b.source &&
+    a.createdAt === b.createdAt &&
+    a.readAt === b.readAt &&
+    a.deliveredAt === b.deliveredAt &&
+    a.mediaUrl === b.mediaUrl &&
+    a.mediaType === b.mediaType
+  );
+}
+
+/** Keep existing message objects mounted; polling only appends or updates changed rows. */
+function reconcileMessages(
+  current: SerializedSupportMessage[],
+  incoming: SerializedSupportMessage[],
+): SerializedSupportMessage[] {
+  const currentById = new Map(current.map((message) => [message.id, message]));
+  let changed = current.length !== incoming.length;
+  const next = incoming.map((message, index) => {
+    const existing = currentById.get(message.id);
+    if (existing && sameMessage(existing, message)) {
+      if (current[index] !== existing) changed = true;
+      return existing;
+    }
+    changed = true;
+    return message;
+  });
+  return changed ? next : current;
+}
+
 function fetchDoctorChatMessages(conversationId: string, deduplicateInitial = false) {
   if (deduplicateInitial) {
     const existing = initialMessageRequests.get(conversationId);
@@ -63,6 +99,12 @@ export function DoctorChatPanel({
   const [error, setError] = useState<string | null>(null);
   const [replyTarget, setReplyTarget] = useState<SerializedSupportMessage | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const initialMessagesRef = useRef(initialMessages);
+  const onReadStateChangedRef = useRef(onReadStateChanged);
+  const onSentRef = useRef(onSent);
+  initialMessagesRef.current = initialMessages;
+  onReadStateChangedRef.current = onReadStateChanged;
+  onSentRef.current = onSent;
   // Persists across retries of the same unsent draft so a network-error retry reuses the same
   // idempotency key instead of minting a new one (which would defeat server-side dedup). Keyed
   // by text so editing the draft after a failed attempt starts a fresh key, not a "retry".
@@ -75,12 +117,12 @@ export function DoctorChatPanel({
       });
       if (res.ok) {
         notifyDoctorSupportUnreadCountChanged();
-        await onReadStateChanged?.();
+        await onReadStateChangedRef.current?.();
       }
     } catch {
       // Read state is best-effort; keep the chat usable if it fails.
     }
-  }, [conversationId, onReadStateChanged]);
+  }, [conversationId]);
 
   const loadMessages = useCallback(
     async (deduplicateInitial = false) => {
@@ -91,7 +133,7 @@ export function DoctorChatPanel({
           return;
         }
         const nextMessages = data.messages ?? [];
-        setMessages(nextMessages);
+        setMessages((current) => reconcileMessages(current, nextMessages));
         if (nextMessages.some((message) => message.senderRole === 'user' && !message.readAt)) {
           void markRead();
         }
@@ -110,9 +152,12 @@ export function DoctorChatPanel({
     (async () => {
       try {
         setReplyTarget(null);
-        if (initialMessages) {
-          if (!cancelled) setMessages(initialMessages);
-          if (initialMessages.some((message) => message.senderRole === 'user' && !message.readAt)) {
+        const seededMessages = initialMessagesRef.current;
+        if (seededMessages) {
+          if (!cancelled) {
+            setMessages((current) => reconcileMessages(current, seededMessages));
+          }
+          if (seededMessages.some((message) => message.senderRole === 'user' && !message.readAt)) {
             void markRead();
           }
         } else {
@@ -125,7 +170,7 @@ export function DoctorChatPanel({
     return () => {
       cancelled = true;
     };
-  }, [conversationId, initialMessages, loadMessages, markRead]);
+  }, [conversationId, loadMessages, markRead]);
 
   const poll = useCallback(async () => {
     if (!conversationId) return;
@@ -134,7 +179,7 @@ export function DoctorChatPanel({
       const data = (await res.json()) as { ok?: boolean; messages?: SerializedSupportMessage[] };
       if (!res.ok || !data.ok) return;
       const list = data.messages ?? [];
-      setMessages(list);
+      setMessages((current) => reconcileMessages(current, list));
       if (list.some((m) => m.senderRole === 'user' && !m.readAt)) {
         void markRead();
       }
@@ -145,7 +190,7 @@ export function DoctorChatPanel({
 
   // The mount effect owns the initial load. Polling starts without another immediate GET,
   // but still refreshes immediately when the browser tab becomes visible again.
-  useMessagePolling(poll, Boolean(conversationId), 18000, false);
+  useMessagePolling(poll, Boolean(conversationId), 8000, false);
 
   const send = async () => {
     const t = draft.trim();
@@ -170,7 +215,7 @@ export function DoctorChatPanel({
       setDraft('');
       setReplyTarget(null);
       await loadMessages();
-      await onSent?.();
+      await onSentRef.current?.();
     } catch {
       setError('Ошибка сети');
     } finally {

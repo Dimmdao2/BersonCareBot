@@ -1,12 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
 import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
+import { TreatmentProgramInstanceDetailClient } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient';
+import {
+  loadDoctorPatientProgramEditorBootstrap,
+  type DoctorPatientProgramEditorBootstrap,
+} from '../../loadDoctorPatientProgramEditorBootstrap';
 import { pickOpenTreatmentProgramInstance } from '../../treatmentProgramInstanceOpen';
 import { PatientProgramPanelLoader } from './program/PatientProgramPanelLoader';
 import { ProgramHistoryModal } from './program/ProgramHistoryModal';
@@ -24,56 +28,84 @@ export function PatientTabProgram({
   active,
   initialProgramInstances,
 }: Props) {
-  const router = useRouter();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [programCheckDone, setProgramCheckDone] = useState(false);
+  const [failedProgramRequestKey, setFailedProgramRequestKey] = useState<string | null>(null);
+  const [programLoadAttempt, setProgramLoadAttempt] = useState(0);
+  const [editorBootstrap, setEditorBootstrap] =
+    useState<DoctorPatientProgramEditorBootstrap | null>(null);
   const [resolvedProgramInstances, setResolvedProgramInstances] = useState<
     TreatmentProgramInstanceSummary[] | null
   >(initialProgramInstances ?? null);
 
-  const programHref = (instanceId: string) =>
-    `/app/doctor/patients/${encodeURIComponent(userId)}/programs/${encodeURIComponent(instanceId)}`;
+  const knownProgramInstances = initialProgramInstances ?? resolvedProgramInstances;
+  const activeProgramInstance = knownProgramInstances
+    ? pickOpenTreatmentProgramInstance(knownProgramInstances)
+    : null;
+  const activeProgramInstanceId = activeProgramInstance?.id ?? null;
+  const programRequestKey = activeProgramInstanceId
+    ? `${activeProgramInstanceId}:${programLoadAttempt}`
+    : null;
+  const activeEditorBootstrap =
+    editorBootstrap?.initial.id === activeProgramInstanceId ? editorBootstrap : null;
 
-  // PROG-01: if active program exists, navigate directly to its editor.
-  // Guard: only trigger when this tab is actually visible — without this guard the
-  // component mounts (even when CSS-hidden) and fires router.push unconditionally.
+  // Resolve program summaries only when the tab is visible. The editor itself is loaded by
+  // the second effect without navigating away from the existing PatientCardClient.
   useEffect(() => {
-    if (!active) return;
-    if (initialProgramInstances != null) {
-      const activeInstance = pickOpenTreatmentProgramInstance(initialProgramInstances);
-      if (activeInstance) {
-        router.push(programHref(activeInstance.id));
-        return;
-      }
-
-      setProgramCheckDone(true);
-      return;
-    }
+    if (!active || initialProgramInstances != null || resolvedProgramInstances != null) return;
     let cancelled = false;
-    fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/treatment-program-instances`)
+    void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/treatment-program-instances`)
       .then((r) => r.json())
       .then((data: { ok?: boolean; items?: TreatmentProgramInstanceSummary[] }) => {
         if (cancelled) return;
-        if (data.ok && Array.isArray(data.items)) {
-          setResolvedProgramInstances(data.items);
-          const activeInst = pickOpenTreatmentProgramInstance(data.items);
-          if (activeInst) {
-            router.push(programHref(activeInst.id));
-            return;
-          }
-        }
-        setProgramCheckDone(true);
+        setResolvedProgramInstances(data.ok && Array.isArray(data.items) ? data.items : []);
       })
       .catch(() => {
-        if (!cancelled) setProgramCheckDone(true);
+        if (!cancelled) setResolvedProgramInstances([]);
       });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- programHref не мемоизирован; добавление в deps дало бы перезапуск эффекта каждый рендер
-  }, [userId, router, active, initialProgramInstances]);
+  }, [active, initialProgramInstances, resolvedProgramInstances, userId]);
 
-  if (!programCheckDone) {
+  useEffect(() => {
+    if (!active || !activeProgramInstanceId || !programRequestKey || activeEditorBootstrap) return;
+
+    let cancelled = false;
+    void loadDoctorPatientProgramEditorBootstrap(userId, activeProgramInstanceId)
+      .then((bootstrap) => {
+        if (cancelled) return;
+        if (!bootstrap) {
+          setFailedProgramRequestKey(programRequestKey);
+          return;
+        }
+        setEditorBootstrap(bootstrap);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFailedProgramRequestKey(programRequestKey);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    active,
+    activeEditorBootstrap,
+    activeProgramInstanceId,
+    programRequestKey,
+    userId,
+  ]);
+
+  if (activeEditorBootstrap) {
+    return <TreatmentProgramInstanceDetailClient {...activeEditorBootstrap} />;
+  }
+
+  const programLoadError =
+    programRequestKey != null && failedProgramRequestKey === programRequestKey;
+  const programLoading =
+    knownProgramInstances == null || (activeProgramInstanceId != null && !programLoadError);
+
+  if (programLoading) {
     // Skeleton mirroring the editor (toolbar + stage cards) — shown while the program route loads.
     return (
       <div className={cn(doctorSectionCardClass, 'gap-3')} aria-busy="true">
@@ -85,6 +117,17 @@ export function PatientTabProgram({
         <div className="h-16 animate-pulse rounded-lg bg-muted/60" />
         <div className="h-16 animate-pulse rounded-lg bg-muted/50" />
         <span className="sr-only">Загрузка программы…</span>
+      </div>
+    );
+  }
+
+  if (programLoadError) {
+    return (
+      <div className={cn(doctorSectionCardClass, 'items-center gap-3 text-center')}>
+        <p className="text-sm text-muted-foreground">Не удалось загрузить программу.</p>
+        <Button type="button" variant="outline" onClick={() => setProgramLoadAttempt((n) => n + 1)}>
+          Попробовать снова
+        </Button>
       </div>
     );
   }

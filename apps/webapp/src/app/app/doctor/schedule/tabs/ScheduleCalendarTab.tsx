@@ -2605,7 +2605,7 @@ export function ScheduleCalendarTab({
           (комбинируем базовый sticky-класс с top-офсетом, как эталон exercises). */}
       <DoctorCatalogStickyToolbar
         withinRemainingHeight
-        className="mt-0 flex flex-wrap items-center gap-2 md:-mt-3"
+        className="flex flex-wrap items-center gap-2"
         data-testid="cal-toolbar"
       >
         <div className="flex w-full min-w-0 items-center gap-1 md:hidden">
@@ -2968,7 +2968,7 @@ export function ScheduleCalendarTab({
           className={cn(
             'min-h-0 min-w-0 flex-1',
             renderMode === 'calendar' && 'h-full md:min-h-0',
-            renderMode === 'list' && 'h-full min-h-0',
+            renderMode === 'list' && '-mx-3 h-full min-h-0 md:mx-0',
           )}
         >
           {renderMode === 'list' ? (
@@ -3003,10 +3003,10 @@ export function ScheduleCalendarTab({
             />
           ) : (
             // FullCalendar
-            <div className="relative h-full min-h-0">
+            <div className="relative -mx-3 h-full min-h-0 md:mx-0">
               <div
                 className={cn(
-                  'relative h-full min-h-0 w-full flex-1 touch-pan-y overscroll-contain rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                  'relative h-full min-h-0 w-full flex-1 touch-pan-y overscroll-contain border-0 bg-card pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:w-full md:rounded-xl md:border md:border-border',
                   view === 'month' && isMobileViewport
                     ? 'overflow-x-hidden overflow-y-auto'
                     : 'overflow-hidden',

@@ -20,7 +20,10 @@ import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceSummary,
 } from '@/modules/treatment-program/types';
-import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
+import type {
+  DoctorExerciseCommentRow,
+  ListDoctorExerciseCommentsInput,
+} from '@/modules/program-item-discussion/types';
 import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
@@ -93,12 +96,9 @@ export type DoctorTodayDashboardDeps = {
     getInstanceById(instanceId: string): Promise<TreatmentProgramInstanceDetail>;
   };
   programItemDiscussion?: {
-    listMessagesPage(input: {
-      stageItemId: string;
-      limit: number;
-      direction: 'backward' | 'forward';
-      cursor: null;
-    }): Promise<ProgramItemDiscussionMessage[]>;
+    listUnreadExerciseCommentsForDoctor(
+      input: ListDoctorExerciseCommentsInput,
+    ): Promise<DoctorExerciseCommentRow[]>;
     listUnreadCountsForViewerByStageItems(input: {
       stageItemIds: string[];
       viewerUserId: string;
@@ -661,39 +661,51 @@ export async function loadDoctorTodayDashboard(
     visibilityActor: deps.visibilityActor,
   };
   const clientAudience = scopedAudience;
-  const [todayRaw, futureRaw, timelineRaw, unreadConversations, unreadTotal, onSupportListRaw] =
-    await Promise.all([
-      // The stats range contains cancellations; the dashboard filters them below so every
-      // Today surface (KPI, list and compact calendar) uses the same active-only collection.
-      deps.doctorAppointments.listAppointmentsForSpecialist(
-        { kind: 'statsRange', range: 'today' },
-        scopedAudience,
-      ),
-      deps.doctorAppointments.listAppointmentsForSpecialist(
-        { kind: 'futureActive' },
-        scopedAudience,
-      ),
-      deps.doctorAppointments.listAppointmentsForSpecialist({ kind: 'timeline' }, scopedAudience),
-      deps.messaging.doctorSupport.listOpenConversations({
-        unreadOnly: true,
-        limit: 3,
+  const [
+    todayRaw,
+    futureRaw,
+    timelineRaw,
+    unreadConversations,
+    unreadTotal,
+    onSupportListRaw,
+    commentClientsRaw,
+  ] = await Promise.all([
+    // The stats range contains cancellations; the dashboard filters them below so every
+    // Today surface (KPI, list and compact calendar) uses the same active-only collection.
+    deps.doctorAppointments.listAppointmentsForSpecialist(
+      { kind: 'statsRange', range: 'today' },
+      scopedAudience,
+    ),
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: 'futureActive' }, scopedAudience),
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: 'timeline' }, scopedAudience),
+    deps.messaging.doctorSupport.listOpenConversations({
+      unreadOnly: true,
+      limit: 3,
+      organizationId: deps.organizationId,
+      visibilityActor: deps.visibilityActor,
+    }),
+    deps.messaging.doctorSupport.unreadFromUsers({
+      organizationId: deps.organizationId,
+      visibilityActor: deps.visibilityActor,
+    }),
+    deps.doctorClients.listClients(
+      {
+        supportStatus: 'on',
         organizationId: deps.organizationId,
         visibilityActor: deps.visibilityActor,
-      }),
-      deps.messaging.doctorSupport.unreadFromUsers({
+        ...(deps.doctorUserId ? { viewerUserId: deps.doctorUserId } : {}),
+      },
+      clientAudience,
+    ),
+    deps.doctorClients.listClients(
+      {
         organizationId: deps.organizationId,
         visibilityActor: deps.visibilityActor,
-      }),
-      deps.doctorClients.listClients(
-        {
-          supportStatus: 'on',
-          organizationId: deps.organizationId,
-          visibilityActor: deps.visibilityActor,
-          ...(deps.doctorUserId ? { viewerUserId: deps.doctorUserId } : {}),
-        },
-        clientAudience,
-      ),
-    ]);
+        ...(deps.doctorUserId ? { viewerUserId: deps.doctorUserId } : {}),
+      },
+      clientAudience,
+    ),
+  ]);
 
   const activeTodayRaw = todayRaw.filter(
     (row) => !isCancelledAppointmentStatus(row.rawStatus ?? row.status),
@@ -765,7 +777,7 @@ export async function loadDoctorTodayDashboard(
             ),
           ])
         : Promise.resolve([0, []] as const),
-      loadDoctorExerciseCommentAttention(deps, onSupportListRaw),
+      loadDoctorExerciseCommentAttention(deps, commentClientsRaw),
       loadCurrentOrNextAppointment(deps, futureRaw, scopedAudience.excludedUserIds ?? []),
     ]);
 

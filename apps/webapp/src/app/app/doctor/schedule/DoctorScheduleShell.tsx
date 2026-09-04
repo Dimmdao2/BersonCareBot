@@ -16,6 +16,10 @@ import {
 } from '@/shared/ui/doctor/navChrome';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import {
+  DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
+  DOCTOR_REMAINING_HEIGHT_BODY_CLASS,
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import {
   SCHEDULE_BASE,
   SCHEDULE_TABS,
   SCHEDULE_DEFAULT_TAB,
@@ -312,7 +316,10 @@ export function DoctorScheduleShell({
           <div
             key={tabId}
             hidden={tabId !== activeTab}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            className={cn(
+              DOCTOR_REMAINING_HEIGHT_BODY_CLASS,
+              DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
+            )}
             data-testid={`tab-panel-${tabId}`}
           >
             <TabComponent

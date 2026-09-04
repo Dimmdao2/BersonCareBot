@@ -2,7 +2,7 @@
  * Загрузчик «пациенты с непрочитанными комментариями по упражнениям».
  *
  * Используется в левом пейне state-B drill-down вкладки «Комментарии».
- * Возвращает список пациентов на сопровождении с непрочитанными комментариями,
+ * Возвращает список доступных врачу пациентов с непрочитанными комментариями,
  * снабжённых счётчиком unreadCount и полями для многополевого поиска.
  *
  * Переиспользует существующий doctor-wide порт `listUnreadExerciseCommentsForDoctor`
@@ -25,7 +25,7 @@
  * Поиск работает по: displayName, phone, telegramId, maxId.
  *
  * ——— ★ На сопровождении ———
- * Все пациенты в списке уже фильтруются `supportStatus: "on"` — флаг `isOnSupport` всегда true.
+ * Сопровождение — только визуальный маркер, не условие попадания в непрочитанные.
  */
 import type { DoctorClientsFilters } from '@/modules/doctor-clients/ports';
 import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
@@ -66,6 +66,7 @@ export type LoadDoctorCommentPatientsDeps = {
         lastName?: string | null;
         phone: string | null;
         bindings: { telegramId?: string | null; maxId?: string | null };
+        isOnSupport?: boolean;
       }>
     >;
   };
@@ -81,7 +82,7 @@ export type LoadDoctorCommentPatientsDeps = {
 };
 
 /**
- * Загружает пациентов на сопровождении у которых есть непрочитанные комментарии по упражнениям.
+ * Загружает доступных врачу пациентов с непрочитанными комментариями по упражнениям.
  *
  * @param deps - зависимости (ports)
  * @param context - viewerUserId = userId врача
@@ -100,18 +101,17 @@ export async function loadDoctorCommentPatients(
     excludedUserIds: options?.excludedUserIds ?? [],
   };
 
-  const onSupport = await deps.doctorClientsPort.listClients(
+  const visibleClients = await deps.doctorClientsPort.listClients(
     {
-      supportStatus: 'on',
       organizationId: context.organizationId,
       visibilityActor: context.visibilityActor,
     },
     audience,
   );
-  if (onSupport.length === 0) return [];
+  if (visibleClients.length === 0) return [];
 
   const clientById = new Map(
-    onSupport.map((c) => [
+    visibleClients.map((c) => [
       c.userId.trim(),
       {
         displayName: formatDoctorFio(
@@ -121,6 +121,7 @@ export async function loadDoctorCommentPatients(
         phone: c.phone ?? null,
         telegramId: c.bindings?.telegramId ?? null,
         maxId: c.bindings?.maxId ?? null,
+        isOnSupport: c.isOnSupport ?? false,
       },
     ]),
   );
@@ -160,7 +161,7 @@ export async function loadDoctorCommentPatients(
     if (unreadCount === 0) continue;
     result.push({
       patientUserId,
-      isOnSupport: true,
+      isOnSupport: fields.isOnSupport,
       unreadCount,
       displayName: fields.displayName,
       phone: fields.phone,

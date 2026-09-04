@@ -64,9 +64,12 @@ function exerciseItem(id: string, title: string) {
   };
 }
 
-type ProgramItemDiscussionDeps = NonNullable<
-  DoctorExerciseCommentAttentionDeps['programItemDiscussion']
->;
+type ListMessagesPage = (input: {
+  stageItemId: string;
+  limit: number;
+  direction: 'backward' | 'forward';
+  cursor: null;
+}) => Promise<ProgramItemDiscussionMessage[]>;
 
 /**
  * Снятый предфильтр `listAttentionSummaryForStageItems`. Загрузчик его больше НЕ объявляет в своих
@@ -78,7 +81,7 @@ type ObsoleteAttentionSummary = (
 ) => Promise<Array<{ stageItemId: string; comments: number; media: number }>>;
 
 function buildDeps(overrides: {
-  listMessagesPage: ProgramItemDiscussionDeps['listMessagesPage'];
+  listMessagesPage: ListMessagesPage;
   listAttentionSummaryForStageItems?: ObsoleteAttentionSummary;
 }): DoctorExerciseCommentAttentionDeps {
   const instanceSummary: TreatmentProgramInstanceSummary = {
@@ -128,6 +131,34 @@ function buildDeps(overrides: {
       (async (stageItemIds: string[]) =>
         stageItemIds.map((stageItemId) => ({ stageItemId, comments: 1, media: 0 }))),
     listMessagesPage: overrides.listMessagesPage,
+    listUnreadExerciseCommentsForDoctor: vi.fn(async () => {
+      const rows = await Promise.all(
+        [ANSWERED_ITEM, MEDIA_ITEM, PLAIN_ITEM].map(async (stageItemId) => {
+          const page = await overrides.listMessagesPage({
+            stageItemId,
+            limit: 200,
+            direction: 'backward',
+            cursor: null,
+          });
+          const latestPatient = [...page]
+            .reverse()
+            .find((message) => message.senderRole === 'patient');
+          if (!latestPatient) return null;
+          return {
+            patientUserId: PATIENT_ID,
+            instanceId: INSTANCE_ID,
+            stageItemId,
+            stageItemTitle: String(
+              instanceDetail.stages[0]?.items.find((item) => item.id === stageItemId)?.snapshot
+                .title ?? 'Упражнение',
+            ),
+            latestMessage: latestPatient,
+            createdAt: latestPatient.createdAt,
+          };
+        }),
+      );
+      return rows.filter((row): row is NonNullable<typeof row> => row !== null);
+    }),
     listUnreadCountsForViewerByStageItems: vi.fn(async () => [
       { stageItemId: ANSWERED_ITEM, unread: 2 },
       { stageItemId: MEDIA_ITEM, unread: 1 },
@@ -139,7 +170,6 @@ function buildDeps(overrides: {
     doctorUserId: DOCTOR_ID,
     organizationId: undefined,
     treatmentProgramInstance: {
-      listForPatientClinicalView: vi.fn(async () => [instanceSummary]),
       getInstanceById: vi.fn(async () => instanceDetail),
     },
     programItemDiscussion,
@@ -174,7 +204,12 @@ describe('loadDoctorExerciseCommentAttention unread semantics', () => {
           ];
         }
         if (stageItemId === MEDIA_ITEM) {
-          return [msg('m1', MEDIA_ITEM, 'patient', '2026-09-03T11:00:00.000Z', { body: null, mediaFileId: 'file-1' })];
+          return [
+            msg('m1', MEDIA_ITEM, 'patient', '2026-09-03T11:00:00.000Z', {
+              body: null,
+              mediaFileId: 'file-1',
+            }),
+          ];
         }
         return [msg('p1', PLAIN_ITEM, 'patient', '2026-09-03T12:00:00.000Z')];
       }),
@@ -195,7 +230,12 @@ describe('loadDoctorExerciseCommentAttention unread semantics', () => {
           ];
         }
         if (stageItemId === MEDIA_ITEM) {
-          return [msg('m1', MEDIA_ITEM, 'patient', '2026-09-03T11:00:00.000Z', { body: null, mediaFileId: 'file-1' })];
+          return [
+            msg('m1', MEDIA_ITEM, 'patient', '2026-09-03T11:00:00.000Z', {
+              body: null,
+              mediaFileId: 'file-1',
+            }),
+          ];
         }
         return [msg('p1', PLAIN_ITEM, 'patient', '2026-09-03T12:00:00.000Z')];
       }),
@@ -217,7 +257,12 @@ describe('loadDoctorExerciseCommentAttention unread semantics', () => {
           ];
         }
         if (stageItemId === MEDIA_ITEM) {
-          return [msg('m1', MEDIA_ITEM, 'patient', '2026-09-03T11:00:00.000Z', { body: null, mediaFileId: 'file-1' })];
+          return [
+            msg('m1', MEDIA_ITEM, 'patient', '2026-09-03T11:00:00.000Z', {
+              body: null,
+              mediaFileId: 'file-1',
+            }),
+          ];
         }
         return [msg('p1', PLAIN_ITEM, 'patient', '2026-09-03T12:00:00.000Z')];
       }),
@@ -230,9 +275,7 @@ describe('loadDoctorExerciseCommentAttention unread semantics', () => {
     expect(result.items.map((row) => row.stageItemId).sort()).toEqual(
       [ANSWERED_ITEM, MEDIA_ITEM, PLAIN_ITEM].sort(),
     );
-    expect(result.items.map((row) => row.unreadCount)).toEqual(
-      expect.arrayContaining([2, 1, 4]),
-    );
+    expect(result.items.map((row) => row.unreadCount)).toEqual(expect.arrayContaining([2, 1, 4]));
   });
 });
 
@@ -276,13 +319,18 @@ describe('loadDoctorExerciseCommentAttention vs. the real attention-summary pre-
         msg('a2', ANSWERED_ITEM, 'admin', '2026-09-03T10:05:00.000Z'),
       ],
       [MEDIA_ITEM]: [
-        msg('m1', MEDIA_ITEM, 'patient', '2026-09-03T11:00:00.000Z', { body: null, mediaFileId: 'file-1' }),
+        msg('m1', MEDIA_ITEM, 'patient', '2026-09-03T11:00:00.000Z', {
+          body: null,
+          mediaFileId: 'file-1',
+        }),
       ],
       [PLAIN_ITEM]: [msg('p1', PLAIN_ITEM, 'patient', '2026-09-03T12:00:00.000Z')],
     };
     const deps = buildDeps({
       listAttentionSummaryForStageItems: productionLikeAttentionSummary(messagesByStageItem),
-      listMessagesPage: vi.fn(async ({ stageItemId }: { stageItemId: string }) => messagesByStageItem[stageItemId] ?? []),
+      listMessagesPage: vi.fn(
+        async ({ stageItemId }: { stageItemId: string }) => messagesByStageItem[stageItemId] ?? [],
+      ),
     });
 
     const result = await loadDoctorExerciseCommentAttention(deps, clients);

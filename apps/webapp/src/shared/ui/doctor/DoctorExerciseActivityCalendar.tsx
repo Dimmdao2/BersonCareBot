@@ -119,7 +119,7 @@ function CalendarCell({ value }: { value: CalendarCellData }) {
       className={cn(
         'flex h-[26px] items-center justify-center rounded-md text-[10px]',
         statusClass,
-        value.today && 'ring-2 ring-[#e8c84a] ring-inset',
+        value.today && 'ring-2 ring-doctor-calendar-today ring-inset',
       )}
     >
       {value.day}

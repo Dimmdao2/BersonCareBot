@@ -63,7 +63,7 @@ body:has(#app-shell-doctor),
   justify-content: center;
   padding: 0.2rem 0.35rem;
   border-radius: var(--doctor-control-radius, 8px);
-  background-color: rgba(219, 113, 93, 0.85);
+  background-color: color-mix(in srgb, var(--doctor-calendar-today) 85%, transparent);
   color: #ffffff;
   font-weight: 600;
 }
@@ -82,7 +82,7 @@ body:has(#app-shell-doctor),
 .rdp-root.doctor-day-picker {
   --rdp-accent-color: var(--primary);
   --rdp-accent-background-color: color-mix(in srgb, var(--primary) 12%, transparent);
-  --rdp-today-color: var(--primary);
+  --rdp-today-color: var(--doctor-calendar-today);
   --rdp-day_button-border-radius: var(--doctor-control-radius, 8px);
   --rdp-day_button-border: 2px solid transparent;
   --rdp-selected-border: 2px solid transparent;
@@ -95,7 +95,7 @@ body:has(#app-shell-doctor),
 
 .doctor-day-picker [data-today='true'] .rdp-day_button {
   background-color: transparent;
-  color: rgba(196, 91, 72, 1);
+  color: var(--doctor-calendar-today);
   font-weight: 600;
 }
 
