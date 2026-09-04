@@ -113,7 +113,30 @@ describe('openWorkingHoursForSelection', () => {
       breaks: [],
       selection: { startMinute: 420, endMinute: 480 }, // 07:00–08:00, до начала дня
     });
-    expect(result).toEqual({ ok: true, dayStartMinute: 420, dayEndMinute: 1020, breaks: [] });
+    expect(result).toEqual({
+      ok: true,
+      dayStartMinute: 420,
+      dayEndMinute: 1020,
+      breaks: [{ startMinute: 480, endMinute: 540 }],
+    });
+  });
+
+  it('сохраняет закрытым разрыв между старым концом дня и отдельным поздним интервалом', () => {
+    const result = openWorkingHoursForSelection({
+      dayStartMinute: 540, // 09:00
+      dayEndMinute: 1020, // 17:00
+      breaks: [{ startMinute: 720, endMinute: 750 }],
+      selection: { startMinute: 1080, endMinute: 1140 }, // 18:00–19:00
+    });
+    expect(result).toEqual({
+      ok: true,
+      dayStartMinute: 540,
+      dayEndMinute: 1140,
+      breaks: [
+        { startMinute: 720, endMinute: 750 },
+        { startMinute: 1020, endMinute: 1080 },
+      ],
+    });
   });
 
   it('на дне без рабочих часов открывает ровно выделенный интервал, а не весь день', () => {
