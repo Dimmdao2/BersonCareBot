@@ -415,7 +415,7 @@ export function createPgPaymentsPort(): PaymentsPort {
         .innerJoin(
           bePayments,
           and(
-            eq(bePayments.id, beAppointments.paymentRef),
+            sql`${bePayments.id}::text = ${beAppointments.paymentRef}`,
             eq(bePayments.organizationId, organizationId),
           ),
         )
