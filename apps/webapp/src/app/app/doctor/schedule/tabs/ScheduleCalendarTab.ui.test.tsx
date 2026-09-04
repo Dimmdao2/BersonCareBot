@@ -280,8 +280,7 @@ describe('ScheduleCalendarTab scope requests', () => {
     );
 
     const isScopedEndpoint = (url: string) =>
-      url.includes('/calendar?') ||
-      url.includes('/schedule-kpis?');
+      url.includes('/calendar?') || url.includes('/schedule-kpis?');
     await waitFor(() => {
       expect(requestedUrls.filter(isScopedEndpoint)).toHaveLength(2);
     });
@@ -490,9 +489,8 @@ describe('ScheduleCalendarTab SSR bootstrap and load generation', () => {
 
     await waitFor(() => {
       expect(
-        requestedUrls.filter(
-          (url) => url.includes('/calendar?') || url.includes('/schedule-kpis?'),
-        ).length,
+        requestedUrls.filter((url) => url.includes('/calendar?') || url.includes('/schedule-kpis?'))
+          .length,
       ).toBeGreaterThanOrEqual(2);
     });
 
@@ -571,6 +569,8 @@ describe('ScheduleCalendarTab SSR bootstrap and load generation', () => {
                 rescheduleCount: 0,
                 originalStartAt: null,
                 formComments: [],
+                primaryComment: null,
+                payment: null,
               },
             ],
             filters: { specialists: [], branches: [], rooms: [], services: [] },

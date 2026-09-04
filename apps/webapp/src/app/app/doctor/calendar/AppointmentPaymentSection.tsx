@@ -1,28 +1,14 @@
 'use client';
 
 import Image from 'next/image';
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { useCallback, useRef, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import type { CalendarAppointmentPaymentView } from '@/modules/booking-calendar/types';
 import { sendPaymentLinkToPatientChat } from '../sendPaymentLinkToPatientChat';
 import { localQrCodeDataUri } from './localQrCode';
 
-type Summary = {
-  prepaymentQuote: { amountMinor: number; currency: string } | null;
-  payment: { amountMinor: number; status: string } | null;
-};
-type Response = {
-  summary?: Summary;
-  error?: string;
-  totalMinor?: number | null;
-  manualPaidMinor?: number;
-  /** Tariff mechanic `payments`. Absent (legacy shape) is treated as not entitled. */
-  paymentsEntitled?: boolean;
-  /** Configured provider behind the existing invoice/pay-link contract. */
-  onlinePaymentAvailable?: boolean;
-  /** The patient is `linked` to the portal, so the in-app conversation actually reaches them. */
-  patientChatAvailable?: boolean;
-};
+type Response = { ok?: boolean; payment?: CalendarAppointmentPaymentView; error?: string };
 
 const money = (amountMinor: number, currency = 'RUB') =>
   (amountMinor / 100).toLocaleString('ru-RU', { style: 'currency', currency });
@@ -41,19 +27,20 @@ function errorLabel(error: string) {
 export function AppointmentPaymentSection({
   apiBase,
   appointmentId,
+  view,
   patientUserId,
 }: {
   apiBase: string;
   appointmentId: string;
+  /**
+   * APPT-DETAIL-11: сводка приходит вместе с деталями записи, поэтому блок верен с первого
+   * рендера. Повторное чтение остаётся только за платёжной мутацией — она меняет эти суммы.
+   */
+  view: CalendarAppointmentPaymentView;
   /** Needed only for the chat send; omitting it hides that option. */
   patientUserId?: string | null;
 }) {
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [totalMinor, setTotalMinor] = useState<number | null>(null);
-  const [manualPaidMinor, setManualPaidMinor] = useState(0);
-  const [entitled, setEntitled] = useState(false);
-  const [onlineAvailable, setOnlineAvailable] = useState(false);
-  const [chatAvailable, setChatAvailable] = useState(false);
+  const [current, setCurrent] = useState(view);
   const [error, setError] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [collectOpen, setCollectOpen] = useState(false);
@@ -62,49 +49,23 @@ export function AppointmentPaymentSection({
   const [pending, startTransition] = useTransition();
   const requestVersion = useRef(0);
 
-  const load = useCallback(
+  const reload = useCallback(
     async (targetAppointmentId: string, version: number) => {
       const response = await fetch(
         `${apiBase}/appointments/${encodeURIComponent(targetAppointmentId)}/payment`,
       );
       const json = (await response.json()) as Response;
-      if (!response.ok || !json.summary) throw new Error(json.error ?? 'not_found');
+      if (!response.ok || !json.payment) throw new Error(json.error ?? 'not_found');
       if (version !== requestVersion.current) return;
-      setSummary(json.summary);
-      setTotalMinor(json.totalMinor ?? null);
-      setManualPaidMinor(json.manualPaidMinor ?? 0);
-      setEntitled(json.paymentsEntitled === true);
-      setOnlineAvailable(json.onlinePaymentAvailable === true);
-      setChatAvailable(json.patientChatAvailable === true);
+      setCurrent(json.payment);
     },
     [apiBase],
   );
 
-  useEffect(() => {
-    const version = requestVersion.current + 1;
-    requestVersion.current = version;
-    // A payment identity belongs to one appointment: clear it before starting the next read.
-    setSummary(null);
-    setTotalMinor(null);
-    setManualPaidMinor(0);
-    setEntitled(false);
-    setOnlineAvailable(false);
-    setChatAvailable(false);
-    setError(null);
-    setLink(null);
-    setCollectOpen(false);
-    setCopied(false);
-    setChatSent(false);
-    void load(appointmentId, version).catch((cause: unknown) => {
-      if (version === requestVersion.current) {
-        setError(cause instanceof Error ? cause.message : 'not_found');
-      }
-    });
-  }, [appointmentId, load]);
-
   const run = (action: 'cash' | 'link') =>
     startTransition(async () => {
-      const version = requestVersion.current;
+      const version = requestVersion.current + 1;
+      requestVersion.current = version;
       const targetAppointmentId = appointmentId;
       setError(null);
       try {
@@ -129,7 +90,7 @@ export function AppointmentPaymentSection({
           setChatSent(false);
         }
         if (action === 'cash') setCollectOpen(false);
-        await load(targetAppointmentId, version);
+        await reload(targetAppointmentId, version);
       } catch (cause) {
         if (version === requestVersion.current) {
           setError(cause instanceof Error ? cause.message : 'request_failed');
@@ -161,16 +122,16 @@ export function AppointmentPaymentSection({
       else setError('chat_send_failed');
     });
 
-  const captured = summary?.payment?.status === 'succeeded' ? summary.payment.amountMinor : 0;
-  const paid = captured + manualPaidMinor;
-  const quote = summary?.prepaymentQuote?.amountMinor ?? null;
+  const captured = current.payment?.status === 'succeeded' ? current.payment.amountMinor : 0;
+  const paid = captured + current.manualPaidMinor;
+  const totalMinor = current.totalMinor;
+  const quote = current.prepaymentQuote?.amountMinor ?? null;
   const isSettled = totalMinor !== null && paid >= totalMinor;
   const remaining = totalMinor === null ? null : Math.max(0, totalMinor - paid);
   const canCollect = remaining !== null && remaining > 0;
 
   // Owner acceptance MONEY-06: the block exists only for a clinic whose tariff carries payments.
-  // Until the read resolves there is nothing proven, so nothing is drawn.
-  if (!entitled) return null;
+  if (!current.paymentsEntitled) return null;
 
   return (
     <section className="space-y-2 border-t border-border pt-3 text-sm" aria-label="Оплата записи">
@@ -181,7 +142,7 @@ export function AppointmentPaymentSection({
           Частично оплачено: {money(paid)} из {money(totalMinor)} · осталось {money(remaining ?? 0)}
         </p>
       ) : quote ? (
-        <p>Не оплачено · предоплата {money(quote, summary?.prepaymentQuote?.currency)}</p>
+        <p>Не оплачено · предоплата {money(quote, current.prepaymentQuote?.currency)}</p>
       ) : (
         <p>Не оплачено</p>
       )}
@@ -222,7 +183,7 @@ export function AppointmentPaymentSection({
           >
             Оплачено наличными
           </Button>
-          {onlineAvailable ? (
+          {current.onlinePaymentAvailable ? (
             <>
               <Button
                 type="button"
@@ -260,7 +221,7 @@ export function AppointmentPaymentSection({
                     >
                       {copied ? 'Ссылка скопирована' : 'Скопировать ссылку'}
                     </Button>
-                    {chatAvailable && patientUserId ? (
+                    {current.patientChatAvailable && patientUserId ? (
                       <Button
                         type="button"
                         size="sm"

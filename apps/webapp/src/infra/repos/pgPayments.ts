@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
 import { getCurrentDbPrincipal, runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
 import {
@@ -16,6 +16,7 @@ import {
 } from '../../../db/schema/bookingPayments';
 import { beAppointments } from '../../../db/schema/bookingEngine';
 import type {
+  AppointmentPaymentBrief,
   PaymentsPort,
   StoredPaymentProviderEvent,
   UpsertPrepaymentPolicyInput,
@@ -394,6 +395,62 @@ export function createPgPaymentsPort(): PaymentsPort {
         .where(and(eq(bePayments.id, paymentId), eq(bePayments.organizationId, organizationId)))
         .limit(1);
       return rows[0] ? mapPayment(rows[0]) : null;
+    },
+
+    async listAppointmentPaymentBriefs(
+      organizationId,
+      appointmentIds,
+    ): Promise<AppointmentPaymentBrief[]> {
+      if (appointmentIds.length === 0) return [];
+      const db = getDrizzleOrMutationTx();
+      const rows = await db
+        .select({
+          appointmentId: beAppointments.id,
+          paymentId: bePayments.id,
+          amountMinor: bePayments.amountMinor,
+          currency: bePayments.currency,
+          status: bePayments.status,
+        })
+        .from(beAppointments)
+        .innerJoin(
+          bePayments,
+          and(
+            eq(bePayments.id, beAppointments.paymentRef),
+            eq(bePayments.organizationId, organizationId),
+          ),
+        )
+        .where(
+          and(
+            eq(beAppointments.organizationId, organizationId),
+            inArray(beAppointments.id, appointmentIds),
+          ),
+        );
+      if (rows.length === 0) return [];
+      // Общий платёж делится между всеми записями, которые на него ссылаются, — включая те,
+      // что не попали в запрошенный диапазон. Поэтому считаем по всей организации.
+      const paymentIds = Array.from(new Set(rows.map((row) => row.paymentId)));
+      const countRows = await db
+        .select({ paymentRef: beAppointments.paymentRef, total: count() })
+        .from(beAppointments)
+        .where(
+          and(
+            eq(beAppointments.organizationId, organizationId),
+            isNotNull(beAppointments.paymentRef),
+            inArray(beAppointments.paymentRef, paymentIds),
+          ),
+        )
+        .groupBy(beAppointments.paymentRef);
+      const countByPayment = new Map(
+        countRows.map((row) => [row.paymentRef as string, Number(row.total)]),
+      );
+      return rows.map((row) => ({
+        appointmentId: row.appointmentId,
+        paymentId: row.paymentId,
+        amountMinor: row.amountMinor,
+        currency: row.currency,
+        status: row.status,
+        appointmentCount: countByPayment.get(row.paymentId) ?? 1,
+      }));
     },
 
     async countAppointmentsByPaymentRef(paymentId, organizationId) {

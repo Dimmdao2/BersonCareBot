@@ -145,6 +145,12 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
       };
     },
 
+    async listPortalLinkedPatients({ organizationId, patientUserIds }) {
+      return patientUserIds.filter(
+        (patientUserId) => portalStatus(organizationId, patientUserId) === 'linked',
+      );
+    },
+
     async createReplacingPending(input) {
       const enrollment = relationship(input.organizationId, input.patientUserId);
       if (enrollment.portalActivatedAt) return { ok: false, code: 'already_linked' };

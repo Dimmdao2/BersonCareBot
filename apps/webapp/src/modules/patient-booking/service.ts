@@ -165,8 +165,7 @@ export function createPatientBookingService(input: {
           // No entitlement resolver means no patient-money acceptance. Production always injects
           // the canonical org-entitlement door; this fallback keeps isolated non-payment fixtures
           // fail-closed instead of inventing a compatibility entitlement.
-          canAcceptBookingPrepayment:
-            input.canAcceptBookingPrepayment ?? (async () => false),
+          canAcceptBookingPrepayment: input.canAcceptBookingPrepayment ?? (async () => false),
           memberships: input.memberships ?? null,
           clientHistory: input.clientHistory ?? null,
           platformUserContacts: input.platformUserContacts ?? null,
@@ -264,6 +263,11 @@ export function createPatientBookingService(input: {
 
     async getBookingByCanonicalAppointment(canonicalAppointmentId: string) {
       return input.bookingsPort.getByCanonicalAppointmentId(canonicalAppointmentId);
+    },
+
+    /** APPT-DETAIL-11: те же строки бронирования, но сразу по набору канонических записей. */
+    async listBookingsByCanonicalAppointments(canonicalAppointmentIds: string[]) {
+      return input.bookingsPort.listByCanonicalAppointmentIds(canonicalAppointmentIds);
     },
 
     async syncLinkedPatientBookingCancelled(syncInput: {
@@ -490,8 +494,13 @@ export function createPatientBookingService(input: {
         lifecycleNotificationSettings,
       );
       try {
-        const appointment = await loadCanonicalAppointment(input.bookingEngine, row.canonicalAppointmentId);
-        const reminderPlan = appointmentReminderPlanForPreset(appointment.appointmentReminderPresetId);
+        const appointment = await loadCanonicalAppointment(
+          input.bookingEngine,
+          row.canonicalAppointmentId,
+        );
+        const reminderPlan = appointmentReminderPlanForPreset(
+          appointment.appointmentReminderPresetId,
+        );
         const timeZone = (await input.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
         await input.syncPort.emitBookingEvent({
           eventType: 'booking.rescheduled',
@@ -674,7 +683,6 @@ export function createPatientBookingService(input: {
             );
           }
         }
-
 
         await input.bookingsPort.markCancelled({
           bookingId: row.id,

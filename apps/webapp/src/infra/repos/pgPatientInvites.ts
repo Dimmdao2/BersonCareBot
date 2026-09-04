@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
 import {
   getCurrentDbPrincipalOrganizationId,
   getCurrentDbPrincipalPlatformUserId,
@@ -135,6 +135,23 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
       return pending
         ? { status: 'invited', inviteId: pending.id, expiresAt: iso(pending.expiresAt) }
         : { status: 'not_activated', inviteId: null, expiresAt: null };
+    },
+
+    async listPortalLinkedPatients({ organizationId, patientUserIds }) {
+      exactOrganization(organizationId);
+      if (patientUserIds.length === 0) return [];
+      const db = getDrizzle();
+      const rows = await db
+        .select({ platformUserId: orgEnrollments.platformUserId })
+        .from(orgEnrollments)
+        .where(
+          and(
+            eq(orgEnrollments.organizationId, organizationId),
+            inArray(orgEnrollments.platformUserId, patientUserIds),
+            isNotNull(orgEnrollments.portalActivatedAt),
+          ),
+        );
+      return rows.map((row) => row.platformUserId);
     },
 
     async createReplacingPending(input) {

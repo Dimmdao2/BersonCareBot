@@ -1,8 +1,13 @@
-import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import type { PatientBookingService } from '@/modules/patient-booking/ports';
 import { prepaymentContextFromBooking } from '@/modules/payments/prepaymentContextFromBooking';
+import type { PaymentsService } from '@/modules/payments/service';
 import type { AppointmentPaymentSummary } from '@/modules/payments/types';
 
-type Deps = Pick<ReturnType<typeof buildAppDeps>, 'payments' | 'patientBooking'>;
+/** Структурно, а не через `buildAppDeps`: композиционный корень импортирует этот путь чтения. */
+type Deps = {
+  payments?: PaymentsService | null;
+  patientBooking: Pick<PatientBookingService, 'getBookingByCanonicalAppointment'>;
+};
 
 export async function loadStaffAppointmentPaymentSummary(
   deps: Deps,

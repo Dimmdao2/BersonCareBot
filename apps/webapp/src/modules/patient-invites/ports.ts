@@ -44,6 +44,14 @@ export type PatientInvitesPort = {
     organizationId: string;
     patientUserId: string;
   }): Promise<{ status: PatientPortalStatus; inviteId: string | null; expiresAt: string | null }>;
+  /**
+   * APPT-DETAIL-11: кто из пациентов уже `linked` к порталу — сразу по набору. Отправка ссылки в
+   * чат существует только для них, а карточку деталей открывают из загруженного диапазона.
+   */
+  listPortalLinkedPatients(input: {
+    organizationId: string;
+    patientUserIds: string[];
+  }): Promise<string[]>;
   createReplacingPending(input: {
     id: string;
     organizationId: string;

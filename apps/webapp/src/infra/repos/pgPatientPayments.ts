@@ -3,7 +3,7 @@
  * Uses Drizzle ORM. listPayments returns newest-first.
  */
 
-import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, sum } from 'drizzle-orm';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import {
   getCurrentDbPrincipalOrganizationId,
@@ -96,6 +96,29 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
         )
         .orderBy(desc(patientPayment.createdAt));
       return rows.map(rowToPayment);
+    },
+
+    async sumPaidMinorForAppointments(appointmentIds) {
+      if (appointmentIds.length === 0) return [];
+      const organizationId = requiredPrincipalOrganizationId();
+      const rows = await getDrizzle()
+        .select({
+          appointmentId: patientPayment.appointmentId,
+          paidMinor: sum(patientPayment.amountMinor),
+        })
+        .from(patientPayment)
+        .where(
+          and(
+            inArray(patientPayment.appointmentId, appointmentIds),
+            eq(patientPayment.organizationId, organizationId),
+            eq(patientPayment.status, 'paid'),
+          ),
+        )
+        .groupBy(patientPayment.appointmentId);
+      return rows.map((row) => ({
+        appointmentId: row.appointmentId as string,
+        paidMinor: Number(row.paidMinor ?? 0),
+      }));
     },
 
     async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {

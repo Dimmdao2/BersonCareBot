@@ -13,6 +13,12 @@ const fakes = vi.hoisted(() => ({
   getBookingByCanonicalAppointment: vi.fn(),
   getPrepaymentAvailability: vi.fn(),
   getPortalStatus: vi.fn(),
+  getSettings: vi.fn(),
+  listPrepaymentPolicies: vi.fn(),
+  listAppointmentPaymentBriefs: vi.fn(),
+  listBookingsByCanonicalAppointments: vi.fn(),
+  sumPaidMinorForAppointments: vi.fn(),
+  listPortalLinkedPatients: vi.fn(),
 }));
 
 vi.mock('../../../_requireDoctorBookingEngine', () => ({
@@ -54,11 +60,14 @@ function get() {
 
 function post(action: 'cash' | 'link') {
   return POST(
-    new Request(`http://localhost/api/doctor/booking-engine/appointments/${APPOINTMENT_ID}/payment`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action }),
-    }),
+    new Request(
+      `http://localhost/api/doctor/booking-engine/appointments/${APPOINTMENT_ID}/payment`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action }),
+      },
+    ),
     { params: Promise.resolve({ id: APPOINTMENT_ID }) },
   );
 }
@@ -76,6 +85,7 @@ beforeEach(() => {
     id: APPOINTMENT_ID,
     organizationId: ORGANIZATION_ID,
     platformUserId: PATIENT_ID,
+    serviceId: null,
   });
   fakes.requireEntitlementForMutation.mockResolvedValue({ ok: true });
   fakes.getMechanicMutationAvailability.mockResolvedValue({ available: true });
@@ -104,18 +114,34 @@ beforeEach(() => {
   });
   fakes.getPrepaymentAvailability.mockResolvedValue({ available: true });
   fakes.getPortalStatus.mockResolvedValue({ status: 'linked' });
+  fakes.getSettings.mockResolvedValue({ enabled: true, defaultProviderId: 'p', providers: [] });
+  fakes.listPrepaymentPolicies.mockResolvedValue([]);
+  fakes.listAppointmentPaymentBriefs.mockResolvedValue([]);
+  fakes.listBookingsByCanonicalAppointments.mockResolvedValue([
+    { canonicalAppointmentId: APPOINTMENT_ID, bookingType: 'offline', priceMinorSnapshot: 10_000 },
+  ]);
+  fakes.sumPaidMinorForAppointments.mockResolvedValue([]);
+  fakes.listPortalLinkedPatients.mockResolvedValue([PATIENT_ID]);
   fakes.buildAppDeps.mockReturnValue({
     payments: {
       createAppointmentPaymentIntent: fakes.createAppointmentPaymentIntent,
       getPrepaymentAvailability: fakes.getPrepaymentAvailability,
+      getSettings: fakes.getSettings,
+      listPrepaymentPolicies: fakes.listPrepaymentPolicies,
+      listAppointmentPaymentBriefs: fakes.listAppointmentPaymentBriefs,
     },
-    patientInvites: { getPortalStatus: fakes.getPortalStatus },
+    patientInvites: {
+      getPortalStatus: fakes.getPortalStatus,
+      listPortalLinkedPatients: fakes.listPortalLinkedPatients,
+    },
     patientBooking: {
       getBookingByCanonicalAppointment: fakes.getBookingByCanonicalAppointment,
+      listBookingsByCanonicalAppointments: fakes.listBookingsByCanonicalAppointments,
     },
     patientPayments: {
       listAppointmentPayments: fakes.listAppointmentPayments,
       addCashPayment: fakes.addCashPayment,
+      sumPaidMinorForAppointments: fakes.sumPaidMinorForAppointments,
     },
   });
 });
@@ -159,7 +185,8 @@ describe('doctor appointment payment route', () => {
   it('coalesces concurrent cash double-clicks into one appointment payment identity', async () => {
     const rows = new Map<string, Record<string, unknown>>();
     fakes.addCashPayment.mockImplementation(async (input: Record<string, unknown>) => {
-      const key = typeof input.idempotencyKey === 'string' ? input.idempotencyKey : crypto.randomUUID();
+      const key =
+        typeof input.idempotencyKey === 'string' ? input.idempotencyKey : crypto.randomUUID();
       const current = rows.get(key);
       if (current) return current;
       await Promise.resolve();
@@ -243,9 +270,9 @@ describe('doctor appointment payment read capabilities', () => {
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ ok: false, error: 'not_found' });
     expect(fakes.buildAppDeps).not.toHaveBeenCalled();
-    expect(fakes.loadStaffAppointmentPaymentSummary).not.toHaveBeenCalled();
+    expect(fakes.listAppointmentPaymentBriefs).not.toHaveBeenCalled();
     expect(fakes.getPrepaymentAvailability).not.toHaveBeenCalled();
-    expect(fakes.getPortalStatus).not.toHaveBeenCalled();
+    expect(fakes.listPortalLinkedPatients).not.toHaveBeenCalled();
   });
 
   it('reports no payment capability and probes no provider when the tariff omits payments', async () => {
@@ -259,9 +286,11 @@ describe('doctor appointment payment read capabilities', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
-      paymentsEntitled: false,
-      onlinePaymentAvailable: false,
-      patientChatAvailable: false,
+      payment: {
+        paymentsEntitled: false,
+        onlinePaymentAvailable: false,
+        patientChatAvailable: false,
+      },
     });
     expect(fakes.getMechanicMutationAvailability).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: ORGANIZATION_ID }),
@@ -275,18 +304,20 @@ describe('doctor appointment payment read capabilities', () => {
       available: false,
       reason: 'payment_provider_unavailable',
     });
-    fakes.getPortalStatus.mockResolvedValue({ status: 'invited' });
+    fakes.listPortalLinkedPatients.mockResolvedValue([]);
 
     const response = await get();
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
-      paymentsEntitled: true,
-      onlinePaymentAvailable: false,
-      patientChatAvailable: false,
+      payment: {
+        paymentsEntitled: true,
+        onlinePaymentAvailable: false,
+        patientChatAvailable: false,
+      },
     });
-    expect(fakes.getPortalStatus).toHaveBeenCalledWith(ORGANIZATION_ID, PATIENT_ID);
+    expect(fakes.listPortalLinkedPatients).toHaveBeenCalledWith(ORGANIZATION_ID, [PATIENT_ID]);
   });
 
   it('offers online and chat only from the real provider and the real portal binding', async () => {
@@ -295,9 +326,12 @@ describe('doctor appointment payment read capabilities', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
-      paymentsEntitled: true,
-      onlinePaymentAvailable: true,
-      patientChatAvailable: true,
+      payment: {
+        paymentsEntitled: true,
+        onlinePaymentAvailable: true,
+        patientChatAvailable: true,
+        totalMinor: 10_000,
+      },
     });
   });
 });

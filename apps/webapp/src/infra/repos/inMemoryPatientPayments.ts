@@ -73,6 +73,23 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
     );
   },
 
+  async sumPaidMinorForAppointments(appointmentIds: string[]) {
+    const ids = new Set(appointmentIds);
+    const byAppointment = new Map<string, number>();
+    for (const payment of payments) {
+      if (payment.status !== 'paid') continue;
+      if (!payment.appointmentId || !ids.has(payment.appointmentId)) continue;
+      byAppointment.set(
+        payment.appointmentId,
+        (byAppointment.get(payment.appointmentId) ?? 0) + payment.amountMinor,
+      );
+    }
+    return Array.from(byAppointment, ([appointmentId, paidMinor]) => ({
+      appointmentId,
+      paidMinor,
+    }));
+  },
+
   async findByProviderPaymentReference(
     providerId: string,
     providerPaymentId: string,

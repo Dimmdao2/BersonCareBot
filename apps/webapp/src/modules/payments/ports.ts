@@ -8,6 +8,16 @@ import type {
   PrepaymentQuote,
 } from './types';
 
+export type AppointmentPaymentBrief = {
+  appointmentId: string;
+  paymentId: string;
+  amountMinor: number;
+  currency: string;
+  status: string;
+  /** Сколько записей делят этот же платёж. */
+  appointmentCount: number;
+};
+
 export type UpsertPrepaymentPolicyInput = {
   organizationId: string;
   serviceId?: string | null;
@@ -76,6 +86,16 @@ export type PaymentsPort = {
   findPaymentByIntent(intentId: string): Promise<PaymentRecord | null>;
   findPaymentById(paymentId: string, organizationId: string): Promise<PaymentRecord | null>;
   countAppointmentsByPaymentRef(paymentId: string, organizationId: string): Promise<number>;
+  /**
+   * APPT-DETAIL-11: платежи сразу для набора записей. Карточку деталей открывают из уже
+   * загруженного диапазона календаря, поэтому поштучное чтение превратилось бы в запрос на каждую
+   * запись месяца. `appointmentCount` несёт то же число, что и `countAppointmentsByPaymentRef`, —
+   * без него общий на несколько записей платёж нельзя разделить.
+   */
+  listAppointmentPaymentBriefs(
+    organizationId: string,
+    appointmentIds: string[],
+  ): Promise<AppointmentPaymentBrief[]>;
   createPaymentFromIntent(intent: PaymentIntentRecord): Promise<PaymentRecord>;
   updatePaymentStatus(paymentId: string, status: string, organizationId: string): Promise<void>;
   getSucceededRefundedAmount(paymentId: string, organizationId: string): Promise<number>;
