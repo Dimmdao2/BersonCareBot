@@ -100,7 +100,14 @@ const CURRENT_PATIENT_UI_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
   'booking_lifecycle_notifications',
 ]);
 
-const CURRENT_PATIENT_BOOKING_PAYMENT_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
+/**
+ * The two booking-payment keys, read by two different principals through two different named roots.
+ *
+ * The patient reads them to be shown a checkout; the acquiring callback reads them to learn which
+ * provider this clinic runs and with which webhook secret. Same keys, same `admin` scope, different
+ * walls — so the key set is one constant and only the door differs below.
+ */
+const BOOKING_PAYMENT_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
   'booking_payment_enabled',
   'booking_payment_providers',
 ]);
@@ -418,6 +425,45 @@ async function exactRowUpdatedAtForCompareAndSwap(
   return current.rows[0] ? toIsoStringSafe(current.rows[0].updated_at) : null;
 }
 
+/**
+ * The two booking-payment keys reach `system_settings` through the door of the principal that asks,
+ * because neither asking principal may read the table directly.
+ *
+ * `patient` — the checkout screen; the door checks an active enrolment.
+ * `organization` — the acquiring callback, i.e. the port's `tenant_service` class. That class has no
+ * through-relation capability at all («сквозной `purpose: 'relation'` этому классу не выдают»), so
+ * the ordinary read below threw on the missing capability before any SQL was issued: the clinic's
+ * own provider secret was unreachable, the callback could not be verified, and a charged patient's
+ * ledger row stayed `pending` while the acquirer retried forever. Its door is the tenant twin of the
+ * patient one — same two keys, tenant taken from the accepted context instead of an enrolment.
+ *
+ * Returns `undefined` when this principal has no such door and the ordinary read applies.
+ */
+async function readBookingPaymentSettingThroughItsOwnDoor(
+  key: SystemSettingKey,
+): Promise<unknown | null | undefined> {
+  const principalKind = getCurrentDbPrincipal()?.kind;
+  if (principalKind === 'patient') {
+    const result = await runWebappNamedRoot<{ value_json: unknown | null }>(
+      getWebappSqlDb(),
+      'app.read_current_patient_booking_payment_setting(text)',
+      [key],
+      sql`SELECT app.read_current_patient_booking_payment_setting(${key}::text) AS value_json`,
+    );
+    return result.rows[0]?.value_json ?? null;
+  }
+  if (principalKind === 'organization') {
+    const result = await runWebappNamedRoot<{ value_json: unknown | null }>(
+      getWebappSqlDb(),
+      'app.read_acquiring_webhook_booking_payment_setting(text)',
+      [key],
+      sql`SELECT app.read_acquiring_webhook_booking_payment_setting(${key}::text) AS value_json`,
+    );
+    return result.rows[0]?.value_json ?? null;
+  }
+  return undefined;
+}
+
 export function createPgSystemSettingsPort(): SystemSettingsPort {
   return {
     async getByKey(
@@ -425,24 +471,17 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       scope: SystemSettingScope,
       options: SystemSettingsReadOptions = {},
     ): Promise<SystemSetting | null> {
-      if (
-        getCurrentDbPrincipal()?.kind === 'patient' &&
-        scope === 'admin' &&
-        CURRENT_PATIENT_BOOKING_PAYMENT_SETTING_KEYS.has(key)
-      ) {
-        const result = await runWebappNamedRoot<{ value_json: unknown | null }>(
-          getWebappSqlDb(),
-          'app.read_current_patient_booking_payment_setting(text)',
-          [key],
-          sql`SELECT app.read_current_patient_booking_payment_setting(${key}::text) AS value_json`,
-        );
-        const valueJson = result.rows[0]?.value_json ?? null;
-        if (valueJson === null) return null;
+      const bookingPaymentValueJson =
+        scope === 'admin' && BOOKING_PAYMENT_SETTING_KEYS.has(key)
+          ? await readBookingPaymentSettingThroughItsOwnDoor(key)
+          : undefined;
+      if (bookingPaymentValueJson !== undefined) {
+        if (bookingPaymentValueJson === null) return null;
         return {
           key,
           scope,
           organizationId: options.organizationId?.trim() || null,
-          valueJson,
+          valueJson: bookingPaymentValueJson,
           updatedAt: '',
           updatedBy: null,
         };
