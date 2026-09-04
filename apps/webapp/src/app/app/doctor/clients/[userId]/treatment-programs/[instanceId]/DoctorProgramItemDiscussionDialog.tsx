@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DoctorModal, DoctorModalCompositeTitle } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { useDoctorPatientSubjectLine } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 import {
   DoctorProgramDiscussionMessagesPanel,
@@ -39,15 +40,23 @@ function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussi
   return a.id.localeCompare(b.id);
 }
 
+/**
+ * Каноническая модалка упражнения: тред, рекомендации и переходы в статистику/редактирование.
+ * Единственный вариант деталей упражнения — открывается и из «Сегодня → Комментарии», и из
+ * списка упражнений этапа в карточке пациента, и из конструктора программы.
+ */
 export function DoctorProgramItemDiscussionDialog(props: {
   instanceId: string;
   itemId: string;
   itemLabel?: string;
+  /** «Фамилия Имя» пациента для второй строки шапки; без него вторая строка не рисуется. */
+  patientName?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onMarkedRead?: () => void;
 }) {
-  const { instanceId, itemId, itemLabel, open, onOpenChange, onMarkedRead } = props;
+  const { instanceId, itemId, itemLabel, patientName, open, onOpenChange, onMarkedRead } = props;
+  const patientSubject = useDoctorPatientSubjectLine(patientName);
   const [messages, setMessages] = useState<ProgramItemDiscussionMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -177,7 +186,8 @@ export function DoctorProgramItemDiscussionDialog(props: {
     <DoctorModal
       open={open}
       onClose={() => onOpenChange(false)}
-      title={<DoctorModalCompositeTitle label="Обсуждение" entity={itemLabel} />}
+      title={itemLabel ?? 'Упражнение'}
+      titleSubject={patientSubject}
       size="content"
       bodyClassName="!p-0"
     >
@@ -250,6 +260,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
           instanceId={instanceId}
           itemId={itemId}
           exerciseTitle={itemLabel ?? 'Упражнение'}
+          patientName={patientName}
           media={assignment.media}
           initialValue={assignment}
           onSaved={({ value }) => {
@@ -262,6 +273,8 @@ export function DoctorProgramItemDiscussionDialog(props: {
           open={statisticsOpen}
           onClose={() => setStatisticsOpen(false)}
           patientUserId={patientUserId}
+          patientName={patientName}
+          exerciseTitle={itemLabel ?? 'Упражнение'}
           instanceId={instanceId}
           itemId={itemId}
         />

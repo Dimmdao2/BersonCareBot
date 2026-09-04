@@ -5,32 +5,12 @@ export function resolveAssignedByPlatformUserId(userId: string): string | null {
   return isPlatformUserUuid(userId) ? userId : null;
 }
 
-export function manualPatientPackageCreatesOnlinePayment(input: {
-  priceMinor: number;
-  sendForPayment?: boolean;
-  soldAt?: string | null;
-  paidAmountMinor?: number | null;
-  activateImmediately?: boolean;
-}): boolean {
-  const staffSold =
-    input.activateImmediately === true ||
-    (input.soldAt != null && input.paidAmountMinor != null && input.sendForPayment === false);
-  return input.priceMinor > 0 && input.sendForPayment !== false && !staffSold;
-}
-
-export function catalogPatientPackageCreatesOnlinePayment(input: {
-  priceMinor: number;
-  soldAt?: string | null;
-  paidAmountMinor?: number | null;
-  activateImmediately?: boolean;
-}): boolean {
-  const staffSold =
-    input.activateImmediately === true || (input.soldAt != null && input.paidAmountMinor != null);
-  return input.priceMinor > 0 && !staffSold;
-}
-
 const ERROR_STATUS: Record<string, number> = {
   catalog_not_found: 404,
+  sale_link_requires_price: 400,
+  sale_cash_requires_price: 400,
+  sale_free_requires_zero_price: 400,
+  sale_attempt_key_conflict: 409,
   package_not_found: 404,
   appointment_not_found: 404,
   platform_user_id_required: 400,

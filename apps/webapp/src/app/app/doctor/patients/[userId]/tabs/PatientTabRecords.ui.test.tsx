@@ -34,6 +34,8 @@ const patientHeader = {
     patronymic: null,
     phone: '+79990000000',
     email: null,
+    emailVerifiedAt: null,
+    telegramUsername: null,
     bindings: {},
     hasConversation: false,
     isArchived: false,
@@ -178,7 +180,9 @@ describe('patient records tab — a refused load is not a visit history', () => 
     expect(createMembership).toHaveBeenCalledOnce();
 
     fireEvent.click(screen.getByRole('button', { name: /Визитов\s*1/ }));
-    expect(await screen.findByRole('dialog', { name: 'Визиты' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('dialog', { name: /^Визиты\s*:\s*Иванова Мария$/ }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Открыть' }));
     expect(openNotes).toHaveBeenCalledWith('appointment-with-visit');
     expect(createVisit).not.toHaveBeenCalled();
@@ -250,6 +254,58 @@ describe('patient records tab — a refused load is not a visit history', () => 
     expect(await screen.findByText('ЛФК 4 занятия')).toBeInTheDocument();
     expect(screen.getByText('Онлайн')).toBeInTheDocument();
     expect(await screen.findByText('Сеанс ЛФК')).toBeInTheDocument();
+  });
+
+  /**
+   * MONEY-01: the sale happens in the «Добавить абонемент» modal, which announces it with
+   * `patient:packages-changed`. When the overview KPI reads the SSR bootstrap prop instead of the
+   * current list, the card keeps saying «Без абонемента» after a real, paid sale — and the doctor
+   * sells the same membership a second time.
+   */
+  it('reflects a membership sold from the modal without a reload, from current data not the SSR prop', async () => {
+    let soldAlready = false;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+      if (String(input).includes('/api/doctor/booking-engine/patient-packages')) {
+        return respondWith({
+          ok: true,
+          packages: soldAlready
+            ? [
+                {
+                  id: 'package-sold-now',
+                  title: 'ЛФК 4 занятия',
+                  status: 'active',
+                  soldAt: '2026-09-04T10:00:00.000Z',
+                  validUntil: '2026-12-01T00:00:00.000Z',
+                  priceMinor: 1200000,
+                  currency: 'RUB',
+                  paidAmountMinor: 1200000,
+                  paidCurrency: 'RUB',
+                  paymentIntentId: null,
+                  balance: { items: [{ quantityInitial: 4, remaining: 4, displayRemaining: 4 }] },
+                },
+              ]
+            : [],
+        })();
+      }
+      return respondWith({ ok: true, sessions: [] })();
+    });
+
+    render(
+      <PatientTabRecords
+        userId={patientId}
+        compositionMode="master"
+        initialAppointments={[]}
+        initialPackages={[]}
+      />,
+    );
+
+    expect(await screen.findByText('Без абонемента')).toBeInTheDocument();
+
+    soldAlready = true;
+    fireEvent(window, new CustomEvent('patient:packages-changed'));
+
+    expect(await screen.findByText('Абонемент')).toBeInTheDocument();
+    expect(screen.queryByText('Без абонемента')).not.toBeInTheDocument();
   });
 
   it('shows visit totals in the fixed modal summary without putting a count in its title', async () => {

@@ -25,14 +25,14 @@ import {
   doctorPageStackClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { cn } from '@/lib/utils';
-import { MessageCircle, Send, Mail, Pencil, X, Check, Phone, Copy } from 'lucide-react';
+import { MessageCircle, Send, Mail, Phone, Copy } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { Input } from '@/shared/ui/doctor/primitives/input';
-import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 import { DoctorOpenChatButton } from '@/shared/ui/doctor/DoctorOpenChatButton';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -228,13 +228,6 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-function todayInputDate(): string {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 function phoneHref(phone: string): string {
   const normalized = phone.replace(/[^\d+]/g, '');
@@ -315,7 +308,10 @@ function PatientContactActions({
               : 'border-transparent bg-muted/30 text-muted-foreground/40 hover:bg-primary/15 hover:text-primary',
         )}
       >
-        <MessageCircle className="h-3.5 w-3.5" />
+        <span className="relative inline-flex">
+          <MessageCircle className="h-3.5 w-3.5" />
+          <DoctorAttentionBadge count={chatUnreadCount} dot />
+        </span>
       </DoctorOpenChatButton>
       <DoctorOpenChatButton
         patientUserId={identity.userId}
@@ -409,23 +405,6 @@ export function PatientCardClient({
     });
   }, []);
 
-  // FIO inline edit state
-  const [fioEditing, setFioEditing] = useState(false);
-  const [fioSaving, setFioSaving] = useState(false);
-  const [fioError, setFioError] = useState<string | null>(null);
-  // Local overrides applied after a successful save (avoids full page reload)
-  const [fioOverride, setFioOverride] = useState<{
-    firstName: string | null;
-    lastName: string | null;
-    patronymic: string | null;
-    birthDate?: string | null;
-  } | null>(null);
-  // Draft input values
-  const [fioLastName, setFioLastName] = useState('');
-  const [fioFirstName, setFioFirstName] = useState('');
-  const [fioPatronymic, setFioPatronymic] = useState('');
-  const [fioBirthDate, setFioBirthDate] = useState('');
-
   // Auto-switch to karta tab when opening with createVisitFrom URL param
   useEffect(() => {
     if (createVisitFrom) selectTab('karta');
@@ -491,7 +470,7 @@ export function PatientCardClient({
 
   if (!header) {
     return (
-      <>
+      <DoctorAppShell title="Карточка пациента" backHref={patientListHref} mobileBottomGutter>
         <DoctorPageHeader
           id="doctor-patient-card-header"
           title="Карточка пациента"
@@ -512,73 +491,28 @@ export function PatientCardClient({
             <p className="text-sm text-muted-foreground">Пациент не найден.</p>
           </div>
         </section>
-      </>
+      </DoctorAppShell>
     );
   }
+
+  // FILES-09: the Files tab is the only panel whose own list must own scrolling while the rest
+  // of the card stays fixed between the header/tabs and the bottom panels. Reusing the existing
+  // `DoctorAppShell` full-height contract (already used for Пациенты/Коммуникации/Заявки) only
+  // while this specific tab is active keeps every other patient-card tab's current page-scroll
+  // behaviour byte-for-byte unchanged.
+  const isFilesTabActive = activeTab === 'files';
 
   const { identity, support } = header;
   const supportStartedAt = support.startedAt ?? shellMeta.currentProgramStartedAt;
   const supportDuration = supportStartedAt ? formatSupportDuration(supportStartedAt) : null;
 
-  // Resolved FIO: local override wins over server data
-  const resolvedFirstName = fioOverride ? fioOverride.firstName : identity.firstName;
-  const resolvedLastName = fioOverride ? fioOverride.lastName : identity.lastName;
-  const resolvedPatronymic = fioOverride ? fioOverride.patronymic : identity.patronymic;
-  const resolvedBirthDate =
-    fioOverride?.birthDate !== undefined ? fioOverride.birthDate : identity.birthDate;
+  // ФИО/дата рождения — редактируются только через стандартную модалку вкладки «Учётка»
+  // (ACCOUNT-01/04): глобальная шапка карточки — read-only витрина identity.
+  const resolvedBirthDate = identity.birthDate;
   const fioDisplay = formatDoctorFio(
-    { lastName: resolvedLastName, firstName: resolvedFirstName, patronymic: resolvedPatronymic },
+    { lastName: identity.lastName, firstName: identity.firstName, patronymic: identity.patronymic },
     identity.displayName || '—',
   );
-
-  function openFioEdit() {
-    setFioLastName(resolvedLastName ?? '');
-    setFioFirstName(resolvedFirstName ?? '');
-    setFioPatronymic(resolvedPatronymic ?? '');
-    setFioBirthDate(resolvedBirthDate ?? '');
-    setFioError(null);
-    setFioEditing(true);
-  }
-
-  function cancelFioEdit() {
-    setFioEditing(false);
-    setFioError(null);
-  }
-
-  async function saveFio() {
-    setFioSaving(true);
-    setFioError(null);
-    try {
-      const res = await fetch(`/api/doctor/patients/${identity.userId}/fio`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lastName: fioLastName.trim() || null,
-          firstName: fioFirstName.trim() || null,
-          patronymic: fioPatronymic.trim() || null,
-          birthDate: fioBirthDate.trim() || null,
-        }),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => null);
-        const body = json as { error?: string; message?: string } | null;
-        setFioError(body?.message ?? body?.error ?? 'Ошибка сохранения');
-        return;
-      }
-      // Apply local override to avoid page reload
-      setFioOverride({
-        lastName: fioLastName.trim() || null,
-        firstName: fioFirstName.trim() || null,
-        patronymic: fioPatronymic.trim() || null,
-        birthDate: fioBirthDate.trim() || null,
-      });
-      setFioEditing(false);
-    } catch {
-      setFioError('Ошибка сети');
-    } finally {
-      setFioSaving(false);
-    }
-  }
 
   const hasTelegram = Boolean(identity.bindings.telegramId);
   const hasMax = Boolean(identity.bindings.maxId);
@@ -587,7 +521,12 @@ export function PatientCardClient({
   const chatButtonHighlighted = hasTelegram || hasMax || hasConversationSignal;
 
   return (
-    <>
+    <DoctorAppShell
+      title="Карточка пациента"
+      backHref={patientListHref}
+      mobileBottomGutter={!isFilesTabActive}
+      layout={isFilesTabActive ? 'full-height' : 'default'}
+    >
       <DoctorShellMobileBottomTabsRegistration content={mobileBottomTabs} />
       <DoctorPageHeader
         id="doctor-patient-card-header"
@@ -609,7 +548,11 @@ export function PatientCardClient({
         }
       />
       <section
-        className={cn(doctorPageStackClass, 'flex flex-col gap-3 pt-3 pb-3 md:pt-0 md:pb-0')}
+        className={cn(
+          doctorPageStackClass,
+          'flex flex-col gap-3 pt-3 pb-3 md:pt-0 md:pb-0',
+          isFilesTabActive && 'min-h-0 flex-1 overflow-hidden',
+        )}
       >
         {/* ================================================================
           IDENTITY HEADER CARD — READ ONLY
@@ -621,104 +564,16 @@ export function PatientCardClient({
           <div className="px-4 pt-3.5 pb-2.5 flex flex-wrap gap-3.5 items-start">
             {/* LEFT: identity */}
             <div className="flex-1 min-w-0 flex flex-col gap-0">
-              {/* FIO (primary) + edit button */}
+              {/* FIO (primary) — read-only; edits live in «Учётка» (ACCOUNT-01/04) */}
               <div className="flex items-start gap-2 flex-wrap">
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                  {/* FIO row */}
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <span id="doctor-client-display-name" className={doctorClientDisplayNameClass}>
                       {fioDisplay}
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Редактировать ФИО"
-                      onClick={openFioEdit}
-                      className="ml-0.5 h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
                   </div>
                 </div>
               </div>
-
-              {/* Inline FIO edit form */}
-              {fioEditing && (
-                <div className="mt-2 flex flex-col gap-1.5 rounded-lg border border-border bg-muted/30 p-3">
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="flex flex-col gap-0.5">
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                        Фамилия
-                      </label>
-                      <Input
-                        type="text"
-                        value={fioLastName}
-                        onChange={(e) => setFioLastName(e.target.value)}
-                        placeholder="Иванов"
-                        className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                        Имя
-                      </label>
-                      <Input
-                        type="text"
-                        value={fioFirstName}
-                        onChange={(e) => setFioFirstName(e.target.value)}
-                        placeholder="Иван"
-                        className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                        Отчество
-                      </label>
-                      <Input
-                        type="text"
-                        value={fioPatronymic}
-                        onChange={(e) => setFioPatronymic(e.target.value)}
-                        placeholder="Иванович"
-                        className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    <div className="flex flex-col gap-0.5">
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                        Дата рождения
-                      </label>
-                      <DoctorDatePicker
-                        value={fioBirthDate}
-                        onChange={setFioBirthDate}
-                        placeholder="Не указана"
-                        max={todayInputDate()}
-                      />
-                    </div>
-                  </div>
-                  {fioError && <p className="text-xs text-destructive">{fioError}</p>}
-                  <div className="flex gap-2 mt-0.5">
-                    <Button
-                      variant="default"
-                      onClick={saveFio}
-                      disabled={fioSaving}
-                      className="h-auto gap-1 rounded-md px-3 py-1 text-xs font-medium disabled:opacity-60"
-                    >
-                      <Check className="h-3 w-3" />
-                      {fioSaving ? 'Сохранение…' : 'Сохранить'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={cancelFioEdit}
-                      disabled={fioSaving}
-                      className="h-auto gap-1 rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 disabled:opacity-60"
-                    >
-                      <X className="h-3 w-3" />
-                      Отмена
-                    </Button>
-                  </div>
-                </div>
-              )}
 
               {/* Дата рождения — read-only; edit via pencil */}
               <div className={cn(doctorMetaTextClass, 'mt-2.5 flex flex-wrap items-center gap-1.5')}>
@@ -769,45 +624,51 @@ export function PatientCardClient({
           </div>
         ) : null}
 
-        {/* TAB PANELS — mount on first visit; tab data streams in via Suspense. */}
+        {/* TAB PANELS — mount on first visit; tab data streams in via Suspense.
+            FILES-09: while the Files tab is active, this wrapper fills the remaining flex
+            space (`<section>` above is bounded by the full-height shell) so only the Files
+            tab's own file list scrolls; every other tab renders through the same plain
+            wrapper as before (no classes) and keeps its current page-scroll behaviour. */}
         <Suspense fallback={<PatientTabPanelLoading />}>
-          <PatientCardTabPanels
-            shellMeta={shellMeta}
-            tabPromise={tabPromise}
-            initialTab={initialTab}
-            createVisitFrom={createVisitFrom}
-            visitDate={visitDate}
-            embeddedProgramContent={embeddedProgramContent}
-            isAdmin={isAdmin}
-            patientListHref={patientListHref}
-            activeTab={activeTab}
-            visitedTabs={visitedTabs}
-            selectTab={selectTab}
-            pendingAppointmentId={pendingAppointmentId}
-            pendingVisitDate={pendingVisitDate}
-            pendingPrefillLocation={pendingPrefillLocation}
-            pendingPrefillService={pendingPrefillService}
-            pendingPrefillDurationMin={pendingPrefillDurationMin}
-            onPendingConsumed={() => {
-              setPendingAppointmentId(null);
-              setPendingVisitDate(null);
-              setPendingPrefillLocation(null);
-              setPendingPrefillService(null);
-              setPendingPrefillDurationMin(null);
-            }}
-            onCreateVisitFromAppointment={(prefill: AppointmentPrefill) => {
-              setPendingAppointmentId(prefill.id);
-              setPendingPrefillLocation(prefill.location ?? null);
-              setPendingPrefillService(prefill.service ?? null);
-              setPendingPrefillDurationMin(prefill.durationMin ?? null);
-              selectTab('karta');
-            }}
-            newVisitRequestId={newVisitRequestId}
-            header={header}
-          />
+          <div className={cn(isFilesTabActive && 'flex min-h-0 flex-1 flex-col overflow-hidden')}>
+            <PatientCardTabPanels
+              shellMeta={shellMeta}
+              tabPromise={tabPromise}
+              initialTab={initialTab}
+              createVisitFrom={createVisitFrom}
+              visitDate={visitDate}
+              embeddedProgramContent={embeddedProgramContent}
+              isAdmin={isAdmin}
+              patientListHref={patientListHref}
+              activeTab={activeTab}
+              visitedTabs={visitedTabs}
+              selectTab={selectTab}
+              pendingAppointmentId={pendingAppointmentId}
+              pendingVisitDate={pendingVisitDate}
+              pendingPrefillLocation={pendingPrefillLocation}
+              pendingPrefillService={pendingPrefillService}
+              pendingPrefillDurationMin={pendingPrefillDurationMin}
+              onPendingConsumed={() => {
+                setPendingAppointmentId(null);
+                setPendingVisitDate(null);
+                setPendingPrefillLocation(null);
+                setPendingPrefillService(null);
+                setPendingPrefillDurationMin(null);
+              }}
+              onCreateVisitFromAppointment={(prefill: AppointmentPrefill) => {
+                setPendingAppointmentId(prefill.id);
+                setPendingPrefillLocation(prefill.location ?? null);
+                setPendingPrefillService(prefill.service ?? null);
+                setPendingPrefillDurationMin(prefill.durationMin ?? null);
+                selectTab('karta');
+              }}
+              newVisitRequestId={newVisitRequestId}
+              header={header}
+            />
+          </div>
         </Suspense>
       </section>
-    </>
+    </DoctorAppShell>
   );
 }
 
@@ -935,7 +796,12 @@ function PatientCardTabPanels({
         </div>
       ) : null}
       {visitedTabs.has('files') ? (
-        <div className={cn(activeTab !== 'files' && 'hidden')}>
+        <div
+          className={cn(
+            'flex min-h-0 flex-1 flex-col overflow-hidden',
+            activeTab !== 'files' && 'hidden',
+          )}
+        >
           <PatientTabFiles
             userId={identity.userId}
             header={header}
@@ -967,6 +833,7 @@ function PatientCardTabPanels({
           showPackageList={false}
           mutationsAllowed={membershipMutationsAllowed}
           consumptionAllowed
+          onCreated={() => setMembershipConfigurationOpen(false)}
         />
       </DoctorModal>
     </>

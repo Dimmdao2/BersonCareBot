@@ -192,6 +192,7 @@ function membershipsHarness() {
     validUntil: null,
     deductionMode: 'auto_on_visit_confirmed',
     paymentIntentId: null,
+    checkoutUrl: null,
     paymentRef: null,
     soldAt: null,
     paidAmountMinor: null,

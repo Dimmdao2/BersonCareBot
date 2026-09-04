@@ -1,5 +1,5 @@
 /**
- * GET/POST /api/doctor/booking-engine/appointments/:id/comments
+ * GET/POST/DELETE /api/doctor/booking-engine/appointments/:id/comments
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -72,4 +72,30 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     throw e;
   }
+}
+
+/**
+ * Очистка основного комментария записи (APPT-FORM-13). Карточка и форма показывают один
+ * комментарий, поэтому «очистить» снимает его через тот же контракт, а не пишет пустую запись
+ * поверх истории. Границей владеет тот же `own`-доступ, что и запись комментария.
+ */
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const gate = await requireDoctorBookingEngine();
+  if (!gate.ok) return gate.response;
+
+  const { id: appointmentId } = await context.params;
+  if (!z.string().uuid().safeParse(appointmentId).success) {
+    return NextResponse.json({ ok: false, error: 'invalid_appointment' }, { status: 400 });
+  }
+
+  const orgId = gate.ctx.organizationId;
+  const appointment = await resolveDoctorAppointmentAccess(gate.ctx, appointmentId, 'own');
+  if (!appointment) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+  const deps = buildAppDeps();
+  await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.clientHistory.clearAppointmentComments(orgId, appointmentId),
+  );
+  return NextResponse.json({ ok: true });
 }

@@ -13,6 +13,52 @@ Validity: `packageValidity.ts` (auto `expired` when `valid_until` passed).
 Создание нового онлайн-платежа требует одновременно `subscriptions=full_access` и `payments=full_access`. Проверка `payments` применяется только к платной отправке на оплату: бесплатная выдача и зафиксированная сотрудником офлайн-продажа остаются доступны. Уже купленные абонементы, история и расходование не зависят от возможности создавать новые платежи.
 `GET /api/booking/memberships/payment-status` сохраняет чтение статуса существующего абонемента, но возвращает `checkoutUrl=null`, когда новые платежи недоступны по тарифу.
 
+### Продажа из кабинета: один вход, способ оплаты — параметр
+
+`DoctorClientMembershipsPanel` не спрашивает «Цена» и «Оплачено» двумя независимыми числами. Форма задаёт цену
+и **способ оплаты**; всё остальное про деньги выводит сервер. Клиент присылает только `saleMethod`,
+`saleIdempotencyKey` и (для наличной/бесплатной продажи) `soldAt`. Схема роута — `.strict()`: тело с
+`paidAmountMinor`, `activateImmediately` или `sendForPayment` отвергается как `invalid_body`, а не молча
+обрезается.
+
+Продажу целиком ведёт `app-layer/booking/staffMembershipSale.ts` — там же, где живёт
+`staffAppointmentPayments`, и по той же причине: `memberships` и `patient-payments` не могут зависеть друг от
+друга. Второй кассы он не заводит — наличные пишутся в существующую дверь `patientPayments.addCashPayment`,
+у которой субъектом вместо записи выступает абонемент (`patient_payment.patient_package_id`).
+
+| Способ | Что делает сервер |
+| ------ | ----------------- |
+| Наличными | пакет создаётся `offered` → `addCashPayment` (`amountMinor` ← `price_minor` пакета, `idempotencyKey` = `staff-package-cash:{id}`) → `settleStaffCashSale` → `activatePatientPackageFromDoctorSale` (`paidAmountMinor` ← `price_minor`, статус `active`). Порядок именно такой: сбой между шагами оставляет `offered`-пакет без денег, а не активный пакет без строки в кассе. Требует `price_minor > 0`, иначе `sale_cash_requires_price` |
+| Ссылка на оплату | `createPaymentOfferOrKeepOffered` → intent + `checkoutUrl`, статус `awaiting_payment`. Ссылка кладётся в `be_patient_packages.checkout_url` тем же statement, что и `payment_intent_id`, поэтому повтор попытки отдаёт уже выданную ссылку, а не выставляет второй счёт. Наружу её отдаёт только сам ответ продажи: `withBalance` (все списки и карточки обоих кабинетов) поле снимает, пациент получает ссылку через `payment-status`, где она закрыта тарифным гейтом. Требует `price_minor > 0`, иначе `sale_link_requires_price` |
+| Бесплатно | `activatePatientPackageFromDoctorSale` с `paidAmountMinor: 0`. Требует `price_minor = 0`, иначе `sale_free_requires_zero_price` |
+
+**Идемпотентность продажи.** `be_patient_packages.sale_idempotency_key` + partial unique index
+`uq_be_patient_packages_sale_idempotency (organization_id, sale_idempotency_key)`. Повтор той же попытки —
+после сетевой ошибки, во второй вкладке, после сбоя на шаге кассы — находит уже созданный пакет и доводит его
+до конца; двух активных пакетов и двойной оплаты не возникает. Ключ скоупится организацией.
+
+Хранится не голый ключ вызывающего, а ключ, связанный с самим запросом: `saleAttemptIdentity.ts` добавляет к
+нему отпечаток того, что продаётся (покупатель, способ, каталожный шаблон либо цена/валюта/срок/режим
+списания/позиции). Свободный текст (`title`, `notes`) и `soldAt` в отпечаток не входят: первое правится по ходу
+попытки, второе панель штампует «сейчас» на каждой отправке. Поэтому повтор той же продажи сходится, а другая
+продажа под сохранённым ключом получает свой пакет, а не цену предыдущего. Найденный по ключу пакет
+дополнительно сверяется с запросом (`saleAttemptMatchesPackage`); расхождение — `sale_attempt_key_conflict`
+(409), а не тихая продажа чужого пакета. Панель держит ключи ручной и каталожной формы раздельно. Наличная строка
+кассы держится вторым partial unique index `uq_patient_payment_package_idempotency
+(organization_id, patient_package_id, idempotency_key)`: существующий appointment-индекс для неё не работает,
+потому что `appointment_id` там NULL, а NULL в unique index не сравниваются.
+
+**Что показывается.** «Ссылка на оплату» — только когда `GET .../patient-packages` вернул
+`onlinePaymentAvailable` (механика `payments` + настроенный провайдер) **и** цена не нулевая; «Отправить в
+чат» — только при `patientChatAvailable`. `cashLedgerAvailable` в том же GET говорит, доедет ли наличная
+продажа до кассы: без механики `payments` у клиники кассового журнала нет вовсе, офлайн-продажа остаётся
+доступной и строка `patient_payment` не пишется (ответ несёт `cashLedgerRecorded`). QR и отправка ссылки
+переиспользуют `localQrCode` и `sendPaymentLinkToPatientChat` — второй реализации нет.
+
+**Неудавшаяся выдача ссылки — не завершённая продажа.** Если ссылка не создана, ответ несёт
+`paymentLinkError`, панель печатает названную сервером причину и фактический статус пакета и **не** зовёт
+`onCreated` — иначе хост-модалка закрывалась поверх сообщения, и врач видел только зелёный тост.
+
 ## Booking integration
 
 **Canonical-only debit path:** reserve/consume/FEFO и ручные действия staff опираются на **canonical `serviceId`** записи и позиций пакета. В UI сеансов абонемента: `mappingStatus` + бейдж «нет связи услуги».

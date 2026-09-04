@@ -88,6 +88,12 @@ export type RescheduleAppointmentInput = {
   roomId?: string | null;
   specialistId?: string | null;
   serviceId?: string | null;
+  /**
+   * APPT-FORM-13: правка записи умеет менять пациента в той же клинике. Undefined оставляет
+   * текущего; новый пациент проходит те же tenant-проверки, что и создание записи, а запись
+   * с привязанным абонементом или платежом менять пациента не даёт (`patient_change_not_allowed`).
+   */
+  platformUserId?: string | null;
   cityCode?: string | null;
 };
 

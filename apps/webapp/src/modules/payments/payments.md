@@ -30,6 +30,33 @@ canonical prepayment summary plus the appointment-scoped cash-ledger total; `POS
 settles only the server-authorized remainder, while `POST { action: 'link' }` reuses
 `createAppointmentPaymentIntent` with a deterministic appointment/remainder idempotency key.
 
+`GET` additionally states what the card is allowed to draw, so the UI never renders a control the
+`POST` door would refuse:
+
+- `paymentsEntitled` — tariff mechanic `payments` (`getMechanicMutationAvailability`); `false` hides
+  the whole payment block, it is not a disabled control.
+- `onlinePaymentAvailable` — the above **plus** `getPrepaymentAvailability` (payments enabled and a
+  provider resolvable); gates «Выставить счёт», QR and the pay-link.
+- `patientChatAvailable` — the patient is `linked` to the portal, so the support conversation is a
+  real delivery path; gates «Отправить в чат». There is no per-channel send seam and no patient SMS
+  contract, so no surface offers Telegram / Max / push / SMS as separate channels.
+
+## Наличные: одна дверь, два субъекта
+
+`patient_payment` — канонический источник кассы: из него считаются лента оплат
+(`/api/doctor/patients/[userId]/payment-timeline`) и KPI «Наличные»/«Итого» на вкладке финансов. Писать в неё
+можно только через `patientPayments.addCashPayment`, и у этой записи два субъекта, а не две реализации:
+
+| Субъект | Кто вызывает | Ключ идемпотентности | Граница в БД |
+| ------- | ------------ | -------------------- | ------------ |
+| Запись | `app-layer/booking/staffAppointmentPayments` | `staff-appointment-cash:{appointmentId}:{remainder}` | `uq_patient_payment_appointment_idempotency` |
+| Абонемент | `app-layer/booking/staffMembershipSale` | `staff-package-cash:{patientPackageId}` | `uq_patient_payment_package_idempotency` |
+
+Оба индекса partial и держат только свой субъект: у продажи абонемента `appointment_id` = NULL, а NULL в
+unique index не сравниваются, поэтому appointment-индекс её не ограничивает — отсюда второй. `ON CONFLICT` в
+`pgPatientPayments.addCashPayment` без явного target: одна вставка не может назвать оба индекса, а перечитать
+существующую строку нужно в обоих случаях.
+
 ## Модули
 
 | Слой                | Путь                                    |

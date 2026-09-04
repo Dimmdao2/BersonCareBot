@@ -15,21 +15,11 @@ import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { cn } from '@/lib/utils';
 
 /**
- * react-day-picker's own accent var, scoped to the popup content. `--primary` is themed
- * only under `#app-shell-doctor.theme-bersoncare-doctor-dna`, but Popover/Dialog content
- * portals to `document.body` — outside that scope — so it must read the globally-scoped
- * brand token instead, or it silently falls back to the generic (non-DNA) shadcn default.
+ * Оформление календаря — в `.doctor-day-picker` (`app/styles/doctor.css`): выбранный день,
+ * «сегодня», стрелки месяца и радиусы читают зональные `--primary` / `--doctor-control-radius`.
+ * Doctor-тема объявлена и на `:root:has(#app-shell-doctor)`, поэтому токены доступны в портале.
  */
-const RDP_ACCENT_STYLE = {
-  ['--rdp-accent-color' as string]: 'var(--bc-accent-500, #386fba)',
-} as const;
-
-/**
- * react-day-picker only outlines the selected day by default (`--rdp-selected-border`);
- * it never fills it. Fill it with the brand primary + white text so it reads as an actual
- * selection, matching the filled pill DoctorTimeColumn already uses for its selected slot.
- */
-const RDP_SELECTED_DAY_CLASS = '!bg-[var(--bc-accent-500,#386fba)] !text-white !border-transparent';
+const RDP_CLASS = 'doctor-day-picker';
 
 /**
  * Shared canonical doctor picker (react-day-picker + brand time column).
@@ -175,7 +165,7 @@ export function DoctorDateTimePicker({
             </Button>
           }
         >
-          <div className="min-h-0 flex-1 overflow-y-auto" style={RDP_ACCENT_STYLE}>
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {isTimeOnly ? (
               <div className="p-3">
                 <DoctorTimeColumn
@@ -197,8 +187,7 @@ export function DoctorDateTimePicker({
                   defaultMonth={draftDate}
                   disabled={maxDate ? { after: maxDate } : undefined}
                   onSelect={(d) => setDraftDate(d)}
-                  classNames={{ selected: RDP_SELECTED_DAY_CLASS }}
-                  className="flex justify-center p-3"
+                  className={cn(RDP_CLASS, 'flex justify-center p-3')}
                 />
                 {!isDateOnly ? (
                   <div className="border-t border-border p-3">
@@ -253,7 +242,7 @@ export function DoctorDateTimePicker({
           />
         </PopoverContent>
       ) : isDateOnly ? (
-        <PopoverContent className="w-auto p-0" align="start" style={RDP_ACCENT_STYLE}>
+        <PopoverContent className="w-auto p-0" align="start">
           <DayPicker
             mode="single"
             locale={ru}
@@ -266,12 +255,11 @@ export function DoctorDateTimePicker({
               commit(DateTime.fromJSDate(d), '');
               setOpen(false);
             }}
-            classNames={{ selected: RDP_SELECTED_DAY_CLASS }}
-            className="p-3"
+            className={cn(RDP_CLASS, 'p-3')}
           />
         </PopoverContent>
       ) : (
-        <PopoverContent className="w-auto p-0" align="start" style={RDP_ACCENT_STYLE}>
+        <PopoverContent className="w-auto p-0" align="start">
           <div className="flex flex-col sm:flex-row sm:items-stretch">
             <DayPicker
               mode="single"
@@ -284,8 +272,7 @@ export function DoctorDateTimePicker({
                 if (!d) return;
                 commit(DateTime.fromJSDate(d), time || '09:00');
               }}
-              classNames={{ selected: RDP_SELECTED_DAY_CLASS }}
-              className="p-3"
+              className={cn(RDP_CLASS, 'p-3')}
             />
             <div className="border-t border-border p-3 sm:border-t-0 sm:border-l">
               <span className="mb-1 block text-xs text-muted-foreground">Время</span>

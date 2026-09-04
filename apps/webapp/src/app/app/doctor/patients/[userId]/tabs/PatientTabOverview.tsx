@@ -25,7 +25,7 @@ import {
   type SerializedSupportMessage,
 } from '@/modules/messaging/serializeSupportMessage';
 import type { DoctorPatientProgramActivity } from '@/app/app/doctor/patients/loadDoctorPatientProgramActivity';
-import type { PatientExercisesWithCommentsResult } from '@/app/app/doctor/comments/loadDoctorPatientExercisesWithComments';
+import type { RecommendationMediaItem } from '@/modules/recommendations/types';
 import type { DoctorPatientExerciseCalendarSnapshot } from '@/app/app/doctor/patients/loadDoctorPatientExerciseCalendar';
 import type { DoctorPatientMessagesSnapshot } from '@/app/app/doctor/patients/loadDoctorPatientMessagesSnapshot';
 import type { BootstrapEnvelope } from '@/app/app/doctor/patients/doctorPatientCardBootstrapShared';
@@ -37,7 +37,6 @@ import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
 import type {
   TreatmentProgramInstanceSummary,
   TreatmentProgramInstanceDetail,
-  TreatmentProgramInstanceStageItemView,
 } from '@/modules/treatment-program/types';
 import {
   deriveOverviewProgramWidgetFromDetail,
@@ -69,7 +68,9 @@ import {
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
-import { DoctorExerciseDetailModal } from '@/app/app/doctor/patients/[userId]/DoctorExerciseDetailModal';
+import { DoctorProgramItemDiscussionDialog } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramItemDiscussionDialog';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
+import { formatDoctorFioShort } from '@/shared/lib/fio';
 import { SpecialistTaskFormDialog } from '@/app/app/doctor/clients/SpecialistTaskFormDialog';
 import { SpecialistTaskRow as TaskRow } from '@/app/app/doctor/clients/SpecialistTaskRow';
 import {
@@ -820,6 +821,58 @@ function buildSsrSeedData(
   };
 }
 
+/**
+ * Строка упражнения в списке этапа: одно начертание/бейдж для упражнений текущего этапа и для
+ * непрочитанных из других этапов — суммы бейджей сходятся с агрегатом пациента.
+ */
+function StageExerciseRow({
+  stageItemId,
+  title,
+  media,
+  unread,
+  onOpen,
+}: {
+  stageItemId: string;
+  title: string;
+  media: RecommendationMediaItem | null;
+  unread: number;
+  onOpen: (stageItemId: string) => void;
+}) {
+  return (
+    <li>
+      <Button
+        type="button"
+        variant="ghost"
+        className={cn(
+          doctorDnaFlatListRowClass,
+          doctorDnaFlatListClickableClass,
+          'h-auto min-h-0 w-full rounded-none bg-transparent text-left shadow-none',
+        )}
+        onClick={() => onOpen(stageItemId)}
+      >
+        <DoctorCatalogMediaStaticThumb
+          media={media}
+          frameClassName="size-12 rounded-sm border border-border/60 bg-muted/15"
+          sizes="48px"
+          iconClassName="size-4"
+        />
+        <div className="min-w-0 flex-1">
+          <p
+            className={cn(
+              doctorDnaFlatListPrimaryClass,
+              'line-clamp-2 whitespace-normal leading-snug',
+              unread > 0 ? 'font-medium' : undefined,
+            )}
+          >
+            {title}
+          </p>
+        </div>
+        <DoctorAttentionBadge count={unread} className="shrink-0 self-center" />
+      </Button>
+    </li>
+  );
+}
+
 export function PatientTabOverview({
   active = true,
   userId,
@@ -900,51 +953,12 @@ export function PatientTabOverview({
   const [editingTask, setEditingTask] = useState<SpecialistTaskRow | null>(null);
   const [stageExercisesModalOpen, setStageExercisesModalOpen] = useState(false);
   const [selectedStageExerciseId, setSelectedStageExerciseId] = useState<string | null>(null);
-  const [stageExerciseComments, setStageExerciseComments] = useState<{
-    userId: string;
-    counts: Record<string, { total: number; unread: number }>;
-  } | null>(null);
   const [clientNowIso, setClientNowIso] = useState<string | null>(null);
 
   useEffect(() => {
     // Time-dependent labels are intentionally absent from SSR and the first client render.
     setClientNowIso(new Date().toISOString());
   }, []);
-
-  useEffect(() => {
-    if (!stageExercisesModalOpen) return;
-    let active = true;
-
-    void fetch(`/api/doctor/comments/patients/${encodeURIComponent(userId)}/exercises`, {
-      credentials: 'include',
-    })
-      .then((response) =>
-        response.ok
-          ? (response.json() as Promise<{
-              ok: boolean;
-              data: PatientExercisesWithCommentsResult | null;
-            }>)
-          : null,
-      )
-      .catch(() => null)
-      .then((response) => {
-        if (!active || !response?.ok) return;
-        const counts: Record<string, { total: number; unread: number }> = {};
-        for (const group of response.data?.groups ?? []) {
-          for (const exercise of group.exercises) {
-            counts[exercise.stageItemId] = {
-              total: exercise.totalComments,
-              unread: exercise.unreadComments,
-            };
-          }
-        }
-        setStageExerciseComments({ userId, counts });
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [stageExercisesModalOpen, userId]);
 
   const hasSsrData =
     initialClinicalState != null &&
@@ -1491,6 +1505,10 @@ export function PatientTabOverview({
 
   const displayStageIndex = data?.programCurrentStageIndex ?? 0;
   const displayStage = data?.programCurrentStage ?? null;
+  // «Фамилия Имя» пациента для второй строки шапки модалок упражнения/статистики/рекомендаций.
+  const patientHeaderName = header
+    ? formatDoctorFioShort(header.identity, header.identity.displayName)
+    : null;
   const programControlDate = displayStage
     ? expectedStageControlDateIso({
         startedAt: displayStage.startedAt ?? null,
@@ -1526,52 +1544,59 @@ export function PatientTabOverview({
     : [];
   const selectedStageExercise =
     displayStageExercises.find((item) => item.id === selectedStageExerciseId) ?? null;
-
-  const updateStageExercise = (nextItem: TreatmentProgramInstanceStageItemView) => {
-    setData((prev) => {
-      if (!prev) return prev;
-      const updateStage = (stage: TreatmentInstanceStage): TreatmentInstanceStage => ({
-        ...stage,
-        items: stage.items.map((item) => (item.id === nextItem.id ? nextItem : item)),
-      });
-      return {
-        ...prev,
-        programStages: prev.programStages.map(updateStage),
-        programCurrentStage: prev.programCurrentStage
-          ? updateStage(prev.programCurrentStage)
-          : null,
-      };
-    });
-  };
+  /**
+   * Строка выбранного упражнения — только из текущего этапа: модалка озаглавлена «Упражнения
+   * этапа N» и не показывает упражнения других этапов. Без известного instanceId модалку не
+   * открываем: она грузит тред по паре instance/item.
+   */
+  const selectedExerciseTargetRaw =
+    selectedStageExercise && data?.programInstanceId
+      ? {
+          instanceId: data.programInstanceId,
+          itemId: selectedStageExercise.id,
+          label: stageItemSnapshotTitle(
+            selectedStageExercise.snapshot,
+            selectedStageExercise.itemType,
+          ),
+        }
+      : null;
+  const selectedExerciseTarget = selectedExerciseTargetRaw?.instanceId
+    ? selectedExerciseTargetRaw
+    : null;
+  /**
+   * Один источник unread на весь виджет — разбивка агрегата пациента по элементам этапа. Из неё
+   * считаются и бейджи упражнений в модалке, и счётчик на плашке этапа, поэтому они сходятся
+   * между собой по построению (UNREAD-04/05).
+   */
+  const stageExerciseUnread = (stageItemId: string): number =>
+    data?.programActivity?.unreadByStageItemId?.[stageItemId] ?? 0;
+  /**
+   * Счётчик плашки этапа — СТАДИЙНЫЙ: сумма непрочитанных сообщений по упражнениям этого этапа.
+   * Program-wide величина живёт в KPI «Комментарии» на «Сегодня», а не здесь: модалка называется
+   * «Упражнения этапа N», и её триггер обязан считать то же, что она показывает.
+   */
+  const currentStageUnread = displayStageExercises.reduce(
+    (sum, item) => sum + stageExerciseUnread(item.id),
+    0,
+  );
 
   const markStageExerciseCommentsRead = (stageItemId: string) => {
-    const clearedUnread =
-      stageExerciseComments?.userId === userId
-        ? (stageExerciseComments.counts[stageItemId]?.unread ?? 0)
-        : 0;
-    setStageExerciseComments((prev) =>
-      prev?.userId === userId && prev.counts[stageItemId]
-        ? {
-            ...prev,
-            counts: {
-              ...prev.counts,
-              [stageItemId]: { ...prev.counts[stageItemId], unread: 0 },
-            },
-          }
-        : prev,
-    );
-    if (clearedUnread <= 0) return;
-    setData((prev) =>
-      prev?.programActivity
-        ? {
-            ...prev,
-            programActivity: {
-              ...prev.programActivity,
-              unreadCount: Math.max(0, prev.programActivity.unreadCount - clearedUnread),
-            },
-          }
-        : prev,
-    );
+    setData((prev) => {
+      const activity = prev?.programActivity;
+      if (!prev || !activity) return prev;
+      const clearedUnread = activity.unreadByStageItemId?.[stageItemId] ?? 0;
+      if (clearedUnread <= 0) return prev;
+      const nextByStageItem = { ...activity.unreadByStageItemId };
+      delete nextByStageItem[stageItemId];
+      return {
+        ...prev,
+        programActivity: {
+          ...activity,
+          unreadCount: Math.max(0, activity.unreadCount - clearedUnread),
+          unreadByStageItemId: nextByStageItem,
+        },
+      };
+    });
   };
   const attentionTasks =
     tasksTodayIso && tasksDisplayIana
@@ -2071,13 +2096,14 @@ export function PatientTabOverview({
                   variant="ghost"
                   onClick={() => setStageExercisesModalOpen(true)}
                   className={cn(
-                    'h-auto min-h-9 w-full justify-start rounded-lg border px-3 py-2 text-left text-sm font-normal',
-                    (data?.programActivity?.unreadCount ?? 0) > 0
+                    'relative h-auto min-h-9 w-full justify-start rounded-lg border px-3 py-2 text-left text-sm font-normal',
+                    currentStageUnread > 0
                       ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:text-destructive'
                       : 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary',
                   )}
                 >
                   <span className="line-clamp-2">{displayStage.title}</span>
+                  <DoctorAttentionBadge count={currentStageUnread} dot />
                 </Button>
               ) : null}
               {exerciseCalendar}
@@ -2104,72 +2130,34 @@ export function PatientTabOverview({
         >
           {displayStageExercises.length > 0 ? (
             <DoctorDnaFlatList>
-              {displayStageExercises.map((item) => {
-                const commentCounts =
-                  stageExerciseComments?.userId === userId
-                    ? (stageExerciseComments.counts[item.id] ?? { total: 0, unread: 0 })
-                    : null;
-                return (
-                  <li key={item.id}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className={cn(
-                        doctorDnaFlatListRowClass,
-                        doctorDnaFlatListClickableClass,
-                        'h-auto min-h-0 w-full rounded-none bg-transparent text-left shadow-none',
-                      )}
-                      onClick={() => setSelectedStageExerciseId(item.id)}
-                    >
-                      <DoctorCatalogMediaStaticThumb
-                        media={primaryMediaForStageItem(item)}
-                        frameClassName="size-12 rounded-sm border border-border/60 bg-muted/15"
-                        sizes="48px"
-                        iconClassName="size-4"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={cn(
-                            doctorDnaFlatListPrimaryClass,
-                            'line-clamp-2 whitespace-normal leading-snug',
-                            commentCounts?.unread ? 'pr-4' : undefined,
-                          )}
-                        >
-                          {stageItemSnapshotTitle(item.snapshot, item.itemType)}
-                        </p>
-                      </div>
-                      {commentCounts?.unread ? (
-                        <span
-                          className="absolute top-3 right-[var(--doctor-list-inline-padding,18px)] size-2 rounded-full bg-destructive"
-                          aria-label="Есть непрочитанные комментарии"
-                        />
-                      ) : null}
-                    </Button>
-                  </li>
-                );
-              })}
+              {displayStageExercises.map((item) => (
+                <StageExerciseRow
+                  key={item.id}
+                  stageItemId={item.id}
+                  title={stageItemSnapshotTitle(item.snapshot, item.itemType)}
+                  media={primaryMediaForStageItem(item)}
+                  unread={stageExerciseUnread(item.id)}
+                  onOpen={setSelectedStageExerciseId}
+                />
+              ))}
             </DoctorDnaFlatList>
           ) : (
             <DoctorEmptyState className="m-[var(--doctor-block-padding,18px)]">
               В этапе нет упражнений
             </DoctorEmptyState>
           )}
-          {selectedStageExercise && data?.programInstanceId ? (
-            <DoctorExerciseDetailModal
-              key={selectedStageExercise.id}
+          {selectedExerciseTarget ? (
+            <DoctorProgramItemDiscussionDialog
+              key={selectedExerciseTarget.itemId}
+              instanceId={selectedExerciseTarget.instanceId}
+              itemId={selectedExerciseTarget.itemId}
+              itemLabel={selectedExerciseTarget.label}
+              patientName={patientHeaderName}
               open
               onOpenChange={(nextOpen) => {
                 if (!nextOpen) setSelectedStageExerciseId(null);
               }}
-              instanceId={data.programInstanceId}
-              item={selectedStageExercise}
-              unreadCount={
-                stageExerciseComments?.userId === userId
-                  ? (stageExerciseComments.counts[selectedStageExercise.id]?.unread ?? 0)
-                  : 0
-              }
-              onItemUpdated={updateStageExercise}
-              onMarkedRead={markStageExerciseCommentsRead}
+              onMarkedRead={() => markStageExerciseCommentsRead(selectedExerciseTarget.itemId)}
             />
           ) : null}
         </DoctorModal>

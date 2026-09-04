@@ -29,6 +29,10 @@ type DoctorWorkspaceViewportProps = {
  * Mobile chrome is three real viewport rows: header, remaining content, bottom navigation.
  * Page-level shells decide whether the middle row is a fitted dashboard, an internally
  * scrolling list/calendar, or a document surface.
+ *
+ * Between the content and the global bottom navigation a page may dock up to two extra
+ * chrome rows. Bottom-up they read: global navigation → section tabs → subsection tabs of
+ * the open section, so a deeper level always sits above the level that owns it.
  */
 export function DoctorWorkspaceViewport({
   header,
@@ -50,6 +54,7 @@ export function DoctorWorkspaceViewport({
           {children}
         </div>
       </div>
+      {shellChrome?.mobileSubsectionTabs}
       {shellChrome?.mobileBottomTabs}
       {bottomNav ? <DoctorBottomNav {...bottomNav} /> : null}
     </div>

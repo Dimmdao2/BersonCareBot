@@ -11,10 +11,15 @@ import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
 import {
+  DOCTOR_CALENDAR_TODAY_MARKER_CLASS,
   buildDoctorCalendarNonWorkingRanges,
   doctorCalendarNonWorkingClassNames,
   formatDoctorCalendarHour,
 } from '@/shared/ui/doctor/calendar/doctorCalendarPresentation';
+import {
+  DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
+  DoctorSchedulePeriodNav,
+} from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { cn } from '@/lib/utils';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
@@ -42,11 +47,23 @@ import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/shared/ui/doctor/primitives/dropdown-menu';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { routePaths } from '@/app-layer/routes/paths';
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from '../scheduleCalendarEvents';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 import { deriveCalendarInitialScrollTime } from '@/modules/booking-calendar/visibleTimeWindow';
+import {
+  addBreakToWorkingDay,
+  intersectsAny,
+  openWorkingDayIntervalForBooking,
+  openWorkingHoursForSelection,
+  type MinuteInterval,
+} from '@/modules/booking-scheduling/workingDayBreakEdits';
 import {
   doctorScheduleScopeQuery,
   resolveDoctorScheduleScopeState,
@@ -102,7 +119,7 @@ const ScheduleFullCalendarHost = dynamic(
 const API_BASE = '/api/doctor/booking-engine';
 const KPIS_API = '/api/doctor/schedule-kpis';
 const SCHEDULE_FILTERS_STORAGE_KEY = 'therapysto.doctor.schedule.filters.v1';
-const INACTIVE_TOOLBAR_BUTTON_CLASS = 'bg-white hover:bg-muted';
+const INACTIVE_TOOLBAR_BUTTON_CLASS = DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS;
 const ACTIVE_FILTER_BUTTON_CLASS =
   'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5';
 const CREATE_PANEL_REVEAL_DELAY_MS = 180;
@@ -246,6 +263,70 @@ function toFcDate(value: string, zone: string): string {
   const dt = parseFeedInstant(value, zone);
   return dt.isValid ? (dt.toISO() ?? value) : value;
 }
+
+// ---------------------------------------------------------------------------
+// Helper: grid time selection (CAL-ACTION-01…10)
+// ---------------------------------------------------------------------------
+
+/**
+ * A persisted time selection on the empty grid. It survives the contextual menu, feeds the
+ * schedule mutations and the shared appointment form, and is what the visible FullCalendar
+ * highlight represents.
+ */
+type CalendarGridSelection = {
+  /** Local day of the selection. */
+  dateKey: string;
+  /** Local minutes of the day. */
+  startMinute: number;
+  endMinute: number;
+  startAt: Date;
+  endAt: Date;
+};
+
+/** Which schedule layers the selection covers — decides the contextual menu actions. */
+type CalendarSelectionKind = 'working' | 'break' | 'mixed' | 'outside';
+
+/** Actions the doctor contextual menu can offer for a grid selection. */
+type CalendarSelectionAction = 'create' | 'add-break' | 'open-for-booking';
+
+const CALENDAR_SELECTION_ACTION_LABELS: Record<CalendarSelectionAction, string> = {
+  create: 'Новая запись',
+  'add-break': 'Добавить перерыв',
+  'open-for-booking': 'Открыть для записи',
+};
+
+/** `be_working_days.breaks` is capped at 6 by the scheduling contract. */
+const MAX_WORKING_DAY_BREAKS = 6;
+
+/** Clips an event to one local day and expresses it in minutes of that day. */
+function eventDayInterval(
+  startAt: string,
+  endAt: string,
+  zone: string,
+  dateKey: string,
+): MinuteInterval | null {
+  const dayStart = DateTime.fromISO(dateKey, { zone }).startOf('day');
+  if (!dayStart.isValid) return null;
+  const start = parseFeedInstant(startAt, zone);
+  const end = parseFeedInstant(endAt, zone);
+  if (!start.isValid || !end.isValid) return null;
+  const startMinute = Math.max(0, Math.round(start.diff(dayStart, 'minutes').minutes));
+  const endMinute = Math.min(1440, Math.round(end.diff(dayStart, 'minutes').minutes));
+  if (endMinute <= startMinute) return null;
+  return { startMinute, endMinute };
+}
+
+const SELECTION_MUTATION_ERRORS: Record<string, string> = {
+  invalid_interval: 'Выберите интервал времени.',
+  empty_working_day: 'В этот день нет рабочего времени.',
+  outside_working_hours: 'Перерыв должен быть внутри рабочего времени.',
+  appointment_overlap: 'В выбранном интервале есть запись.',
+  no_break_in_selection: 'В выбранном интервале нет перерыва.',
+  multiple_branches:
+    'В этот день назначено несколько филиалов — измените график в разделе «График работы».',
+  foreign_specialist: 'График другого специалиста меняется в его расписании.',
+  too_many_breaks: 'В дне уже максимум перерывов.',
+};
 
 // ---------------------------------------------------------------------------
 // Helper: period label
@@ -468,6 +549,18 @@ type ListDayCardProps = {
   showSpecialist: boolean;
 };
 
+/**
+ * APPT-LIST-04: в строке показывается только реально произошедшее с записью —
+ * перенос и виды отмены. Обычные «создана/подтверждена» не дублируют саму строку.
+ */
+const LIST_FACTUAL_STATUSES = new Set<string>([
+  'rescheduled',
+  'late_cancellation',
+  'cancelled_by_patient',
+  'cancelled_by_specialist',
+  'no_show',
+]);
+
 // R29: фон строки списка повторяет статусную палитру календаря (eventClassName);
 // прошедшие приглушаются, отменённые — destructive + line-through.
 function listRowClass(appt: CalendarAppointmentEvent, timeZone: string): string {
@@ -507,6 +600,9 @@ function ListDayCard({
           const end = parseFeedInstant(appt.endAt, timeZone).toFormat('HH:mm');
           const cancelled = isCancelledAppointmentStatus(appt.status);
           const isNext = appt.id === nextApptId;
+          const factualStatusLabel = LIST_FACTUAL_STATUSES.has(appt.status)
+            ? appointmentStatusLabel(appt.status)
+            : null;
           const branchLabel = appt.branchId
             ? (branchShortLabels.get(appt.branchId) ?? appt.branchTitle)
             : appt.branchTitle;
@@ -518,8 +614,12 @@ function ListDayCard({
               onClick={() => onSelect(appt)}
               className={cn(
                 'flex h-auto min-h-0 w-full items-start gap-3 whitespace-normal rounded-none border-0 border-b border-border/60 px-3 py-2 text-left text-sm md:rounded-md md:border md:px-3 md:py-2',
-                isNext ? 'ring-2 ring-primary/70 ring-offset-1' : '',
                 listRowClass(appt, timeZone),
+                // APPT-LIST-01: отметка ближайшей записи идёт ПОСЛЕ палитры строки — иначе
+                // tailwind-merge считает `border-primary/30` из палитры конфликтующим и
+                // выбрасывает цвет верхней линии. Нижняя линия остаётся обычным разделителем,
+                // чтобы синей была ровно одна линия и только сверху.
+                isNext ? 'border-t-2 border-t-primary border-b-border/60' : '',
               )}
               data-testid={`list-appt-${appt.id}`}
             >
@@ -550,9 +650,10 @@ function ListDayCard({
                       {formatPatientPackageShortLabel(appt.packageDisplayNumber)}
                     </span>
                   ) : null}
-                  {isNext ? (
-                    <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                      Следующая
+                  {factualStatusLabel ? (
+                    // APPT-LIST-04: справа — фактический статус записи, не выдуманная отметка.
+                    <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                      {factualStatusLabel}
                     </span>
                   ) : null}
                 </span>
@@ -891,6 +992,24 @@ export function ScheduleCalendarTab({
   const [createInitialBranchId, setCreateInitialBranchId] = useState<string | null>(null);
   const [createInitialServiceId, setCreateInitialServiceId] = useState<string | null>(null);
   const [draftSlot, setDraftSlot] = useState<CalendarDraftSlot | null>(null);
+  // CAL-ACTION-01: the grid selection outlives the tap that made it and drives the menu.
+  const [gridSelection, setGridSelection] = useState<CalendarGridSelection | null>(null);
+  const [selectionMenuOpen, setSelectionMenuOpen] = useState(false);
+  const [selectionActionError, setSelectionActionError] = useState<string | null>(null);
+  const [selectionActionPending, setSelectionActionPending] = useState(false);
+  const selectionAnchorRectRef = useRef<{
+    x: number;
+    y: number;
+    top: number;
+    left: number;
+    right: number;
+    bottom: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const calendarViewportRef = useRef<HTMLDivElement | null>(null);
+  /** Guards the programmatic `select()` of a single tap from re-entering `onSelect`. */
+  const suppressSelectCallbackRef = useRef(false);
   const [createFormDirty, setCreateFormDirty] = useState(false);
   const lastSelectAtRef = useRef(0);
   const [calendarSettings, setCalendarSettings] = useState<CalendarDoctorSettings>(
@@ -1654,6 +1773,9 @@ export function ScheduleCalendarTab({
     setCreateInitialServiceId(null);
     setDraftSlot(null);
     setCreateFormDirty(false);
+    setGridSelection(null);
+    setSelectionMenuOpen(false);
+    setSelectionActionError(null);
     onDeepLinkChange('appt', null);
     calendarRef.current?.getApi().unselect();
   }, [onDeepLinkChange]);
@@ -1722,6 +1844,291 @@ export function ScheduleCalendarTab({
       branchId,
       onDeepLinkChange,
     ],
+  );
+
+  // ─── Grid time selection + contextual menu (CAL-ACTION-01…10) ─────────────
+
+  /**
+   * A tap, long-press or drag on the empty grid first persists a visible time selection and
+   * opens the shared doctor contextual menu next to it. The appointment form is only reached
+   * from «Новая запись» inside that menu.
+   */
+  const clearGridSelection = useCallback(() => {
+    setSelectionMenuOpen(false);
+    setSelectionActionError(null);
+    setGridSelection(null);
+    calendarRef.current?.getApi().unselect();
+  }, []);
+
+  const openGridSelection = useCallback(
+    (start: Date, end: Date | null) => {
+      const startDt = DateTime.fromJSDate(start).setZone(currentTimeZone);
+      const dateKey = startDt.toISODate();
+      if (!dateKey) return;
+      const serviceForDraft = chooseServiceForDuration(null);
+      const serviceDuration =
+        serviceForDraft != null
+          ? (filters.services.find((service) => service.id === serviceForDraft)?.durationMinutes ??
+            null)
+          : null;
+      const endDate = end ?? new Date(start.getTime() + (serviceDuration ?? 60) * 60_000);
+      const endDt = DateTime.fromJSDate(endDate).setZone(currentTimeZone);
+      const dayStart = startDt.startOf('day');
+      setSelectionActionError(null);
+      setGridSelection({
+        dateKey,
+        startMinute: Math.round(startDt.diff(dayStart, 'minutes').minutes),
+        endMinute: Math.round(endDt.diff(dayStart, 'minutes').minutes),
+        startAt: start,
+        endAt: endDate,
+      });
+      if (!end) {
+        // A single tap has no FullCalendar highlight of its own — create the same visible
+        // selection a drag would leave behind. FullCalendar emits `select` synchronously,
+        // so the re-entry guard is released immediately after the call.
+        suppressSelectCallbackRef.current = true;
+        calendarRef.current?.getApi().select(start, endDate);
+        suppressSelectCallbackRef.current = false;
+      }
+      setSelectionMenuOpen(true);
+    },
+    [chooseServiceForDuration, currentTimeZone, filters.services],
+  );
+
+  /**
+   * The selection read against the schedule layers of its day: which of them it covers, the
+   * effective working bounds it would be written into, and what must not be closed.
+   */
+  const selectionContext = useMemo(() => {
+    if (!gridSelection) return null;
+    const working: MinuteInterval[] = [];
+    const breaks: MinuteInterval[] = [];
+    const busy: MinuteInterval[] = [];
+    const branchIds = new Set<string>();
+    for (const event of displayableCalendarEvents) {
+      const interval = eventDayInterval(
+        event.startAt,
+        event.endAt,
+        currentTimeZone,
+        gridSelection.dateKey,
+      );
+      if (!interval) continue;
+      if (event.kind === 'working') {
+        working.push(interval);
+        if (event.branchId) branchIds.add(event.branchId);
+        continue;
+      }
+      if (event.kind === 'break') {
+        breaks.push(interval);
+        continue;
+      }
+      if (event.kind === 'appointment' && !isCancelledAppointmentStatus(event.status)) {
+        busy.push(interval);
+      }
+    }
+    const selection: MinuteInterval = {
+      startMinute: gridSelection.startMinute,
+      endMinute: gridSelection.endMinute,
+    };
+    const touchesWorking = intersectsAny(selection, working);
+    const touchesBreak = intersectsAny(selection, breaks);
+    const kind: CalendarSelectionKind =
+      touchesWorking && touchesBreak
+        ? 'mixed'
+        : touchesWorking
+          ? 'working'
+          : touchesBreak
+            ? 'break'
+            : 'outside';
+    return {
+      kind,
+      working,
+      breaks,
+      busy,
+      branchIds: [...branchIds],
+      dayStartMinute: working.length > 0 ? Math.min(...working.map((i) => i.startMinute)) : 0,
+      dayEndMinute: working.length > 0 ? Math.max(...working.map((i) => i.endMinute)) : 0,
+    };
+  }, [currentTimeZone, displayableCalendarEvents, gridSelection]);
+
+  /**
+   * `/working-days` always writes the doctor's own specialist, so schedule actions are only
+   * offered while the calendar shows that same specialist.
+   */
+  const canEditSelectionSchedule =
+    scopeBootstrap.ownSpecialistId !== null &&
+    (scheduleScope.scope === 'mine' ||
+      (scheduleScope.scope === 'specialist' &&
+        scheduleScope.specialistId === scopeBootstrap.ownSpecialistId));
+
+  const selectionMenuActions = useMemo((): CalendarSelectionAction[] => {
+    if (!selectionContext) return [];
+    const canEditSchedule = canEditSelectionSchedule;
+    if (selectionContext.kind === 'working') {
+      return canEditSchedule ? ['create', 'add-break'] : ['create'];
+    }
+    if (selectionContext.kind === 'mixed') {
+      return canEditSchedule ? ['add-break', 'open-for-booking', 'create'] : ['create'];
+    }
+    // CAL-ACTION-04: break, closed slot and outside-working-hours selections all read as
+    // `'break'`/`'outside'` here — none of them is currently bookable, so both offer the same
+    // "reopen" action; `applySelectionScheduleChange` picks the right mutation per kind.
+    if (selectionContext.kind === 'break' || selectionContext.kind === 'outside') {
+      return canEditSchedule ? ['open-for-booking', 'create'] : ['create'];
+    }
+    return ['create'];
+  }, [canEditSelectionSchedule, selectionContext]);
+
+  /**
+   * Anchors the contextual menu to the live FullCalendar highlight so it tracks the selection
+   * while the grid scrolls, and keeps the last known rect when a refetch repaints the grid.
+   */
+  const selectionAnchor = useMemo(
+    () => ({
+      getBoundingClientRect: () => {
+        const host = calendarViewportRef.current;
+        const highlights = host
+          ? Array.from(host.querySelectorAll<HTMLElement>('.fc-highlight'))
+          : [];
+        if (highlights.length > 0) {
+          const rects = highlights.map((element) => element.getBoundingClientRect());
+          const top = Math.min(...rects.map((rect) => rect.top));
+          const bottom = Math.max(...rects.map((rect) => rect.bottom));
+          const left = Math.min(...rects.map((rect) => rect.left));
+          const right = Math.max(...rects.map((rect) => rect.right));
+          const merged = {
+            x: left,
+            y: top,
+            top,
+            left,
+            right,
+            bottom,
+            width: right - left,
+            height: bottom - top,
+          };
+          selectionAnchorRectRef.current = merged;
+          return merged;
+        }
+        return (
+          selectionAnchorRectRef.current ?? {
+            x: 0,
+            y: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: 0,
+            height: 0,
+          }
+        );
+      },
+    }),
+    [],
+  );
+
+  /**
+   * CAL-ACTION-06/07/10: both schedule actions persist through the canonical per-date
+   * `working-days` contract — one upsert of the effective day with the recomputed break list.
+   */
+  const applySelectionScheduleChange = useCallback(
+    async (mode: 'add-break' | 'open-for-booking') => {
+      if (!gridSelection || !selectionContext) return;
+      if (!canEditSelectionSchedule) {
+        setSelectionActionError(SELECTION_MUTATION_ERRORS.foreign_specialist ?? null);
+        return;
+      }
+      if (selectionContext.branchIds.length > 1) {
+        setSelectionActionError(SELECTION_MUTATION_ERRORS.multiple_branches ?? null);
+        return;
+      }
+      const editInput = {
+        dayStartMinute: selectionContext.dayStartMinute,
+        dayEndMinute: selectionContext.dayEndMinute,
+        breaks: selectionContext.breaks,
+        selection: {
+          startMinute: gridSelection.startMinute,
+          endMinute: gridSelection.endMinute,
+        },
+        busy: selectionContext.busy,
+      };
+      // CAL-ACTION-04/07: a break/mixed selection reopens by trimming the existing break; an
+      // outside-working-hours (or closed-slot) selection has no break to trim, so it widens the
+      // working day itself onto the selected side instead — same `PUT /working-days` write below.
+      const result =
+        mode === 'add-break'
+          ? addBreakToWorkingDay(editInput)
+          : selectionContext.kind === 'outside'
+            ? openWorkingHoursForSelection(editInput)
+            : openWorkingDayIntervalForBooking(editInput);
+      if (!result.ok) {
+        setSelectionActionError(
+          SELECTION_MUTATION_ERRORS[result.error] ?? 'Не удалось обновить график.',
+        );
+        return;
+      }
+      if (result.breaks.length > MAX_WORKING_DAY_BREAKS) {
+        setSelectionActionError(SELECTION_MUTATION_ERRORS.too_many_breaks ?? null);
+        return;
+      }
+      const nextDayStartMinute =
+        'dayStartMinute' in result ? result.dayStartMinute : selectionContext.dayStartMinute;
+      const nextDayEndMinute =
+        'dayEndMinute' in result ? result.dayEndMinute : selectionContext.dayEndMinute;
+      setSelectionActionPending(true);
+      setSelectionActionError(null);
+      try {
+        const res = await fetch(`${API_BASE}/working-days`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'upsert',
+            dates: [gridSelection.dateKey],
+            startMinute: nextDayStartMinute,
+            endMinute: nextDayEndMinute,
+            breaks: result.breaks,
+            ...(selectionContext.branchIds[0]
+              ? { branchId: selectionContext.branchIds[0] }
+              : {}),
+          }),
+        });
+        const json: unknown = await res.json().catch(() => null);
+        const ok = res.ok && typeof json === 'object' && json !== null && 'ok' in json && json.ok;
+        if (!ok) {
+          setSelectionActionError('Не удалось обновить график.');
+          return;
+        }
+        clearGridSelection();
+        // The schedule changed under the visible range — bypass the duplicate-load window.
+        recentLoadRef.current = null;
+        load();
+      } catch {
+        setSelectionActionError('Не удалось обновить график.');
+      } finally {
+        setSelectionActionPending(false);
+      }
+    },
+    [
+      canEditSelectionSchedule,
+      clearGridSelection,
+      gridSelection,
+      load,
+      selectionContext,
+    ],
+  );
+
+  const runSelectionAction = useCallback(
+    (action: CalendarSelectionAction) => {
+      if (action === 'create') {
+        const selection = gridSelection;
+        setSelectionMenuOpen(false);
+        setGridSelection(null);
+        setSelectionActionError(null);
+        if (selection) openCreateDraft(selection.startAt, selection.endAt);
+        return;
+      }
+      void applySelectionScheduleChange(action);
+    },
+    [applySelectionScheduleChange, gridSelection, openCreateDraft],
   );
 
   useEffect(() => {
@@ -1796,16 +2203,13 @@ export function ScheduleCalendarTab({
         // Рабочее время — не рендерим (фон белый).
         if (event.kind === 'working') return null;
 
-        // SCH-10 / owner-feedback: перерыв («обед») рисуем тем же ЛЁГКИМ прозрачным
-        // фоном, что и нерабочее время (#eee/0.6), а не плотной тёмной плашкой —
-        // владельцу нужен «обед как лёгкий фон». Отличает его подпись «Перерыв» и то,
-        // что он лежит внутри рабочей (белой) полосы, а не по краям смены.
+        // CAL-ACTION-09: перерыв визуально совпадает с нерабочим временем до и после смены —
+        // тот же лёгкий фон и без подписи внутри сетки.
         if (event.kind === 'break' && isTimeGrid) {
           return {
             id: `break:${event.id}`,
             start: toFcDate(event.startAt, currentTimeZone),
             end: toFcDate(event.endAt, currentTimeZone),
-            title: 'Перерыв',
             display: 'background' as const,
             classNames: [...doctorCalendarNonWorkingClassNames],
             editable: false,
@@ -1972,9 +2376,13 @@ export function ScheduleCalendarTab({
   const onDrop = useCallback((arg: any) => openRescheduleConfirm(arg), [openRescheduleConfirm]);
   const onResize = useCallback((arg: any) => openRescheduleConfirm(arg), [openRescheduleConfirm]);
 
-  // R32: выделение области по сетке → форма создания с подставленным временем.
+  // CAL-ACTION-01: a drag over the grid keeps its visible selection and opens the menu.
   const onSelect = useCallback(
     (arg: { start?: Date | null; end?: Date | null }) => {
+      if (suppressSelectCallbackRef.current) {
+        suppressSelectCallbackRef.current = false;
+        return;
+      }
       if (filtersPanelOpen) {
         setFiltersPanelOpen(false);
         calendarRef.current?.getApi().unselect();
@@ -1989,9 +2397,9 @@ export function ScheduleCalendarTab({
       const end: Date | null = arg.end ?? null;
       if (!start) return;
       lastSelectAtRef.current = Date.now();
-      openCreateDraft(start, end ?? null, true);
+      openGridSelection(start, end ?? null);
     },
-    [filtersPanelOpen, openCreateDraft],
+    [filtersPanelOpen, openGridSelection],
   );
 
   const closeDraftOrSelectionFromGrid = useCallback((): boolean => {
@@ -2160,7 +2568,7 @@ export function ScheduleCalendarTab({
       filterMeta={filters}
       activeFilters={activeFilters}
       ownSpecialistId={scopeBootstrap.ownSpecialistId}
-      showCloseControl={false}
+      clinicSpecialists={scopeBootstrap.specialists}
       flushChrome
       startInCreate={showCreatePanel && !selected}
       createInitialStart={createInitialStart}
@@ -2213,52 +2621,26 @@ export function ScheduleCalendarTab({
             Сегодня
           </Button>
 
-          <Button
-            type="button"
-            size="icon"
-            variant="outline"
-            className={cn('size-[32px] shrink-0', INACTIVE_TOOLBAR_BUTTON_CLASS)}
-            onClick={() => {
+          <DoctorSchedulePeriodNav
+            label={mobilePeriodLabel(mobileVisibleDate, currentTimeZone)}
+            labelRef={mobilePeriodButtonRef}
+            onPrev={() => {
               setFiltersPanelOpen(false);
               shiftAnchor(-1);
             }}
-            aria-label="Предыдущий период"
-          >
-            <Play className="size-3 rotate-180" fill="currentColor" aria-hidden />
-          </Button>
-
-          <Button
-            ref={mobilePeriodButtonRef}
-            type="button"
-            variant="outline"
-            size="sm"
-            className={cn(
-              INACTIVE_TOOLBAR_BUTTON_CLASS,
-              'h-8 min-w-0 flex-1 truncate px-2 text-center text-xs font-medium text-foreground',
-            )}
-            onClick={() => {
+            onNext={() => {
+              setFiltersPanelOpen(false);
+              shiftAnchor(1);
+            }}
+            onLabelClick={() => {
               setFiltersPanelOpen(false);
               updateMobileVisibleDate(mobileVisibleDateRef.current, true);
               setDatePickerOpen(true);
             }}
-            aria-label="Перейти к дате"
-          >
-            {mobilePeriodLabel(mobileVisibleDate, currentTimeZone)}
-          </Button>
-
-          <Button
-            type="button"
-            size="icon"
-            variant="outline"
-            className={cn('size-[32px] shrink-0', INACTIVE_TOOLBAR_BUTTON_CLASS)}
-            onClick={() => {
-              setFiltersPanelOpen(false);
-              shiftAnchor(1);
-            }}
-            aria-label="Следующий период"
-          >
-            <Play className="size-3" fill="currentColor" aria-hidden />
-          </Button>
+            prevAriaLabel="Предыдущий период"
+            nextAriaLabel="Следующий период"
+            labelAriaLabel="Перейти к дате"
+          />
 
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <Button
@@ -2566,6 +2948,11 @@ export function ScheduleCalendarTab({
           {error}
         </p>
       ) : null}
+      {selectionActionError ? (
+        <p className="text-sm text-destructive" data-testid="cal-selection-error">
+          {selectionActionError}
+        </p>
+      ) : null}
 
       {/* Main content row: calendar/list + aside panel */}
       <div
@@ -2623,6 +3010,7 @@ export function ScheduleCalendarTab({
                     ? 'overflow-x-hidden overflow-y-auto'
                     : 'overflow-hidden',
                 )}
+                ref={calendarViewportRef}
                 data-mobile-calendar-viewport=""
                 onPointerDownCapture={() => {
                   if (calendarFilterOpenRef.current) {
@@ -2709,19 +3097,8 @@ export function ScheduleCalendarTab({
                   background-color: transparent !important;
                 }
 
-                /* Красный круг вокруг сегодняшней даты во всех режимах. */
-                .fc-today-circle {
-                  display: inline-flex;
-                  align-items: center;
-                  justify-content: center;
-                  min-width: 2.05rem;
-                  min-height: 2.05rem;
-                  padding: 0.2rem 0.2rem;
-                  border-radius: 9999px;
-                  background-color: rgba(219, 113, 93, 0.85);
-                  color: white;
-                  font-weight: 600;
-                }
+                /* CAL-NAV-08 — сегодняшняя дата помечается канонической скруглённой
+                   прямоугольной плашкой (.doctor-calendar-today-marker, doctor.css). */
                 .fc-timegrid-header-link {
                   display: flex;
                   min-height: 2.05rem;
@@ -2732,9 +3109,10 @@ export function ScheduleCalendarTab({
                   padding-block: 0.2rem;
                   text-decoration: none;
                 }
-                .fc-timegrid-header-link.fc-today-circle {
+                .fc-timegrid-header-link.doctor-calendar-today-marker {
                   gap: 0.1rem;
                   margin-inline: auto;
+                  min-height: 2.05rem;
                 }
                 .fc-timegrid-header-weekday {
                   font-size: 0.6875rem;
@@ -2747,8 +3125,8 @@ export function ScheduleCalendarTab({
                   line-height: 1;
                   color: var(--foreground);
                 }
-                .fc-timegrid-header-link.fc-today-circle .fc-timegrid-header-weekday,
-                .fc-timegrid-header-link.fc-today-circle .fc-timegrid-header-day {
+                .fc-timegrid-header-link.doctor-calendar-today-marker .fc-timegrid-header-weekday,
+                .fc-timegrid-header-link.doctor-calendar-today-marker .fc-timegrid-header-day {
                   color: inherit;
                 }
 
@@ -2838,7 +3216,7 @@ export function ScheduleCalendarTab({
                                 variant="ghost"
                                 className={cn(
                                   'fc-daygrid-day-number hover:underline cursor-pointer',
-                                  isToday && 'fc-today-circle',
+                                  isToday && DOCTOR_CALENDAR_TODAY_MARKER_CLASS,
                                 )}
                                 onClick={() => {
                                   const dateKey =
@@ -2865,7 +3243,7 @@ export function ScheduleCalendarTab({
                                 variant="ghost"
                                 className={cn(
                                   'fc-timegrid-header-link',
-                                  isToday && 'fc-today-circle',
+                                  isToday && DOCTOR_CALENDAR_TODAY_MARKER_CLASS,
                                 )}
                                 onClick={() => {
                                   const dateKey = dt.toISODate() ?? anchorDate;
@@ -2915,7 +3293,10 @@ export function ScheduleCalendarTab({
                         drillDownDay(dateKey);
                         return;
                       }
-                      openCreateDraft(arg.date, null, true);
+                      // CAL-ACTION-01: a single tap selects the slot first; the form is only
+                      // reached from «Новая запись» in the menu below. Tapping elsewhere moves
+                      // the selection instead of only dismissing the previous one.
+                      openGridSelection(arg.date, null);
                     }}
                     eventDrop={onDrop}
                     eventResize={onResize}
@@ -2941,11 +3322,52 @@ export function ScheduleCalendarTab({
                           </div>
                         );
                       }
+                      // CAL-ACTION-09: фоновые слои (нерабочее время, перерыв) не подписываются
+                      // внутри сетки — они читаются только заливкой.
+                      if (info.event.display === 'background') return null;
                       return (
                         <div className="truncate px-1 py-0.5 text-[11px]">{info.event.title}</div>
                       );
                     }}
                   />
+                  {/* CAL-ACTION-02: the shared doctor popover/menu pattern, anchored to the
+                      selection and flipped above or below it by available space. */}
+                  {gridSelection ? (
+                    <DropdownMenu
+                      open={selectionMenuOpen}
+                      onOpenChange={(open) => {
+                        // CAL-ACTION-10: Base UI auto-closes the menu on the same click that runs
+                        // a rejected mutation, so this fires in the same tick as
+                        // `setSelectionActionError(...)` in `applySelectionScheduleChange`. Do NOT
+                        // clear the error here — that raced the close and silently swallowed it,
+                        // leaving the doctor with no feedback that nothing was saved. The error is
+                        // reset explicitly wherever a fresh attempt actually starts: a new
+                        // selection (`openGridSelection`/`clearGridSelection`) or picking «Новая
+                        // запись» (`runSelectionAction`).
+                        setSelectionMenuOpen(open);
+                      }}
+                    >
+                      <DropdownMenuContent
+                        anchor={selectionAnchor}
+                        align="center"
+                        side="top"
+                        sideOffset={8}
+                        className="w-auto min-w-[11rem]"
+                        data-testid="calendar-selection-menu"
+                      >
+                        {selectionMenuActions.map((action) => (
+                          <DropdownMenuItem
+                            key={action}
+                            disabled={selectionActionPending}
+                            onClick={() => runSelectionAction(action)}
+                            data-testid={`calendar-selection-action-${action}`}
+                          >
+                            {CALENDAR_SELECTION_ACTION_LABELS[action]}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -2982,8 +3404,7 @@ export function ScheduleCalendarTab({
           onSelect={(date) => {
             if (date) jumpToDate(date);
           }}
-          className="mx-auto p-3"
-          style={{ ['--rdp-accent-color' as string]: 'var(--primary)' }}
+          className="doctor-day-picker mx-auto p-3"
         />
       </DoctorModal>
 
@@ -3024,7 +3445,7 @@ export function ScheduleCalendarTab({
           open={eventPanelOpen}
           onClose={clearDraftAndPanel}
           title={eventPanelTitle}
-          size="content"
+          size="lg"
         >
           {eventPanelNode}
         </DoctorModal>

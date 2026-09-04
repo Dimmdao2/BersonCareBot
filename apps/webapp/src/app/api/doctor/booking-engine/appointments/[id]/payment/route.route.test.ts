@@ -4,12 +4,15 @@ const fakes = vi.hoisted(() => ({
   requireDoctorBookingEngine: vi.fn(),
   resolveDoctorAppointmentAccess: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
+  getMechanicMutationAvailability: vi.fn(),
   buildAppDeps: vi.fn(),
   loadStaffAppointmentPaymentSummary: vi.fn(),
   listAppointmentPayments: vi.fn(),
   addCashPayment: vi.fn(),
   createAppointmentPaymentIntent: vi.fn(),
   getBookingByCanonicalAppointment: vi.fn(),
+  getPrepaymentAvailability: vi.fn(),
+  getPortalStatus: vi.fn(),
 }));
 
 vi.mock('../../../_requireDoctorBookingEngine', () => ({
@@ -20,6 +23,7 @@ vi.mock('../../../_resolveDoctorAppointmentAccess', () => ({
 }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   requireEntitlementForMutation: fakes.requireEntitlementForMutation,
+  getMechanicMutationAvailability: fakes.getMechanicMutationAvailability,
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
 vi.mock('@/app-layer/booking/staffAppointmentPaymentSummary', () => ({
@@ -33,11 +37,20 @@ vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   ) => callback(),
 }));
 
-import { POST } from './route';
+import { GET, POST } from './route';
 
 const APPOINTMENT_ID = '11111111-1111-4111-8111-111111111111';
 const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222';
 const PATIENT_ID = '33333333-3333-4333-8333-333333333333';
+
+function get() {
+  return GET(
+    new Request(
+      `http://localhost/api/doctor/booking-engine/appointments/${APPOINTMENT_ID}/payment`,
+    ),
+    { params: Promise.resolve({ id: APPOINTMENT_ID }) },
+  );
+}
 
 function post(action: 'cash' | 'link') {
   return POST(
@@ -65,6 +78,7 @@ beforeEach(() => {
     platformUserId: PATIENT_ID,
   });
   fakes.requireEntitlementForMutation.mockResolvedValue({ ok: true });
+  fakes.getMechanicMutationAvailability.mockResolvedValue({ available: true });
   fakes.loadStaffAppointmentPaymentSummary.mockResolvedValue({
     appointmentId: APPOINTMENT_ID,
     appointmentStatus: 'confirmed',
@@ -88,8 +102,14 @@ beforeEach(() => {
     id: 'intent-1',
     checkoutUrl: 'https://pay.example.test/intent-1',
   });
+  fakes.getPrepaymentAvailability.mockResolvedValue({ available: true });
+  fakes.getPortalStatus.mockResolvedValue({ status: 'linked' });
   fakes.buildAppDeps.mockReturnValue({
-    payments: { createAppointmentPaymentIntent: fakes.createAppointmentPaymentIntent },
+    payments: {
+      createAppointmentPaymentIntent: fakes.createAppointmentPaymentIntent,
+      getPrepaymentAvailability: fakes.getPrepaymentAvailability,
+    },
+    patientInvites: { getPortalStatus: fakes.getPortalStatus },
     patientBooking: {
       getBookingByCanonicalAppointment: fakes.getBookingByCanonicalAppointment,
     },
@@ -206,5 +226,78 @@ describe('doctor appointment payment route', () => {
     expect(response.status).toBe(503);
     expect(body).toEqual({ ok: false, error: 'provider_down' });
     expect(body).not.toHaveProperty('paymentLink');
+  });
+});
+
+/**
+ * The card draws the payment block, the online options and the «отправить в чат» option straight
+ * from this read. A read that answers for the wrong clinic, or that reports a capability the POST
+ * door and the provider cannot honour, silently produces a working-looking money action.
+ */
+describe('doctor appointment payment read capabilities', () => {
+  it('exposes neither payment state nor capabilities for an appointment outside the workspace', async () => {
+    fakes.resolveDoctorAppointmentAccess.mockResolvedValue(null);
+
+    const response = await get();
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'not_found' });
+    expect(fakes.buildAppDeps).not.toHaveBeenCalled();
+    expect(fakes.loadStaffAppointmentPaymentSummary).not.toHaveBeenCalled();
+    expect(fakes.getPrepaymentAvailability).not.toHaveBeenCalled();
+    expect(fakes.getPortalStatus).not.toHaveBeenCalled();
+  });
+
+  it('reports no payment capability and probes no provider when the tariff omits payments', async () => {
+    fakes.getMechanicMutationAvailability.mockResolvedValue({
+      available: false,
+      reason: 'entitlement_required',
+    });
+
+    const response = await get();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      paymentsEntitled: false,
+      onlinePaymentAvailable: false,
+      patientChatAvailable: false,
+    });
+    expect(fakes.getMechanicMutationAvailability).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORGANIZATION_ID }),
+      'payments',
+    );
+    expect(fakes.getPrepaymentAvailability).not.toHaveBeenCalled();
+  });
+
+  it('withholds the online options without a provider and the chat option without a linked patient', async () => {
+    fakes.getPrepaymentAvailability.mockResolvedValue({
+      available: false,
+      reason: 'payment_provider_unavailable',
+    });
+    fakes.getPortalStatus.mockResolvedValue({ status: 'invited' });
+
+    const response = await get();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      paymentsEntitled: true,
+      onlinePaymentAvailable: false,
+      patientChatAvailable: false,
+    });
+    expect(fakes.getPortalStatus).toHaveBeenCalledWith(ORGANIZATION_ID, PATIENT_ID);
+  });
+
+  it('offers online and chat only from the real provider and the real portal binding', async () => {
+    const response = await get();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      paymentsEntitled: true,
+      onlinePaymentAvailable: true,
+      patientChatAvailable: true,
+    });
   });
 });

@@ -48,6 +48,8 @@ export type DoctorMediaPlaybackVideoProps = {
   initialPlayback: MediaPlaybackPayload | null;
   /** Оболочка (фон, скругление, shrink). */
   shellClassName?: string;
+  /** Полноэкранный viewer отдаёт видео всю доступную высоту, сохраняя controls. */
+  presentation?: 'inline' | 'fullscreen';
   /** Один раз при первом фактическом воспроизведении (событие `playing`). */
   onFirstPlaying?: () => void;
 };
@@ -113,6 +115,7 @@ function PlaybackEngine({
   title,
   initialPayload,
   shellClassName,
+  containerClassName,
   onFirstPlaying,
 }: {
   mediaId: string;
@@ -120,6 +123,7 @@ function PlaybackEngine({
   title: string;
   initialPayload: MediaPlaybackPayload;
   shellClassName: string;
+  containerClassName?: string;
   onFirstPlaying?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -491,7 +495,7 @@ function PlaybackEngine({
   }, [fetchPlaybackJson, mediaId, reportPlaybackIssue, sourceKind]);
 
   return (
-    <div className="flex w-full flex-col gap-2">
+    <div className={cn('flex w-full flex-col gap-2', containerClassName)}>
       <div
         className={shellClassName}
         onContextMenu={(e) => {
@@ -579,9 +583,15 @@ export function DoctorMediaPlaybackVideo({
   title,
   initialPlayback,
   shellClassName,
+  presentation = 'inline',
   onFirstPlaying,
 }: DoctorMediaPlaybackVideoProps) {
-  const shell = cn(DEFAULT_SHELL, shellClassName);
+  const isFullscreen = presentation === 'fullscreen';
+  const shell = cn(
+    DEFAULT_SHELL,
+    isFullscreen && 'min-h-0 flex-1 rounded-none bg-black [aspect-ratio:auto]',
+    shellClassName,
+  );
   const [payload, setPayload] = useState<MediaPlaybackPayload | null>(() => initialPlayback);
   const [phase, setPhase] = useState<'loading' | 'error' | 'ready'>(() =>
     initialPlayback ? 'ready' : 'loading',
@@ -695,6 +705,7 @@ export function DoctorMediaPlaybackVideo({
       title={title}
       initialPayload={payload}
       shellClassName={shell}
+      containerClassName={isFullscreen ? 'h-full min-h-0 bg-black' : undefined}
       onFirstPlaying={onFirstPlaying}
     />
   );

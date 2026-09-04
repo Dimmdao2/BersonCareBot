@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUp, ChartLine, Pencil, Trash2, X } from 'lucide-react';
+import { ArrowUp, ChartLine, Pencil, Play, Trash2, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
@@ -30,10 +30,15 @@ import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import { ProgramItemDiscussionMessageBody } from '@/app/app/patient/treatment/ProgramItemDiscussionMessageBody';
 import type { ExerciseMedia } from '@/modules/lfk-exercises/types';
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
+import { DoctorExerciseMediaPlayer } from '@/shared/ui/doctor/media/DoctorExerciseMediaPlayer';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import {
   doctorChatMessageTextClass,
   doctorChatTimestampClass,
+  doctorInteractiveSurfaceButtonClass,
+  doctorListPreviewTextClass,
   doctorMetaTextClass,
+  doctorPanelBottomShadowClass,
 } from '@/shared/ui/doctor/doctorVisual';
 
 export type DoctorProgramDiscussionAssignment = {
@@ -54,6 +59,10 @@ function AssignmentToolbar({
   onShowStatistics?: () => void;
   onEdit?: () => void;
 }) {
+  const [videoOpen, setVideoOpen] = useState(false);
+  const isPlayableVideo =
+    assignment.media?.mediaType === 'video' || assignment.media?.mediaType === 'hosted_video';
+
   const loadParts: string[] = [];
   if (assignment.reps !== null || assignment.sets !== null) {
     loadParts.push(
@@ -66,49 +75,84 @@ function AssignmentToolbar({
   if (assignment.maxPain !== null) loadParts.push(`Боль ≤ ${assignment.maxPain}`);
 
   return (
-    <div className="flex shrink-0 items-start gap-3 border-b border-border/60 bg-card px-4 py-2.5 shadow-sm">
-      <ExerciseListCatalogThumb media={assignment.media} className="!size-11 !rounded-md" />
-      <div className="min-w-0 flex-1">
-        <div className="flex min-h-9 items-end gap-2">
-          <div className="min-w-0 flex-1 pb-1">
-            {loadParts.length > 0 ? (
-              <p className="text-sm font-medium text-foreground">{loadParts.join(', ')}</p>
-            ) : assignment.note ? null : (
-              <p className="text-sm font-medium text-foreground">Нет рекомендаций</p>
-            )}
+    <div
+      className={cn(
+        'flex shrink-0 flex-col border-b border-border/60 bg-card',
+        doctorPanelBottomShadowClass,
+      )}
+    >
+      <DoctorModal
+        open={videoOpen}
+        onClose={() => setVideoOpen(false)}
+        title="Видео упражнения"
+        presentation="fullscreen-media"
+      >
+        <DoctorExerciseMediaPlayer
+          media={assignment.media}
+          title="Видео упражнения"
+          presentation="fullscreen"
+        />
+      </DoctorModal>
+      {/* Превью, первая строка рекомендаций и действия выровнены по ВЕРХНЕМУ краю блока;
+          кнопки живут в первой строке (её высоту и задают), поэтому заметку они не перекрывают. */}
+      <div className="flex items-start gap-3 px-4 py-2.5">
+        {isPlayableVideo ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className={cn(doctorInteractiveSurfaceButtonClass, 'relative shrink-0 rounded-md')}
+            onClick={() => setVideoOpen(true)}
+            aria-label="Открыть видео упражнения"
+            data-testid="assignment-toolbar-preview"
+          >
+            <ExerciseListCatalogThumb media={assignment.media} className="!size-11 !rounded-md" />
+            <span className="absolute inset-0 flex items-center justify-center rounded-md bg-black/25">
+              <Play className="size-4 fill-white text-white" aria-hidden />
+            </span>
+          </Button>
+        ) : (
+          <ExerciseListCatalogThumb media={assignment.media} className="!size-11 !rounded-md" />
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              {loadParts.length > 0 ? (
+                <p className="text-sm font-medium text-foreground">{loadParts.join(', ')}</p>
+              ) : assignment.note ? null : (
+                <p className="text-sm font-medium text-foreground">Нет рекомендаций</p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {onShowStatistics ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-9 shrink-0 text-muted-foreground"
+                  onClick={onShowStatistics}
+                  aria-label="Открыть статистику упражнения"
+                >
+                  <ChartLine className="size-5" aria-hidden />
+                </Button>
+              ) : null}
+              {onEdit ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-9 shrink-0 text-muted-foreground"
+                  onClick={onEdit}
+                  aria-label="Изменить рекомендации"
+                >
+                  <Pencil className="size-5" aria-hidden />
+                </Button>
+              ) : null}
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {onShowStatistics ? (
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="size-9 shrink-0 text-muted-foreground"
-                onClick={onShowStatistics}
-                aria-label="Открыть статистику упражнения"
-              >
-                <ChartLine className="size-5" aria-hidden />
-              </Button>
-            ) : null}
-            {onEdit ? (
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="size-9 shrink-0 text-muted-foreground"
-                onClick={onEdit}
-                aria-label="Изменить рекомендации"
-              >
-                <Pencil className="size-5" aria-hidden />
-              </Button>
-            ) : null}
-          </div>
+          {assignment.note ? (
+            <p className={cn(doctorListPreviewTextClass, 'font-medium')}>{assignment.note}</p>
+          ) : null}
         </div>
-        {assignment.note ? (
-          <p className="mt-0.5 whitespace-normal text-sm font-medium text-foreground">
-            {assignment.note}
-          </p>
-        ) : null}
       </div>
     </div>
   );

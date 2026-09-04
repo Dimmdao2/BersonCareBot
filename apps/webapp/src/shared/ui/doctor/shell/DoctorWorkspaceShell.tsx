@@ -9,6 +9,7 @@ import { resolveLaunchCapabilities } from '@/app-layer/guards/workspaceCapabilit
 import { DoctorAdminSidebar } from '@/shared/ui/doctor/shell/DoctorAdminSidebar';
 import { DoctorWorkspaceViewport } from '@/shared/ui/doctor/shell/DoctorWorkspaceViewport';
 import { DoctorShellChromeProvider } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
+import { DoctorPatientTermsProvider } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { DoctorSupportUnreadProvider } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
 import { getDoctorShellHomeHref } from '@/shared/ui/doctor/doctorNavLinks';
 import type { UserRole } from '@/shared/types/session';
@@ -135,7 +136,9 @@ export function DoctorWorkspaceShell({
           }
           bottomNav={showClinicalShortcuts ? { menuAccess, patientLabel } : undefined}
         >
-          {children}
+          <DoctorPatientTermsProvider patientLabel={patientLabel}>
+            {children}
+          </DoctorPatientTermsProvider>
         </DoctorWorkspaceViewport>
       </DoctorShellChromeProvider>
     </DoctorSupportUnreadProvider>

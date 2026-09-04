@@ -19,41 +19,74 @@ import { cn } from '@/lib/utils';
 import { Button } from './button';
 import { DrawerContent } from './drawer';
 import { useIsMobileViewport } from './useIsMobileViewport';
+import {
+  DoctorModalLayerProvider,
+  useDoctorModalLayer,
+  useDoctorModalOverlay,
+} from '@/shared/ui/doctor/DoctorModalLayerContext';
 
-const DoctorDialogMobileContext = React.createContext(false);
+type DoctorDialogContextValue = {
+  isMobile: boolean;
+  isNestedLayer: boolean;
+  showRootOverlay: boolean;
+};
+
+const DoctorDialogMobileContext = React.createContext<DoctorDialogContextValue>({
+  isMobile: false,
+  isNestedLayer: false,
+  showRootOverlay: true,
+});
 
 function Dialog(props: DialogPrimitive.Root.Props) {
   const isMobile = useIsMobileViewport();
+  const { isNestedLayer, parentDepth } = useDoctorModalLayer();
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(Boolean(props.defaultOpen));
+  const currentOpen = props.open ?? uncontrolledOpen;
+  const showRootOverlay = useDoctorModalOverlay(currentOpen && !isNestedLayer, isNestedLayer);
+  const { onOpenChange, ...rootProps } = props;
+
+  const handleOpenChange = (open: boolean, details: DialogPrimitive.Root.ChangeEventDetails) => {
+    if (props.open === undefined) setUncontrolledOpen(open);
+    onOpenChange?.(open, details);
+  };
 
   if (!isMobile) {
     return (
-      <DoctorDialogMobileContext.Provider value={false}>
-        <SharedDialog {...props} />
+      <DoctorDialogMobileContext.Provider
+        value={{ isMobile: false, isNestedLayer, showRootOverlay }}
+      >
+        <DoctorModalLayerProvider depth={parentDepth + (currentOpen ? 1 : 0)}>
+          <SharedDialog {...rootProps} onOpenChange={handleOpenChange} />
+        </DoctorModalLayerProvider>
       </DoctorDialogMobileContext.Provider>
     );
   }
 
-  const { actionsRef, handle, onOpenChange, children, ...drawerProps } = props;
+  const { actionsRef, handle, children, ...drawerProps } = rootProps;
   void handle;
 
   return (
-    <DoctorDialogMobileContext.Provider value>
-      <DrawerPrimitive.Root
-        {...drawerProps}
-        actionsRef={actionsRef as React.RefObject<DrawerPrimitive.Root.Actions | null> | undefined}
-        onOpenChange={(open, details) =>
-          onOpenChange?.(open, details as unknown as DialogPrimitive.Root.ChangeEventDetails)
-        }
-        swipeDirection="down"
-      >
-        {children}
-      </DrawerPrimitive.Root>
+    <DoctorDialogMobileContext.Provider value={{ isMobile: true, isNestedLayer, showRootOverlay }}>
+      <DoctorModalLayerProvider depth={parentDepth + (currentOpen ? 1 : 0)}>
+        <DrawerPrimitive.Root
+          {...drawerProps}
+          actionsRef={
+            actionsRef as React.RefObject<DrawerPrimitive.Root.Actions | null> | undefined
+          }
+          onOpenChange={(open, details) =>
+            handleOpenChange(open, details as unknown as DialogPrimitive.Root.ChangeEventDetails)
+          }
+          swipeDirection="down"
+        >
+          {children}
+        </DrawerPrimitive.Root>
+      </DoctorModalLayerProvider>
     </DoctorDialogMobileContext.Provider>
   );
 }
 
 function DialogTrigger(props: DialogPrimitive.Trigger.Props) {
-  const isMobile = React.useContext(DoctorDialogMobileContext);
+  const { isMobile } = React.useContext(DoctorDialogMobileContext);
   if (!isMobile) return <SharedDialogTrigger {...props} />;
 
   const { handle, ...drawerProps } = props;
@@ -67,25 +100,40 @@ function DialogTrigger(props: DialogPrimitive.Trigger.Props) {
 }
 
 function DialogClose(props: DialogPrimitive.Close.Props) {
-  const isMobile = React.useContext(DoctorDialogMobileContext);
+  const { isMobile } = React.useContext(DoctorDialogMobileContext);
   if (!isMobile) return <SharedDialogClose {...props} />;
   return (
     <DrawerPrimitive.Close {...(props as DrawerPrimitive.Close.Props)} data-slot="dialog-close" />
   );
 }
 
-type DialogContentProps = React.ComponentProps<typeof SharedDialogContent>;
+type DialogContentProps = React.ComponentProps<typeof SharedDialogContent> & {
+  fullScreen?: boolean;
+};
 
 function DialogContent({
   className,
   children,
   showCloseButton = true,
+  showOverlay,
+  fullScreen = false,
   ...props
 }: DialogContentProps) {
-  const isMobile = React.useContext(DoctorDialogMobileContext);
+  const { isMobile, showRootOverlay } = React.useContext(DoctorDialogMobileContext);
+  const effectiveShowOverlay = showOverlay ?? showRootOverlay;
+
   if (!isMobile) {
     return (
-      <SharedDialogContent className={className} showCloseButton={showCloseButton} {...props}>
+      <SharedDialogContent
+        className={cn(
+          className,
+          fullScreen &&
+            '!inset-0 !h-dvh !max-h-dvh !w-screen !max-w-none !translate-x-0 !translate-y-0 !rounded-none',
+        )}
+        showCloseButton={showCloseButton}
+        showOverlay={effectiveShowOverlay}
+        {...props}
+      >
         {children}
       </SharedDialogContent>
     );
@@ -95,9 +143,13 @@ function DialogContent({
     <DrawerContent
       {...(props as React.ComponentProps<typeof DrawerContent>)}
       showCloseButton={false}
+      showOverlay={effectiveShowOverlay}
+      showHandle={!fullScreen}
       className={cn(
         className,
-        '!h-[calc(100dvh-3.5rem)] !max-h-[calc(100dvh-3.5rem)] gap-4 overflow-hidden p-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&>[data-slot=drawer-content]]:overflow-y-auto',
+        fullScreen
+          ? '!h-dvh !max-h-dvh rounded-none border-0 bg-black p-0'
+          : '!h-[calc(100dvh-3.5rem)] !max-h-[calc(100dvh-3.5rem)] gap-4 overflow-hidden p-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&>[data-slot=drawer-content]]:overflow-y-auto',
       )}
     >
       {children}
@@ -106,7 +158,7 @@ function DialogContent({
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
-  const isMobile = React.useContext(DoctorDialogMobileContext);
+  const { isMobile } = React.useContext(DoctorDialogMobileContext);
   if (!isMobile) return <SharedDialogHeader className={className} {...props} />;
   return <div className={cn('flex shrink-0 flex-col gap-2', className)} {...props} />;
 }
@@ -117,7 +169,7 @@ function DialogFooter({
   children,
   ...props
 }: React.ComponentProps<'div'> & { showCloseButton?: boolean }) {
-  const isMobile = React.useContext(DoctorDialogMobileContext);
+  const { isMobile } = React.useContext(DoctorDialogMobileContext);
   if (!isMobile) {
     return (
       <SharedDialogFooter className={className} showCloseButton={showCloseButton} {...props}>
@@ -143,13 +195,13 @@ function DialogFooter({
 }
 
 function DialogTitle(props: React.ComponentProps<typeof SharedDialogTitle>) {
-  const isMobile = React.useContext(DoctorDialogMobileContext);
+  const { isMobile } = React.useContext(DoctorDialogMobileContext);
   if (!isMobile) return <SharedDialogTitle {...props} />;
   return <DrawerPrimitive.Title {...(props as DrawerPrimitive.Title.Props)} />;
 }
 
 function DialogDescription(props: React.ComponentProps<typeof SharedDialogDescription>) {
-  const isMobile = React.useContext(DoctorDialogMobileContext);
+  const { isMobile } = React.useContext(DoctorDialogMobileContext);
   if (!isMobile) return <SharedDialogDescription {...props} />;
   return <DrawerPrimitive.Description {...(props as DrawerPrimitive.Description.Props)} />;
 }

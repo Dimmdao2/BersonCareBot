@@ -18,12 +18,25 @@ import {
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import { DoctorProgramItemDiscussionDialog } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramItemDiscussionDialog';
+import { formatDoctorFioShort } from '@/shared/lib/fio';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
 import {
   groupExerciseCommentAttentionByPatient,
   type ExerciseCommentAttentionPatientGroup,
 } from './exerciseCommentAttentionGrouping';
 import { thumbToExerciseMedia } from './exerciseCommentThumb';
+
+/** «Фамилия Имя» пациента для второй строки шапки модалки упражнения. */
+function patientHeaderName(item: TodayExerciseCommentAttentionItem): string {
+  return formatDoctorFioShort(
+    {
+      lastName: item.patientLastName ?? null,
+      firstName: item.patientFirstName ?? null,
+      patronymic: null,
+    },
+    item.patientDisplayName,
+  );
+}
 
 function latestCommentPreview(item: TodayExerciseCommentAttentionItem): string {
   return (
@@ -182,6 +195,7 @@ export function DoctorTodayExerciseCommentsModal({
           instanceId={selectedItem.instanceId}
           itemId={selectedItem.stageItemId}
           itemLabel={selectedItem.stageItemTitle}
+          patientName={patientHeaderName(selectedItem)}
           open={discussionOpen}
           onOpenChange={(nextOpen) => {
             setDiscussionOpen(nextOpen);

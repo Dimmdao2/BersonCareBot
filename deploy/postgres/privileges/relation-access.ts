@@ -257,6 +257,13 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ]
       },
       {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
         "role": "app_tenant_service",
         "operations": [
           "UPDATE"
@@ -359,6 +366,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "original_start_at",
           "package_usage_ref",
           "payment_ref",
+          "phone_normalized",
+          "platform_user_id",
           "reschedule_count",
           "room_id",
           "service_id",
@@ -1217,6 +1226,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "assigned_by_platform_user_id",
+          "checkout_url",
           "created_at",
           "currency",
           "deduction_mode",
@@ -1230,6 +1240,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "payment_ref",
           "platform_user_id",
           "price_minor",
+          "sale_idempotency_key",
           "sold_at",
           "status",
           "subscription_package_id",
@@ -1246,6 +1257,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
+          "checkout_url",
           "notes",
           "paid_amount_minor",
           "paid_currency",
@@ -5924,11 +5936,16 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "amount_minor",
+          "appointment_id",
           "comment",
+          "created_at",
           "created_by",
           "currency",
+          "id",
+          "idempotency_key",
           "kind",
           "organization_id",
+          "patient_package_id",
           "patient_user_id",
           "provider",
           "provider_payment_id",

@@ -10,22 +10,38 @@ import { NoContextMenuVideo } from './NoContextMenuVideo';
 export function DoctorExerciseMediaPlayer({
   media,
   title,
+  presentation = 'inline',
 }: {
   media: RecommendationMediaItem | null;
   title: string;
+  presentation?: 'inline' | 'fullscreen';
 }) {
+  const isFullscreen = presentation === 'fullscreen';
+
   if (!media || (media.mediaType !== 'video' && media.mediaType !== 'hosted_video')) {
     return (
       <DoctorCatalogMediaStaticThumb
         media={media}
-        frameClassName="aspect-video w-full rounded-lg border border-border/60 bg-muted/15"
+        frameClassName={
+          isFullscreen
+            ? 'h-full w-full rounded-none border-0 bg-black [aspect-ratio:auto]'
+            : 'aspect-video w-full rounded-lg border border-border/60 bg-muted/15'
+        }
         sizes="(max-width: 639px) 100vw, 640px"
       />
     );
   }
 
   if (media.mediaType === 'hosted_video') {
-    return <HostedVideoEmbed url={media.mediaUrl} title={title} />;
+    return (
+      <HostedVideoEmbed
+        url={media.mediaUrl}
+        title={title}
+        className={
+          isFullscreen ? 'h-full min-h-0 w-full rounded-none [aspect-ratio:auto]' : undefined
+        }
+      />
+    );
   }
 
   const mediaId = parseMediaFileIdFromAppUrl(media.mediaUrl);
@@ -36,7 +52,12 @@ export function DoctorExerciseMediaPlayer({
         mp4Url={media.mediaUrl}
         title={title}
         initialPlayback={null}
-        shellClassName="relative aspect-video w-full overflow-hidden rounded-lg bg-black"
+        shellClassName={
+          isFullscreen
+            ? 'relative min-h-0 flex-1 w-full overflow-hidden rounded-none bg-black [aspect-ratio:auto]'
+            : 'relative aspect-video w-full overflow-hidden rounded-lg bg-black'
+        }
+        presentation={presentation}
       />
     );
   }
@@ -45,7 +66,11 @@ export function DoctorExerciseMediaPlayer({
     <NoContextMenuVideo
       controls
       preload="metadata"
-      className="aspect-video w-full rounded-lg bg-black object-contain"
+      className={
+        isFullscreen
+          ? 'h-full w-full rounded-none bg-black object-contain'
+          : 'aspect-video w-full rounded-lg bg-black object-contain'
+      }
     >
       <source src={media.mediaUrl} />
     </NoContextMenuVideo>

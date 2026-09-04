@@ -26,18 +26,27 @@ import type {
   CalendarFilters,
 } from '@/modules/booking-calendar/types';
 import { filterCanonicalRowsNotPurged } from '@/infra/repos/doctorAppointmentPurgeFilter';
+import { formatDoctorFio } from '@/shared/lib/fio';
 
 const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
+/**
+ * APPT-LIST-03: одно правило ФИО на все строки календаря. Прежняя склейка
+ * «Имя Фамилия» теряла отчество у структурированных карточек и оставляла его у тех,
+ * что падали на сырой displayName, — в списке соседние записи выглядели по-разному.
+ */
 function patientDisplayName(row: {
   displayName: string;
   firstName: string | null;
   lastName: string | null;
+  patronymic: string | null;
 }): string {
-  const fromParts = [row.firstName, row.lastName].filter(Boolean).join(' ').trim();
-  if (fromParts) return fromParts;
-  const dn = row.displayName.trim();
-  return dn || 'Пациент';
+  return (
+    formatDoctorFio(
+      { lastName: row.lastName, firstName: row.firstName, patronymic: row.patronymic },
+      row.displayName.trim(),
+    ) || 'Пациент'
+  );
 }
 
 function contactNameFromAttribution(
@@ -207,6 +216,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           patientDisplayName: drizzleFioCols.displayName,
           patientFirstName: drizzleFioCols.firstName,
           patientLastName: drizzleFioCols.lastName,
+          patientPatronymic: drizzleFioCols.patronymic,
           patientPhone: drizzlePrimaryPhoneCol,
         })
         .from(beAppointments)
@@ -319,6 +329,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
                 displayName: row.patientDisplayName,
                 firstName: row.patientFirstName,
                 lastName: row.patientLastName,
+                patronymic: row.patientPatronymic,
               })
             : null;
         const paymentStatus = paymentByAppt.get(row.id) ?? null;

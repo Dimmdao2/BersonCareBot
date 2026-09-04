@@ -26,9 +26,10 @@ const identitySchema = z.object({
   requestId: z.string().uuid(),
   lastName: z
     .string()
-    .min(1)
     .max(200)
-    .refine(isCyrillicFioInput, { message: FIO_LATIN_REJECTED_MESSAGE }),
+    .refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE })
+    .nullable()
+    .optional(),
   firstName: z
     .string()
     .min(1)

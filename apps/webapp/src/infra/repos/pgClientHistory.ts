@@ -1092,5 +1092,20 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       );
       return mapStaffComment(rows[0]!);
     },
+
+    async clearAppointmentComments(organizationId, appointmentId) {
+      const orgId = currentWriteOrganizationId(organizationId);
+      await runDrizzleMutationTransaction((tx) =>
+        tx
+          .delete(beAppointmentStaffComments)
+          .where(
+            and(
+              eq(beAppointmentStaffComments.organizationId, orgId),
+              eq(beAppointmentStaffComments.appointmentId, appointmentId),
+            ),
+          )
+          .returning({ id: beAppointmentStaffComments.id }),
+      );
+    },
   };
 }

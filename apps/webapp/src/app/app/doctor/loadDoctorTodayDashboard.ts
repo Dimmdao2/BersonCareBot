@@ -92,19 +92,12 @@ export type DoctorTodayDashboardDeps = {
     getInstanceById(instanceId: string): Promise<TreatmentProgramInstanceDetail>;
   };
   programItemDiscussion?: {
-    listAttentionSummaryForStageItems(
-      stageItemIds: string[],
-    ): Promise<Array<{ stageItemId: string; comments: number; media: number }>>;
     listMessagesPage(input: {
       stageItemId: string;
       limit: number;
       direction: 'backward' | 'forward';
       cursor: null;
     }): Promise<ProgramItemDiscussionMessage[]>;
-    getLastReadAtForViewer(input: {
-      viewerUserId: string;
-      stageItemId: string;
-    }): Promise<string | null>;
     listUnreadCountsForViewerByStageItems(input: {
       stageItemIds: string[];
       viewerUserId: string;

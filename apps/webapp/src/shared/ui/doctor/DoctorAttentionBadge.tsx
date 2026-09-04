@@ -15,7 +15,8 @@ export function DoctorAttentionBadge({ count = 0, dot = false, className }: Prop
       <span
         aria-hidden
         className={cn(
-          'absolute -right-0.5 -top-0.5 size-2 rounded-full bg-destructive ring-1 ring-white',
+          // Компактная точка, центр которой стоит ровно на правом верхнем углу обводки носителя.
+          'absolute -right-[3px] -top-[3px] size-1.5 rounded-full bg-destructive ring-1 ring-white',
           className,
         )}
       />

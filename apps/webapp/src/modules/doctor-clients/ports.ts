@@ -147,6 +147,10 @@ export type PatientCardHeader = {
     patronymic: string | null;
     phone: string | null;
     email: string | null;
+    /** Подтверждён ли email хотя бы одним успешным вводом кода подтверждения/входа (`user_contacts.confirmed_at`); null — контакта нет. */
+    emailVerifiedAt: string | null;
+    /** Публичный Telegram username пациента (без `@`), если известен; для deep-link/отображения врачу — не технический ID. */
+    telegramUsername: string | null;
     bindings: import('@/shared/types/session').ChannelBindings;
     /** Есть ли у пациента переписка (хотя бы одно сообщение в support_conversations),
      * независимо от привязанного канала — чтобы открыть чат даже без Telegram/MAX. */

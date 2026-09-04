@@ -11,7 +11,8 @@ import { normalizeFioPart } from '@/shared/lib/fio';
 
 export type CreateDoctorClientInput = {
   requestId?: string;
-  lastName: string;
+  /** APPT-FORM-05: обязательно только имя; фамилия необязательна. */
+  lastName?: string | null;
   firstName: string;
   patronymic?: string | null;
   phone?: string | null;
@@ -79,7 +80,7 @@ export async function createDoctorClient(
   const lastName = normalizeFioPart(input.lastName);
   const firstName = normalizeFioPart(input.firstName);
   const patronymic = normalizeFioPart(input.patronymic);
-  if (!lastName || !firstName) return { ok: false, error: 'invalid_fio' };
+  if (!firstName) return { ok: false, error: 'invalid_fio' };
   const registered = await deps.patientOrganization.createManualOrganizationClient({
     organizationId: input.organizationId,
     specialistId: input.specialistId,

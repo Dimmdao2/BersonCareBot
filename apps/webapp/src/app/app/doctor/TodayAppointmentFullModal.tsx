@@ -10,7 +10,10 @@ import type {
   CalendarEvent,
 } from '@/modules/booking-calendar/types';
 import type { CalendarCreateActiveFilters } from '@/modules/booking-calendar/calendarCreateFieldMode';
-import type { ResolvedDoctorScheduleScope } from '@/modules/doctor-schedule/scope';
+import type {
+  DoctorScheduleSpecialistOption,
+  ResolvedDoctorScheduleScope,
+} from '@/modules/doctor-schedule/scope';
 
 const API_BASE = '/api/doctor/booking-engine';
 
@@ -54,6 +57,9 @@ export function TodayAppointmentFullModal({
   const [event, setEvent] = useState<CalendarAppointmentEvent | null>(null);
   const [filterMeta, setFilterMeta] = useState<CalendarFilterMeta>(EMPTY_FILTER_META);
   const [ownSpecialistId, setOwnSpecialistId] = useState<string | null>(null);
+  const [clinicSpecialists, setClinicSpecialists] = useState<
+    DoctorScheduleSpecialistOption[] | null
+  >(null);
   const [loading, setLoading] = useState(false);
   const [refetch, setRefetch] = useState(0);
 
@@ -78,6 +84,7 @@ export function TodayAppointmentFullModal({
         }
         if (data.filters) setFilterMeta(data.filters);
         setOwnSpecialistId(data.resolvedScope?.ownSpecialistId ?? null);
+        setClinicSpecialists(data.resolvedScope?.specialists ?? null);
         setLoading(false);
       })
       .catch(() => {
@@ -99,7 +106,7 @@ export function TodayAppointmentFullModal({
       open={apptId !== null}
       onClose={onClose}
       title="Детали записи"
-      size="content"
+      size="lg"
       desktopPresentation="right-sheet"
     >
       {loading ? (
@@ -112,9 +119,9 @@ export function TodayAppointmentFullModal({
           filterMeta={filterMeta}
           activeFilters={EMPTY_ACTIVE_FILTERS}
           ownSpecialistId={ownSpecialistId}
+          clinicSpecialists={clinicSpecialists}
           onClose={onClose}
           onChanged={handleChanged}
-          showCloseControl={false}
           flushChrome
         />
       ) : apptId ? (
