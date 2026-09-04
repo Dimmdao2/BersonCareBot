@@ -194,3 +194,60 @@ describe('passkey ceremonies', () => {
     );
   });
 });
+
+/**
+ * SimpleWebAuthn 14 отдаёт transports как `string[]` (браузер может прислать что угодно) и убрал
+ * из типов доспецификационные значения. Проверяется не тип, а поведение хранилища: словарь тот же,
+ * что был до обновления, значит подсказка уже зарегистрированного ключа не теряется.
+ */
+describe('passkey transports: словарь хранилища переживает обновление библиотеки', () => {
+  async function completeRegistrationWith(transports: unknown) {
+    const store = makeStore();
+    vi.mocked(store.readChallenge).mockResolvedValue({
+      userId: '00000000-0000-0000-0000-000000000002',
+      challenge: 'c'.repeat(43),
+      expectedOrigin: 'https://app.example.test',
+      rpId: 'app.example.test',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    fakes.verifyRegistrationResponse.mockResolvedValue({
+      verified: true,
+      registrationInfo: {
+        credential: {
+          id: 'credential-registration',
+          publicKey: new Uint8Array([1, 2, 3]),
+          counter: 0,
+          transports,
+        },
+        credentialDeviceType: 'multiDevice',
+        credentialBackedUp: true,
+      },
+    });
+
+    await finishPasskeyRegistration(
+      {
+        userId: '00000000-0000-0000-0000-000000000002',
+        challengeId: '00000000-0000-4000-8000-000000000001',
+        response: registrationResponse,
+      },
+      store,
+    );
+    return vi.mocked(store.completeRegistration).mock.calls[0]?.[0].transports;
+  }
+
+  it('сохраняет доспецификационные cable и smart-card, а не только словарь WebAuthn L3', async () => {
+    await expect(completeRegistrationWith(['cable', 'smart-card', 'hybrid'])).resolves.toEqual([
+      'cable',
+      'smart-card',
+      'hybrid',
+    ]);
+  });
+
+  it('не кладёт в хранилище значение, которое оттуда всё равно не читается', async () => {
+    await expect(completeRegistrationWith(['internal', 'нечто', 42])).resolves.toEqual(['internal']);
+  });
+
+  it('отсутствие transports не роняет регистрацию', async () => {
+    await expect(completeRegistrationWith(undefined)).resolves.toEqual([]);
+  });
+});

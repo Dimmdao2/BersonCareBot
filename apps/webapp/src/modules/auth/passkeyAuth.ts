@@ -9,7 +9,7 @@ import {
 } from '@simplewebauthn/server';
 import { env } from '@/config/env';
 import { STAFF_SURFACE } from '@/config/productSurfaces';
-import type { PasskeyStore } from '@/modules/auth/passkeyStore';
+import { parsePasskeyTransports, type PasskeyStore } from '@/modules/auth/passkeyStore';
 
 const PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
@@ -107,7 +107,9 @@ export async function finishPasskeyRegistration(
     credentialId: credential.id,
     publicKey: Buffer.from(credential.publicKey).toString('base64url'),
     counter: credential.counter,
-    transports: credential.transports ?? [],
+    /* SimpleWebAuthn 14 отдаёт transports как пришедший из браузера `string[]`; в хранилище
+       кладём тот же словарь, который оттуда потом и читается. */
+    transports: parsePasskeyTransports(credential.transports),
     deviceType: credentialDeviceType,
     backedUp: credentialBackedUp,
   });
