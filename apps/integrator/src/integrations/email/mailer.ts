@@ -91,9 +91,12 @@ export async function sendMail(
     from,
     to: toList,
     subject: params.subject,
-    text: params.text,
-    html: params.html,
-    replyTo: params.replyTo,
+    /* nodemailer 10 принёс собственные типы, где опциональные поля объявлены без `undefined`:
+       под exactOptionalPropertyTypes каждое передаётся, только когда задано — так же, как раньше
+       передавались attachments. Пустая строка по-прежнему уходит как значение. */
+    ...(params.text !== undefined ? { text: params.text } : {}),
+    ...(params.html !== undefined ? { html: params.html } : {}),
+    ...(params.replyTo !== undefined ? { replyTo: params.replyTo } : {}),
     ...(params.attachments?.length ? { attachments: params.attachments } : {}),
   });
 
