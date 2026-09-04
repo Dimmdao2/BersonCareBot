@@ -6,6 +6,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## Acquiring webhook settlement principal — 05.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Эквайринговый callback (MONEY-12) | product `5b49c199a`, audit artifact/test `495044673`, audit registration `05eb5bb2b` (`wt/acquiring-webhook-fix-20260905`) | **PASS — READY FOR LAND.** Независимый аудит: kill-set 27/27, fault injection 6/6; owner-aware DEV preflight и живая проверка под tenant-service principal выполнены внутри rollback. Две SECURITY DEFINER-функции получают организацию только из принятого контекста; runtime имеет только `EXECUTE`, владельцы функций — ровно нужный поколоночный `SELECT` и `UPDATE(status)`. Миграция не содержит прав и до landing не применялась. |
+
 ## Общее всплывающее уведомление о результате действия — 05.09
 
 | слой | коммит | вердикт |
