@@ -2,6 +2,13 @@ import { DateTime } from 'luxon';
 
 export const doctorCalendarNonWorkingClassNames = ['doctor-calendar-nonworking'] as const;
 
+/**
+ * Canonical «today» marker of doctor calendar surfaces: a rounded rectangle on the doctor
+ * control radius, never a circle or an oval. Styled in `app/styles/doctor.css` so every
+ * calendar surface — including FullCalendar-rendered cells — shares one shape.
+ */
+export const DOCTOR_CALENDAR_TODAY_MARKER_CLASS = 'doctor-calendar-today-marker';
+
 export type DoctorCalendarWorkingInterval = {
   startAt: string;
   endAt: string;

@@ -15,6 +15,10 @@
 - `working` — интервалы рабочего времени из `be_working_hours`.
 - `break` — перерывы (gaps между рабочими интервалами).
 
+Фоновые слои `working`/`break` рисуются заливкой без подписи внутри сетки: перерыв визуально совпадает с
+нерабочим временем до и после смены (`doctor-calendar-nonworking`). Правка перерывов из календаря идёт через
+per-date контракт `PUT /api/doctor/booking-engine/working-days`, а не через отдельный механизм.
+
 Фоновые слои (`working`, `break`) управляются ключом `system_settings`:
 
 - `booking_calendar_show_working_hours` (`scope=admin`, default `true`).
