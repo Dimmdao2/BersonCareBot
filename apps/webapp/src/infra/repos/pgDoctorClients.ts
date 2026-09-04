@@ -13,6 +13,7 @@ import {
 } from '@/infra/db/runWebappSql';
 import { type SQL, and, countDistinct, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
+import { loadPatientTelegramUsername } from '@/infra/repos/pgPatientTelegramUsernameMention';
 import type { ChannelBindings } from '@/shared/types/session';
 import type {
   ClientIdentity,
@@ -860,6 +861,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         sql`SELECT channel_code, external_id, bot_blocked_at FROM user_channel_bindings WHERE user_id = ${canonicalId}::uuid`,
       );
       const bindings = rowToBindings(bindingsRows.rows);
+      const telegramUsername = bindings.telegramId
+        ? await loadPatientTelegramUsername(canonicalId)
+        : null;
 
       // Есть ли переписка: хотя бы одно сообщение в любой беседе пациента
       // (даёт открыть чат даже без привязанного Telegram/MAX-канала).
@@ -1017,6 +1021,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           patronymic: ur.patronymic ?? null,
           phone: ur.phone_normalized,
           email: ur.email,
+          emailVerifiedAt: ur.email_verified_at,
+          telegramUsername,
           bindings,
           hasConversation,
           isArchived: ur.is_archived,
