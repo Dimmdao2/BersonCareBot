@@ -90,8 +90,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared-contracts
       '@maxhub/max-bot-api':
-        specifier: ^0.2.2
-        version: 0.2.2
+        specifier: ^0.3.1
+        version: 0.3.1
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -1789,9 +1789,9 @@ packages:
   '@levischuck/tiny-cbor@0.2.11':
     resolution: {integrity: sha512-llBRm4dT4Z89aRsm6u2oEZ8tfwL/2l6BwpZ7JcyieouniDECM5AqNgr/y08zalEIvW3RSK4upYyybDcmjXqAow==}
 
-  '@maxhub/max-bot-api@0.2.2':
-    resolution: {integrity: sha512-Su3Ar7L+lsOctu7V5+me+eh+84l909ka3LtlPVuBbSz1fygk5L/F45HQp1vaUGg9sRpQ6/qoyKg6HJgemnX3mg==}
-    engines: {node: '>=18.18.0'}
+  '@maxhub/max-bot-api@0.3.1':
+    resolution: {integrity: sha512-veG9ZGatmLFyoPAi8vm0cYXIVBlRU41IQ09MXa+tDXXgbSeMMrKBaaBHIMB4xAL4saHfs8wkrdrjDK6Gr3YHrQ==}
+    engines: {node: '>=20.19.0'}
 
   '@modelcontextprotocol/sdk@1.27.1':
     resolution: {integrity: sha512-sr6GbP+4edBwFndLbM60gf07z0FQ79gaExpnsjMGePXqFcSSb7t6iscpjk9DhFhwd+mTEQrzNafGP8/iGGFYaA==}
@@ -8090,9 +8090,10 @@ snapshots:
 
   '@levischuck/tiny-cbor@0.2.11': {}
 
-  '@maxhub/max-bot-api@0.2.2':
+  '@maxhub/max-bot-api@0.3.1':
     dependencies:
       debug: 4.4.3
+      form-data: 4.0.6
       vcf: 2.1.2
     transitivePeerDependencies:
       - supports-color
