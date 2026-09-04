@@ -480,6 +480,21 @@ Retired 2026-07-27: `RUBITIME_WEBHOOK_TOKEN` и `RUBITIME_API_KEY` не явля
 файлы `*-dev.service` в `/etc/systemd/system/`, их нужно **disable**, удалить и `daemon-reload`
 (см. [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md)).
 
+### Контроль зависимостей по расписанию
+
+На DEV-хосте cronport-job `bcb-dependency-health` ежедневно в `09:17` по Москве запускает
+`pnpm run dependencies:health` с уведомлением владельца. Проверка вынесена из обязательного CI: она обращается к
+внешнему npm advisory registry, отдельно запускает `pnpm outdated` и сообщает об уязвимостях, deprecated-пакетах,
+новых major-версиях и minor-изменениях пакетов `0.x`. Одинаковые находки повторяются не чаще раза в неделю,
+технические ошибки — не чаще раза в сутки; восстановление после ошибки или находок также сообщается.
+
+- Управление расписанием: `node /home/dev/brain/tools/cronport.mjs list|set|disable|enable|remove`.
+- Команда job: `scripts/dependency-health-check.mjs --notify`.
+- Состояние дедупликации: `/home/dev/brain/runs/bcb-dependency-health-state.json`.
+- Лог cron: `/home/dev/brain/runs/bcb-dependency-health.cron.log`.
+- Доставка: `/home/dev/brain/host-orch/ping-owner.sh`; требует активного `brain-bot.service`, попытки доставки
+  сохраняются в `/home/dev/brain/runs/ping-owner.log`.
+
 ### Dev ports (ручной запуск, не prod systemd)
 
 | Сервис         | Типично                                                                       |

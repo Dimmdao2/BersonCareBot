@@ -69,6 +69,15 @@ pnpm run build && pnpm run build:webapp
 
 **Полный CI** (`pnpm run ci` / `pnpm check`) — не обязательная церемония перед deploy или push. Его запускают, когда накопленные изменения оставляют конкретный непокрытый интеграционный риск; уже зелёный прогон переиспользуют вместе с целевыми проверками последующих локальных правок. Точный критерий: [`AGENTS.md` §9](AGENTS.md#9-full-ci-gate).
 
+Проверка npm advisory registry не является обязательной частью CI: внешний bulk API может временно отвечать
+`503`, что не связано с качеством текущего изменения. Для обновления зависимостей и регулярного технического
+контроля используются `pnpm run audit:registry` и сводная команда `pnpm run dependencies:health`. Последняя
+дополнительно сообщает о deprecated-пакетах, новых major-версиях и изменениях minor для пакетов `0.x`; обычные
+patch/minor-обновления продолжает предлагать Dependabot.
+
+На DEV-хосте `dependencies:health` запускается независимо от CI каждый день в `09:17` по Москве через
+cronport-job `bcb-dependency-health`; одинаковые находки повторно уведомляют владельца не чаще раза в неделю.
+
 В GitHub Actions на **pull request и push** webapp гоняется двумя независимыми job: быстрый шардированный набор
 (`pnpm test:webapp:fast`, project `fast`) и поведенческий набор (`pnpm test:webapp:behavior` — projects `unit` +
 `route` + `ui`); ни один из них не называется `inprocess` — этот project был удалён вместе с disposable-PostgreSQL
@@ -124,6 +133,8 @@ webapp-тесты: [`AGENTS.md` §11](AGENTS.md#11-webapp-тесты-компа�
 | `pnpm test:error-tracking`                  | Тесты packages/error-tracking              |
 | `pnpm run ci` / `pnpm check`                | Полный пайплайн CI                         |
 | `pnpm run ci:resume:after-*`                | Догон хвоста CI после падения шага         |
+| `pnpm run audit:registry`                   | Отдельная проверка npm advisory registry   |
+| `pnpm run dependencies:health`              | Уязвимости и существенное устаревание      |
 
 ## HTTP-поверхности
 
