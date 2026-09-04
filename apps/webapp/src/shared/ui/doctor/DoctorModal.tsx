@@ -1,6 +1,16 @@
 'use client';
 
-import { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './primitives/dialog';
 import {
@@ -18,6 +28,42 @@ import {
   doctorModalTitleClass,
   doctorSectionTitleClass,
 } from '@/shared/ui/doctor/doctorVisual';
+
+/**
+ * Единая нижняя панель действий модалки: одинаковая геометрия, safe area и равные
+ * по ширине кнопки на mobile. Живёт здесь, чтобы у экранов не появлялось локальных копий.
+ */
+const doctorModalFooterBarClass =
+  'grid shrink-0 grid-flow-col auto-cols-fr gap-2 border-t border-border/60 bg-muted/30 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] [&>*]:min-w-0 [&>*]:w-full max-sm:[&>div]:contents max-sm:[&>div>*]:w-full sm:flex sm:justify-end sm:[&>*]:w-auto';
+
+type DoctorModalFooterSlot = {
+  container: HTMLElement | null;
+  setHasContent: (value: boolean) => void;
+};
+
+const DoctorModalFooterSlotContext = createContext<DoctorModalFooterSlot | null>(null);
+
+/**
+ * Действия из содержимого модалки, отрисованные в её закреплённом футере.
+ *
+ * Нужен там, где набор кнопок знает только контент (режимы «детали / форма»), а футером
+ * владеет модалка-хозяин: контент объявляет действия, панель остаётся общей. Вне `DoctorModal`
+ * (например, в тестах компонента) рендерится на месте той же панелью.
+ */
+export function DoctorModalFooter({ children }: { children: ReactNode }) {
+  const slot = useContext(DoctorModalFooterSlotContext);
+  const setHasContent = slot?.setHasContent;
+
+  useEffect(() => {
+    if (!setHasContent) return;
+    setHasContent(true);
+    return () => setHasContent(false);
+  }, [setHasContent]);
+
+  if (!slot) return <div className={doctorModalFooterBarClass}>{children}</div>;
+  if (!slot.container) return null;
+  return createPortal(children, slot.container);
+}
 
 type DoctorModalSize = 'sm' | 'md' | 'lg' | 'content';
 type DoctorModalBodyVariant = 'default' | 'list';
@@ -52,6 +98,8 @@ type DoctorModalProps = {
   bodyVariant?: DoctorModalBodyVariant;
   /** Desktop/tablet presentation. Mobile always uses the canonical bottom drawer. */
   desktopPresentation?: DoctorModalDesktopPresentation;
+  /** Второй и последующие слои стека не добавляют новое затемнение поверх первого. */
+  nested?: boolean;
   /** Called before a non-modal right sheet closes from a pointer press outside it. */
   onRightSheetOutsidePress?: () => void;
 };
@@ -104,6 +152,7 @@ export function DoctorModal({
   bodyClassName,
   bodyVariant = 'default',
   desktopPresentation = 'dialog',
+  nested = false,
   onRightSheetOutsidePress,
 }: DoctorModalProps) {
   const isMobile = useIsMobileViewport();
@@ -111,7 +160,13 @@ export function DoctorModal({
   const isContent = size === 'content';
   const isListBody = bodyVariant === 'list';
   const [rightSheetWidth, setRightSheetWidth] = useState<string | null>(null);
+  const [footerSlotElement, setFooterSlotElement] = useState<HTMLDivElement | null>(null);
+  const [hasSlottedFooter, setHasSlottedFooter] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const footerSlot = useMemo<DoctorModalFooterSlot>(
+    () => ({ container: footerSlotElement, setHasContent: setHasSlottedFooter }),
+    [footerSlotElement],
+  );
 
   useLayoutEffect(() => {
     if (!open || !bodyRef.current) return;
@@ -155,17 +210,23 @@ export function DoctorModal({
         bodyClassName,
       )}
     >
-      {children}
+      <DoctorModalFooterSlotContext.Provider value={footerSlot}>
+        {children}
+      </DoctorModalFooterSlotContext.Provider>
     </div>
   );
 
-  const footerNode = footer ? (
-    <div className="grid shrink-0 grid-flow-col auto-cols-fr gap-2 border-t border-border/60 bg-muted/30 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] [&>*]:min-w-0 [&>*]:w-full max-sm:[&>div]:contents max-sm:[&>div>*]:w-full sm:flex sm:justify-end sm:[&>*]:w-auto">
+  const hasFooter = Boolean(footer) || hasSlottedFooter;
+  const footerNode = (
+    <div
+      ref={setFooterSlotElement}
+      className={cn(doctorModalFooterBarClass, !hasFooter && 'hidden')}
+    >
       {footer}
     </div>
-  ) : null;
+  );
 
-  const mobileSafeAreaNode = footer ? null : (
+  const mobileSafeAreaNode = hasFooter ? null : (
     <div aria-hidden="true" className="h-[env(safe-area-inset-bottom,0px)] shrink-0 bg-card" />
   );
 
@@ -192,7 +253,11 @@ export function DoctorModal({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={handleOpenChange}>
-        <DrawerContent showCloseButton={false} className="gap-0 bg-card p-0">
+        <DrawerContent
+          showCloseButton={false}
+          showOverlay={!nested}
+          className="gap-0 bg-card p-0"
+        >
           <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pt-1.5 pb-3">
             <div className="flex min-w-0 items-center justify-between gap-2">
               <DrawerTitle className={doctorModalTitleClass}>{title}</DrawerTitle>
@@ -257,6 +322,7 @@ export function DoctorModal({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton
+        showOverlay={!nested}
         className={cn(
           'flex max-h-[calc(100dvh-3rem)] flex-col gap-0 overflow-hidden bg-card p-0',
           sizeMaxWidth[size],

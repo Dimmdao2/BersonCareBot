@@ -40,13 +40,16 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  showOverlay = true,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
+  /** A second layer opened over an already dimmed one must not dim the screen again. */
+  showOverlay?: boolean;
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      {showOverlay ? <DialogOverlay /> : null}
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
