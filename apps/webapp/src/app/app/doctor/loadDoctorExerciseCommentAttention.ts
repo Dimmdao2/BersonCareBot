@@ -2,11 +2,19 @@
  * Shared app-layer загрузчик «новых комментариев пациентов по упражнениям».
  *
  * Считает по списку клиентов на сопровождении активные exercise-элементы их программ и
- * отбирает те, где последний комментарий — непрочитанный текст от пациента. Используется на
+ * отбирает те, где у врача есть НЕПРОЧИТАННЫЕ сообщения пациента. Используется на
  * экране «Сегодня» (диалог `kind="exerciseComments"`) и на вкладке «Коммуникации → Комментарии»
  * (`/app/doctor/comments`).
  *
- * Извлечён из `loadDoctorTodayDashboard.ts` без изменения алгоритма (см. communications.md TODO#1).
+ * ——— Семантика unread (одна на весь кабинет) ———
+ * «Непрочитано» = сообщения пациента после read-курсора врача (`programItemDiscussionReads`),
+ * ровно как в doctor-wide SQL `listUnreadExerciseCommentsForDoctor` и в per-patient агрегации
+ * `loadDoctorCommentPatients`. Отвеченные врачом треды и медиа-комментарии из списка НЕ выпадают:
+ * порог — курсор чтения, а не роль автора последнего сообщения. `total` — сумма непрочитанных
+ * СООБЩЕНИЙ, поэтому KPI, бейдж пациента и бейджи упражнений сходятся между собой.
+ * Read-on-view сохраняется: открытие треда ставит курсор, и упражнение уходит из списка.
+ *
+ * Извлечён из `loadDoctorTodayDashboard.ts` (см. communications.md TODO#1).
  */
 import type { ClientListItem } from '@/modules/doctor-clients/ports';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
@@ -29,6 +37,12 @@ export {
 } from './comments/exerciseCommentAttentionGrouping';
 
 export const DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT = 30;
+
+/**
+ * Сколько последних сообщений треда просматриваем, чтобы найти последний комментарий пациента.
+ * Совпадает с размером страницы самой модалки обсуждения.
+ */
+const LATEST_PATIENT_COMMENT_SCAN_LIMIT = 50;
 
 export type TodayExerciseCommentAttentionItem = {
   patientUserId: string;
@@ -65,10 +79,6 @@ export type DoctorExerciseCommentAttentionDeps = {
       direction: 'backward' | 'forward';
       cursor: null;
     }): Promise<ProgramItemDiscussionMessage[]>;
-    getLastReadAtForViewer(input: {
-      viewerUserId: string;
-      stageItemId: string;
-    }): Promise<string | null>;
     listUnreadCountsForViewerByStageItems(input: {
       stageItemIds: string[];
       viewerUserId: string;
@@ -157,23 +167,31 @@ export async function loadDoctorExerciseCommentAttention(
         const itemById = new Map(activeExerciseItems.map((item) => [item.id, item]));
         const rows: Array<TodayExerciseCommentAttentionItem | null> = await Promise.all(
           attentionStageItemIds.map(async (stageItemId) => {
-            const [latestList, lastReadAt] = await Promise.all([
-              deps.programItemDiscussion!.listMessagesPage({
-                stageItemId,
-                limit: 1,
-                direction: 'backward',
-                cursor: null,
-              }),
-              deps.programItemDiscussion!.getLastReadAtForViewer({
-                viewerUserId: deps.doctorUserId!,
-                stageItemId,
-              }),
-            ]);
-            const latest = latestList[latestList.length - 1] ?? null;
-            if (!latest || latest.senderRole !== 'patient' || latest.mediaFileId) return null;
-            if (lastReadAt && latest.createdAt <= lastReadAt) return null;
+            // Единственный критерий попадания в список — есть непрочитанные врачом сообщения
+            // пациента (`listUnreadCountsForViewerByStageItems` = read-cursor семантика, ровно та же,
+            // что у doctor-wide SQL `listUnreadExerciseCommentsForDoctor` и у per-patient агрегации
+            // в «Коммуникации → Комментарии»). Прежний фильтр «последнее сообщение треда — текст от
+            // пациента» терял упражнения двух видов: отвеченные врачом (последнее сообщение — его)
+            // и медиа-комментарии. Из-за этого у пациента с 7 непрочитанными в нескольких
+            // упражнениях KPI и список показывали лишь часть, расходясь с вкладкой «Комментарии».
+            const unread = unreadCountByStageItemId.get(stageItemId) ?? 0;
+            if (unread <= 0) return null;
             const item = itemById.get(stageItemId);
             if (!item) return null;
+            // Превью — последний комментарий ПАЦИЕНТА в треде (ответы врача после него не заменяют
+            // его в списке). Окно совпадает со страницей самого треда; если в нём одни ответы врача,
+            // строка не выдумывает превью и пропускается.
+            const page = await deps.programItemDiscussion!.listMessagesPage({
+              stageItemId,
+              limit: LATEST_PATIENT_COMMENT_SCAN_LIMIT,
+              direction: 'backward',
+              cursor: null,
+            });
+            let latest: ProgramItemDiscussionMessage | null = null;
+            for (const message of page) {
+              if (message.senderRole === 'patient') latest = message;
+            }
+            if (!latest) return null;
             return {
               patientUserId,
               patientDisplayName: patientNameById.get(patientUserId)?.displayName ?? '—',
@@ -185,7 +203,7 @@ export async function loadDoctorExerciseCommentAttention(
               thumb: firstSnapshotMedia(item.snapshot),
               latestMessage: latest,
               latestMessageAtLabel: formatCommentDateRu(latest.createdAt, appDisplayTimeZone),
-              unreadCount: Math.max(1, unreadCountByStageItemId.get(stageItemId) ?? 0),
+              unreadCount: unread,
               href: patientProgramInstanceHref(patientUserId, active.id, {
                 discussionItemId: stageItemId,
               }),
@@ -202,11 +220,13 @@ export async function loadDoctorExerciseCommentAttention(
   const allRows = perPatientRows
     .flat()
     .sort((a, b) => b.latestMessage.createdAt.localeCompare(a.latestMessage.createdAt));
-  const total = allRows.reduce((sum, row) => sum + (row.unreadCount ?? 1), 0);
   const items = allRows.slice(0, DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT);
+  // `total` — непрочитанные СООБЩЕНИЯ (KPI), `truncated` — упражнения, не влезшие в превью.
+  // Считать их одной величиной нельзя: у одного упражнения бывает несколько непрочитанных.
+  const total = allRows.reduce((sum, row) => sum + (row.unreadCount ?? 1), 0);
   return {
     items,
     total,
-    truncated: total > items.length,
+    truncated: allRows.length > items.length,
   };
 }

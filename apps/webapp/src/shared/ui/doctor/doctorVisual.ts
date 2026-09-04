@@ -95,6 +95,21 @@ export const doctorListPreviewTextClass =
 export const doctorMetaTextClass =
   'text-[13px] leading-[18px] text-muted-foreground md:text-xs md:leading-4';
 
+/**
+ * Вторая строка шапки модалки доктора (контекст: «Пациент: Фамилия Имя» / «Клиент: Фамилия Имя»).
+ * Меньше основного `doctorModalTitleClass`, но плотнее обычной заметки специалиста (`text-sm`).
+ */
+export const doctorModalTitleSubjectClass = cn(doctorMetaTextClass, 'font-medium');
+
+/** Плотная сводка над прокручиваемым телом модалки (счётчики и короткие подписи). */
+export const doctorModalSummaryTextClass = cn(doctorMetaTextClass, 'font-medium text-foreground');
+
+/**
+ * Одна лёгкая нижняя тень под закреплённой панелью, которая держит верх прокручиваемого тела.
+ * Зеркало верхней тени шеллов (`DoctorBottomNav` / `DoctorMobileSectionTabs`).
+ */
+export const doctorPanelBottomShadowClass = 'shadow-[0_2px_6px_rgba(15,23,42,0.08)]';
+
 /** KPI numeric value on compact stat cards (dashboard, analytics). */
 export const doctorMetricValueClass =
   'text-[18px] font-semibold tabular-nums leading-tight text-foreground';

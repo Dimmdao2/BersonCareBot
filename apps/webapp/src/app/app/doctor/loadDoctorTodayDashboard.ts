@@ -101,10 +101,6 @@ export type DoctorTodayDashboardDeps = {
       direction: 'backward' | 'forward';
       cursor: null;
     }): Promise<ProgramItemDiscussionMessage[]>;
-    getLastReadAtForViewer(input: {
-      viewerUserId: string;
-      stageItemId: string;
-    }): Promise<string | null>;
     listUnreadCountsForViewerByStageItems(input: {
       stageItemIds: string[];
       viewerUserId: string;

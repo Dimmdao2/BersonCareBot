@@ -12,6 +12,7 @@ import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntit
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { routePaths } from '@/app-layer/routes/paths';
+import { formatDoctorFioShort } from '@/shared/lib/fio';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { buildTreatmentProgramLibraryPickers } from '@/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers';
 import { TreatmentProgramInstanceDetailClient } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient';
@@ -130,6 +131,14 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
   const embeddedEditor = (
     <TreatmentProgramInstanceDetailClient
       initial={detail}
+      patientName={
+        shellMeta.cardHeader
+          ? formatDoctorFioShort(
+              shellMeta.cardHeader.identity,
+              shellMeta.cardHeader.identity.displayName,
+            )
+          : null
+      }
       initialTestResults={testResults}
       initialAttemptAcceptMap={attemptAcceptMap}
       initialDiscussionUnreadCountByStageItemId={Object.fromEntries(

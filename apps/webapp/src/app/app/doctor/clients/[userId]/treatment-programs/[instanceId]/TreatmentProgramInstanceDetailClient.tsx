@@ -715,6 +715,8 @@ function DoctorInstancePipelineStageBlock(props: {
 
 export function TreatmentProgramInstanceDetailClient(props: {
   initial: TreatmentProgramInstanceDetail;
+  /** «Фамилия Имя» пациента для второй строки шапки модалки упражнения. */
+  patientName?: string | null;
   initialTestResults: TreatmentProgramTestResultDetailRow[];
   /** attemptId → врач может принять эту попытку (актуальный хвост, ещё не принята). */
   initialAttemptAcceptMap: Record<string, boolean>;
@@ -758,6 +760,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
 
 function TreatmentProgramInstanceDetailClientBody(props: {
   initial: TreatmentProgramInstanceDetail;
+  patientName?: string | null;
   initialTestResults: TreatmentProgramTestResultDetailRow[];
   initialAttemptAcceptMap: Record<string, boolean>;
   appDisplayTimeZone: string;
@@ -769,6 +772,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   refreshBaseline: () => Promise<TreatmentProgramInstanceDetail>;
 }) {
   const {
+    patientName,
     initialOpenDiscussionItemId,
     initialFocusTestResultId,
     initialTestResults,
@@ -1204,6 +1208,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
           instanceId={detail.id}
           itemId={discussionTarget.itemId}
           itemLabel={discussionTarget.label}
+          patientName={patientName}
           open
           onOpenChange={(open) => {
             if (!open) setDiscussionTarget(null);

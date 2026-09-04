@@ -9,6 +9,7 @@ import {
 } from '@/shared/ui/doctor/DoctorExerciseActivityCalendar';
 import { ExerciseExecutionGraph } from '@/shared/ui/doctor/ExerciseExecutionGraph';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useDoctorPatientSubjectLine } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type MetricsResponse = {
   ok?: boolean;
@@ -57,15 +58,19 @@ export function DoctorExerciseStatisticsModal({
   open,
   onClose,
   patientUserId,
+  patientName,
   instanceId,
   itemId,
 }: {
   open: boolean;
   onClose: () => void;
   patientUserId: string;
+  /** «Фамилия Имя» пациента для второй строки шапки; без него вторая строка не рисуется. */
+  patientName?: string | null;
   instanceId: string;
   itemId: string;
 }) {
+  const patientSubject = useDoctorPatientSubjectLine(patientName);
   const now = new Date();
   const [metricsState, setMetricsState] = useState<MetricsState>({
     requestKey: '',
@@ -187,6 +192,7 @@ export function DoctorExerciseStatisticsModal({
       open={open}
       onClose={onClose}
       title="Статистика"
+      titleSubject={patientSubject}
       size="lg"
       bodyClassName="space-y-4"
     >

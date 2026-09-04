@@ -33,7 +33,9 @@ import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListC
 import {
   doctorChatMessageTextClass,
   doctorChatTimestampClass,
+  doctorListPreviewTextClass,
   doctorMetaTextClass,
+  doctorPanelBottomShadowClass,
 } from '@/shared/ui/doctor/doctorVisual';
 
 export type DoctorProgramDiscussionAssignment = {
@@ -66,11 +68,18 @@ function AssignmentToolbar({
   if (assignment.maxPain !== null) loadParts.push(`Боль ≤ ${assignment.maxPain}`);
 
   return (
-    <div className="flex shrink-0 items-start gap-3 border-b border-border/60 bg-card px-4 py-2.5 shadow-sm">
+    // Превью, первая строка рекомендаций и действия выровнены по ВЕРХНЕМУ краю блока;
+    // кнопки живут в первой строке (её высоту и задают), поэтому заметку они не перекрывают.
+    <div
+      className={cn(
+        'flex shrink-0 items-start gap-3 border-b border-border/60 bg-card px-4 py-2.5',
+        doctorPanelBottomShadowClass,
+      )}
+    >
       <ExerciseListCatalogThumb media={assignment.media} className="!size-11 !rounded-md" />
       <div className="min-w-0 flex-1">
-        <div className="flex min-h-9 items-end gap-2">
-          <div className="min-w-0 flex-1 pb-1">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
             {loadParts.length > 0 ? (
               <p className="text-sm font-medium text-foreground">{loadParts.join(', ')}</p>
             ) : assignment.note ? null : (
@@ -105,9 +114,7 @@ function AssignmentToolbar({
           </div>
         </div>
         {assignment.note ? (
-          <p className="mt-0.5 whitespace-normal text-sm font-medium text-foreground">
-            {assignment.note}
-          </p>
+          <p className={cn(doctorListPreviewTextClass, 'font-medium')}>{assignment.note}</p>
         ) : null}
       </div>
     </div>
