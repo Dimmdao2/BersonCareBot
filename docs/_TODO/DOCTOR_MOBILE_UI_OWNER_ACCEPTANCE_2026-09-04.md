@@ -327,7 +327,7 @@
       ID; worker коммитит в `wt/*`, не пушит и не занимает общий DEV-порт.
 - [x] `GATE-05` Перед landing выполнен один независимый audit соответствующего риска; style-аудит не превращается
       в серийное придумывание новых требований.
-- [ ] `GATE-06` После интеграции всех принятых slices выполняются проверки по §9–§10; commit/push/TEST deploy —
+- [x] `GATE-06` После интеграции всех принятых slices выполняются проверки по §9–§10; commit/push/TEST deploy —
       только по отдельной актуальной команде владельца.
 
 ## R. Доказательства текущего интеграционного кандидата
@@ -361,3 +361,13 @@
   тестов; targeted `tariffMechanics.route.test.ts` — `42/42`; scoped ESLint — PASS.
 - `FILES-04`: мобильный toolbar содержит раздельные действия «Камера / Медиатека / Документ», а desktop — одну
   обычную кнопку «Загрузить файл»; проверено scoped ESLint и webapp typecheck.
+- `GATE-06`: локальный full-CI прошёл lint, typecheck, integrator/webapp/media-worker/error-tracking tests,
+  integrator/webapp production builds, SaaS DB regression audit; после удаления вредных UI-oracles полный
+  `pnpm test:webapp` зелёный (`493 passed | 7 skipped` файлов, `2565 passed | 31 skipped` тестов). Локальный внешний
+  `node scripts/registry-prod-audit.mjs` трижды завершился одинаковым `bulk advisories HTTP 503`; независимый
+  GitHub Security check для `049c6c2552fb330b9fd6b17914cc0f3c52712171` завершился `success`, а
+  `pnpm run push:checked` подтвердил все terminal checks. Штатный
+  `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` применил TEST migration (`pending=1`, `total=114`),
+  повторно доказал tenant wall `3/3`, завершил post-runtime SaaS isolation gate с `status=okay` и выдал
+  `deploy-test: PASS`; транскрипт:
+  `/var/log/bersoncarebot/deploy-test/deploy-test.20260904T071028Z.2F9G7g.log`.
