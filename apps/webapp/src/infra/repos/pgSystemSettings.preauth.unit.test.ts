@@ -96,6 +96,71 @@ describe('readAdminSystemSettingString under the pre-login bootstrap principal',
   });
 });
 
+/**
+ * The acquiring callback verifies a provider signature with the CLINIC's own webhook secret, and the
+ * principal it holds while doing so is the organization one its route installed — the port's
+ * `tenant_service` class, which has no relation door. Reading `system_settings` directly there threw
+ * before any SQL ran, so the callback could not be verified at all and a charged patient's ledger row
+ * stayed `pending` while the acquirer retried forever.
+ */
+describe('booking payment config under the acquiring callback principal', () => {
+  const ORGANIZATION_ID = '44444444-4444-4444-8444-444444444444';
+
+  it.each([['booking_payment_providers'], ['booking_payment_enabled']] as const)(
+    'reads %s through the tenant root instead of the table',
+    async (key) => {
+      fakes.getCurrentDbPrincipal.mockReturnValue({
+        kind: 'organization',
+        organizationId: ORGANIZATION_ID,
+      });
+      fakes.runWebappNamedRoot.mockResolvedValueOnce({
+        rows: [{ value_json: { value: { defaultProviderId: 'alfabank', providers: [] } } }],
+      });
+
+      const setting = await createPgSystemSettingsPort().getByKey(key, 'admin', {
+        organizationId: ORGANIZATION_ID,
+      });
+
+      expect(setting?.valueJson).toEqual({ value: { defaultProviderId: 'alfabank', providers: [] } });
+      const [, identity, params] = fakes.runWebappNamedRoot.mock.calls[0] as [
+        unknown,
+        string,
+        unknown[],
+      ];
+      expect(identity).toBe('app.read_acquiring_webhook_booking_payment_setting(text)');
+      // The clinic is the installed principal, not an argument the callback could steer.
+      expect(params).toEqual([key]);
+      expect(fakes.runWebappSql).not.toHaveBeenCalled();
+    },
+  );
+
+  it('leaves the patient checkout on its own door', async () => {
+    fakes.getCurrentDbPrincipal.mockReturnValue({ kind: 'patient' });
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({ rows: [{ value_json: { value: true } }] });
+
+    await createPgSystemSettingsPort().getByKey('booking_payment_enabled', 'admin', {
+      organizationId: ORGANIZATION_ID,
+    });
+
+    const [, identity] = fakes.runWebappNamedRoot.mock.calls[0] as [unknown, string, unknown[]];
+    expect(identity).toBe('app.read_current_patient_booking_payment_setting(text)');
+  });
+
+  it('does not open the callback door for any other setting key', async () => {
+    fakes.getCurrentDbPrincipal.mockReturnValue({
+      kind: 'organization',
+      organizationId: ORGANIZATION_ID,
+    });
+    fakes.runWebappSql.mockResolvedValueOnce({ rows: [] });
+
+    await createPgSystemSettingsPort().getByKey('max_bot_api_key', 'admin', {
+      organizationId: ORGANIZATION_ID,
+    });
+
+    expect(fakes.runWebappNamedRoot).not.toHaveBeenCalled();
+  });
+});
+
 describe('system settings durable audit side effect', () => {
   it('never binds raw old/new composite secrets into the upsert audit INSERT', async () => {
     const oldSecret = 'old-vapid-private-do-not-bind-12f4';

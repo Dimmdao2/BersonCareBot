@@ -1,5 +1,5 @@
 /**
- * The cash ledger write must execute under the principal its caller installed.
+ * Every `public.patient_payment` write must be reachable by the principal its caller installed.
  *
  * Live defect (DEV, 2026-09-05): «Оплачено наличными» on a 7 000 ₽ appointment answered «Не удалось
  * выполнить действие.» — the repository re-entered an ORGANIZATION principal over the staff one the
@@ -14,23 +14,31 @@
  * the money is written as — that is what this file holds. The real `@bersoncare/db-principal` is
  * used deliberately: the assertion is about the principal actually in force at write time.
  */
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getCurrentDbPrincipal,
   getCurrentDbPrincipalOrganizationId,
+  runWithDbOrganizationPrincipal,
   runWithDbStaffPrincipal,
 } from '@bersoncare/db-principal';
+import {
+  runWithWebappPortOperation,
+  webappPortContextPrincipal,
+  type PortCapabilityDescriptor,
+} from '@/infra/db/portContextRuntime';
 
 const fakes = vi.hoisted(() => ({
   withTransaction: vi.fn(),
   getWebappSqlFromPgClient: vi.fn(),
+  runWebappNamedRoot: vi.fn(),
 }));
 
 vi.mock('@/infra/db/withClient', () => ({ withTransaction: fakes.withTransaction }));
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: vi.fn(),
   getWebappSqlFromPgClient: fakes.getWebappSqlFromPgClient,
-  runWebappNamedRoot: vi.fn(),
+  runWebappNamedRoot: fakes.runWebappNamedRoot,
 }));
 vi.mock('@/app-layer/db/drizzle', () => ({ getDrizzle: vi.fn() }));
 vi.mock('@/infra/db/client', () => ({ getPool: vi.fn() }));
@@ -140,5 +148,102 @@ describe('patient payment cash write principal', () => {
       'organization_principal_required',
     );
     expect(fakes.withTransaction).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The declared capability catalog exactly as the deploy renders it into the runtime env.
+ *
+ * Read from the committed generated artifact rather than restated here: the identity string the
+ * repository passes is only meaningful if the DECLARATION carries a capability for it, and a typo on
+ * either side is a runtime 500 that no fake catalog would ever show.
+ */
+function declaredWebappCapabilities(): Record<string, PortCapabilityDescriptor> {
+  const seed = readFileSync(
+    new URL(
+      '../../../../../deploy/postgres/generated/port-context-capabilities.bcb_webapp_dev.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  const rows = [
+    ...seed.matchAll(
+      /\('([0-9a-f-]{36})'::uuid, '(\w+)'::app\.port_name, '\w+'::name, '(\w+)'::name, '(\w+)'::app\.port_context_class, '([^']+)', (?:'([^']+)'::regprocedure|NULL::regprocedure)\)/gu,
+    ),
+  ];
+  expect(rows.length).toBeGreaterThan(100);
+  const capabilities: Record<string, PortCapabilityDescriptor> = {};
+  for (const [, capabilityId, port, targetRole, contextClass, purpose, functionIdentity] of rows) {
+    if (port !== 'webapp') continue;
+    capabilities[functionIdentity ?? `${contextClass}:${purpose}`] = {
+      capabilityId,
+      targetRole,
+      contextClass: contextClass as PortCapabilityDescriptor['contextClass'],
+      purpose,
+      ...(functionIdentity ? { functionIdentity } : {}),
+    };
+  }
+  return capabilities;
+}
+
+describe('acquiring webhook settlement principal', () => {
+  const PROVIDER_ID = 'alfabank';
+  const PROVIDER_PAYMENT_ID = 'provider-payment-1074';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ outcome: 'settled' }] });
+  });
+
+  function settleAsWebhook() {
+    return runWithDbOrganizationPrincipal(ORGANIZATION_ID, () =>
+      createPgPatientPaymentsPort().settleAcquiringWebhookPayment({
+        providerId: PROVIDER_ID,
+        providerPaymentId: PROVIDER_PAYMENT_ID,
+        status: 'paid',
+      }),
+    );
+  }
+
+  it('settles through a named root instead of relation access, and names no organization', async () => {
+    await expect(settleAsWebhook()).resolves.toBe('settled');
+
+    // No `withTransaction`: relation access is exactly what the organization principal cannot do,
+    // and the arguments carry the provider reference only — the clinic is the installed principal.
+    expect(fakes.withTransaction).not.toHaveBeenCalled();
+    const [, functionIdentity, functionArgs] = fakes.runWebappNamedRoot.mock.calls[0]!;
+    expect(functionIdentity).toBe('app.settle_patient_acquiring_webhook_payment(text,text,text)');
+    expect(functionArgs).toEqual([PROVIDER_ID, PROVIDER_PAYMENT_ID, 'paid']);
+    expect(functionArgs).not.toContain(ORGANIZATION_ID);
+  });
+
+  it('names a root the declaration really opens to the organization principal', async () => {
+    await settleAsWebhook();
+    const [, functionIdentity] = fakes.runWebappNamedRoot.mock.calls[0]!;
+
+    const selected = runWithWebappPortOperation(
+      { functionIdentity: functionIdentity as string, typedArgs: [] },
+      () =>
+        webappPortContextPrincipal(
+          { kind: 'organization', organizationId: ORGANIZATION_ID },
+          declaredWebappCapabilities(),
+        ),
+    );
+
+    expect(selected).toMatchObject({
+      pool: 'staff',
+      principal: { targetRole: 'app_tenant_service', organizationId: ORGANIZATION_ID },
+    });
+  });
+
+  it('still has no relation door for the organization principal to fall back to', () => {
+    // The defect this fix answers, stated as a standing invariant: `tenant_service` reaches data only
+    // through named roots. If this ever starts passing, the class was widened instead of given a door.
+    expect(() =>
+      webappPortContextPrincipal(
+        { kind: 'organization', organizationId: ORGANIZATION_ID },
+        declaredWebappCapabilities(),
+      ),
+    ).toThrow(/tenant_service/u);
   });
 });

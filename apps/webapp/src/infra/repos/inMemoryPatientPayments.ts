@@ -8,7 +8,6 @@ import type {
   AddCashPaymentInput,
   InsertAcquiringPendingInput,
   PatientPayment,
-  PatientPaymentStatus,
   PatientPaymentsPort,
 } from '@/modules/patient-payments/ports';
 
@@ -90,19 +89,6 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
     }));
   },
 
-  async findByProviderPaymentReference(
-    providerId: string,
-    providerPaymentId: string,
-  ): Promise<PatientPayment | null> {
-    const matches = payments.filter(
-      (payment) =>
-        payment.kind === 'acquiring' &&
-        payment.provider === providerId &&
-        payment.providerPaymentId === providerPaymentId,
-    );
-    return matches.length === 1 ? matches[0]! : null;
-  },
-
   async resolveAcquiringWebhookOrganization(providerId, providerPaymentId): Promise<string | null> {
     const matches = payments.filter(
       (payment) =>
@@ -114,17 +100,25 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
     return matches.length === 1 ? matches[0]!.organizationId : null;
   },
 
-  async updatePatientPaymentStatus(
-    id: string,
-    status: PatientPaymentStatus,
-    _organizationId: string,
-    providerPaymentId?: string,
-  ): Promise<void> {
-    const row = payments.find((p) => p.id === id);
-    if (row) {
-      row.status = status;
-      if (providerPaymentId !== undefined) row.providerPaymentId = providerPaymentId;
-    }
+  /**
+   * Mirrors `app.settle_patient_acquiring_webhook_payment`: exactly one matching row or nothing,
+   * terminal rows are left alone, and only a `pending` row is moved.
+   *
+   * The organization is deliberately absent from the match here too — in the real port it comes
+   * from the installed principal, and this fake has no principal to install.
+   */
+  async settleAcquiringWebhookPayment({ providerId, providerPaymentId, status }) {
+    const matches = payments.filter(
+      (payment) =>
+        payment.kind === 'acquiring' &&
+        payment.provider === providerId &&
+        payment.providerPaymentId === providerPaymentId,
+    );
+    if (matches.length !== 1) return 'not_found';
+    const row = matches[0]!;
+    if (row.status !== 'pending') return 'already_processed';
+    row.status = status;
+    return 'settled';
   },
 
   async insertAcquiringPending(input: InsertAcquiringPendingInput): Promise<PatientPayment> {
