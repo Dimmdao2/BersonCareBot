@@ -5,10 +5,7 @@
 
 import { and, desc, eq, inArray, isNotNull, isNull, sum } from 'drizzle-orm';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
-import {
-  getCurrentDbPrincipalOrganizationId,
-  runWithDbOrganizationPrincipal,
-} from '@bersoncare/db-principal';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import {
   getWebappSqlDb,
   getWebappSqlFromPgClient,
@@ -47,13 +44,27 @@ function rowToPayment(row: typeof patientPayment.$inferSelect): PatientPayment {
   };
 }
 
+/**
+ * The ledger is plain relation access, and the webapp port hands the tenant-service class no
+ * through-door for that: `deploy/postgres/privileges/declaration.ts` states «сквозной
+ * `purpose: 'relation'` этому классу не выдают (SCHEME §3)», so the only declared relation
+ * capabilities are `staff`, `patient` and `platform`. Re-entering an organization principal here
+ * therefore made every write physically unreachable — the port-context resolver looked up a
+ * `tenant_service` capability that does not exist and threw before any SQL was issued. The
+ * declared writer of `public.patient_payment` is `app_staff` (`privileges/relation-access.ts`),
+ * which is exactly the principal every cabinet cash/acquiring door already installs.
+ *
+ * So the write runs under the principal its caller installed, and `organizationId` stays an
+ * honest argument by being checked against it instead of silently redefining the tenant.
+ */
 function runPatientPaymentMutation<T>(
   organizationId: string,
   fn: (db: DrizzleDb) => Promise<T>,
 ): Promise<T> {
-  return runWithDbOrganizationPrincipal(organizationId, () =>
-    withTransaction((client) => fn(getWebappSqlFromPgClient(client) as DrizzleDb)),
-  );
+  if (requiredPrincipalOrganizationId() !== organizationId) {
+    throw new Error('patient_payment_organization_principal_mismatch');
+  }
+  return withTransaction((client) => fn(getWebappSqlFromPgClient(client) as DrizzleDb));
 }
 
 function requiredPrincipalOrganizationId(): string {
