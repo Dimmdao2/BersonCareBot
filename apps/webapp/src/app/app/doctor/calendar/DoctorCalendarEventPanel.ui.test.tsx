@@ -303,6 +303,32 @@ describe('appointment payment owner states', () => {
     expect(screen.queryByRole('button', { name: 'Принять оплату' })).not.toBeInTheDocument();
   });
 
+  it('offers no online option when the read reports no configured provider', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        paymentResponse({
+          summary: { prepaymentQuote: null, payment: null },
+          totalMinor: 10_000,
+          manualPaidMinor: 0,
+          onlinePaymentAvailable: false,
+        }),
+      ),
+    );
+
+    render(
+      <AppointmentPaymentSection apiBase="/api/doctor/booking-engine" appointmentId="appointment-1" />,
+    );
+    await screen.findByText('Не оплачено');
+    fireEvent.click(screen.getByRole('button', { name: 'Принять оплату' }));
+
+    // Cash still works without a provider; the invoice/QR/link path must not be offered at all,
+    // otherwise the doctor promises a patient a link the provider cannot issue.
+    expect(await screen.findByRole('button', { name: 'Оплачено наличными' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Выставить счёт' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'QR-код платёжной ссылки' })).not.toBeInTheDocument();
+  });
+
   it('keeps the QR on the server-returned URL and clears that identity when the appointment changes', async () => {
     const getByAppointment = new Map([
       [
