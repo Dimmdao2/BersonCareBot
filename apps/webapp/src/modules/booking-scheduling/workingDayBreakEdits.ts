@@ -123,9 +123,10 @@ export function openWorkingDayIntervalForBooking(
 
 /**
  * CAL-ACTION-04/07/10: widens the working day so a selection that currently falls outside its
- * working bounds — or a day with no working hours at all — becomes bookable. Only the side the
- * selection falls on moves; the opposite bound, existing breaks and existing appointments are
- * left exactly as they are, so this never needs to touch `busy`.
+ * working bounds — or a day with no working hours at all — becomes bookable. Only the selected
+ * interval becomes bookable: if it is separated from the old bounds, the gap is preserved as a
+ * break. Existing breaks and appointments are left exactly as they are, so this never needs to
+ * touch `busy`.
  */
 export function openWorkingHoursForSelection(
   input: WorkingDayBreakEditInput,
@@ -134,6 +135,19 @@ export function openWorkingHoursForSelection(
     return { ok: false, error: 'invalid_interval' };
   }
   const hasWorkingHours = input.dayEndMinute > input.dayStartMinute;
+  const gapBreaks: MinuteInterval[] = [];
+  if (hasWorkingHours && input.selection.endMinute < input.dayStartMinute) {
+    gapBreaks.push({
+      startMinute: input.selection.endMinute,
+      endMinute: input.dayStartMinute,
+    });
+  }
+  if (hasWorkingHours && input.selection.startMinute > input.dayEndMinute) {
+    gapBreaks.push({
+      startMinute: input.dayEndMinute,
+      endMinute: input.selection.startMinute,
+    });
+  }
   return {
     ok: true,
     dayStartMinute: hasWorkingHours
@@ -142,7 +156,7 @@ export function openWorkingHoursForSelection(
     dayEndMinute: hasWorkingHours
       ? Math.max(input.dayEndMinute, input.selection.endMinute)
       : input.selection.endMinute,
-    breaks: normalizeBreaks(input.breaks),
+    breaks: normalizeBreaks([...input.breaks, ...gapBreaks]),
   };
 }
 
