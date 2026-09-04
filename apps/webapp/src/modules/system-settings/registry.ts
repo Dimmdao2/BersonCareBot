@@ -323,7 +323,6 @@ export const SYSTEM_SETTING_REGISTRY = {
     'boolean',
     'false',
   ),
-  video_default_delivery: runtime('admin', 'global', 'authenticated_client', 'string', 'auto'),
   video_presign_ttl_seconds: runtime('admin', 'global', 'server', 'integer', '3600'),
   video_watermark_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
   patient_booking_url: runtime('admin', 'per_org', 'authenticated_client', 'url', ''),

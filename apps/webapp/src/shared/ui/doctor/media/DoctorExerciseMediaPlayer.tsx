@@ -49,7 +49,6 @@ export function DoctorExerciseMediaPlayer({
     return (
       <DoctorMediaPlaybackVideo
         mediaId={mediaId}
-        mp4Url={media.mediaUrl}
         title={title}
         initialPlayback={null}
         shellClassName={

@@ -240,10 +240,6 @@ export type CuratedSystemHealthSnapshot = z.infer<typeof curatedSystemHealthSnap
 
 const curatedPlaybackHealthMetricsSchema = z
   .object({
-    byDelivery: z
-      .object({ hls: nonNegativeNumber, mp4: nonNegativeNumber, file: nonNegativeNumber })
-      .strict(),
-    fallbackTotal: nonNegativeNumber,
     totalResolutions: nonNegativeNumber,
     uniquePlaybackPairsFirstSeenInWindow: nonNegativeNumber,
   })

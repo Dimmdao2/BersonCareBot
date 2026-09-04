@@ -3,7 +3,6 @@ import {
   VIDEO_PRESIGN_TTL_MAX_SEC,
   VIDEO_PRESIGN_TTL_MIN_SEC,
 } from '@/modules/media/videoPresignTtlConstants';
-import type { VideoDefaultDeliveryUi } from './VideoSystemSettingsSection';
 import type { EmailSmtpSectionProps } from './EmailSmtpSection';
 import type { AuthProvidersSectionProps } from './AuthProvidersSection';
 import {
@@ -44,7 +43,7 @@ const ADMIN_SETTINGS_PAGE_REQUIRED_KEYS = [
   'patient_program_discussion_ui_enabled', 'patient_program_discussion_media_submission_enabled',
   'patient_booking_url', 'operator_health_alert_config', 'admin_incident_alert_config',
   'operator_alert_fallback_email',
-  'video_playback_api_enabled', 'video_default_delivery', 'video_hls_pipeline_enabled',
+  'video_playback_api_enabled', 'video_hls_pipeline_enabled',
   'video_hls_new_uploads_auto_transcode', 'video_hls_reconcile_enabled', 'video_watermark_enabled',
   'video_presign_ttl_seconds', 'support_contact_url', 'app_display_timezone',
   'telegram_login_bot_username', 'max_login_bot_nickname', 'max_bot_api_key', 'vk_web_login_url',
@@ -134,13 +133,6 @@ function parseVideoBoolSetting(valueJson: unknown): boolean {
   return raw === true || raw === 'true';
 }
 
-function parseVideoDefaultDeliverySetting(valueJson: unknown): VideoDefaultDeliveryUi {
-  const raw = getValueJson<unknown>(valueJson, 'auto');
-  const s = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-  if (s === 'mp4' || s === 'hls' || s === 'auto') return s;
-  return 'auto';
-}
-
 function parseVideoPresignTtlSeconds(valueJson: unknown): number {
   const raw = getValueJson<unknown>(valueJson, 3600);
   const n =
@@ -218,7 +210,6 @@ export type AdminSettingsPageData = {
   diagnostics: AdminDiagnosticsSettings;
   videoSystemSettingsProps: {
     initialPlaybackApiEnabled: boolean;
-    initialDefaultDelivery: VideoDefaultDeliveryUi;
     initialHlsPipelineEnabled: boolean;
     initialNewUploadsAutoTranscode: boolean;
     initialHlsReconcileEnabled: boolean;
@@ -352,9 +343,6 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
     videoSystemSettingsProps: {
       initialPlaybackApiEnabled: parseVideoBoolSetting(
         adminSettingsList.find((x) => x.key === 'video_playback_api_enabled')?.valueJson,
-      ),
-      initialDefaultDelivery: parseVideoDefaultDeliverySetting(
-        adminSettingsList.find((x) => x.key === 'video_default_delivery')?.valueJson,
       ),
       initialHlsPipelineEnabled: parseVideoBoolSetting(
         adminSettingsList.find((x) => x.key === 'video_hls_pipeline_enabled')?.valueJson,

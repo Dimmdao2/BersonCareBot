@@ -1,6 +1,7 @@
 /**
- * Единый пациентский видеоплеер: источник и fallback (HLS → MP4) задаёт только ответ
- * `GET /api/media/[id]/playback` и внутренняя логика при сбоях HLS — пользователь не выбирает формат доставки.
+ * Единый пациентский видеоплеер: источник задаёт только ответ `GET /api/media/[id]/playback`.
+ * Готовый HLS — единственный путь для такого видео: подмены на прогрессивный MP4 нет (исходный
+ * объект удаляется после транскода), при фатальной ошибке HLS показывается штатная ошибка.
  * При HLS через hls.js и ≥2 вариантах в `hls.qualities` доступны режим «Авто» и фиксированное разрешение.
  *
  * Телеметрия / отладка: не логировать presigned URL, poster URL, query на подписанных ссылках.
@@ -39,8 +40,6 @@ const DEFAULT_SHELL = 'relative aspect-video w-full overflow-hidden rounded-lg b
 
 export type PatientMediaPlaybackVideoProps = {
   mediaId: string;
-  /** Fallback progressive URL, если в JSON ещё нет `mp4.url` (обычно `/api/media/{id}`). */
-  mp4Url: string;
   title: string;
   /**
    * JSON с сервера (RSC), если уже резолвнут; иначе `null` — компонент сам запросит `/playback`
@@ -110,14 +109,12 @@ function probeFromHlsJsLevel(level: {
 
 function PlaybackEngine({
   mediaId,
-  mp4Url,
   title,
   initialPayload,
   shellClassName,
   onFirstPlaying,
 }: {
   mediaId: string;
-  mp4Url: string;
   title: string;
   initialPayload: MediaPlaybackPayload;
   shellClassName: string;
@@ -125,15 +122,13 @@ function PlaybackEngine({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
-  const autoFallbackUsedRef = useRef(false);
   const hlsRefreshAttemptedRef = useRef(false);
   const lastIssueReportAtRef = useRef<Record<string, number>>({});
   const firstPlayingFiredRef = useRef(false);
 
   const [payload, setPayload] = useState<MediaPlaybackPayload>(initialPayload);
-  const [sourceKind, setSourceKind] = useState<'hls' | 'mp4'>(() =>
-    initialPlaybackSourceKind(initialPayload),
-  );
+  /** Derived, never toggled: the resolver alone decides HLS vs progressive for this row. */
+  const sourceKind = initialPlaybackSourceKind(payload);
   const sortedPlaybackQualities = useMemo(
     () => sortedQualitiesDesc(payload.hls?.qualities ?? []),
     [payload.hls?.qualities],
@@ -253,9 +248,6 @@ function PlaybackEngine({
         const next = await fetchPlaybackJson();
         if (!next) return;
         setPayload(next);
-        if (initialPlaybackSourceKind(next) === 'hls') {
-          setSourceKind('hls');
-        }
       })();
     }, delayMs);
     return () => window.clearTimeout(timerId);
@@ -275,46 +267,33 @@ function PlaybackEngine({
     destroyHls();
 
     const masterUrl = payload.hls?.masterUrl;
-    const progressiveUrl = payload.mp4?.url ?? mp4Url;
+    const progressiveUrl = payload.progressive?.url ?? null;
     const posterUrl = payload.posterUrl;
 
-    const tryMp4Fallback = () => {
-      if (autoFallbackUsedRef.current || sourceKind !== 'hls') return false;
-      autoFallbackUsedRef.current = true;
-      patientPlaybackDiag({ event: 'auto_mp4_fallback', mediaId, delivery: 'hls' });
-      setSourceKind('mp4');
-      return true;
-    };
-
-    const tryRefreshHlsOnceThenFallback = async () => {
-      // One HLS refresh is enough for expired presigned URLs; repeated fatal loops should stop at MP4.
+    const refreshHlsOnce = async () => {
+      // One refresh is enough for an expired presigned URL; a repeated fatal loop stops at the error.
       if (hlsRefreshAttemptedRef.current) {
-        if (!tryMp4Fallback()) {
-          reportPlaybackIssue({
-            eventClass: 'hls_fatal',
-            delivery: 'hls',
-            errorDetail: 'refresh_exhausted',
-          });
-          finishError('Не удалось воспроизвести видео.');
-        }
+        reportPlaybackIssue({
+          eventClass: 'hls_fatal',
+          delivery: 'hls',
+          errorDetail: 'refresh_exhausted',
+        });
+        finishError('Не удалось воспроизвести видео.');
         return;
       }
 
       hlsRefreshAttemptedRef.current = true;
       const next = await fetchPlaybackJson();
-      if (next && next.hls?.masterUrl && initialPlaybackSourceKind(next) === 'hls') {
+      if (next && next.hls?.masterUrl) {
         setPayload(next);
-        setSourceKind('hls');
         return;
       }
-      if (!tryMp4Fallback()) {
-        reportPlaybackIssue({
-          eventClass: 'hls_fatal',
-          delivery: 'hls',
-          errorDetail: 'refresh_no_hls_payload',
-        });
-        finishError('Не удалось воспроизвести видео.');
-      }
+      reportPlaybackIssue({
+        eventClass: 'hls_fatal',
+        delivery: 'hls',
+        errorDetail: 'refresh_no_hls_payload',
+      });
+      finishError('Не удалось воспроизвести видео.');
     };
 
     const finishLoadOk = () => {
@@ -329,7 +308,11 @@ function PlaybackEngine({
     };
 
     void (async () => {
-      if (sourceKind === 'mp4' || !masterUrl) {
+      if (!masterUrl) {
+        if (!progressiveUrl) {
+          finishError('Не удалось воспроизвести видео.');
+          return;
+        }
         attachProgressive(video, progressiveUrl, posterUrl);
         return;
       }
@@ -343,10 +326,9 @@ function PlaybackEngine({
         if (cancelled) return;
 
         if (!Hls.isSupported()) {
-          if (!cancelled) setSourceKind('mp4');
-          attachProgressive(video, progressiveUrl, posterUrl);
           patientPlaybackDiag({ event: 'hls_js_unsupported', mediaId });
           reportPlaybackIssue({ eventClass: 'hls_js_unsupported', delivery: 'hls' });
+          finishError('Браузер не поддерживает воспроизведение этого видео.');
           return;
         }
 
@@ -393,7 +375,7 @@ function PlaybackEngine({
           });
           reportPlaybackIssue({ eventClass: 'hls_fatal', delivery: 'hls', errorDetail: data.type });
           destroyHls();
-          void tryRefreshHlsOnceThenFallback();
+          void refreshHlsOnce();
         });
       } catch (e) {
         if (cancelled) return;
@@ -403,9 +385,7 @@ function PlaybackEngine({
           delivery: 'hls',
           errorDetail: String(e),
         });
-        if (!tryMp4Fallback()) {
-          finishError('Не удалось воспроизвести видео.');
-        }
+        finishError('Не удалось воспроизвести видео.');
       }
     })();
 
@@ -420,12 +400,10 @@ function PlaybackEngine({
       patientPlaybackDiag({ event: 'video_error', mediaId, delivery: sourceKind });
       reportPlaybackIssue({ eventClass: 'video_error', delivery: sourceKind });
       if (sourceKind === 'hls') {
-        void tryRefreshHlsOnceThenFallback();
+        void refreshHlsOnce();
         return;
       }
-      if (!tryMp4Fallback()) {
-        finishError('Не удалось воспроизвести видео.');
-      }
+      finishError('Не удалось воспроизвести видео.');
     };
 
     video.addEventListener('loadeddata', onLoaded);
@@ -446,9 +424,8 @@ function PlaybackEngine({
     destroyHls,
     fetchPlaybackJson,
     mediaId,
-    mp4Url,
     payload.hls?.masterUrl,
-    payload.mp4?.url,
+    payload.progressive?.url,
     payload.posterUrl,
     reportPlaybackIssue,
     sortedPlaybackQualities,
@@ -460,7 +437,6 @@ function PlaybackEngine({
     setRetryBusy(true);
     setError(null);
     setLoading(true);
-    autoFallbackUsedRef.current = false;
     hlsRefreshAttemptedRef.current = false;
     try {
       const next = await fetchPlaybackJson();
@@ -480,7 +456,6 @@ function PlaybackEngine({
         return;
       }
       setPayload(next);
-      setSourceKind(initialPlaybackSourceKind(next));
     } catch {
       patientPlaybackDiag({ event: 'playback_refetch_exception', mediaId });
       reportPlaybackIssue({ eventClass: 'playback_refetch_exception', delivery: sourceKind });
@@ -573,7 +548,6 @@ function PlaybackEngine({
 
 export function PatientMediaPlaybackVideo({
   mediaId,
-  mp4Url,
   title,
   initialPlayback,
   shellClassName,
@@ -689,7 +663,6 @@ export function PatientMediaPlaybackVideo({
     <PlaybackEngine
       key={mediaId}
       mediaId={mediaId}
-      mp4Url={mp4Url}
       title={title}
       initialPayload={payload}
       shellClassName={shell}

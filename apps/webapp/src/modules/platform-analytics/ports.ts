@@ -54,8 +54,6 @@ export type ProgramActivityRaw = {
 export type VideoPlaybackRaw = {
   viewsTotal: number;
   viewsUnique: number;
-  hlsResolves: number;
-  mp4Resolves: number;
   playbackErrors: number;
   byDay: Map<string, number>;
 };

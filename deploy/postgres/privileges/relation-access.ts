@@ -4334,7 +4334,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "stored_path",
           "uploaded_by",
           "usage_purpose",
-          "video_delivery_override",
           "video_duration_seconds",
           "video_processing_error",
           "video_processing_status"

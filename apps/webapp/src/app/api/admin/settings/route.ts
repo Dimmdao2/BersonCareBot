@@ -125,7 +125,6 @@ const ADMIN_SCOPE_KEYS = [
   'video_hls_new_uploads_auto_transcode',
   'video_hls_reconcile_enabled',
   'video_playback_api_enabled',
-  'video_default_delivery',
   'video_presign_ttl_seconds',
   'video_watermark_enabled',
   'patient_booking_url',
@@ -663,15 +662,6 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
     }
     normalizedValue = checked.valueJson;
-  }
-
-  if (parsed.data.key === 'video_default_delivery') {
-    const inner = normalizedValue.value;
-    const raw = typeof inner === 'string' ? inner.trim().toLowerCase() : '';
-    if (raw !== 'mp4' && raw !== 'hls' && raw !== 'auto') {
-      return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
-    }
-    normalizedValue = { value: raw };
   }
 
   if (parsed.data.key === 'booking_min_notice_hours') {

@@ -35,4 +35,4 @@
 
 ### Колонки `media_files` для HLS (VIDEO_HLS_DELIVERY phase-01)
 
-Добавлены nullable-поля под транскод и артефакты: `video_processing_status`, `video_processing_error`, `hls_master_playlist_s3_key`, `hls_artifact_prefix`, `poster_s3_key`, `video_duration_seconds`, `available_qualities_json`, `video_delivery_override`. До включения pipeline они **NULL**; поведение `GET /api/media/{id}` не меняется. Типы полей в ответах листинга/детали см. `modules/media/types.ts`.
+Добавлены nullable-поля под транскод и артефакты: `video_processing_status`, `video_processing_error`, `hls_master_playlist_s3_key`, `hls_artifact_prefix`, `poster_s3_key`, `video_duration_seconds`, `available_qualities_json`. До включения pipeline они **NULL**; поведение `GET /api/media/{id}` не меняется. Типы полей в ответах листинга/детали см. `modules/media/types.ts`.

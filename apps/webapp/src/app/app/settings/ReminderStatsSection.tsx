@@ -230,24 +230,12 @@ export function ReminderStatsSection() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Видео (просмотры по типу доставки)</CardTitle>
+              <CardTitle className="text-sm">Видео (выдачи)</CardTitle>
             </CardHeader>
             <CardContent>
-              <StatTable
-                columns={[
-                  { key: 'k', header: 'Тип' },
-                  { key: 'v', header: 'Разрешений' },
-                ]}
-                rows={[
-                  { k: 'hls', v: data.videoPlayback.byDelivery.hls },
-                  { k: 'mp4', v: data.videoPlayback.byDelivery.mp4 },
-                  { k: 'file', v: data.videoPlayback.byDelivery.file },
-                ]}
-              />
-              <p className="mt-2 text-xs text-muted-foreground">
-                Всего разрешений: {data.videoPlayback.totalResolutions}, fallback:{' '}
-                {data.videoPlayback.fallbackTotal}, уникальных пар (первый просмотр в окне):{' '}
-                {data.videoPlayback.uniquePlaybackPairsFirstSeenInWindow}
+              <p className="text-xs text-muted-foreground">
+                Всего разрешений: {data.videoPlayback.totalResolutions}, уникальных пар (первый
+                просмотр в окне): {data.videoPlayback.uniquePlaybackPairsFirstSeenInWindow}
               </p>
             </CardContent>
           </Card>

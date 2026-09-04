@@ -38,8 +38,6 @@ function deferredDoctorContentStats(
     assignedExerciseVideoTopItems: [],
     assignedExerciseVideoCount: 0,
     videoPlayback: {
-      byDelivery: { hls: 0, mp4: 0, file: 0 },
-      fallbackTotal: 0,
       totalResolutions: 0,
       uniquePlaybackPairsFirstSeenInWindow: 0,
     },

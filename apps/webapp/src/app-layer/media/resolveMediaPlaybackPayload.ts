@@ -4,24 +4,16 @@ import { serializePresignFailureForLog } from '@/app-layer/media/presignLogRedac
 import { presignGetUrl } from '@/app-layer/media/s3Client';
 import { getMediaRowForPlayback } from '@/app-layer/media/s3MediaStorage';
 import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
-import {
-  parseDefaultDeliveryConfig,
-  resolveVideoPlaybackDelivery,
-  type PlaybackDeliveryStrategy,
-} from '@/modules/media/playbackResolveDelivery';
+import { isHlsAssetReady } from '@/modules/media/playbackResolveDelivery';
 import {
   parseAvailableQualitiesJson,
-  parseVideoDeliveryOverride,
   parseVideoProcessingStatus,
 } from '@/modules/media/videoHlsFields';
 import { recordPlaybackResolutionEvent } from '@/app-layer/media/playbackResolutionEvents';
 import { recordPlaybackResolutionStat } from '@/app-layer/media/playbackStatsHourly';
 import { recordPlaybackUserVideoFirstResolve } from '@/app-layer/media/playbackUserVideoFirstResolve';
 import { getVideoPresignTtlSeconds } from '@/app-layer/media/videoPresignTtl';
-import {
-  getPatientRuntimeBool,
-  getPatientRuntimeValue,
-} from '@/modules/system-settings/configAdapter';
+import { getPatientRuntimeBool } from '@/modules/system-settings/configAdapter';
 import { canAccessProgramSubmissionMedia } from '@/modules/media/programSubmissionPlaybackAccess';
 import type { AppSession } from '@/shared/types/session';
 import { isTrustedHlsArtifactS3Key, isTrustedPosterS3Key } from '@/shared/lib/hlsStorageLayout';
@@ -39,17 +31,19 @@ export type ResolveMediaPlaybackSuccess = { ok: true; data: MediaPlaybackPayload
 
 /**
  * Shared by GET /api/media/[id]/playback and RSC (patient content).
- * Master — same-origin HLS proxy; presign — постер и MP4, не сегменты HLS.
+ * Master — same-origin HLS proxy; presign — постер и прогрессивный объект, не сегменты HLS.
+ *
+ * Маршрут задаёт само медиа: не видео → progressive `file`; видео с готовым HLS → только HLS;
+ * видео без готового HLS (в т.ч. `usage_purpose=program_item_submission`) → progressive MP4.
  */
 export async function resolveMediaPlaybackPayload(input: {
   id: string;
   /** Non-null enforced at call sites (HTTP guard / RSC); reserved for future scoped ACL. */
   session: AppSession;
-  adminPrefer: PlaybackDeliveryStrategy | null;
   allowPlatformBase?: boolean;
 }): Promise<ResolveMediaPlaybackSuccess | ResolveMediaPlaybackFailure> {
   const t0 = performance.now();
-  const { id, adminPrefer } = input;
+  const { id } = input;
   if (!UUID_RE.test(id) || !webappRuntimeDatabaseIsConfigured()) {
     return { ok: false, status: 404, error: 'not found' };
   }
@@ -75,9 +69,6 @@ export async function resolveMediaPlaybackPayload(input: {
   }
 
   const presignExpiresSec = await getVideoPresignTtlSeconds();
-
-  const defaultRaw = await getPatientRuntimeValue('video_default_delivery');
-  const systemDefault = parseDefaultDeliveryConfig(defaultRaw, 'auto');
 
   if (
     !canAccessProgramSubmissionMedia(input.session, {
@@ -112,7 +103,6 @@ export async function resolveMediaPlaybackPayload(input: {
   };
 
   const videoProcessingStatus = parseVideoProcessingStatus(row.video_processing_status);
-  const perFileOverride = parseVideoDeliveryOverride(row.video_delivery_override);
   const qualities = parseAvailableQualitiesJson(row.available_qualities_json);
 
   const progressivePath = `/api/media/${id}`;
@@ -123,26 +113,14 @@ export async function resolveMediaPlaybackPayload(input: {
         mediaId: id,
         delivery: 'file',
         hlsReady: false,
-        fallbackUsed: false,
-        strategy: systemDefault,
         latencyMs: Math.round(performance.now() - t0),
       },
       'playback_resolved',
     );
     if (recordPatientPlaybackTelemetry) {
       const userId = input.session.user.userId;
-      await recordPlaybackResolutionStat({
-        userId,
-        mediaId: id,
-        delivery: 'file',
-        fallbackUsed: false,
-      });
-      await recordPlaybackResolutionEvent({
-        userId,
-        mediaId: id,
-        delivery: 'file',
-        fallbackUsed: false,
-      });
+      await recordPlaybackResolutionStat({ userId, mediaId: id, delivery: 'file' });
+      await recordPlaybackResolutionEvent({ userId, mediaId: id, delivery: 'file' });
     }
     return {
       ok: true,
@@ -154,8 +132,7 @@ export async function resolveMediaPlaybackPayload(input: {
         posterUrl: null,
         preview,
         hls: null,
-        mp4: { url: progressivePath },
-        fallbackUsed: false,
+        progressive: { url: progressivePath },
         expiresInSeconds: presignExpiresSec,
       },
     };
@@ -164,25 +141,11 @@ export async function resolveMediaPlaybackPayload(input: {
   const rawMaster = row.hls_master_playlist_s3_key?.trim() ?? '';
   const trustedMaster = rawMaster && isTrustedHlsArtifactS3Key(id, rawMaster) ? rawMaster : null;
 
-  const resolved = resolveVideoPlaybackDelivery({
-    systemDefaultDelivery: systemDefault,
-    perFileOverride,
-    adminPrefer,
-    videoProcessingStatus,
-    hlsMasterPlaylistS3Key: trustedMaster,
-  });
+  const hlsReady = isHlsAssetReady(videoProcessingStatus, trustedMaster);
 
-  let delivery: 'hls' | 'mp4' = 'mp4';
-  let fallbackUsed = resolved.fallbackUsed;
-  let masterUrl: string | null = null;
+  const delivery: 'hls' | 'mp4' = hlsReady ? 'hls' : 'mp4';
+  const masterUrl = hlsReady ? `/api/media/${id}/hls/master.m3u8` : null;
   let posterUrl: string | null = null;
-
-  if (resolved.useHls && trustedMaster) {
-    delivery = 'hls';
-    masterUrl = `/api/media/${id}/hls/master.m3u8`;
-  } else {
-    delivery = 'mp4';
-  }
 
   const rawPoster = row.poster_s3_key?.trim() ?? '';
   if (rawPoster && isTrustedPosterS3Key(id, rawPoster)) {
@@ -200,9 +163,7 @@ export async function resolveMediaPlaybackPayload(input: {
     {
       mediaId: id,
       delivery,
-      hlsReady: resolved.hlsReady,
-      fallbackUsed,
-      strategy: resolved.strategy,
+      hlsReady,
       latencyMs: Math.round(performance.now() - t0),
     },
     'playback_resolved',
@@ -210,20 +171,9 @@ export async function resolveMediaPlaybackPayload(input: {
 
   if (recordPatientPlaybackTelemetry) {
     const userId = input.session.user.userId;
-    await recordPlaybackResolutionStat({ userId, mediaId: id, delivery, fallbackUsed });
-    await recordPlaybackResolutionEvent({
-      userId,
-      mediaId: id,
-      delivery,
-      fallbackUsed,
-    });
-
-    if (delivery === 'hls' || delivery === 'mp4') {
-      await recordPlaybackUserVideoFirstResolve({
-        userId,
-        mediaId: id,
-      });
-    }
+    await recordPlaybackResolutionStat({ userId, mediaId: id, delivery });
+    await recordPlaybackResolutionEvent({ userId, mediaId: id, delivery });
+    await recordPlaybackUserVideoFirstResolve({ userId, mediaId: id });
   }
 
   return {
@@ -236,8 +186,7 @@ export async function resolveMediaPlaybackPayload(input: {
       posterUrl,
       preview,
       hls: masterUrl ? { masterUrl, qualities: qualities ?? undefined } : null,
-      mp4: { url: progressivePath },
-      fallbackUsed,
+      progressive: masterUrl ? null : { url: progressivePath },
       expiresInSeconds: presignExpiresSec,
     },
   };

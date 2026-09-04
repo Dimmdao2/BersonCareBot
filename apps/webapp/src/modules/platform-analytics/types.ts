@@ -95,8 +95,6 @@ export type PlatformAnalyticsDashboard = {
     };
     videoViewsTotal: number;
     videoViewsUnique: number;
-    hlsResolves: number;
-    mp4Resolves: number;
     playbackErrors: number;
     /** GA-A-08a «просмотры файла … ряд» — выдачи видео по дням выбранного периода. */
     playbackSeries: DayCountPoint[];

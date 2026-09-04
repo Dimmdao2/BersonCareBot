@@ -29,8 +29,7 @@ const playback: MediaPlaybackPayload = {
   posterUrl: null,
   preview: { status: 'ready', smUrl, mdUrl, standardRendition: true },
   hls: null,
-  mp4: { url: originalUrl },
-  fallbackUsed: false,
+  progressive: { url: originalUrl },
   expiresInSeconds: 900,
 };
 

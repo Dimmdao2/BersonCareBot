@@ -146,8 +146,6 @@ export function createPlatformAnalyticsService(port: PlatformAnalyticsPort) {
           },
           videoViewsTotal: snapshot.playback.viewsTotal,
           videoViewsUnique: snapshot.playback.viewsUnique,
-          hlsResolves: snapshot.playback.hlsResolves,
-          mp4Resolves: snapshot.playback.mp4Resolves,
           playbackErrors: snapshot.playback.playbackErrors,
           playbackSeries: dayKeys.map((day) => ({
             day,

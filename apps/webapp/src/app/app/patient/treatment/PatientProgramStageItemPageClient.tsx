@@ -202,11 +202,9 @@ function ModalMediaBlock(props: { media: RecommendationMediaItem | null; title: 
         </div>
       );
     }
-    const mp4Url = `/api/media/${encodeURIComponent(mediaId)}`;
     return (
       <PatientMediaPlaybackVideo
         mediaId={mediaId}
-        mp4Url={mp4Url}
         title={title}
         initialPlayback={null}
         shellClassName="relative aspect-video w-full shrink-0 overflow-hidden bg-black"

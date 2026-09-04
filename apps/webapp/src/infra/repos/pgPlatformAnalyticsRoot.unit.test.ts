@@ -57,8 +57,6 @@ const SNAPSHOT = {
   playback: {
     viewsTotal: 2179,
     viewsUnique: 421,
-    hlsResolves: 2173,
-    mp4Resolves: 0,
     playbackErrors: 31,
     byDay: { '2026-08-19': 12 },
   },

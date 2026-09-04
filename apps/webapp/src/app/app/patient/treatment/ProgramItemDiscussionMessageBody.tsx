@@ -120,7 +120,6 @@ export function ProgramItemDiscussionMessageBody(props: {
             {isVideo ? (
               <PatientMediaPlaybackVideo
                 mediaId={mediaId}
-                mp4Url={`/api/media/${encodeURIComponent(mediaId)}`}
                 title="Видео"
                 initialPlayback={playback}
               />
