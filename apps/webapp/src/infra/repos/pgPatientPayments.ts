@@ -38,6 +38,7 @@ function rowToPayment(row: typeof patientPayment.$inferSelect): PatientPayment {
     service: row.service ?? null,
     visitId: row.visitId ?? null,
     appointmentId: row.appointmentId ?? null,
+    patientPackageId: row.patientPackageId ?? null,
     idempotencyKey: row.idempotencyKey ?? null,
     provider: row.provider ?? null,
     providerPaymentId: row.providerPaymentId ?? null,
@@ -113,19 +114,17 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
             service: input.service ?? null,
             visitId: input.visitId ?? null,
             appointmentId: input.appointmentId ?? null,
+            patientPackageId: input.patientPackageId ?? null,
             idempotencyKey,
             provider: null,
             providerPaymentId: null,
             createdBy: input.createdBy,
           })
-          .onConflictDoNothing({
-            target: [
-              patientPayment.organizationId,
-              patientPayment.appointmentId,
-              patientPayment.idempotencyKey,
-            ],
-            where: isNotNull(patientPayment.idempotencyKey),
-          })
+          // Two partial unique indexes carry this door now — one keyed by appointment, one by
+          // patient package — and a single ON CONFLICT target can name only one of them. The
+          // untargeted form covers both; `id` is server-generated, so no other conflict is
+          // reachable here, and the reread below resolves whichever boundary fired.
+          .onConflictDoNothing()
           .returning();
         if (inserted[0]) return inserted[0];
         if (!idempotencyKey) throw new Error('patient_payment_insert_failed');
@@ -138,6 +137,9 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
               input.appointmentId
                 ? eq(patientPayment.appointmentId, input.appointmentId)
                 : isNull(patientPayment.appointmentId),
+              input.patientPackageId
+                ? eq(patientPayment.patientPackageId, input.patientPackageId)
+                : isNull(patientPayment.patientPackageId),
               eq(patientPayment.idempotencyKey, idempotencyKey),
             ),
           );

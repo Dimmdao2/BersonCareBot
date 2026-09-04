@@ -22,6 +22,27 @@ export type UpsertSubscriptionPackageInput = {
   items: PackageItemInput[];
 };
 
+/**
+ * How a staff-recorded sale is settled. This is the ONLY thing a caller chooses; the paid amount,
+ * the resulting status and the sold date all follow from it plus the price snapshot the server
+ * already holds. A caller never states «сколько оплачено» or «сделай активным» — an independent
+ * audit of `c86e6a4c1` showed a client sending `paidAmountMinor: 1` against a 5 000 ₽ price and
+ * `activateImmediately: true`, and the server took both at face value.
+ *
+ * - `cash`  — money changed hands offline. The package is created unsettled; the caller's
+ *             settlement step writes the canonical cash ledger row and only then activates it,
+ *             so a failure between the two leaves a resumable state, never a package that claims
+ *             to be paid with no money recorded against it.
+ * - `free`  — issued at no charge; only valid for a zero price.
+ * - `link`  — the existing invoice/pay-link contract; only valid for a positive price.
+ *
+ * Absent = patient self-purchase, which keeps the pre-existing offer behaviour.
+ */
+export type StaffPackageSaleIntent =
+  | { method: 'cash'; soldAt?: string | null }
+  | { method: 'free'; soldAt?: string | null }
+  | { method: 'link' };
+
 export type CreateManualPatientPackageInput = {
   organizationId: string;
   platformUserId: string;
@@ -33,12 +54,9 @@ export type CreateManualPatientPackageInput = {
   items: PackageItemInput[];
   assignedByPlatformUserId?: string | null;
   notes?: string | null;
-  sendForPayment?: boolean;
-  soldAt?: string | null;
-  paidAmountMinor?: number | null;
-  paidCurrency?: string | null;
-  /** Doctor sale: activate immediately without payment intent. */
-  activateImmediately?: boolean;
+  sale?: StaffPackageSaleIntent;
+  /** Identity of one staff sale attempt; a retry with the same key converges on the same package. */
+  saleIdempotencyKey?: string | null;
 };
 
 export type MembershipsPort = {
@@ -79,7 +97,19 @@ export type MembershipsPort = {
     subscriptionPackageId: string;
     assignedByPlatformUserId?: string | null;
     notes?: string | null;
+    sale?: StaffPackageSaleIntent;
+    saleIdempotencyKey?: string | null;
   }): Promise<PatientPackageRecord>;
+
+  /**
+   * The one package created by a given staff sale attempt, inside one clinic. Backed by a partial
+   * unique index, so a retried sale reads back the first attempt's package instead of making a
+   * second one.
+   */
+  findPatientPackageBySaleIdempotencyKey(
+    organizationId: string,
+    saleIdempotencyKey: string,
+  ): Promise<PatientPackageRecord | null>;
 
   updatePatientPackageNotes(
     id: string,

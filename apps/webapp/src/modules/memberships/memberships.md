@@ -15,15 +15,41 @@ Validity: `packageValidity.ts` (auto `expired` when `valid_until` passed).
 
 ### Продажа из кабинета: один вход, способ оплаты — параметр
 
-`DoctorClientMembershipsPanel` не спрашивает «Цена» и «Оплачено» двумя независимыми числами. Форма продажи задаёт цену и **способ оплаты**, а оплаченную сумму выводит сервер:
+`DoctorClientMembershipsPanel` не спрашивает «Цена» и «Оплачено» двумя независимыми числами. Форма задаёт цену
+и **способ оплаты**; всё остальное про деньги выводит сервер. Клиент присылает только `saleMethod`,
+`saleIdempotencyKey` и (для наличной/бесплатной продажи) `soldAt`. Схема роута — `.strict()`: тело с
+`paidAmountMinor`, `activateImmediately` или `sendForPayment` отвергается как `invalid_body`, а не молча
+обрезается.
 
-| Способ | Что уходит в `POST .../patient-packages` | Что делает сервер |
-| ------ | ---------------------------------------- | ----------------- |
-| Наличными | `sendForPayment:false`, `activateImmediately:true`, `soldAt` | staff-sale: `paidAmountMinor` ← `priceMinor` (`pgMemberships.createManualPatientPackage`, `activatePatientPackageFromDoctorSale`), статус `active` |
-| Ссылка на оплату | `sendForPayment:true` | `createPaymentOfferOrKeepOffered` → intent + `checkoutUrl`, статус `awaiting_payment` |
-| Бесплатно | `priceMinor:0`, `activateImmediately:true`, `soldAt` | активация без платежа |
+Продажу целиком ведёт `app-layer/booking/staffMembershipSale.ts` — там же, где живёт
+`staffAppointmentPayments`, и по той же причине: `memberships` и `patient-payments` не могут зависеть друг от
+друга. Второй кассы он не заводит — наличные пишутся в существующую дверь `patientPayments.addCashPayment`,
+у которой субъектом вместо записи выступает абонемент (`patient_payment.patient_package_id`).
 
-Клиент **не** присылает `paidAmountMinor` — иначе цена и оплаченная сумма расходятся без правила. Способ «Ссылка на оплату» показывается только когда `GET .../patient-packages` вернул `onlinePaymentAvailable` (мехáника `payments` + настроенный провайдер); «Отправить в чат» — только при `patientChatAvailable` (пациент `linked` к порталу). QR и отправка ссылки переиспользуют `localQrCode` и `sendPaymentLinkToPatientChat` — второй реализации нет.
+| Способ | Что делает сервер |
+| ------ | ----------------- |
+| Наличными | пакет создаётся `offered` → `addCashPayment` (`amountMinor` ← `price_minor` пакета, `idempotencyKey` = `staff-package-cash:{id}`) → `settleStaffCashSale` → `activatePatientPackageFromDoctorSale` (`paidAmountMinor` ← `price_minor`, статус `active`). Порядок именно такой: сбой между шагами оставляет `offered`-пакет без денег, а не активный пакет без строки в кассе. Требует `price_minor > 0`, иначе `sale_cash_requires_price` |
+| Ссылка на оплату | `createPaymentOfferOrKeepOffered` → intent + `checkoutUrl`, статус `awaiting_payment`. Требует `price_minor > 0`, иначе `sale_link_requires_price` |
+| Бесплатно | `activatePatientPackageFromDoctorSale` с `paidAmountMinor: 0`. Требует `price_minor = 0`, иначе `sale_free_requires_zero_price` |
+
+**Идемпотентность продажи.** `be_patient_packages.sale_idempotency_key` + partial unique index
+`uq_be_patient_packages_sale_idempotency (organization_id, sale_idempotency_key)`. Повтор той же попытки —
+после сетевой ошибки, во второй вкладке, после сбоя на шаге кассы — находит уже созданный пакет и доводит его
+до конца; двух активных пакетов и двойной оплаты не возникает. Ключ скоупится организацией. Наличная строка
+кассы держится вторым partial unique index `uq_patient_payment_package_idempotency
+(organization_id, patient_package_id, idempotency_key)`: существующий appointment-индекс для неё не работает,
+потому что `appointment_id` там NULL, а NULL в unique index не сравниваются.
+
+**Что показывается.** «Ссылка на оплату» — только когда `GET .../patient-packages` вернул
+`onlinePaymentAvailable` (механика `payments` + настроенный провайдер) **и** цена не нулевая; «Отправить в
+чат» — только при `patientChatAvailable`. `cashLedgerAvailable` в том же GET говорит, доедет ли наличная
+продажа до кассы: без механики `payments` у клиники кассового журнала нет вовсе, офлайн-продажа остаётся
+доступной и строка `patient_payment` не пишется (ответ несёт `cashLedgerRecorded`). QR и отправка ссылки
+переиспользуют `localQrCode` и `sendPaymentLinkToPatientChat` — второй реализации нет.
+
+**Неудавшаяся выдача ссылки — не завершённая продажа.** Если ссылка не создана, ответ несёт
+`paymentLinkError`, панель печатает названную сервером причину и фактический статус пакета и **не** зовёт
+`onCreated` — иначе хост-модалка закрывалась поверх сообщения, и врач видел только зелёный тост.
 
 ## Booking integration
 

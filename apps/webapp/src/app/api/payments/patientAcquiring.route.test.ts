@@ -109,6 +109,7 @@ const pendingPayment: PatientPayment = {
   service: null,
   visitId: null,
   appointmentId: null,
+  patientPackageId: null,
   idempotencyKey: null,
   provider: 'yookassa',
   providerPaymentId: 'provider-payment-1074',

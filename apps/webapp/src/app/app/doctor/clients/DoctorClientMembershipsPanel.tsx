@@ -42,7 +42,20 @@ type SaleResult = {
   status: string;
   checkoutUrl: string | null;
   method: SalePaymentMethod;
+  /** Named by the server when a pay-link sale produced no link. Never inferred here. */
+  paymentLinkError: string | null;
+  /** Whether the cash actually reached the canonical ledger this clinic's KPIs read. */
+  cashLedgerRecorded: boolean;
 };
+
+/**
+ * One sale attempt has one identity, and a retry of the SAME attempt reuses it — that is what makes
+ * a repeated tap converge on one package and one payment instead of selling twice. It is cleared
+ * only on success, so every failure path retries under the original key.
+ */
+function newSaleIdempotencyKey(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `sale-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function notifyPackagesChanged() {
   if (typeof window !== 'undefined') {
@@ -71,6 +84,15 @@ function formatConsumeItemLabel(
   return `${item.serviceTitle ?? item.serviceId} (${details.join(' · ')})`;
 }
 
+/** The package's real state, said in the doctor's words — not a phrase invented at render time. */
+const PACKAGE_STATUS_LABELS: Record<string, string> = {
+  offered: 'предложен',
+  awaiting_payment: 'ждёт оплаты',
+  active: 'активен',
+  expired: 'истёк',
+  cancelled: 'отменён',
+};
+
 const ERROR_LABELS: Record<string, string> = {
   invalid_form: 'Проверьте цену и состав абонемента.',
   create_failed: 'Не удалось сохранить абонемент.',
@@ -80,6 +102,10 @@ const ERROR_LABELS: Record<string, string> = {
   payments_unavailable: 'Платёжный модуль недоступен.',
   memberships_unavailable: 'Модуль абонементов недоступен.',
   catalog_package_not_found: 'Шаблон абонемента не найден.',
+  catalog_not_found: 'Шаблон абонемента не найден.',
+  sale_link_requires_price: 'Ссылку на оплату нельзя выставить на нулевую цену.',
+  sale_cash_requires_price: 'Для наличной продажи нужна цена больше нуля.',
+  sale_free_requires_zero_price: 'Бесплатная выдача возможна только при нулевой цене.',
   chat_send_failed: 'Не удалось отправить ссылку в чат пациента.',
   appointment_already_linked_to_package:
     'Запись уже связана с абонементом. Откройте абонемент и выполните действие в списке записей.',
@@ -146,6 +172,7 @@ export function DoctorClientMembershipsPanel({
   const [onlinePaymentAvailable, setOnlinePaymentAvailable] = useState(false);
   const [patientChatAvailable, setPatientChatAvailable] = useState(false);
   const [saleResult, setSaleResult] = useState<SaleResult | null>(null);
+  const [saleKey, setSaleKey] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [linkSent, setLinkSent] = useState(false);
   const [priceRub, setPriceRub] = useState('');
@@ -232,6 +259,14 @@ export function DoctorClientMembershipsPanel({
     }
   }, [loadPackages, showCreateForm]);
 
+  const selectedCatalogPriceMinor = catalog.find((c) => c.id === catalogId)?.priceMinor ?? null;
+
+  // Picking a zero-price template retires the link option the same way (server refuses it too).
+  useEffect(() => {
+    if (selectedCatalogPriceMinor !== 0) return;
+    setCatalogMethod((current) => (current === 'link' ? 'cash' : current));
+  }, [selectedCatalogPriceMinor]);
+
   // A method the clinic cannot actually execute must never stay selected (MONEY-03/08).
   useEffect(() => {
     if (onlinePaymentAvailable) return;
@@ -241,9 +276,17 @@ export function DoctorClientMembershipsPanel({
 
   const compact = packages.filter((p) => p.status === 'active' || p.status === 'awaiting_payment');
 
-  const saleMethodOptions = (allowFree: boolean): SalePaymentMethod[] => [
+  /**
+   * Only methods the clinic can really execute on THIS package. «Ссылка на оплату» needs both a
+   * configured provider and something to invoice: a zero-price template used to be offered a link,
+   * activate anyway, and then be described as «ждёт оплаты» while already active.
+   */
+  const saleMethodOptions = (
+    allowFree: boolean,
+    priceMinor: number | null,
+  ): SalePaymentMethod[] => [
     'cash',
-    ...(onlinePaymentAvailable ? (['link'] as const) : []),
+    ...(onlinePaymentAvailable && priceMinor !== 0 ? (['link'] as const) : []),
     ...(allowFree ? (['free'] as const) : []),
   ];
 
@@ -254,21 +297,26 @@ export function DoctorClientMembershipsPanel({
       checkoutUrl?: string | null;
     },
     method: SalePaymentMethod,
+    outcome: { paymentLinkError: string | null; cashLedgerRecorded: boolean },
   ) {
     setSaleResult({
       packageId: pkg.id,
       status: pkg.status,
       checkoutUrl: pkg.checkoutUrl ?? null,
       method,
+      paymentLinkError: outcome.paymentLinkError,
+      cashLedgerRecorded: outcome.cashLedgerRecorded,
     });
     setLinkCopied(false);
     setLinkSent(false);
     void loadPackages();
     router.refresh();
     notifyPackagesChanged();
-    // A pay-link sale still owes the doctor a next step (QR / copy / send), so the host surface
-    // is released only once nothing is left to hand over.
-    if (!pkg.checkoutUrl) onCreated?.();
+    // A pay-link sale still owes the doctor a next step (QR / copy / send) — or, when the link
+    // could not be issued, an error they have to read. Releasing the host surface in that second
+    // case closed the modal over the message before it could render, so the doctor saw only the
+    // success toast. The surface is released only when this sale really has nothing left to show.
+    if (method !== 'link') onCreated?.();
   }
 
   function copySaleLink() {
@@ -307,16 +355,22 @@ export function DoctorClientMembershipsPanel({
   }
 
   /**
-   * One sale entrypoint, parameterized by method — not three create paths. `cash`/`free` are the
-   * existing staff-recorded sale (server stamps `soldAt`/`paidAmountMinor` from the price);
-   * `link` is the existing invoice/pay-link contract (`createPaymentOfferOrKeepOffered`).
+   * One sale entrypoint, parameterized by method — not three create paths. The client states the
+   * method and the sale date and nothing else about the money: the paid amount, the resulting
+   * status and whether a payment intent is created are all derived on the server from the price
+   * snapshot and the real payment result.
    */
-  function saleFields(method: SalePaymentMethod, soldAtDate: string) {
-    if (method === 'link') return { sendForPayment: true as const };
+  function saleFields(method: SalePaymentMethod, soldAtDate: string, idempotencyKey: string) {
     return {
-      sendForPayment: false as const,
-      activateImmediately: true as const,
-      soldAt: soldAtDate ? new Date(soldAtDate).toISOString() : new Date().toISOString(),
+      saleMethod: method,
+      saleIdempotencyKey: idempotencyKey,
+      ...(method === 'link'
+        ? {}
+        : {
+            soldAt: soldAtDate
+              ? new Date(soldAtDate).toISOString()
+              : new Date().toISOString(),
+          }),
     };
   }
 
@@ -338,6 +392,8 @@ export function DoctorClientMembershipsPanel({
       showError('invalid_form');
       return;
     }
+    const attemptKey = saleKey ?? newSaleIdempotencyKey();
+    setSaleKey(attemptKey);
     startTransition(async () => {
       const res = await fetch(apiBase, {
         method: 'POST',
@@ -348,25 +404,31 @@ export function DoctorClientMembershipsPanel({
           notes: manualNotes.trim() || undefined,
           priceMinor,
           items: packageItems,
-          ...saleFields(manualMethod, soldDate),
+          ...saleFields(manualMethod, soldDate, attemptKey),
         }),
       });
       const json = (await res.json()) as {
         ok?: boolean;
         error?: string;
         package?: { id: string; status: string; checkoutUrl?: string | null };
+        paymentLinkError?: string | null;
+        cashLedgerRecorded?: boolean;
       };
       if (!json.ok || !json.package) {
         showError(json.error ?? 'create_failed');
         return;
       }
       toast.success('Абонемент создан');
+      setSaleKey(null);
       setPriceRub('');
       setSoldDate('');
       setManualNotes('');
       setItems([]);
       setError(null);
-      applySaleResult(json.package, manualMethod);
+      applySaleResult(json.package, manualMethod, {
+        paymentLinkError: json.paymentLinkError ?? null,
+        cashLedgerRecorded: json.cashLedgerRecorded === true,
+      });
     });
   }
 
@@ -375,6 +437,8 @@ export function DoctorClientMembershipsPanel({
       showError('invalid_form');
       return;
     }
+    const attemptKey = saleKey ?? newSaleIdempotencyKey();
+    setSaleKey(attemptKey);
     startTransition(async () => {
       const res = await fetch(apiBase, {
         method: 'POST',
@@ -384,24 +448,30 @@ export function DoctorClientMembershipsPanel({
           platformUserId,
           subscriptionPackageId: catalogId,
           notes: catalogNotes.trim() || undefined,
-          ...saleFields(catalogMethod, catalogSoldDate),
+          ...saleFields(catalogMethod, catalogSoldDate, attemptKey),
         }),
       });
       const json = (await res.json()) as {
         ok?: boolean;
         error?: string;
         package?: { id: string; status: string; checkoutUrl?: string | null };
+        paymentLinkError?: string | null;
+        cashLedgerRecorded?: boolean;
       };
       if (!json.ok || !json.package) {
         showError(json.error ?? 'create_failed');
         return;
       }
       toast.success('Абонемент создан');
+      setSaleKey(null);
       setCatalogId('');
       setCatalogSoldDate('');
       setCatalogNotes('');
       setError(null);
-      applySaleResult(json.package, catalogMethod);
+      applySaleResult(json.package, catalogMethod, {
+        paymentLinkError: json.paymentLinkError ?? null,
+        cashLedgerRecorded: json.cashLedgerRecorded === true,
+      });
     });
   }
 
@@ -529,7 +599,7 @@ export function DoctorClientMembershipsPanel({
                       displayLabel={SALE_METHOD_LABELS[catalogMethod]}
                     />
                     <SelectContent>
-                      {saleMethodOptions(false).map((method) => (
+                      {saleMethodOptions(false, selectedCatalogPriceMinor).map((method) => (
                         <SelectItem key={method} value={method}>
                           {SALE_METHOD_LABELS[method]}
                         </SelectItem>
@@ -576,7 +646,7 @@ export function DoctorClientMembershipsPanel({
                   displayLabel={SALE_METHOD_LABELS[manualMethod]}
                 />
                 <SelectContent>
-                  {saleMethodOptions(true).map((method) => (
+                  {saleMethodOptions(true, null).map((method) => (
                     <SelectItem key={method} value={method}>
                       {SALE_METHOD_LABELS[method]}
                     </SelectItem>
@@ -717,10 +787,34 @@ export function DoctorClientMembershipsPanel({
               </div>
             </>
           ) : (
-            <p className="text-destructive">
-              Ссылка на оплату не создана — платёжный провайдер не настроен. Абонемент сохранён и
-              ждёт оплаты.
-            </p>
+            <>
+              {/* The reason is the server's, and the state is the package's own — neither is
+                  guessed here. The old copy blamed the provider for every empty link and called an
+                  already-active package «ждёт оплаты». */}
+              <p className="text-destructive">
+                Ссылка на оплату не создана:{' '}
+                {ERROR_LABELS[saleResult.paymentLinkError ?? ''] ??
+                  saleResult.paymentLinkError ??
+                  'причина не названа сервером'}
+              </p>
+              <p className="text-muted-foreground">
+                Абонемент сохранён, текущий статус —{' '}
+                {PACKAGE_STATUS_LABELS[saleResult.status] ?? saleResult.status}. Оплату можно
+                принять наличными или выставить ссылку позже.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setSaleResult(null);
+                    onCreated?.();
+                  }}
+                >
+                  Понятно
+                </Button>
+              </div>
+            </>
           )}
         </div>
       ) : null}

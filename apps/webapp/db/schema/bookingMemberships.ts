@@ -123,6 +123,11 @@ export const bePatientPackages = pgTable(
     paidAmountMinor: integer('paid_amount_minor'),
     paidCurrency: text('paid_currency'),
     assignedByPlatformUserId: uuid('assigned_by_platform_user_id'),
+    /**
+     * Identity of the staff sale attempt that created this package. Null for patient
+     * self-purchase and for every row created before the sale became idempotent.
+     */
+    saleIdempotencyKey: text('sale_idempotency_key'),
     notes: text(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -135,6 +140,9 @@ export const bePatientPackages = pgTable(
     index('idx_be_patient_packages_org_user').on(table.organizationId, table.platformUserId),
     index('idx_be_patient_packages_status').on(table.status),
     uniqueIndex('idx_be_patient_packages_display_number_unique').on(table.displayNumber),
+    uniqueIndex('uq_be_patient_packages_sale_idempotency')
+      .on(table.organizationId, table.saleIdempotencyKey)
+      .where(sql`${table.saleIdempotencyKey} IS NOT NULL`),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],

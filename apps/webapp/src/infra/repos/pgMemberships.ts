@@ -461,16 +461,12 @@ export function createPgMembershipsPort(): MembershipsPort {
 
     async createManualPatientPackage(input: CreateManualPatientPackageInput) {
       const now = new Date().toISOString();
-      const staffSold =
-        input.activateImmediately === true ||
-        (input.soldAt != null && input.paidAmountMinor != null && input.sendForPayment === false);
-      const status =
-        staffSold || (input.sendForPayment === false && input.priceMinor === 0)
-          ? 'active'
-          : 'offered';
-      const soldAt = input.soldAt ?? (staffSold ? now : null);
-      const paidAmountMinor = input.paidAmountMinor ?? (staffSold ? input.priceMinor : null);
-      const paidCurrency = input.paidCurrency ?? input.currency ?? 'RUB';
+      // Every staff sale is born unsettled. `cash` is settled by the ledger write that follows,
+      // `free`/`link` by the service; the row never starts out claiming money it has not seen.
+      const status = 'offered';
+      const soldAt = null;
+      const paidAmountMinor = null;
+      const paidCurrency = null;
       return runMembershipsTransaction(async (db) => {
         const inserted = await db
           .insert(bePatientPackages)
@@ -485,14 +481,12 @@ export function createPgMembershipsPort(): MembershipsPort {
             deductionMode: input.deductionMode ?? 'auto_on_visit_confirmed',
             assignedByPlatformUserId: input.assignedByPlatformUserId ?? null,
             notes: input.notes ?? null,
+            saleIdempotencyKey: input.saleIdempotencyKey ?? null,
             soldAt,
             paidAmountMinor,
-            paidCurrency: staffSold || paidAmountMinor != null ? paidCurrency : null,
-            validFrom: status === 'active' ? now : null,
-            validUntil:
-              status === 'active' && input.validityDays
-                ? new Date(Date.now() + input.validityDays * 86400000).toISOString()
-                : null,
+            paidCurrency,
+            validFrom: null,
+            validUntil: null,
             createdAt: now,
             updatedAt: now,
           })
@@ -535,6 +529,7 @@ export function createPgMembershipsPort(): MembershipsPort {
             deductionMode: catalog.deductionMode,
             assignedByPlatformUserId: input.assignedByPlatformUserId ?? null,
             notes: input.notes ?? null,
+            saleIdempotencyKey: input.saleIdempotencyKey ?? null,
             createdAt: now,
             updatedAt: now,
           })
@@ -553,6 +548,23 @@ export function createPgMembershipsPort(): MembershipsPort {
         if (!pkg) throw new Error('package_offer_failed');
         return pkg;
       });
+    },
+
+    async findPatientPackageBySaleIdempotencyKey(organizationId, saleIdempotencyKey) {
+      const db = getMembershipsDb();
+      const rows = await db
+        .select()
+        .from(bePatientPackages)
+        .where(
+          and(
+            eq(bePatientPackages.organizationId, organizationId),
+            eq(bePatientPackages.saleIdempotencyKey, saleIdempotencyKey),
+          ),
+        );
+      const row = rows[0];
+      if (!row) return null;
+      const itemsMap = await loadPackageItems([row.id]);
+      return mapPatientPackage(row, itemsMap.get(row.id) ?? []);
     },
 
     async updatePatientPackageNotes(id, organizationId, notes) {
