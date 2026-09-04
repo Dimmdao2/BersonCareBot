@@ -12,6 +12,10 @@ vi.mock('@/shared/ui/doctor/DoctorDateTimePicker', () => ({
   ),
 }));
 
+import type {
+  CalendarAppointmentEvent,
+  CalendarFilterMeta,
+} from '@/modules/booking-calendar/types';
 import { AppointmentPaymentSection } from './AppointmentPaymentSection';
 import { DoctorCalendarEventPanel } from './DoctorCalendarEventPanel';
 
@@ -385,5 +389,147 @@ describe('appointment payment owner states', () => {
     );
     expect(screen.queryByRole('link', { name: checkoutUrl })).not.toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'QR-код платёжной ссылки' })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Owner acceptance 2026-09-04, риск режима «Изменить»: сохранение не подменяется молчаливым
+ * частичным обновлением — ошибка любого из существующих endpoint видна пользователю, а состояние
+ * не выглядит сохранённым. Дата/время идут в `manual-reschedule`, комментарий — в `comments`;
+ * это два разных запроса, и второй из них раньше терялся без следа.
+ */
+const EDITABLE_APPOINTMENT: CalendarAppointmentEvent = {
+  kind: 'appointment',
+  id: '44444444-4444-4444-8444-444444444444',
+  startAt: '2027-03-10T09:00:00+03:00',
+  endAt: '2027-03-10T09:30:00+03:00',
+  status: 'confirmed',
+  source: 'staff',
+  specialistId: SPECIALIST_ID,
+  specialistName: 'Доктор Иванов',
+  branchId: BRANCH_ID,
+  branchTitle: 'Центр',
+  branchColor: null,
+  roomId: null,
+  roomTitle: null,
+  serviceId: SERVICE_ID,
+  serviceTitle: 'Приём',
+  platformUserId: null,
+  patientName: 'Иванова Мария',
+  patientPhone: null,
+  bookingStatus: null,
+  paymentStatus: null,
+  prepaymentPending: false,
+  packageUsageRef: null,
+  packageTitle: null,
+  packageDisplayNumber: null,
+  rescheduleCount: 0,
+  originalStartAt: null,
+  formComments: [],
+};
+
+const EDIT_FILTER_META: CalendarFilterMeta = {
+  specialists: [{ id: SPECIALIST_ID, label: 'Доктор Иванов' }],
+  branches: [{ id: BRANCH_ID, label: 'Центр' }],
+  rooms: [],
+  services: [
+    {
+      id: SERVICE_ID,
+      label: 'Приём',
+      durationMinutes: 30,
+      availability: [{ specialistId: SPECIALIST_ID, branchId: BRANCH_ID }],
+    },
+  ],
+};
+
+/** Расписание сохраняется, комментарий — нет: ровно та развилка, которую проверяет владелец. */
+function stubEditEndpoints(commentPost: () => Response) {
+  const calls: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(`${method} ${url}`);
+      if (url.endsWith('/lifecycle')) {
+        return Response.json({ ok: true, reschedules: [], cancellations: [] }, { status: 200 });
+      }
+      if (url.endsWith('/comments') && method === 'GET') {
+        return Response.json(
+          { ok: true, comments: [{ id: 'c1', body: 'Старый', createdAt: '2027-03-01T00:00:00Z' }] },
+          { status: 200 },
+        );
+      }
+      if (url.endsWith('/comments')) return commentPost();
+      if (url.endsWith('/manual-reschedule')) return Response.json({ ok: true }, { status: 200 });
+      return Response.json({ paymentsEntitled: false }, { status: 200 });
+    }),
+  );
+  return calls;
+}
+
+function renderEditablePanel() {
+  return render(
+    <DoctorCalendarEventPanel
+      apiBase="/api/doctor/booking-engine"
+      selected={EDITABLE_APPOINTMENT}
+      timeZone="Europe/Moscow"
+      filterMeta={EDIT_FILTER_META}
+      activeFilters={{ specialistId: null, branchId: null, roomId: null, serviceId: null }}
+      ownSpecialistId={SPECIALIST_ID}
+      onClose={vi.fn()}
+      onChanged={vi.fn()}
+    />,
+  );
+}
+
+describe('appointment edit save', () => {
+  it('does not report a save when the comment endpoint rejects it', async () => {
+    stubEditEndpoints(() => Response.json({ ok: false, error: 'boom' }, { status: 500 }));
+    renderEditablePanel();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить' }));
+    fireEvent.change(await screen.findByLabelText('Комментарий'), {
+      target: { value: 'Новый комментарий' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() =>
+      expect(
+        vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith('/comments')),
+      ).toBe(true),
+    );
+    // Сохранился только перенос; объявлять запись сохранённой и терять набранный текст нельзя.
+    expect(screen.queryByText('Сохранено')).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('Новый комментарий')).toBeInTheDocument();
+  });
+
+  it('does not report a save when clearing the comment sends nothing at all', async () => {
+    stubEditEndpoints(() => Response.json({ ok: true }, { status: 200 }));
+    renderEditablePanel();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить' }));
+    const editComment = await screen.findByLabelText('Комментарий');
+    await waitFor(() => expect(editComment).toHaveValue('Старый'));
+    fireEvent.change(editComment, { target: { value: '' } });
+    // Расписание меняется тоже: так у сохранения есть сетевой шаг, по которому виден его конец.
+    fireEvent.change(screen.getByLabelText('Длительность, мин'), { target: { value: '45' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    const rescheduled = () =>
+      vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith('/manual-reschedule'));
+    await waitFor(() => expect(rescheduled()).toBe(true));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^(Сохранить|Изменить)$/ })).toBeEnabled(),
+    );
+    // Пустой комментарий не уходит ни в один существующий контракт, поэтому «Сохранено»
+    // здесь означает молча потерянную правку пользователя.
+    expect(
+      vi.mocked(fetch).mock.calls.some(
+        ([url, init]) =>
+          String(url).endsWith('/comments') && (init as RequestInit | undefined)?.method === 'POST',
+      ),
+    ).toBe(false);
+    expect(screen.queryByText('Сохранено')).not.toBeInTheDocument();
   });
 });
