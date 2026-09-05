@@ -63,12 +63,6 @@ export function DoctorStatCard({
         ? 'text-muted-foreground'
         : 'text-primary'
       : undefined;
-  const neutralSecondaryNumericValueClass =
-    tone === 'neutral' && typeof secondaryValue === 'number'
-      ? secondaryValue === 0
-        ? 'text-muted-foreground'
-        : 'text-primary'
-      : undefined;
   const shellClass = cn(
     tone === 'warning' ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
     (href || onClick) && doctorStatCardInteractiveClass,
@@ -121,7 +115,6 @@ export function DoctorStatCard({
         <div
           className={cn(
             'flex items-baseline gap-0.5 font-semibold tabular-nums text-foreground/75',
-            neutralSecondaryNumericValueClass,
           )}
         >
           <span aria-hidden className="text-sm font-normal text-muted-foreground">
