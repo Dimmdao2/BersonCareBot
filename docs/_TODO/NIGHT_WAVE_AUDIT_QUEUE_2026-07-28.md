@@ -6,6 +6,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## Booking acquiring webhook MONEY-13 — 05.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Tenant-scoped settlement generic webhook | product `154a18f61`, behavior tests `a0ab149ff`, independent audit `e400b96f2`, queue registration `3ecf1db0c` (`wt/webhookfix`) | **INDEPENDENT AUDIT PASS, FOR LAND.** Opus подтвердил устранение наблюдавшегося на TEST HTTP 400: bootstrap-резолвер клиники использует объявленный pre-session named root, а проведение оплаты выполняется атомарным tenant-scoped root без аргумента организации и без широкой relation-capability для `tenant_service`. Артефакт `docs/audit/code-audit-money-13-booking-webhook.md`, слепой kill-set `docs/audit/blind-killset-booking-webhook-215.md`; fault injection поймал 4 класса поломок, непойманных блокирующих 0. Targeted tests: 2 файла / 9 тестов PASS; typecheck, privilege generators и migration gates PASS. Живой TEST webhook остаётся интеграционной проверкой после landing/deploy. |
+
 ## SaaS period pricing grid — 05.09
 
 | слой | коммит | вердикт |
@@ -15,6 +21,7 @@
 | Независимый blind audit-live глобальной сетки периодов | acceptance/kill-set `aa3f1d49c`, audit `2a3538b85` (`wt/saas-period-grid`) | **FAIL — SAME-BRANCH FIXER, DO NOT LAND.** Отчёт `docs/_TODO/runs/saas-period-grid-20260905/AUDIT.md`: rollback-only DEV preflight миграции PASS; live role proof обнаружил `42501` на новых колонках подписки, отсутствие worker-read цены и FK-конфликт full-replace матрицы. Добавлен один падающий поведенческий oracle на покупку снятого периода; kill-set: **убито 2 / не поймано 2**. Исполнитель обязан сохранить валидные денежные тесты, удалить устаревшие SaaS-refund/immediate-upgrade oracle и не закреплять форму UI. |
 | Салваж результата оборванного same-branch fixer | `ddb2b92cb` (`wt/saas-period-grid`) | **WIP — CONTINUATION ONLY, DO NOT LAND.** Fixer закрыл аудитные разрывы и довёл целевые SaaS/org-entitlements наборы и typecheck до зелёного по progress journal, но runner завершился системной ошибкой `claude returned invalid JSON` до итогового отчёта/коммита. SHA фиксирует только сохранённое дерево для штатного continuation; отдельным PASS не является. |
 | Finalized fixer candidate после merge с интеграционной веткой | product checkpoint `ddb2b92cb`, generated resync `64641a616`, worker evidence `5fa5e59a6` (`wt/saas-period-grid`) | **AWAITING FINAL INDEPENDENT AUDIT — DO NOT LAND.** Воркер повторно получил зелёные targeted/typecheck/privilege/generator/rollback-only DEV-гейты и считает F-1..F-8 закрытыми. Его собственный `PASS К LAND` не является независимой приёмкой. Финальный auditor обязан отдельно решить два owner-gate: действительно ли `declaration.ts` является единственным авторитетным источником при импортируемых `relation-access.ts`/`function-census.ts`, и не сохранены ли в изменённых UI-тестах oracle текста/наличия/формы вместо поведения. |
+| Final independent audit сетки SaaS-периодов | blind addendum `4367201cc`, acceptance/audit `1ffb71624` (`wt/saas-period-grid`); артефакт `docs/_TODO/runs/saas-period-grid-20260905/AUDIT-2.md` | **PRODUCT PASS; OWNER CORRECTION REQUIRED — DO NOT LAND.** Аудитор независимо перепроверил F-1..F-8, rollback-only DEV под реальными ролями, миграцию, worker renewal/cancel и 190/190 целевых тестов; новый cancellation oracle убивает 1 поломку, непойманных в этом acceptance scope 0. Два прямых owner-требования остаются невыполненными: карта колоночных прав ведётся вручную в `declaration.ts` и `relation-access.ts`, что уже привело к live `42501`; 18 достижимых UI-тестов на двух экранах всё ещё закрепляют текст/наличие/форму UI. Нужен один correction-pass до landing. |
 
 ## Doctor prepayment settings correction — 05.09
 
