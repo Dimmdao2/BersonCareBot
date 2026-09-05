@@ -1264,6 +1264,71 @@ async function seedCurrentPaidPeriod(
   return invoice;
 }
 
+/**
+ * #1069 owner decision 2026-09-05 (Т14, `docs/OWNER_DECISIONS.md`), item 3, дословно: «отмена
+ * сохраняет доступ до конца оплаченного периода и просто гасит будущее продление».
+ *
+ * Названная поломка (независимый аудит-live, 2026-09-05): клиника нажала «отменить подписку», а
+ * фоновый тик продолжает считать её due — выставляет следующий счёт и, при сохранённом способе
+ * оплаты, списывает деньги за период, который клиника уже отменила. Отказ ДОРОГОЙ (списание после
+ * отмены) и МОЛЧАЛИВЫЙ: тик отчитывается успехом, никто не падает, клиника узнаёт из выписки.
+ *
+ * Почему тест, а не «взгляд» (§24.4): это повторяемое поведение денежного цикла, а не разовое
+ * состояние. Почему ЗДЕСЬ: `runDueSaasBillingRenewals` поверх `createInMemorySaasBillingRepository`
+ * — самый дешёвый публичный слой, на котором виден настоящий due-фильтр (в проде тот же фильтр
+ * стоит в корне `app.list_saas_billing_subscriptions_due_for_renewal`, строка `cancelled_at IS
+ * NULL`). Оракул — деньги и доступ (счёт выставлен/не выставлен, граница оплаченного периода), а
+ * не текст, число контролов или факт вызова мока (§10a).
+ *
+ * Замерено на кандидате `738a29c39`: инъекция «отменённая подписка остаётся due» (снять
+ * `!cancelledAtBySubscriptionId.has(row.id)` в фейке) оставляла ВЕСЬ существующий набор зелёным
+ * (180/180) — эту гарантию не ловил ни один тест.
+ */
+describe('Т14 п.3: отмена гасит продление и не трогает оплаченный доступ', () => {
+  it('после отмены тик не выставляет счёт, а оплаченный период доживает до своей границы', async () => {
+    const { service, setNow } = paidPeriodScenario();
+    await seedCurrentPaidPeriod(service);
+
+    await service.cancelOwnTariffBillingSubscription({ organizationId: 'org-paid-period' });
+
+    // Половина решения владельца: доступ НЕ обрезается отменой.
+    const afterCancel = await service.getOrganizationBillingOverview('org-paid-period');
+    expect(
+      afterCancel.subscriptions.find((row) => row.source === 'paid_subscription'),
+    ).toMatchObject({
+      currentPeriodStartsAt: '2026-07-01T00:00:00.000Z',
+      currentPeriodEndsAt: '2026-08-01T00:00:00.000Z',
+    });
+    const invoicesBefore = afterCancel.invoices.length;
+
+    // Вторая половина: на границе оплаченного периода продление НЕ происходит.
+    setNow('2026-08-01T00:00:00.000Z');
+    await expect(service.runDueSaasBillingRenewals()).resolves.toMatchObject({
+      dueCount: 0,
+      created: 0,
+    });
+
+    const afterTick = await service.getOrganizationBillingOverview('org-paid-period');
+    expect(afterTick.invoices).toHaveLength(invoicesBefore);
+  });
+
+  it('контроль: БЕЗ отмены тот же тик на той же границе счёт выставляет', async () => {
+    const { service, setNow } = paidPeriodScenario();
+    await seedCurrentPaidPeriod(service);
+    const invoicesBefore = (await service.getOrganizationBillingOverview('org-paid-period'))
+      .invoices.length;
+
+    setNow('2026-08-01T00:00:00.000Z');
+    await expect(service.runDueSaasBillingRenewals()).resolves.toMatchObject({
+      dueCount: 1,
+      created: 1,
+    });
+
+    const afterTick = await service.getOrganizationBillingOverview('org-paid-period');
+    expect(afterTick.invoices.length).toBe(invoicesBefore + 1);
+  });
+});
+
 describe('Р-10/Р-14: future paid invoice waits for the paid boundary', () => {
   it('records an early renewal as paid without replacing the current period dates before its start', async () => {
     const { service, setNow } = paidPeriodScenario();
