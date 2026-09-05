@@ -29,6 +29,10 @@ import type {
 } from './ports';
 import type { CreatePatientBookingInput, PatientBookingRecord } from './types';
 import {
+  initialAppointmentStatusForSnapshot,
+  resolveAppointmentFinancialSnapshot,
+} from '@/modules/payments/appointmentFinancialSnapshot';
+import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
 } from './bookingLifecycleNotifications';
@@ -379,22 +383,35 @@ export async function createBookingOnCanonicalEngine(
     packageCoversVisit = true;
   }
 
+  // PAY-APPT-01/03/07/08: ОДИН доменный расчёт финансового снимка на обе половины записи.
+  // Пациент никаких финансовых значений не подаёт — снимок целиком выводится из политики
+  // клиники и цены услуги, а срок оплаты берётся из настройки клиники и фиксируется здесь.
   const prepaymentMechanicAllowsMoney =
     deps.payments !== null && (await deps.canAcceptBookingPrepayment(orgId));
-  const prepayQuote = prepaymentMechanicAllowsMoney && deps.payments
-    ? await deps.payments.resolvePrepayment({
-        organizationId: orgId,
-        serviceId: canonicalServiceId,
-        onlineCategory: createInput.type === 'online' ? createInput.category : null,
-        servicePriceMinor: pendingRow.priceMinorSnapshot,
-        currency: 'RUB',
-      })
-    : null;
-  const needsPrepayment =
-    !packageCoversVisit &&
-    prepayQuote?.required === true &&
-    (prepayQuote.amountMinor ?? 0) > 0;
-  const initialAppointmentStatus = needsPrepayment ? 'awaiting_payment' : 'confirmed';
+  const prepaymentPolicy =
+    prepaymentMechanicAllowsMoney && deps.payments
+      ? await deps.payments.getPrepaymentPolicyForBooking({
+          organizationId: orgId,
+          serviceId: canonicalServiceId,
+          onlineCategory: createInput.type === 'online' ? createInput.category : null,
+        })
+      : null;
+  const paymentsGloballyEnabled =
+    prepaymentMechanicAllowsMoney && deps.payments
+      ? (await deps.payments.getSettings(orgId)).enabled
+      : false;
+  const financialSnapshot = resolveAppointmentFinancialSnapshot({
+    servicePriceMinor: pendingRow.priceMinorSnapshot,
+    policy: prepaymentPolicy,
+    paymentsGloballyEnabled,
+    currency: 'RUB',
+    now: new Date().toISOString(),
+    prepaymentWaitMinutes: await deps.bookingScheduling.getPrepaymentWaitMinutes(orgId),
+  });
+  const initialAppointmentStatus = initialAppointmentStatusForSnapshot(financialSnapshot, {
+    coveredByPackage: packageCoversVisit,
+  });
+  const needsPrepayment = initialAppointmentStatus === 'awaiting_payment';
   const specialistReminderSettings = inPersonCtx?.patientCatalogSnapshot
     ? {
         allowedPresetIds:
@@ -441,6 +458,15 @@ export async function createBookingOnCanonicalEngine(
           appointmentReminderAllowedPresetIds:
             specialistReminderSettings?.allowedPresetIds ?? [],
           appointmentReminderPresetId: specialistReminderSettings?.defaultPresetId ?? null,
+          priceMinor: financialSnapshot.priceMinor,
+          priceCurrency: financialSnapshot.priceCurrency,
+          prepaymentMode: financialSnapshot.prepaymentMode,
+          prepaymentPercentBps: financialSnapshot.prepaymentPercentBps,
+          prepaymentAmountMinor: financialSnapshot.prepaymentAmountMinor,
+          prepaymentRequiredMinor: needsPrepayment
+            ? financialSnapshot.prepaymentRequiredMinor
+            : 0,
+          paymentDeadlineAt: needsPrepayment ? financialSnapshot.paymentDeadlineAt : null,
         };
       },
     );
@@ -475,7 +501,7 @@ export async function createBookingOnCanonicalEngine(
     );
   }
 
-  if (needsPrepayment && deps.payments && prepayQuote) {
+  if (needsPrepayment && deps.payments) {
     const returnUrl =
       createInput.bookingChannel === 'public_widget'
         ? `${env.APP_BASE_URL}${publicBookPaths.pay}?bookingId=${encodeURIComponent(pending.id)}`
@@ -485,8 +511,8 @@ export async function createBookingOnCanonicalEngine(
         organizationId: orgId,
         appointmentId: appointment.id,
         platformUserId: createInput.userId,
-        amountMinor: prepayQuote.amountMinor * slotCount,
-        currency: prepayQuote.currency,
+        amountMinor: financialSnapshot.prepaymentRequiredMinor * slotCount,
+        currency: financialSnapshot.priceCurrency,
         idempotencyKey: `appointment_prepay:${appointment.id}`,
         returnUrl,
       });

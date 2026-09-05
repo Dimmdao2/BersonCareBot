@@ -232,6 +232,7 @@ function paymentView(override: PaymentViewOverride = {}): CalendarAppointmentPay
     paymentsEntitled: true,
     onlinePaymentAvailable: true,
     patientChatAvailable: false,
+    prepayment: null,
     ...override,
   };
 }

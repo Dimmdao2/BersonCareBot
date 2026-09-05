@@ -47,6 +47,14 @@ export const OPERATOR_SAAS_BILLING_RENEWAL_TICK_JOB_KEY = 'saas_billing_renewal.
 
 export const OPERATOR_MAINTENANCE_JOB_FAMILY = 'maintenance';
 export const OPERATOR_DB_JOURNAL_RETENTION_JOB_KEY = 'maintenance.db_journal_retention.tick';
+/**
+ * PAY-APPT-11. Семейство — существующее `maintenance`: это периодическая уборка просроченных
+ * ожиданий, и своей операции isolation-телеметрии она не заводит. Новое семейство потребовало бы
+ * нового значения в CHECK-ограничении `saas_isolation_events` и в корне отчёта — отдельной
+ * таксономии ради одной строки расписания не создаём.
+ */
+export const OPERATOR_BOOKING_PREPAYMENT_EXPIRY_JOB_KEY =
+  'maintenance.booking_prepayment_expiry.tick';
 
 /* ───────────────────────────────── среда ───────────────────────────────── */
 
@@ -400,6 +408,30 @@ const BACKGROUND_JOB_MANIFEST_SOURCE = [
     staleAfterSec: 3 * 60 * 60,
     required: true,
     why: 'Счёт продления тарифа истёкшим подпискам; шаблон ходил без публичного Host и получал 404 (B1).',
+  },
+  {
+    id: 'booking_prepayment_expiry',
+    jobFamily: OPERATOR_MAINTENANCE_JOB_FAMILY,
+    jobKey: OPERATOR_BOOKING_PREPAYMENT_EXPIRY_JOB_KEY,
+    label: 'Истечение предоплаты записи',
+    kind: 'internal_http',
+    scheduleOwner: 'host_cron',
+    scheduleHint: 'каждую минуту',
+    cron: '* * * * *',
+    artifactSlug: 'booking-prepayment-expiry',
+    environments: ['prod', 'test'],
+    route: {
+      method: 'POST',
+      path: '/api/internal/booking-prepayment/expire',
+      query: 'limit=100',
+    },
+    principal: 'internal_job_bearer',
+    surfaceIdentity: 'app_public_origin',
+    timeoutSec: 50,
+    staleAfterSec: 5 * 60,
+    required: true,
+    why: 'PAY-APPT-11: без тика неоплаченное ожидание держит слот вечно, и на это время к врачу ' +
+      'не может записаться никто другой. Минутный ритм — потому что срок задаётся в минутах.',
   },
   {
     id: 'backup_hourly',

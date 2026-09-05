@@ -1,4 +1,5 @@
 import type { AppointmentStatus } from '@/modules/booking-engine/types';
+import type { PrepaymentMode } from '@/modules/payments/types';
 
 /**
  * Режимы отображения календаря.
@@ -79,6 +80,28 @@ export type CalendarAppointmentPaymentView = {
   onlinePaymentAvailable: boolean;
   /** Пациент `linked` к порталу, значит ссылка в чат реально дойдёт. */
   patientChatAvailable: boolean;
+  /**
+   * PAY-APPT-06: канонический снимок предоплаты САМОЙ записи. Не пересчитывается читателем и не
+   * выводится из каталога: это ровно те значения, которые записаны в `be_appointments`.
+   * `null` — снимка нет (запись создана до его появления), и карточка тогда показывает только
+   * прежние поля, а не выдуманный ноль.
+   */
+  prepayment: {
+    /** Режим предоплаты записи: `disabled` | `fixed_minor` | `percent` | `full_price`. */
+    mode: PrepaymentMode;
+    /** Базисные пункты процента; `null` для остальных режимов. */
+    percentBps: number | null;
+    requiredMinor: number;
+    paidMinor: number;
+    currency: string;
+    /** Точный срок оплаты в ISO-8601; `null` — предоплата не требуется. */
+    deadlineAt: string | null;
+    /**
+     * PAY-APPT-06: уже созданная провайдером ссылка оплаты, если контракт провайдера её
+     * сохраняет. Повторное получение ссылки не создаёт второе намерение.
+     */
+    checkoutUrl: string | null;
+  } | null;
 };
 
 export type CalendarAppointmentEvent = {

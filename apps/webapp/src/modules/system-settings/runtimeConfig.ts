@@ -164,6 +164,10 @@ export const SERVER_RUNTIME_INTEGER_DEFINITIONS = {
     minValue: 1,
     maxValue: 24,
   },
+  booking_prepayment_wait_minutes: {
+    minValue: 1,
+    maxValue: 525_600,
+  },
 } as const;
 
 export type PublicRuntimeBooleanKey = (typeof PUBLIC_RUNTIME_BOOLEAN_KEYS)[number];

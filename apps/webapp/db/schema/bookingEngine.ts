@@ -70,6 +70,14 @@ const appointmentStatusCheckSql = sql`status = ANY (ARRAY[
   'manual_review_required'::text
 ])`;
 
+/** Значения совпадают с `PREPAYMENT_MODES` (`bookingPayments.ts`): второй модели предоплаты нет. */
+const appointmentPrepaymentModeCheckSql = sql`prepayment_mode = ANY (ARRAY[
+  'disabled'::text,
+  'fixed_minor'::text,
+  'percent'::text,
+  'full_price'::text
+])`;
+
 export const beOrganizations = pgTable(
   'be_organizations',
   {
@@ -543,6 +551,24 @@ export const beAppointments = pgTable(
     originalStartAt: timestamp('original_start_at', { withTimezone: true, mode: 'string' }),
     rescheduleCount: integer('reschedule_count').default(0).notNull(),
     paymentRef: text('payment_ref'),
+    /**
+     * PAY-APPT-01/18: канонический снимок стоимости записи в минорных единицах. Принадлежит
+     * САМОЙ записи, а не проекции `patient_bookings`: изменение прайса услуги после сохранения
+     * запись не трогает. `null` — записи, созданные до появления снимка (читаются через
+     * прежнюю проекцию).
+     */
+    priceMinor: integer('price_minor'),
+    priceCurrency: text('price_currency').default('RUB').notNull(),
+    /** Условие предоплаты, зафиксированное для ЭТОЙ записи (умолчание услуги + переопределение врача). */
+    prepaymentMode: text('prepayment_mode').default('disabled').notNull(),
+    prepaymentPercentBps: integer('prepayment_percent_bps'),
+    prepaymentAmountMinor: integer('prepayment_amount_minor'),
+    /** Сумма, которую требуется внести до дедлайна. 0 — предоплата не требуется. */
+    prepaymentRequiredMinor: integer('prepayment_required_minor').default(0).notNull(),
+    /** Фактически зачисленная за эту запись сумма; пишет только платёжный корень. */
+    prepaymentPaidMinor: integer('prepayment_paid_minor').default(0).notNull(),
+    /** PAY-APPT-08: точный срок оплаты записи; `null` — предоплата не требуется. */
+    paymentDeadlineAt: timestamp('payment_deadline_at', { withTimezone: true, mode: 'string' }),
     packageUsageRef: text('package_usage_ref'),
     phoneNormalized: text('phone_normalized'),
     attributionJson: jsonb('attribution_json')
@@ -620,7 +646,23 @@ export const beAppointments = pgTable(
       'public_widget'::text
     ])`,
     ),
+    /** PAY-APPT-11: горячий путь тика истечения — только ожидающие оплаты записи с дедлайном. */
+    index('idx_be_appointments_payment_deadline')
+      .using(
+        'btree',
+        table.paymentDeadlineAt.asc().nullsLast().op('timestamptz_ops'),
+      )
+      .where(sql`status = 'awaiting_payment' AND payment_deadline_at IS NOT NULL`),
     check('be_appointments_status_check', appointmentStatusCheckSql),
+    check('be_appointments_prepayment_mode_check', appointmentPrepaymentModeCheckSql),
+    check(
+      'be_appointments_money_nonnegative_check',
+      sql`(price_minor IS NULL OR price_minor >= 0)
+      AND (prepayment_amount_minor IS NULL OR prepayment_amount_minor >= 0)
+      AND (prepayment_percent_bps IS NULL OR (prepayment_percent_bps >= 0 AND prepayment_percent_bps <= 10000))
+      AND prepayment_required_minor >= 0
+      AND prepayment_paid_minor >= 0`,
+    ),
     check(
       'be_appointments_reminder_selection_source_check',
       sql`appointment_reminder_selection_source = ANY (ARRAY['specialist_default'::text, 'patient'::text])`,

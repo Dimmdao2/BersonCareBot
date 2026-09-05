@@ -27,6 +27,7 @@ const PAID_VIEW: CalendarAppointmentPaymentView = {
   paymentsEntitled: true,
   onlinePaymentAvailable: false,
   patientChatAvailable: false,
+  prepayment: null,
 };
 
 function appointment(id: string): CalendarAppointmentEvent {

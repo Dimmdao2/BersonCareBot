@@ -12,6 +12,8 @@ import type {
   CreateManualPatientVisitInput,
   CreateManualPatientVisitResult,
   TransitionAppointmentStatusInput,
+  UpdateAppointmentFinancialSnapshotInput,
+  AppointmentFinancialSnapshotRecord,
 } from './types';
 import type {
   AppointmentReminderSpecialistSettings,
@@ -210,6 +212,20 @@ export type BookingEnginePort = {
   /** Inserts every appointment in a consecutive chain in one transaction. */
   createAppointmentChain(inputs: CreateAppointmentInput[]): Promise<BeAppointment[]>;
   transitionAppointmentStatus(input: TransitionAppointmentStatusInput): Promise<BeAppointment>;
+  /**
+   * PAY-APPT-02/03/12: ЕДИНСТВЕННЫЙ путь переписывания финансового снимка уже существующей
+   * записи. Отказывает, если деньги уже состоялись (`prepayment_paid_minor > 0` либо есть
+   * `payment_ref`), — проверка стоит внутри той же транзакции, а не только у вызывающего.
+   * `prepayment_paid_minor` этим путём не пишется никогда.
+   */
+  updateAppointmentFinancialSnapshot(
+    input: UpdateAppointmentFinancialSnapshotInput,
+  ): Promise<BeAppointment>;
+  /** PAY-APPT-06: снимок предоплаты набором — карточка деталей открывается из уже прочитанного диапазона. */
+  listAppointmentFinancialSnapshots(
+    organizationId: string,
+    appointmentIds: string[],
+  ): Promise<AppointmentFinancialSnapshotRecord[]>;
   /** Hard delete is used only for immediate create rollback before side-effects. */
   deleteAppointmentHard?(input: {
     organizationId: string;

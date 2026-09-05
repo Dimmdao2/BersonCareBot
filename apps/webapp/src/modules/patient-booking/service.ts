@@ -295,6 +295,12 @@ export function createPatientBookingService(input: {
         throw new Error('branch_service_not_found');
       }
 
+      // PAY-APPT-02: снимок стоимости принадлежит записи, поэтому проекция ЕГО ОТРАЖАЕТ, а не
+      // пересчитывает. Раньше здесь стоял `service.priceMinor`, и сохранённая врачом цена уезжала
+      // за прайсом услуги при любой следующей правке записи. Каталожная цена остаётся резервом
+      // только для записей, созданных до появления снимка (`priceMinor === null`).
+      const projectedPriceMinor = appointment.priceMinor ?? service.priceMinor;
+
       if (existing) {
         const updated = await input.bookingsPort.updateStaffProjection({
           bookingId: existing.id,
@@ -305,7 +311,7 @@ export function createPatientBookingService(input: {
           branchTitleSnapshot: branch.title,
           serviceTitleSnapshot: service.title,
           durationMinutesSnapshot: appointment.durationMinutes,
-          ...(appointment.paymentRef ? {} : { priceMinorSnapshot: service.priceMinor }),
+          ...(appointment.paymentRef ? {} : { priceMinorSnapshot: projectedPriceMinor }),
         });
         if (!updated) throw new Error('booking_projection_update_failed');
         return updated;
@@ -329,7 +335,7 @@ export function createPatientBookingService(input: {
         branchTitleSnapshot: branch.title,
         serviceTitleSnapshot: service.title,
         durationMinutesSnapshot: appointment.durationMinutes,
-        priceMinorSnapshot: service.priceMinor,
+        priceMinorSnapshot: projectedPriceMinor,
       });
       const confirmed = await input.bookingsPort.markConfirmed(pending.id, {
         canonicalAppointmentId: appointment.id,

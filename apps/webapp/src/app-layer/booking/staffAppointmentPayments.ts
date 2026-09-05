@@ -5,6 +5,7 @@ import type {
   CalendarAppointmentEvent,
   CalendarAppointmentPaymentView,
 } from '@/modules/booking-calendar/types';
+import type { AppointmentFinancialSnapshotRecord } from '@/modules/booking-engine/types';
 import type { PatientBookingService } from '@/modules/patient-booking/ports';
 import type { PatientPaymentsPort } from '@/modules/patient-payments/ports';
 import type { PatientInvitesPort } from '@/modules/patient-invites/ports';
@@ -30,6 +31,13 @@ export type StaffAppointmentPaymentsDeps = {
 
 export type StaffAppointmentPaymentViewDeps = {
   payments?: PaymentsService | null;
+  /** PAY-APPT-06: канонический снимок предоплаты читается у САМОЙ записи, а не выводится заново. */
+  bookingEngine?: {
+    listAppointmentFinancialSnapshots(
+      organizationId: string,
+      appointmentIds: string[],
+    ): Promise<AppointmentFinancialSnapshotRecord[]>;
+  } | null;
   patientBooking?: Pick<PatientBookingService, 'listBookingsByCanonicalAppointments'> | null;
   patientPayments?: Pick<PatientPaymentsPort, 'sumPaidMinorForAppointments'> | null;
   patientInvites?: {
@@ -55,6 +63,7 @@ const NOT_ENTITLED_VIEW: CalendarAppointmentPaymentView = {
   paymentsEntitled: false,
   onlinePaymentAvailable: false,
   patientChatAvailable: false,
+  prepayment: null,
 };
 
 /**
@@ -106,16 +115,29 @@ export async function listStaffAppointmentPaymentViews(
 
   const appointmentIds = input.targets.map((target) => target.appointmentId);
   const patientUserIds = Array.from(new Set(input.targets.map((t) => t.platformUserId)));
-  const [settings, online, policies, bookings, briefs, paidSums, linkedPatients] =
-    await Promise.all([
-      payments.getSettings(input.organizationId),
-      payments.getPrepaymentAvailability(input.organizationId),
-      payments.listPrepaymentPolicies(input.organizationId),
-      deps.patientBooking.listBookingsByCanonicalAppointments(appointmentIds),
-      payments.listAppointmentPaymentBriefs(input.organizationId, appointmentIds),
-      deps.patientPayments.sumPaidMinorForAppointments(appointmentIds),
-      deps.patientInvites.listPortalLinkedPatients(input.organizationId, patientUserIds),
-    ]);
+  const [
+    settings,
+    online,
+    policies,
+    bookings,
+    briefs,
+    paidSums,
+    linkedPatients,
+    snapshots,
+    checkoutUrls,
+  ] = await Promise.all([
+    payments.getSettings(input.organizationId),
+    payments.getPrepaymentAvailability(input.organizationId),
+    payments.listPrepaymentPolicies(input.organizationId),
+    deps.patientBooking.listBookingsByCanonicalAppointments(appointmentIds),
+    payments.listAppointmentPaymentBriefs(input.organizationId, appointmentIds),
+    deps.patientPayments.sumPaidMinorForAppointments(appointmentIds),
+    deps.patientInvites.listPortalLinkedPatients(input.organizationId, patientUserIds),
+    deps.bookingEngine
+      ? deps.bookingEngine.listAppointmentFinancialSnapshots(input.organizationId, appointmentIds)
+      : Promise.resolve([]),
+    payments.listAppointmentCheckoutUrls(input.organizationId, appointmentIds),
+  ]);
 
   const bookingByAppointment = new Map(
     bookings
@@ -125,6 +147,10 @@ export async function listStaffAppointmentPaymentViews(
   const briefByAppointment = new Map(briefs.map((brief) => [brief.appointmentId, brief]));
   const paidByAppointment = new Map(paidSums.map((row) => [row.appointmentId, row.paidMinor]));
   const linked = new Set(linkedPatients);
+  const snapshotByAppointment = new Map(snapshots.map((row) => [row.appointmentId, row]));
+  const checkoutByAppointment = new Map(
+    checkoutUrls.map((row) => [row.appointmentId, row.checkoutUrl]),
+  );
 
   for (const target of input.targets) {
     const booking = bookingByAppointment.get(target.appointmentId) ?? null;
@@ -159,14 +185,28 @@ export async function listStaffAppointmentPaymentViews(
       }
     }
 
+    // PAY-APPT-01/06: общая стоимость берётся из снимка САМОЙ записи. Историческая проекция
+    // остаётся резервом только там, где снимка ещё нет (записи до этого изменения).
+    const snapshot = snapshotByAppointment.get(target.appointmentId) ?? null;
     views.set(target.appointmentId, {
       prepaymentQuote: quote ? { amountMinor: quote.amountMinor, currency: quote.currency } : null,
       payment,
-      totalMinor: booking?.priceMinorSnapshot ?? null,
+      totalMinor: snapshot?.priceMinor ?? booking?.priceMinorSnapshot ?? null,
       manualPaidMinor: paidByAppointment.get(target.appointmentId) ?? 0,
       paymentsEntitled: true,
       onlinePaymentAvailable: online.available,
       patientChatAvailable: linked.has(target.platformUserId),
+      prepayment: snapshot
+        ? {
+            mode: snapshot.prepaymentMode,
+            percentBps: snapshot.prepaymentPercentBps,
+            requiredMinor: snapshot.prepaymentRequiredMinor,
+            paidMinor: snapshot.prepaymentPaidMinor,
+            currency: snapshot.priceCurrency,
+            deadlineAt: snapshot.paymentDeadlineAt,
+            checkoutUrl: checkoutByAppointment.get(target.appointmentId) ?? null,
+          }
+        : null,
     });
   }
   return views;

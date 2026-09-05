@@ -35,6 +35,13 @@ const VALID_TRANSITIONS: Record<AppointmentStatus, readonly AppointmentStatus[]>
     'manual_review_required',
   ],
   confirmed: [
+    /**
+     * PAY-APPT-12: клиника ввела требование предоплаты для уже созданной, но ещё НЕ оплаченной
+     * записи. Обратного риска здесь нет: единственный путь, который делает этот переход
+     * (правка записи врачом), сначала упирается в замок денег — запись с `payment_ref` или с
+     * ненулевой зачисленной суммой финансовые значения не переписывает вовсе.
+     */
+    'awaiting_payment',
     'rescheduled',
     'cancelled_by_patient',
     'cancelled_by_specialist',

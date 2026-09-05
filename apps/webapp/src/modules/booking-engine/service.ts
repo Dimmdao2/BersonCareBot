@@ -11,6 +11,7 @@ import type {
   CreateAppointmentInput,
   CreateManualPatientVisitInput,
   TransitionAppointmentStatusInput,
+  UpdateAppointmentFinancialSnapshotInput,
 } from './types';
 import { resolveBookingLocationPalette } from './locationPalette';
 import { isReservedOnlineLocationIdentity, setBuiltInOnlineLocationState } from './onlineLocation';
@@ -204,6 +205,18 @@ export function createBookingEngineService(
       if (!current) throw new UserFacingError('Запись не найдена');
       assertValidAppointmentStatusTransition(current.status, input.toStatus);
       return port.transitionAppointmentStatus(input);
+    },
+
+    async updateAppointmentFinancialSnapshot(input: UpdateAppointmentFinancialSnapshotInput) {
+      assertUuid(input.appointmentId, 'appointmentId');
+      assertUuid(input.organizationId, 'organizationId');
+      return port.updateAppointmentFinancialSnapshot(input);
+    },
+
+    async listAppointmentFinancialSnapshots(organizationId: string, appointmentIds: string[]) {
+      assertUuid(organizationId, 'organizationId');
+      if (appointmentIds.length === 0) return [];
+      return port.listAppointmentFinancialSnapshots(organizationId, appointmentIds);
     },
 
     async deleteAppointmentHard(input: { organizationId: string; appointmentId: string }) {

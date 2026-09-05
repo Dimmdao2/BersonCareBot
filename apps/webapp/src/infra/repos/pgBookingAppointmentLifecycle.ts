@@ -52,6 +52,16 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     originalStartAt: row.originalStartAt ?? null,
     rescheduleCount: row.rescheduleCount,
     paymentRef: row.paymentRef ?? null,
+    // PAY-APPT-01: канонический финансовый снимок записи едет вместе с записью на КАЖДОМ пути
+    // чтения — иначе проекция и уведомления жизненного цикла видели бы разную стоимость.
+    priceMinor: row.priceMinor ?? null,
+    priceCurrency: row.priceCurrency ?? 'RUB',
+    prepaymentMode: (row.prepaymentMode ?? 'disabled') as BeAppointment['prepaymentMode'],
+    prepaymentPercentBps: row.prepaymentPercentBps ?? null,
+    prepaymentAmountMinor: row.prepaymentAmountMinor ?? null,
+    prepaymentRequiredMinor: row.prepaymentRequiredMinor ?? 0,
+    prepaymentPaidMinor: row.prepaymentPaidMinor ?? 0,
+    paymentDeadlineAt: row.paymentDeadlineAt ?? null,
     packageUsageRef: row.packageUsageRef ?? null,
     phoneNormalized: row.phoneNormalized ?? null,
     attributionJson: (row.attributionJson ?? {}) as Record<string, unknown>,
@@ -144,6 +154,14 @@ type CurrentPatientAppointmentRow = {
   original_start_at: string | null;
   reschedule_count: number;
   payment_ref: string | null;
+  price_minor: number | null;
+  price_currency: string | null;
+  prepayment_mode: string | null;
+  prepayment_percent_bps: number | null;
+  prepayment_amount_minor: number | null;
+  prepayment_required_minor: number | null;
+  prepayment_paid_minor: number | null;
+  payment_deadline_at: string | null;
   package_usage_ref: string | null;
   phone_normalized: string | null;
   attribution_json: Record<string, unknown> | null;
@@ -195,6 +213,14 @@ function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppo
     originalStartAt: row.original_start_at,
     rescheduleCount: row.reschedule_count,
     paymentRef: row.payment_ref,
+    priceMinor: row.price_minor ?? null,
+    priceCurrency: row.price_currency ?? 'RUB',
+    prepaymentMode: (row.prepayment_mode ?? 'disabled') as BeAppointment['prepaymentMode'],
+    prepaymentPercentBps: row.prepayment_percent_bps ?? null,
+    prepaymentAmountMinor: row.prepayment_amount_minor ?? null,
+    prepaymentRequiredMinor: row.prepayment_required_minor ?? 0,
+    prepaymentPaidMinor: row.prepayment_paid_minor ?? 0,
+    paymentDeadlineAt: row.payment_deadline_at ?? null,
     packageUsageRef: row.package_usage_ref,
     phoneNormalized: row.phone_normalized,
     attributionJson: row.attribution_json ?? {},

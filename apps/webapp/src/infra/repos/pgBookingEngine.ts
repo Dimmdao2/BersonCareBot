@@ -70,6 +70,7 @@ import type {
   CreateManualPatientVisitInput,
   CreateManualPatientVisitResult,
   TransitionAppointmentStatusInput,
+  UpdateAppointmentFinancialSnapshotInput,
 } from '@/modules/booking-engine/types';
 
 function mapOrg(row: typeof beOrganizations.$inferSelect): BeOrganization {
@@ -166,6 +167,14 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     originalStartAt: row.originalStartAt ?? null,
     rescheduleCount: row.rescheduleCount,
     paymentRef: row.paymentRef ?? null,
+    priceMinor: row.priceMinor ?? null,
+    priceCurrency: row.priceCurrency ?? 'RUB',
+    prepaymentMode: (row.prepaymentMode ?? 'disabled') as BeAppointment['prepaymentMode'],
+    prepaymentPercentBps: row.prepaymentPercentBps ?? null,
+    prepaymentAmountMinor: row.prepaymentAmountMinor ?? null,
+    prepaymentRequiredMinor: row.prepaymentRequiredMinor ?? 0,
+    prepaymentPaidMinor: row.prepaymentPaidMinor ?? 0,
+    paymentDeadlineAt: row.paymentDeadlineAt ?? null,
     packageUsageRef: row.packageUsageRef ?? null,
     phoneNormalized: row.phoneNormalized ?? null,
     attributionJson: (row.attributionJson ?? {}) as Record<string, unknown>,
@@ -194,6 +203,14 @@ type CurrentPatientAppointmentRow = {
   original_start_at: string | null;
   reschedule_count: number;
   payment_ref: string | null;
+  price_minor: number | null;
+  price_currency: string | null;
+  prepayment_mode: string | null;
+  prepayment_percent_bps: number | null;
+  prepayment_amount_minor: number | null;
+  prepayment_required_minor: number | null;
+  prepayment_paid_minor: number | null;
+  payment_deadline_at: string | null;
   package_usage_ref: string | null;
   phone_normalized: string | null;
   attribution_json: Record<string, unknown> | null;
@@ -225,6 +242,14 @@ function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppo
     originalStartAt: row.original_start_at,
     rescheduleCount: row.reschedule_count,
     paymentRef: row.payment_ref,
+    priceMinor: row.price_minor ?? null,
+    priceCurrency: row.price_currency ?? 'RUB',
+    prepaymentMode: (row.prepayment_mode ?? 'disabled') as BeAppointment['prepaymentMode'],
+    prepaymentPercentBps: row.prepayment_percent_bps ?? null,
+    prepaymentAmountMinor: row.prepayment_amount_minor ?? null,
+    prepaymentRequiredMinor: row.prepayment_required_minor ?? 0,
+    prepaymentPaidMinor: row.prepayment_paid_minor ?? 0,
+    paymentDeadlineAt: row.payment_deadline_at ?? null,
     packageUsageRef: row.package_usage_ref,
     phoneNormalized: row.phone_normalized,
     attributionJson: row.attribution_json ?? {},
@@ -409,6 +434,16 @@ async function insertAppointmentInTransaction(
       appointmentReminderPresetId: input.appointmentReminderPresetId ?? null,
       appointmentReminderSelectionSource:
         input.appointmentReminderSelectionSource ?? 'specialist_default',
+      // Финансовый снимок пишется здесь и только здесь — тем же контрактом, что и у пациентской
+      // двери. `prepayment_paid_minor` в списке НЕТ намеренно: факт зачисленных денег пишет
+      // только платёжный корень, и права кабинета на эту колонку не выдаются.
+      priceMinor: input.priceMinor ?? null,
+      priceCurrency: input.priceCurrency ?? 'RUB',
+      prepaymentMode: input.prepaymentMode ?? 'disabled',
+      prepaymentPercentBps: input.prepaymentPercentBps ?? null,
+      prepaymentAmountMinor: input.prepaymentAmountMinor ?? null,
+      prepaymentRequiredMinor: input.prepaymentRequiredMinor ?? 0,
+      paymentDeadlineAt: input.paymentDeadlineAt ?? null,
       createdAt: now,
       updatedAt: now,
     })
@@ -2104,6 +2139,103 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           .limit(1);
         return mapAppointment(updated[0]!);
       });
+    },
+
+    /**
+     * PAY-APPT-12. Замок стоит ВНУТРИ транзакции и на самом `UPDATE` (`prepayment_paid_minor = 0`
+     * и `payment_ref IS NULL`), а не только в предварительном чтении: платёж, пришедший между
+     * чтением и записью, отменяет правку, а не проигрывает ей.
+     */
+    async updateAppointmentFinancialSnapshot(input: UpdateAppointmentFinancialSnapshotInput) {
+      const db = getDrizzle();
+      const now = new Date().toISOString();
+      return db.transaction(async (tx) => {
+        const currentRows = await tx
+          .select()
+          .from(beAppointments)
+          .where(
+            and(
+              eq(beAppointments.id, input.appointmentId),
+              eq(beAppointments.organizationId, input.organizationId),
+            ),
+          )
+          .limit(1);
+        const current = currentRows[0];
+        if (!current) throw new Error('appointment_not_found');
+
+        const updatedRows = await tx
+          .update(beAppointments)
+          .set({
+            priceMinor: input.snapshot.priceMinor,
+            priceCurrency: input.snapshot.priceCurrency,
+            prepaymentMode: input.snapshot.prepaymentMode,
+            prepaymentPercentBps: input.snapshot.prepaymentPercentBps,
+            prepaymentAmountMinor: input.snapshot.prepaymentAmountMinor,
+            prepaymentRequiredMinor: input.snapshot.prepaymentRequiredMinor,
+            paymentDeadlineAt: input.snapshot.paymentDeadlineAt,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(beAppointments.id, input.appointmentId),
+              eq(beAppointments.organizationId, input.organizationId),
+              eq(beAppointments.prepaymentPaidMinor, 0),
+              isNull(beAppointments.paymentRef),
+            ),
+          )
+          .returning();
+        if (updatedRows.length === 0) throw new Error('appointment_financials_locked');
+
+        await tx.insert(beAppointmentHistoryEvents).values({
+          organizationId: current.organizationId,
+          appointmentId: input.appointmentId,
+          eventType: 'financials_updated',
+          actorId: input.actorId ?? null,
+          payload: {
+            priceMinor: input.snapshot.priceMinor,
+            priceCurrency: input.snapshot.priceCurrency,
+            prepaymentMode: input.snapshot.prepaymentMode,
+            prepaymentPercentBps: input.snapshot.prepaymentPercentBps,
+            prepaymentRequiredMinor: input.snapshot.prepaymentRequiredMinor,
+            paymentDeadlineAt: input.snapshot.paymentDeadlineAt,
+          },
+          occurredAt: now,
+        });
+        return mapAppointment(updatedRows[0]!);
+      });
+    },
+
+    async listAppointmentFinancialSnapshots(organizationId: string, appointmentIds: string[]) {
+      if (appointmentIds.length === 0) return [];
+      const db = getDrizzle();
+      const rows = await db
+        .select({
+          appointmentId: beAppointments.id,
+          priceMinor: beAppointments.priceMinor,
+          priceCurrency: beAppointments.priceCurrency,
+          prepaymentMode: beAppointments.prepaymentMode,
+          prepaymentPercentBps: beAppointments.prepaymentPercentBps,
+          prepaymentRequiredMinor: beAppointments.prepaymentRequiredMinor,
+          prepaymentPaidMinor: beAppointments.prepaymentPaidMinor,
+          paymentDeadlineAt: beAppointments.paymentDeadlineAt,
+        })
+        .from(beAppointments)
+        .where(
+          and(
+            eq(beAppointments.organizationId, organizationId),
+            inArray(beAppointments.id, appointmentIds),
+          ),
+        );
+      return rows.map((row) => ({
+        appointmentId: row.appointmentId,
+        priceMinor: row.priceMinor ?? null,
+        priceCurrency: row.priceCurrency ?? 'RUB',
+        prepaymentMode: (row.prepaymentMode ?? 'disabled') as BeAppointment['prepaymentMode'],
+        prepaymentPercentBps: row.prepaymentPercentBps ?? null,
+        prepaymentRequiredMinor: row.prepaymentRequiredMinor ?? 0,
+        prepaymentPaidMinor: row.prepaymentPaidMinor ?? 0,
+        paymentDeadlineAt: row.paymentDeadlineAt ?? null,
+      }));
     },
 
     async deleteAppointmentHard(input: { organizationId: string; appointmentId: string }) {

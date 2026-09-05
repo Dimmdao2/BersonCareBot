@@ -32,8 +32,20 @@ import {
 } from '@/app-layer/booking/staffBookingIntegratorEvent';
 import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
+import { resolveStaffAppointmentFinancials } from '@/app-layer/booking/staffAppointmentFinancials';
+import { initialAppointmentStatusForSnapshot } from '@/modules/payments/appointmentFinancialSnapshot';
 import { requireDoctorBookingEngine } from '../../_requireDoctorBookingEngine';
 import { resolveDoctorCreateSpecialist } from '../../_resolveDoctorAppointmentAccess';
+
+/**
+ * PAY-APPT-02/03: врач переопределяет стоимость и условие предоплаты ДЛЯ КОНКРЕТНОЙ записи.
+ * Словарь режимов один на всю систему (`PREPAYMENT_MODES`): «без предоплаты» — `disabled`,
+ * «процент» — `percent`, «полная» — `full_price`. Второго словаря рядом не заводится.
+ */
+const prepaymentOverrideSchema = z.object({
+  mode: z.enum(['disabled', 'percent', 'full_price']),
+  percentBps: z.number().int().min(0).max(10_000).nullable().optional(),
+});
 
 const bodySchema = z.object({
   branchId: z.string().uuid(),
@@ -45,6 +57,9 @@ const bodySchema = z.object({
   startAt: z.string().min(1),
   endAt: z.string().min(1),
   durationMinutes: z.number().int().positive(),
+  /** Минорные единицы (копейки). Дробных денег контракт не принимает вовсе. */
+  priceMinor: z.number().int().min(0).nullable().optional(),
+  prepayment: prepaymentOverrideSchema.nullable().optional(),
 });
 
 export async function POST(request: Request) {
@@ -88,6 +103,34 @@ export async function POST(request: Request) {
             durationMinutes: parsed.data.durationMinutes,
           });
         }
+        // PAY-APPT-01/03/07: снимок считается ДО вставки, потому что от него зависит и стартовый
+        // статус записи, и занятость слота. Абонемент проверяется здесь же (чтение), чтобы
+        // покрытая абонементом запись не уходила в ожидание оплаты и не требовала денег дважды.
+        const coveringPackage =
+          parsed.data.platformUserId && deps.memberships
+            ? await deps.memberships.pickAutoPackageForBooking(
+                parsed.data.platformUserId,
+                ctx.organizationId,
+                parsed.data.serviceId,
+              )
+            : null;
+        const financials = await resolveStaffAppointmentFinancials(
+          {
+            payments: deps.payments ?? null,
+            bookingScheduling: deps.bookingScheduling ?? null,
+            getServicePriceMinor: async (serviceId) =>
+              (await ctx.service.services.getService(serviceId))?.priceMinor ?? null,
+          },
+          {
+            organizationId: ctx.organizationId,
+            serviceId: parsed.data.serviceId,
+            priceMinor: parsed.data.priceMinor ?? null,
+            prepayment: parsed.data.prepayment ?? null,
+          },
+        );
+        const initialStatus = initialAppointmentStatusForSnapshot(financials, {
+          coveredByPackage: coveringPackage != null,
+        });
         let created = await ctx.service.createAppointment({
           organizationId: ctx.organizationId,
           branchId: parsed.data.branchId,
@@ -99,19 +142,24 @@ export async function POST(request: Request) {
           endAt: parsed.data.endAt,
           durationMinutes: parsed.data.durationMinutes,
           source: 'admin_manual',
-          status: 'confirmed',
+          status: initialStatus,
           phoneNormalized: parsed.data.phoneNormalized ?? null,
           actorId: ctx.session.user.userId,
           appointmentReminderAllowedPresetIds: reminderSettings?.allowedPresetIds ?? [],
           appointmentReminderPresetId: reminderSettings?.defaultPresetId ?? null,
+          priceMinor: financials.priceMinor,
+          priceCurrency: financials.priceCurrency,
+          prepaymentMode: financials.prepaymentMode,
+          prepaymentPercentBps: financials.prepaymentPercentBps,
+          prepaymentAmountMinor: financials.prepaymentAmountMinor,
+          prepaymentRequiredMinor:
+            initialStatus === 'awaiting_payment' ? financials.prepaymentRequiredMinor : 0,
+          paymentDeadlineAt:
+            initialStatus === 'awaiting_payment' ? financials.paymentDeadlineAt : null,
         });
         try {
           if (parsed.data.platformUserId && parsed.data.serviceId && deps.memberships) {
-            const picked = await deps.memberships.pickAutoPackageForBooking(
-              parsed.data.platformUserId,
-              ctx.organizationId,
-              parsed.data.serviceId,
-            );
+            const picked = coveringPackage;
             if (picked) {
               await deps.memberships.reserveForAppointment({
                 organizationId: ctx.organizationId,
