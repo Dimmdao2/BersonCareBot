@@ -14,6 +14,12 @@
 | Глобальная сетка периодов и невозвратные SaaS-платежи — product candidate | `c1e18607b` (`wt/saas-period-grid`) | **FAIL — DO NOT LAND; FIXER REQUIRED.** Реализация добавляет одну настраиваемую сетку периодов, матрицу цена×период, выбор пары клиникой и удаляет достижимый SaaS-refund path, но независимый audit-live нашёл блокирующие разрывы в правах и записи матрицы, покупку снятого периода, недостижимую отмену подписки, красный typecheck/тесты и устаревший generated insert-surface. |
 | Независимый blind audit-live глобальной сетки периодов | acceptance/kill-set `aa3f1d49c`, audit `2a3538b85` (`wt/saas-period-grid`) | **FAIL — SAME-BRANCH FIXER, DO NOT LAND.** Отчёт `docs/_TODO/runs/saas-period-grid-20260905/AUDIT.md`: rollback-only DEV preflight миграции PASS; live role proof обнаружил `42501` на новых колонках подписки, отсутствие worker-read цены и FK-конфликт full-replace матрицы. Добавлен один падающий поведенческий oracle на покупку снятого периода; kill-set: **убито 2 / не поймано 2**. Исполнитель обязан сохранить валидные денежные тесты, удалить устаревшие SaaS-refund/immediate-upgrade oracle и не закреплять форму UI. |
 
+## Doctor prepayment settings correction — 05.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Исправление живого HTTP 500 и денежной единицы формы | `8278288f0` (`wt/prepayment-settings-fix`) | **AWAITING INDEPENDENT AUDIT — DO NOT LAND YET.** TEST-журнал на попытке владельца: `Missing declared webapp port capability: tenant_service` до SQL; кабинетный staff-path ошибочно заменял principal внутри `upsertPrepaymentPolicy`, хотя `app_staff` уже имеет узкие права. Исправление сохраняет staff principal, не расширяет tenant_service; форма показывает рубли и сохраняет целые minor units через общий converter. Targeted route `7/7`, webapp typecheck PASS; независимый audit-live `prepayment-settings-audit-v2-20260905` запущен, UI shape/text/count tests запрещены. |
+
 ## Canonical HLS delivery cleanup — 05.09
 
 | слой | коммит | вердикт |
