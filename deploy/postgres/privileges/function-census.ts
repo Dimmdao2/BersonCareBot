@@ -1149,7 +1149,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.choose_organization_first_tariff(uuid,uuid)": {
+  "app.choose_organization_first_tariff(uuid,uuid,text)": {
     "owner": "app_seam_specialist_provision_owner",
     "security": "DEFINER",
     "returns": "jsonb",
@@ -1162,10 +1162,11 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "execute": [
       "app_staff"
     ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner; #1069 owner decision 2026-09-05 (period grid) added the 3rd arg to pin down which globally selectable period the first payment is for",
     "typedArgs": [
       "uuid",
-      "uuid"
+      "uuid",
+      "text"
     ],
     "databases": [
       "bersoncarebot_test",
@@ -1223,6 +1224,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "organization_id",
           "saas_billing_account_id",
           "tariff_id",
+          "billing_period_code",
           "source",
           "status",
           "lifecycle_state",
@@ -1230,12 +1232,24 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "current_period_ends_at",
           "updated_at",
           "tariff_snapshot",
-          "pending_tariff_id"
+          "pending_tariff_id",
+          "pending_billing_period_code"
         ],
         "operations": [
           "SELECT",
           "INSERT",
           "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_tariff_period_prices",
+        "columns": [
+          "tariff_id",
+          "billing_period_code"
+        ],
+        "operations": [
+          "SELECT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
       },

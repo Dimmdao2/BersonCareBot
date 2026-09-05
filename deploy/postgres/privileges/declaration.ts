@@ -1238,6 +1238,13 @@ const TABLE_ROWS: TableRow[] = [
     pol: 'I9: сегодня закрыто ГРАНТОМ (только app_platform_settings), а не политикой; у saas_tariffs — RLS+FORCE и '
     + 'четыре read-политики. Без read-политики экран выбора периода даст тихий ноль',
     defect: ['D4-role-escalation', 'I9-grant-instead-of-policy'] },
+  { t: 'public.saas_tariff_period_prices', cls: 'R', why: '#1069 owner decision 2026-09-05 (period grid) — '
+    + 'денежная матрица «цена тарифа за период»; без неё ни выбор клиники, ни admin-конструктор тарифов '
+    + 'не знают сумму к оплате',
+    pol: 'та же форма, что у соседнего saas_billing_periods выше: закрыто ГРАНТОМ (app_staff/app_clinic_billing '
+    + 'read, app_platform_settings полный CRUD), а не RLS-политикой — тот же класс риска I9, если RLS когда-либо '
+    + 'включат на этой таблице',
+    defect: ['D4-role-escalation', 'I9-grant-instead-of-policy'] },
   { t: 'public.saas_billing_provider_events', cls: 'C', org: true, why: 'вебхуки провайдера — идемпотентность оплаты',
     defect: ['D4-role-escalation'] },
   { t: 'public.saas_billing_refunds', cls: 'C', org: true, why: 'возвраты — возврат денег клинике', pol: 'D13: у клиники ни '
@@ -4035,10 +4042,13 @@ const REV10_CONTEXT = {
       ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_google_calendar_setting(text,uuid)'],
       execute: ['app_integrator_tenant_service'],
     },
-    'app.choose_organization_first_tariff(uuid,uuid)': {
-      ...BUSINESS_SEAM_FUNCTIONS['app.choose_organization_first_tariff(uuid,uuid)'],
+    // #1069 owner decision 2026-09-05 (period grid): signature grew a 3rd arg (`p_billing_period_code`)
+    // — the seam now validates the (tariff, period) pair against `saas_tariff_period_prices` before it
+    // ever opens a subscription, instead of assuming the tariff's single legacy period.
+    'app.choose_organization_first_tariff(uuid,uuid,text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.choose_organization_first_tariff(uuid,uuid,text)'],
       execute: [
-        ...BUSINESS_SEAM_FUNCTIONS['app.choose_organization_first_tariff(uuid,uuid)'].execute,
+        ...BUSINESS_SEAM_FUNCTIONS['app.choose_organization_first_tariff(uuid,uuid,text)'].execute,
         'app_clinic_billing',
       ],
     },
@@ -4046,11 +4056,15 @@ const REV10_CONTEXT = {
     // поэтому у `app_clinic_billing` нет и не появляется UPDATE на неё: сумму счёта выводит этот шов,
     // из строки тарифа ЭТОЙ подписки, и не принимает от вызывающего. Аргумент `p_tariff_id` выбирает
     // только между текущим и запланированным тарифом той же подписки — всё прочее шов отклоняет.
-    'app.refresh_saas_billing_invoice_purchased_tariff(uuid,uuid,uuid)': rev10Function({
+    // #1069 owner decision 2026-09-05 (period grid): signature grew a 4th arg (`p_billing_period_code`)
+    // — the amount is now derived from `saas_tariff_period_prices` for the (tariff, period) pair
+    // instead of `saas_tariffs.price_minor`/`billing_period`, so the seam's `saas_tariffs` read
+    // narrows to the columns still copied into `tariff_snapshot` verbatim.
+    'app.refresh_saas_billing_invoice_purchased_tariff(uuid,uuid,uuid,text)': rev10Function({
       owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_clinic_billing'],
-      purpose: 'refresh one unclaimed period draft onto the purchased tariff with a derived amount',
-      typedArgs: ['uuid', 'uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      purpose: 'refresh one unclaimed period draft onto the purchased (tariff, period) pair with a derived amount',
+      typedArgs: ['uuid', 'uuid', 'uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.saas_billing_invoices',
@@ -4073,8 +4087,15 @@ const REV10_CONTEXT = {
         { relation: 'public.saas_billing_subscriptions',
           columns: ['id', 'organization_id', 'tariff_id', 'pending_tariff_id', 'paid_additional_seats'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // цена больше не берётся из `saas_tariffs.price_minor`/`billing_period` — она приходит из
+        // денежной матрицы по паре (tariff_id, p_billing_period_code).
+        { relation: 'public.saas_tariff_period_prices',
+          columns: ['tariff_id', 'billing_period_code', 'price_minor', 'discounted_price_minor'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         // `SELECT *` — снимок тарифа в счёте есть копия живой строки целиком (`to_jsonb`), поэтому
         // верхняя граница чтения здесь вся таблица; ровно её этот владелец шва уже читает сегодня.
+        // `price_minor`/`billing_period` остаются в этом списке как deprecated-колонки, которые
+        // `to_jsonb` всё ещё копирует в снимок ЦЕЛИКОМ вместе с остальной строкой.
         { relation: 'public.saas_tariffs',
           columns: ['additional_seat_price_minor', 'billing_period', 'created_at', 'currency', 'description',
             'discounted_price_minor', 'downgrade_policies', 'id', 'included_seats', 'is_active',
@@ -5250,19 +5271,22 @@ const REV10_CONTEXT = {
     // администратора-человека, которого у машинного тика нет. Отсюда собственный корень у шва
     // коммерции — того же, что уже читает подписку и тариф в
     // `app.refresh_saas_billing_invoice_purchased_tariff` (миграция 0040).
+    // #1069 owner decision 2026-09-05 (period grid): the due-list's `billing_period` field now comes
+    // straight from `COALESCE(subscription.pending_billing_period_code, subscription.billing_period_code)`
+    // — the join to `saas_tariffs` this shape used to need is gone. Cancel-at-period-end (same owner
+    // decision) also excludes `cancelled_at IS NOT NULL` rows: a cancelled subscription must stop
+    // renewing even while its paid period hasn't ended yet.
     'app.list_saas_billing_subscriptions_due_for_renewal(timestamp with time zone,integer)': rev10Function({
       owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_worker'],
-      purpose: 'return only the bounded set of paid subscriptions whose paid period has ended',
+      purpose: 'return only the bounded set of paid, non-cancelled subscriptions whose paid period has ended',
       typedArgs: ['timestamp with time zone', 'integer'],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.saas_billing_subscriptions',
-          columns: ['id', 'organization_id', 'tariff_id', 'pending_tariff_id', 'source', 'status',
-            'current_period_ends_at', 'saved_payment_method_id', 'autopay_consented_at',
-            'autopay_revoked_at'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.saas_tariffs', columns: ['id', 'billing_period'],
+          columns: ['id', 'organization_id', 'tariff_id', 'pending_tariff_id', 'billing_period_code',
+            'pending_billing_period_code', 'source', 'status', 'current_period_ends_at', 'cancelled_at',
+            'saved_payment_method_id', 'autopay_consented_at', 'autopay_revoked_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -7916,6 +7940,22 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgSaasBilling.ts', 'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts'],
     grants: [
       { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], columns: 'table' },
+    ],
+  },
+  // #1069 owner decision 2026-09-05 (period grid) — the money-authority row per (tariff, period);
+  // same reference-catalog shape as `saas_billing_periods` right above: staff/clinic reads the
+  // whole matrix to price a choice, only platform settings writes it (tariff save / period
+  // activation gate in `org-entitlements/service.ts`).
+  'public.saas_tariff_period_prices': {
+    kind: 'direct', purpose: 'per-(tariff,period) price matrix — staff/clinic reads it to price a choice; platform alone maintains it',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts',
+    ],
+    grants: [
+      { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_clinic_billing', operations: ['SELECT'], columns: 'table' },
       { role: 'app_platform_settings', operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], columns: 'table' },
     ],
   },

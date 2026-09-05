@@ -77,6 +77,10 @@ function toTariff(row: typeof saasTariffs.$inferSelect): Tariff {
   return {
     ...row,
     billingPeriod: row.billingPeriod as Tariff['billingPeriod'],
+    // #1069 owner decision 2026-09-05 (period grid) — this repo's only two callers
+    // (`resolveOwnTariffTransition`'s capacity/mechanic comparison) never read the price matrix;
+    // left empty here rather than paying for a join no caller uses.
+    periodPrices: [],
     quotas: row.quotas as TariffQuotaMap,
     systemAccessPolicy: row.systemAccessPolicy as AccessLifecyclePolicy | null,
     mechanicAccessPolicies: row.mechanicAccessPolicies as MechanicAccessPolicyMap,

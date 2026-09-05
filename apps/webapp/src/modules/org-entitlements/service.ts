@@ -20,11 +20,13 @@ import {
   type PaidPeriodPolicy,
   type RegistrationTariffPolicy,
   type Tariff,
+  type TariffPeriodPrice,
   type TariffQuota,
   type TariffQuotaMap,
   type TrialPolicy,
 } from './types';
 import type { OrgEntitlementsPort, PlatformEntitlementsPort, PlatformMutationAudit } from './ports';
+import { assertCompleteTariffPeriodPriceMatrix } from '@/modules/saas-billing/billingPeriodCatalog';
 
 function assertMechanic(value: string): asserts value is OrgMechanic {
   if (!MECHANICS.includes(value as OrgMechanic)) throw new Error('entitlement_mechanic_invalid');
@@ -185,21 +187,34 @@ function assertDowngradePolicy(mechanic: OrgMechanic, value: string): asserts va
   }
 }
 
-type TariffInput = Omit<Tariff, 'id' | 'createdAt' | 'updatedAt' | 'downgradePolicies'> & {
+type TariffInput = Omit<
+  Tariff,
+  'id' | 'createdAt' | 'updatedAt' | 'downgradePolicies' | 'priceMinor' | 'billingPeriod'
+> & {
   downgradePolicies?: DowngradePolicyMap;
 };
 
 function normalizeTariffInput(input: TariffInput) {
   const name = input.name.trim();
   if (!name) throw new Error('tariff_name_required');
-  if (
-    input.priceMinor !== null &&
-    (!Number.isSafeInteger(input.priceMinor) || input.priceMinor < 0)
-  ) {
-    throw new Error('tariff_price_invalid');
+  // #1069 owner decision 2026-09-05 (period grid) — money lives per period in `periodPrices`, not
+  // in a single `priceMinor`/`billingPeriod` pair. Matrix completeness against the CURRENT global
+  // period grid is checked by the caller (`createTariff`/`updateTariff` below), which alone knows
+  // the selectable codes; here only the per-row shape (integer, nonnegative, no duplicate) matters.
+  for (const row of input.periodPrices) {
+    if (!Number.isSafeInteger(row.priceMinor) || row.priceMinor < 0) {
+      throw new Error('tariff_price_invalid');
+    }
+    if (
+      row.discountedPriceMinor !== null &&
+      (!Number.isSafeInteger(row.discountedPriceMinor) || row.discountedPriceMinor < 0)
+    ) {
+      throw new Error('tariff_discounted_price_invalid');
+    }
   }
-  if (input.priceMinor !== null && !input.currency?.trim())
+  if (input.periodPrices.length > 0 && !input.currency?.trim()) {
     throw new Error('tariff_currency_required');
+  }
   // §5a item 2.6a (owner 31.07): «количество разрешённых специалистов должно быть явно настроено
   // в тарифе, иначе он не сохранится». Fixed by refusing the SAVE, deliberately not by a runtime
   // substitution: neither "empty → unlimited" nor "empty → count one" may exist, because "empty"
@@ -585,38 +600,22 @@ export class TariffDowngradeBlockedError extends Error {
  */
 export function evaluateTariffTransition(params: {
   usage: Partial<Record<OrgMechanic, number>>;
-  currentTariff: Pick<
-    Tariff,
-    'mechanics' | 'quotas' | 'includedSeats' | 'priceMinor' | 'currency' | 'billingPeriod'
-  >;
-  targetTariff: Pick<
-    Tariff,
-    | 'mechanics'
-    | 'quotas'
-    | 'downgradePolicies'
-    | 'includedSeats'
-    | 'priceMinor'
-    | 'currency'
-    | 'billingPeriod'
-  >;
+  currentTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'includedSeats'>;
+  targetTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'downgradePolicies' | 'includedSeats'>;
   /** Self-service tariff changes only require cleanup of the three owner-named countable resources. */
   blockableMechanics?: readonly OrgMechanic[];
 }): { blocks: TariffDowngradeBlock[]; appliesNextPeriod: boolean } {
   const blocks: TariffDowngradeBlock[] = [];
   const blockableMechanics = params.blockableMechanics ?? MECHANICS;
-  // Price is authoritative only when the two stored prices describe the same currency and billing
-  // period. Comparing a monthly price with an annual one would invent a proration/normalization
-  // policy which the product has deliberately not defined.
-  const isCheaperForSamePeriod =
-    params.currentTariff.priceMinor !== null &&
-    params.targetTariff.priceMinor !== null &&
-    params.currentTariff.currency === params.targetTariff.currency &&
-    params.currentTariff.billingPeriod === params.targetTariff.billingPeriod &&
-    params.targetTariff.priceMinor < params.currentTariff.priceMinor;
+  // #1069 owner decision 2026-09-05 (period grid) — a tariff no longer has ONE price to rank
+  // against another (it has a whole per-period matrix), and rank/"more expensive" metadata is
+  // explicitly out of scope. Every tariff/period change now applies only at the paid boundary
+  // regardless of price direction (see `scheduleOwnTariffChange`); this evaluator only decides
+  // capacity BLOCKS and whether reduced capacity needs scheduling, never immediate-vs-scheduled by
+  // price.
   let appliesNextPeriod =
-    isCheaperForSamePeriod ||
     (params.targetTariff.includedSeats ?? Number.POSITIVE_INFINITY) <
-      (params.currentTariff.includedSeats ?? Number.POSITIVE_INFINITY);
+    (params.currentTariff.includedSeats ?? Number.POSITIVE_INFINITY);
   const targetSeatLimit = params.targetTariff.includedSeats;
   if (
     targetSeatLimit !== null &&
@@ -684,13 +683,6 @@ export async function resolveOwnTariffTransition(
       ? targetTariff
       : await port.getActiveTariffById(currentTariffId)
     : null;
-  const priceAppliesNextPeriod =
-    currentTariff !== null &&
-    currentTariff.priceMinor !== null &&
-    targetTariff.priceMinor !== null &&
-    currentTariff.currency === targetTariff.currency &&
-    currentTariff.billingPeriod === targetTariff.billingPeriod &&
-    targetTariff.priceMinor < currentTariff.priceMinor;
   return {
     currentTariffId,
     targetTariffId: targetTariff.id,
@@ -702,27 +694,14 @@ export async function resolveOwnTariffTransition(
           blockableMechanics: ['clinic_team', 'branches'],
         })
       : { blocks: [], appliesNextPeriod: false }),
-    ...(priceAppliesNextPeriod ? { priceAppliesNextPeriod: true as const } : {}),
   };
 }
 
 /** Compatibility export for callers that only need blockers; transition classification lives above. */
 export function evaluateTariffDowngrade(params: {
   usage: Partial<Record<OrgMechanic, number>>;
-  currentTariff: Pick<
-    Tariff,
-    'mechanics' | 'quotas' | 'includedSeats' | 'priceMinor' | 'currency' | 'billingPeriod'
-  >;
-  targetTariff: Pick<
-    Tariff,
-    | 'mechanics'
-    | 'quotas'
-    | 'downgradePolicies'
-    | 'includedSeats'
-    | 'priceMinor'
-    | 'currency'
-    | 'billingPeriod'
-  >;
+  currentTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'includedSeats'>;
+  targetTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'downgradePolicies' | 'includedSeats'>;
 }): TariffDowngradeBlock[] {
   return evaluateTariffTransition(params).blocks;
 }
@@ -753,10 +732,39 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
       input: { code: string; label: string; months: number },
       audit: PlatformMutationAudit,
     ) => port.upsertBillingPeriod(input, audit),
+    /**
+     * #1069 owner decision 2026-09-05 (period grid) — the ONE door that turns a period selectable
+     * or retires it; the completeness gate lives here so a period can never go selectable without
+     * every active tariff already pricing it, regardless of which repository implementation runs.
+     */
+    setBillingPeriodSelectable: async (
+      code: string,
+      isSelectable: boolean,
+      audit: PlatformMutationAudit,
+    ) => {
+      if (isSelectable) {
+        const [tariffs, periods] = await Promise.all([port.listTariffs(), port.listBillingPeriods()]);
+        if (!periods.some((period) => period.code === code)) {
+          throw new Error('billing_period_not_found');
+        }
+        const missing = tariffs
+          .filter((tariff) => tariff.isActive)
+          .filter((tariff) => !tariff.periodPrices.some((row) => row.billingPeriodCode === code));
+        if (missing.length > 0) {
+          throw new Error(
+            `saas_billing_period_activation_incomplete:${missing.map((tariff) => tariff.id).join(',')}`,
+          );
+        }
+      }
+      return port.setBillingPeriodSelectable(code, isSelectable, audit);
+    },
     getTrialPolicy: () => port.getTrialPolicy(),
     getPaidPeriodPolicy: () => port.getPaidPeriodPolicy(),
     getRegistrationTariffPolicy: () => port.getRegistrationTariffPolicy(),
-    createTariff: (input: TariffInput, audit: PlatformMutationAudit) => {
+    createTariff: async (input: TariffInput, audit: PlatformMutationAudit) => {
+      const periods = await port.listBillingPeriods();
+      const selectableCodes = periods.filter((period) => period.isSelectable).map((period) => period.code);
+      assertCompleteTariffPeriodPriceMatrix(input.periodPrices, selectableCodes);
       return port.createTariff(normalizeTariffInput(input), audit);
     },
     updateTariff: async (
@@ -764,15 +772,18 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
       input: TariffInput,
       audit: PlatformMutationAudit,
     ) => {
-      const current = input.downgradePolicies === undefined
-        ? (await port.listTariffs()).find((tariff) => tariff.id === id)
-        : null;
-      if (input.downgradePolicies === undefined && !current) throw new Error('tariff_not_found');
+      const [current, periods] = await Promise.all([
+        (await port.listTariffs()).find((tariff) => tariff.id === id),
+        port.listBillingPeriods(),
+      ]);
+      if (!current) throw new Error('tariff_not_found');
+      const selectableCodes = periods.filter((period) => period.isSelectable).map((period) => period.code);
+      assertCompleteTariffPeriodPriceMatrix(input.periodPrices, selectableCodes);
       return port.updateTariff(
         id,
         normalizeTariffInput({
           ...input,
-          downgradePolicies: input.downgradePolicies ?? current!.downgradePolicies,
+          downgradePolicies: input.downgradePolicies ?? current.downgradePolicies,
         }),
         audit,
       );

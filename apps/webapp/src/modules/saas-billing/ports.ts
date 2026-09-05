@@ -14,7 +14,6 @@ export type SaasBillingInvoiceKind = 'tariff_period' | 'seat_overage';
 export const SAAS_BILLING_SEAT_OVERAGE_DESCRIPTION =
   'Дополнительное место специалиста сверх тарифа';
 
-export const SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION = 'Доплата за повышение тарифа';
 /** К2 — `pending` until the provider webhook confirms it; `failed` frees the amount for a retry. */
 export type SaasBillingRefundStatus = 'pending' | 'succeeded' | 'failed' | 'canceled';
 
@@ -24,6 +23,10 @@ export type SaasBillingSubscription = {
   saasBillingAccountId: string;
   tariffId: string;
   pendingTariffId: string | null;
+  /** #1069 owner decision 2026-09-05 (period grid) — period paired with `tariffId`; `null` only pre-first-payment. */
+  billingPeriodCode: TariffBillingPeriodCode | null;
+  /** Period paired with `pendingTariffId`; appears and disappears with it. */
+  pendingBillingPeriodCode: TariffBillingPeriodCode | null;
   source: SaasBillingSource;
   status: SaasBillingSubscriptionStatus;
   lifecycleState: OrgCommercialLifecycleState;
@@ -317,14 +320,19 @@ export type SaasBillingManualAssignmentState = {
     currentPeriodStartsAt: string | null;
     currentPeriodEndsAt: string | null;
     pendingTariffId: string | null;
+    /** #1069 owner decision 2026-09-05 (period grid) — period paired with `tariffId`. */
+    billingPeriodCode: string | null;
   } | null;
 };
 
 export type SaasBillingManualAssignmentTransactionPort = {
   loadManualAssignmentState(organizationId: string): Promise<SaasBillingManualAssignmentState>;
   /**
-   * §5a item 7.0 — returns the owner's billing period, because the assignment is what starts the
-   * organization's PAID PERIOD and the ladder now measures from its end.
+   * §5a item 7.0 — returns a priced billing period for this tariff, because the assignment is what
+   * starts the organization's PAID PERIOD and the ladder now measures from its end. #1069 owner
+   * decision 2026-09-05 (period grid) — used only as the ADMIN manual-assignment fallback when no
+   * `billingPeriodCode` was named; resolves to the cheapest-sort-order selectable period this
+   * tariff actually prices (always exists — price-matrix completeness is enforced at tariff save).
    */
   requireActiveTariff(tariffId: string): Promise<{ billingPeriod: TariffBillingPeriodCode }>;
   setManualSaasBillingSubscription(input: {
@@ -332,7 +340,11 @@ export type SaasBillingManualAssignmentTransactionPort = {
     tariffId: string | null;
     /** §5a item 7.0 — the paid period this assignment grants; `null` only when unassigning. */
     period: { startsAt: string; endsAt: string } | null;
+    /** #1069 owner decision 2026-09-05 (period grid) — the period paired with `tariffId`; `null` only when unassigning. */
+    billingPeriodCode?: string | null;
     pendingTariffId?: string | null;
+    /** Appears/disappears with `pendingTariffId`; every caller sets both together explicitly. */
+    pendingBillingPeriodCode?: string | null;
     /** Scheduling/cancelling must not replace the snapshot frozen for the current paid period. */
     preservePeriodSnapshot?: boolean;
   }): Promise<void>;
@@ -388,17 +400,25 @@ export type SaasBillingRepositoryPort = {
   chooseOrganizationFirstTariff(input: {
     organizationId: string;
     tariffId: string;
+    /** #1069 owner decision 2026-09-05 (period grid) — persisted immediately, both outcomes. */
+    billingPeriodCode: string;
     actorId: string | null;
   }): Promise<
     | { outcome: 'trial_started'; endsAt: string }
     | { outcome: 'payment_required' }
   >;
   /**
-   * Active public tariff names available to the caller's own clinic billing screen. `priceMinor`
-   * is what the free-tariff rule reads (`payableTariff.ts`); `null` means the tariff carries no
-   * price at all, which is not the same thing as free.
+   * Active public tariff choices for the caller's own clinic billing screen. `periodPrices` is
+   * what the free-tariff rule (`payableTariff.ts`) and the picker UI read — a tariff no longer has
+   * one price, so the caller resolves the amount for whichever period it is quoting/selecting.
    */
-  listActiveTariffChoices(): Promise<Array<{ id: string; name: string; priceMinor: number | null }>>;
+  listActiveTariffChoices(): Promise<
+    Array<{
+      id: string;
+      name: string;
+      periodPrices: Array<{ billingPeriodCode: string; priceMinor: number }>;
+    }>
+  >;
   /** К1 — cross-org payments list for the platform cabinet. Never organization-scoped by design. */
   listPlatformInvoices(
     filter: SaasBillingPlatformInvoiceFilter,
@@ -436,23 +456,6 @@ export type SaasBillingRepositoryPort = {
      *  едет ли его сумма строкой в этот счёт (решение владельца 19.08). */
     asOf: string;
   }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
-  /**
-   * Locks the current paid subscription, derives both tariff prices and the exact remaining time,
-   * then creates at most one checkout invoice for its immediate upgrade.
-   */
-  createProratedTariffUpgradeInvoice(input: {
-    organizationId: string;
-    saasBillingSubscriptionId: string;
-    targetTariffId: string;
-    asOf: string;
-    providerId: string;
-    providerIdempotencyKey: string;
-    /** Срок оплаты счёта — из настройки, одинаково для всех путей выставления. */
-    expiresAt: string;
-  }): Promise<
-    | { outcome: 'checkout'; invoice: SaasBillingInvoice; created: boolean }
-    | { outcome: 'scheduled' }
-  >;
   attachSaasBillingInvoiceProviderIntent(input: {
     saasBillingInvoiceId: string;
     providerInvoiceRef: string;
@@ -584,15 +587,18 @@ export type SaasBillingRepositoryPort = {
     saasBillingSubscriptionId: string;
     /** Tariff currently assigned to the paid subscription; may differ from a scheduled next tariff. */
     currentTariffId: string;
+    /** Billing period paired with `currentTariffId` — `null` only before the very first choice. */
+    currentBillingPeriodCode: TariffBillingPeriodCode | null;
     /**
-     * Price of the tariff being PURCHASED (`purchasedTariffId`, `payableTariff.ts`) — the very row
-     * `createSaasBillingInvoice` turns into the invoice amount, which is why the free-tariff rule
-     * weighs THIS price. `null` when that tariff carries no price at all (a different refusal).
+     * Price of the (tariff, period) pair being PURCHASED (`purchasedTariffPeriodPair`,
+     * `payableTariff.ts`) — the very row `createSaasBillingInvoice` turns into the invoice amount,
+     * which is why the free-tariff rule weighs THIS price. `null` when that pair carries no price
+     * row (a different refusal) or no period has ever been chosen.
      */
     purchasedTariffPriceMinor: number | null;
     /** The tariff being purchased: the scheduled one while a change is pending, else the current one. */
     tariffId: string;
-    /** Billing period of `tariffId` — the same tariff the amount above comes from, never the other one. */
+    /** Billing period of `tariffId` above — the same pair the amount comes from, never the other one. */
     billingPeriod: TariffBillingPeriodCode;
     /** Existing paid period is the renewal anchor; `null` only before the first payment. */
     currentPeriodStartsAt: string | null;
@@ -641,31 +647,14 @@ export type SaasBillingRepositoryPort = {
   }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
 
   /**
-   * К2 — locks the invoice row, validates it, and either returns the refund already reserved
-   * under this exact idempotency key (a repeated click) or inserts a new `pending` row plus its
-   * audit entry, all inside one transaction. This is what makes "нажми возврат дважды" a no-op:
-   * the second call finds the first call's row instead of racing it.
+   * #1069 owner decision 2026-09-05 — SaaS payments from clinics to the platform are
+   * non-refundable; the actionable initiation door (`reserveSaasBillingRefund` +
+   * `attachSaasBillingRefundProviderRef` + `markSaasBillingRefundFailed`, the old К2 door) is
+   * removed. `findSaasBillingRefundByProviderRef`/`confirmSaasBillingRefund` below stay: they only
+   * settle a refund row that ALREADY existed before this cutover, so historical ledger rows keep
+   * resolving to their real provider status instead of being stuck `pending` forever. This does not
+   * affect patient-payment refunds performed by a clinic (a different door, `modules/payments`).
    */
-  reserveSaasBillingRefund(input: {
-    saasBillingInvoiceId: string;
-    amountMinor: number;
-    providerIdempotencyKey: string;
-    audit: { actorId: string | null; reason: string };
-  }): Promise<
-    | { outcome: 'invoice_not_found' }
-    | { outcome: 'invoice_not_refundable'; status: SaasBillingInvoiceStatus }
-    | { outcome: 'seat_overage_partial_refund_forbidden' }
-    | { outcome: 'amount_exceeds_remaining'; remainingMinor: number }
-    | { outcome: 'duplicate'; refund: SaasBillingRefund }
-    | { outcome: 'reserved'; refund: SaasBillingRefund; invoice: SaasBillingInvoice }
-  >;
-  /** Provider call answered synchronously — attach its ref; status stays `pending` until the webhook confirms it. */
-  attachSaasBillingRefundProviderRef(input: {
-    saasBillingRefundId: string;
-    providerRefundRef: string;
-  }): Promise<SaasBillingRefund>;
-  /** The provider call itself failed (network/API error) — frees the amount for a fresh attempt. */
-  markSaasBillingRefundFailed(input: { saasBillingRefundId: string }): Promise<SaasBillingRefund>;
   /** Unscoped lookup — the webhook does not know the organization until this resolves it. */
   findSaasBillingRefundByProviderRef(input: {
     providerId: string;
@@ -696,6 +685,19 @@ export type SaasBillingRepositoryPort = {
     organizationId: string;
     revokedAt: string;
   }): Promise<{ outcome: 'no_subscription' } | { outcome: 'revoked' }>;
+  /**
+   * #1069 owner decision 2026-09-05 (period grid) — cancel-at-period-end. Stops future
+   * autopay/renewal for the organization's OWN `paid_subscription` row while preserving already-
+   * paid access through `currentPeriodEndsAt` unchanged: tariff/period/snapshot are left exactly
+   * as they are, only `cancelledAt` is set. The renewal-due seam
+   * (`listSaasBillingSubscriptionsDueForRenewal`) excludes any row with `cancelledAt` set, so this
+   * is the one flag both doors read. Does not clear a pending scheduled change — a cancellation
+   * during a pending change simply means neither the current nor the pending tariff renews again.
+   */
+  cancelOwnTariffBillingSubscription(input: {
+    organizationId: string;
+    cancelledAt: string;
+  }): Promise<{ outcome: 'no_subscription' } | { outcome: 'cancelled' } | { outcome: 'already_cancelled' }>;
   /**
    * К6 — called only from the webhook capture path, once `payment.succeeded` reports a
    * `payment_method` the provider actually saved. Addresses the subscription by id, same authority

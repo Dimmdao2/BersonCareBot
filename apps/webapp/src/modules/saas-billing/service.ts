@@ -14,7 +14,6 @@ import type {
   SaasBillingProviderEventEnvelope,
   SaasBillingReconciliationDiscrepancy,
   SaasBillingReconciliationResult,
-  SaasBillingRefund,
   SaasBillingRepositoryPort,
   SaasBillingSettingsReadPort,
 } from './ports';
@@ -41,7 +40,7 @@ import {
 import { billingPeriodMonthsMap } from './billingPeriodCatalog';
 import { sanitizeSaasBillingProviderEventEnvelope } from './providerEventEnvelope';
 import { parseSaasBillingPaymentProviderSettings } from './settings';
-import { buildPartialRefundReceipt, buildSaasBillingReceipt } from './fiscalReceipt';
+import { buildSaasBillingReceipt } from './fiscalReceipt';
 import {
   withManualInvoiceDatabaseBoundary,
   withManualInvoiceProviderTransportBoundary,
@@ -330,91 +329,6 @@ export function createSaasBillingService(dependencies: {
                 checkoutInvoice.providerIdempotencyKey,
               ])}`
             : undefined,
-      });
-      throw error;
-    }
-  }
-
-  async function createProratedTariffUpgradeCheckout(input: {
-    organizationId: string;
-    saasBillingSubscriptionId: string;
-    targetTariffId: string;
-    currentPeriodStartsAt: string;
-  }) {
-    const provider = await resolvePaymentProvider();
-    const result = await dependencies.repository.createProratedTariffUpgradeInvoice({
-      organizationId: input.organizationId,
-      saasBillingSubscriptionId: input.saasBillingSubscriptionId,
-      targetTariffId: input.targetTariffId,
-      asOf: now().toISOString(),
-      expiresAt: saasBillingInvoiceExpiresAt(now(), provider.invoiceValidityDays),
-      providerId: provider.providerId,
-      providerIdempotencyKey: `saas_tariff_upgrade:${deriveSaasBillingIdempotencyKey([
-        input.organizationId,
-        input.saasBillingSubscriptionId,
-        input.targetTariffId,
-        input.currentPeriodStartsAt,
-      ])}`,
-    });
-    if (result.outcome === 'scheduled') return null;
-    const { invoice, created } = result;
-    // B0.3 — `providerCheckoutUrl` is written once and never cleared, so its mere presence says
-    // nothing about whether the PSP will still accept a payment against it. `status` is the field
-    // the provider's own webhooks (capture/fail) and an admin cancel actually drive, so it is the
-    // authoritative "is this order still open" signal we have; `draft`/`pending` are the only
-    // states in which the checkout link we handed out can still be paid.
-    const invoiceStillPayable = invoice.status === 'draft' || invoice.status === 'pending';
-    if (!created && invoiceStillPayable && invoice.providerCheckoutUrl) return invoice;
-    let checkoutInvoice = invoice;
-    // `failed` (the PSP closed the order, e.g. it expired/was declined) and `void` (an operator
-    // cancelled a stuck invoice, `POST /api/admin/saas-billing/payments/{id}/cancel`) both leave a
-    // dead checkout URL behind under the SAME deterministic idempotency key — a repeat upgrade to
-    // this tariff must reopen the row for a fresh provider order, never hand back that dead link.
-    // `paid` is deliberately excluded: a genuinely paid invoice must never be reopened.
-    if (!created && (invoice.status === 'failed' || invoice.status === 'void')) {
-      checkoutInvoice = await dependencies.repository.prepareSaasBillingFailedInvoiceForManualCheckout({
-        saasBillingInvoiceId: invoice.id,
-        organizationId: input.organizationId,
-        providerId: provider.providerId,
-        providerIdempotencyKey: `saas_tariff_upgrade_retry:${deriveSaasBillingIdempotencyKey([
-          invoice.id,
-          invoice.providerIdempotencyKey,
-        ])}`,
-      });
-    }
-    const claimed =
-      (await dependencies.repository.claimSaasBillingInvoiceProviderIntent?.(checkoutInvoice.id)) ??
-      (created || checkoutInvoice.status === 'draft');
-    if (!claimed) return checkoutInvoice;
-    try {
-      const fiscalized = await attachFiscalReceiptIfConfigured(
-        checkoutInvoice,
-        provider.payeeRequisites,
-      );
-      const intent = await provider.adapter.createIntent({
-        amountMinor: fiscalized.invoice.amountMinor,
-        currency: fiscalized.invoice.currency,
-        idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
-        payerRef: `organization:${checkoutInvoice.organizationId}`,
-        purpose: 'saas_billing_tariff_renewal',
-        subjectRef: checkoutInvoice.id,
-        returnUrl: SAAS_BILLING_RETURN_URL,
-        metadata: {
-          organizationId: checkoutInvoice.organizationId,
-          saasBillingInvoiceId: checkoutInvoice.id,
-          saasBillingSubscriptionId: checkoutInvoice.saasBillingSubscriptionId,
-        },
-        providerConfig: provider.providerConfig,
-        receipt: fiscalized.receipt,
-      });
-      return await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
-        saasBillingInvoiceId: checkoutInvoice.id,
-        providerInvoiceRef: intent.providerIntentRef,
-        providerCheckoutUrl: intent.checkoutUrl ?? null,
-      });
-    } catch (error) {
-      await dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.({
-        saasBillingInvoiceId: checkoutInvoice.id,
       });
       throw error;
     }
@@ -765,6 +679,13 @@ export function createSaasBillingService(dependencies: {
     async assignManualTariff(input: {
       organizationId: string;
       tariffId: string | null;
+      /**
+       * #1069 owner decision 2026-09-05 (period grid) — the period to pair with `tariffId`.
+       * Omitted only by the admin path (no period picker in this stage); the transaction then
+       * falls back to `requireActiveTariff`'s cheapest-priced selectable period. The clinic
+       * self-service door (`scheduleOwnTariffChange`) always names one explicitly.
+       */
+      billingPeriodCode?: string | null;
       /** A restrictive switch preserves the already paid access until `currentPeriodEndsAt`. */
       applyAtNextPeriod?: boolean;
       scheduleOnly?: boolean;
@@ -782,15 +703,27 @@ export function createSaasBillingService(dependencies: {
           state.manualSaasBillingSubscription?.status === 'active'
             ? state.manualSaasBillingSubscription.tariffId
             : null;
+        const currentManualBillingPeriodCode =
+          state.manualSaasBillingSubscription?.status === 'active'
+            ? state.manualSaasBillingSubscription.billingPeriodCode
+            : null;
         const activePaidPeriod =
           state.manualSaasBillingSubscription?.status === 'active' &&
           state.manualSaasBillingSubscription.currentPeriodEndsAt !== null &&
           new Date(state.manualSaasBillingSubscription.currentPeriodEndsAt).getTime() > now().getTime();
-        if (input.tariffId === currentManualTariffId && !state.activeTrial) {
+        // #1069 owner decision 2026-09-05 (period grid) — "same as current" now means the SAME
+        // (tariff, period) pair: same tariff with another period is a valid scheduled change, not
+        // a no-op. `undefined` (the admin path, no period named) never counts as a period change.
+        const unchanged =
+          input.tariffId === currentManualTariffId &&
+          (input.billingPeriodCode === undefined ||
+            input.billingPeriodCode === currentManualBillingPeriodCode);
+        if (unchanged && !state.activeTrial) {
           if (state.manualSaasBillingSubscription?.pendingTariffId) {
             await transaction.setManualSaasBillingSubscription({
               organizationId: input.organizationId,
               tariffId: currentManualTariffId,
+              billingPeriodCode: currentManualBillingPeriodCode,
               period: activePaidPeriod
                 ? {
                     startsAt: state.manualSaasBillingSubscription.currentPeriodStartsAt as string,
@@ -798,6 +731,7 @@ export function createSaasBillingService(dependencies: {
                   }
                 : null,
               pendingTariffId: null,
+              pendingBillingPeriodCode: null,
               preservePeriodSnapshot: input.scheduleOnly,
             });
             await transaction.appendManualAssignmentAudit({
@@ -815,14 +749,19 @@ export function createSaasBillingService(dependencies: {
         if (input.tariffId && input.applyAtNextPeriod && activePaidPeriod && currentManualTariffId) {
           const currentSubscription = state.manualSaasBillingSubscription;
           if (!currentSubscription) throw new Error('saas_billing_subscription_not_found');
+          const pendingBillingPeriodCode =
+            input.billingPeriodCode ??
+            (await transaction.requireActiveTariff(input.tariffId)).billingPeriod;
           await transaction.setManualSaasBillingSubscription({
             organizationId: input.organizationId,
             tariffId: currentManualTariffId,
+            billingPeriodCode: currentManualBillingPeriodCode,
             period: {
               startsAt: currentSubscription.currentPeriodStartsAt as string,
               endsAt: currentSubscription.currentPeriodEndsAt as string,
             },
             pendingTariffId: input.tariffId,
+            pendingBillingPeriodCode,
             preservePeriodSnapshot: input.scheduleOnly,
           });
           await transaction.appendManualAssignmentAudit({
@@ -831,7 +770,7 @@ export function createSaasBillingService(dependencies: {
             targetId: input.organizationId,
             organizationId: input.organizationId,
             before: { organization: state.organization, saasBillingSubscription: state.manualSaasBillingSubscription },
-            after: { pendingTariffId: input.tariffId },
+            after: { pendingTariffId: input.tariffId, pendingBillingPeriodCode },
           });
           return;
         }
@@ -854,8 +793,15 @@ export function createSaasBillingService(dependencies: {
         // §5a item 7.0 — assignment is what STARTS the organization's paid period. Before this the
         // subscription row carried no period at all, so "период кончился и не оплачен" was a state
         // the product could not reach and the ladder had nothing but an expired trial to run on.
-        // The length is the owner's `billing_period` on the tariff, never a number chosen here.
+        // #1069 owner decision 2026-09-05 (period grid): the length is whichever period this
+        // assignment names, falling back to the tariff's cheapest priced period only when none was
+        // named (admin path) — never a number chosen here.
         const startsAt = now().toISOString();
+        const resolvedBillingPeriodCode = input.tariffId
+          ? (input.billingPeriodCode ??
+            (activePaidPeriod ? currentManualBillingPeriodCode : null) ??
+            (await transaction.requireActiveTariff(input.tariffId)).billingPeriod)
+          : null;
         const period = input.tariffId
           ? {
               ...(activePaidPeriod
@@ -867,7 +813,7 @@ export function createSaasBillingService(dependencies: {
                     startsAt,
                     endsAt: paidPeriodEndsAtForCode(
                       startsAt,
-                      (await transaction.requireActiveTariff(input.tariffId)).billingPeriod,
+                      resolvedBillingPeriodCode as string,
                       billingPeriodMonths,
                     ),
                   }),
@@ -876,8 +822,10 @@ export function createSaasBillingService(dependencies: {
         await transaction.setManualSaasBillingSubscription({
           organizationId: input.organizationId,
           tariffId: input.tariffId,
+          billingPeriodCode: resolvedBillingPeriodCode,
           period,
           pendingTariffId: null,
+          pendingBillingPeriodCode: null,
         });
         const organization = await transaction.updateOrganizationTariffAssignment({
           organizationId: input.organizationId,
@@ -1140,10 +1088,17 @@ export function createSaasBillingService(dependencies: {
       const choices = await dependencies.repository.listActiveTariffChoices();
       const currentTariffId = subscription?.tariffId ?? assignedTariffId;
       const pendingTariffId = subscription?.pendingTariffId ?? null;
+      const purchasedTariffChoiceId = purchasedTariffId({ tariffId: currentTariffId, pendingTariffId });
+      const purchasedChoice = choices.find((choice) => choice.id === purchasedTariffChoiceId) ?? null;
       return {
-        choices: choices.map(({ id, name }) => ({ id, name })),
+        choices,
         currentTariffId,
         pendingTariffId,
+        // #1069 owner decision 2026-09-05 (period grid) — the (tariff, period) pair currently
+        // being paid and the one scheduled to replace it, for the picker to show current/pending
+        // facts without a second round trip.
+        currentBillingPeriodCode: subscription?.billingPeriodCode ?? null,
+        pendingBillingPeriodCode: subscription?.pendingBillingPeriodCode ?? null,
         // Решение владельца 18.08 (L-11), дословно: «она выбирает платный тариф — ИДЕТ ОПЛАЧИВАТЬ И
         // ПОТОМ ПОЛУЧАЕТ ДОСТУП». Выбранный тариф живёт в строке подписки, действующий — в
         // назначении организации (`be_organizations.tariff_id`, миграция 0024). Разошлись — значит
@@ -1151,14 +1106,14 @@ export function createSaasBillingService(dependencies: {
         // а не выдать выбор за действующий тариф.
         awaitingFirstPayment: assignedTariffId === null && currentTariffId !== null,
         pendingEffectiveAt: pendingTariffId ? subscription?.currentPeriodEndsAt ?? null : null,
-        // Owner ruling 18.08.2026 — the screen weighs the price of the tariff the pay route would
-        // actually bill: the same `purchasedTariffId` rule, so it never offers a payment the route
-        // refuses and never hides one the route would accept.
-        payable: !isFreeTariffPrice(
-          choices.find(
-            (choice) =>
-              choice.id === purchasedTariffId({ tariffId: currentTariffId, pendingTariffId }),
-          )?.priceMinor,
+        // #1069 owner decision 2026-09-05 (period grid) — a tariff no longer has ONE price to test:
+        // it is payable if ANY of its globally selectable periods carries a positive amount. The
+        // exact period is chosen on the pay/schedule call itself (`scheduleOwnTariffChange`); this
+        // flag only decides whether the "Оплатить" affordance shows at all, same as the old
+        // `purchasedTariffId` rule it replaces (never offers a payment the route would refuse,
+        // never hides one the route would accept).
+        payable: (purchasedChoice?.periodPrices ?? []).some(
+          (row) => !isFreeTariffPrice(row.priceMinor),
         ),
       };
     },
@@ -1166,14 +1121,27 @@ export function createSaasBillingService(dependencies: {
     async scheduleOwnTariffChange(input: {
       organizationId: string;
       tariffId: string;
+      billingPeriodCode: string;
       actorId: string | null;
     }) {
+      // #1069 owner decision 2026-09-05 (period grid) — the API accepts only `tariffId` and
+      // `billingPeriodCode`; the amount and month count are never trusted from the client. This is
+      // the one place that resolves the pair against the catalog+price matrix before anything else
+      // runs, so every downstream step (first choice, scheduling, invoicing) sees an already-valid
+      // pair.
+      const choices = await dependencies.repository.listActiveTariffChoices();
+      const targetChoice = choices.find((choice) => choice.id === input.tariffId);
+      if (!targetChoice) throw new Error('saas_billing_tariff_not_found');
+      if (!targetChoice.periodPrices.some((row) => row.billingPeriodCode === input.billingPeriodCode)) {
+        throw new Error('saas_billing_period_not_priced_for_tariff');
+      }
       if (!dependencies.getTariffTransition) throw new Error('saas_billing_tariff_change_unavailable');
       const transition = await dependencies.getTariffTransition(input.organizationId, input.tariffId);
       if (transition.currentTariffId === null) {
         const chosen = await dependencies.repository.chooseOrganizationFirstTariff({
           organizationId: input.organizationId,
           tariffId: input.tariffId,
+          billingPeriodCode: input.billingPeriodCode,
           actorId: input.actorId,
         });
         if (chosen.outcome === 'trial_started') {
@@ -1185,39 +1153,36 @@ export function createSaasBillingService(dependencies: {
         }
         return { outcome: 'checkout' as const, invoice };
       }
-      if (transition.currentTariffId === input.tariffId) {
+      // #1069 owner decision 2026-09-05 (period grid) — "unchanged" now means the SAME (tariff,
+      // period) pair. Same tariff with another period is a valid scheduled change, never a no-op.
+      const currentSubscription = await dependencies.repository.requireOwnTariffBillingSubscription(
+        input.organizationId,
+      );
+      if (
+        transition.currentTariffId === input.tariffId &&
+        currentSubscription.currentBillingPeriodCode === input.billingPeriodCode
+      ) {
         await this.assignManualTariff({
           organizationId: input.organizationId,
           tariffId: input.tariffId,
+          billingPeriodCode: input.billingPeriodCode,
           applyAtNextPeriod: true,
           scheduleOnly: true,
           audit: { actorId: input.actorId, reason: 'clinic_tariff_change_cancelled' },
         });
         return { outcome: 'cancelled' as const };
       }
-      if (!transition.appliesNextPeriod || transition.priceAppliesNextPeriod) {
-        const subscription = await dependencies.repository.requireOwnTariffBillingSubscription(
-          input.organizationId,
-        );
-        if (!subscription.currentPeriodStartsAt || !subscription.currentPeriodEndsAt) {
-          throw new Error('saas_billing_no_active_paid_subscription');
-        }
-        const invoice = await createProratedTariffUpgradeCheckout({
-          organizationId: input.organizationId,
-          saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
-          targetTariffId: transition.targetTariffId,
-          currentPeriodStartsAt: subscription.currentPeriodStartsAt,
-        });
-        if (invoice) {
-          return { outcome: 'checkout' as const, invoice };
-        }
-      }
+      // #1069 owner decision 2026-09-05 (period grid) — the older immediate/prorated upgrade path
+      // is removed: a tariff change, billing-period change, or cancellation never rewrites or
+      // shortens the already-paid interval. Every change now schedules for `currentPeriodEndsAt`
+      // regardless of price direction; capacity BLOCKS are still enforced before scheduling one.
       if (transition.blocks.length > 0) {
         throw new SaasBillingTariffDowngradeBlockedError(transition.blocks);
       }
       await this.assignManualTariff({
         organizationId: input.organizationId,
         tariffId: input.tariffId,
+        billingPeriodCode: input.billingPeriodCode,
         applyAtNextPeriod: true,
         scheduleOnly: true,
         audit: { actorId: input.actorId, reason: 'clinic_tariff_downgrade_scheduled' },
@@ -1232,6 +1197,7 @@ export function createSaasBillingService(dependencies: {
       await this.assignManualTariff({
         organizationId: input.organizationId,
         tariffId: subscription.tariffId,
+        billingPeriodCode: subscription.billingPeriodCode,
         applyAtNextPeriod: true,
         scheduleOnly: true,
         audit: { actorId: input.actorId, reason: 'clinic_tariff_change_cancelled' },
@@ -1263,6 +1229,25 @@ export function createSaasBillingService(dependencies: {
       await dependencies.repository.revokeSaasBillingAutopayConsent({
         organizationId: input.organizationId,
         revokedAt: now().toISOString(),
+      });
+    },
+
+    /**
+     * #1069 owner decision 2026-09-05 (period grid) — cancel-at-period-end: the clinic's own
+     * "cancel the subscription" door. Never rewrites or shortens the already-paid interval — it
+     * only stops future autopay/renewal (same `cancelledAt` flag the renewal-due seam excludes on)
+     * and leaves `currentPeriodEndsAt`/tariff/snapshot untouched, so access continues through the
+     * paid boundary exactly like an unpaid non-renewal always has.
+     */
+    async cancelOwnTariffBillingSubscription(input: { organizationId: string }) {
+      await dependencies.repository.requireOwnTariffBillingSubscription(input.organizationId);
+      await dependencies.repository.revokeSaasBillingAutopayConsent({
+        organizationId: input.organizationId,
+        revokedAt: now().toISOString(),
+      });
+      return dependencies.repository.cancelOwnTariffBillingSubscription({
+        organizationId: input.organizationId,
+        cancelledAt: now().toISOString(),
       });
     },
 
@@ -1376,75 +1361,13 @@ export function createSaasBillingService(dependencies: {
     },
 
     /**
-     * К2 — refund (full or partial) against a paid invoice. `requestKey` is caller-owned and
-     * stable across a retried click (see `PlatformPaymentsSection.tsx`): the reservation
-     * transaction inserts a `pending` row under a unique `(providerId, providerIdempotencyKey)`
-     * key derived from it, so a second call with the same key returns the row the first call
-     * already reserved instead of racing it into a second refund.
+     * #1069 owner decision 2026-09-05 — SaaS payments from clinics to the platform are
+     * non-refundable; the actionable `refundSaasBillingInvoice` door (К2) is removed along with
+     * its repository-side reservation (`reserveSaasBillingRefund` etc.). `resolveSaasBillingRefundForWebhook`
+     * / `captureSaasBillingRefundWebhookEvent` below stay: they only settle a refund row that
+     * ALREADY existed before this cutover, so historical rows keep resolving to their real
+     * provider status. This does not affect patient-payment refunds performed by a clinic.
      */
-    async refundSaasBillingInvoice(input: {
-      saasBillingInvoiceId: string;
-      amountMinor: number;
-      requestKey: string;
-      actorId: string | null;
-      reason: string;
-    }): Promise<
-      | { outcome: 'invoice_not_found' }
-      | { outcome: 'invoice_not_refundable'; status: SaasBillingInvoiceStatus }
-      | { outcome: 'seat_overage_partial_refund_forbidden' }
-      | { outcome: 'amount_exceeds_remaining'; remainingMinor: number }
-      | { outcome: 'refunded'; refund: SaasBillingRefund; duplicate: boolean }
-      | { outcome: 'provider_error' }
-    > {
-      if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
-        throw new Error('refund_amount_must_be_positive_integer');
-      }
-      const providerIdempotencyKey = `saas_refund:${input.saasBillingInvoiceId}:${input.requestKey}`;
-      const reservation = await dependencies.repository.reserveSaasBillingRefund({
-        saasBillingInvoiceId: input.saasBillingInvoiceId,
-        amountMinor: input.amountMinor,
-        providerIdempotencyKey,
-        audit: { actorId: input.actorId, reason: input.reason },
-      });
-      if (reservation.outcome === 'duplicate') {
-        return { outcome: 'refunded', refund: reservation.refund, duplicate: true };
-      }
-      if (reservation.outcome !== 'reserved') {
-        return reservation;
-      }
-      const { refund, invoice } = reservation;
-      if (!invoice.providerInvoiceRef) {
-        await dependencies.repository.markSaasBillingRefundFailed({
-          saasBillingRefundId: refund.id,
-        });
-        return { outcome: 'provider_error' };
-      }
-      try {
-        const provider = await resolvePaymentProvider(invoice.providerId);
-        const receipt =
-          input.amountMinor < invoice.amountMinor
-            ? buildPartialRefundReceipt(invoice, input.amountMinor)
-            : undefined;
-        const result = await provider.adapter.refund({
-          providerIntentRef: invoice.providerInvoiceRef,
-          amountMinor: input.amountMinor,
-          currency: invoice.currency,
-          idempotencyKey: providerIdempotencyKey,
-          providerConfig: provider.providerConfig,
-          receipt,
-        });
-        const attached = await dependencies.repository.attachSaasBillingRefundProviderRef({
-          saasBillingRefundId: refund.id,
-          providerRefundRef: result.providerRefundRef,
-        });
-        return { outcome: 'refunded', refund: attached, duplicate: false };
-      } catch {
-        await dependencies.repository.markSaasBillingRefundFailed({
-          saasBillingRefundId: refund.id,
-        });
-        return { outcome: 'provider_error' };
-      }
-    },
 
     /**
      * Unscoped by design, same shape as `resolveSaasBillingInvoiceForWebhook` — the webhook does

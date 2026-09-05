@@ -295,13 +295,28 @@ export type BillingPeriodOption = {
   sortOrder: number;
 };
 
+/** #1069 owner decision 2026-09-05 (period grid) — one tariff's amount for one global period. */
+export type TariffPeriodPrice = {
+  billingPeriodCode: string;
+  priceMinor: number;
+  discountedPriceMinor: number | null;
+};
+
 export type Tariff = {
   id: string;
   name: string;
   description: string;
+  /** @deprecated #1069 owner decision 2026-09-05 (period grid) — frozen legacy value; see `periodPrices`. */
   priceMinor: number | null;
   currency: string | null;
+  /** @deprecated #1069 owner decision 2026-09-05 (period grid) — frozen legacy value; see `periodPrices`. */
   billingPeriod: string;
+  /**
+   * #1069 owner decision 2026-09-05 (period grid) — this tariff's price for EVERY globally
+   * selectable billing period; the platform admin edits/saves this matrix, never `priceMinor`/
+   * `billingPeriod` above. `currency` above stays the one tariff-wide currency for every row here.
+   */
+  periodPrices: TariffPeriodPrice[];
   mechanics: Record<string, boolean>;
   quotas: TariffQuotaMap;
   systemAccessPolicy: AccessLifecyclePolicy | null;

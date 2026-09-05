@@ -22,6 +22,7 @@ import type {
   PaidPeriodPolicy,
   BillingPeriodOption,
   Tariff,
+  TariffPeriodPrice,
   TariffQuota,
   TariffQuotaMap,
   TrialPolicy,
@@ -34,11 +35,13 @@ import {
   saasOrgEntitlementOverrides,
   saasPaidPeriodPolicy,
   saasRegistrationTariffPolicy,
+  saasTariffPeriodPrices,
   saasTariffs,
   saasTrialPolicy,
 } from '../../../db/schema/saasEntitlements';
 import { adminAuditLog } from '../../../db/schema/schema';
 import { PLATFORM_OPERATIONS_DB_SOURCE } from '@/shared/security/platformOperationsPrincipal';
+import { assertCompleteTariffPeriodPriceMatrix } from '@/modules/saas-billing/billingPeriodCatalog';
 
 type Db = ReturnType<typeof getDrizzle>;
 type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -61,9 +64,23 @@ function withoutLegacyClinicalTestConfiguration<T>(value: Record<string, T>): Re
   return current;
 }
 
-function toTariff(row: typeof saasTariffs.$inferSelect): Tariff {
+function toTariffPeriodPrice(
+  row: typeof saasTariffPeriodPrices.$inferSelect,
+): TariffPeriodPrice {
+  return {
+    billingPeriodCode: row.billingPeriodCode,
+    priceMinor: row.priceMinor,
+    discountedPriceMinor: row.discountedPriceMinor,
+  };
+}
+
+function toTariff(
+  row: typeof saasTariffs.$inferSelect,
+  periodPrices: readonly TariffPeriodPrice[],
+): Tariff {
   return {
     ...row,
+    periodPrices: [...periodPrices],
     billingPeriod: row.billingPeriod as Tariff['billingPeriod'],
     // Owner 02.08: stored tariff JSON can retain the former key, but it is no longer a
     // configurable tariff surface or serialized mechanic.
@@ -176,13 +193,16 @@ async function assertTariffNotUsedByRegistrationTariffPolicy(
   if (policy[0]) throw new Error('tariff_used_by_registration_tariff_policy');
 }
 
-function tariffValues(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>) {
+function tariffValues(
+  input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt' | 'priceMinor' | 'billingPeriod'>,
+) {
+  // #1069 owner decision 2026-09-05 (period grid) — `priceMinor`/`billingPeriod` are frozen legacy
+  // columns; deliberately absent here so neither create nor update ever writes them again. Create
+  // leaves them at the DB defaults (`NULL`/`'month'`); update leaves whatever a row already has.
   return {
     name: input.name,
     description: input.description,
-    priceMinor: input.priceMinor,
     currency: input.currency,
-    billingPeriod: input.billingPeriod,
     mechanics: input.mechanics,
     quotas: input.quotas,
     systemAccessPolicy: input.systemAccessPolicy,
@@ -195,6 +215,39 @@ function tariffValues(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>) {
     isActive: input.isActive,
     updatedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Locks the global period grid FOR the duration of the enclosing transaction (`FOR SHARE` — reads
+ * only, but a concurrent `setBillingPeriodSelectable` activation must not run between this read and
+ * the tariff write it gates) and returns the currently selectable codes.
+ */
+async function lockSelectablePeriodCodes(tx: Transaction): Promise<string[]> {
+  const rows = await tx
+    .select({ code: saasBillingPeriods.code })
+    .from(saasBillingPeriods)
+    .where(eq(saasBillingPeriods.isSelectable, true))
+    .for('share');
+  return rows.map((row) => row.code);
+}
+
+/** Full-replace write for one tariff's period price matrix — always the complete set, never a diff. */
+async function writeTariffPeriodPrices(
+  tx: Transaction,
+  tariffId: string,
+  periodPrices: readonly TariffPeriodPrice[],
+): Promise<void> {
+  await tx.delete(saasTariffPeriodPrices).where(eq(saasTariffPeriodPrices.tariffId, tariffId));
+  if (periodPrices.length === 0) return;
+  await tx.insert(saasTariffPeriodPrices).values(
+    periodPrices.map((row) => ({
+      tariffId,
+      billingPeriodCode: row.billingPeriodCode,
+      priceMinor: row.priceMinor,
+      discountedPriceMinor: row.discountedPriceMinor,
+      updatedAt: new Date().toISOString(),
+    })),
+  );
 }
 
 function assertPlatformOperationsPrincipal(): void {
@@ -311,8 +364,17 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
   return {
     async listTariffs() {
       assertPlatformOperationsPrincipal();
-      const rows = await getDrizzle().select().from(saasTariffs).orderBy(saasTariffs.name);
-      return rows.map(toTariff);
+      const [rows, priceRows] = await Promise.all([
+        getDrizzle().select().from(saasTariffs).orderBy(saasTariffs.name),
+        getDrizzle().select().from(saasTariffPeriodPrices),
+      ]);
+      const pricesByTariff = new Map<string, TariffPeriodPrice[]>();
+      for (const row of priceRows) {
+        const list = pricesByTariff.get(row.tariffId) ?? [];
+        list.push(toTariffPeriodPrice(row));
+        pricesByTariff.set(row.tariffId, list);
+      }
+      return rows.map((row) => toTariff(row, pricesByTariff.get(row.id) ?? []));
     },
 
     async listOrganizations() {
@@ -481,11 +543,14 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           .from(saasBillingPeriods)
           .where(eq(saasBillingPeriods.code, code))
           .limit(1);
+        // #1069 owner decision 2026-09-05 (period grid) — a BRAND NEW code is always born
+        // non-selectable; editing label/months of an EXISTING code never flips selectability. Only
+        // `setBillingPeriodSelectable` (gated, completeness-checked) ever changes that flag.
         const values = {
           code,
           label,
           months: input.months,
-          isSelectable: true,
+          isSelectable: before?.isSelectable ?? false,
           sortOrder: before?.sortOrder ?? input.months * 10,
           updatedAt: new Date().toISOString(),
         };
@@ -497,7 +562,6 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
             set: {
               label: values.label,
               months: values.months,
-              isSelectable: true,
               updatedAt: values.updatedAt,
             },
           })
@@ -509,6 +573,58 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           targetId: code,
           organizationId: null,
           before: before ?? null,
+          after,
+        });
+        return toBillingPeriodOption(after);
+      });
+    },
+
+    async setBillingPeriodSelectable(code, isSelectable, audit) {
+      assertPlatformOperationsPrincipal();
+      return getDrizzle().transaction(async (tx) => {
+        const [before] = await tx
+          .select()
+          .from(saasBillingPeriods)
+          .where(eq(saasBillingPeriods.code, code))
+          .limit(1)
+          .for('update');
+        if (!before) throw new Error('billing_period_not_found');
+        if (isSelectable) {
+          // Repeats the service-layer completeness gate against the LOCKED row set — the
+          // authoritative refusal, not merely defense in depth, since a concurrent tariff
+          // deactivation/archival between the service's check and this write must not slip a hole
+          // through. Every ACTIVE tariff must already carry a price for this exact code.
+          const missing = await tx
+            .select({ id: saasTariffs.id })
+            .from(saasTariffs)
+            .where(
+              and(
+                eq(saasTariffs.isActive, true),
+                sql`NOT EXISTS (
+                  SELECT 1 FROM ${saasTariffPeriodPrices} AS price
+                  WHERE price.tariff_id = ${saasTariffs.id}
+                    AND price.billing_period_code = ${code}
+                )`,
+              ),
+            );
+          if (missing.length > 0) {
+            throw new Error(
+              `saas_billing_period_activation_incomplete:${missing.map((row) => row.id).join(',')}`,
+            );
+          }
+        }
+        const [after] = await tx
+          .update(saasBillingPeriods)
+          .set({ isSelectable, updatedAt: new Date().toISOString() })
+          .where(eq(saasBillingPeriods.code, code))
+          .returning();
+        if (!after) throw new Error('billing_period_upsert_failed');
+        await appendAudit(tx, {
+          audit,
+          action: isSelectable ? 'saas_billing_period_activate' : 'saas_billing_period_retire',
+          targetId: code,
+          organizationId: null,
+          before,
           after,
         });
         return toBillingPeriodOption(after);
@@ -548,23 +664,20 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
     async createTariff(input, audit) {
       assertPlatformOperationsPrincipal();
       return getDrizzle().transaction(async (tx) => {
-        const [period] = await tx
-          .select()
-          .from(saasBillingPeriods)
-          .where(eq(saasBillingPeriods.code, input.billingPeriod))
-          .limit(1);
-        if (!period?.isSelectable) throw new Error('tariff_billing_period_invalid');
+        const selectableCodes = await lockSelectablePeriodCodes(tx);
+        assertCompleteTariffPeriodPriceMatrix(input.periodPrices, selectableCodes);
         const [row] = await tx.insert(saasTariffs).values(tariffValues(input)).returning();
         if (!row) throw new Error('tariff_create_failed');
+        await writeTariffPeriodPrices(tx, row.id, input.periodPrices);
         await appendAudit(tx, {
           audit,
           action: 'saas_tariff_create',
           targetId: row.id,
           organizationId: null,
           before: null,
-          after: row,
+          after: { ...row, periodPrices: input.periodPrices },
         });
-        return toTariff(row);
+        return toTariff(row, input.periodPrices);
       });
     },
 
@@ -578,12 +691,8 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           .limit(1)
           .for('update');
         if (!before) throw new Error('tariff_not_found');
-        const [period] = await tx
-          .select()
-          .from(saasBillingPeriods)
-          .where(eq(saasBillingPeriods.code, input.billingPeriod))
-          .limit(1);
-        if (!period?.isSelectable) throw new Error('tariff_billing_period_invalid');
+        const selectableCodes = await lockSelectablePeriodCodes(tx);
+        assertCompleteTariffPeriodPriceMatrix(input.periodPrices, selectableCodes);
         if (before.isActive && !input.isActive) {
           await assertTariffNotUsedByActiveTrialPolicy(tx, id);
           await assertTariffNotUsedByRegistrationTariffPolicy(tx, id);
@@ -594,15 +703,16 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           .where(eq(saasTariffs.id, id))
           .returning();
         if (!row) throw new Error('tariff_update_failed');
+        await writeTariffPeriodPrices(tx, id, input.periodPrices);
         await appendAudit(tx, {
           audit,
           action: 'saas_tariff_update',
           targetId: id,
           organizationId: null,
           before,
-          after: row,
+          after: { ...row, periodPrices: input.periodPrices },
         });
-        return toTariff(row);
+        return toTariff(row, input.periodPrices);
       });
     },
 

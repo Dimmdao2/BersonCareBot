@@ -13,7 +13,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { beOrganizations } from './bookingEngine';
-import { saasTariffs } from './saasEntitlements';
+import { saasBillingPeriods, saasTariffPeriodPrices, saasTariffs } from './saasEntitlements';
 
 export const SAAS_BILLING_SOURCE_VALUES = ['manual', 'paid_subscription'] as const;
 export type SaasBillingSource = (typeof SAAS_BILLING_SOURCE_VALUES)[number];
@@ -94,6 +94,15 @@ export const saasBillingSubscriptions = pgTable(
     tariffId: uuid('tariff_id').notNull(),
     /** Target selected for the next paid period; the current tariff remains effective until its end. */
     pendingTariffId: uuid('pending_tariff_id'),
+    /**
+     * #1069 owner decision 2026-09-05 (period grid) — the billing period PURCHASED alongside
+     * `tariffId`, for the same (tariff, period) pair `saasTariffPeriodPrices` prices. `null` only
+     * before any period has ever been chosen (pre-first-payment). Composite FK below ties this to
+     * an actual priced row — never a bare code with no matching price.
+     */
+    billingPeriodCode: text('billing_period_code'),
+    /** The period paired with `pendingTariffId`; appears and disappears with it (see check below). */
+    pendingBillingPeriodCode: text('pending_billing_period_code'),
     source: text().$type<SaasBillingSource>().notNull(),
     status: text().$type<SaasBillingSubscriptionStatus>().notNull(),
     lifecycleState: text('lifecycle_state').$type<SaasBillingLifecycleState>().notNull(),
@@ -168,6 +177,23 @@ export const saasBillingSubscriptions = pgTable(
       foreignColumns: [saasTariffs.id],
       name: 'saas_billing_subscriptions_pending_tariff_id_fkey',
     }).onDelete('restrict'),
+    // #1069 owner decision 2026-09-05 — the pair being purchased must be an actually priced pair.
+    // MATCH SIMPLE (Postgres default) skips the check while either column of a pair is NULL, which
+    // is exactly the pre-first-payment/no-pending-change state.
+    foreignKey({
+      columns: [table.tariffId, table.billingPeriodCode],
+      foreignColumns: [saasTariffPeriodPrices.tariffId, saasTariffPeriodPrices.billingPeriodCode],
+      name: 'saas_billing_subscriptions_tariff_period_price_fkey',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.pendingTariffId, table.pendingBillingPeriodCode],
+      foreignColumns: [saasTariffPeriodPrices.tariffId, saasTariffPeriodPrices.billingPeriodCode],
+      name: 'saas_billing_subscriptions_pending_tariff_period_price_fkey',
+    }).onDelete('restrict'),
+    check(
+      'saas_billing_subscriptions_pending_period_pair_check',
+      sql`(${table.pendingTariffId} IS NULL) = (${table.pendingBillingPeriodCode} IS NULL)`,
+    ),
     check(
       'saas_billing_subscriptions_source_check',
       sql`${table.source} = ANY (ARRAY['manual'::text, 'paid_subscription'::text])`,
@@ -296,6 +322,13 @@ export const saasBillingInvoices = pgTable(
       foreignColumns: [saasTariffs.id],
       name: 'saas_billing_invoices_tariff_id_fkey',
     }).onDelete('restrict'),
+    // #1069 owner decision 2026-09-05 — replaces the closed `day|month|year` literal list: any
+    // catalog code (including a later-retired one) stays valid on old snapshot rows forever.
+    foreignKey({
+      columns: [table.tariffBillingPeriod],
+      foreignColumns: [saasBillingPeriods.code],
+      name: 'saas_billing_invoices_tariff_billing_period_fkey',
+    }).onDelete('restrict'),
     check('saas_billing_invoices_amount_check', sql`${table.amountMinor} >= 0`),
     check(
       'saas_billing_invoices_carried_debt_check',
@@ -313,10 +346,6 @@ export const saasBillingInvoices = pgTable(
     check(
       'saas_billing_invoices_period_check',
       sql`${table.servicePeriodStartsAt} < ${table.servicePeriodEndsAt}`,
-    ),
-    check(
-      'saas_billing_invoices_tariff_billing_period_check',
-      sql`${table.tariffBillingPeriod} = ANY (ARRAY['day'::text, 'month'::text, 'year'::text])`,
     ),
     check(
       'saas_billing_invoices_status_check',
