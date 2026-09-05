@@ -58,9 +58,8 @@
  */
 
 import { WALL_TEMPLATES, expandTables } from './types.ts';
-import { BUSINESS_SEAM_FUNCTIONS } from './function-census.ts';
-import { REV10_CLINICAL_ACCESS } from './relation-access.ts';
 import { DRIZZLE_INSERT_SURFACE } from './drizzle-insert-surface.ts';
+import { DRIZZLE_UPDATE_SURFACE } from './drizzle-update-surface.ts';
 // The canonical locked descriptor module is executable ESM; its public shape is narrowed below
 // so this declaration remains strict without a second source-of-truth .d.ts file.
 // @ts-expect-error no declaration file exists for the canonical executable descriptor module.
@@ -70,6 +69,22523 @@ import type {
   OwnerDecision, PatientVisibility, PlatformRoleScope, Port, PortSpec, PrivilegeDeclaration,
   FunctionRelationSurface, NamedSeamAccess, PolicyDecl, Privilege, ReferenceModel, RelationAccess, RoleDecl, TableDecl, TableRow,
 } from './types.ts';
+
+/* ============================================================================================
+ * SECTION -1 — CONSOLIDATED MANUAL AUTHORITY (#1069 correction, 2026-09-05)
+ *
+ *   `relation-access.ts` (REV10_CLINICAL_ACCESS, ~156 relations) and `function-census.ts`
+ *   (BUSINESS_SEAM_FUNCTIONS + its companions) used to be independently hand-edited modules that
+ *   `declaration.ts` merely imported. That let a colonne grant decision live in TWO files at once:
+ *   the SaaS billing-period ship (#1069) added new columns to `declaration.ts` but left
+ *   `relation-access.ts` untouched, and nothing failed closed — the two maps were unioned at
+ *   generation time (`revision10RelationAccess` below), not cross-checked. Both bodies now live
+ *   here, verbatim, so there is exactly one file a human edits for object-specific DB access
+ *   decisions. `relation-access.ts` and `function-census.ts` remain on disk only as thin
+ *   re-export shims (existing imports/tests keep working); they carry no data of their own.
+ * ========================================================================================== */
+
+/**
+ * Executable function census restored from evidence/25 + evidence/30 and independently
+ * reconciled with the PostgreSQL 16 TEST/DEV catalogs on 2026-08-11.
+ *
+ * The evidence census had 244 SECURITY DEFINER functions. Three obsolete context roots
+ * (install_signed_context/release_principal_context/reset_principal_context) are intentionally
+ * absent. The three surviving scalar accessors are supplied by REV10_CONTEXT; the four legacy
+ * rate-limit components are replaced by one atomic root, leaving 235
+ * business/trigger roots here. Relation surfaces are lexical upper bounds and are not grants.
+ *
+ * `app.read_integrator_auth_channel_setting(text)` was retired (identity cleanup 2026-08-26,
+ * together with `user.phone.link`/`app.integrator_bind_bootstrap_channel_phone` — its only
+ * caller).
+ *
+ * Track D (#987), 2026-08-28: the five reminder-callback overloads that resolved a person through
+ * the retired public `platform_users.integrator_user_id` left this census with the column they
+ * read — `patient_done_reminder_occurrence(text)`,
+ * `patient_disable_reminder_messenger_topic(text,text)`,
+ * `patient_reminder_notification_settings(text,text)`, `patient_set_reminder_mute(integer,boolean)`
+ * and `patient_set_reminder_muted_until(timestamp with time zone)`. Their canonical successors take
+ * `platform_users.id` and are declared in `declaration.ts`; the dropped column is gone from every
+ * surviving surface here. Entry count is measured, not narrated:
+ * `node -e "import('./deploy/postgres/privileges/function-census.ts').then(m=>console.log(Object.keys(m.BUSINESS_SEAM_FUNCTIONS).length))"`
+ * → 221.
+ */
+
+export const LEGACY_DEFINER_CENSUS_COUNT = 244 as const;
+export const OBSOLETE_CONTEXT_SIGNATURES = [
+  'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+  'app.release_principal_context()',
+  'app.reset_principal_context()',
+] as const;
+
+export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
+  'app.commit_patient_reminder_materialization(uuid,text,text,uuid,text,timestamp with time zone,integer,text)': {
+    owner: 'app_seam_reminder_materialization_owner', security: 'DEFINER', returns: 'jsonb',
+    returnsSet: false, volatility: 'VOLATILE', parallel: 'UNSAFE',
+    proconfig: ['search_path=pg_catalog'], execute: ['app_tenant_service'],
+    purpose: 'atomically validates and materializes one tenant reminder occurrence and its queue rows',
+    typedArgs: ['uuid', 'text', 'text', 'uuid', 'text', 'timestamp with time zone', 'integer', 'text'],
+    databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    relationSurfaces: [
+      { relation: 'public.reminder_rules', columns: ['integrator_rule_id', 'organization_id', 'platform_user_id', 'is_enabled', 'notification_topic_code'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.platform_users', columns: ['id', 'is_blocked', 'is_archived', 'merged_into_id', 'reminder_muted_until'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.reminder_occurrence_history', columns: ['integrator_occurrence_id', 'integrator_rule_id', 'platform_user_id', 'occurrence_key', 'category', 'planned_at', 'status', 'queued_at', 'delivery_generation', 'organization_id', 'created_at', 'updated_at'], operations: ['SELECT', 'INSERT', 'UPDATE'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at', 'last_error', 'dead_at', 'priority', 'created_at', 'updated_at'], operations: ['SELECT', 'INSERT', 'UPDATE'], evidence: 'pg16-function-body-lexical-upper-bound' },
+    ], delegatesTo: ['app.patient_reminder_materialization_fingerprint(text,text)'], invocation: 'runtime',
+  },
+  'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,text,timestamp with time zone)': {
+    owner: 'app_seam_reminder_materialization_owner', security: 'DEFINER', returns: 'jsonb',
+    returnsSet: false, volatility: 'STABLE', parallel: 'RESTRICTED',
+    proconfig: ['search_path=pg_catalog'], execute: ['app_tenant_service'],
+    purpose: 'reads one tenant patient delivery-target snapshot without exposing relations',
+    typedArgs: ['uuid', 'uuid', 'text', 'timestamp with time zone'],
+    databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    relationSurfaces: [
+      { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.platform_users', columns: ['id', 'is_blocked', 'is_archived', 'merged_into_id', 'reminder_muted_until'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id', 'bot_blocked_at'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.user_channel_preferences', columns: ['platform_user_id', 'channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.user_notification_topic_channels', columns: ['user_id', 'topic_code', 'channel_code', 'is_enabled'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.user_notification_topics', columns: ['user_id', 'topic_code', 'is_enabled'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.user_web_push_subscriptions', columns: ['user_id'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id', 'value_json'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+    ], invocation: 'runtime',
+  },
+  'app.read_patient_reminder_materialization_snapshot(uuid,timestamp with time zone)': {
+    owner: 'app_seam_reminder_materialization_owner', security: 'DEFINER', returns: 'jsonb',
+    returnsSet: false, volatility: 'STABLE', parallel: 'RESTRICTED',
+    proconfig: ['search_path=pg_catalog'], execute: ['app_tenant_service'],
+    purpose: 'reads one tenant reminder rule, due occurrence, and linked-title snapshot',
+    typedArgs: ['uuid', 'timestamp with time zone'], databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    relationSurfaces: [
+      { relation: 'public.reminder_rules', columns: ['integrator_rule_id', 'organization_id', 'platform_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'schedule_data', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'display_title', 'reminder_intent', 'notification_topic_code'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.reminder_occurrence_history', columns: ['integrator_occurrence_id', 'integrator_rule_id', 'platform_user_id', 'occurrence_key', 'planned_at', 'status', 'delivery_generation', 'organization_id'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.content_pages', columns: ['id', 'organization_id', 'slug', 'title', 'is_published', 'updated_at', 'deleted_at'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.content_sections', columns: ['id', 'organization_id', 'slug', 'title', 'is_visible', 'updated_at'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+    ], invocation: 'runtime',
+  },
+  "app.accept_org_invite(text,uuid,text)": {
+    "owner": "app_seam_org_invite_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "RESTRICTED",
+    "proconfig": [
+      "search_path=pg_catalog, app, public, pg_temp"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_org_invite_owner",
+    "typedArgs": [
+      "text",
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organization_members",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "role",
+          "specialist_id",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "created_at",
+          "updated_at",
+          "tariff_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.organization_member_invites",
+        "columns": [
+          "id",
+          "organization_id",
+          "invited_email",
+          "invited_role",
+          "token_hash",
+          "status",
+          "expires_at",
+          "accepted_by_platform_user_id",
+          "accepted_membership_id",
+          "created_at",
+          "accepted_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "display_name",
+          "role",
+          "created_at",
+          "updated_at",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_billing_subscriptions",
+        "columns": [
+          "id",
+          "organization_id",
+          "tariff_id",
+          "source",
+          "status",
+          "created_at",
+          "updated_at",
+          "paid_additional_seats"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_org_entitlement_overrides",
+        "columns": [
+          "id",
+          "organization_id",
+          "mechanic",
+          "enabled",
+          "created_at",
+          "updated_at",
+          "seat_limit_override",
+          "expires_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_tariffs",
+        "columns": [
+          "id",
+          "mechanics",
+          "created_at",
+          "updated_at",
+          "included_seats"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)": {
+    "owner": "app_seam_reminder_appointment_owner",
+    "security": "DEFINER",
+    "returns": "text",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_appointment_owner",
+    "typedArgs": [
+      "uuid",
+      "integer",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.outgoing_delivery_queue",
+        "columns": [
+          "id",
+          "kind",
+          "channel",
+          "payload_json",
+          "status",
+          "attempt_count",
+          "next_retry_at",
+          "dead_at",
+          "last_error",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.apply_paid_saas_billing_tariff(uuid,uuid)": {
+    "owner": "app_seam_org_commerce_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_org_commerce_owner",
+    "typedArgs": [
+      "uuid",
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "updated_at",
+          "tariff_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_billing_invoices",
+        "columns": [
+          "id",
+          "organization_id",
+          "tariff_id",
+          "status",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_organization_trials",
+        "columns": [
+          "id",
+          "organization_id",
+          "tariff_id",
+          "status",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.apply_specialist_task_reminder_success_outcome(uuid)": {
+    "owner": "app_seam_reminder_specialist_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_specialist_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.outgoing_delivery_queue",
+        "columns": [
+          "id",
+          "kind",
+          "payload_json",
+          "status",
+          "sent_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.specialist_tasks",
+        "columns": [
+          "id",
+          "reminder_sent_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_channel_link_lock_unused_secret(uuid)": {
+    "owner": "app_seam_phone_binding_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.channel_link_secrets",
+        "columns": [
+          "id",
+          "used_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_channel_link_mark_secret_used_if_unused(uuid)": {
+    "owner": "app_seam_phone_binding_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.channel_link_secrets",
+        "columns": [
+          "id",
+          "used_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_channel_link_mark_secret_used(uuid)": {
+    "owner": "app_seam_phone_binding_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.channel_link_secrets",
+        "columns": [
+          "id",
+          "used_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_channel_link_read_secret(text,text)": {
+    "owner": "app_seam_phone_binding_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.channel_link_secrets",
+        "columns": [
+          "id",
+          "user_id",
+          "channel_code",
+          "token_hash",
+          "expires_at",
+          "used_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_channel_link_replace_secret(uuid,text,text,timestamp with time zone)": {
+    "owner": "app_seam_phone_binding_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
+    "typedArgs": [
+      "uuid",
+      "text",
+      "text",
+      "timestamp with time zone"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.channel_link_secrets",
+        "columns": [
+          "user_id",
+          "channel_code",
+          "token_hash",
+          "expires_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_login_token_confirm(text)": {
+    "owner": "app_seam_login_token_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_login_token_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.login_tokens",
+        "columns": [
+          "token_hash",
+          "status",
+          "confirmed_at",
+          "expires_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_login_token_create(text,uuid,text,timestamp with time zone)": {
+    "owner": "app_seam_login_token_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_login_token_owner",
+    "typedArgs": [
+      "text",
+      "uuid",
+      "text",
+      "timestamp with time zone"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.login_tokens",
+        "columns": [
+          "id",
+          "token_hash",
+          "user_id",
+          "method",
+          "status",
+          "expires_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_login_token_expire_past()": {
+    "owner": "app_seam_login_token_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_login_token_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.login_tokens",
+        "columns": [
+          "status",
+          "expires_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_login_token_mark_session_issued(text)": {
+    "owner": "app_seam_login_token_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_login_token_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.login_tokens",
+        "columns": [
+          "token_hash",
+          "status",
+          "session_issued_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_login_token_read(text)": {
+    "owner": "app_seam_login_token_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_login_token_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.login_tokens",
+        "columns": [
+          "id",
+          "token_hash",
+          "user_id",
+          "method",
+          "status",
+          "confirmed_at",
+          "expires_at",
+          "session_issued_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_oauth_find_user(text,text)": {
+    "owner": "app_seam_oauth_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_oauth_owner",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_oauth_bindings",
+        "columns": [
+          "user_id",
+          "provider",
+          "provider_user_id",
+          "email"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_oauth_list_user_providers(uuid)": {
+    "owner": "app_seam_oauth_owner",
+    "security": "DEFINER",
+    "returns": "text",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_oauth_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_oauth_bindings",
+        "columns": [
+          "id",
+          "user_id",
+          "provider"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_oauth_upsert_binding(uuid,text,text,text)": {
+    "owner": "app_seam_oauth_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_oauth_owner",
+    "typedArgs": [
+      "uuid",
+      "text",
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_oauth_bindings",
+        "columns": [
+          "user_id",
+          "provider",
+          "provider_user_id",
+          "email"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_phone_bind_lock_channel_binding(text,text)": {
+    "owner": "app_seam_phone_binding_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_channel_bindings",
+        "columns": [
+          "user_id",
+          "channel_code",
+          "external_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_phone_bind_upsert_channel_binding(uuid,text,text)": {
+    "owner": "app_seam_phone_binding_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
+    "typedArgs": [
+      "uuid",
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_channel_bindings",
+        "columns": [
+          "user_id",
+          "channel_code",
+          "external_id"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "integer",
+      "integer",
+      "text",
+      "integer",
+      "integer"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.auth_rate_limit_events",
+        "columns": [
+          "scope",
+          "key",
+          "occurred_at"
+        ],
+        "operations": [
+          "SELECT",
+          "DELETE",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.begin_staff_login_challenge(text,timestamp with time zone)": {
+    "owner": "app_seam_staff_security_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
+    "typedArgs": [
+      "text",
+      "timestamp with time zone"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.staff_security_profiles",
+        "columns": [
+          "user_id",
+          "factor_verified_at",
+          "login_challenge_hash",
+          "login_challenge_expires_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.bump_platform_user_session_epoch_self()": {
+    "owner": "app_seam_self_security_owner",
+    "security": "DEFINER",
+    "returns": "integer",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_self_security_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "updated_at",
+          "session_epoch"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.cancel_patient_invite_email_proof(text,text)": {
+    "owner": "app_seam_patient_invite_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.patient_invites",
+        "columns": [
+          "status",
+          "continuation_hash",
+          "proof_email_normalized",
+          "proof_code_hash",
+          "proof_started_at",
+          "proof_expires_at",
+          "proof_attempts",
+          "proof_verified_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.choose_organization_first_tariff(uuid,uuid,text)": {
+    "owner": "app_seam_specialist_provision_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner; #1069 owner decision 2026-09-05 (period grid) added the 3rd arg to pin down which globally selectable period the first payment is for",
+    "typedArgs": [
+      "uuid",
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.admin_audit_log",
+        "columns": [
+          "id",
+          "actor_id",
+          "action",
+          "target_id",
+          "details",
+          "status",
+          "organization_id"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active",
+          "updated_at",
+          "tariff_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_billing_accounts",
+        "columns": [
+          "id",
+          "organization_id",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_billing_subscriptions",
+        "columns": [
+          "id",
+          "organization_id",
+          "saas_billing_account_id",
+          "tariff_id",
+          "billing_period_code",
+          "source",
+          "status",
+          "lifecycle_state",
+          "current_period_starts_at",
+          "current_period_ends_at",
+          "updated_at",
+          "tariff_snapshot",
+          "pending_tariff_id",
+          "pending_billing_period_code"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_tariff_period_prices",
+        "columns": [
+          "tariff_id",
+          "billing_period_code"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_organization_trials",
+        "columns": [
+          "id",
+          "organization_id",
+          "tariff_id",
+          "started_at",
+          "ends_at",
+          "post_trial_behavior",
+          "post_trial_tariff_id",
+          "status",
+          "created_by",
+          "updated_at",
+          "discount_ends_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "operationColumns": {
+          "SELECT": [
+            "organization_id"
+          ]
+        },
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_tariffs",
+        "columns": [
+          "id",
+          "is_active",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_trial_policy",
+        "columns": [
+          "key",
+          "duration_days",
+          "start_event",
+          "post_trial_behavior",
+          "post_trial_tariff_id",
+          "is_active",
+          "updated_at",
+          "discount_window_days"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.claim_unbound_patient_invite_email(text,text,text,bigint,text)": {
+    "owner": "app_seam_patient_invite_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "text",
+      "bigint",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "app.context_signing_secrets",
+        "columns": [
+          "id",
+          "secret"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status",
+          "portal_activated_at",
+          "portal_activated_via"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.patient_invites",
+        "columns": [
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "enrollment_id",
+          "status",
+          "invited_email_normalized",
+          "expires_at",
+          "accepted_by_platform_user_id",
+          "accepted_via",
+          "continuation_hash",
+          "continuation_expires_at",
+          "proof_email_normalized",
+          "proof_code_hash",
+          "proof_expires_at",
+          "proof_verified_at",
+          "updated_at",
+          "accepted_at",
+          "recipient_binding"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.patient_merge_candidates",
+        "columns": [
+          "id",
+          "organization_id",
+          "anchor_user_id",
+          "candidate_user_id",
+          "reason",
+          "status",
+          "payload"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "operationColumns": {
+          "SELECT": [
+            "organization_id",
+            "anchor_user_id",
+            "candidate_user_id",
+            "status"
+          ]
+        },
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "role",
+          "updated_at",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.close_active_user_phone_history(uuid)": {
+    "owner": "app_seam_phone_binding_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=app, public, pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_phone_history",
+        "columns": [
+          "platform_user_id",
+          "valid_to"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.complete_staff_totp_enrollment(text,jsonb)": {
+    "owner": "app_seam_staff_security_owner",
+    "security": "DEFINER",
+    "returns": "integer",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
+    "typedArgs": [
+      "text",
+      "jsonb"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.staff_security_profiles",
+        "columns": [
+          "user_id",
+          "factor_type",
+          "totp_secret_ciphertext",
+          "pending_totp_secret_ciphertext",
+          "factor_verified_at",
+          "recovery_code_hashes",
+          "recovery_codes_confirmed_at",
+          "replacement_required",
+          "failed_attempts",
+          "locked_until",
+          "session_version",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.confirm_staff_recovery_codes()": {
+    "owner": "app_seam_staff_security_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.staff_security_profiles",
+        "columns": [
+          "user_id",
+          "factor_verified_at",
+          "recovery_code_hashes",
+          "recovery_codes_confirmed_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.consume_staff_recovery_login(text,text)": {
+    "owner": "app_seam_staff_security_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.staff_security_profiles",
+        "columns": [
+          "user_id",
+          "recovery_code_hashes",
+          "replacement_required",
+          "failed_attempts",
+          "locked_until",
+          "session_version",
+          "login_challenge_hash",
+          "login_challenge_expires_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.consume_staff_totp_login(text)": {
+    "owner": "app_seam_staff_security_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.staff_security_profiles",
+        "columns": [
+          "user_id",
+          "failed_attempts",
+          "locked_until",
+          "login_challenge_hash",
+          "login_challenge_expires_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.create_specialist_signup_intent(uuid,text,text,text,text)": {
+    "owner": "app_seam_specialist_provision_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
+    "typedArgs": [
+      "uuid",
+      "text",
+      "text",
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.specialist_signup_intents",
+        "columns": [
+          "id",
+          "user_id",
+          "challenge_id",
+          "email_normalized",
+          "organization_title",
+          "specialist_full_name",
+          "organization_slug"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.current_patient_has_active_org_enrollment(uuid)": {
+    "owner": "app_seam_patient_org_projection_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_org_projection_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.current_patient_has_password_credentials()": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_password_credentials",
+        "columns": [
+          "user_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.current_patient_has_web_oauth_binding()": {
+    "owner": "app_seam_oauth_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_oauth_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_oauth_bindings",
+        "columns": [
+          "user_id",
+          "provider"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.current_provisioned_owner_organization()": {
+    "owner": "app_seam_specialist_provision_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_platform_settings"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organization_members",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "role",
+          "status",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_delete_email_challenge_by_id(uuid)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_challenges",
+        "columns": [
+          "id"
+        ],
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_delete_email_challenges_for_user(uuid)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_challenges",
+        "columns": [
+          "user_id"
+        ],
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_find_email_challenge_for_confirm(uuid,uuid)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid",
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_challenges",
+        "columns": [
+          "id",
+          "user_id",
+          "email",
+          "code_hash",
+          "expires_at",
+          "attempts",
+          "purpose"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_find_email_challenge_for_consume(uuid,uuid)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid",
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_challenges",
+        "columns": [
+          "id",
+          "user_id",
+          "code_hash",
+          "expires_at",
+          "attempts",
+          "purpose"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_find_email_otp_lock(uuid)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "bigint",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_otp_locks",
+        "columns": [
+          "user_id",
+          "locked_until"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_find_email_owner_conflict(uuid,text)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_find_email_send_cooldown(uuid,text)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "timestamp with time zone",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_send_cooldowns",
+        "columns": [
+          "user_id",
+          "email_normalized",
+          "last_sent_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_find_latest_email_challenge_for_user(uuid,bigint)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid",
+      "bigint"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_challenges",
+        "columns": [
+          "id",
+          "user_id",
+          "code_hash",
+          "expires_at",
+          "attempts",
+          "created_at",
+          "purpose"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_find_latest_pending_email_challenge_for_user(uuid,bigint,text)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid",
+      "bigint",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_challenges",
+        "columns": [
+          "id",
+          "user_id",
+          "email",
+          "code_hash",
+          "expires_at",
+          "attempts",
+          "created_at",
+          "purpose"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_increment_email_challenge_attempts(uuid)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "integer",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_challenges",
+        "columns": [
+          "id",
+          "attempts"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_insert_email_challenge(uuid,text,text,bigint)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid",
+      "text",
+      "text",
+      "bigint"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_challenges",
+        "columns": [
+          "id",
+          "user_id",
+          "email",
+          "code_hash",
+          "expires_at",
+          "attempts"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_register_email_otp_lockout(uuid)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "bigint",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_otp_locks",
+        "columns": [
+          "user_id",
+          "locked_until",
+          "lockout_cycle"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_reset_email_otp_lockout(uuid)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_otp_locks",
+        "columns": [
+          "user_id"
+        ],
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_set_email_challenge_delivery_code(uuid,text)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_challenges",
+        "columns": [
+          "id",
+          "pending_delivery_code",
+          "delivery_token",
+          "delivery_claimed_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_set_email_challenge_purpose(uuid,text)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_challenges",
+        "columns": [
+          "id",
+          "purpose"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_upsert_email_send_cooldown(uuid,text)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_send_cooldowns",
+        "columns": [
+          "user_id",
+          "email_normalized",
+          "last_sent_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_auth_verify_user_email(uuid,text)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_otp_public_consume_latest_challenge(text,text)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_challenges",
+        "columns": [
+          "id",
+          "user_id",
+          "email",
+          "code_hash",
+          "expires_at",
+          "attempts",
+          "created_at",
+          "purpose"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "created_at",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_otp_public_delete_unverified_registration(uuid)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "role",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_otp_public_find_email_send_cooldown_by_email(text)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "timestamp with time zone",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_send_cooldowns",
+        "columns": [
+          "email_normalized",
+          "last_sent_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_otp_public_find_latest_email_challenge_by_email(text,bigint)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "text",
+      "bigint"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_challenges",
+        "columns": [
+          "id",
+          "user_id",
+          "email",
+          "code_hash",
+          "expires_at",
+          "attempts",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_otp_public_find_or_create_user(text)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "display_name",
+          "role",
+          "created_at",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_otp_public_find_user_by_email(text)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_otp_public_register_patient(text,text,text,text)": {
+    "owner": "app_seam_email_otp_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "display_name",
+          "role",
+          "first_name",
+          "last_name",
+          "merged_into_id",
+          "patronymic"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_password_delete_unverified_registration(uuid)": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "role",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_password_find_login_candidate(text)": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_password_credentials",
+        "columns": [
+          "user_id",
+          "password_hash"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_password_find_user_id_by_email_challenge(uuid)": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_challenges",
+        "columns": [
+          "id",
+          "user_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.email_password_register_pending(text,text,text,text,text,text)": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "text",
+      "text",
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "display_name",
+          "role",
+          "updated_at",
+          "first_name",
+          "last_name",
+          "merged_into_id",
+          "patronymic"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_password_credentials",
+        "columns": [
+          "user_id",
+          "password_hash",
+          "updated_at"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.ensure_staff_security_profile()": {
+    "owner": "app_seam_staff_security_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.staff_security_profiles",
+        "columns": [
+          "user_id"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "operationColumns": {
+          "SELECT": [
+            "user_id"
+          ]
+        },
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.exchange_patient_invite(text,text,timestamp with time zone)": {
+    "owner": "app_seam_patient_invite_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "timestamp with time zone"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "title",
+          "is_active",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status",
+          "portal_activated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.patient_invites",
+        "columns": [
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "enrollment_id",
+          "token_hash",
+          "status",
+          "invited_email_normalized",
+          "expires_at",
+          "bearer_exchanged_at",
+          "continuation_hash",
+          "continuation_expires_at",
+          "updated_at",
+          "recipient_binding"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.find_platform_user_ids_by_any_confirmed_email(text)": {
+    "owner": "app_seam_identity_lookup_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_identity_lookup_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_contacts",
+        "columns": [
+          "id",
+          "platform_user_id",
+          "contact_kind",
+          "value_normalized",
+          "is_primary",
+          "confirmed_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.get_latest_specialist_signup_intent_for_user()": {
+    "owner": "app_seam_specialist_provision_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.specialist_signup_intents",
+        "columns": [
+          "id",
+          "user_id",
+          "challenge_id",
+          "email_normalized",
+          "organization_title",
+          "specialist_full_name",
+          "status",
+          "provisioned_organization_id",
+          "provisioned_specialist_id",
+          "provisioned_membership_id",
+          "created_at",
+          "organization_slug"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.get_pending_specialist_signup_intent(uuid,uuid)": {
+    "owner": "app_seam_specialist_provision_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
+    "typedArgs": [
+      "uuid",
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.specialist_signup_intents",
+        "columns": [
+          "id",
+          "user_id",
+          "challenge_id",
+          "email_normalized",
+          "organization_title",
+          "specialist_full_name",
+          "status",
+          "provisioned_organization_id",
+          "provisioned_specialist_id",
+          "provisioned_membership_id",
+          "organization_slug"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.get_preferred_auth_channel_code(uuid)": {
+    "owner": "app_seam_identity_lookup_owner",
+    "security": "DEFINER",
+    "returns": "text",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_identity_lookup_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_channel_preferences",
+        "columns": [
+          "user_id",
+          "channel_code",
+          "is_preferred_for_auth",
+          "platform_user_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.get_public_config_bool(text)": {
+    "owner": "app_seam_settings_preauth_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.get_public_reference_baseline(text)": {
+    "owner": "app_seam_catalog_public_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_catalog_public_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.reference_catalog_baselines",
+        "columns": [
+          "version",
+          "definition_json"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.get_specialist_signup_intent_by_challenge(uuid)": {
+    "owner": "app_seam_specialist_provision_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.specialist_signup_intents",
+        "columns": [
+          "id",
+          "user_id",
+          "challenge_id",
+          "email_normalized",
+          "organization_title",
+          "specialist_full_name",
+          "status",
+          "provisioned_organization_id",
+          "provisioned_specialist_id",
+          "provisioned_membership_id",
+          "organization_slug"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.get_staff_security_profile()": {
+    "owner": "app_seam_staff_security_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.staff_security_profiles",
+        "columns": [
+          "user_id",
+          "factor_type",
+          "totp_secret_ciphertext",
+          "pending_totp_secret_ciphertext",
+          "factor_verified_at",
+          "recovery_code_hashes",
+          "recovery_codes_confirmed_at",
+          "replacement_required",
+          "failed_attempts",
+          "locked_until",
+          "session_version",
+          "login_challenge_hash",
+          "login_challenge_expires_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.get_staff_security_session_state()": {
+    "owner": "app_seam_staff_security_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.staff_security_profiles",
+        "columns": [
+          "user_id",
+          "factor_verified_at",
+          "session_version"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.get_web_push_vapid_public_key()": {
+    "owner": "app_seam_settings_preauth_owner",
+    "security": "DEFINER",
+    "returns": "text",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.integrator_event_idempotency_read(text)": {
+    "owner": "app_seam_delivery_scope_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "integrator.event-idempotency.read",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.idempotency_keys",
+        "columns": [
+          "key",
+          "request_hash",
+          "status",
+          "response_body",
+          "expires_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.integrator_event_idempotency_store(text,text,integer,text,integer)": {
+    "owner": "app_seam_delivery_scope_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "integrator.event-idempotency.store",
+    "typedArgs": [
+      "text",
+      "text",
+      "integer",
+      "text",
+      "integer"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.idempotency_keys",
+        "columns": [
+          "key",
+          "request_hash",
+          "status",
+          "response_body",
+          "expires_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "operationColumns": {
+          "INSERT": [
+            "key",
+            "request_hash",
+            "status",
+            "response_body",
+            "expires_at"
+          ],
+          "UPDATE": [
+            "request_hash",
+            "status",
+            "response_body",
+            "expires_at"
+          ]
+        },
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.increment_media_playback_resolution_stat(uuid,uuid,text)": {
+    "owner": "app_seam_telemetry_media_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_media_owner",
+    "typedArgs": [
+      "uuid",
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.media_files",
+        "columns": [
+          "id",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.media_playback_stats_hourly",
+        "columns": [
+          "organization_id",
+          "bucket_hour",
+          "delivery",
+          "resolved_count"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.is_current_patient_test_account()": {
+    "owner": "app_seam_telemetry_exclusion_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_exclusion_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_channel_bindings",
+        "columns": [
+          "user_id",
+          "channel_code",
+          "external_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.is_max_bot_configured()": {
+    "owner": "app_seam_settings_preauth_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.is_organization_slug_available(text)": {
+    "owner": "app_seam_public_slug_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_public_slug_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.organization_slug_claims",
+        "columns": [
+          "slug"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.is_platform_registration_analytics_user_excluded(uuid)": {
+    "owner": "app_seam_telemetry_exclusion_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_platform_settings"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_exclusion_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "role"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_channel_bindings",
+        "columns": [
+          "user_id",
+          "channel_code",
+          "external_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.is_sms_provider_configured()": {
+    "owner": "app_seam_settings_preauth_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.is_smtp_outbound_configured()": {
+    "owner": "app_seam_settings_preauth_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.is_telegram_login_configured()": {
+    "owner": "app_seam_settings_preauth_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "organization_id",
+          "value_json"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.list_active_booking_cities()": {
+    "owner": "app_seam_catalog_public_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_catalog_public_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.booking_cities",
+        "columns": [
+          "id",
+          "code",
+          "title",
+          "is_active",
+          "sort_order"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.list_google_calendar_probe_organization_ids()": {
+    "owner": "app_seam_telemetry_operator_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_scheduler"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "updated_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.list_platform_organization_members(uuid)": {
+    "owner": "app_seam_org_directory_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_platform_settings"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_org_directory_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organization_members",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "role",
+          "specialist_id",
+          "status",
+          "created_at",
+          "updated_at",
+          "doctor_screens_disabled"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "display_name",
+          "role",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.list_scheduler_reminder_organization_ids()": {
+    "owner": "app_seam_reminder_materialization_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_scheduler"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_materialization_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.reminder_occurrence_history",
+        "columns": [
+          "integrator_rule_id",
+          "status",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reminder_rules",
+        "columns": [
+          "integrator_rule_id",
+          "is_enabled",
+          "organization_id",
+          "platform_user_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.list_web_push_reminder_organization_ids(timestamp with time zone)": {
+    "owner": "app_seam_reminder_materialization_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog, public"
+    ],
+    "execute": [
+      "app_operational_scheduler"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_materialization_owner",
+    "typedArgs": [
+      "timestamp with time zone"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "reminder_muted_until"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reminder_rules",
+        "columns": [
+          "id",
+          "platform_user_id",
+          "is_enabled",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.lookup_patient_invite_continuation(text)": {
+    "owner": "app_seam_patient_invite_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "title",
+          "is_active",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status",
+          "portal_activated_at",
+          "portal_activated_via"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.patient_invites",
+        "columns": [
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "enrollment_id",
+          "status",
+          "invited_email_normalized",
+          "expires_at",
+          "accepted_by_platform_user_id",
+          "accepted_via",
+          "continuation_hash",
+          "continuation_expires_at",
+          "proof_code_hash",
+          "proof_expires_at",
+          "proof_verified_at",
+          "updated_at",
+          "recipient_binding"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.lookup_pending_org_invite(text)": {
+    "owner": "app_seam_org_invite_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_org_invite_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "title",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.organization_member_invites",
+        "columns": [
+          "id",
+          "organization_id",
+          "invited_email",
+          "invited_role",
+          "token_hash",
+          "status",
+          "expires_at",
+          "created_by_platform_user_id",
+          "accepted_by_platform_user_id",
+          "accepted_membership_id",
+          "created_at",
+          "accepted_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.mark_operator_incident_alert_sent(uuid)": {
+    "owner": "app_seam_telemetry_operator_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.operator_incidents",
+        "columns": [
+          "id",
+          "alert_sent_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.mark_patient_reminder_occurrence_queued(text,integer,text[])": {
+    "owner": "app_seam_reminder_materialization_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [],
+    "purpose": "retired private split mutation root; the atomic materialization root replaces it",
+    "typedArgs": [
+      "text",
+      "integer",
+      "text[]"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.reminder_occurrence_history",
+        "columns": [
+          "integrator_occurrence_id",
+          "integrator_rule_id",
+          "status",
+          "queued_at",
+          "updated_at",
+          "organization_id",
+          "platform_user_id",
+          "delivery_generation"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.outgoing_delivery_queue",
+        "columns": [
+          "id",
+          "event_id",
+          "kind",
+          "channel",
+          "payload_json",
+          "status",
+          "updated_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reminder_rules",
+        "columns": [
+          "integrator_rule_id",
+          "platform_user_id",
+          "notification_topic_code",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "internal"
+  },
+  "app.open_or_touch_operator_incident(text,text,text,text,text)": {
+    "owner": "app_seam_telemetry_operator_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "text",
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.operator_incidents",
+        "columns": [
+          "id",
+          "dedup_key",
+          "direction",
+          "integration",
+          "error_class",
+          "error_detail",
+          "last_seen_at",
+          "occurrence_count",
+          "resolved_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.open_or_touch_operator_probe_incident(text,text,text)": {
+    "owner": "app_seam_telemetry_operator_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_scheduler"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [],
+    "delegatesTo": [
+      "app.open_or_touch_operator_incident(text,text,text,text,text)"
+    ],
+    "invocation": "runtime"
+  },
+  "app.operator_incident_alert_already_sent(uuid)": {
+    "owner": "app_seam_telemetry_operator_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.operator_incidents",
+        "columns": [
+          "id",
+          "alert_sent_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.passkey_complete_authentication(uuid,text,bigint,bigint,text,boolean)": {
+    "owner": "app_seam_passkey_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_passkey_owner",
+    "typedArgs": [
+      "uuid",
+      "text",
+      "bigint",
+      "bigint",
+      "text",
+      "boolean"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_passkey_challenges",
+        "columns": [
+          "id",
+          "purpose",
+          "user_id",
+          "challenge",
+          "expires_at",
+          "consumed_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_passkey_credentials",
+        "columns": [
+          "credential_id",
+          "user_id",
+          "counter",
+          "device_type",
+          "backed_up",
+          "last_used_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.passkey_complete_registration(uuid,uuid,text,text,bigint,jsonb,text,boolean)": {
+    "owner": "app_seam_passkey_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_passkey_owner",
+    "typedArgs": [
+      "uuid",
+      "uuid",
+      "text",
+      "text",
+      "bigint",
+      "jsonb",
+      "text",
+      "boolean"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_passkey_challenges",
+        "columns": [
+          "id",
+          "purpose",
+          "user_id",
+          "challenge",
+          "expires_at",
+          "consumed_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_passkey_credentials",
+        "columns": [
+          "credential_id",
+          "user_id",
+          "public_key",
+          "counter",
+          "transports",
+          "device_type",
+          "backed_up"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.passkey_delete_current_credential(text)": {
+    "owner": "app_seam_passkey_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_passkey_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_passkey_credentials",
+        "columns": [
+          "credential_id",
+          "user_id"
+        ],
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.passkey_get_or_create_account(uuid,text)": {
+    "owner": "app_seam_passkey_owner",
+    "security": "DEFINER",
+    "returns": "text",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_passkey_owner",
+    "typedArgs": [
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_passkey_accounts",
+        "columns": [
+          "user_id",
+          "user_handle"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)": {
+    "owner": "app_seam_passkey_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session",
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_passkey_owner",
+    "typedArgs": [
+      "uuid",
+      "text",
+      "uuid",
+      "text",
+      "text",
+      "text",
+      "timestamp with time zone"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_passkey_challenges",
+        "columns": [
+          "id",
+          "purpose",
+          "user_id",
+          "challenge",
+          "expected_origin",
+          "rp_id",
+          "expires_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.passkey_list_current_credentials()": {
+    "owner": "app_seam_passkey_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_passkey_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_passkey_credentials",
+        "columns": [
+          "credential_id",
+          "user_id",
+          "transports",
+          "device_type",
+          "backed_up",
+          "created_at",
+          "last_used_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.passkey_list_current_exclusions()": {
+    "owner": "app_seam_passkey_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_passkey_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_passkey_credentials",
+        "columns": [
+          "credential_id",
+          "user_id",
+          "transports"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.passkey_read_challenge(uuid,text)": {
+    "owner": "app_seam_passkey_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session",
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_passkey_owner",
+    "typedArgs": [
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_passkey_challenges",
+        "columns": [
+          "id",
+          "purpose",
+          "user_id",
+          "challenge",
+          "expected_origin",
+          "rp_id",
+          "expires_at",
+          "consumed_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.passkey_read_credential(text)": {
+    "owner": "app_seam_passkey_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_passkey_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_passkey_accounts",
+        "columns": [
+          "user_id",
+          "user_handle"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_passkey_credentials",
+        "columns": [
+          "credential_id",
+          "user_id",
+          "public_key",
+          "counter",
+          "transports",
+          "device_type",
+          "backed_up"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.password_credentials_replace_self(text,text)": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.password_login_identifier_protection",
+        "columns": [
+          "identifier_key",
+          "failed_attempts",
+          "next_allowed_at",
+          "locked_until",
+          "verification_lease_token",
+          "verification_lease_until",
+          "leased_user_id",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "updated_at",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_password_credentials",
+        "columns": [
+          "user_id",
+          "password_hash",
+          "updated_at",
+          "failed_attempts",
+          "locked_until",
+          "next_allowed_at",
+          "verification_lease_token",
+          "verification_lease_until"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.password_credentials_upsert_self(text,text)": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.password_login_identifier_protection",
+        "columns": [
+          "identifier_key",
+          "failed_attempts",
+          "next_allowed_at",
+          "locked_until",
+          "verification_lease_token",
+          "verification_lease_until",
+          "leased_user_id",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "updated_at",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_password_credentials",
+        "columns": [
+          "user_id",
+          "password_hash",
+          "updated_at",
+          "failed_attempts",
+          "locked_until",
+          "next_allowed_at",
+          "verification_lease_token",
+          "verification_lease_until"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.password_login_acquire(text,text,uuid,text)": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.password_altcha_challenges",
+        "columns": [
+          "challenge_id",
+          "identifier_key",
+          "purpose",
+          "challenge_digest",
+          "expires_at",
+          "consumed_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.password_login_identifier_protection",
+        "columns": [
+          "identifier_key",
+          "failed_attempts",
+          "next_allowed_at",
+          "locked_until",
+          "verification_lease_token",
+          "verification_lease_until",
+          "leased_user_id",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "updated_at",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_password_credentials",
+        "columns": [
+          "user_id",
+          "password_hash",
+          "updated_at",
+          "failed_attempts",
+          "locked_until",
+          "next_allowed_at",
+          "verification_lease_token",
+          "verification_lease_until"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.password_login_complete(uuid,boolean)": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "typedArgs": [
+      "uuid",
+      "boolean"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.password_login_identifier_protection",
+        "columns": [
+          "identifier_key",
+          "failed_attempts",
+          "next_allowed_at",
+          "locked_until",
+          "verification_lease_token",
+          "verification_lease_until",
+          "leased_user_id",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "updated_at",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_password_credentials",
+        "columns": [
+          "user_id",
+          "updated_at",
+          "failed_attempts",
+          "locked_until",
+          "next_allowed_at",
+          "verification_lease_token",
+          "verification_lease_until"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "typedArgs": [
+      "text",
+      "uuid",
+      "text",
+      "timestamp with time zone"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.password_altcha_challenges",
+        "columns": [
+          "challenge_id",
+          "identifier_key",
+          "purpose",
+          "challenge_digest",
+          "expires_at",
+          "consumed_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.password_login_identifier_protection",
+        "columns": [
+          "identifier_key",
+          "failed_attempts",
+          "locked_until"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_password_credentials",
+        "columns": [
+          "user_id",
+          "failed_attempts",
+          "locked_until"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.password_login_read_altcha_secret()": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "text",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.patient_cancel_pending_reminder_occurrences(text)": {
+    "owner": "app_seam_reminder_patient_owner",
+    "security": "DEFINER",
+    "returns": "integer",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_patient_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.reminder_occurrence_history",
+        "columns": [
+          "integrator_rule_id",
+          "status",
+          "organization_id",
+          "platform_user_id"
+        ],
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reminder_rules",
+        "columns": [
+          "integrator_rule_id",
+          "platform_user_id",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.patient_reminder_materialization_fingerprint(text,text)": {
+    "owner": "app_seam_reminder_materialization_owner",
+    "security": "DEFINER",
+    "returns": "text",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [],
+    "purpose": "private helper delegated only by the atomic reminder materialization root",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.reminder_occurrence_history",
+        "columns": [
+          "integrator_occurrence_id",
+          "integrator_rule_id",
+          "planned_at",
+          "organization_id",
+          "platform_user_id",
+          "delivery_generation"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "created_at",
+          "updated_at",
+          "reminder_muted_until"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reminder_rules",
+        "columns": [
+          "id",
+          "integrator_rule_id",
+          "platform_user_id",
+          "is_enabled",
+          "updated_at",
+          "created_at",
+          "linked_object_type",
+          "linked_object_id",
+          "custom_title",
+          "custom_text",
+          "reminder_intent",
+          "display_title",
+          "notification_topic_code",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "internal"
+  },
+  "app.patient_skip_reminder_occurrence(uuid,text,text)": {
+    "owner": "app_seam_reminder_patient_owner",
+    "security": "DEFINER",
+    "returns": "timestamp with time zone",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_integrator_request",
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_patient_owner",
+    "typedArgs": [
+      "uuid",
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reminder_occurrence_history",
+        "columns": [
+          "integrator_occurrence_id",
+          "platform_user_id",
+          "organization_id",
+          "planned_at",
+          "sent_at",
+          "occurred_at",
+          "status",
+          "skipped_at",
+          "skip_reason",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.patient_snooze_reminder_occurrence(uuid,text,integer)": {
+    "owner": "app_seam_reminder_patient_owner",
+    "security": "DEFINER",
+    "returns": "timestamp with time zone",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_integrator_request",
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_patient_owner",
+    "typedArgs": [
+      "uuid",
+      "text",
+      "integer"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reminder_occurrence_history",
+        "columns": [
+          "integrator_occurrence_id",
+          "platform_user_id",
+          "organization_id",
+          "planned_at",
+          "sent_at",
+          "occurred_at",
+          "status",
+          "queued_at",
+          "failed_at",
+          "delivery_channel",
+          "delivery_job_id",
+          "error_code",
+          "delivery_generation",
+          "snoozed_at",
+          "snoozed_until",
+          "skipped_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.phone_auth_find_latest_challenge_created_at(text)": {
+    "owner": "app_seam_phone_otp_owner",
+    "security": "DEFINER",
+    "returns": "timestamp with time zone",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_otp_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.phone_challenges",
+        "columns": [
+          "phone",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.phone_auth_find_otp_lock(text)": {
+    "owner": "app_seam_phone_otp_owner",
+    "security": "DEFINER",
+    "returns": "bigint",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_otp_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.phone_otp_locks",
+        "columns": [
+          "phone_normalized",
+          "locked_until"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.phone_auth_register_otp_lockout(text,bigint)": {
+    "owner": "app_seam_phone_otp_owner",
+    "security": "DEFINER",
+    "returns": "bigint",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_otp_owner",
+    "typedArgs": [
+      "text",
+      "bigint"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.phone_otp_locks",
+        "columns": [
+          "phone_normalized",
+          "locked_until",
+          "lockout_cycle"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.phone_auth_reset_otp_lockout(text)": {
+    "owner": "app_seam_phone_otp_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_otp_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.phone_otp_locks",
+        "columns": [
+          "phone_normalized"
+        ],
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.phone_challenge_store_delete_by_phone(text)": {
+    "owner": "app_seam_phone_otp_owner",
+    "security": "DEFINER",
+    "returns": "integer",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_otp_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.phone_challenges",
+        "columns": [
+          "phone"
+        ],
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.phone_challenge_store_delete(text)": {
+    "owner": "app_seam_phone_otp_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_otp_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.phone_challenges",
+        "columns": [
+          "challenge_id"
+        ],
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.phone_challenge_store_increment_attempts(text,bigint)": {
+    "owner": "app_seam_phone_otp_owner",
+    "security": "DEFINER",
+    "returns": "integer",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_otp_owner",
+    "typedArgs": [
+      "text",
+      "bigint"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.phone_challenges",
+        "columns": [
+          "challenge_id",
+          "expires_at",
+          "verify_attempts"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.phone_challenge_store_read(text)": {
+    "owner": "app_seam_phone_otp_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_otp_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.phone_challenges",
+        "columns": [
+          "challenge_id",
+          "phone",
+          "expires_at",
+          "code",
+          "channel_context",
+          "verify_attempts"
+        ],
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.phone_challenge_store_upsert(text,text,bigint,text,text,integer)": {
+    "owner": "app_seam_phone_otp_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_otp_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "bigint",
+      "text",
+      "text",
+      "integer"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.phone_challenges",
+        "columns": [
+          "challenge_id",
+          "phone",
+          "expires_at",
+          "code",
+          "channel_context",
+          "verify_attempts"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.phone_otp_public_booking_consume_challenge(text,text,integer,integer)": {
+    "owner": "app_seam_phone_otp_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_otp_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "integer",
+      "integer"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.phone_challenges",
+        "columns": [
+          "challenge_id",
+          "phone",
+          "expires_at",
+          "code",
+          "channel_context",
+          "verify_attempts"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.phone_otp_locks",
+        "columns": [
+          "phone_normalized",
+          "locked_until"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,text)": {
+    "owner": "app_seam_phone_otp_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_otp_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "text",
+      "integer",
+      "integer",
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.phone_challenges",
+        "columns": [
+          "challenge_id",
+          "phone",
+          "expires_at",
+          "code",
+          "channel_context",
+          "created_at",
+          "verify_attempts"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.phone_otp_locks",
+        "columns": [
+          "phone_normalized",
+          "locked_until"
+        ],
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.prepare_organization_lifecycle_notification_context(uuid)": {
+    "owner": "app_seam_org_commerce_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_org_commerce_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "updated_at",
+          "cabinet_first_entered_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_organization_trials",
+        "columns": [
+          "id",
+          "organization_id",
+          "started_at",
+          "ends_at",
+          "updated_at",
+          "discount_ends_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.propagate_staff_session_version_to_session_epoch()": {
+    "owner": "app_seam_self_security_owner",
+    "security": "DEFINER",
+    "returns": "trigger",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_self_security_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "updated_at",
+          "session_epoch"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "trigger"
+  },
+  "app.provision_specialist_owner(uuid)": {
+    "owner": "app_seam_specialist_provision_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organization_members",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "role",
+          "specialist_id",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "title",
+          "is_active",
+          "sort_order",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_specialists",
+        "columns": [
+          "id",
+          "organization_id",
+          "full_name",
+          "is_active",
+          "sort_order",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.clinic_public_directory_entries",
+        "columns": [
+          "organization_id",
+          "slug",
+          "display_name",
+          "is_published",
+          "published_at",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.organization_slug_claims",
+        "columns": [
+          "id",
+          "slug",
+          "kind",
+          "organization_id",
+          "created_by_platform_user_id",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "display_name",
+          "role",
+          "created_at",
+          "updated_at",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.specialist_signup_intents",
+        "columns": [
+          "id",
+          "user_id",
+          "challenge_id",
+          "organization_title",
+          "specialist_full_name",
+          "status",
+          "provisioned_organization_id",
+          "provisioned_specialist_id",
+          "provisioned_membership_id",
+          "created_at",
+          "provisioned_at",
+          "organization_slug"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_curated_playback_health_pre_0196()": {
+    "owner": "saas_system_health_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "saas_telemetry_operator"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by saas_system_health_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.media_playback_resolution_events",
+        "columns": [
+          "resolved_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.media_playback_stats_hourly",
+        "columns": [
+          "bucket_hour",
+          "resolved_count"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.media_playback_user_video_first_resolve",
+        "columns": [
+          "first_resolved_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_curated_playback_health()": {
+    "owner": "saas_system_health_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "saas_telemetry_operator"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by saas_system_health_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.media_hls_proxy_error_events",
+        "columns": [
+          "reason_code",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_curated_system_health_pre_0196()": {
+    "owner": "saas_system_health_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "saas_telemetry_operator"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by saas_system_health_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "organization_id",
+          "value_json",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.idempotency_keys",
+        "columns": [
+          "key",
+          "status",
+          "expires_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.integration_webhook_last_status",
+        "columns": [
+          "source",
+          "received_at",
+          "processed_ok",
+          "http_status_returned"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.media_files",
+        "columns": [
+          "id",
+          "mime_type",
+          "size_bytes",
+          "created_at",
+          "s3_key",
+          "status",
+          "video_processing_status",
+          "hls_master_playlist_s3_key",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.media_transcode_jobs",
+        "columns": [
+          "id",
+          "media_id",
+          "status",
+          "created_at",
+          "updated_at",
+          "processing_started_at",
+          "finished_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.notification_delivery_attempts",
+        "columns": [
+          "id",
+          "created_at",
+          "user_id",
+          "channel",
+          "status",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.operator_health_alert_sent",
+        "columns": [
+          "id",
+          "dedup_key",
+          "sent_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.operator_incidents",
+        "columns": [
+          "id",
+          "dedup_key",
+          "last_seen_at",
+          "occurrence_count",
+          "resolved_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.operator_job_status",
+        "columns": [
+          "job_key",
+          "job_family",
+          "last_status",
+          "last_finished_at",
+          "last_success_at",
+          "last_failure_at",
+          "last_duration_ms",
+          "meta_json"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.outgoing_delivery_queue",
+        "columns": [
+          "id",
+          "kind",
+          "channel",
+          "status",
+          "next_retry_at",
+          "sent_at",
+          "dead_at",
+          "created_at",
+          "updated_at",
+          "failure_class",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reminder_occurrence_history",
+        "columns": [
+          "id",
+          "status",
+          "occurred_at",
+          "created_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "updated_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_web_push_subscriptions",
+        "columns": [
+          "id",
+          "user_id",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_curated_system_health()": {
+    "owner": "saas_system_health_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "saas_telemetry_operator"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by saas_system_health_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.media_files",
+        "columns": [
+          "mime_type",
+          "created_at",
+          "status",
+          "preview_status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.media_playback_client_events",
+        "columns": [
+          "media_id",
+          "event_class",
+          "delivery",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.notification_delivery_attempts",
+        "columns": [
+          "created_at",
+          "channel",
+          "status",
+          "reason",
+          "provider_status_code",
+          "error_message"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.outgoing_delivery_queue",
+        "columns": [
+          "kind",
+          "channel",
+          "status",
+          "sent_at",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.operator_job_status",
+        "columns": [
+          "job_key",
+          "job_family",
+          "last_status",
+          "last_finished_at",
+          "last_success_at",
+          "last_failure_at",
+          "last_duration_ms"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_current_org_tariff_transition_usage()": {
+    "owner": "app_seam_org_commerce_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_clinic_billing",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_org_commerce_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_branches",
+        "columns": [
+          "organization_id",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_current_patient_active_organizations()": {
+    "owner": "app_seam_patient_org_projection_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_org_projection_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "title",
+          "is_active",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_current_patient_appointment_history()": {
+    "owner": "app_seam_patient_booking_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_booking_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_appointments",
+        "columns": [
+          "id",
+          "organization_id",
+          "branch_id",
+          "room_id",
+          "specialist_id",
+          "service_id",
+          "platform_user_id",
+          "start_at",
+          "end_at",
+          "status",
+          "deleted_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_branches",
+        "columns": [
+          "id",
+          "organization_id",
+          "title"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_clinic_services",
+        "columns": [
+          "id",
+          "organization_id",
+          "title"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_rooms",
+        "columns": [
+          "id",
+          "organization_id",
+          "branch_id",
+          "title"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_specialists",
+        "columns": [
+          "id",
+          "organization_id",
+          "full_name"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_current_patient_booking_catalog()": {
+    "owner": "app_seam_patient_booking_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "current patient public booking catalog for the signed active organization",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_branches",
+        "columns": [
+          "id",
+          "organization_id",
+          "title",
+          "city_code",
+          "sort_order",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_specialist_service_availability",
+        "columns": [
+          "organization_id",
+          "branch_id",
+          "specialist_id",
+          "service_id",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_specialists",
+        "columns": [
+          "id",
+          "organization_id",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_clinic_services",
+        "columns": [
+          "id",
+          "organization_id",
+          "title",
+          "description",
+          "duration_minutes",
+          "price_minor",
+          "sort_order",
+          "is_active",
+          "public_widget_visible",
+          "admin_manual_only"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_current_patient_booking_rows(text,timestamp with time zone)": {
+    "owner": "app_seam_patient_booking_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_booking_owner",
+    "typedArgs": [
+      "text",
+      "timestamp with time zone"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_appointments",
+        "columns": [
+          "id",
+          "organization_id",
+          "branch_id",
+          "specialist_id",
+          "service_id",
+          "platform_user_id",
+          "duration_minutes",
+          "source",
+          "status",
+          "created_at",
+          "updated_at",
+          "deleted_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_branches",
+        "columns": [
+          "id",
+          "organization_id",
+          "title",
+          "city_code",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_clinic_services",
+        "columns": [
+          "id",
+          "organization_id",
+          "title",
+          "duration_minutes",
+          "price_minor",
+          "is_active",
+          "public_widget_visible",
+          "admin_manual_only",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_specialist_service_availability",
+        "columns": [
+          "id",
+          "organization_id",
+          "specialist_id",
+          "service_id",
+          "branch_id",
+          "city_code",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_specialists",
+        "columns": [
+          "id",
+          "organization_id",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.patient_bookings",
+        "columns": [
+          "id",
+          "platform_user_id",
+          "booking_type",
+          "city",
+          "category",
+          "slot_start",
+          "slot_end",
+          "status",
+          "cancelled_at",
+          "cancel_reason",
+          "gcal_event_id",
+          "contact_phone",
+          "contact_email",
+          "contact_name",
+          "reminder_24h_sent",
+          "reminder_2h_sent",
+          "created_at",
+          "updated_at",
+          "branch_id",
+          "service_id",
+          "branch_service_id",
+          "city_code_snapshot",
+          "branch_title_snapshot",
+          "service_title_snapshot",
+          "duration_minutes_snapshot",
+          "price_minor_snapshot",
+          "source",
+          "compat_quality",
+          "provenance_created_by",
+          "provenance_updated_by",
+          "canonical_appointment_id",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_current_patient_organization_entitlements()": {
+    "owner": "app_seam_patient_org_projection_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_org_projection_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active",
+          "tariff_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_billing_subscriptions",
+        "columns": [
+          "id",
+          "organization_id",
+          "tariff_id",
+          "status",
+          "current_period_ends_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_org_entitlement_overrides",
+        "columns": [
+          "id",
+          "organization_id",
+          "mechanic",
+          "enabled",
+          "seat_limit_override",
+          "quota",
+          "expires_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_organization_trials",
+        "columns": [
+          "id",
+          "organization_id",
+          "tariff_id",
+          "ends_at",
+          "post_trial_behavior",
+          "post_trial_tariff_id",
+          "status",
+          "created_by"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_current_patient_ui_setting(text,text)": {
+    "owner": "app_seam_settings_runtime_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_runtime_owner",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "updated_at",
+          "updated_by",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_global_server_runtime_setting(text)": {
+    "owner": "app_seam_settings_runtime_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_integrator_request"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_runtime_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "organization_id",
+          "value_json"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_integrator_clinic_delivery_credential(text,uuid)": {
+    "owner": "app_seam_settings_integrator_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_tenant_service"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
+    "typedArgs": [
+      "text",
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_integrator_google_calendar_setting(text,uuid)": {
+    "owner": "app_seam_settings_integrator_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_integrator_request"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
+    "typedArgs": [
+      "text",
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_integrator_platform_integration_availability()": {
+    "owner": "app_seam_settings_integrator_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_integrator_provider_runtime_setting(text)": {
+    "owner": "app_seam_settings_integrator_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_integrator_request"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_integrator_runtime_setting(text)": {
+    "owner": "app_seam_settings_integrator_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_integrator_request"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_integrator_smtp_outbound_setting()": {
+    "owner": "app_seam_settings_integrator_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_integrator_request"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_last_saas_isolation_coverage()": {
+    "owner": "saas_telemetry_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "saas_telemetry_operator"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by saas_telemetry_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.saas_isolation_coverage_runs",
+        "columns": [
+          "id",
+          "status",
+          "started_at",
+          "finished_at",
+          "services_checked",
+          "checks_count",
+          "unexpected_errors_count"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_media_worker_runtime_setting(text)": {
+    "owner": "app_seam_settings_runtime_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_media_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_runtime_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "organization_id",
+          "value_json"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_operator_health_probe_config()": {
+    "owner": "app_seam_settings_integrator_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_scheduler"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_operator_outbound_probe_meta()": {
+    "owner": "app_seam_telemetry_operator_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_scheduler"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.operator_job_status",
+        "columns": [
+          "job_key",
+          "meta_json"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_org_brand_core_context(uuid)": {
+    "owner": "app_seam_patient_org_projection_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_org_projection_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "title",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_org_enforced_quota_usage(uuid)": {
+    "owner": "app_seam_org_commerce_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_platform_settings"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_org_commerce_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organization_members",
+        "columns": [
+          "id",
+          "organization_id",
+          "specialist_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.organization_member_invites",
+        "columns": [
+          "id",
+          "organization_id",
+          "invited_role",
+          "status",
+          "expires_at",
+          "accepted_membership_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.patient_files",
+        "columns": [
+          "id",
+          "size_bytes",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_outbound_provider_incident_health()": {
+    "owner": "app_seam_telemetry_operator_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog, public"
+    ],
+    "execute": [
+      "saas_telemetry_operator"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.operator_incidents",
+        "columns": [
+          "direction",
+          "resolved_at",
+          "acknowledged_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_outgoing_delivery_reclaim_config()": {
+    "owner": "app_seam_settings_integrator_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_patient_lfk_complex_cover(uuid)": {
+    "owner": "app_seam_patient_lfk_media_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_lfk_media_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.lfk_complex_exercises",
+        "columns": [
+          "id",
+          "complex_id",
+          "exercise_id",
+          "sort_order",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.lfk_complexes",
+        "columns": [
+          "id",
+          "user_id",
+          "created_at",
+          "platform_user_id",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.lfk_exercise_media",
+        "columns": [
+          "id",
+          "exercise_id",
+          "media_url",
+          "media_type",
+          "sort_order",
+          "created_at",
+          "organization_id",
+          "owner_kind"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.media_files",
+        "columns": [
+          "id",
+          "created_at",
+          "preview_status",
+          "preview_sm_key",
+          "preview_md_key",
+          "organization_id",
+          "owner_kind"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_patient_lfk_complex_exercise_lines(uuid[])": {
+    "owner": "app_seam_patient_lfk_media_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_lfk_media_owner",
+    "typedArgs": [
+      "uuid[]"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.lfk_complex_exercises",
+        "columns": [
+          "id",
+          "complex_id",
+          "exercise_id",
+          "sort_order",
+          "comment",
+          "local_comment",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.lfk_complexes",
+        "columns": [
+          "id",
+          "user_id",
+          "title",
+          "platform_user_id",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.lfk_exercises",
+        "columns": [
+          "id",
+          "title",
+          "organization_id",
+          "owner_kind"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_platform_lfk_media_entitlement_refs(uuid)": {
+    "owner": "app_seam_patient_lfk_media_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_lfk_media_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.lfk_complex_template_exercises",
+        "columns": [
+          "id",
+          "template_id",
+          "exercise_id",
+          "organization_id",
+          "owner_kind"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.lfk_complex_templates",
+        "columns": [
+          "id",
+          "status",
+          "organization_id",
+          "owner_kind"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.lfk_exercise_media",
+        "columns": [
+          "id",
+          "exercise_id",
+          "media_url",
+          "organization_id",
+          "owner_kind"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.lfk_exercises",
+        "columns": [
+          "id",
+          "organization_id",
+          "owner_kind"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.media_files",
+        "columns": [
+          "id",
+          "status",
+          "organization_id",
+          "owner_kind"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_platform_media_row(uuid)": {
+    "owner": "app_seam_patient_lfk_media_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_lfk_media_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.media_files",
+        "columns": [
+          "id",
+          "stored_path",
+          "mime_type",
+          "uploaded_by",
+          "s3_key",
+          "status",
+          "preview_status",
+          "preview_sm_key",
+          "preview_md_key",
+          "video_processing_status",
+          "hls_master_playlist_s3_key",
+          "poster_s3_key",
+          "video_duration_seconds",
+          "available_qualities_json",
+          "usage_purpose",
+          "organization_id",
+          "owner_kind"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_public_runtime_setting(text,text)": {
+    "owner": "app_seam_settings_runtime_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_runtime_owner",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "organization_id",
+          "value_json"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_reminder_transactional_email_cooldown(uuid)": {
+    "owner": "app_seam_reminder_email_cooldown_owner",
+    "security": "DEFINER",
+    "returns": "timestamp with time zone",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_email_cooldown_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_send_cooldowns",
+        "columns": [
+          "user_id",
+          "email_normalized",
+          "last_sent_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_saas_billing_payment_provider_clinic()": {
+    "owner": "app_seam_payment_webhook_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "RESTRICTED",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_clinic_billing"
+    ],
+    "purpose": "billing.clinic.provider.read",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_saas_billing_payment_provider_platform()": {
+    "owner": "app_seam_payment_webhook_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "RESTRICTED",
+    "proconfig": ["search_path=pg_catalog"],
+    "execute": ["app_platform_settings"],
+    "purpose": "billing.platform.provider.read",
+    "typedArgs": [],
+    "databases": ["bersoncarebot_test", "bcb_webapp_dev"],
+    "relationSurfaces": [{
+      "relation": "public.system_settings",
+      "columns": ["key", "scope", "value_json", "organization_id"],
+      "operations": ["SELECT"],
+      "evidence": "pg16-function-body-lexical-upper-bound"
+    }],
+    "invocation": "runtime"
+  },
+  "app.read_saas_billing_payment_provider_preauth()": {
+    "owner": "app_seam_payment_webhook_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "RESTRICTED",
+    "proconfig": ["search_path=pg_catalog"],
+    "execute": ["app_pre_session"],
+    "purpose": "billing.webhook.provider.read",
+    "typedArgs": [],
+    "databases": ["bersoncarebot_test", "bcb_webapp_dev"],
+    "relationSurfaces": [{
+      "relation": "public.system_settings",
+      "columns": ["key", "scope", "value_json", "organization_id"],
+      "operations": ["SELECT"],
+      "evidence": "pg16-function-body-lexical-upper-bound"
+    }],
+    "invocation": "runtime"
+  },
+  "app.read_saas_isolation_events()": {
+    "owner": "saas_telemetry_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "saas_telemetry_operator"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by saas_telemetry_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.saas_isolation_events",
+        "columns": [
+          "event_class",
+          "source_service",
+          "source_operation",
+          "explanation_status",
+          "lifecycle_status",
+          "occurrence_count",
+          "first_seen_at",
+          "last_seen_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_saas_isolation_trend()": {
+    "owner": "saas_telemetry_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "saas_telemetry_operator"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by saas_telemetry_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.saas_isolation_event_hourly",
+        "columns": [
+          "bucket_start",
+          "occurrence_count"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_webapp_preauth_provider_setting(text)": {
+    "owner": "app_seam_settings_preauth_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_webapp_server_runtime_setting(text,text)": {
+    "owner": "app_seam_settings_runtime_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_runtime_owner",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "organization_id",
+          "value_json"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.record_current_patient_analytics_event(timestamp with time zone,text,text,text,text,jsonb)": {
+    "owner": "app_seam_telemetry_patient_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_patient_owner",
+    "typedArgs": [
+      "timestamp with time zone",
+      "text",
+      "text",
+      "text",
+      "text",
+      "jsonb"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.product_analytics_events_recent",
+        "columns": [
+          "occurred_at",
+          "event_type",
+          "entry_channel",
+          "page_key",
+          "user_id",
+          "client_session_id",
+          "topic_code",
+          "push_kind",
+          "warmup_slogan_key",
+          "metadata",
+          "organization_id"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.product_analytics_hourly",
+        "columns": [
+          "bucket_hour",
+          "event_type",
+          "entry_channel",
+          "page_key",
+          "topic_code",
+          "push_kind",
+          "warmup_slogan_key",
+          "event_count",
+          "updated_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.product_analytics_user_hourly",
+        "columns": [
+          "bucket_hour",
+          "user_id",
+          "entry_channel",
+          "page_key",
+          "app_opens",
+          "page_views",
+          "push_opens",
+          "active_minutes",
+          "last_seen_at",
+          "updated_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.record_current_patient_push_open(timestamp with time zone,text,uuid)": {
+    "owner": "app_seam_telemetry_patient_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_patient_owner",
+    "typedArgs": [
+      "timestamp with time zone",
+      "text",
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.product_analytics_events_recent",
+        "columns": [
+          "id",
+          "occurred_at",
+          "event_type",
+          "entry_channel",
+          "page_key",
+          "user_id",
+          "push_tracking_id",
+          "topic_code",
+          "push_kind",
+          "warmup_slogan_key",
+          "metadata",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "operationColumns": {
+          "SELECT": [
+            "push_tracking_id",
+            "event_type"
+          ]
+        },
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.product_analytics_hourly",
+        "columns": [
+          "bucket_hour",
+          "event_type",
+          "entry_channel",
+          "page_key",
+          "topic_code",
+          "push_kind",
+          "warmup_slogan_key",
+          "event_count",
+          "updated_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.product_analytics_user_hourly",
+        "columns": [
+          "bucket_hour",
+          "user_id",
+          "entry_channel",
+          "page_key",
+          "app_opens",
+          "page_views",
+          "push_opens",
+          "active_minutes",
+          "last_seen_at",
+          "updated_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.product_push_notifications",
+        "columns": [
+          "id",
+          "user_id",
+          "topic_code",
+          "push_kind",
+          "warmup_slogan_key",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.record_failed_staff_factor_attempt()": {
+    "owner": "app_seam_staff_security_owner",
+    "security": "DEFINER",
+    "returns": "timestamp with time zone",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.staff_security_profiles",
+        "columns": [
+          "user_id",
+          "failed_attempts",
+          "locked_until",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.record_media_playback_resolution_event(uuid,uuid,text)": {
+    "owner": "app_seam_telemetry_media_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_media_owner",
+    "typedArgs": [
+      "uuid",
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.media_files",
+        "columns": [
+          "id",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.media_playback_resolution_events",
+        "columns": [
+          "id",
+          "user_id",
+          "media_id",
+          "delivery",
+          "organization_id"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.record_integrator_webhook_outcome(text,boolean,integer,text,text)": {
+    "owner": "app_seam_telemetry_operator_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_service"
+    ],
+    "purpose": "exact integrator webhook health seam owned by app_seam_telemetry_operator_owner",
+    "typedArgs": [
+      "text",
+      "boolean",
+      "integer",
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.integration_webhook_last_status",
+        "columns": [
+          "source",
+          "received_at",
+          "processed_ok",
+          "error_class",
+          "http_status_returned",
+          "detail"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.integration_webhook_error_events",
+        "columns": [
+          "source",
+          "error_class"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)": {
+    "owner": "app_seam_telemetry_operator_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "D10a canonical delivery-attempt journal for queue-backed and nonqueue sends",
+    "typedArgs": [
+      "text",
+      "text",
+      "text",
+      "uuid",
+      "text",
+      "text",
+      "integer",
+      "text",
+      "text",
+      "timestamp with time zone"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.notification_delivery_attempts",
+        "columns": [
+          "created_at",
+          "user_id",
+          "topic_code",
+          "intent_type",
+          "channel",
+          "status",
+          "reason",
+          "event_id",
+          "occurrence_id",
+          "metadata",
+          "organization_id"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.outgoing_delivery_queue",
+        "columns": [
+          "event_id",
+          "kind",
+          "channel",
+          "payload_json",
+          "status",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.record_operator_outbound_probe_run(text,timestamp with time zone,text,jsonb)": {
+    "owner": "app_seam_telemetry_operator_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_scheduler"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
+    "typedArgs": [
+      "text",
+      "timestamp with time zone",
+      "text",
+      "jsonb"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.operator_job_status",
+        "columns": [
+          "job_key",
+          "job_family",
+          "last_status",
+          "last_started_at",
+          "last_finished_at",
+          "last_success_at",
+          "last_failure_at",
+          "last_duration_ms",
+          "last_error",
+          "meta_json"
+        ],
+        "operations": [
+          "INSERT",
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.record_reminder_transactional_email_cooldown(uuid)": {
+    "owner": "app_seam_reminder_email_cooldown_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_email_cooldown_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.email_send_cooldowns",
+        "columns": [
+          "user_id",
+          "email_normalized",
+          "last_sent_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.record_saas_isolation_coverage(uuid,text,timestamp with time zone,timestamp with time zone,text[],integer,integer)": {
+    "owner": "saas_telemetry_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "saas_telemetry_operator"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by saas_telemetry_owner",
+    "typedArgs": [
+      "uuid",
+      "text",
+      "timestamp with time zone",
+      "timestamp with time zone",
+      "text[]",
+      "integer",
+      "integer"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.saas_isolation_coverage_runs",
+        "columns": [
+          "id",
+          "status",
+          "started_at",
+          "finished_at",
+          "services_checked",
+          "checks_count",
+          "unexpected_errors_count"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_isolation_events",
+        "columns": [
+          "id",
+          "source_service",
+          "lifecycle_status",
+          "last_seen_at",
+          "resolved_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.redeem_patient_invite_email(text)": {
+    "owner": "app_seam_patient_invite_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status",
+          "portal_activated_at",
+          "portal_activated_via"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.patient_invites",
+        "columns": [
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "enrollment_id",
+          "status",
+          "invited_email_normalized",
+          "expires_at",
+          "accepted_by_platform_user_id",
+          "accepted_via",
+          "continuation_hash",
+          "continuation_expires_at",
+          "proof_email_normalized",
+          "proof_code_hash",
+          "proof_expires_at",
+          "proof_verified_at",
+          "updated_at",
+          "accepted_at",
+          "recipient_binding"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.patient_merge_candidates",
+        "columns": [
+          "id",
+          "organization_id",
+          "anchor_user_id",
+          "candidate_user_id",
+          "reason",
+          "status",
+          "payload"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "operationColumns": {
+          "SELECT": [
+            "organization_id",
+            "anchor_user_id",
+            "candidate_user_id",
+            "status"
+          ]
+        },
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "role",
+          "updated_at",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.refresh_specialist_task_reminder_materialization(text)": {
+    "owner": "app_seam_reminder_specialist_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_specialist_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.outgoing_delivery_queue",
+        "columns": [
+          "id",
+          "event_id",
+          "kind",
+          "payload_json",
+          "status",
+          "updated_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.replace_pending_specialist_signup_challenge(uuid,text)": {
+    "owner": "app_seam_specialist_provision_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
+    "typedArgs": [
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.specialist_signup_intents",
+        "columns": [
+          "id",
+          "user_id",
+          "challenge_id",
+          "status",
+          "organization_slug"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.report_saas_isolation_event(text,text,text,text)": {
+    "owner": "saas_telemetry_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff",
+      "app_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by saas_telemetry_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.saas_isolation_event_hourly",
+        "columns": [
+          "event_id",
+          "bucket_start",
+          "occurrence_count"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_isolation_events",
+        "columns": [
+          "id",
+          "fingerprint",
+          "event_class",
+          "source_service",
+          "source_operation",
+          "explanation_status",
+          "lifecycle_status",
+          "occurrence_count",
+          "last_seen_at",
+          "resolved_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.require_staff_security_self_user_id()": {
+    "owner": "app_seam_staff_security_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [],
+    "delegatesTo": [
+      "app.current_patient_user_id()"
+    ],
+    "invocation": "runtime"
+  },
+  "app.resolve_clinic_dedicated_bot_organization(text,text)": {
+    "owner": "app_seam_dedicated_bot_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_integrator_resolver"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_dedicated_bot_owner",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.clinic_dedicated_bot_bindings",
+        "columns": [
+          "channel",
+          "organization_id",
+          "credential_fingerprint",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.resolve_current_patient_treatment_program_organization(uuid)": {
+    "owner": "app_seam_patient_program_resolver_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_program_resolver_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.treatment_program_instances",
+        "columns": [
+          "id",
+          "patient_user_id",
+          "status",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_current_patient_treatment_program_description(uuid)": {
+    "owner": "app_seam_patient_program_resolver_owner",
+    "security": "DEFINER",
+    "returns": "text",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "return one template description only for the current patient's owned instance in its current clinic",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.treatment_program_instances",
+        "columns": [
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "template_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.treatment_program_templates",
+        "columns": [
+          "id",
+          "organization_id",
+          "description"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.resolve_operator_probe_incidents(text)": {
+    "owner": "app_seam_telemetry_operator_owner",
+    "security": "DEFINER",
+    "returns": "integer",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_scheduler"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.operator_incidents",
+        "columns": [
+          "id",
+          "dedup_key",
+          "resolved_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.resolve_organization_cabinet_access(uuid)": {
+    "owner": "app_seam_org_commerce_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_org_commerce_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.admin_audit_log",
+        "columns": [
+          "id",
+          "action",
+          "target_id",
+          "details",
+          "status",
+          "created_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active",
+          "created_at",
+          "tariff_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_billing_subscriptions",
+        "columns": [
+          "id",
+          "organization_id",
+          "tariff_id",
+          "status",
+          "current_period_ends_at",
+          "grace_ends_at",
+          "read_only_ends_at",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_organization_trials",
+        "columns": [
+          "id",
+          "organization_id",
+          "tariff_id",
+          "ends_at",
+          "post_trial_behavior",
+          "post_trial_tariff_id",
+          "status",
+          "created_at",
+          "created_by"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_paid_period_policy",
+        "columns": [
+          "key",
+          "post_paid_period_behavior",
+          "post_paid_period_tariff_id",
+          "is_active",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.resolve_organization_mechanic_access(uuid,text)": {
+    "owner": "app_seam_org_commerce_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_org_commerce_owner",
+    "typedArgs": [
+      "uuid",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.admin_audit_log",
+        "columns": [
+          "id",
+          "action",
+          "target_id",
+          "details",
+          "status",
+          "created_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active",
+          "created_at",
+          "tariff_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_billing_subscriptions",
+        "columns": [
+          "id",
+          "organization_id",
+          "tariff_id",
+          "status",
+          "current_period_ends_at",
+          "grace_ends_at",
+          "read_only_ends_at",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_org_entitlement_overrides",
+        "columns": [
+          "id",
+          "organization_id",
+          "mechanic",
+          "enabled",
+          "created_at",
+          "expires_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_organization_trials",
+        "columns": [
+          "id",
+          "organization_id",
+          "tariff_id",
+          "ends_at",
+          "post_trial_behavior",
+          "post_trial_tariff_id",
+          "status",
+          "created_at",
+          "created_by"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_paid_period_policy",
+        "columns": [
+          "key",
+          "post_paid_period_behavior",
+          "post_paid_period_tariff_id",
+          "is_active",
+          "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.resolve_outgoing_delivery_scope(uuid)": {
+    "owner": "app_seam_delivery_scope_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_delivery_scope_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.reminder_occurrence_history",
+        "columns": [
+          "integrator_occurrence_id",
+          "integrator_rule_id",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.broadcast_audit",
+        "columns": [
+          "id",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.operator_incidents",
+        "columns": [
+          "id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.outgoing_delivery_queue",
+        "columns": [
+          "id",
+          "kind",
+          "payload_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reminder_rules",
+        "columns": [
+          "id",
+          "integrator_rule_id",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.resolve_payment_webhook_organization(text,text,text)": {
+    "owner": "app_seam_payment_webhook_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_payment_webhook_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_payment_intents",
+        "columns": [
+          "organization_id",
+          "idempotency_key",
+          "provider_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_payment_provider_events",
+        "columns": [
+          "organization_id",
+          "provider_id",
+          "idempotency_key",
+          "event_type"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.resolve_patient_acquiring_webhook_organization(text,text)": {
+    "owner": "app_seam_payment_webhook_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "patient-payment.webhook.resolve",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.patient_payment",
+        "columns": [
+          "organization_id",
+          "provider",
+          "provider_payment_id",
+          "kind",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.resolve_public_booking_organization(uuid,uuid)": {
+    "owner": "app_seam_public_booking_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_public_booking_owner",
+    "typedArgs": [
+      "uuid",
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_branches",
+        "columns": [
+          "id",
+          "organization_id",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_clinic_services",
+        "columns": [
+          "id",
+          "organization_id",
+          "is_active",
+          "public_widget_visible",
+          "admin_manual_only"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_specialist_service_availability",
+        "columns": [
+          "id",
+          "organization_id",
+          "service_id",
+          "branch_id",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.resolve_public_organization_by_slug(text)": {
+    "owner": "app_seam_public_slug_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_public_slug_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": ["id", "is_active"],
+        "operations": ["SELECT"],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.clinic_public_directory_entries",
+        "columns": ["organization_id", "slug", "is_published"],
+        "operations": ["SELECT"],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.organization_slug_claims",
+        "columns": ["id", "slug", "kind", "organization_id"],
+        "operations": ["SELECT"],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.resolve_public_organization_slug(text)": {
+    "owner": "app_seam_public_slug_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_public_slug_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.clinic_public_directory_entries",
+        "columns": [
+          "organization_id",
+          "slug",
+          "is_published"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.organization_slug_claims",
+        "columns": [
+          "id",
+          "slug",
+          "kind",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.resolve_saas_billing_invoice_for_webhook(text,text)": {
+    "owner": "app_seam_payment_webhook_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "RESTRICTED",
+    "proconfig": [
+      "search_path=pg_catalog, app, public, pg_temp"
+    ],
+    "execute": [
+      "app_worker"
+    ],
+    "purpose": "billing.webhook.invoice.resolve",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.saas_billing_invoices",
+        "columns": [
+          "id",
+          "organization_id",
+          "amount_minor",
+          "currency",
+          "provider_id",
+          "provider_invoice_ref"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.resolve_saas_billing_refund_for_webhook(text,text)": {
+    "owner": "app_seam_payment_webhook_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "RESTRICTED",
+    "proconfig": ["search_path=pg_catalog, app, public, pg_temp"],
+    "execute": ["app_worker"],
+    "purpose": "billing.webhook.refund.resolve",
+    "typedArgs": ["text", "text"],
+    "databases": ["bersoncarebot_test", "bcb_webapp_dev"],
+    "relationSurfaces": [{
+      "relation": "public.saas_billing_refunds",
+      "columns": ["id", "organization_id", "saas_billing_invoice_id", "amount_minor", "currency", "status",
+        "provider_id", "provider_refund_ref", "provider_idempotency_key", "confirmed_at", "created_at", "updated_at"],
+      "operations": ["SELECT"],
+      "evidence": "pg16-function-body-lexical-upper-bound"
+    }],
+    "invocation": "runtime"
+  },
+  "app.revalidate_appointment_reminder_materialization(uuid)": {
+    "owner": "app_seam_reminder_appointment_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_appointment_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_appointments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "start_at",
+          "status",
+          "updated_at",
+          "deleted_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.outgoing_delivery_queue",
+        "columns": [
+          "id",
+          "kind",
+          "channel",
+          "payload_json",
+          "status",
+          "dead_at",
+          "last_error",
+          "updated_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "updated_at",
+          "is_blocked",
+          "is_archived",
+          "merged_into_id",
+          "reminder_muted_until"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_channel_bindings",
+        "columns": [
+          "user_id",
+          "channel_code",
+          "external_id",
+          "bot_blocked_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_channel_preferences",
+        "columns": [
+          "id",
+          "user_id",
+          "channel_code",
+          "is_enabled_for_notifications",
+          "updated_at",
+          "platform_user_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_notification_topic_channels",
+        "columns": [
+          "user_id",
+          "topic_code",
+          "channel_code",
+          "is_enabled",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_notification_topics",
+        "columns": [
+          "user_id",
+          "topic_code",
+          "is_enabled",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_web_push_subscriptions",
+        "columns": [
+          "id",
+          "user_id",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.revalidate_patient_reminder_delivery_materialization(uuid)": {
+    "owner": "app_seam_reminder_materialization_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_materialization_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.reminder_occurrence_history",
+        "columns": [
+          "integrator_occurrence_id",
+          "integrator_rule_id",
+          "status",
+          "organization_id",
+          "platform_user_id",
+          "delivery_generation",
+          "done_at",
+          "skipped_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.outgoing_delivery_queue",
+        "columns": [
+          "id",
+          "event_id",
+          "kind",
+          "channel",
+          "payload_json",
+          "status",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "is_blocked",
+          "is_archived",
+          "merged_into_id",
+          "reminder_muted_until"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reminder_rules",
+        "columns": [
+          "id",
+          "integrator_rule_id",
+          "platform_user_id",
+          "is_enabled",
+          "notification_topic_code",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_channel_bindings",
+        "columns": [
+          "user_id",
+          "channel_code",
+          "external_id",
+          "bot_blocked_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_channel_preferences",
+        "columns": [
+          "id",
+          "user_id",
+          "channel_code",
+          "is_enabled_for_notifications",
+          "platform_user_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_notification_topic_channels",
+        "columns": [
+          "user_id",
+          "topic_code",
+          "channel_code",
+          "is_enabled"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_notification_topics",
+        "columns": [
+          "user_id",
+          "topic_code",
+          "is_enabled"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_web_push_subscriptions",
+        "columns": [
+          "id",
+          "user_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.revalidate_specialist_task_reminder_materialization(uuid)": {
+    "owner": "app_seam_reminder_specialist_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_specialist_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.outgoing_delivery_queue",
+        "columns": [
+          "id",
+          "kind",
+          "payload_json",
+          "status",
+          "next_retry_at",
+          "last_error",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.revoke_staff_sessions()": {
+    "owner": "app_seam_staff_security_owner",
+    "security": "DEFINER",
+    "returns": "integer",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.staff_security_profiles",
+        "columns": [
+          "user_id",
+          "session_version",
+          "login_challenge_hash",
+          "login_challenge_expires_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.saas_billing_effective_tariff_for_current_org(uuid,uuid)": {
+    "owner": "app_seam_org_commerce_owner",
+    "security": "DEFINER",
+    "returns": "saas_tariffs",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_clinic_billing",
+      "app_patient",
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_org_commerce_owner",
+    "typedArgs": [
+      "uuid",
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [],
+    "delegatesTo": [
+      "app.current_org_id()",
+      "app.saas_billing_effective_tariff(uuid,uuid)"
+    ],
+    "invocation": "runtime"
+  },
+  "app.saas_billing_effective_tariff(uuid,uuid)": {
+    "owner": "app_seam_org_commerce_owner",
+    "security": "DEFINER",
+    "returns": "saas_tariffs",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_platform_settings"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_org_commerce_owner",
+    "typedArgs": [
+      "uuid",
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.saas_billing_subscriptions",
+        "columns": [
+          "id",
+          "organization_id",
+          "tariff_id",
+          "status",
+          "current_period_starts_at",
+          "current_period_ends_at",
+          "tariff_snapshot"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_tariffs",
+        "columns": [
+          "id",
+          "name",
+          "description",
+          "price_minor",
+          "currency",
+          "billing_period",
+          "mechanics",
+          "quotas",
+          "system_access_policy",
+          "mechanic_access_policies",
+          "downgrade_policies",
+          "mailing_templates",
+          "included_seats",
+          "additional_seat_price_minor",
+          "discounted_price_minor",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.save_pending_staff_totp(text)": {
+    "owner": "app_seam_staff_security_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.staff_security_profiles",
+        "columns": [
+          "user_id",
+          "pending_totp_secret_ciphertext",
+          "failed_attempts",
+          "locked_until",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.seed_reference_catalog_after_organization_insert()": {
+    "owner": "app_seam_specialist_provision_owner",
+    "security": "DEFINER",
+    "returns": "trigger",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [],
+    "delegatesTo": [
+      "app.seed_reference_catalog_snapshot(uuid)"
+    ],
+    "invocation": "trigger"
+  },
+  "app.seed_reference_catalog_snapshot(uuid)": {
+    "owner": "app_seam_specialist_provision_owner",
+    "security": "DEFINER",
+    "returns": "integer",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.reference_catalog_baselines",
+        "columns": [
+          "version",
+          "definition_json"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reference_catalog_snapshot_receipts",
+        "columns": [
+          "organization_id",
+          "baseline_version"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reference_categories",
+        "columns": [
+          "id",
+          "code",
+          "title",
+          "is_user_extensible",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reference_items",
+        "columns": [
+          "id",
+          "category_id",
+          "code",
+          "title",
+          "sort_order",
+          "is_active",
+          "meta_json",
+          "organization_id"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "internal"
+  },
+  "app.set_current_patient_calendar_timezone(text,boolean)": {
+    "owner": "app_seam_patient_self_actions_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_self_actions_owner",
+    "typedArgs": [
+      "text",
+      "boolean"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "role",
+          "updated_at",
+          "merged_into_id",
+          "calendar_timezone"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.set_staff_security_self_password_hash(text)": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [],
+    "purpose": "obsolete predecessor of app.password_credentials_replace_self; no runtime caller",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_password_credentials",
+        "columns": [
+          "user_id",
+          "password_hash",
+          "updated_at",
+          "failed_attempts",
+          "locked_until"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "internal"
+  },
+  "app.specialist_task_reminder_materialization_fingerprint(uuid)": {
+    "owner": "app_seam_reminder_specialist_owner",
+    "security": "DEFINER",
+    "returns": "text",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_delivery_worker"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_specialist_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.specialist_tasks",
+        "columns": [
+          "id",
+          "owner_user_id",
+          "patient_user_id",
+          "title",
+          "description",
+          "due_at",
+          "remind_at",
+          "is_important",
+          "completed_at",
+          "reminder_sent_at",
+          "created_at",
+          "updated_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "updated_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_channel_bindings",
+        "columns": [
+          "user_id",
+          "channel_code",
+          "external_id",
+          "created_at",
+          "bot_blocked_at",
+          "bot_blocked_reason"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_channel_preferences",
+        "columns": [
+          "id",
+          "user_id",
+          "channel_code",
+          "is_enabled_for_messages",
+          "is_enabled_for_notifications",
+          "created_at",
+          "updated_at",
+          "platform_user_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_notification_topic_channels",
+        "columns": [
+          "user_id",
+          "topic_code",
+          "channel_code",
+          "is_enabled",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.user_web_push_subscriptions",
+        "columns": [
+          "id",
+          "user_id",
+          "endpoint",
+          "p256dh",
+          "auth",
+          "created_at",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.staff_user_has_password_credentials(uuid)": {
+    "owner": "app_seam_password_auth_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_password_credentials",
+        "columns": [
+          "user_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.staff_user_has_web_oauth_binding(uuid)": {
+    "owner": "app_seam_oauth_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_staff"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_oauth_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.user_oauth_bindings",
+        "columns": [
+          "user_id",
+          "provider"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)": {
+    "owner": "app_seam_patient_invite_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "text",
+      "timestamp with time zone",
+      "text",
+      "bigint",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "app.context_signing_secrets",
+        "columns": [
+          "id",
+          "secret"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.patient_invites",
+        "columns": [
+          "id",
+          "organization_id",
+          "status",
+          "invited_email_normalized",
+          "expires_at",
+          "continuation_hash",
+          "continuation_expires_at",
+          "proof_email_normalized",
+          "proof_code_hash",
+          "proof_started_at",
+          "proof_expires_at",
+          "proof_attempts",
+          "proof_verified_at",
+          "updated_at",
+          "recipient_binding"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.start_provisioned_organization_trial()": {
+    "owner": "app_seam_specialist_provision_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_platform_settings"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.admin_audit_log",
+        "columns": [
+          "id",
+          "actor_id",
+          "action",
+          "target_id",
+          "details",
+          "status",
+          "organization_id"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active",
+          "updated_at",
+          "tariff_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_organization_trials",
+        "columns": [
+          "id",
+          "organization_id",
+          "tariff_id",
+          "started_at",
+          "ends_at",
+          "post_trial_behavior",
+          "post_trial_tariff_id",
+          "status",
+          "created_by",
+          "updated_at",
+          "discount_ends_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_registration_tariff_policy",
+        "columns": [
+          "key",
+          "tariff_id",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_tariffs",
+        "columns": [
+          "id",
+          "is_active",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.saas_trial_policy",
+        "columns": [
+          "key",
+          "duration_days",
+          "start_event",
+          "post_trial_behavior",
+          "post_trial_tariff_id",
+          "is_active",
+          "updated_at",
+          "discount_window_days"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.sync_clinic_dedicated_bot_binding()": {
+    "owner": "app_seam_dedicated_bot_owner",
+    "security": "DEFINER",
+    "returns": "trigger",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_dedicated_bot_owner",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.clinic_dedicated_bot_bindings",
+        "columns": [
+          "channel",
+          "organization_id",
+          "credential_fingerprint",
+          "is_active",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "DELETE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "trigger"
+  },
+  "app.touch_current_patient_plan_last_opened(uuid)": {
+    "owner": "app_seam_patient_self_actions_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_self_actions_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.treatment_program_instances",
+        "columns": [
+          "id",
+          "patient_user_id",
+          "status",
+          "updated_at",
+          "patient_plan_last_opened_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.touch_current_patient_support_conversation_activity(uuid)": {
+    "owner": "app_seam_patient_self_actions_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "returnsSet": false,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_self_actions_owner",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.support_conversation_messages",
+        "columns": [
+          "id",
+          "conversation_id",
+          "sender_role",
+          "text",
+          "source",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.support_conversations",
+        "columns": [
+          "id",
+          "platform_user_id",
+          "source",
+          "admin_scope",
+          "status",
+          "last_message_at",
+          "closed_at",
+          "updated_at",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamp with time zone)": {
+    "owner": "app_seam_reminder_materialization_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [],
+    "purpose": "retired private split mutation root; the atomic materialization root replaces it",
+    "typedArgs": [
+      "text",
+      "text",
+      "uuid",
+      "uuid",
+      "text",
+      "timestamp with time zone"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.reminder_occurrence_history",
+        "columns": [
+          "integrator_occurrence_id",
+          "integrator_rule_id",
+          "occurrence_key",
+          "planned_at",
+          "status",
+          "category",
+          "created_at",
+          "updated_at",
+          "organization_id",
+          "platform_user_id",
+          "delivery_generation"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "is_blocked",
+          "is_archived",
+          "merged_into_id",
+          "reminder_muted_until"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reminder_rules",
+        "columns": [
+          "integrator_rule_id",
+          "organization_id",
+          "platform_user_id",
+          "is_enabled",
+          "notification_topic_code",
+          "category"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "internal"
+  },
+  "app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)": {
+    "owner": "app_seam_patient_invite_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
+    "typedArgs": [
+      "text",
+      "text",
+      "text",
+      "text",
+      "bigint",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "app.context_signing_secrets",
+        "columns": [
+          "id",
+          "secret"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.patient_invites",
+        "columns": [
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "status",
+          "invited_email_normalized",
+          "expires_at",
+          "accepted_by_platform_user_id",
+          "accepted_via",
+          "continuation_hash",
+          "continuation_expires_at",
+          "proof_email_normalized",
+          "proof_code_hash",
+          "proof_expires_at",
+          "proof_attempts",
+          "proof_verified_at",
+          "updated_at",
+          "recipient_binding"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  }
+};
+
+export const BUSINESS_SEAM_STATS = {
+  functions: Object.keys(BUSINESS_SEAM_FUNCTIONS).length,
+  owners: new Set(Object.values(BUSINESS_SEAM_FUNCTIONS).map((entry) => entry.owner)).size,
+  test: Object.values(BUSINESS_SEAM_FUNCTIONS).filter((entry) => entry.databases?.includes('bersoncarebot_test')).length,
+  dev: Object.values(BUSINESS_SEAM_FUNCTIONS).filter((entry) => entry.databases?.includes('bcb_webapp_dev')).length,
+  triggers: Object.values(BUSINESS_SEAM_FUNCTIONS).filter((entry) => entry.invocation === 'trigger').length,
+  relationEdges: Object.values(BUSINESS_SEAM_FUNCTIONS).reduce((count, entry) => count + (entry.relationSurfaces?.length ?? 0), 0),
+} as const;
+
+export interface Revision10DirectGrant {
+  role: string;
+  operations: Privilege[];
+  columns: 'table' | string[];
+}
+
+export type Revision10ClinicalAccess =
+  | { kind: 'direct'; purpose: string; codePaths: string[]; grants: Revision10DirectGrant[] }
+  | { kind: 'no-runtime-surface'; purpose: string; evidence: string[] };
+
+/**
+ * Explicit clinical relation access inventory.  Each row is relation-specific:
+ * data class never implies a role or an operation.  Production callsites prove
+ * necessity; the hand-narrowed exceptions remain narrower than the lexical
+ * operation upper bound.
+ *
+ * ⚠ INSERT column lists MUST include every column Drizzle can name with the SQL `DEFAULT`
+ *   keyword, not only the columns a callsite actually sets. Drizzle's pg insert builder always
+ *   enumerates every schema column in the generated `INSERT INTO t (...) VALUES (...)`
+ *   statement — any key absent from `.values({...})` still appears in the column list with
+ *   `DEFAULT` as its value (this includes a `defaultRandom()` primary key that is never
+ *   provided by any callsite). Postgres requires column-level INSERT privilege on every column
+ *   NAMED in the statement, even ones written as DEFAULT — so a "business columns only" list
+ *   that omits `id`/`created_at`/`updated_at` fails the WHOLE insert with `42501 permission
+ *   denied for table X`, regardless of which columns the caller actually populates. Proven
+ *   2026-08-20 (docs/_TODO/OWNER_PATIENT_WALKTHROUGH_BUGS_2026-08-19.md §«Пятая ошибка»): staff
+ *   could not add a program exercise for exactly this reason on eight tables at once.
+ */
+export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
+  "public.be_appointment_cancellations": {
+    "kind": "direct",
+    "purpose": "отмены визитов — ломается политика отмен и возвратов предоплаты",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts",
+      "apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "actor_id",
+          "actor_type",
+          "applied_policy_id",
+          "applied_policy_snapshot",
+          "appointment_id",
+          "cancellation_type",
+          "created_at",
+          "id",
+          "manual_override",
+          "notifications_sent",
+          "organization_id",
+          "package_session_charged",
+          "prepayment_refunded",
+          "prepayment_retained",
+          "reason",
+          "staff_comment",
+          "was_free",
+          "was_penalized"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "notifications_sent"
+        ]
+      }
+    ]
+  },
+  "public.be_appointment_history_events": {
+    "kind": "direct",
+    "purpose": "человекочитаемая история записи — врач перестаёт видеть «кто и когда менял запись»",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts",
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "actor_id",
+          "appointment_id",
+          "created_at",
+          "event_type",
+          "id",
+          "occurred_at",
+          "organization_id",
+          "payload"
+        ]
+      }
+    ]
+  },
+  "public.be_appointment_no_shows": {
+    "kind": "direct",
+    "purpose": "неявки — не считается счётчик неявок пациента",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "actor_id",
+          "actor_type",
+          "appointment_id",
+          "created_at",
+          "id",
+          "manual_override",
+          "notifications_sent",
+          "organization_id",
+          "reason",
+          "staff_comment"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "notifications_sent"
+        ]
+      }
+    ]
+  },
+  "public.be_appointment_reschedules": {
+    "kind": "direct",
+    "purpose": "переносы — ломается бесплатный/платный перенос и лимит переносов",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts",
+      "apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "actor_id",
+          "actor_type",
+          "applied_policy_id",
+          "applied_policy_snapshot",
+          "appointment_id",
+          "created_at",
+          "free_cancellation_available_after",
+          "free_cancellation_available_at_reschedule",
+          "from_end_at",
+          "from_start_at",
+          "id",
+          "manual_override",
+          "notifications_sent",
+          "organization_id",
+          "reason",
+          "staff_comment",
+          "to_end_at",
+          "to_start_at",
+          "was_in_free_reschedule_window"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "notifications_sent"
+        ]
+      }
+    ]
+  },
+  "public.be_appointment_staff_comments": {
+    "kind": "direct",
+    "purpose": "внутренние комментарии персонала о пациенте — врач теряет заметки по визиту",
+    "codePaths": [
+      "apps/integrator/src/integrations/google-calendar/calendarDescription.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "organization_id",
+          "appointment_id",
+          "platform_user_id",
+          "author_id",
+          "body",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "id",
+          "appointment_id",
+          "author_id",
+          "body",
+          "created_at",
+          "organization_id",
+          "platform_user_id",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id"
+        ]
+      }
+    ]
+  },
+  "public.be_appointments": {
+    "kind": "direct",
+    "purpose": "записи на приём — без них нет ни расписания врача, ни визита пациента",
+    "codePaths": [
+      "apps/integrator/src/integrations/google-calendar/resolvePackageCalendarContext.ts",
+      "apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts",
+      "apps/webapp/src/app/api/admin/booking-engine/public-appointments/route.ts",
+      "apps/webapp/src/app/app/doctor/DoctorTodayMiniCalendar.tsx",
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/app/app/doctor/patients/[userId]/tabs/PatientTabRecords.tsx",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/doctorAppointmentPurgeFilter.ts",
+      "apps/webapp/src/infra/repos/pgCanonicalAppointments.ts",
+      "apps/webapp/src/infra/repos/pgAppointmentReminderMaterialization.ts",
+      "apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts",
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
+      "apps/webapp/src/infra/repos/pgBookingScheduling.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts",
+      "apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgMemberships.ts",
+      "apps/webapp/src/infra/repos/pgPatientBookings.ts",
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts",
+      "apps/webapp/src/infra/repos/pgPatientOrganization.ts",
+      "apps/webapp/src/infra/repos/pgPayments.ts",
+      "apps/webapp/src/modules/booking-attribution/types.ts",
+      "apps/webapp/src/modules/doctor-clients/ports.ts",
+      "apps/webapp/src/modules/memberships/service.ts",
+      "apps/webapp/src/modules/memberships/types.ts",
+      "apps/webapp/src/modules/patient-booking/canonicalCreate.ts",
+      "apps/webapp/src/modules/patient-booking/types.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "appointment_reminder_allowed_preset_ids",
+          "appointment_reminder_preset_id",
+          "appointment_reminder_selection_source",
+          "attribution_json",
+          "branch_id",
+          "chain_id",
+          "chain_position",
+          "created_at",
+          "deleted_at",
+          "duration_minutes",
+          "end_at",
+          "id",
+          "organization_id",
+          "original_start_at",
+          "package_usage_ref",
+          "payment_ref",
+          "phone_normalized",
+          "platform_user_id",
+          "reschedule_count",
+          "room_id",
+          "service_id",
+          "source",
+          "specialist_id",
+          "start_at",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "appointment_reminder_preset_id",
+          "appointment_reminder_selection_source",
+          "branch_id",
+          "deleted_at",
+          "duration_minutes",
+          "end_at",
+          "original_start_at",
+          "package_usage_ref",
+          "payment_ref",
+          "phone_normalized",
+          "platform_user_id",
+          "reschedule_count",
+          "room_id",
+          "service_id",
+          "specialist_id",
+          "start_at",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "package_usage_ref"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id"
+        ]
+      }
+    ]
+  },
+  "public.be_availability_rules": {
+    "kind": "direct",
+    "purpose": "правила доступности специалиста — не считаются свободные слоты",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingScheduling.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "branch_id",
+          "config",
+          "is_active",
+          "organization_id",
+          "rule_type",
+          "specialist_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "config",
+          "is_active",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.be_booking_form_fields": {
+    "kind": "direct",
+    "purpose": "конструктор полей формы записи — форма записи теряет настраиваемые поля",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgBookingForm.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "field_key",
+          "field_type",
+          "id",
+          "is_active",
+          "is_required",
+          "label",
+          "organization_id",
+          "placeholder",
+          "sort_order",
+          "updated_at",
+          "visible_to_patient",
+          "visible_to_staff"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "field_key",
+          "field_type",
+          "is_active",
+          "is_required",
+          "label",
+          "placeholder",
+          "sort_order",
+          "updated_at",
+          "visible_to_patient",
+          "visible_to_staff"
+        ]
+      }
+    ]
+  },
+  "public.be_booking_form_submissions": {
+    "kind": "direct",
+    "purpose": "ответы пациента в форме записи — теряются данные, введённые пациентом при записи",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgBookingForm.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "appointment_id",
+          "field_id",
+          "organization_id",
+          "value_text"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "value_text"
+        ]
+      }
+    ]
+  },
+  "public.be_branches": {
+    "kind": "direct",
+    "purpose": "филиалы клиники — расписание некуда привязать, ломаются часовые пояса",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
+      "apps/webapp/src/infra/repos/pgBookingScheduling.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgMemberships.ts",
+      "apps/webapp/src/infra/repos/pgOrgEntitlements.ts",
+      "apps/webapp/src/infra/repos/pgPatientBookings.ts",
+      "apps/webapp/src/infra/repos/pgPlatformEntitlements.ts",
+      "apps/webapp/src/modules/patient-booking/projectCanonicalAppointment.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "address",
+          "city_code",
+          "color",
+          "created_at",
+          "id",
+          "is_active",
+          "organization_id",
+          "short_title",
+          "sort_order",
+          "timezone",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "address",
+          "city_code",
+          "color",
+          "is_active",
+          "short_title",
+          "sort_order",
+          "timezone",
+          "title",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.be_cancellation_policies": {
+    "kind": "direct",
+    "purpose": "политика отмен — отмены перестают штрафоваться по правилам клиники",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingPolicies.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "cancellation_allowed",
+          "charge_package_session_on_late",
+          "created_at",
+          "free_cancel_hours_before",
+          "is_active",
+          "late_cancellation_behavior",
+          "notify_patient",
+          "notify_staff",
+          "organization_id",
+          "refund_prepayment_on_late",
+          "requires_staff_confirmation",
+          "scope_entity_id",
+          "scope_level",
+          "sort_order",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "cancellation_allowed",
+          "charge_package_session_on_late",
+          "free_cancel_hours_before",
+          "is_active",
+          "late_cancellation_behavior",
+          "notify_patient",
+          "notify_staff",
+          "refund_prepayment_on_late",
+          "requires_staff_confirmation",
+          "scope_entity_id",
+          "scope_level",
+          "sort_order",
+          "title",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.be_clinic_services": {
+    "kind": "direct",
+    "purpose": "услуги клиники — не на что записываться и нечего считать в прайсе",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
+      "apps/webapp/src/infra/repos/pgBookingScheduling.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgMemberships.ts",
+      "apps/webapp/src/infra/repos/pgPatientBookings.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "admin_manual_only",
+          "buffer_after_minutes",
+          "created_at",
+          "description",
+          "duration_minutes",
+          "id",
+          "is_active",
+          "online_payment_applicable",
+          "organization_id",
+          "prepayment_applicable",
+          "price_minor",
+          "public_widget_visible",
+          "sort_order",
+          "title",
+          "updated_at",
+          "usable_in_packages"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "admin_manual_only",
+          "buffer_after_minutes",
+          "description",
+          "duration_minutes",
+          "is_active",
+          "online_payment_applicable",
+          "organization_id",
+          "prepayment_applicable",
+          "price_minor",
+          "public_widget_visible",
+          "sort_order",
+          "title",
+          "updated_at",
+          "usable_in_packages"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.be_organization_members": {
+    "kind": "direct",
+    "purpose": "членство человека в клинике — никто не определяется как врач/админ клиники — падает вся авторизация кабинета",
+    "codePaths": [
+      "apps/integrator/src/infra/db/migrate.ts",
+      "apps/integrator/src/infra/db/repos/channelUsers.ts",
+      "apps/integrator/src/infra/db/repos/messageThreads.ts",
+      "apps/integrator/src/infra/db/repos/reminders.ts",
+      "apps/webapp/src/app/app/account/accountContext.ts",
+      "apps/webapp/src/infra/repos/pgOperatorHealthRead.ts",
+      "apps/webapp/src/infra/repos/pgOrganizationInvites.ts",
+      "apps/webapp/src/infra/repos/pgOrganizationMembership.ts",
+      "apps/webapp/src/infra/repos/pgOrganizationProvisioning.ts",
+      "apps/webapp/src/infra/repos/pgStaffUsers.ts",
+      "apps/webapp/src/infra/repos/seatUsageSql.ts",
+      "apps/webapp/src/infra/repos/transactionQuotaPort.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "organization_id",
+          "platform_user_id",
+          "role",
+          "specialist_id",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "doctor_screens_disabled",
+          "role",
+          "specialist_id",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ]
+      }
+    ]
+  },
+  "public.be_organizations": {
+    "kind": "direct",
+    "purpose": "сама клиника — без неё нет арендатора вообще",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
+      "apps/webapp/src/infra/repos/pgClinicDirectory.ts",
+      "apps/webapp/src/infra/repos/pgOperatorHealthRead.ts",
+      "apps/webapp/src/infra/repos/pgOrgBranding.ts",
+      "apps/webapp/src/infra/repos/pgOrgEntitlements.ts",
+      "apps/webapp/src/infra/repos/pgOrganizationInvites.ts",
+      "apps/webapp/src/infra/repos/pgPlatformEntitlements.ts",
+      "apps/webapp/src/infra/repos/pgSaasBilling.ts",
+      "apps/webapp/src/infra/repos/transactionQuotaPort.ts",
+      "apps/webapp/src/modules/clinic-directory/ports.ts",
+      "apps/webapp/src/modules/org-branding/ports.ts",
+      "apps/webapp/src/modules/org-entitlements/ports.ts",
+      "apps/webapp/src/modules/saas-billing/ports.ts",
+      "apps/integrator/src/infra/db/clinicSenderName.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "id",
+          "is_active",
+          "sort_order",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "is_active",
+          "sort_order",
+          "tariff_id",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "is_active"
+        ]
+      },
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "is_active",
+          "title"
+        ]
+      },
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "tariff_id"
+        ]
+      }
+    ]
+  },
+  "public.be_package_history_events": {
+    "kind": "direct",
+    "purpose": "история абонемента пациента — не видно, кто продлил/заморозил абонемент",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "apps/webapp/src/infra/repos/pgMemberships.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "event_type",
+          "id",
+          "occurred_at",
+          "organization_id",
+          "patient_package_id",
+          "payload_json"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "event_type",
+          "occurred_at",
+          "organization_id",
+          "patient_package_id",
+          "payload_json"
+        ]
+      }
+    ]
+  },
+  "public.be_package_items": {
+    "kind": "direct",
+    "purpose": "состав абонемента-шаблона — нельзя описать, что входит в абонемент",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgMemberships.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "package_id",
+          "quantity",
+          "service_id",
+          "sort_order"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.be_package_usages": {
+    "kind": "direct",
+    "purpose": "списания сеансов абонемента — сеансы не списываются с абонемента",
+    "codePaths": [
+      "apps/integrator/src/integrations/google-calendar/resolvePackageCalendarContext.ts",
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgMemberships.ts",
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts",
+      "apps/webapp/src/modules/memberships/ports.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "appointment_id",
+          "comment",
+          "id",
+          "occurred_at",
+          "organization_id",
+          "patient_package_id",
+          "usage_kind"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "appointment_id",
+          "comment",
+          "created_at",
+          "created_by_platform_user_id",
+          "occurred_at",
+          "organization_id",
+          "patient_package_id",
+          "patient_package_item_id",
+          "quantity",
+          "usage_kind"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "patient_package_id",
+          "usage_kind",
+          "occurred_at"
+        ]
+      }
+    ]
+  },
+  "public.be_patient_booking_profiles": {
+    "kind": "direct",
+    "purpose": "профиль пациента у клиники — нельзя заблокировать самозапись проблемному пациенту",
+    "codePaths": [
+      "apps/integrator/src/integrations/google-calendar/calendarDescription.ts",
+      "apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/modules/doctor-clients/ports.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "is_problematic",
+          "booking_blocked",
+          "problematic_note",
+          "no_show_count",
+          "updated_at",
+          "updated_by"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "booking_blocked",
+          "is_problematic",
+          "no_show_count",
+          "organization_id",
+          "platform_user_id",
+          "problematic_note",
+          "updated_at",
+          "updated_by"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "booking_blocked",
+          "is_problematic",
+          "no_show_count",
+          "problematic_note",
+          "updated_at",
+          "updated_by"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "booking_blocked",
+          "is_problematic",
+          "organization_id",
+          "platform_user_id",
+          "problematic_note",
+          "updated_at",
+          "updated_by"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "booking_blocked",
+          "is_problematic",
+          "problematic_note",
+          "updated_at",
+          "updated_by"
+        ]
+      }
+    ]
+  },
+  "public.be_patient_package_items": {
+    "kind": "direct",
+    "purpose": "состав купленного абонемента — не известно, сколько сеансов какой услуги куплено",
+    "codePaths": [
+      "apps/webapp/src/app/api/booking/memberships/route.ts",
+      "apps/integrator/src/integrations/google-calendar/resolvePackageCalendarContext.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "apps/webapp/src/infra/repos/pgMemberships.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "patient_package_id",
+          "quantity_initial",
+          "service_id",
+          "sort_order"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "patient_package_id",
+          "quantity_initial",
+          "sort_order"
+        ]
+      }
+    ]
+  },
+  "public.be_patient_packages": {
+    "kind": "direct",
+    "purpose": "купленные пациентом абонементы — абонементы перестают списываться и показываться",
+    "codePaths": [
+      "apps/integrator/src/integrations/google-calendar/resolvePackageCalendarContext.ts",
+      "apps/webapp/src/app/api/booking/memberships/route.ts",
+      "apps/webapp/src/app/app/doctor/patients/[userId]/tabs/PatientTabRecords.tsx",
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgMemberships.ts",
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts",
+      "apps/webapp/src/modules/doctor-clients/ports.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "assigned_by_platform_user_id",
+          "checkout_url",
+          "created_at",
+          "currency",
+          "deduction_mode",
+          "display_number",
+          "id",
+          "notes",
+          "organization_id",
+          "paid_amount_minor",
+          "paid_currency",
+          "payment_intent_id",
+          "payment_ref",
+          "platform_user_id",
+          "price_minor",
+          "sale_idempotency_key",
+          "sold_at",
+          "status",
+          "subscription_package_id",
+          "title",
+          "updated_at",
+          "valid_from",
+          "valid_until",
+          "validity_days"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "checkout_url",
+          "notes",
+          "paid_amount_minor",
+          "paid_currency",
+          "payment_intent_id",
+          "payment_ref",
+          "sold_at",
+          "status",
+          "updated_at",
+          "valid_from",
+          "valid_until"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "sold_at",
+          "created_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id"
+        ]
+      }
+    ]
+  },
+  "public.be_patient_timeline_events": {
+    "kind": "direct",
+    "purpose": "лента событий пациента — пропадает единая хронология по клиенту",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts",
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "domain",
+          "event_type",
+          "id",
+          "linked_object_id",
+          "linked_object_type",
+          "occurred_at",
+          "organization_id",
+          "payload",
+          "platform_user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "domain",
+          "event_type",
+          "id",
+          "linked_object_id",
+          "linked_object_type",
+          "occurred_at",
+          "organization_id",
+          "payload",
+          "platform_user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id"
+        ]
+      }
+    ]
+  },
+  "public.be_payment_history_events": {
+    "kind": "direct",
+    "purpose": "история платежей пациента — пропадает платёжная хронология в карточке пациента",
+    "codePaths": [
+      "apps/webapp/src/app/api/booking/payment-history/route.ts",
+      "apps/webapp/src/app/api/doctor/patients/[userId]/payment-timeline/route.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "apps/webapp/src/infra/repos/pgPayments.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "amount_minor",
+          "appointment_id",
+          "comment",
+          "currency",
+          "event_type",
+          "organization_id",
+          "payload_json",
+          "payment_id",
+          "platform_user_id",
+          "provider_id",
+          "purpose",
+          "refund_id",
+          "status"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id"
+        ]
+      }
+    ]
+  },
+  "public.be_payment_intents": {
+    "kind": "direct",
+    "purpose": "намерения оплаты — не создаётся ссылка на оплату/предоплату",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgPayments.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "amount_minor",
+          "appointment_id",
+          "checkout_url",
+          "created_at",
+          "currency",
+          "idempotency_key",
+          "metadata_json",
+          "organization_id",
+          "platform_user_id",
+          "product_ref",
+          "provider_id",
+          "provider_intent_ref",
+          "purpose",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id"
+        ]
+      }
+    ]
+  },
+  "public.be_payment_provider_events": {
+    "kind": "direct",
+    "purpose": "сырые вебхуки платёжного провайдера — платёж не подтверждается автоматически",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPayments.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "event_type",
+          "idempotency_key",
+          "intent_ref",
+          "organization_id",
+          "payload_json",
+          "provider_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "processed_at"
+        ]
+      }
+    ]
+  },
+  "public.be_payments": {
+    "kind": "direct",
+    "purpose": "платежи пациента — нет учёта оплат визитов",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPayments.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "amount_minor",
+          "appointment_id",
+          "captured_at",
+          "created_at",
+          "currency",
+          "organization_id",
+          "payment_intent_id",
+          "platform_user_id",
+          "provider_id",
+          "purpose",
+          "status"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "status"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id"
+        ]
+      }
+    ]
+  },
+  "public.be_prepayment_policies": {
+    "kind": "direct",
+    "purpose": "политика предоплаты по услуге — не берётся предоплата",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPayments.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "amount_minor",
+          "created_at",
+          "currency",
+          "is_active",
+          "mode",
+          "online_category",
+          "organization_id",
+          "percent_bps",
+          "service_id",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "amount_minor",
+          "currency",
+          "is_active",
+          "mode",
+          "percent_bps",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.be_refunds": {
+    "kind": "direct",
+    "purpose": "возвраты — нельзя вернуть предоплату",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPayments.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "amount_minor",
+          "appointment_id",
+          "currency",
+          "organization_id",
+          "payment_id",
+          "provider_refund_ref",
+          "reason",
+          "status"
+        ]
+      }
+    ]
+  },
+  "public.be_reschedule_policies": {
+    "kind": "direct",
+    "purpose": "политика переносов — пациент переносит визит без ограничений",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingPolicies.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "allow_different_branch",
+          "allow_different_city",
+          "allow_different_service",
+          "allow_different_specialist",
+          "created_at",
+          "is_active",
+          "limit_exceeded_behavior",
+          "max_self_reschedules",
+          "notify_patient",
+          "notify_staff",
+          "organization_id",
+          "requires_staff_confirmation",
+          "scope_entity_id",
+          "scope_level",
+          "self_reschedule_hours_before",
+          "sort_order",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "allow_different_branch",
+          "allow_different_city",
+          "allow_different_service",
+          "allow_different_specialist",
+          "is_active",
+          "limit_exceeded_behavior",
+          "max_self_reschedules",
+          "notify_patient",
+          "notify_staff",
+          "requires_staff_confirmation",
+          "scope_entity_id",
+          "scope_level",
+          "self_reschedule_hours_before",
+          "sort_order",
+          "title",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.be_rooms": {
+    "kind": "direct",
+    "purpose": "кабинеты филиала — нельзя развести приёмы по кабинетам",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "branch_id",
+          "created_at",
+          "id",
+          "is_active",
+          "organization_id",
+          "sort_order",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "is_active",
+          "sort_order",
+          "title",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.be_schedule_blocks": {
+    "kind": "direct",
+    "purpose": "блокировки времени (отпуск, перерыв) — врача записывают в занятое/нерабочее время",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingScheduling.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "block_type",
+          "branch_id",
+          "created_at",
+          "created_by_actor_id",
+          "end_at",
+          "id",
+          "organization_id",
+          "room_id",
+          "specialist_id",
+          "start_at",
+          "title"
+        ]
+      }
+    ]
+  },
+  "public.be_schedule_templates": {
+    "kind": "direct",
+    "purpose": "Шаблоны рабочего дня клиники — без неё нельзя быстро назначить типовой график",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingScheduling.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "branch_id",
+          "breaks",
+          "created_at",
+          "end_minute",
+          "id",
+          "is_active",
+          "name",
+          "organization_id",
+          "sort_order",
+          "start_minute",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "is_active",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.be_service_location_availability": {
+    "kind": "direct",
+    "purpose": "Где оказывается услуга — без неё запись не знает, в каком филиале доступна услуга",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
+      "apps/webapp/src/infra/repos/pgBookingScheduling.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "branch_id",
+          "created_at",
+          "id",
+          "is_active",
+          "organization_id",
+          "service_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "is_active"
+        ]
+      }
+    ]
+  },
+  "public.be_specialist_locations": {
+    "kind": "direct",
+    "purpose": "Специалист ↔ филиал — без неё специалист не привязан к филиалу — слоты не строятся",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "branch_id",
+          "created_at",
+          "id",
+          "is_active",
+          "organization_id",
+          "specialist_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "is_active"
+        ]
+      }
+    ]
+  },
+  "public.be_specialist_rooms": {
+    "kind": "direct",
+    "purpose": "Специалист ↔ кабинет — распределение по кабинетам при записи",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "id",
+          "is_active",
+          "organization_id",
+          "room_id",
+          "specialist_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "is_active"
+        ]
+      }
+    ]
+  },
+  "public.be_specialist_service_availability": {
+    "kind": "direct",
+    "purpose": "Какой специалист какую услугу оказывает — ядро подбора слота: без неё публичная запись пуста",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
+      "apps/webapp/src/infra/repos/pgBookingScheduling.ts",
+      "apps/webapp/src/infra/repos/pgPatientBookings.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "branch_id",
+          "city_code",
+          "created_at",
+          "id",
+          "is_active",
+          "organization_id",
+          "price_minor_override",
+          "room_id",
+          "service_id",
+          "sort_order",
+          "specialist_id",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "city_code",
+          "is_active",
+          "price_minor_override",
+          "room_id",
+          "sort_order",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.be_specialists": {
+    "kind": "direct",
+    "purpose": "Карточка специалиста клиники — витрина записи и расписание без специалистов не существуют",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
+      "apps/webapp/src/infra/repos/pgBookingScheduling.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "apps/webapp/src/infra/repos/pgOrganizationMembership.ts",
+      "apps/webapp/src/infra/repos/pgOrganizationProvisioning.ts",
+      "apps/webapp/src/infra/repos/pgPatientBookings.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "appointment_reminder_allowed_preset_ids",
+          "appointment_reminder_default_preset_id",
+          "created_at",
+          "description",
+          "full_name",
+          "id",
+          "is_active",
+          "organization_id",
+          "sort_order",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "appointment_reminder_allowed_preset_ids",
+          "appointment_reminder_default_preset_id",
+          "description",
+          "full_name",
+          "is_active",
+          "organization_id",
+          "sort_order",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.be_subscription_packages": {
+    "kind": "direct",
+    "purpose": "Абонементы клиники — без неё нельзя продать/списать абонемент",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgMemberships.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "currency",
+          "deduction_mode",
+          "description",
+          "is_active",
+          "organization_id",
+          "price_minor",
+          "title",
+          "updated_at",
+          "validity_days"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "currency",
+          "deduction_mode",
+          "description",
+          "is_active",
+          "price_minor",
+          "title",
+          "updated_at",
+          "validity_days"
+        ]
+      }
+    ]
+  },
+  "public.be_working_days": {
+    "kind": "direct",
+    "purpose": "График на конкретную дату (перекрывает недельный) — разовые изменения графика (отпуск, дополнительный день)",
+    "codePaths": [
+      "apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleCalendarTab.tsx",
+      "apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.tsx",
+      "apps/webapp/src/infra/repos/pgBookingScheduling.ts",
+      "apps/webapp/src/modules/booking-calendar/service.ts",
+      "apps/webapp/src/modules/booking-scheduling/computeSlots.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "branch_id",
+          "breaks",
+          "created_at",
+          "end_minute",
+          "id",
+          "is_closed",
+          "organization_id",
+          "room_id",
+          "specialist_id",
+          "start_minute",
+          "updated_at",
+          "work_date"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "branch_id",
+          "breaks",
+          "end_minute",
+          "is_closed",
+          "room_id",
+          "start_minute",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.be_working_hours": {
+    "kind": "direct",
+    "purpose": "Недельный график — базовое расписание — без него нет ни одного слота",
+    "codePaths": [
+      "apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.tsx",
+      "apps/webapp/src/infra/repos/pgBookingScheduling.ts",
+      "apps/webapp/src/modules/booking-calendar/service.ts",
+      "apps/webapp/src/modules/booking-scheduling/service.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "branch_id",
+          "created_at",
+          "end_minute",
+          "id",
+          "is_active",
+          "organization_id",
+          "room_id",
+          "specialist_id",
+          "start_minute",
+          "updated_at",
+          "weekday"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "end_minute",
+          "is_active",
+          "start_minute",
+          "updated_at",
+          "weekday"
+        ]
+      }
+    ]
+  },
+  "public.broadcast_audit": {
+    "kind": "direct",
+    "purpose": "Журнал рассылок клиники — без неё нет истории рассылок и счётчиков доставки",
+    "codePaths": [
+      "apps/integrator/src/infra/db/repos/broadcastAudit.ts",
+      "apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts",
+      "apps/webapp/src/infra/repos/pgBroadcastAudit.ts",
+      "apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts",
+      "apps/webapp/src/infra/repos/pgHealthFailureArchive.ts",
+      "apps/webapp/src/infra/repos/pgPatientBroadcasts.ts",
+      "apps/webapp/src/modules/doctor-broadcasts/ports.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["id", "organization_id"]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "actor_id",
+          "attach_menu_after_send",
+          "audience_filter",
+          "audience_size",
+          "blocked_recipient_count",
+          "category",
+          "channels",
+          "delivery_jobs_total",
+          "error_count",
+          "executed_at",
+          "id",
+          "message_body",
+          "message_title",
+          "organization_id",
+          "preview_only",
+          "sent_count"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "blocked_recipient_count",
+          "error_count",
+          "id",
+          "sent_count"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "blocked_recipient_count",
+          "error_count",
+          "sent_count"
+        ]
+      }
+    ]
+  },
+  "public.broadcast_audit_recipients": {
+    "kind": "direct",
+    "purpose": "Кому ушла рассылка — пациент видит адресованные ему рассылки; врач — охват",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts",
+      "apps/webapp/src/infra/repos/pgPatientBroadcasts.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "audit_id",
+          "organization_id",
+          "platform_user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "audit_id",
+          "platform_user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.broadcast_drafts": {
+    "kind": "direct",
+    "purpose": "Черновики рассылок — врач теряет несохранённый текст рассылки",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBroadcastDrafts.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "audience",
+          "body",
+          "category",
+          "channels",
+          "doctor_user_id",
+          "media_type",
+          "media_url",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "audience",
+          "body",
+          "category",
+          "channels",
+          "media_type",
+          "media_url",
+          "title",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.clinic_public_directory_entries": {
+    "kind": "direct",
+    "purpose": "Публичная витрина клиники — без неё клиника не находится по публичной ссылке записи",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgClinicDirectory.ts",
+      "apps/webapp/src/modules/clinic-directory/ports.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "card_is_published",
+          "created_at",
+          "description",
+          "display_name",
+          "is_published",
+          "locations_json",
+          "logo_media_id",
+          "organization_id",
+          "photo_media_ids",
+          "public_contact_email",
+          "public_contact_phone",
+          "public_website_url",
+          "published_at",
+          "slug",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "slug",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.clinical_anamnesis_illness": {
+    "kind": "direct",
+    "purpose": "Анамнез: перенесённые болезни и стрессы — без неё врач теряет историю болезней пациента в карточке",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "comment",
+          "created_at",
+          "created_by",
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "period",
+          "what"
+        ]
+      }
+    ]
+  },
+  "public.clinical_anamnesis_lifestyle": {
+    "kind": "direct",
+    "purpose": "Анамнез: образ жизни — блок «Образ жизни» в карточке пациента",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "created_by",
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "record_date",
+          "text"
+        ]
+      }
+    ]
+  },
+  "public.clinical_anamnesis_trauma": {
+    "kind": "direct",
+    "purpose": "Анамнез: травмы и операции — блок «Травмы и операции»",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "created_by",
+          "id",
+          "immobilization",
+          "organization_id",
+          "patient_user_id",
+          "type",
+          "what",
+          "year"
+        ]
+      }
+    ]
+  },
+  "public.clinical_complaint": {
+    "kind": "direct",
+    "purpose": "Жалобы пациента — без неё нет списка жалоб и их закрытия",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "description",
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "priority",
+          "resolved_at",
+          "source_visit_id",
+          "status",
+          "text"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "organization_id",
+          "priority",
+          "resolved_at",
+          "status",
+          "text"
+        ]
+      }
+    ]
+  },
+  "public.clinical_complaint_update": {
+    "kind": "direct",
+    "purpose": "Динамика жалобы по визитам — без неё жалоба статична, нет истории «стало лучше/хуже»",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "complaint_id",
+          "created_at",
+          "id",
+          "note",
+          "organization_id",
+          "resolved",
+          "severity",
+          "visit_id"
+        ]
+      }
+    ]
+  },
+  "public.clinical_diagnosis": {
+    "kind": "direct",
+    "purpose": "Диагнозы пациента — основной клинический артефакт карточки",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts",
+      "apps/webapp/src/modules/patient-clinical/ports.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "catalog_id",
+          "clinical_status",
+          "comment",
+          "created_at",
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "priority",
+          "resolved_at",
+          "source_visit_id",
+          "status",
+          "text"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "clinical_status",
+          "comment",
+          "organization_id",
+          "priority",
+          "resolved_at",
+          "status",
+          "text"
+        ]
+      }
+    ]
+  },
+  "public.clinical_diagnosis_catalog": {
+    "kind": "direct",
+    "purpose": "Справочник диагнозов клиники — врач выбирает диагноз из своего справочника",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_by",
+          "created_at",
+          "id",
+          "label",
+          "note",
+          "organization_id"
+        ]
+      }
+    ]
+  },
+  "public.clinical_diagnosis_status_history": {
+    "kind": "direct",
+    "purpose": "Журнал смены статуса диагноза — аудит: кто и когда снял/поставил диагноз",
+    "codePaths": [
+      "apps/webapp/src/app/api/doctor/patients/[userId]/diagnoses/[diagnosisId]/status/route.ts",
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "changed_by",
+          "changed_at",
+          "diagnosis_id",
+          "id",
+          "new_status",
+          "note",
+          "old_status",
+          "organization_id"
+        ]
+      }
+    ]
+  },
+  "public.clinical_diagnosis_update": {
+    "kind": "direct",
+    "purpose": "Уточнения диагноза по визитам — без неё диагноз не уточняется от визита к визиту",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "diagnosis_id",
+          "id",
+          "organization_id",
+          "refinement",
+          "removed",
+          "status",
+          "visit_id"
+        ]
+      }
+    ]
+  },
+  "public.clinical_test_regions": {
+    "kind": "direct",
+    "purpose": "Связка «клинический тест ↔ регион тела» — фильтр тестов по региону тела",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgClinicalTests.ts",
+      "apps/webapp/src/infra/repos/pgTestSets.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "organization_id",
+          "clinical_test_id",
+          "body_region_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "body_region_id",
+          "clinical_test_id",
+          "organization_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.clinical_visit": {
+    "kind": "direct",
+    "purpose": "Клинический визит — приём как таковой: осмотр, манипуляции, рекомендации",
+    "codePaths": [
+      "apps/webapp/src/app/api/doctor/patients/[userId]/appointments/unlinked/route.ts",
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts",
+      "apps/webapp/src/infra/repos/pgPatientFiles.ts",
+      "apps/webapp/src/infra/repos/pgPatientOrganization.ts",
+      "apps/webapp/src/modules/doctor-clients/ports.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "anamnesis_text",
+          "canonical_appointment_id",
+          "created_at",
+          "created_by",
+          "duration",
+          "exam",
+          "id",
+          "location",
+          "manipulations",
+          "organization_id",
+          "patient_user_id",
+          "recommendations",
+          "service",
+          "trial_results",
+          "visit_type",
+          "visited_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "anamnesis_text",
+          "duration",
+          "exam",
+          "location",
+          "manipulations",
+          "organization_id",
+          "recommendations",
+          "trial_results"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.comments": {
+    "kind": "direct",
+    "purpose": "Комментарии к сущностям — диалог врач↔пациент вокруг упражнений, тестов, программ",
+    "codePaths": [
+      "apps/integrator/src/infra/adapters/dispatchPort.ts",
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app-layer/testing/commentsInMemory.ts",
+      "apps/webapp/src/app/api/doctor/booking-engine/appointments/[id]/comments/route.ts",
+      "apps/webapp/src/app/api/doctor/comments/[id]/route.ts",
+      "apps/webapp/src/app/api/doctor/comments/exercise-metrics/route.ts",
+      "apps/webapp/src/app/api/doctor/comments/patients/[patientUserId]/exercises/route.ts",
+      "apps/webapp/src/app/api/doctor/comments/patients/route.ts",
+      "apps/webapp/src/app/api/doctor/comments/route.ts",
+      "apps/webapp/src/app/api/doctor/exercise-comments/route.ts",
+      "apps/webapp/src/app/app/doctor/DoctorTodayAttentionDialog.tsx",
+      "apps/webapp/src/app/app/doctor/DoctorTodayLeftKpiRow.tsx",
+      "apps/webapp/src/app/app/doctor/calendar/DoctorCalendarEventPanel.tsx",
+      "apps/webapp/src/app/app/doctor/clients/AppointmentStaffCommentsSection.tsx",
+      "apps/webapp/src/app/app/doctor/clients/DoctorClientSupportPanel.tsx",
+      "apps/webapp/src/app/app/doctor/clients/DoctorProgramOverviewPanel.tsx",
+      "apps/webapp/src/app/app/doctor/clients/PatientActionStrip.tsx",
+      "apps/webapp/src/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx",
+      "apps/webapp/src/app/app/doctor/comments/DoctorCommentsTab.tsx",
+      "apps/webapp/src/app/app/doctor/comments/page.tsx",
+      "apps/webapp/src/app/app/doctor/comments/useDoctorExerciseCommentsSearch.ts",
+      "apps/webapp/src/app/app/doctor/communications/DoctorCommunicationsShell.tsx",
+      "apps/webapp/src/app/app/doctor/communications/DoctorCommunicationsTabsNav.tsx",
+      "apps/webapp/src/app/app/doctor/communications/communicationsTabRegistry.ts",
+      "apps/webapp/src/app/app/doctor/communications/doctorCommunicationsTabs.ts",
+      "apps/webapp/src/app/app/doctor/communications/loadDoctorCommunicationsBadges.ts",
+      "apps/webapp/src/app/app/doctor/communications/page.tsx",
+      "apps/webapp/src/app/app/doctor/communications/tabs/CommentsTab.tsx",
+      "apps/webapp/src/app/app/doctor/dev/chart-test/ChartTestPageClient.tsx",
+      "apps/webapp/src/app/app/doctor/loadDoctorExerciseCommentAttention.ts",
+      "apps/webapp/src/app/app/doctor/loadDoctorTodayDashboard.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/InstanceEditorToolbar.tsx",
+      "apps/webapp/src/app/app/patient/treatment/[instanceId]/item/[itemId]/page.tsx",
+      "apps/webapp/src/app/app/patient/treatment/[instanceId]/page.tsx",
+      "apps/webapp/src/app/app/patient/treatment/loadPatientProgramInteractionBundle.ts",
+      "apps/webapp/src/app/app/patient/treatment/program-detail/PatientInstanceStageItemCard.tsx",
+      "apps/webapp/src/components/comments/CommentBlock.tsx",
+      "apps/webapp/src/infra/repos/inMemoryComments.ts",
+      "apps/webapp/src/infra/repos/inMemoryProgramItemDiscussion.ts",
+      "apps/webapp/src/infra/repos/pgComments.ts",
+      "apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts",
+      "apps/webapp/src/middleware/doctorRouteRedirects.ts",
+      "apps/webapp/src/modules/auth/sessionCookie.ts",
+      "apps/webapp/src/modules/comments/types.ts",
+      "apps/webapp/src/modules/doctor-client-card/countDiscussionAttention.ts",
+      "apps/webapp/src/modules/doctor-client-card/loadDoctorClientProgramCardAggregates.ts",
+      "apps/webapp/src/modules/program-item-discussion/types.ts",
+      "apps/webapp/src/shared/ui/chat/MessageComposer.tsx",
+      "apps/webapp/src/shared/ui/chat/chatThreadSurface.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "author_id",
+          "body",
+          "comment_type",
+          "organization_id",
+          "target_id",
+          "target_type"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "body",
+          "comment_type",
+          "organization_id",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.content_access_grants_webapp": {
+    "kind": "direct",
+    "purpose": "Выданные пациенту доступы к контенту — пациент теряет доступ к выданным ему материалам",
+    "codePaths": [
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/repos/pgEntitlements.ts",
+      "apps/webapp/src/infra/repos/pgReminderProjection.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        // A2 (27.08): пациентская дверь этой таблицы. Пациентские страницы контента спрашивают
+        // «можно ли показать материал» тем же `EntitlementsPort`, но идут под `app_patient` — до
+        // этой строки у роли не было ни одного права, и вопрос заканчивался 42501 и SSR 500.
+        // Дверь узкая в обе стороны: строки сужает политика (своя клиника, свой человек, доступ
+        // не отозван и не истёк), колонки — этот грант. `token_hash`, `integrator_grant_id` и
+        // `organization_id` пациенту не выдаются: ему нужен ответ про материал, а не сам доступ
+        // как секрет.
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "content_id",
+          "expires_at",
+          "meta_json",
+          "platform_user_id",
+          "purpose",
+          "revoked_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "content_id",
+          "created_at",
+          "expires_at",
+          "integrator_grant_id",
+          "meta_json",
+          "organization_id",
+          "platform_user_id",
+          "purpose",
+          "revoked_at",
+          "token_hash"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "content_id",
+          "expires_at",
+          "meta_json",
+          "organization_id",
+          "platform_user_id",
+          "purpose",
+          "revoked_at",
+          "token_hash"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id"
+        ]
+      }
+    ]
+  },
+  "public.content_pages": {
+    "kind": "direct",
+    "purpose": "Страницы CMS — контент, который читает пациент",
+    "codePaths": [
+      "apps/webapp/src/app-layer/content/revalidatePatientContentPaths.ts",
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts",
+      "apps/webapp/src/app-layer/reminders/patientWarmupReminderMutationGuard.ts",
+      "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
+      "apps/webapp/src/app/api/patient/daily-warmup/video-viewed/route.ts",
+      "apps/webapp/src/app/api/patient/web-push/subscribe/route.ts",
+      "apps/webapp/src/app/app/doctor/content/ContentPagesSectionList.tsx",
+      "apps/webapp/src/app/app/doctor/content/ContentRatingChip.tsx",
+      "apps/webapp/src/app/app/doctor/content/actions.ts",
+      "apps/webapp/src/app/app/doctor/content/contentPageAuthActions.ts",
+      "apps/webapp/src/app/app/doctor/content/edit/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/content/inlineEditorActions.ts",
+      "apps/webapp/src/app/app/doctor/content/lifecycleActions.ts",
+      "apps/webapp/src/app/app/doctor/content/page.tsx",
+      "apps/webapp/src/app/app/doctor/content/reorderContentPages.ts",
+      "apps/webapp/src/app/app/doctor/content/sections/edit/[slug]/page.tsx",
+      "apps/webapp/src/app/app/doctor/content/sections/page.tsx",
+      "apps/webapp/src/app/app/doctor/courses/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/material-ratings/[kind]/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/material-ratings/page.tsx",
+      "apps/webapp/src/app/app/doctor/patient-home/page.tsx",
+      "apps/webapp/src/app/app/doctor/patients/[userId]/programs/[instanceId]/page.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/loadTreatmentProgramLibrary.ts",
+      "apps/webapp/src/app/app/patient/booking/page.tsx",
+      "apps/webapp/src/app/app/patient/cabinet/CabinetInfoLinks.tsx",
+      "apps/webapp/src/app/app/patient/content/[slug]/page.tsx",
+      "apps/webapp/src/app/app/patient/go/resolvePatientReminderGoTargets.ts",
+      "apps/webapp/src/app/app/patient/help/[slug]/page.tsx",
+      "apps/webapp/src/app/app/patient/help/page.tsx",
+      "apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx",
+      "apps/webapp/src/app/app/patient/reminders/RemindersPageBody.tsx",
+      "apps/webapp/src/app/app/patient/sections/[slug]/page.tsx",
+      "apps/webapp/src/app/app/settings/patient-home/PatientHomeBlockSettingsCard.tsx",
+      "apps/webapp/src/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient.tsx",
+      "apps/webapp/src/infra/repos/materialRatingTargetVideoMediaIds.ts",
+      "apps/webapp/src/infra/repos/pgContentPages.ts",
+      "apps/webapp/src/infra/repos/pgContentSections.ts",
+      "apps/webapp/src/infra/repos/pgCourses.ts",
+      "apps/webapp/src/infra/repos/pgMediaUsageSummary.ts",
+      "apps/webapp/src/infra/repos/pgPatientHomeBlocks.ts",
+      "apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts",
+      "apps/webapp/src/infra/repos/pgReminderRules.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramItemRefValidation.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramItemSnapshot.ts",
+      "apps/webapp/src/infra/repos/s3MediaStorage.ts",
+      "apps/webapp/src/modules/content-catalog/service.ts",
+      "apps/webapp/src/modules/content-sections/content-page-roles.ts",
+      "apps/webapp/src/modules/courses/types.ts",
+      "apps/webapp/src/modules/emergency/service.ts",
+      "apps/webapp/src/modules/help-content/listHelpArticles.ts",
+      "apps/webapp/src/modules/lessons/service.ts",
+      "apps/webapp/src/modules/material-rating/service.ts",
+      "apps/webapp/src/modules/patient-home/blocks.ts",
+      "apps/webapp/src/modules/patient-home/buildDailyWarmupPresentationSyncDeps.ts",
+      "apps/webapp/src/modules/patient-home/patientHomeBlockItemDisplayTitle.ts",
+      "apps/webapp/src/modules/patient-home/patientHomeResolvers.ts",
+      "apps/webapp/src/modules/patient-home/patientHomeUnresolvedRefs.ts",
+      "apps/webapp/src/modules/patient-home/ports.ts",
+      "apps/webapp/src/modules/patient-home/service.ts",
+      "apps/webapp/src/modules/patient-home/todayConfig.ts",
+      "apps/webapp/src/modules/patient-practice/ports.ts",
+      "apps/webapp/src/modules/patient-practice/service.ts",
+      "apps/webapp/src/modules/treatment-program/types.ts",
+      "apps/webapp/src/modules/web-push/createLoadWarmupPushContext.ts",
+      "apps/webapp/src/modules/web-push/loadWarmupPushDynamicContext.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "archived_at",
+          "body_html",
+          "body_md",
+          "created_at",
+          "deleted_at",
+          "id",
+          "image_url",
+          "is_published",
+          "linked_course_id",
+          "organization_id",
+          "requires_auth",
+          "section",
+          "slug",
+          "sort_order",
+          "summary",
+          "title",
+          "updated_at",
+          "video_type",
+          "video_url"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "archived_at",
+          "body_html",
+          "body_md",
+          "deleted_at",
+          "image_url",
+          "is_published",
+          "linked_course_id",
+          "organization_id",
+          "requires_auth",
+          "section",
+          "slug",
+          "sort_order",
+          "summary",
+          "title",
+          "updated_at",
+          "video_type",
+          "video_url"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.content_section_slug_history": {
+    "kind": "direct",
+    "purpose": "История переименований разделов — старые ссылки пациента не ломаются после переименования",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgContentSections.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "changed_by_user_id",
+          "new_slug",
+          "old_slug",
+          "organization_id"
+        ]
+      }
+    ]
+  },
+  "public.content_sections": {
+    "kind": "direct",
+    "purpose": "Разделы CMS — навигация пациентского контента",
+    "codePaths": [
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts",
+      "apps/webapp/src/app-layer/reminders/patientWarmupReminderMutationGuard.ts",
+      "apps/webapp/src/app/api/menu/route.ts",
+      "apps/webapp/src/app/api/patient/daily-warmup/video-viewed/route.ts",
+      "apps/webapp/src/app/api/patient/web-push/subscribe/route.ts",
+      "apps/webapp/src/app/app/doctor/content/actions.ts",
+      "apps/webapp/src/app/app/doctor/content/contentPageAuthActions.ts",
+      "apps/webapp/src/app/app/doctor/content/edit/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/content/inlineEditorActions.ts",
+      "apps/webapp/src/app/app/doctor/content/lifecycleActions.ts",
+      "apps/webapp/src/app/app/doctor/content/new/page.tsx",
+      "apps/webapp/src/app/app/doctor/content/page.tsx",
+      "apps/webapp/src/app/app/doctor/content/reorderContentPages.ts",
+      "apps/webapp/src/app/app/doctor/content/sections/actions.ts",
+      "apps/webapp/src/app/app/doctor/content/sections/edit/[slug]/page.tsx",
+      "apps/webapp/src/app/app/doctor/content/sections/page.tsx",
+      "apps/webapp/src/app/app/doctor/content/sections/reorderContentSections.ts",
+      "apps/webapp/src/app/app/doctor/content/sections/sectionVisibilityActions.ts",
+      "apps/webapp/src/app/app/doctor/patient-home/page.tsx",
+      "apps/webapp/src/app/app/patient/content/[slug]/page.tsx",
+      "apps/webapp/src/app/app/patient/go/resolvePatientReminderGoTargets.ts",
+      "apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx",
+      "apps/webapp/src/app/app/patient/reminders/RemindersPageBody.tsx",
+      "apps/webapp/src/app/app/patient/sections/[slug]/page.tsx",
+      "apps/webapp/src/app/app/settings/patient-home/PatientHomeBlockSettingsCard.tsx",
+      "apps/webapp/src/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient.tsx",
+      "apps/webapp/src/app/app/settings/patient-home/actions.ts",
+      "apps/webapp/src/infra/repos/pgContentPages.ts",
+      "apps/webapp/src/infra/repos/pgContentSections.ts",
+      "apps/webapp/src/infra/repos/pgMediaUsageSummary.ts",
+      "apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts",
+      "apps/webapp/src/infra/repos/pgWarmupsSectionSlugs.ts",
+      "apps/webapp/src/modules/content-sections/resolvePatientContentSectionSlug.ts",
+      "apps/webapp/src/modules/content-sections/types.ts",
+      "apps/webapp/src/modules/menu/service.ts",
+      "apps/webapp/src/modules/patient-diary/buildDiaryPlanReminderStrip.ts",
+      "apps/webapp/src/modules/patient-home/blocks.ts",
+      "apps/webapp/src/modules/patient-home/buildDailyWarmupPresentationSyncDeps.ts",
+      "apps/webapp/src/modules/patient-home/patientHomeBlockItemDisplayTitle.ts",
+      "apps/webapp/src/modules/patient-home/patientHomeProgressResolver.ts",
+      "apps/webapp/src/modules/patient-home/patientHomeResolvers.ts",
+      "apps/webapp/src/modules/patient-home/patientHomeUnresolvedRefs.ts",
+      "apps/webapp/src/modules/patient-home/service.ts",
+      "apps/webapp/src/modules/patient-home/todayConfig.ts",
+      "apps/webapp/src/modules/product-analytics/productAnalyticsPageKey.ts",
+      "apps/webapp/src/modules/reminders/ensureWarmupsReminderOnFirstPwaPush.ts",
+      "apps/webapp/src/modules/reminders/service.ts",
+      "apps/webapp/src/modules/web-push/createLoadWarmupPushContext.ts",
+      "apps/webapp/src/modules/web-push/loadWarmupPushDynamicContext.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "cover_image_url",
+          "created_at",
+          "description",
+          "id",
+          "icon_image_url",
+          "is_visible",
+          "kind",
+          "organization_id",
+          "requires_auth",
+          "slug",
+          "sort_order",
+          "system_parent_code",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "cover_image_url",
+          "description",
+          "icon_image_url",
+          "is_visible",
+          "kind",
+          "organization_id",
+          "requires_auth",
+          "slug",
+          "sort_order",
+          "system_parent_code",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.courses": {
+    "kind": "direct",
+    "purpose": "Курсы клиники — платный/бесплатный курс как продукт клиники",
+    "codePaths": [
+      "apps/integrator/src/infra/adapters/contentCatalogPort.ts",
+      "apps/integrator/src/kernel/contracts/reminders.ts",
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts",
+      "apps/webapp/src/app-layer/routes/paths.ts",
+      "apps/webapp/src/app/api/doctor/courses/[id]/route.ts",
+      "apps/webapp/src/app/api/doctor/courses/[id]/usage/route.ts",
+      "apps/webapp/src/app/api/doctor/courses/route.ts",
+      "apps/webapp/src/app/api/patient/courses/[courseId]/enroll/route.ts",
+      "apps/webapp/src/app/api/patient/courses/route.ts",
+      "apps/webapp/src/app/app/doctor/content/ContentHubShell.tsx",
+      "apps/webapp/src/app/app/doctor/content/actions.ts",
+      "apps/webapp/src/app/app/doctor/content/edit/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/content/new/page.tsx",
+      "apps/webapp/src/app/app/doctor/content/page.tsx",
+      "apps/webapp/src/app/app/doctor/courses/[id]/DoctorCourseEditForm.tsx",
+      "apps/webapp/src/app/app/doctor/courses/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/courses/courseUsageDocLinks.ts",
+      "apps/webapp/src/app/app/doctor/courses/courseUsageSummaryText.ts",
+      "apps/webapp/src/app/app/doctor/courses/new/DoctorCourseDraftCreateForm.tsx",
+      "apps/webapp/src/app/app/doctor/courses/new/page.tsx",
+      "apps/webapp/src/app/app/doctor/courses/page.tsx",
+      "apps/webapp/src/app/app/doctor/loadDoctorWorkspaceShell.ts",
+      "apps/webapp/src/app/app/doctor/patient-home/page.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/templateUsageDocLinks.ts",
+      "apps/webapp/src/app/app/patient/content/[slug]/PatientContentSlugArticle.tsx",
+      "apps/webapp/src/app/app/patient/courses/PatientCoursesCatalogClient.tsx",
+      "apps/webapp/src/app/app/patient/courses/page.tsx",
+      "apps/webapp/src/app/app/patient/home/PatientHomeCoursesRow.tsx",
+      "apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx",
+      "apps/webapp/src/app/app/patient/home/PatientHomeTodayLayout.tsx",
+      "apps/webapp/src/app/app/patient/page.tsx",
+      "apps/webapp/src/app/app/patient/sections/[slug]/page.tsx",
+      "apps/webapp/src/app/app/settings/patient-home/PatientHomeBlockSettingsCard.tsx",
+      "apps/webapp/src/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient.tsx",
+      "apps/webapp/src/app/app/settings/patient-home/actions.ts",
+      "apps/webapp/src/infra/repos/inMemoryCourses.ts",
+      "apps/webapp/src/infra/repos/inMemoryPatientHomeBlocks.ts",
+      "apps/webapp/src/infra/repos/pgContentPages.ts",
+      "apps/webapp/src/infra/repos/pgCourses.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts",
+      "apps/webapp/src/modules/content-catalog/ports.ts",
+      "apps/webapp/src/modules/courses/service.ts",
+      "apps/webapp/src/modules/org-entitlements/types.ts",
+      "apps/webapp/src/modules/patient-home/blockEditorMetadata.ts",
+      "apps/webapp/src/modules/patient-home/blocks.ts",
+      "apps/webapp/src/modules/patient-home/patientHomeBlockItemDisplayTitle.ts",
+      "apps/webapp/src/modules/patient-home/patientHomeCmsReturnUrls.ts",
+      "apps/webapp/src/modules/patient-home/patientHomeResolvers.ts",
+      "apps/webapp/src/modules/patient-home/patientHomeRuntimeStatus.ts",
+      "apps/webapp/src/modules/patient-home/patientHomeUnresolvedRefs.ts",
+      "apps/webapp/src/modules/patient-home/ports.ts",
+      "apps/webapp/src/modules/patient-home/service.ts",
+      "apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts",
+      "apps/webapp/src/modules/product-analytics/productAnalyticsPageKey.ts",
+      "apps/webapp/src/shared/lib/doctorCatalogListStatus.ts",
+      "apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts",
+      "apps/webapp/src/shared/ui/doctorScreenTitles.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "access_settings",
+          "created_at",
+          "currency",
+          "description",
+          "id",
+          "intro_lesson_page_id",
+          "organization_id",
+          "price_minor",
+          "program_template_id",
+          "status",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "access_settings",
+          "currency",
+          "description",
+          "intro_lesson_page_id",
+          "price_minor",
+          "program_template_id",
+          "status",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.doctor_notes": {
+    "kind": "direct",
+    "purpose": "Заметки врача о пациенте — личные пометки врача по клиенту",
+    "codePaths": [
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app/api/doctor/clients/[userId]/notes/route.ts",
+      "apps/webapp/src/app/app/doctor/patients/loadDoctorPatientCardPageBootstrap.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/pgChannelLinkClaim.ts",
+      "apps/webapp/src/infra/repos/pgClientHistory.ts",
+      "apps/webapp/src/infra/repos/pgDoctorNotes.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "author_id",
+          "created_at",
+          "id",
+          "organization_id",
+          "text",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "author_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "columns": [
+          "user_id"
+        ]
+      }
+    ]
+  },
+  "public.doctor_patient_support": {
+    "kind": "direct",
+    "purpose": "Клинический профиль пациента — демография и флаги сопровождения под стеной клиники",
+    "codePaths": [
+      "apps/integrator/src/integrations/google-calendar/calendarDescription.ts",
+      "apps/webapp/src/app/app/patient/treatment/loadPatientProgramInteractionBundle.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgDoctorPatientSupport.ts",
+      "apps/webapp/src/modules/doctor-clients/ports.ts",
+      "apps/webapp/src/modules/doctor-clients/supportPolicy.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "birth_date",
+          "comments_enabled",
+          "gender",
+          "height_cm",
+          "id",
+          "media_enabled",
+          "on_support",
+          "organization_id",
+          "patient_user_id",
+          "support_started_at",
+          "updated_at",
+          "updated_by",
+          "weight_kg"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "birth_date",
+          "comments_enabled",
+          "gender",
+          "height_cm",
+          "media_enabled",
+          "organization_id",
+          "updated_at",
+          "updated_by",
+          "weight_kg"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "on_support",
+          "patient_user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "birth_date",
+          "comments_enabled",
+          "gender",
+          "height_cm",
+          "id",
+          "media_enabled",
+          "on_support",
+          "organization_id",
+          "patient_user_id",
+          "support_started_at",
+          "updated_at",
+          "updated_by",
+          "weight_kg"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "birth_date",
+          "comments_enabled",
+          "gender",
+          "height_cm",
+          "media_enabled",
+          "organization_id",
+          "updated_at",
+          "updated_by",
+          "weight_kg"
+        ]
+      }
+    ]
+  },
+  "public.lfk_complex_exercises": {
+    "kind": "direct",
+    "purpose": "Строки комплекса пациента — сам состав назначения (что и сколько делать)",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/lfkDiary.ts",
+      "apps/webapp/src/infra/repos/pgLfkAssignments.ts",
+      "apps/webapp/src/infra/repos/pgLfkDiary.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "comment",
+          "complex_id",
+          "exercise_id",
+          "local_comment",
+          "max_pain_0_10",
+          "organization_id",
+          "reps",
+          "sets",
+          "side",
+          "sort_order"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "local_comment"
+        ]
+      }
+    ]
+  },
+  "public.lfk_complex_template_exercises": {
+    "kind": "direct",
+    "purpose": "Строки шаблона — состав шаблонного комплекса",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/materialRatingTargetVideoMediaIds.ts",
+      "apps/webapp/src/infra/repos/pgLfkAssignments.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "comment",
+          "exercise_id",
+          "max_pain_0_10",
+          "organization_id",
+          "owner_kind",
+          "reps",
+          "sets",
+          "side",
+          "sort_order",
+          "template_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.lfk_complex_templates": {
+    "kind": "direct",
+    "purpose": "Шаблоны комплексов — библиотека готовых комплексов клиники и платформы",
+    "codePaths": [
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/repos/pgLfkAssignments.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramItemRefValidation.ts",
+      "apps/webapp/src/modules/material-rating/mapProgramItemToTarget.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_by",
+          "description",
+          "organization_id",
+          "owner_kind",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "created_by",
+          "description",
+          "status",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.lfk_complexes": {
+    "kind": "direct",
+    "purpose": "Назначенные пациенту комплексы ЛФК — без неё пациент не получает назначенных упражнений",
+    "codePaths": [
+      "apps/webapp/src/app/app/doctor/clients/DoctorClientAccountTab.tsx",
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/app/app/doctor/clients/loadDoctorClientProfileCardProps.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/InstanceAddLibraryItemDialog.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/pgDiaryPurge.ts",
+      "apps/webapp/src/infra/repos/pgLfkAssignments.ts",
+      "apps/webapp/src/infra/repos/pgLfkDiary.ts",
+      "apps/webapp/src/modules/doctor-clients/service.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "diagnosis_ref_id",
+          "diagnosis_text",
+          "is_active",
+          "organization_id",
+          "origin",
+          "platform_user_id",
+          "region_ref_id",
+          "side",
+          "symptom_tracking_id",
+          "title",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "is_active",
+          "symptom_tracking_id",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id",
+          "user_id"
+        ]
+      }
+    ]
+  },
+  "public.lfk_exercise_media": {
+    "kind": "direct",
+    "purpose": "Видео/картинки упражнения — пациент не видит показ упражнения",
+    "codePaths": [
+      "apps/webapp/src/app/app/doctor/exercises/exerciseMediaFromLibrary.ts",
+      "apps/webapp/src/infra/repos/materialRatingTargetVideoMediaIds.ts",
+      "apps/webapp/src/infra/repos/pgLfkDiary.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "apps/webapp/src/infra/repos/pgMediaUsageSummary.ts",
+      "apps/webapp/src/infra/repos/pgOrgBranding.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramItemSnapshot.ts",
+      "apps/webapp/src/modules/lfk-templates/types.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "exercise_id",
+          "id",
+          "media_type",
+          "media_url",
+          "organization_id",
+          "owner_kind",
+          "sort_order"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.lfk_exercise_regions": {
+    "kind": "direct",
+    "purpose": "Упражнение ↔ регион тела — фильтр упражнений по региону",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+      "apps/webapp/src/modules/lfk-exercises/types.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "exercise_id",
+          "organization_id",
+          "owner_kind",
+          "region_ref_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.lfk_exercises": {
+    "kind": "direct",
+    "purpose": "Каталог упражнений — без каталога упражнений нет назначений",
+    "codePaths": [
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app/app/doctor/exercises/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/exercises/actions.ts",
+      "apps/webapp/src/app/app/doctor/exercises/actionsShared.ts",
+      "apps/webapp/src/app/app/doctor/exercises/page.tsx",
+      "apps/webapp/src/app/app/doctor/lfk-templates/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/lfk-templates/new/page.tsx",
+      "apps/webapp/src/app/app/doctor/lfk-templates/page.tsx",
+      "apps/webapp/src/app/app/doctor/material-ratings/[kind]/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/material-ratings/page.tsx",
+      "apps/webapp/src/app/app/doctor/patients/[userId]/programs/[instanceId]/page.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/loadTreatmentProgramLibrary.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/repos/pgLfkDiary.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "apps/webapp/src/infra/repos/pgMediaUsageSummary.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramItemRefValidation.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramItemSnapshot.ts",
+      "apps/webapp/src/modules/lfk-exercises/exerciseLoadTypeReference.ts",
+      "apps/webapp/src/modules/lfk-templates/types.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "catalog_scope",
+          "contraindications",
+          "created_at",
+          "created_by",
+          "description",
+          "difficulty_1_10",
+          "id",
+          "is_archived",
+          "load_type",
+          "organization_id",
+          "owner_kind",
+          "region_ref_id",
+          "tags",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "contraindications",
+          "created_by",
+          "description",
+          "difficulty_1_10",
+          "is_archived",
+          "load_type",
+          "region_ref_id",
+          "tags",
+          "title",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.lfk_sessions": {
+    "kind": "direct",
+    "purpose": "Дневник выполнения ЛФК — без неё нет дневника и статистики выполнения",
+    "codePaths": [
+      "apps/webapp/src/app/api/doctor/patients/[userId]/exercise-calendar/route.ts",
+      "apps/webapp/src/infra/repos/pgLfkDiary.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "comment",
+          "completed_at",
+          "complex_id",
+          "difficulty_0_10",
+          "duration_minutes",
+          "pain_0_10",
+          "recorded_at",
+          "source",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "comment",
+          "completed_at",
+          "difficulty_0_10",
+          "duration_minutes",
+          "pain_0_10"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "user_id"
+        ]
+      }
+    ]
+  },
+  "public.manual_patient_commands": {
+    "kind": "direct",
+    "purpose": "Идемпотентность ручных команд по пациенту — защита от двойного выполнения ручной команды (приглашение и т.п.)",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgManualPatientCommand.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "command_id",
+          "command_kind",
+          "created_at",
+          "organization_id",
+          "platform_user_id",
+          "request_fingerprint"
+        ]
+      }
+    ]
+  },
+  "public.material_ratings": {
+    "kind": "direct",
+    "purpose": "Оценки материалов пациентом — обратная связь по материалам, отчёты врачу",
+    "codePaths": [
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/pgMaterialRating.ts",
+      "apps/webapp/src/modules/material-rating/types.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "organization_id",
+          "stars",
+          "target_id",
+          "target_kind",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "stars",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "stars",
+          "target_id",
+          "target_kind",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "stars",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.media_files": {
+    "kind": "direct",
+    "purpose": "Файлы медиатеки — хранилище всех медиа: видео упражнений, логотипы, файлы пациента",
+    "codePaths": [
+      "apps/media-worker/src/jobs/claim.ts",
+      "apps/media-worker/src/main.ts",
+      "apps/media-worker/src/persistVideoDurationSeconds.ts",
+      "apps/media-worker/src/processProgramSubmissionTranscode.ts",
+      "apps/media-worker/src/processTranscodeJob.ts",
+      "apps/webapp/src/app-layer/media/authorizeMediaDelivery.ts",
+      "apps/webapp/src/app-layer/stats/estimateWatchMinutes.ts",
+      "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
+      "apps/webapp/src/app/api/admin/media/delete-errors/route.ts",
+      "apps/webapp/src/app/api/internal/media-pending-delete/purge/route.ts",
+      "apps/webapp/src/app/api/internal/media-preview/process/route.ts",
+      "apps/webapp/src/app/api/internal/media-transcode/enqueue/route.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/materialRatingTargetVideoMediaIds.ts",
+      "apps/webapp/src/infra/repos/mediaFoldersRepo.ts",
+      "apps/webapp/src/infra/repos/mediaHlsLegacySqlFilters.ts",
+      "apps/webapp/src/infra/repos/mediaPreviewWorker.ts",
+      "apps/webapp/src/infra/repos/mediaSqlPredicates.ts",
+      "apps/webapp/src/infra/repos/mediaUploadSessionsRepo.ts",
+      "apps/webapp/src/infra/repos/pgAdminTranscodeHealthMetrics.ts",
+      "apps/webapp/src/infra/repos/pgLfkDiary.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "apps/webapp/src/infra/repos/pgMediaFileIntakeResolve.ts",
+      "apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts",
+      "apps/webapp/src/infra/repos/pgOrgBranding.ts",
+      "apps/webapp/src/infra/repos/pgPatientFiles.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramItemSnapshot.ts",
+      "apps/webapp/src/infra/repos/pgVideoHlsLegacyBackfill.ts",
+      "apps/webapp/src/infra/repos/s3MediaStorage.ts",
+      "apps/webapp/src/infra/s3/client.ts",
+      "apps/webapp/src/infra/strictPlatformUserPurge.ts",
+      "apps/webapp/src/modules/content-catalog/types.ts",
+      "apps/webapp/src/modules/lfk-exercises/types.ts",
+      "apps/webapp/src/modules/media/playbackResolveDelivery.ts",
+      "apps/webapp/src/modules/media/types.ts",
+      "apps/webapp/src/modules/media/videoHlsFields.ts",
+      "apps/webapp/src/modules/patient-files/ports.ts",
+      "apps/webapp/src/shared/lib/mediaPreviewUrls.ts",
+      "apps/webapp/src/shared/lib/mediaUrlPolicy.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "available_qualities_json",
+          "created_at",
+          "delete_attempts",
+          "delete_claim_token",
+          "display_name",
+          "folder_id",
+          "hls_artifact_prefix",
+          "hls_master_playlist_s3_key",
+          "hosted_video_source_url",
+          "id",
+          "mime_type",
+          "next_attempt_at",
+          "organization_id",
+          "original_name",
+          "owner_kind",
+          "poster_s3_key",
+          "preview_attempts",
+          "preview_md_key",
+          "preview_next_attempt_at",
+          "preview_sm_key",
+          "preview_status",
+          "s3_key",
+          "size_bytes",
+          "source_height",
+          "source_width",
+          "standard_rendition_at",
+          "status",
+          "stored_path",
+          "uploaded_by",
+          "usage_purpose",
+          "video_duration_seconds",
+          "video_processing_error",
+          "video_processing_status"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "delete_attempts",
+          "display_name",
+          "folder_id",
+          "next_attempt_at",
+          "organization_id",
+          "preview_attempts",
+          "preview_md_key",
+          "preview_next_attempt_at",
+          "preview_sm_key",
+          "preview_status",
+          "source_height",
+          "source_width",
+          "status",
+          "video_processing_error",
+          "video_processing_status"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "uploaded_by"
+        ]
+      }
+    ]
+  },
+  "public.media_folders": {
+    "kind": "direct",
+    "purpose": "Папки медиатеки, в т.ч. личные папки пациентов — файлы клиента и библиотека клиники раскладываются по папкам",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/mediaFoldersRepo.ts",
+      "apps/webapp/src/infra/repos/pgClientMediaFolders.ts",
+      "apps/webapp/src/infra/repos/pgMediaFolderLookup.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+      "apps/webapp/src/infra/repos/s3MediaStorage.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "created_by",
+          "id",
+          "kind",
+          "name",
+          "organization_id",
+          "parent_id",
+          "patient_user_id",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "kind",
+          "name",
+          "organization_id",
+          "parent_id",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.media_playback_user_video_first_resolve": {
+    "kind": "direct",
+    "purpose": "отметка «впервые досмотрел видео» — без неё нет метрики первого просмотра",
+    "codePaths": [
+      "apps/webapp/src/app-layer/media/adminPlaybackHealthMetrics.ts",
+      "apps/webapp/src/app-layer/media/playbackHourlyRetention.ts",
+      "apps/webapp/src/infra/repos/pgPlaybackUserVideoFirstResolve.ts",
+      "apps/webapp/src/app/api/internal/media-playback-stats/retention/route.ts",
+      "apps/webapp/src/infra/repos/pgMaterialRating.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "media_id",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.media_upload_sessions": {
+    "kind": "direct",
+    "purpose": "сессия многочастной загрузки файла — без неё нельзя загрузить файл/видео кусками (обрывы, докачка)",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/mediaUploadSessionsRepo.ts",
+      "apps/webapp/src/infra/repos/s3MediaStorage.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "aborted_at",
+          "completed_at",
+          "created_at",
+          "expected_size_bytes",
+          "expires_at",
+          "id",
+          "last_error",
+          "media_id",
+          "mime_type",
+          "organization_id",
+          "owner_user_id",
+          "part_size_bytes",
+          "s3_key",
+          "status",
+          "updated_at",
+          "upload_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "aborted_at",
+          "completed_at",
+          "last_error",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "owner_user_id"
+        ]
+      }
+    ]
+  },
+  "public.message_log": {
+    "kind": "direct",
+    "purpose": "журнал отправленных человеку сообщений — без неё врач не видит историю переписки с пациентом и не доказать факт отправки",
+    "codePaths": [
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/pgMessageLog.ts",
+      "apps/webapp/src/modules/doctor-cabinet/service.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "category",
+          "channel_bindings_used",
+          "error_message",
+          "outcome",
+          "platform_user_id",
+          "sender_id",
+          "text",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id",
+          "user_id"
+        ]
+      }
+    ]
+  },
+  "public.motivational_quotes": {
+    "kind": "direct",
+    "purpose": "мотивационные цитаты клиники — без неё пропадает блок цитаты на главной пациента",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgDoctorMotivationQuotesEditor.ts",
+      "apps/webapp/src/infra/repos/pgPatientHomeLegacyContent.ts",
+      "apps/webapp/src/modules/doctor-motivation-quotes/ports.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "author",
+          "body_text",
+          "is_active",
+          "sort_order"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "archived_at",
+          "author",
+          "body_text",
+          "is_active",
+          "sort_order"
+        ]
+      }
+    ]
+  },
+  "public.notification_delivery_attempts": {
+    "kind": "direct",
+    "purpose": "попытки доставки уведомления — без неё не видно, дошло ли напоминание, и не работает диагностика доставки",
+    "codePaths": [
+      "apps/integrator/src/infra/db/repos/notificationDeliveryAttempts.ts",
+      "apps/integrator/src/infra/db/repos/outgoingDeliveryQueue.ts",
+      "apps/integrator/src/integrations/bersoncare/relayOutboundRoute.ts",
+      "apps/webapp/src/app-layer/health/adminWebPushHealthMetrics.ts",
+      "apps/webapp/src/app-layer/health/collectAdminSystemHealthData.ts",
+      "apps/webapp/src/infra/repos/pgNotificationDeliveryAttempts.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "channel",
+          "endpoint_hash",
+          "error_message",
+          "event_id",
+          "intent_type",
+          "metadata",
+          "occurrence_id",
+          "organization_id",
+          "provider_status_code",
+          "reason",
+          "recipient_ref",
+          "status",
+          "topic_code",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "channel",
+          "error_message",
+          "event_id",
+          "intent_type",
+          "metadata",
+          "occurrence_id",
+          "organization_id",
+          "provider_status_code",
+          "reason",
+          "recipient_ref",
+          "status",
+          "topic_code",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "channel",
+          "error_message",
+          "event_id",
+          "intent_type",
+          "metadata",
+          "occurrence_id",
+          "organization_id",
+          "provider_status_code",
+          "reason",
+          "recipient_ref",
+          "status",
+          "topic_code",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.online_intake_answers": {
+    "kind": "no-runtime-surface",
+    "purpose": "ответы на анкету первичного обращения — без неё теряется содержимое онлайн-заявки пациента",
+    "evidence": [
+      "node /home/dev/brain/tools/code-search.mjs \"online intake answers attachments status history repository\" --repo bcb -k 12: schema/migrations only",
+      "rg -n \"onlineIntakeAnswers|online_intake_answers\" apps/webapp/src apps/integrator/src packages -g !tests -g !migrations: no runtime reader/writer",
+      "evidence/14-classification-part-3.md:57: no application reader/writer"
+    ]
+  },
+  "public.online_intake_attachments": {
+    "kind": "direct",
+    "purpose": "файлы к анкете — без неё не удалить файлы пациента из S3 при purge; без неё не приложить документы к заявке",
+    "codePaths": [
+      "apps/webapp/src/infra/platformUserFullPurge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.online_intake_requests": {
+    "kind": "direct",
+    "purpose": "сама заявка — без неё нет входящего потока онлайн-обращений",
+    "codePaths": [
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/pgChannelLinkClaim.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "columns": [
+          "user_id"
+        ]
+      }
+    ]
+  },
+  "public.online_intake_status_history": {
+    "kind": "no-runtime-surface",
+    "purpose": "смена статуса заявки — без неё нет аудита «кто перевёл заявку в отказ»",
+    "evidence": [
+      "node /home/dev/brain/tools/code-search.mjs \"online intake answers attachments status history repository\" --repo bcb -k 12: schema/migrations only",
+      "rg -n \"onlineIntakeStatusHistory|online_intake_status_history\" apps/webapp/src apps/integrator/src packages -g !tests -g !migrations: no runtime reader/writer",
+      "evidence/14-classification-part-3.md:60: migration + one-off script only"
+    ]
+  },
+  "public.operator_health_failure_archive": {
+    "kind": "direct",
+    "purpose": "архив разобранных отказов здоровья — без неё админ не может «закрыть» разобранный инцидент и он висит вечно",
+    "codePaths": [
+      "apps/webapp/src/app/api/admin/health-failure-archive/route.ts",
+      "apps/webapp/src/infra/repos/pgHealthFailureArchive.ts",
+      "apps/webapp/src/modules/operator-health/healthFailureArchivePort.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "archived_by_user_id",
+          "doctor_user_id",
+          "health_probe",
+          "raw_error_truncated",
+          "severity_at_archive",
+          "source_id",
+          "source_kind",
+          "summary_json"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.org_brand_revisions": {
+    "kind": "direct",
+    "purpose": "ревизии брендинга клиники — без неё клиника не может менять логотип/название с версионированием",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgOrgBranding.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "accent_token",
+          "created_by_platform_user_id",
+          "display_name",
+          "logo_media_id",
+          "organization_id",
+          "patient_app_name",
+          "status"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "accent_token",
+          "archived_at",
+          "archived_by_platform_user_id",
+          "display_name",
+          "logo_media_id",
+          "patient_app_name",
+          "published_at",
+          "published_by_platform_user_id",
+          "status",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.org_enrollments": {
+    "kind": "direct",
+    "purpose": "прикрепление человека к клинике — на неё опирается вся стена арендатора",
+    "codePaths": [
+      "apps/integrator/src/infra/db/directPublic/resolveDirectPublicActor.ts",
+      "apps/integrator/src/infra/db/directPublic/writeReminderRulesDirect.ts",
+      "apps/integrator/src/infra/db/directPublic/writeSupportConversationsDirect.ts",
+      "apps/integrator/src/infra/db/integratorDrizzleSchema.ts",
+      "apps/integrator/src/infra/db/migrate.ts",
+      "apps/integrator/src/infra/db/repos/channelUsers.ts",
+      "apps/integrator/src/infra/db/repos/messageThreads.ts",
+      "apps/integrator/src/infra/db/repos/reminders.ts",
+      "apps/integrator/src/infra/db/schema/integratorPublicProduct.ts",
+      "apps/integrator/src/infra/db/writePort.ts",
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgPatientInvites.ts",
+      "apps/webapp/src/infra/repos/pgPatientOrganization.ts",
+      "apps/webapp/src/infra/repos/pgPatientOrganizationEnrollment.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["organization_id", "platform_user_id", "status"]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "portal_activated_at",
+          "portal_activated_via",
+          "status"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "status"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ]
+      }
+    ]
+  },
+  "public.organization_member_invites": {
+    "kind": "direct",
+    "purpose": "приглашения сотрудников — без неё нельзя завести второго врача в клинику",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgOrganizationInvites.ts",
+      "apps/webapp/src/infra/repos/seatUsageSql.ts",
+      "apps/webapp/src/infra/repos/transactionQuotaPort.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_by_platform_user_id",
+          "expires_at",
+          "invited_email",
+          "invited_role",
+          "organization_id",
+          "token_hash"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "status"
+        ]
+      }
+    ]
+  },
+  "public.organization_slug_claims": {
+    "kind": "direct",
+    "purpose": "занятые адреса клиник — без неё две клиники займут один публичный адрес",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgClinicDirectory.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "created_by_platform_user_id",
+          "id",
+          "kind",
+          "organization_id",
+          "slug",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "created_by_platform_user_id",
+          "kind",
+          "organization_id",
+          "slug",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.organization_slug_rename_events": {
+    "kind": "direct",
+    "purpose": "журнал переименований — без неё нет аудита смены публичного адреса",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgClinicDirectory.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "actor_platform_user_id",
+          "created_at",
+          "id",
+          "initiated_by",
+          "next_slug",
+          "organization_id",
+          "previous_slug"
+        ]
+      }
+    ]
+  },
+  "public.patient_bookings": {
+    "kind": "direct",
+    "purpose": "старые записи на приём — легаси-таблица записей; без неё теряется история бронирований до перехода на `be_appointments`",
+    "codePaths": [
+      "apps/integrator/src/infra/db/repos/bookingCalendarMap.ts",
+      "apps/integrator/src/infra/db/schema/integratorPublicProduct.ts",
+      "apps/webapp/src/app-layer/booking/appointmentPaymentConfirmedHandler.ts",
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/app/app/patient/cabinet/CabinetBookingActions.tsx",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgChannelLinkClaim.ts",
+      "apps/webapp/src/infra/repos/pgPatientBookings.ts",
+      "apps/webapp/src/modules/patient-booking/canonicalCreate.ts",
+      "apps/webapp/src/modules/patient-booking/types.ts",
+      "apps/webapp/src/modules/payments/prepaymentContextFromBooking.ts",
+      "packages/platform-merge/src/mergeFailureClassification.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "booking_type",
+          "branch_id",
+          "branch_service_id",
+          "branch_title_snapshot",
+          "category",
+          "city",
+          "city_code_snapshot",
+          "contact_email",
+          "contact_name",
+          "contact_phone",
+          "duration_minutes_snapshot",
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "price_minor_snapshot",
+          "service_id",
+          "service_title_snapshot",
+          "slot_end",
+          "slot_start",
+          "status"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "branch_title_snapshot",
+          "cancel_reason",
+          "cancelled_at",
+          "canonical_appointment_id",
+          "city",
+          "city_code_snapshot",
+          "duration_minutes_snapshot",
+          "price_minor_snapshot",
+          "service_title_snapshot",
+          "slot_end",
+          "slot_start",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "platform_user_id",
+          "slot_end",
+          "slot_start",
+          "status"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id"
+        ]
+      }
+    ]
+  },
+  "public.patient_comorbidity": {
+    "kind": "direct",
+    "purpose": "сопутствующие заболевания — без неё врач не видит фон пациента",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPatientComorbidities.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_by",
+          "organization_id",
+          "patient_user_id",
+          "since",
+          "status",
+          "text"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "organization_id",
+          "removed_at",
+          "since",
+          "status",
+          "text"
+        ]
+      }
+    ]
+  },
+  "public.patient_content_rating_feedback": {
+    "kind": "direct",
+    "purpose": "оценка материала пациентом — без неё нет обратной связи по контенту",
+    "codePaths": [
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/pgMaterialRatingFeedback.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "comment",
+          "content_page_id",
+          "organization_id",
+          "rating_value",
+          "reason_codes",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "user_id"
+        ]
+      }
+    ]
+  },
+  "public.patient_daily_warmup_presentations": {
+    "kind": "direct",
+    "purpose": "какая «разминка дня» показана пациенту — без неё не ротируется ежедневный контент — пациент видит одно и то же",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPatientDailyWarmupPresentation.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "content_page_id",
+          "last_rotation_at",
+          "skip_next_scheduled_rotation",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "content_page_id",
+          "last_rotation_at",
+          "organization_id",
+          "skip_next_scheduled_rotation",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "content_page_id",
+          "last_rotation_at",
+          "skip_next_scheduled_rotation",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "content_page_id",
+          "last_rotation_at",
+          "skip_next_scheduled_rotation",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "content_page_id",
+          "last_rotation_at",
+          "skip_next_scheduled_rotation",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "content_page_id",
+          "last_rotation_at",
+          "skip_next_scheduled_rotation",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "content_page_id",
+          "last_rotation_at",
+          "skip_next_scheduled_rotation",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.patient_daily_warmup_video_views": {
+    "kind": "direct",
+    "purpose": "просмотры видео-разминки — без неё нет отметки «сделал разминку» и админ-статистики",
+    "codePaths": [
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
+      "apps/webapp/src/app/api/patient/daily-warmup/video-viewed/route.ts",
+      "apps/webapp/src/infra/repos/pgPatientDailyWarmupVideoView.ts",
+      "apps/webapp/src/modules/patient-home/recordDailyWarmupVideoView.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_patient",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "content_page_id",
+          "organization_id",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "content_page_id",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "user_id"
+        ]
+      }
+    ]
+  },
+  "public.patient_diary_day_snapshots": {
+    "kind": "direct",
+    "purpose": "слепок дня пациента — без неё дневник и «активность по дням» в карточке пациента пусты",
+    "codePaths": [
+      "apps/webapp/src/app/api/doctor/clients/[userId]/program-day-activity/route.ts",
+      "apps/webapp/src/app/app/patient/diary/PatientDiaryAuthenticatedMain.tsx",
+      "apps/webapp/src/infra/repos/pgPatientDiarySnapshots.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "captured_at",
+          "iana",
+          "local_date",
+          "organization_id",
+          "plan_done_mask",
+          "plan_instance_id",
+          "plan_item_ids",
+          "platform_user_id",
+          "warmup_all_done",
+          "warmup_done_count",
+          "warmup_slot_limit"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "captured_at",
+          "iana",
+          "local_date",
+          "organization_id",
+          "plan_done_mask",
+          "plan_instance_id",
+          "plan_item_ids",
+          "platform_user_id",
+          "warmup_all_done",
+          "warmup_done_count",
+          "warmup_slot_limit"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "local_date",
+          "platform_user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.patient_files": {
+    "kind": "direct",
+    "purpose": "файлы в карте пациента — без неё нет медицинских документов в карте и не считается квота хранилища клиники",
+    "codePaths": [
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts",
+      "apps/webapp/src/app/api/doctor/patients/[userId]/files/[fileId]/confirm/route.ts",
+      "apps/webapp/src/app/api/doctor/patients/[userId]/files/[fileId]/route.ts",
+      "apps/webapp/src/app/api/doctor/patients/[userId]/files/route.ts",
+      "apps/webapp/src/app/app/doctor/patients/loadDoctorPatientCardPageBootstrap.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/repos/inMemoryPatientClinical.ts",
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts",
+      "apps/webapp/src/infra/repos/pgPatientFiles.ts",
+      "apps/webapp/src/infra/repos/s3MediaStorage.ts",
+      "apps/webapp/src/infra/strictPlatformUserPurge.ts",
+      "apps/webapp/src/modules/patient-clinical/ports.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "category",
+          "created_at",
+          "file_name",
+          "id",
+          "media_file_id",
+          "mime_type",
+          "organization_id",
+          "patient_user_id",
+          "s3_bucket",
+          "s3_key",
+          "size_bytes",
+          "uploaded_by_user_id",
+          "visit_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "file_name",
+          "organization_id",
+          "size_bytes",
+          "visit_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.patient_home_block_items": {
+    "kind": "direct",
+    "purpose": "элементы блоков — без неё блоки пустые",
+    "codePaths": [
+      "apps/webapp/src/app/app/patient/page.tsx",
+      "apps/webapp/src/app/app/settings/patient-home/actions.ts",
+      "apps/webapp/src/infra/repos/pgContentSections.ts",
+      "apps/webapp/src/infra/repos/pgPatientHomeBlocks.ts",
+      "apps/webapp/src/modules/patient-home/usefulPostPresentation.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "badge_label",
+          "block_code",
+          "image_url_override",
+          "is_visible",
+          "show_title",
+          "sort_order",
+          "subtitle_override",
+          "target_ref",
+          "target_type",
+          "title_override"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "badge_label",
+          "image_url_override",
+          "is_visible",
+          "organization_id",
+          "show_title",
+          "sort_order",
+          "subtitle_override",
+          "target_ref",
+          "target_type",
+          "title_override",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.patient_home_blocks": {
+    "kind": "direct",
+    "purpose": "блоки главной пациента (настройка клиники) — без неё главная пациента пустая",
+    "codePaths": [
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts",
+      "apps/webapp/src/app-layer/reminders/patientWarmupReminderMutationGuard.ts",
+      "apps/webapp/src/app/api/patient/daily-warmup/video-viewed/route.ts",
+      "apps/webapp/src/app/api/patient/web-push/subscribe/route.ts",
+      "apps/webapp/src/app/app/doctor/content/actions.ts",
+      "apps/webapp/src/app/app/doctor/patient-home/page.tsx",
+      "apps/webapp/src/app/app/patient/content/[slug]/page.tsx",
+      "apps/webapp/src/app/app/patient/go/resolvePatientReminderGoTargets.ts",
+      "apps/webapp/src/app/app/patient/home/PatientHomeSubscriptionCarousel.tsx",
+      "apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx",
+      "apps/webapp/src/app/app/patient/page.tsx",
+      "apps/webapp/src/app/app/patient/sections/[slug]/page.tsx",
+      "apps/webapp/src/app/app/settings/patient-home/actions.ts",
+      "apps/webapp/src/infra/repos/pgPatientHomeBlocks.ts",
+      "apps/webapp/src/modules/patient-home/buildDailyWarmupPresentationSyncDeps.ts",
+      "apps/webapp/src/modules/patient-home/todayConfig.ts",
+      "apps/webapp/src/modules/web-push/createLoadWarmupPushContext.ts",
+      "apps/webapp/src/modules/web-push/loadWarmupPushDynamicContext.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "icon_image_url",
+          "is_visible",
+          "sort_order",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.patient_invites": {
+    "kind": "direct",
+    "purpose": "приглашение пациента в портал — без неё врач не может пригласить пациента в личный кабинет",
+    "codePaths": [
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app/api/doctor/patients/[userId]/portal-invite/route.ts",
+      "apps/webapp/src/app/api/join/email/confirm/route.ts",
+      "apps/webapp/src/app/api/join/email/start/route.ts",
+      "apps/webapp/src/app/api/join/exchange/route.ts",
+      "apps/webapp/src/app/app/doctor/patients/loadDoctorPatientCardPageBootstrap.ts",
+      "apps/webapp/src/app/join/[continuation]/page.tsx",
+      "apps/webapp/src/infra/repos/pgPatientInvites.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "accepted_at",
+          "accepted_by_platform_user_id",
+          "accepted_via",
+          "bearer_exchanged_at",
+          "continuation_expires_at",
+          "continuation_hash",
+          "created_at",
+          "created_by_platform_user_id",
+          "delivery_channel_hint",
+          "enrollment_id",
+          "expires_at",
+          "id",
+          "invited_email_normalized",
+          "organization_id",
+          "patient_user_id",
+          "proof_attempts",
+          "proof_code_hash",
+          "proof_email_normalized",
+          "proof_expires_at",
+          "proof_started_at",
+          "proof_verified_at",
+          "recipient_binding",
+          "revoked_at",
+          "revoked_by_platform_user_id",
+          "status",
+          "superseded_by_invite_id",
+          "token_hash",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "proof_code_hash",
+          "proof_expires_at",
+          "revoked_at",
+          "revoked_by_platform_user_id",
+          "status",
+          "superseded_by_invite_id",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.patient_lfk_assignments": {
+    "kind": "direct",
+    "purpose": "назначенные пациенту комплексы ЛФК — без неё пациент не видит назначенных упражнений",
+    "codePaths": [
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/pgChannelLinkClaim.ts",
+      "apps/webapp/src/infra/repos/pgDiaryPurge.ts",
+      "apps/webapp/src/infra/repos/pgLfkAssignments.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "packages/platform-merge/src/mergeFailureClassification.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "assigned_by",
+          "complex_id",
+          "is_active",
+          "organization_id",
+          "patient_user_id",
+          "template_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "assigned_at",
+          "assigned_by",
+          "complex_id",
+          "is_active"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "is_active",
+          "organization_id",
+          "patient_user_id",
+          "template_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "patient_user_id"
+        ]
+      }
+    ]
+  },
+  "public.patient_merge_candidates": {
+    "kind": "direct",
+    "purpose": "кандидаты на слияние дублей пациента — без неё дубли пациентов не всплывают админу клиники",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPatientMergeCandidate.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "anchor_user_id",
+          "candidate_user_id",
+          "organization_id",
+          "payload",
+          "reason",
+          "status",
+          "trigger_appointment_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "resolved_at",
+          "resolved_by",
+          "status"
+        ]
+      }
+    ]
+  },
+  "public.patient_payment": {
+    "kind": "direct",
+    "purpose": "платежи пациента — без неё нет финансовой истории по пациенту",
+    "codePaths": [
+      "apps/webapp/src/app/api/doctor/patients/[userId]/acquiring-charge/route.ts",
+      "apps/webapp/src/app/api/doctor/patients/[userId]/payment-timeline/route.ts",
+      "apps/webapp/src/infra/repos/pgPatientPayments.ts",
+      "apps/webapp/src/modules/patient-payments/service.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "amount_minor",
+          "appointment_id",
+          "comment",
+          "created_at",
+          "created_by",
+          "currency",
+          "id",
+          "idempotency_key",
+          "kind",
+          "organization_id",
+          "patient_package_id",
+          "patient_user_id",
+          "provider",
+          "provider_payment_id",
+          "service",
+          "status",
+          "visit_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "provider_payment_id",
+          "status"
+        ]
+      }
+    ]
+  },
+  "public.patient_practice_completions": {
+    "kind": "direct",
+    "purpose": "выполненные практики и самочувствие — без неё нет календаря упражнений и трекинга самочувствия",
+    "codePaths": [
+      "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
+      "apps/webapp/src/app/api/doctor/patients/[userId]/exercise-calendar/route.ts",
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/pgPatientPracticeCompletions.ts",
+      "apps/webapp/src/infra/repos/pgWarmupFeelingCompletion.ts",
+      "apps/webapp/src/modules/diaries/ports.ts",
+      "apps/webapp/src/modules/patient-practice/warmupFeelingCompletionPort.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "content_page_id",
+          "feeling",
+          "notes",
+          "organization_id",
+          "source",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "feeling"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "content_page_id",
+          "feeling",
+          "notes",
+          "source",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "feeling"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "user_id"
+        ]
+      }
+    ]
+  },
+  "public.patient_specialist_links": {
+    "kind": "direct",
+    "purpose": "связь «пациент ↔ специалист» — без неё «свой пациент» невыразим (VISIBILITY_MODEL_GAP §1)",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/patientVisibilityPredicateSql.ts",
+      "apps/webapp/src/infra/repos/pgPatientVisibilityLinks.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "created_via",
+          "ended_at",
+          "ended_reason",
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "source_link_id",
+          "specialist_id",
+          "status"
+        ]
+      }
+    ]
+  },
+  "public.platform_user_contacts": {
+    "kind": "direct",
+    "purpose": "дополнительные контакты человека — без неё нет запасных телефонов/почт пациента для связи и дедупликации",
+    "codePaths": [
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app/api/doctor/clients/[userId]/supplementary-contacts/[contactId]/route.ts",
+      "apps/webapp/src/app/api/doctor/clients/[userId]/supplementary-contacts/route.ts",
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/app/app/doctor/patients/loadDoctorPatientCardPageBootstrap.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/pgPlatformUserContacts.ts",
+      "apps/webapp/src/modules/patient-booking/canonicalCreate.ts",
+      "apps/webapp/src/modules/patient-booking/service.ts",
+      "packages/platform-merge/src/mergeContactFallback.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "contact_type",
+          "created_at",
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "source",
+          "updated_at",
+          "value",
+          "value_normalized"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "organization_id",
+          "source",
+          "updated_at",
+          "value"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "contact_type",
+          "created_at",
+          "id",
+          "platform_user_id",
+          "source",
+          "updated_at",
+          "value",
+          "value_normalized"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "contact_type",
+          "created_at",
+          "organization_id",
+          "platform_user_id",
+          "source",
+          "updated_at",
+          "value",
+          "value_normalized"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "source",
+          "updated_at",
+          "value"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.platform_users": {
+    "kind": "direct",
+    "purpose": "единственная таблица ПДн — без неё нет ни одного человека в системе",
+    "codePaths": [
+      "apps/integrator/src/infra/db/directPublic/resolveDirectPublicActor.ts",
+      "apps/integrator/src/infra/db/directPublic/writeIdentityAndPreferencesDirect.ts",
+      "apps/integrator/src/infra/db/directPublic/writeReminderRulesDirect.ts",
+      "apps/integrator/src/infra/db/directPublic/writeSupportConversationsDirect.ts",
+      "apps/integrator/src/infra/db/integratorDrizzleSchema.ts",
+      "apps/integrator/src/infra/db/repos/channelUsers.ts",
+      "apps/integrator/src/infra/db/repos/messageThreads.ts",
+      "apps/integrator/src/infra/db/repos/platformUserByChannel.ts",
+      "apps/integrator/src/infra/db/repos/platformUserDeliveryPhone.ts",
+      "apps/integrator/src/infra/db/repos/reminders.ts",
+      "apps/integrator/src/infra/db/schema/integratorPublicProduct.ts",
+      "apps/integrator/src/infra/db/writePort.ts",
+      "apps/integrator/src/infra/operatorIncident/operatorHealthAlertConfigIntegrator.ts",
+      "apps/integrator/src/infra/runtime/worker/doctorBroadcastIntentMenu.ts",
+      "apps/integrator/src/infra/scripts/check-d30-outgoing-delivery-claim-concurrency.ts",
+      "apps/integrator/src/integrations/google-calendar/calendarDescription.ts",
+      "apps/integrator/src/integrations/webappEntryToken.ts",
+      "apps/integrator/src/shared/devDeliveryRedirect.ts",
+      "apps/integrator/src/shared/phoneLinkUserMessages.ts",
+      "apps/webapp/src/app-layer/booking/resolveDoctorCalendarIana.ts",
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app-layer/guards/requireRole.ts",
+      "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
+      "apps/webapp/src/app-layer/stats/reminderNotificationPeopleStats.ts",
+      "apps/webapp/src/app/api/account/security/sessions/revoke/route.ts",
+      "apps/webapp/src/app/api/auth/email-password/reset/route.ts",
+      "apps/webapp/src/app/api/doctor/patients/[userId]/physical/route.ts",
+      "apps/webapp/src/app/api/internal/saas-billing/renewal/tick/route.ts",
+      "apps/webapp/src/app/app/doctor/clients/AdminClientProfileEditPanel.tsx",
+      "apps/webapp/src/app/app/doctor/clients/DoctorClientPrimaryContacts.tsx",
+      "apps/webapp/src/app/app/settings/AdminSettingsSection.tsx",
+      "apps/webapp/src/config/env.ts",
+      "apps/webapp/src/infra/adminAuditLog.ts",
+      "apps/webapp/src/infra/db/bootProbe.ts",
+      "apps/webapp/src/infra/mergeAuditLabels.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/platformUserNameMatchHints.ts",
+      "apps/webapp/src/infra/repos/broadcastChannelCounts.ts",
+      "apps/webapp/src/infra/repos/identityPhoneRowSchemas.ts",
+      "apps/webapp/src/infra/repos/inMemoryUserByPhone.ts",
+      "apps/webapp/src/infra/repos/mergeLegacySupportConversations.ts",
+      "apps/webapp/src/infra/repos/pgAdminClientProfileConflicts.ts",
+      "apps/webapp/src/infra/repos/pgAdminNotificationTargets.ts",
+      "apps/webapp/src/infra/repos/pgAdminPlatformUserStats.ts",
+      "apps/webapp/src/infra/repos/pgAnalyticsAudience.ts",
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
+      "apps/webapp/src/infra/repos/pgBroadcastEmailRecipients.ts",
+      "apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts",
+      "apps/webapp/src/infra/repos/pgChannelLinkClaim.ts",
+      "apps/webapp/src/infra/repos/pgChannelLinkStart.ts",
+      "apps/webapp/src/infra/repos/pgChannelPreferences.ts",
+      "apps/webapp/src/infra/repos/pgClientMediaFolders.ts",
+      "apps/webapp/src/infra/repos/pgDiaryPurge.ts",
+      "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts",
+      "apps/webapp/src/infra/repos/pgDoctorCalendarTimezone.ts",
+      "apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClientCreate.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgEmailAuth.ts",
+      "apps/webapp/src/infra/repos/pgEmailPasswordLookup.ts",
+      "apps/webapp/src/infra/repos/pgGlobalAdminWebPushRecipients.ts",
+      "apps/webapp/src/infra/repos/pgHealthFailureArchive.ts",
+      "apps/webapp/src/infra/repos/pgIdentityResolution.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "apps/webapp/src/infra/repos/pgMaterialRating.ts",
+      "apps/webapp/src/infra/repos/pgMaterialRatingFeedback.ts",
+      "apps/webapp/src/infra/repos/pgOAuthUserResolve.ts",
+      "apps/webapp/src/infra/repos/pgOrganizationInvites.ts",
+      "apps/webapp/src/infra/repos/pgOrganizationMembership.ts",
+      "apps/webapp/src/infra/repos/pgPatientCalendarTimezone.ts",
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts",
+      "apps/webapp/src/infra/repos/pgPatientOrganization.ts",
+      "apps/webapp/src/infra/repos/pgPhoneHistory.ts",
+      "apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts",
+      "apps/webapp/src/infra/repos/pgPlatformAccess.ts",
+      "apps/webapp/src/infra/repos/pgPlatformUserCalendarTimezone.ts",
+      "apps/webapp/src/infra/repos/pgProductAnalytics.ts",
+      "apps/webapp/src/infra/repos/pgPublicBookingMergeCandidates.ts",
+      "apps/webapp/src/infra/repos/pgPublicBookingUserResolve.ts",
+      "apps/webapp/src/infra/repos/pgReminderJournal.ts",
+      "apps/webapp/src/infra/repos/pgReminderMessengerTopicDisable.ts",
+      "apps/webapp/src/infra/repos/pgReminderProjection.ts",
+      "apps/webapp/src/infra/repos/pgReminderRules.ts",
+      "apps/webapp/src/infra/repos/pgReminderWebappNotifyGate.ts",
+      "apps/webapp/src/infra/repos/pgStaffUsers.ts",
+      "apps/webapp/src/infra/repos/pgSupportCommunication.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts",
+      "apps/webapp/src/infra/repos/pgUserByPhone.ts",
+      "apps/webapp/src/infra/repos/pgUserProjection.ts",
+      "apps/webapp/src/infra/repos/s3MediaStorage.ts",
+      "apps/webapp/src/infra/repos/userContactsSql.ts",
+      "apps/webapp/src/infra/repos/userIdentityFioSql.ts",
+      "apps/webapp/src/infra/strictPlatformUserPurge.ts",
+      "apps/webapp/src/instrumentation.ts",
+      "apps/webapp/src/modules/auth/envRole.ts",
+      "apps/webapp/src/modules/auth/identityResolutionPort.ts",
+      "apps/webapp/src/modules/auth/passwordChange.ts",
+      "apps/webapp/src/modules/auth/service.ts",
+      "apps/webapp/src/modules/auth/sessionCanonicalUserIdPolicy.ts",
+      "apps/webapp/src/modules/auth/sessionCookie.ts",
+      "apps/webapp/src/modules/auth/sessionRevocationSchema.ts",
+      "apps/webapp/src/modules/auth/userByPhonePort.ts",
+      "apps/webapp/src/modules/channel-preferences/ports.ts",
+      "apps/webapp/src/modules/diaries/loadPatientDiaryWeekWellbeing.ts",
+      "apps/webapp/src/modules/doctor-calendar-timezone/doctorCalendarTimezone.ts",
+      "apps/webapp/src/modules/doctor-clients/clientArchiveChange.ts",
+      "apps/webapp/src/modules/doctor-clients/ports.ts",
+      "apps/webapp/src/modules/identity/ports.ts",
+      "apps/webapp/src/modules/integrator/events.ts",
+      "apps/webapp/src/modules/messaging/patientMessagingService.ts",
+      "apps/webapp/src/modules/operator-alerts/dispatchOperatorAlert.ts",
+      "apps/webapp/src/modules/platform-access/trustedPhonePolicy.ts",
+      "apps/webapp/src/modules/platform-access/types.ts",
+      "apps/webapp/src/modules/platform-user-contacts/bookingContactUpsert.ts",
+      "apps/webapp/src/modules/platform-user-contacts/identityContactMatch.ts",
+      "apps/webapp/src/modules/public-booking/publicBookingResponse.ts",
+      "apps/webapp/src/shared/phone/normalizeRuPhoneE164.ts",
+      "apps/webapp/src/shared/platform-user/isPlatformUserUuid.ts",
+      "apps/webapp/src/shared/types/session.ts",
+      "packages/db-principal/src/index.ts",
+      "packages/platform-merge/src/identityProjectionWrite.ts",
+      "packages/platform-merge/src/mergeContactFallback.ts",
+      "packages/platform-merge/src/messengerBindAuditEnrichment.ts",
+      "packages/platform-merge/src/messengerPhonePublicBind.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts",
+      "packages/platform-merge/src/phoneHistorySync.ts",
+      "packages/platform-merge/src/userContactsMirrorWrite.ts",
+      "packages/platform-merge/src/userIdentityFioWrite.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["id", "merged_into_id"]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": ["SELECT"],
+        "columns": ["id", "calendar_timezone"]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": ["UPDATE"],
+        "columns": ["calendar_timezone", "updated_at"]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "blocked_at",
+          "blocked_by",
+          "blocked_reason",
+          "calendar_timezone",
+          "created_at",
+          "display_name",
+          "first_name",
+          "id",
+          "is_archived",
+          "is_blocked",
+          "last_name",
+          "merged_at",
+          "merged_into_id",
+          "patronymic",
+          "reminder_muted_until",
+          "session_epoch",
+          "updated_at",
+          "role"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "blocked_at",
+          "blocked_by",
+          "blocked_reason",
+          "calendar_timezone",
+          "display_name",
+          "first_name",
+          "is_archived",
+          "is_blocked",
+          "last_name",
+          "merged_at",
+          "merged_into_id",
+          "patronymic",
+          "reminder_muted_until",
+          "role",
+          "session_epoch",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "merged_into_id",
+          "display_name",
+          "first_name",
+          "last_name",
+          "patronymic",
+          "role",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "display_name",
+          "first_name",
+          "id",
+          "last_name",
+          "role"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "display_name",
+          "first_name",
+          "last_name",
+          "merged_at",
+          "merged_into_id",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.product_analytics_events_recent": {
+    "kind": "direct",
+    "purpose": "сырые события продукта — без неё нет продуктовой аналитики и воронки регистрации",
+    "codePaths": [
+      "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
+      "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts",
+      "apps/webapp/src/infra/repos/pgProductAnalytics.ts",
+      "apps/webapp/src/modules/product-analytics/productAnalyticsRetention.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "client_session_id",
+          "entry_channel",
+          "event_type",
+          "metadata",
+          "occurred_at",
+          "organization_id",
+          "page_key",
+          "push_kind",
+          "push_tracking_id",
+          "topic_code",
+          "user_id",
+          "warmup_slogan_key"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "user_id"
+        ]
+      }
+    ]
+  },
+  "public.product_analytics_hourly": {
+    "kind": "direct",
+    "purpose": "агрегат событий по часам (без человека) — без неё нет агрегированных графиков продукта",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgProductAnalytics.ts",
+      "apps/webapp/src/modules/product-analytics/productAnalyticsRetention.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "bucket_hour",
+          "entry_channel",
+          "event_count",
+          "event_type",
+          "organization_id",
+          "page_key",
+          "push_kind",
+          "topic_code",
+          "updated_at",
+          "warmup_slogan_key"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "event_count",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.product_analytics_user_hourly": {
+    "kind": "direct",
+    "purpose": "почасовая активность человека — без неё врач не видит, заходит ли пациент в приложение",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgProductAnalytics.ts",
+      "apps/webapp/src/modules/doctor-clients/ports.ts",
+      "apps/webapp/src/modules/product-analytics/productAnalyticsRetention.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "active_minutes",
+          "app_opens",
+          "bucket_hour",
+          "entry_channel",
+          "last_seen_at",
+          "organization_id",
+          "page_key",
+          "page_views",
+          "push_opens",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "active_minutes",
+          "app_opens",
+          "last_seen_at",
+          "page_views",
+          "push_opens",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "columns": [
+          "active_minutes",
+          "app_opens",
+          "bucket_hour",
+          "entry_channel",
+          "last_seen_at",
+          "organization_id",
+          "page_key",
+          "page_views",
+          "push_opens",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "active_minutes",
+          "app_opens",
+          "last_seen_at",
+          "page_views",
+          "push_opens",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.product_push_notifications": {
+    "kind": "direct",
+    "purpose": "отправленные push’и — без неё нельзя связать открытие приложения с конкретным push’ем",
+    "codePaths": [
+      "apps/webapp/src/app-layer/product-analytics/createTrackedWebPushPayload.ts",
+      "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
+      "apps/webapp/src/infra/repos/pgProductAnalytics.ts",
+      "apps/webapp/src/modules/product-analytics/productAnalyticsRetention.ts",
+      "apps/webapp/src/modules/product-analytics/productAnalyticsTopicLabels.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "id",
+          "intent_type",
+          "occurrence_id",
+          "open_url",
+          "organization_id",
+          "push_kind",
+          "title",
+          "topic_code",
+          "user_id",
+          "warmup_slogan_key",
+          "warmup_slogan_text"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "user_id"
+        ]
+      }
+    ]
+  },
+  "public.program_action_log": {
+    "kind": "direct",
+    "purpose": "действия пациента по программе лечения — без неё врач не видит, что пациент делал по программе",
+    "codePaths": [
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app/api/doctor/patients/[userId]/exercise-calendar/route.ts",
+      "apps/webapp/src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/discussion/route.ts",
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/app/app/doctor/loadDoctorTodayDashboard.ts",
+      "apps/webapp/src/app/app/doctor/page.tsx",
+      "apps/webapp/src/app/app/doctor/patients/[userId]/programs/[instanceId]/page.tsx",
+      "apps/webapp/src/app/app/doctor/patients/loadDoctorPatientExerciseCalendar.ts",
+      "apps/webapp/src/app/app/patient/diary/PatientDiaryAuthenticatedMain.tsx",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/pgProgramActionLog.ts",
+      "apps/webapp/src/modules/patient-diary/captureDiaryDaySnapshot.ts",
+      "apps/webapp/src/modules/patient-diary/loadPatientDiaryWeekActivity.ts",
+      "apps/webapp/src/modules/treatment-program/patient-program-actions.ts",
+      "apps/webapp/src/modules/treatment-program/programActionActivityKey.ts",
+      "apps/webapp/src/modules/treatment-program/types.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "action_type",
+          "instance_id",
+          "instance_stage_item_id",
+          "note",
+          "organization_id",
+          "patient_user_id",
+          "payload",
+          "session_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "instance_id",
+          "instance_stage_item_id",
+          "patient_user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.program_item_discussion_messages": {
+    "kind": "direct",
+    "purpose": "переписка врач↔пациент по пункту программы — без неё нет комментариев к упражнению — ключевой канал общения",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts",
+      "apps/webapp/src/infra/repos/s3MediaStorage.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "body",
+          "created_at",
+          "id",
+          "instance_stage_item_id",
+          "media_file_id",
+          "organization_id",
+          "origin",
+          "patient_user_id",
+          "sender_role",
+          "support_message_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.program_item_discussion_reads": {
+    "kind": "direct",
+    "purpose": "отметки прочтения обсуждения — без неё счётчики непрочитанного врут",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "instance_stage_item_id",
+          "last_read_at",
+          "organization_id",
+          "patient_user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "last_read_at"
+        ]
+      }
+    ]
+  },
+  "public.recommendation_regions": {
+    "kind": "direct",
+    "purpose": "связь рекомендация↔область тела — без неё не работают фильтры каталога по области тела",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgRecommendations.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "body_region_id",
+          "organization_id",
+          "recommendation_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.recommendations": {
+    "kind": "direct",
+    "purpose": "справочник рекомендаций клиники — без неё врачу нечего назначать",
+    "codePaths": [
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app/api/admin/media/[id]/usage-summary/route.ts",
+      "apps/webapp/src/app/api/doctor/patients/[userId]/visits/[visitId]/route.ts",
+      "apps/webapp/src/app/api/doctor/patients/[userId]/visits/route.ts",
+      "apps/webapp/src/app/api/doctor/recommendations/[id]/route.ts",
+      "apps/webapp/src/app/api/doctor/recommendations/route.ts",
+      "apps/webapp/src/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx",
+      "apps/webapp/src/app/app/doctor/patients/[userId]/programs/[instanceId]/page.tsx",
+      "apps/webapp/src/app/app/doctor/patients/[userId]/tabs/PatientTabKarta.tsx",
+      "apps/webapp/src/app/app/doctor/patients/[userId]/tabs/karta/NewVisitPanel.tsx",
+      "apps/webapp/src/app/app/doctor/patients/[userId]/tabs/karta/VisitCatalogTextarea.tsx",
+      "apps/webapp/src/app/app/doctor/patients/[userId]/tabs/karta/visitCatalogText.ts",
+      "apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx",
+      "apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx",
+      "apps/webapp/src/app/app/doctor/recommendations/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/recommendations/actions.ts",
+      "apps/webapp/src/app/app/doctor/recommendations/actionsShared.ts",
+      "apps/webapp/src/app/app/doctor/recommendations/new/page.tsx",
+      "apps/webapp/src/app/app/doctor/recommendations/page.tsx",
+      "apps/webapp/src/app/app/doctor/recommendations/paths.ts",
+      "apps/webapp/src/app/app/doctor/recommendations/recommendationUsageDocLinks.ts",
+      "apps/webapp/src/app/app/doctor/recommendations/recommendationUsageSummaryText.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/InstanceAddLibraryItemDialog.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/instanceEditorDraft.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/treatmentProgramConstructorShellStyles.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/loadTreatmentProgramLibrary.ts",
+      "apps/webapp/src/app/app/patient/content/[slug]/PatientDailyWarmupQuickList.tsx",
+      "apps/webapp/src/app/app/patient/treatment/PatientProgramStageItemPageClient.tsx",
+      "apps/webapp/src/app/app/patient/treatment/PatientStageCompositionList.tsx",
+      "apps/webapp/src/app/app/patient/treatment/PatientTreatmentTabRecommendations.tsx",
+      "apps/webapp/src/app/app/patient/treatment/ProgramItemDiscussionMessageBody.tsx",
+      "apps/webapp/src/app/app/patient/treatment/patientPlanTab.ts",
+      "apps/webapp/src/app/app/patient/treatment/program-detail/PatientPlanTabPanels.tsx",
+      "apps/webapp/src/app/app/patient/treatment/program-detail/PatientPlanTabStrip.tsx",
+      "apps/webapp/src/app/app/patient/treatment/stageItemSnapshot.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/inMemoryPatientClinical.ts",
+      "apps/webapp/src/infra/repos/inMemoryRecommendations.ts",
+      "apps/webapp/src/infra/repos/inMemoryTreatmentProgram.ts",
+      "apps/webapp/src/infra/repos/inMemoryTreatmentProgramInstance.ts",
+      "apps/webapp/src/infra/repos/mockMediaStorage.ts",
+      "apps/webapp/src/infra/repos/pgMediaUsageSummary.ts",
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts",
+      "apps/webapp/src/infra/repos/pgRecommendations.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramItemRefValidation.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramItemSnapshot.ts",
+      "apps/webapp/src/modules/media/types.ts",
+      "apps/webapp/src/modules/media/usageSummaryFormat.ts",
+      "apps/webapp/src/modules/patient-clinical/ports.ts",
+      "apps/webapp/src/modules/patient-clinical/service.ts",
+      "apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts",
+      "apps/webapp/src/modules/recommendations/recommendationDomain.ts",
+      "apps/webapp/src/modules/treatment-program/instance-service.ts",
+      "apps/webapp/src/modules/treatment-program/instance-tree-system-groups.ts",
+      "apps/webapp/src/modules/treatment-program/instanceEditorBatchApply.ts",
+      "apps/webapp/src/modules/treatment-program/ports.ts",
+      "apps/webapp/src/modules/treatment-program/stage-semantics.ts",
+      "apps/webapp/src/modules/treatment-program/types.ts",
+      "apps/webapp/src/shared/lib/doctorCatalogListStatus.ts",
+      "apps/webapp/src/shared/lib/doctorCatalogViewPreference.ts",
+      "apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts",
+      "apps/webapp/src/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb.tsx",
+      "apps/webapp/src/shared/ui/doctor/media/mediaPreviewUiModel.ts",
+      "apps/webapp/src/shared/ui/doctorScreenTitles.ts",
+      "apps/webapp/src/shared/ui/patient/PatientCatalogMediaStaticThumb.tsx",
+      "apps/webapp/src/shared/ui/patient/media/mediaPreviewUiModel.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "body_md",
+          "body_region_id",
+          "created_at",
+          "created_by",
+          "domain",
+          "duration_text",
+          "frequency_text",
+          "id",
+          "is_archived",
+          "media",
+          "organization_id",
+          "quantity_text",
+          "tags",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "body_md",
+          "body_region_id",
+          "domain",
+          "duration_text",
+          "frequency_text",
+          "is_archived",
+          "media",
+          "organization_id",
+          "quantity_text",
+          "tags",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.reference_categories": {
+    "kind": "direct",
+    "purpose": "категории справочников клиники — без неё пусты все выпадающие списки каталогов",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgReferences.ts",
+      "apps/webapp/src/modules/lfk-exercises/exerciseLoadTypeReference.ts",
+      "apps/webapp/src/modules/recommendations/recommendationDomain.ts",
+      "apps/webapp/src/modules/tests/clinicalTestAssessmentKind.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.reference_items": {
+    "kind": "direct",
+    "purpose": "элементы справочников клиники — без них выпадающие списки каталогов пусты",
+    "codePaths": [
+      "apps/webapp/src/app/api/doctor/clinical-tests/route.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers.ts",
+      "apps/webapp/src/infra/repos/pgReferences.ts",
+      "apps/webapp/src/modules/lfk-exercises/exerciseLoadTypeReference.ts",
+      "apps/webapp/src/modules/lfk-exercises/types.ts",
+      "apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts",
+      "apps/webapp/src/modules/recommendations/recommendationDomain.ts",
+      "apps/webapp/src/modules/recommendations/types.ts",
+      "apps/webapp/src/modules/tests/clinicalTestAssessmentKind.ts",
+      "apps/webapp/src/modules/tests/types.ts",
+      "apps/webapp/src/shared/lib/doctorCatalogRegionQuery.ts",
+      "apps/webapp/src/shared/lib/mergeCatalogBodyRegionIds.ts",
+      "apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersForm.tsx",
+      "apps/webapp/src/shared/ui/doctor/ReferenceMultiSelect.tsx"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "category_id",
+          "code",
+          "is_active",
+          "meta_json",
+          "organization_id",
+          "sort_order",
+          "title"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "code",
+          "deleted_at",
+          "is_active",
+          "organization_id",
+          "sort_order",
+          "title"
+        ]
+      }
+    ]
+  },
+  "public.reminder_occurrence_history": {
+    "kind": "direct",
+    "purpose": "Track D (#987) единственная физическая occurrence-таблица: операционный жизненный цикл срабатывания (integrator, прямой доступ) слит с историей/фактами пациента (staff обслуживает, пациент читает через именованные корни) на одной строке",
+    "codePaths": [
+      "apps/integrator/src/infra/db/integratorDrizzleSchema.ts",
+      "apps/integrator/src/infra/db/repos/reminders.ts",
+      "apps/integrator/src/infra/db/schema/integratorPublicProduct.ts",
+      "apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts",
+      "apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts",
+      "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/repos/inMemoryReminderJournal.ts",
+      "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts",
+      "apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts",
+      "apps/webapp/src/infra/repos/pgReminderJournal.ts",
+      "apps/webapp/src/infra/repos/pgReminderMessengerTopicDisable.ts",
+      "apps/webapp/src/infra/repos/pgReminderProjection.ts",
+      "apps/webapp/src/infra/repos/pgReminderRules.ts",
+      "apps/webapp/src/modules/reminders/reminderJournalPort.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["delivery_channel", "delivery_generation", "delivery_job_id", "error_code", "failed_at", "integrator_occurrence_id", "integrator_rule_id", "occurrence_key", "occurred_at", "organization_id", "planned_at", "platform_user_id", "queued_at", "sent_at", "status", "updated_at"]
+      },
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["UPDATE"],
+        "columns": ["delivery_channel", "delivery_job_id", "error_code", "failed_at", "occurred_at", "planned_at", "queued_at", "sent_at", "status", "updated_at"]
+      },
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["DELETE"],
+        "columns": "table"
+      },
+      {
+        "role": "app_integrator_request",
+        "operations": ["SELECT"],
+        "columns": ["delivery_channel", "delivery_generation", "delivery_job_id", "error_code", "failed_at", "integrator_occurrence_id", "integrator_rule_id", "occurrence_key", "occurred_at", "organization_id", "planned_at", "platform_user_id", "queued_at", "sent_at", "status", "updated_at"]
+      },
+      {
+        "role": "app_integrator_request",
+        "operations": ["UPDATE"],
+        "columns": ["delivery_channel", "delivery_job_id", "error_code", "failed_at", "occurred_at", "planned_at", "queued_at", "sent_at", "status", "updated_at"]
+      },
+      {
+        "role": "app_integrator_request",
+        "operations": ["DELETE"],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "seen_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.reminder_rules": {
+    "kind": "direct",
+    "purpose": "правила напоминаний пациенту — без неё пациент перестаёт получать напоминания",
+    "codePaths": [
+      "apps/integrator/src/infra/db/directPublic/writeReminderRulesDirect.ts",
+      "apps/integrator/src/infra/db/integratorDrizzleSchema.ts",
+      "apps/integrator/src/infra/db/migrations/core/20260808_0002_drop_legacy_user_reminder_rules.sql",
+      "apps/integrator/src/infra/db/repos/reminders.ts",
+      "apps/integrator/src/infra/db/schema/integratorPublicProduct.ts",
+      "apps/integrator/src/infra/db/writePort.ts",
+      "apps/integrator/src/infra/runtime/scheduler/schedulerDecisionGuard.ts",
+      "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
+      "apps/webapp/src/app-layer/stats/reminderNotificationPeopleStats.ts",
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/inMemoryReminderRules.ts",
+      "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts",
+      "apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts",
+      "apps/webapp/src/infra/repos/pgReminderJournal.ts",
+      "apps/webapp/src/infra/repos/pgReminderMessengerTopicDisable.ts",
+      "apps/webapp/src/infra/repos/pgReminderProjection.ts",
+      "apps/webapp/src/infra/repos/pgReminderRules.ts",
+      "apps/webapp/src/modules/reminders/notificationTopicCode.ts",
+      "apps/webapp/src/modules/reminders/ports.ts",
+      "apps/webapp/src/modules/reminders/scheduleSlots.ts",
+      "apps/webapp/src/modules/reminders/types.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["category", "integrator_rule_id", "organization_id"]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "category",
+          "content_mode",
+          "custom_text",
+          "custom_title",
+          "days_mask",
+          "display_description",
+          "display_title",
+          "integrator_rule_id",
+          "interval_minutes",
+          "is_enabled",
+          "linked_object_id",
+          "linked_object_type",
+          "notification_topic_code",
+          "organization_id",
+          "platform_user_id",
+          "quiet_hours_end_minute",
+          "quiet_hours_start_minute",
+          "reminder_intent",
+          "schedule_data",
+          "schedule_type",
+          "timezone",
+          "updated_at",
+          "window_end_minute",
+          "window_start_minute"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "category",
+          "content_mode",
+          "custom_text",
+          "custom_title",
+          "days_mask",
+          "display_description",
+          "display_title",
+          "interval_minutes",
+          "is_enabled",
+          "linked_object_id",
+          "platform_user_id",
+          "quiet_hours_end_minute",
+          "quiet_hours_start_minute",
+          "schedule_data",
+          "schedule_type",
+          "timezone",
+          "updated_at",
+          "window_end_minute",
+          "window_start_minute"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "category",
+          "content_mode",
+          "custom_text",
+          "custom_title",
+          "days_mask",
+          "id",
+          "integrator_rule_id",
+          "interval_minutes",
+          "is_enabled",
+          "linked_object_id",
+          "linked_object_type",
+          "notification_topic_code",
+          "organization_id",
+          "platform_user_id",
+          "quiet_hours_end_minute",
+          "quiet_hours_start_minute",
+          "reminder_intent",
+          "schedule_data",
+          "schedule_type",
+          "timezone",
+          "updated_at",
+          "window_end_minute",
+          "window_start_minute"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "category",
+          "content_mode",
+          "custom_text",
+          "custom_title",
+          "days_mask",
+          "integrator_rule_id",
+          "interval_minutes",
+          "is_enabled",
+          "linked_object_id",
+          "linked_object_type",
+          "notification_topic_code",
+          "organization_id",
+          "platform_user_id",
+          "quiet_hours_end_minute",
+          "quiet_hours_start_minute",
+          "reminder_intent",
+          "schedule_data",
+          "schedule_type",
+          "timezone",
+          "updated_at",
+          "window_end_minute",
+          "window_start_minute"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "category",
+          "content_mode",
+          "custom_text",
+          "custom_title",
+          "days_mask",
+          "interval_minutes",
+          "is_enabled",
+          "linked_object_id",
+          "linked_object_type",
+          "notification_topic_code",
+          "organization_id",
+          "platform_user_id",
+          "quiet_hours_end_minute",
+          "quiet_hours_start_minute",
+          "reminder_intent",
+          "schedule_data",
+          "schedule_type",
+          "timezone",
+          "updated_at",
+          "window_end_minute",
+          "window_start_minute"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.saas_billing_accounts": {
+    "kind": "direct",
+    "purpose": "платёжный профиль клиники — без неё клиника не выставит счёт",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgSaasBilling.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "billing_address",
+          "billing_email",
+          "billing_requisites",
+          "created_at",
+          "id",
+          "legal_name",
+          "organization_id",
+          "registration_reason_code",
+          "tax_identifier",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "billing_email",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "billing_address",
+          "billing_email",
+          "billing_requisites",
+          "created_at",
+          "id",
+          "legal_name",
+          "organization_id",
+          "registration_reason_code",
+          "tax_identifier",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "billing_email",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.saas_billing_invoices": {
+    "kind": "direct",
+    "purpose": "счета — оплата подписки",
+    "codePaths": [
+      "apps/webapp/src/app/api/admin/saas-billing/payments/route.ts",
+      "apps/webapp/src/app/app/admin/payments/PlatformPaymentsSection.tsx",
+      "apps/webapp/src/infra/repos/pgSaasBilling.ts",
+      "apps/webapp/src/modules/saas-billing/ports.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "additional_seat_quantity",
+          "amount_minor",
+          "carried_debt_minor",
+          "created_at",
+          "currency",
+          "description",
+          "expires_at",
+          "id",
+          "invoice_kind",
+          "organization_id",
+          "paid_at",
+          "provider_checkout_url",
+          "provider_id",
+          "provider_idempotency_key",
+          "provider_invoice_ref",
+          "saas_billing_account_id",
+          "saas_billing_subscription_id",
+          "service_period_ends_at",
+          "service_period_starts_at",
+          "status",
+          "tariff_billing_period",
+          "tariff_id",
+          "tariff_name",
+          "tariff_snapshot",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "currency",
+          "paid_at",
+          "provider_checkout_url",
+          "provider_id",
+          "provider_idempotency_key",
+          "provider_invoice_ref",
+          "status",
+          "superseded_by_invoice_id",
+          "tariff_billing_period",
+          "tariff_id",
+          "tariff_name",
+          "tariff_snapshot",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "currency",
+          "paid_at",
+          "status",
+          "superseded_by_invoice_id",
+          "tariff_billing_period",
+          "tariff_id",
+          "tariff_name",
+          "tariff_snapshot",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "additional_seat_quantity",
+          "amount_minor",
+          "carried_debt_minor",
+          "currency",
+          "description",
+          "expires_at",
+          "invoice_kind",
+          "organization_id",
+          "provider_id",
+          "provider_idempotency_key",
+          "saas_billing_account_id",
+          "saas_billing_subscription_id",
+          "service_period_ends_at",
+          "service_period_starts_at",
+          "status",
+          "tariff_billing_period",
+          "tariff_id",
+          "tariff_name",
+          "tariff_snapshot"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "currency",
+          "paid_at",
+          "provider_checkout_url",
+          "provider_id",
+          "provider_idempotency_key",
+          "provider_invoice_ref",
+          "status",
+          "superseded_by_invoice_id",
+          "tariff_billing_period",
+          "tariff_id",
+          "tariff_name",
+          "tariff_snapshot",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.saas_billing_provider_events": {
+    "kind": "direct",
+    "purpose": "вебхуки провайдера — идемпотентность оплаты",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgSaasBilling.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "organization_id",
+          "saas_billing_invoice_id",
+          "provider_id",
+          "provider_event_id",
+          "event_type",
+          "processed_at",
+          "created_at"
+        ]
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "event_type",
+          "organization_id",
+          "provider_event_id",
+          "provider_id",
+          "raw_payload",
+          "saas_billing_invoice_id"
+        ]
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "processed_at"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "event_type",
+          "organization_id",
+          "provider_event_id",
+          "provider_id",
+          "raw_payload",
+          "saas_billing_invoice_id"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "processed_at"
+        ]
+      }
+    ]
+  },
+  "public.saas_billing_refunds": {
+    "kind": "direct",
+    "purpose": "возвраты — возврат денег клинике",
+    "codePaths": [
+      "apps/webapp/src/app/api/payments/saas-webhook/[provider]/route.ts",
+      "apps/webapp/src/infra/repos/pgSaasBilling.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "amount_minor",
+          "currency",
+          "organization_id",
+          "provider_id",
+          "provider_idempotency_key",
+          "saas_billing_invoice_id",
+          "status"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "confirmed_at",
+          "provider_refund_ref",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "amount_minor",
+          "currency",
+          "organization_id",
+          "provider_id",
+          "provider_idempotency_key",
+          "saas_billing_invoice_id",
+          "status"
+        ]
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "confirmed_at",
+          "provider_refund_ref",
+          "status",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.saas_billing_subscriptions": {
+    "kind": "direct",
+    "purpose": "подписка клиники — доступ клиники к продукту",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgOrgEntitlements.ts",
+      "apps/webapp/src/infra/repos/pgPlatformEntitlements.ts",
+      "apps/webapp/src/infra/repos/pgSaasBilling.ts",
+      "apps/webapp/src/infra/repos/transactionQuotaPort.ts",
+      "apps/webapp/src/modules/saas-billing/ports.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "organization_id",
+          "status",
+          "current_period_ends_at",
+          "paid_additional_seats",
+          "source"
+        ]
+      },
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "autopay_consent_text",
+          "autopay_consented_at",
+          "autopay_revoked_at",
+          "billing_period_code",
+          "cancelled_at",
+          "created_at",
+          "current_period_ends_at",
+          "current_period_starts_at",
+          "grace_ends_at",
+          "id",
+          "lifecycle_state",
+          "organization_id",
+          "paid_additional_seats",
+          "pending_billing_period_code",
+          "pending_tariff_id",
+          "provider_id",
+          "read_only_ends_at",
+          "saas_billing_account_id",
+          "saved_payment_method_id",
+          "source",
+          "status",
+          "tariff_id",
+          "tariff_snapshot",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "autopay_consent_text",
+          "autopay_consented_at",
+          "autopay_revoked_at",
+          "billing_period_code",
+          "cancelled_at",
+          "current_period_ends_at",
+          "current_period_starts_at",
+          "lifecycle_state",
+          "paid_additional_seats",
+          "pending_billing_period_code",
+          "pending_tariff_id",
+          "saved_payment_method_id",
+          "status",
+          "tariff_id",
+          "tariff_snapshot",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "billing_period_code",
+          "cancelled_at",
+          "current_period_ends_at",
+          "current_period_starts_at",
+          "lifecycle_state",
+          "paid_additional_seats",
+          "pending_billing_period_code",
+          "pending_tariff_id",
+          "saved_payment_method_id",
+          "status",
+          "tariff_id",
+          "tariff_snapshot",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "autopay_consent_text",
+          "autopay_consented_at",
+          "autopay_revoked_at",
+          "billing_period_code",
+          "cancelled_at",
+          "created_at",
+          "current_period_ends_at",
+          "current_period_starts_at",
+          "grace_ends_at",
+          "id",
+          "lifecycle_state",
+          "organization_id",
+          "paid_additional_seats",
+          "pending_billing_period_code",
+          "pending_tariff_id",
+          "provider_id",
+          "read_only_ends_at",
+          "saas_billing_account_id",
+          "saved_payment_method_id",
+          "source",
+          "status",
+          "tariff_id",
+          "tariff_snapshot",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "autopay_consent_text",
+          "autopay_consented_at",
+          "autopay_revoked_at",
+          "billing_period_code",
+          "cancelled_at",
+          "current_period_ends_at",
+          "current_period_starts_at",
+          "lifecycle_state",
+          "paid_additional_seats",
+          "pending_billing_period_code",
+          "pending_tariff_id",
+          "saved_payment_method_id",
+          "status",
+          "tariff_id",
+          "tariff_snapshot",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.saas_tariffs": {
+    "kind": "direct",
+    "purpose": "клиника читает глобальный тарифный каталог для выбора и оплаты; webhook worker читает ценовой снимок; изменяет каталог только платформа",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPlatformEntitlements.ts",
+      "apps/webapp/src/infra/repos/pgSaasBilling.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "additional_seat_price_minor",
+          "billing_period",
+          "currency",
+          "description",
+          "discounted_price_minor",
+          "downgrade_policies",
+          "included_seats",
+          "is_active",
+          "mailing_templates",
+          "mechanic_access_policies",
+          "mechanics",
+          "name",
+          "price_minor",
+          "quotas",
+          "system_access_policy"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "additional_seat_price_minor",
+          "billing_period",
+          "currency",
+          "description",
+          "discounted_price_minor",
+          "downgrade_policies",
+          "included_seats",
+          "is_active",
+          "mailing_templates",
+          "mechanic_access_policies",
+          "mechanics",
+          "name",
+          "price_minor",
+          "quotas",
+          "system_access_policy",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.saas_org_entitlement_overrides": {
+    "kind": "direct",
+    "purpose": "ручные включения механик клинике — точечная выдача функций клинике",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgOrgEntitlements.ts",
+      "apps/webapp/src/infra/repos/pgPlatformEntitlements.ts",
+      "apps/webapp/src/infra/repos/transactionQuotaPort.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "columns": [
+          "enabled",
+          "expires_at",
+          "mechanic",
+          "organization_id",
+          "quota",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.saas_organization_trials": {
+    "kind": "direct",
+    "purpose": "триал клиники — бесплатный период",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgOrgEntitlements.ts",
+      "apps/webapp/src/infra/repos/pgPlatformEntitlements.ts",
+      "apps/webapp/src/infra/repos/pgSaasBilling.ts",
+      "apps/webapp/src/modules/saas-billing/ports.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_by",
+          "discount_ends_at",
+          "ends_at",
+          "organization_id",
+          "post_trial_behavior",
+          "post_trial_tariff_id",
+          "started_at",
+          "tariff_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "status",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.specialist_tasks": {
+    "kind": "direct",
+    "purpose": "задачи врача по пациенту — пропадёт список задач врача и напоминания по ним",
+    "codePaths": [
+      "apps/integrator/src/infra/scripts/check-d30-outgoing-delivery-claim-concurrency.ts",
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts",
+      "apps/webapp/src/app-layer/operator-health/recordOperatorCronJobTick.ts",
+      "apps/webapp/src/app/api/doctor/clients/[userId]/tasks/route.ts",
+      "apps/webapp/src/app/api/doctor/clients/[userId]/tasks/summary/route.ts",
+      "apps/webapp/src/app/api/doctor/tasks/[taskId]/complete/route.ts",
+      "apps/webapp/src/app/api/doctor/tasks/[taskId]/route.ts",
+      "apps/webapp/src/app/api/doctor/tasks/route.ts",
+      "apps/webapp/src/app/app/doctor/clients/loadDoctorClientProfileCardProps.ts",
+      "apps/webapp/src/app/app/doctor/loadDoctorTodayDashboard.ts",
+      "apps/webapp/src/app/app/doctor/page.tsx",
+      "apps/webapp/src/app/app/doctor/patients/loadDoctorPatientCardPageBootstrap.ts",
+      "apps/webapp/src/infra/repos/pgSpecialistTasks.ts",
+      "apps/webapp/src/modules/org-entitlements/types.ts",
+      "apps/webapp/src/modules/specialist-tasks/service.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "completed_at",
+          "created_at",
+          "description",
+          "due_at",
+          "due_has_time",
+          "id",
+          "is_important",
+          "organization_id",
+          "owner_user_id",
+          "patient_user_id",
+          "remind_at",
+          "reminder_sent_at",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "completed_at",
+          "description",
+          "due_at",
+          "due_has_time",
+          "is_important",
+          "organization_id",
+          "remind_at",
+          "reminder_sent_at",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "organization_id",
+          "owner_user_id",
+          "remind_at",
+          "reminder_sent_at",
+          "title"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "id",
+          "organization_id",
+          "owner_user_id",
+          "remind_at",
+          "title"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "reminder_sent_at"
+        ]
+      }
+    ]
+  },
+  "public.support_conversation_messages": {
+    "kind": "direct",
+    "purpose": "сообщения диалога — тело переписки",
+    "codePaths": [
+      "apps/integrator/src/infra/db/directPublic/writeSupportConversationsDirect.ts",
+      "apps/webapp/src/infra/repos/mergeLegacySupportConversations.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts",
+      "apps/webapp/src/infra/repos/pgSupportCommunication.ts",
+      "apps/webapp/src/modules/messaging/doctorSupportMessagingService.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "conversation_id",
+          "created_at",
+          "delivered_at",
+          "delivery_status",
+          "external_chat_id",
+          "external_message_id",
+          "integrator_message_id",
+          "media_type",
+          "media_url",
+          "message_type",
+          "organization_id",
+          "sender_role",
+          "source",
+          "text"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "conversation_id",
+          "read_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "conversation_id",
+          "created_at",
+          "external_chat_id",
+          "external_message_id",
+          "id",
+          "integrator_message_id",
+          "message_type",
+          "organization_id",
+          "sender_role",
+          "source",
+          "text"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "conversation_id",
+          "created_at",
+          "external_chat_id",
+          "external_message_id",
+          "integrator_message_id",
+          "message_type",
+          "organization_id",
+          "sender_role",
+          "source",
+          "text"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "conversation_id"
+        ]
+      }
+    ]
+  },
+  "public.support_conversations": {
+    "kind": "direct",
+    "purpose": "диалоги поддержки — без неё нет переписки врач↔пациент",
+    "codePaths": [
+      "apps/integrator/src/infra/db/directPublic/writeReminderRulesDirect.ts",
+      "apps/integrator/src/infra/db/directPublic/writeSupportConversationsDirect.ts",
+      "apps/integrator/src/infra/db/directPublic/writeSupportQuestionsDirect.ts",
+      "apps/integrator/src/infra/db/writePort.ts",
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/mergeLegacySupportConversations.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgIntegratorSupportQuestionOwnership.ts",
+      "apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts",
+      "apps/webapp/src/infra/repos/pgSupportCommunication.ts",
+      "apps/webapp/src/modules/doctor-clients/ports.ts",
+      "apps/webapp/src/modules/messaging/ports.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "admin_scope",
+          "channel_code",
+          "channel_external_id",
+          "close_reason",
+          "closed_at",
+          "integrator_conversation_id",
+          "last_message_at",
+          "opened_at",
+          "organization_id",
+          "platform_user_id",
+          "source",
+          "status"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "close_reason",
+          "closed_at",
+          "last_message_at",
+          "organization_id",
+          "platform_user_id",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "admin_scope",
+          "channel_code",
+          "channel_external_id",
+          "close_reason",
+          "closed_at",
+          "id",
+          "integrator_conversation_id",
+          "last_message_at",
+          "opened_at",
+          "organization_id",
+          "platform_user_id",
+          "source",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "admin_scope",
+          "channel_code",
+          "channel_external_id",
+          "integrator_conversation_id",
+          "last_message_at",
+          "opened_at",
+          "organization_id",
+          "platform_user_id",
+          "source",
+          "status"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "close_reason",
+          "closed_at",
+          "last_message_at",
+          "organization_id",
+          "platform_user_id",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.support_question_messages": {
+    "kind": "direct",
+    "purpose": "реплики внутри вопроса — тело вопроса",
+    "codePaths": [
+      "apps/integrator/src/infra/db/directPublic/writeSupportQuestionsDirect.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/repos/pgIntegratorSupportQuestionOwnership.ts",
+      "apps/webapp/src/infra/repos/pgSupportCommunication.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "integrator_question_message_id",
+          "organization_id",
+          "question_id",
+          "sender_role",
+          "text"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "created_at",
+          "id",
+          "integrator_question_message_id",
+          "organization_id",
+          "question_id",
+          "sender_role",
+          "text"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "integrator_question_message_id",
+          "organization_id",
+          "question_id",
+          "sender_role",
+          "text"
+        ]
+      }
+    ]
+  },
+  "public.support_questions": {
+    "kind": "direct",
+    "purpose": "вопросы пациента из бота — очередь «вопрос из мессенджера → врач»",
+    "codePaths": [
+      "apps/integrator/src/infra/db/directPublic/writeSupportQuestionsDirect.ts",
+      "apps/integrator/src/infra/db/writePort.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/repos/mergeLegacySupportConversations.ts",
+      "apps/webapp/src/infra/repos/pgIntegratorSupportQuestionOwnership.ts",
+      "apps/webapp/src/infra/repos/pgSupportCommunication.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "answered_at",
+          "conversation_id",
+          "created_at",
+          "integrator_question_id",
+          "organization_id",
+          "status"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "answered_at",
+          "conversation_id",
+          "organization_id",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "answered_at",
+          "conversation_id",
+          "created_at",
+          "id",
+          "integrator_question_id",
+          "organization_id",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "answered_at",
+          "conversation_id",
+          "created_at",
+          "integrator_question_id",
+          "organization_id",
+          "status"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "answered_at",
+          "conversation_id",
+          "organization_id",
+          "status",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.symptom_entries": {
+    "kind": "direct",
+    "purpose": "замеры — динамика самочувствия",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgSymptomDiary.ts",
+      "apps/webapp/src/infra/repos/pgWarmupFeelingCompletion.ts",
+      "apps/webapp/src/modules/diaries/wellbeingGeneralMirrorNote.ts",
+      "apps/webapp/src/modules/patient-mood/types.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "entry_type",
+          "notes",
+          "patient_practice_completion_id",
+          "platform_user_id",
+          "recorded_at",
+          "source",
+          "tracking_id",
+          "user_id",
+          "value_0_10"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "entry_type",
+          "notes",
+          "recorded_at",
+          "value_0_10"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id",
+          "tracking_id",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.symptom_trackings": {
+    "kind": "direct",
+    "purpose": "что пациент отслеживает — дневник симптомов",
+    "codePaths": [
+      "apps/webapp/src/app/app/doctor/clients/DoctorClientRecordsTab.tsx",
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/app/app/doctor/clients/loadDoctorClientProfileCardProps.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/pgChannelLinkClaim.ts",
+      "apps/webapp/src/infra/repos/pgDiaryPurge.ts",
+      "apps/webapp/src/infra/repos/pgSymptomDiary.ts",
+      "apps/webapp/src/infra/repos/warmupFeelingTrackingTx.ts",
+      "apps/webapp/src/modules/doctor-clients/service.ts",
+      "apps/webapp/src/modules/patient-mood/wellbeingConstants.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "diagnosis_ref_id",
+          "diagnosis_text",
+          "is_active",
+          "organization_id",
+          "platform_user_id",
+          "region_ref_id",
+          "side",
+          "stage_ref_id",
+          "symptom_key",
+          "symptom_title",
+          "symptom_type_ref_id",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "deleted_at",
+          "is_active",
+          "symptom_title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "created_at",
+          "deleted_at",
+          "id",
+          "is_active",
+          "platform_user_id",
+          "symptom_key",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "deleted_at",
+          "is_active",
+          "platform_user_id",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.test_attempts": {
+    "kind": "direct",
+    "purpose": "попытки прохождения теста — пациент не сможет сдать тест",
+    "codePaths": [
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/pgTestSets.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts",
+      "packages/platform-merge/src/mergeFailureClassification.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "accepted_at",
+          "accepted_by",
+          "submitted_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "instance_stage_item_id",
+          "patient_user_id",
+          "submitted_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "patient_user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "instance_stage_item_id",
+          "organization_id",
+          "patient_user_id"
+        ]
+      }
+    ]
+  },
+  "public.test_results": {
+    "kind": "direct",
+    "purpose": "результат попытки — оценка теста",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgClinicalTests.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts",
+      "apps/webapp/src/modules/tests/types.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "attempt_id",
+          "decided_by",
+          "normalized_decision",
+          "organization_id",
+          "raw_value",
+          "test_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "decided_by",
+          "normalized_decision",
+          "raw_value"
+        ]
+      }
+    ]
+  },
+  "public.test_set_items": {
+    "kind": "direct",
+    "purpose": "состав набора — наполнение набора",
+    "codePaths": [
+      "apps/webapp/src/app/api/doctor/test-sets/[id]/items/route.ts",
+      "apps/webapp/src/infra/repos/pgClinicalTests.ts",
+      "apps/webapp/src/infra/repos/pgTestSets.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+      "apps/webapp/src/modules/treatment-program/testSetSnapshotView.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "comment",
+          "organization_id",
+          "sort_order",
+          "test_id",
+          "test_set_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.test_sets": {
+    "kind": "direct",
+    "purpose": "наборы тестов — пакетное назначение тестов",
+    "codePaths": [
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app/api/doctor/test-sets/[id]/items/route.ts",
+      "apps/webapp/src/app/api/doctor/test-sets/[id]/route.ts",
+      "apps/webapp/src/app/api/doctor/test-sets/route.ts",
+      "apps/webapp/src/app/app/doctor/patients/[userId]/programs/[instanceId]/page.tsx",
+      "apps/webapp/src/app/app/doctor/test-sets/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/test-sets/actions.ts",
+      "apps/webapp/src/app/app/doctor/test-sets/actionsShared.ts",
+      "apps/webapp/src/app/app/doctor/test-sets/page.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/InstanceAddLibraryItemDialog.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/loadTreatmentProgramLibrary.ts",
+      "apps/webapp/src/infra/repos/pgClinicalTests.ts",
+      "apps/webapp/src/infra/repos/pgTestSets.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "created_by",
+          "description",
+          "id",
+          "is_archived",
+          "organization_id",
+          "publication_status",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "description",
+          "is_archived",
+          "organization_id",
+          "publication_status",
+          "title",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.tests": {
+    "kind": "direct",
+    "purpose": "каталог клинических тестов клиники — без него врач не назначит тест",
+    "codePaths": [
+      "apps/integrator/src/infra/db/directPublic/writeIdentityAndPreferencesDirect.ts",
+      "apps/integrator/src/infra/db/directPublic/writeReminderRulesDirect.ts",
+      "apps/integrator/src/infra/db/messengerStaffIds.ts",
+      "apps/integrator/src/infra/db/pgAdvisoryLock.ts",
+      "apps/integrator/src/infra/db/writePort.ts",
+      "apps/integrator/src/integrations/max/webhook.ts",
+      "apps/integrator/src/integrations/telegram/webhook.ts",
+      "apps/integrator/src/kernel/domain/usecases/handleUpdate.ts",
+      "apps/integrator/src/kernel/domain/usecases/requestContactFlow.ts",
+      "apps/integrator/src/shared/devDeliveryRedirect.ts",
+      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
+      "apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts",
+      "apps/webapp/src/app-layer/principal/bootstrapPrincipal.ts",
+      "apps/webapp/src/app-layer/reminders/warmupSlugCache.ts",
+      "apps/webapp/src/app-layer/routes/paths.ts",
+      "apps/webapp/src/app-layer/testing/builders.ts",
+      "apps/webapp/src/app/api/admin/media/[id]/usage-summary/route.ts",
+      "apps/webapp/src/app/api/doctor/clinical-tests/[id]/route.ts",
+      "apps/webapp/src/app/api/doctor/clinical-tests/route.ts",
+      "apps/webapp/src/app/api/doctor/pending-program-tests/summary/route.ts",
+      "apps/webapp/src/app/api/doctor/test-sets/[id]/items/route.ts",
+      "apps/webapp/src/app/api/doctor/test-sets/[id]/route.ts",
+      "apps/webapp/src/app/api/integrator/testUtils/wireAssertIntegratorGetForRouteTests.ts",
+      "apps/webapp/src/app/app/doctor/DoctorTodayLeftKpiRow.tsx",
+      "apps/webapp/src/app/app/doctor/clients/DoctorClientProgramTab.tsx",
+      "apps/webapp/src/app/app/doctor/clients/PatientActionStrip.tsx",
+      "apps/webapp/src/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx",
+      "apps/webapp/src/app/app/doctor/clients/doctorClientProfileHref.testFixtures.ts",
+      "apps/webapp/src/app/app/doctor/clients/doctorClientProfileHref.ts",
+      "apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.tsx",
+      "apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestMeasureRowsEditor.tsx",
+      "apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestsPageClient.tsx",
+      "apps/webapp/src/app/app/doctor/clinical-tests/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/clinical-tests/actions.ts",
+      "apps/webapp/src/app/app/doctor/clinical-tests/actionsShared.ts",
+      "apps/webapp/src/app/app/doctor/clinical-tests/clinicalTestsUsageDocLinks.ts",
+      "apps/webapp/src/app/app/doctor/clinical-tests/clinicalTestsUsageSummaryText.ts",
+      "apps/webapp/src/app/app/doctor/clinical-tests/new/page.tsx",
+      "apps/webapp/src/app/app/doctor/clinical-tests/page.tsx",
+      "apps/webapp/src/app/app/doctor/clinical-tests/paths.ts",
+      "apps/webapp/src/app/app/doctor/patients/[userId]/programs/[instanceId]/page.tsx",
+      "apps/webapp/src/app/app/doctor/references/measure-kinds/MeasureKindsTableClient.tsx",
+      "apps/webapp/src/app/app/doctor/test-sets/TestSetForm.tsx",
+      "apps/webapp/src/app/app/doctor/test-sets/TestSetItemsForm.tsx",
+      "apps/webapp/src/app/app/doctor/test-sets/TestSetMasterListStatusBadge.tsx",
+      "apps/webapp/src/app/app/doctor/test-sets/TestSetsPageClient.tsx",
+      "apps/webapp/src/app/app/doctor/test-sets/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/test-sets/actions.ts",
+      "apps/webapp/src/app/app/doctor/test-sets/actionsShared.ts",
+      "apps/webapp/src/app/app/doctor/test-sets/clinicalTestLibraryRows.ts",
+      "apps/webapp/src/app/app/doctor/test-sets/new/page.tsx",
+      "apps/webapp/src/app/app/doctor/test-sets/page.tsx",
+      "apps/webapp/src/app/app/doctor/test-sets/testSetUsageDocLinks.ts",
+      "apps/webapp/src/app/app/doctor/test-sets/testSetUsageSummaryText.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/InstanceAddLibraryItemDialog.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/instanceEditorDraft.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/treatmentProgramConstructorShellStyles.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/treatmentProgramLibraryDraftSnapshot.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/page.tsx",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers.ts",
+      "apps/webapp/src/app/app/doctor/treatment-program-templates/loadTreatmentProgramLibrary.ts",
+      "apps/webapp/src/app/app/patient/home/PatientHomeTodayLayout.tsx",
+      "apps/webapp/src/app/app/patient/treatment/PatientProgramStageItemPageClient.tsx",
+      "apps/webapp/src/app/app/patient/treatment/PatientTestSetProgressForm.tsx",
+      "apps/webapp/src/app/app/patient/treatment/[instanceId]/item/[itemId]/page.tsx",
+      "apps/webapp/src/app/app/patient/treatment/patientProgramItemPageResolve.ts",
+      "apps/webapp/src/app/app/patient/treatment/program-detail/PatientTreatmentProgramDetailClient.tsx",
+      "apps/webapp/src/app/app/patient/treatment/stageItemSnapshot.ts",
+      "apps/webapp/src/config/env.ts",
+      "apps/webapp/src/infra/idempotency/index.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/identityPhoneSql.ts",
+      "apps/webapp/src/infra/repos/inMemoryBroadcastRecipients.ts",
+      "apps/webapp/src/infra/repos/inMemoryClinicalTestMeasureKinds.ts",
+      "apps/webapp/src/infra/repos/inMemoryClinicalTests.ts",
+      "apps/webapp/src/infra/repos/inMemoryOperatorHealthWrite.ts",
+      "apps/webapp/src/infra/repos/inMemoryPatientClinical.ts",
+      "apps/webapp/src/infra/repos/inMemoryPatientComorbidities.ts",
+      "apps/webapp/src/infra/repos/inMemoryPatientFiles.ts",
+      "apps/webapp/src/infra/repos/inMemoryPatientPayments.ts",
+      "apps/webapp/src/infra/repos/inMemoryReferences.ts",
+      "apps/webapp/src/infra/repos/inMemoryReminderJournal.ts",
+      "apps/webapp/src/infra/repos/inMemoryTestSets.ts",
+      "apps/webapp/src/infra/repos/inMemoryTreatmentProgram.ts",
+      "apps/webapp/src/infra/repos/inMemoryTreatmentProgramInstance.ts",
+      "apps/webapp/src/infra/repos/inMemoryUserByPhone.ts",
+      "apps/webapp/src/infra/repos/lfkDiary.ts",
+      "apps/webapp/src/infra/repos/mediaUploadSessionsRepo.ts",
+      "apps/webapp/src/infra/repos/mockMediaStorage.ts",
+      "apps/webapp/src/infra/repos/pgClinicalTestMeasureKinds.ts",
+      "apps/webapp/src/infra/repos/pgClinicalTests.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgEmailOtpPublic.ts",
+      "apps/webapp/src/infra/repos/pgMediaUsageSummary.ts",
+      "apps/webapp/src/infra/repos/pgTestSets.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramItemRefValidation.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramItemSnapshot.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts",
+      "apps/webapp/src/infra/repos/symptomDiary.ts",
+      "apps/webapp/src/infra/webhooks/verifyIntegratorSignature.ts",
+      "apps/webapp/src/modules/auth/channelLink.ts",
+      "apps/webapp/src/modules/auth/emailSetupAccess/noopPort.ts",
+      "apps/webapp/src/modules/auth/service.ts",
+      "apps/webapp/src/modules/auth/sessionCanonicalUserIdPolicy.ts",
+      "apps/webapp/src/modules/doctor-client-card/types.ts",
+      "apps/webapp/src/modules/doctor-clients/patientProgramInteractionPolicyTestMock.ts",
+      "apps/webapp/src/modules/doctor-notifications/resolveDoctorNotificationChannels.ts",
+      "apps/webapp/src/modules/media/types.ts",
+      "apps/webapp/src/modules/media/usageSummaryFormat.ts",
+      "apps/webapp/src/modules/operator-health/classifyOperatorCronJobHealthStatus.ts",
+      "apps/webapp/src/modules/org-entitlements/ladderConstants.ts",
+      "apps/webapp/src/modules/tests/clinicalTestAssessmentKind.ts",
+      "apps/webapp/src/modules/tests/clinicalTestScoring.ts",
+      "apps/webapp/src/modules/tests/types.ts",
+      "apps/webapp/src/modules/treatment-program/clinicalTestSnapshotTitle.ts",
+      "apps/webapp/src/modules/treatment-program/editorDraftSnapshotDetect.ts",
+      "apps/webapp/src/modules/treatment-program/hooks/useDoctorPendingProgramTestsCount.ts",
+      "apps/webapp/src/modules/treatment-program/instance-service.ts",
+      "apps/webapp/src/modules/treatment-program/instance-tree-system-groups.ts",
+      "apps/webapp/src/modules/treatment-program/instanceEditorBatchApply.ts",
+      "apps/webapp/src/modules/treatment-program/progress-service.ts",
+      "apps/webapp/src/modules/treatment-program/stage-semantics.ts",
+      "apps/webapp/src/modules/treatment-program/testSetSnapshotView.ts",
+      "apps/webapp/src/modules/treatment-program/types.ts",
+      "apps/webapp/src/shared/lib/doctorCatalogListStatus.ts",
+      "apps/webapp/src/shared/lib/doctorCatalogViewPreference.ts",
+      "apps/webapp/src/shared/lib/nativeHls.ts",
+      "apps/webapp/src/shared/lib/reloadDenylist.ts",
+      "apps/webapp/src/shared/lib/webPush/subscribePatientWebPush.ts",
+      "apps/webapp/src/shared/lib/webPush/subscribeStaffWebPush.ts",
+      "apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts",
+      "apps/webapp/src/shared/ui/doctor/media/doctorHlsQuality.ts",
+      "apps/webapp/src/shared/ui/doctor/media/mediaPreviewUiModel.ts",
+      "apps/webapp/src/shared/ui/doctor/media/useMediaLibraryPickerItems.ts",
+      "apps/webapp/src/shared/ui/doctor/platformNavLinks.ts",
+      "apps/webapp/src/shared/ui/doctorScreenTitles.ts",
+      "apps/webapp/src/shared/ui/patient/media/mediaPreviewUiModel.ts",
+      "apps/webapp/src/shared/ui/patient/media/patientHlsQuality.ts",
+      "packages/platform-merge/src/identityProjectionWrite.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "assessment_kind",
+          "body_region_id",
+          "created_at",
+          "created_by",
+          "description",
+          "id",
+          "is_archived",
+          "media",
+          "organization_id",
+          "raw_text",
+          "scoring",
+          "tags",
+          "test_type",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "assessment_kind",
+          "body_region_id",
+          "description",
+          "is_archived",
+          "media",
+          "organization_id",
+          "raw_text",
+          "scoring",
+          "tags",
+          "test_type",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "assessment_kind",
+          "body_region_id",
+          "created_at",
+          "created_by",
+          "description",
+          "id",
+          "is_archived",
+          "media",
+          "organization_id",
+          "raw_text",
+          "scoring",
+          "tags",
+          "test_type",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "assessment_kind",
+          "body_region_id",
+          "description",
+          "is_archived",
+          "media",
+          "organization_id",
+          "raw_text",
+          "scoring",
+          "tags",
+          "test_type",
+          "title",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.treatment_program_events": {
+    "kind": "direct",
+    "purpose": "журнал изменений программы — аудит «кто что менял в лечении»",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgTreatmentProgramEvents.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+      "apps/webapp/src/modules/treatment-program/types.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "actor_id",
+          "created_at",
+          "event_type",
+          "id",
+          "instance_id",
+          "organization_id",
+          "payload",
+          "reason",
+          "target_id",
+          "target_type"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "actor_id",
+          "event_type",
+          "instance_id",
+          "organization_id",
+          "payload",
+          "reason",
+          "target_id",
+          "target_type"
+        ]
+      }
+    ]
+  },
+  "public.treatment_program_instance_stage_groups": {
+    "kind": "direct",
+    "purpose": "группы внутри этапа — группировка заданий",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "description",
+          "id",
+          "organization_id",
+          "schedule_text",
+          "sort_order",
+          "source_group_id",
+          "stage_id",
+          "system_kind",
+          "title"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "description",
+          "schedule_text",
+          "sort_order"
+        ]
+      }
+    ]
+  },
+  "public.treatment_program_instance_stage_items": {
+    "kind": "direct",
+    "purpose": "сами задания — что пациент делает каждый день",
+    "codePaths": [
+      "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
+      "apps/webapp/src/infra/repos/pgClinicalTests.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "apps/webapp/src/infra/repos/pgPlatformLfkMediaAccess.ts",
+      "apps/webapp/src/infra/repos/pgProgramActionLog.ts",
+      "apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts",
+      "apps/webapp/src/infra/repos/pgProgramNoteReplyContext.ts",
+      "apps/webapp/src/infra/repos/pgRecommendations.ts",
+      "apps/webapp/src/infra/repos/pgTestSets.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "comment",
+          "completed_at",
+          "created_at",
+          "group_id",
+          "id",
+          "is_actionable",
+          "item_ref_id",
+          "item_type",
+          "last_viewed_at",
+          "local_comment",
+          "organization_id",
+          "settings",
+          "snapshot",
+          "sort_order",
+          "stage_id",
+          "status"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "comment",
+          "completed_at",
+          "created_at",
+          "group_id",
+          "is_actionable",
+          "item_ref_id",
+          "item_type",
+          "last_viewed_at",
+          "local_comment",
+          "settings",
+          "snapshot",
+          "sort_order",
+          "status"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "completed_at",
+          "id",
+          "item_ref_id",
+          "item_type",
+          "last_viewed_at",
+          "sort_order",
+          "stage_id",
+          "status"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "completed_at",
+          "last_viewed_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.treatment_program_instance_stages": {
+    "kind": "direct",
+    "purpose": "этапы программы — шаги лечения",
+    "codePaths": [
+      "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
+      "apps/webapp/src/infra/repos/pgClinicalTests.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "apps/webapp/src/infra/repos/pgPlatformLfkMediaAccess.ts",
+      "apps/webapp/src/infra/repos/pgProgramActionLog.ts",
+      "apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts",
+      "apps/webapp/src/infra/repos/pgProgramNoteReplyContext.ts",
+      "apps/webapp/src/infra/repos/pgRecommendations.ts",
+      "apps/webapp/src/infra/repos/pgTestSets.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "description",
+          "expected_duration_days",
+          "expected_duration_text",
+          "goals",
+          "id",
+          "objectives",
+          "skip_reason",
+          "sort_order",
+          "started_at",
+          "status",
+          "title"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "instance_id",
+          "sort_order",
+          "source_stage_id",
+          "started_at",
+          "status"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "started_at",
+          "status"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "description",
+          "expected_duration_days",
+          "expected_duration_text",
+          "goals",
+          "id",
+          "instance_id",
+          "local_comment",
+          "objectives",
+          "organization_id",
+          "skip_reason",
+          "sort_order",
+          "source_stage_id",
+          "started_at",
+          "status",
+          "title"
+        ]
+      }
+    ]
+  },
+  "public.treatment_program_instances": {
+    "kind": "direct",
+    "purpose": "назначенная пациенту программа — ядро лечения — без неё нет программы",
+    "codePaths": [
+      "apps/integrator/src/integrations/google-calendar/calendarDescription.ts",
+      "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
+      "apps/webapp/src/app/api/patient/courses/route.ts",
+      "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
+      "apps/webapp/src/app/app/doctor/clients/loadDoctorClientProfileCardProps.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/inMemoryCourses.ts",
+      "apps/webapp/src/infra/repos/pgClinicalTests.ts",
+      "apps/webapp/src/infra/repos/pgCourses.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "apps/webapp/src/infra/repos/pgPlatformLfkMediaAccess.ts",
+      "apps/webapp/src/infra/repos/pgProgramActionLog.ts",
+      "apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts",
+      "apps/webapp/src/infra/repos/pgProgramNoteReplyContext.ts",
+      "apps/webapp/src/infra/repos/pgRecommendations.ts",
+      "apps/webapp/src/infra/repos/pgTestSets.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramEvents.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts",
+      "apps/webapp/src/modules/courses/ports.ts",
+      "apps/webapp/src/modules/doctor-clients/ports.ts",
+      "apps/webapp/src/modules/program-item-discussion/types.ts",
+      "packages/platform-merge/src/mergeFailureClassification.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "assigned_by",
+          "assignment_source",
+          "created_at",
+          "id",
+          "organization_id",
+          "patient_plan_last_opened_at",
+          "patient_user_id",
+          "status",
+          "template_id",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "status",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "assignment_source",
+          "id",
+          "organization_id",
+          "patient_plan_last_opened_at",
+          "patient_user_id",
+          "status",
+          "template_id",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "patient_plan_last_opened_at",
+          "patient_user_id",
+          "status",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.treatment_program_template_stage_groups": {
+    "kind": "direct",
+    "purpose": "группы в этапе шаблона — группировка в шаблоне",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "description",
+          "organization_id",
+          "schedule_text",
+          "sort_order",
+          "stage_id",
+          "system_kind",
+          "title"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "description",
+          "organization_id",
+          "schedule_text",
+          "sort_order"
+        ]
+      }
+    ]
+  },
+  "public.treatment_program_template_stage_items": {
+    "kind": "direct",
+    "purpose": "задания шаблона — содержимое шаблона",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgClinicalTests.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "apps/webapp/src/infra/repos/pgRecommendations.ts",
+      "apps/webapp/src/infra/repos/pgTestSets.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts",
+      "apps/webapp/src/modules/treatment-program/types.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "comment",
+          "group_id",
+          "item_ref_id",
+          "item_type",
+          "organization_id",
+          "settings",
+          "sort_order",
+          "stage_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "comment",
+          "group_id",
+          "item_ref_id",
+          "item_type",
+          "organization_id",
+          "settings",
+          "sort_order"
+        ]
+      }
+    ]
+  },
+  "public.treatment_program_template_stages": {
+    "kind": "direct",
+    "purpose": "этапы шаблона — структура шаблона",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgClinicalTests.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "apps/webapp/src/infra/repos/pgRecommendations.ts",
+      "apps/webapp/src/infra/repos/pgTestSets.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "description",
+          "expected_duration_days",
+          "expected_duration_text",
+          "goals",
+          "id",
+          "objectives",
+          "organization_id",
+          "sort_order",
+          "template_id",
+          "title"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "description",
+          "expected_duration_days",
+          "expected_duration_text",
+          "goals",
+          "objectives",
+          "organization_id",
+          "sort_order",
+          "title"
+        ]
+      }
+    ]
+  },
+  "public.treatment_program_templates": {
+    "kind": "direct",
+    "purpose": "шаблоны программ лечения — без них нечего назначать пациенту",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgClinicalTests.ts",
+      "apps/webapp/src/infra/repos/pgCourses.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "apps/webapp/src/infra/repos/pgRecommendations.ts",
+      "apps/webapp/src/infra/repos/pgTestSets.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgram.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "created_by",
+          "description",
+          "id",
+          "organization_id",
+          "status",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "description",
+          "organization_id",
+          "status",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.user_channel_bindings": {
+    "kind": "direct",
+    "purpose": "привязка мессенджера — вход через Telegram/MAX и рассылки",
+    "codePaths": [
+      "apps/integrator/src/infra/db/directPublic/writeIdentityAndPreferencesDirect.ts",
+      "apps/integrator/src/infra/db/directPublic/writeSupportConversationsDirect.ts",
+      "apps/integrator/src/infra/db/integratorDrizzleSchema.ts",
+      "apps/integrator/src/infra/db/repos/platformUserByChannel.ts",
+      "apps/integrator/src/infra/db/repos/userChannelBotBlocked.ts",
+      "apps/integrator/src/infra/db/schema/integratorPublicProduct.ts",
+      "apps/integrator/src/infra/db/writePort.ts",
+      "apps/integrator/src/infra/operatorIncident/operatorHealthAlertConfigIntegrator.ts",
+      "apps/integrator/src/infra/scripts/check-d30-outgoing-delivery-claim-concurrency.ts",
+      "apps/integrator/src/shared/devDeliveryRedirect.ts",
+      "apps/integrator/src/shared/phoneLinkUserMessages.ts",
+      "apps/webapp/src/app-layer/stats/reminderNotificationPeopleStats.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/platformUserMergePreview.ts",
+      "apps/webapp/src/infra/repos/broadcastChannelCounts.ts",
+      "apps/webapp/src/infra/repos/loadPlatformUserChannelBindings.ts",
+      "apps/webapp/src/infra/repos/mergeLegacySupportConversations.ts",
+      "apps/webapp/src/infra/repos/pgAdminNotificationTargets.ts",
+      "apps/webapp/src/infra/repos/pgAdminPlatformUserStats.ts",
+      "apps/webapp/src/infra/repos/pgAnalyticsAudience.ts",
+      "apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts",
+      "apps/webapp/src/infra/repos/pgChannelLinkClaim.ts",
+      "apps/webapp/src/infra/repos/pgChannelLinkStart.ts",
+      "apps/webapp/src/infra/repos/pgChannelPreferences.ts",
+      "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgIdentityResolution.ts",
+      "apps/webapp/src/infra/repos/pgPatientTelegramUsernameMention.ts",
+      "apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts",
+      "apps/webapp/src/infra/repos/pgProductAnalytics.ts",
+      "apps/webapp/src/infra/repos/pgReminderMessengerTopicDisable.ts",
+      "apps/webapp/src/infra/repos/pgSupportCommunication.ts",
+      "apps/webapp/src/infra/repos/pgUserByPhone.ts",
+      "apps/webapp/src/modules/auth/channelLink.ts",
+      "apps/webapp/src/modules/doctor-clients/activeMessengerBindingSql.ts",
+      "apps/webapp/src/modules/doctor-clients/ports.ts",
+      "packages/platform-merge/src/identityProjectionWrite.ts",
+      "packages/platform-merge/src/messengerBindAuditEnrichment.ts",
+      "packages/platform-merge/src/messengerPhonePublicBind.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts",
+      "packages/platform-merge/src/userContactsMirrorWrite.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["channel_code", "external_id", "user_id"]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "channel_code",
+          "external_id",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "columns": [
+          "bot_blocked_at",
+          "bot_blocked_reason",
+          "channel_code",
+          "display_handle",
+          "external_id",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "bot_blocked_at",
+          "bot_blocked_reason",
+          "display_handle",
+          "external_id",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.user_channel_preferences": {
+    "kind": "direct",
+    "purpose": "согласия по каналам — по какому каналу писать пациенту",
+    "codePaths": [
+      "apps/integrator/src/infra/scripts/check-d30-outgoing-delivery-claim-concurrency.ts",
+      "apps/webapp/src/app-layer/stats/reminderNotificationPeopleStats.ts",
+      "apps/webapp/src/app/app/doctor/clients/AdminMergeAccountsPanel.tsx",
+      "apps/webapp/src/infra/repos/pgChannelPreferences.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/upsertBroadcastDefaultsAfterChannelBind.ts",
+      "apps/webapp/src/modules/doctor-broadcasts/ports.ts",
+      "apps/webapp/src/modules/patient-notifications/profileTopicChannelsModel.ts",
+      "packages/platform-merge/src/identityProjectionWrite.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "channel_code",
+          "is_enabled_for_messages",
+          "is_enabled_for_notifications",
+          "is_preferred_for_auth",
+          "platform_user_id",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "is_enabled_for_messages",
+          "is_enabled_for_notifications",
+          "is_preferred_for_auth",
+          "platform_user_id",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "channel_code",
+          "id",
+          "is_enabled_for_messages",
+          "is_enabled_for_notifications",
+          "is_preferred_for_auth",
+          "platform_user_id",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "channel_code",
+          "is_enabled_for_messages",
+          "is_enabled_for_notifications",
+          "platform_user_id",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "is_enabled_for_messages",
+          "is_enabled_for_notifications",
+          "platform_user_id",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.user_contacts": {
+    "kind": "direct",
+    "purpose": "сводный индекс контактов — вход по почте/телефону и поиск пациента",
+    "codePaths": [
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/repos/broadcastChannelCounts.ts",
+      "apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClientCreate.ts",
+      "apps/webapp/src/infra/repos/userContactsSql.ts",
+      "packages/platform-merge/src/messengerPhonePublicBind.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts",
+      "packages/platform-merge/src/userContactsMirrorWrite.ts",
+      "packages/platform-merge/src/userIdentityFioWrite.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["contact_kind", "is_primary", "platform_user_id", "value_normalized"]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT",
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "confirmed_at",
+          "contact_kind",
+          "is_primary",
+          "platform_user_id",
+          "source_origin",
+          "updated_at",
+          "value_normalized"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "confirmed_at",
+          "is_primary",
+          "platform_user_id",
+          "source_origin",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "confirmed_at",
+          "contact_kind",
+          "created_at",
+          "id",
+          "is_primary",
+          "platform_user_id",
+          "source_origin",
+          "updated_at",
+          "value_normalized"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "confirmed_at",
+          "contact_kind",
+          "is_primary",
+          "platform_user_id",
+          "source_origin",
+          "updated_at",
+          "value_normalized"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.user_identity": {
+    "kind": "direct",
+    "purpose": "Именной профиль актора — ФИО во всех экранах",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
+      "apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts",
+      "apps/webapp/src/infra/repos/pgClientMediaFolders.ts",
+      "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts",
+      "apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClientCreate.ts",
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/infra/repos/pgLfkTemplates.ts",
+      "apps/webapp/src/infra/repos/pgMaterialRating.ts",
+      "apps/webapp/src/infra/repos/pgMaterialRatingFeedback.ts",
+      "apps/webapp/src/infra/repos/pgOrganizationMembership.ts",
+      "apps/webapp/src/infra/repos/pgPatientOrganization.ts",
+      "apps/webapp/src/infra/repos/pgProductAnalytics.ts",
+      "apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts",
+      "apps/webapp/src/infra/repos/s3MediaStorage.ts",
+      "apps/webapp/src/infra/repos/userIdentityFioSql.ts",
+      "packages/platform-merge/src/userIdentityFioWrite.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "display_name",
+          "first_name",
+          "last_name",
+          "patronymic",
+          "platform_user_id",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "display_name",
+          "first_name",
+          "last_name",
+          "patronymic",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "columns": [
+          "display_name",
+          "first_name",
+          "last_name",
+          "patronymic",
+          "platform_user_id",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "display_name",
+          "first_name",
+          "last_name",
+          "patronymic",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.user_notification_topic_channels": {
+    "kind": "direct",
+    "purpose": "тема × канал — тонкая настройка уведомлений",
+    "codePaths": [
+      "apps/integrator/src/infra/scripts/check-d30-outgoing-delivery-claim-concurrency.ts",
+      "apps/integrator/src/kernel/contracts/ports.ts",
+      "apps/integrator/src/kernel/domain/reminders/reminderNotificationTopicCode.ts",
+      "apps/webapp/src/app/api/patient/web-push/unsubscribe/route.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/repos/pgTopicChannelPrefs.ts",
+      "apps/webapp/src/modules/reminders/disableReminderMessengerTopic.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "channel_code",
+          "is_enabled",
+          "topic_code",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "is_enabled",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "columns": [
+          "channel_code",
+          "is_enabled",
+          "topic_code",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "is_enabled",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.user_notification_topics": {
+    "kind": "direct",
+    "purpose": "подписки на темы — пациент перестанет управлять уведомлениями",
+    "codePaths": [
+      "apps/integrator/src/infra/db/directPublic/writeIdentityAndPreferencesDirect.ts",
+      "apps/webapp/src/infra/repos/pgPatientNotificationTopics.ts",
+      "apps/webapp/src/infra/repos/pgReminderWebappNotifyGate.ts",
+      "apps/webapp/src/infra/repos/pgUserProjection.ts",
+      "apps/webapp/src/modules/patient-notifications/patientNotificationTopicsPort.ts",
+      "apps/webapp/src/modules/patient-notifications/profileTopicChannelsModel.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "is_enabled",
+          "topic_code",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "is_enabled",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "columns": [
+          "is_enabled",
+          "topic_code",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "is_enabled",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+  "public.user_phone_history": {
+    "kind": "direct",
+    "purpose": "история телефонов — смена номера и поиск по старому номеру",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgChannelPreferences.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClientCreate.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgPhoneHistory.ts",
+      "apps/webapp/src/modules/auth/oauthContactResolve.ts",
+      "apps/webapp/src/modules/auth/userByPhonePort.ts",
+      "packages/platform-merge/src/identityProjectionWrite.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts",
+      "packages/platform-merge/src/phoneHistorySync.ts",
+      "packages/platform-merge/src/userContactsMirrorWrite.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "confirming_channel",
+          "id",
+          "organization_id",
+          "phone_normalized",
+          "platform_user_id",
+          "source",
+          "valid_from",
+          "valid_to"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "valid_to"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "phone_normalized",
+          "platform_user_id",
+          "source",
+          "valid_from",
+          "valid_to"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "organization_id",
+          "phone_normalized",
+          "platform_user_id",
+          "source",
+          "valid_from",
+          "valid_to"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "platform_user_id",
+          "valid_to"
+        ]
+      }
+    ]
+  },
+  "public.user_web_push_subscriptions": {
+    "kind": "direct",
+    "purpose": "push-подписки браузера — без неё нет web-push",
+    "codePaths": [
+      "apps/integrator/src/infra/scripts/check-d30-outgoing-delivery-claim-concurrency.ts",
+      "apps/integrator/src/shared/devDeliveryRedirect.ts",
+      "apps/webapp/src/app-layer/health/adminWebPushHealthMetrics.ts",
+      "apps/webapp/src/app-layer/health/collectAdminSystemHealthData.ts",
+      "apps/webapp/src/app-layer/principal/sessionPrincipal.ts",
+      "apps/webapp/src/app-layer/stats/reminderNotificationPeopleStats.ts",
+      "apps/webapp/src/infra/platformUserFullPurge.ts",
+      "apps/webapp/src/infra/repos/broadcastChannelCounts.ts",
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgWebPushSubscriptions.ts",
+      "packages/platform-merge/src/pgPlatformUserMerge.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "auth",
+          "endpoint",
+          "p256dh",
+          "updated_at",
+          "user_agent",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "auth",
+          "p256dh",
+          "updated_at",
+          "user_agent",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "endpoint",
+          "id",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
+};
+
 
 /* ============================================================================================
  * SECTION 0 — РЕШЕНИЯ ВЛАДЕЛЬЦА 08.08 (нормативны; каждый раздел ниже их реализует)
@@ -8110,6 +30626,58 @@ function withDrizzleInsertColumns(
   });
 }
 
+/**
+ * UPDATE column grants are deliberately NOT auto-widened the way `withDrizzleInsertColumns` widens
+ * INSERT above — Postgres forces every schema column to be NAMED in an INSERT statement, but only
+ * the columns a callsite actually sets are named in an UPDATE, so there is no equivalent "DEFAULT
+ * column" fact to encode, and — unlike INSERT, where any Drizzle caller on a table needs the full
+ * named-column set regardless of which role runs it — different roles legitimately touch disjoint
+ * UPDATE column subsets of the SAME table (`public.be_organizations`: `app_staff` writes
+ * `title`/`is_active`/`sort_order`, `app_platform_settings` writes only `tariff_id`). The
+ * declaration has no per-grant callsite attribution to know which role owns which observed column,
+ * so this check is RELATION-WIDE, not per-role: it only proves that every column
+ * `deploy/postgres/privileges/drizzle-update-surface.ts` shows apps/webapp/src writing is named by
+ * AT LEAST ONE declared column-level (or table-level) UPDATE grant on that relation — never that
+ * every role's own grant is individually complete. A column missing from every grant throws
+ * immediately at module load, naming the exact gap; a column present on the "wrong" role's grant
+ * is outside what this check can see and stays a human review question, not a false alarm here.
+ *
+ * This is the #1069 correction (docs/_TODO/runs/saas-period-grid-20260905/AUDIT.md F-1): the SaaS
+ * billing-period ship added `saas_billing_subscriptions.billing_period_code` and
+ * `.pending_billing_period_code`; the INSERT grant self-healed once the insert-surface artifact was
+ * regenerated (`withDrizzleInsertColumns` above), but the UPDATE grant lived only in a second
+ * hand-maintained file (former `relation-access.ts`, now merged above) and nobody updated it — a
+ * live `42501` on every purchase, and no gate caught it because none compared the two. This check
+ * never widens a grant — a human still decides which role's grant should carry the column — it
+ * only refuses to let the declaration and the observed write surface silently disagree.
+ */
+function assertDeclaredUpdateColumnsCoverObservedSurface(
+  tableKey: string,
+  grants: Extract<RelationAccess, { kind: 'direct' }>['grants'],
+): void {
+  const surface = DRIZZLE_UPDATE_SURFACE[tableKey];
+  if (!surface || surface.updateColumns.length === 0) return;
+  const relevant = grants.filter(
+    (grant) => grant.operations.includes('UPDATE') && REV10_WEBAPP_RELATION_ROLES.has(grant.role),
+  );
+  // No webapp-relational role can UPDATE this table at all: a different gap class (a missing role
+  // entirely, or the write runs through a SECURITY DEFINER seam this function never sees), not the
+  // "declared narrower than observed" class this check closes. Silence here, not a manufactured grant.
+  if (relevant.length === 0) return;
+  if (relevant.some((grant) => grant.columns === 'table')) return; // table-level UPDATE covers every column
+  const declaredUnion = new Set(relevant.flatMap((grant) => grant.columns as string[]));
+  const missing = surface.updateColumns.filter((column) => !declaredUnion.has(column));
+  if (missing.length > 0) {
+    throw new Error(
+      `${tableKey}: apps/webapp/src writes [${missing.join(', ')}] via Drizzle .update().set(...) `
+        + '(deploy/postgres/privileges/drizzle-update-surface.ts) but no declared column-level UPDATE '
+        + 'grant on this relation names them. Add the column(s) to whichever role\'s grant actually '
+        + 'runs that code path — this check only proves the gap, it never picks the role or widens a '
+        + 'grant for you.',
+    );
+  }
+}
+
 function revision10RelationAccess(tableKey: string, dbName: string): RelationAccess {
   const seams = revision10RelationSeams(tableKey, dbName);
   const clinical = REV10_CLINICAL_ACCESS[tableKey];
@@ -8119,6 +30687,7 @@ function revision10RelationAccess(tableKey: string, dbName: string): RelationAcc
       tableKey,
       withoutConvertedPatientWrites(tableKey, seed.grants),
     );
+    assertDeclaredUpdateColumnsCoverObservedSurface(tableKey, grants);
     if (grants.length > 0) return { ...seed, grants, seams };
     if (seams.length > 0) return {
       kind: 'named-seams', seams, purpose: `exact declared function surfaces for ${tableKey}`,

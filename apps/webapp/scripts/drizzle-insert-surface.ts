@@ -121,7 +121,8 @@ export async function collectDrizzleInsertSurface(): Promise<Record<string, Tabl
   return surface;
 }
 
-function sourceFiles(dir: string, out: string[] = []): string[] {
+/** Exported for reuse by `./drizzle-update-surface.ts` — same repo walk, different callsite shape. */
+export function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
@@ -134,7 +135,8 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-function resolveModule(fromFile: string, specifier: string): string | null {
+/** Exported for reuse by `./drizzle-update-surface.ts` — same import-graph resolution rule. */
+export function resolveModule(fromFile: string, specifier: string): string | null {
   let base: string;
   if (specifier.startsWith('.')) base = path.resolve(path.dirname(fromFile), specifier);
   else if (specifier.startsWith('@/')) base = path.join(SRC_DIR, specifier.slice(2));

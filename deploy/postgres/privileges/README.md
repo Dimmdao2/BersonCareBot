@@ -11,6 +11,15 @@
 - FORCE RLS и точных policy;
 - transaction-bound port context и каталога допустимых вызовов.
 
+`declaration.ts` — единственный файл, который человек правит руками для этих решений. `relation-access.ts` и
+`function-census.ts` физически пусты: с #1069 (2026-09-05) обе бывшие независимые ручные карты
+(`REV10_CLINICAL_ACCESS`, `BUSINESS_SEAM_FUNCTIONS` и её компаньоны) перенесены внутрь `declaration.ts`
+(SECTION -1), а эти два файла остались только тонкими `export { X } from './declaration.ts'` — только чтобы не
+ломать существующие импорты. Причина: до #1069 колоночные решения для 51 пересекающегося отношения жили
+одновременно в `declaration.ts` и в `relation-access.ts`, объединялись `revision10RelationAccess` во время
+генерации, и правка одного файла без второго не красила ничего — ровно так SaaS billing-period ship добавил
+новые колонки в `declaration.ts`, не тронул `relation-access.ts`, и получил живой `42501` при первой же записи.
+
 Обычный deploy/migrate после schema/data migrations запускает
 [`reconcile-access.mjs`](./reconcile-access.mjs). Он одной транзакцией приводит target к декларации и затем
 двусторонне проверяет каталог. Schema migrations не выдают и не отзывают права.
@@ -51,6 +60,30 @@ pnpm run check:drizzle-insert-surface                                           
 Приёмочный гейт [`drizzle-insert-grant-completeness.test.mjs`](./drizzle-insert-grant-completeness.test.mjs)
 выводит обе стороны независимо — сам зовёт печать метаданных и сам разбирает callsites по AST — и сверяет их с
 грантами, которые генератор реально пишет.
+
+## Колоночный `UPDATE` сверяется с наблюдаемой Drizzle-поверхностью, а не выводится
+
+В отличие от `INSERT`, Postgres не требует называть в `UPDATE` каждую колонку схемы — только те, что реально
+пишет `.set({...})` — поэтому здесь нет аналога «DEFAULT-колонки», которую можно домыслить. Вместо
+авто-расширения (как для `INSERT`) `declaration.ts` только **отказывает при загрузке**, если наблюдаемая запись
+не покрыта НИКАКИМ объявленным грантом (#1069, класс дефекта F-1: `saas_billing_subscriptions.billing_period_code`
+писался через `.update()`, но не был объявлен ни в одном гранте `UPDATE`, и ничего не покраснело). Проверка
+целиком по отношению, не по роли: у разных ролей на одной таблице законно разные подмножества колонок
+(`public.be_organizations`: `app_staff` пишет `title`/`is_active`/`sort_order`, `app_platform_settings` —
+только `tariff_id`), а per-grant привязки колонки к ролевому callsite в декларации нет — поэтому гейт доказывает
+только «эту колонку объявляет ХОТЬ КТО-ТО», не «каждая роль объявляет ровно то, что пишет её код». Он никогда не
+добавляет колонку в грант — только называет отношение и колонку и останавливает генерацию.
+
+Машинный артефакт [`drizzle-update-surface.ts`](./drizzle-update-surface.ts) — лексическая НИЖНЯЯ граница:
+только `.update(<table>).set({...})` с object-literal без spread/computed-ключей резолвится в SQL-колонки;
+остальное честно попадает в `DRIZZLE_UPDATE_UNRESOLVED_CALLSITES`, не отбрасывается молча. Регенерация:
+
+```bash
+pnpm --dir apps/webapp exec tsx scripts/generate-drizzle-update-surface.ts          # перегенерировать
+pnpm run check:drizzle-update-surface                                             # побайтный гейт
+```
+
+`pnpm run test:db-privileges` гоняет оба побайтных гейта (`insert` и `update`) перед privilege-тестами.
 
 ## Проверки
 
