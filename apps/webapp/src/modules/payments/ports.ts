@@ -125,6 +125,21 @@ export type PaymentsPort = {
   ): Promise<StoredPaymentProviderEvent | null>;
   markProviderEventProcessed(id: string, organizationId: string): Promise<void>;
 
+  /**
+   * Один атомарный проход эквайрингового уведомления брони: журнал события провайдера, намерение,
+   * платёж, история и ссылка оплаты на записи. Дверь одна, потому что маршрут вебхука приходит с
+   * организационным принципалом (класс `tenant_service`), а этому классу сквозной реляционный
+   * доступ намеренно не выдают — десять отдельных обращений не могли бы разделить транзакцию.
+   */
+  settleProviderWebhookEvent(input: {
+    organizationId: string;
+    providerId: string;
+    idempotencyKey: string;
+    eventType: string;
+    intentRef: string | null;
+    payloadJson: Record<string, unknown>;
+  }): Promise<ProviderWebhookSettlement>;
+
   hasCapturedHistoryEvent(paymentId: string, organizationId: string): Promise<boolean>;
 
   appendHistoryEvent(input: {
@@ -169,6 +184,20 @@ export type StoredPaymentProviderEvent = {
   intentRef: string | null;
   payloadJson: Record<string, unknown>;
   processedAt: string | null;
+};
+
+/**
+ * Итог одного проведения уведомления провайдера.
+ * `captured` — деньги проведены этим вызовом или уже были проведены равным ему повтором;
+ * `already_processed`/`recorded`/`intent_not_found`/`not_found` — писать больше нечего.
+ */
+export type ProviderWebhookSettlement = {
+  outcome: 'captured' | 'already_processed' | 'recorded' | 'intent_not_found' | 'not_found';
+  duplicate: boolean;
+  paymentId: string | null;
+  platformUserId: string | null;
+  productRef: string | null;
+  confirmedAppointmentIds: string[];
 };
 
 export type PaymentCaptureUnitOfWork = {

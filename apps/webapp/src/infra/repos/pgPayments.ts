@@ -5,7 +5,7 @@ import {
   getDrizzleOrMutationTx,
   runDrizzleMutationTransaction,
 } from '@/infra/db/drizzleMutationTx';
-import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import {
   bePaymentHistoryEvents,
   bePaymentIntents,
@@ -18,6 +18,7 @@ import { beAppointments } from '../../../db/schema/bookingEngine';
 import type {
   AppointmentPaymentBrief,
   PaymentsPort,
+  ProviderWebhookSettlement,
   StoredPaymentProviderEvent,
   UpsertPrepaymentPolicyInput,
 } from '@/modules/payments/ports';
@@ -149,6 +150,44 @@ function mapProviderEvent(
     intentRef: row.intentRef,
     payloadJson: row.payloadJson as Record<string, unknown>,
     processedAt: row.processedAt,
+  };
+}
+
+const PROVIDER_WEBHOOK_OUTCOMES: ReadonlySet<ProviderWebhookSettlement['outcome']> = new Set([
+  'captured',
+  'already_processed',
+  'recorded',
+  'intent_not_found',
+  'not_found',
+]);
+
+function optionalString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+/**
+ * Ответ корня — деньги, поэтому он разбирается, а не приводится типом: неизвестный исход должен
+ * стать отказом здесь, а не тихо проехать дальше как «ничего не проведено».
+ */
+function parseProviderWebhookSettlement(value: unknown): ProviderWebhookSettlement {
+  const raw = (typeof value === 'string' ? JSON.parse(value) : value) as Record<
+    string,
+    unknown
+  > | null;
+  const outcome = raw?.outcome;
+  if (typeof outcome !== 'string' || !PROVIDER_WEBHOOK_OUTCOMES.has(outcome as never)) {
+    throw new Error('booking_payment_webhook_settlement_outcome_unrecognised');
+  }
+  const appointmentIds = Array.isArray(raw?.confirmedAppointmentIds)
+    ? raw.confirmedAppointmentIds.filter((id): id is string => typeof id === 'string')
+    : [];
+  return {
+    outcome: outcome as ProviderWebhookSettlement['outcome'],
+    duplicate: raw?.duplicate === true,
+    paymentId: optionalString(raw?.paymentId),
+    platformUserId: optionalString(raw?.platformUserId),
+    productRef: optionalString(raw?.productRef),
+    confirmedAppointmentIds: appointmentIds,
   };
 }
 
@@ -317,9 +356,18 @@ export function createPgPaymentsPort(): PaymentsPort {
       return rows[0] ? mapIntent(rows[0]) : null;
     },
 
+    /**
+     * Клинику вебхука ищет ещё бесхозный запрос: маршрут ставит bootstrap-принципал, потому что
+     * арендатора он как раз и не знает. Порт отображает такой принципал в класс `pre_session`, у
+     * которого нет сквозной реляционной двери, — обычный `db.execute` падал здесь на подборе
+     * возможности ДО первого statement'а, и провайдер получал 400 на каждую доставку. Дверь именно
+     * этого поиска — объявленный корень, тот же приём, что у близнеца эквайринга пациента.
+     */
     async resolveProviderWebhookOrganization(providerId, idempotencyKey, eventType) {
-      const result = await runWebappSql<{ organization_id: string | null }>(
+      const result = await runWebappNamedRoot<{ organization_id: string | null }>(
         getWebappSqlDb(),
+        'app.resolve_payment_webhook_organization(text,text,text)',
+        [providerId, idempotencyKey, eventType],
         sql`SELECT app.resolve_payment_webhook_organization(
            ${providerId}::text,
            ${idempotencyKey}::text,
@@ -327,6 +375,34 @@ export function createPgPaymentsPort(): PaymentsPort {
          )::text AS organization_id`,
       );
       return result.rows[0]?.organization_id ?? null;
+    },
+
+    /**
+     * Проведение уведомления целиком внутри принятой клиники. Организацию корень аргументом не
+     * принимает — берёт из принятого контекста, поэтому callback, проверенный для клиники A,
+     * физически не назовёт клинику B. Повтор доставки упирается в уникальный ключ журнала событий
+     * и compare-and-set намерения, поэтому второй раз деньги не проводятся.
+     */
+    async settleProviderWebhookEvent(input) {
+      const result = await runWebappNamedRoot<{ settlement: unknown }>(
+        getWebappSqlDb(),
+        'app.settle_booking_payment_webhook_event(text,text,text,text,text)',
+        [
+          input.providerId,
+          input.idempotencyKey,
+          input.eventType,
+          input.intentRef,
+          JSON.stringify(input.payloadJson ?? {}),
+        ],
+        sql`SELECT app.settle_booking_payment_webhook_event(
+           ${input.providerId}::text,
+           ${input.idempotencyKey}::text,
+           ${input.eventType}::text,
+           ${input.intentRef}::text,
+           ${JSON.stringify(input.payloadJson ?? {})}::text
+         ) AS settlement`,
+      );
+      return parseProviderWebhookSettlement(result.rows[0]?.settlement);
     },
 
     async findLatestIntentByAppointment(appointmentId) {
