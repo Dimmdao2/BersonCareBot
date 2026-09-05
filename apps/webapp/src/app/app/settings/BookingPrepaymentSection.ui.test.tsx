@@ -81,7 +81,7 @@ describe('B1.3 prepayment settings', () => {
     await screen.findByText('Настройте активного платёжного провайдера в кабинете клиники.');
     await chooseService();
 
-    expect(screen.getByDisplayValue('1000')).toBeDisabled();
+    expect(screen.getByRole('textbox')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
   });
 
@@ -99,7 +99,7 @@ describe('B1.3 prepayment settings', () => {
     const user = userEvent.setup();
     const modeSelect = screen.getAllByRole('combobox')[2];
     await user.click(modeSelect);
-    await user.click(await screen.findByRole('option', { name: 'Фикс (коп.)' }));
+    await user.click(await screen.findByRole('option', { name: 'Фиксированная сумма' }));
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled();
@@ -140,7 +140,7 @@ describe('B1.3 prepayment settings', () => {
     await chooseService();
 
     expect(screen.getAllByRole('combobox')[2]).toBeDisabled();
-    expect(screen.getByDisplayValue('1000')).toBeDisabled();
+    expect(screen.getByRole('textbox')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
   });
 
