@@ -156,6 +156,7 @@ export const PLATFORM_ROLE_SCOPE: PlatformRoleScope = {
     'public.be_organizations', 'public.be_branches', 'public.be_clinic_services',
     'public.saas_billing_accounts', 'public.saas_billing_invoices', 'public.saas_billing_subscriptions',
     'public.saas_billing_provider_events', 'public.saas_billing_refunds', 'public.saas_billing_periods',
+    'public.saas_tariff_period_prices', // #1069 owner decision 2026-09-05 (period grid)
     'public.saas_org_entitlement_overrides', 'public.saas_organization_trials', 'public.saas_tariffs',
     'public.saas_trial_policy', 'public.saas_registration_tariff_policy', 'public.saas_paid_period_policy',
     'public.admin_audit_log',

@@ -1549,7 +1549,12 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         )
         .limit(1);
       if (!authority) throw new Error('saas_billing_subscription_not_found');
-      if (!authority.tariffBillingPeriod) throw new Error('saas_billing_subscription_period_missing');
+      // Narrowed to a plain `const` here (not re-read off `authority` below): the guard's
+      // narrowing of a destructured property does not survive into the nested transaction
+      // closure, which TypeScript otherwise (correctly) treats as possibly re-reading a mutated
+      // object.
+      const tariffBillingPeriod = authority.tariffBillingPeriod;
+      if (!tariffBillingPeriod) throw new Error('saas_billing_subscription_period_missing');
       return getDrizzle().transaction(async (tx) => {
         const tariffSnapshot = await readTariffSnapshotForPeriod(tx, authority.tariffId);
 
@@ -1564,7 +1569,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           description: input.description,
           amountMinor: input.amountMinor,
           currency: input.currency,
-          tariffBillingPeriod: authority.tariffBillingPeriod,
+          tariffBillingPeriod,
           tariffSnapshot,
           servicePeriodStartsAt: input.servicePeriodStartsAt,
           servicePeriodEndsAt: input.servicePeriodEndsAt,

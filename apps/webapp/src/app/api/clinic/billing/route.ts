@@ -50,7 +50,7 @@ export async function GET() {
 }
 
 const billingPatchSchema = z.union([
-  z.object({ tariffId: z.string().uuid() }),
+  z.object({ tariffId: z.string().uuid(), billingPeriodCode: z.string().trim().min(1) }),
   z.object({
     action: z.literal('billing_contact'),
     billingEmail: z.string().trim().email().max(320),
@@ -173,6 +173,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: true, billingEmail });
     }
     const tariffId = parsed.data.tariffId;
+    const billingPeriodCode = parsed.data.billingPeriodCode;
     const result = await runWithDbClinicBillingPrincipal(
       {
         organizationId: gate.ctx.organizationId,
@@ -183,6 +184,7 @@ export async function PATCH(request: Request) {
         buildAppDeps().saasBilling.scheduleOwnTariffChange({
           organizationId: gate.ctx.organizationId,
           tariffId,
+          billingPeriodCode,
           actorId: gate.ctx.session.user.userId,
         }),
     );

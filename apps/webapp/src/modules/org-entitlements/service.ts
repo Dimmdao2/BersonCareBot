@@ -750,10 +750,14 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
         const missing = tariffs
           .filter((tariff) => tariff.isActive)
           .filter((tariff) => !tariff.periodPrices.some((row) => row.billingPeriodCode === code));
+        // Fixed literal, not an interpolated message with the offending tariff ids: the API
+        // boundary (`admin/commercial/route.ts`) maps errors by EXACT message equality against a
+        // caller-owned allowlist (`ApiErrorLiteralRules`, deliberately no substring matching) — a
+        // per-call-unique message could never be a member of that list and would always fall
+        // through to the generic fallback. The admin sees which tariffs are incomplete from the
+        // constructor's own per-tariff matrix state, not from this error's text.
         if (missing.length > 0) {
-          throw new Error(
-            `saas_billing_period_activation_incomplete:${missing.map((tariff) => tariff.id).join(',')}`,
-          );
+          throw new Error('saas_billing_period_activation_incomplete');
         }
       }
       return port.setBillingPeriodSelectable(code, isSelectable, audit);

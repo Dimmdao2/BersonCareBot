@@ -116,14 +116,8 @@ export function billingPeriodMonthsMap(
   return new Map(options.map((option) => [option.code, option.months]));
 }
 
-const KNOWN_BILLING_PERIOD_LABELS_RU: Record<string, string> = {
-  day: 'день',
-  month: 'месяц',
-  half_year: 'полгода',
-  year: 'год',
-};
-
-/** Display label for invoice breakdown rows; unknown codes fall back to the code itself. */
-export function formatBillingPeriodLabelRu(code: string): string {
-  return KNOWN_BILLING_PERIOD_LABELS_RU[code] ?? code;
-}
+/**
+ * #1069 owner decision 2026-09-05 (period grid) — a period's display label is DATA
+ * (`saas_billing_periods.label`), owner-edited through the global period editor, never a code
+ * literal here. Callers that only have the code and no fetched catalog show the code itself.
+ */
