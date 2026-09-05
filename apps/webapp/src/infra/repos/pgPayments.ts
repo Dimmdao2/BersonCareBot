@@ -224,7 +224,7 @@ export function createPgPaymentsPort(): PaymentsPort {
         : await this.getPrepaymentPolicyForOnlineCategory(input.organizationId, onlineCategory!);
 
       if (existing) {
-        await runPaymentMutation(input.organizationId, (tx) =>
+        await runDrizzleMutationTransaction((tx) =>
           tx
             .update(bePrepaymentPolicies)
             .set({
@@ -238,7 +238,7 @@ export function createPgPaymentsPort(): PaymentsPort {
             .where(eq(bePrepaymentPolicies.id, existing.id)),
         );
       } else {
-        await runPaymentMutation(input.organizationId, (tx) =>
+        await runDrizzleMutationTransaction((tx) =>
           tx.insert(bePrepaymentPolicies).values({
             organizationId: input.organizationId,
             serviceId,
