@@ -18,7 +18,7 @@
 
 | слой | коммит | вердикт |
 |---|---|---|
-| Исправление живого HTTP 500 и денежной единицы формы | `8278288f0` (`wt/prepayment-settings-fix`) | **AWAITING INDEPENDENT AUDIT — DO NOT LAND YET.** TEST-журнал на попытке владельца: `Missing declared webapp port capability: tenant_service` до SQL; кабинетный staff-path ошибочно заменял principal внутри `upsertPrepaymentPolicy`, хотя `app_staff` уже имеет узкие права. Исправление сохраняет staff principal, не расширяет tenant_service; форма показывает рубли и сохраняет целые minor units через общий converter. Targeted route `7/7`, webapp typecheck PASS; независимый audit-live `prepayment-settings-audit-v2-20260905` запущен, UI shape/text/count tests запрещены. |
+| Исправление живого HTTP 500 и денежной единицы формы | product `8278288f0`, acceptance/audit `056c2cb5f`, stale-locator fix `7a10484f2` (`wt/prepayment-settings-fix`) | **PASS — READY FOR LAND.** TEST-журнал на попытке владельца: `Missing declared webapp port capability: tenant_service` до SQL; кабинетный staff-path ошибочно заменял principal внутри `upsertPrepaymentPolicy`, хотя `app_staff` уже имеет узкие права. Исправление сохраняет staff principal, не расширяет `tenant_service`; форма показывает рубли, ввод `500,50 ₽` отправляет `50 050` minor units. Независимый audit-live подтвердил обе поломки fault injection, но первоначально дал FAIL из-за 5 красных устаревших локаторов старых «копеек»; они исправлены без тестов количества/раскладки/DOM. Повтор того же целевого набора: 3 файла, 16/16 PASS; новый blind-pass по §24.5 не требуется. Артефакт: `docs/_TODO/runs/prepayment-settings-fix-20260905/audit-live-report.md`. |
 
 ## Canonical HLS delivery cleanup — 05.09
 
