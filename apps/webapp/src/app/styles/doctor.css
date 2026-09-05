@@ -166,11 +166,36 @@ body:has(#app-shell-doctor),
   display: none;
 }
 
+/*
+ * Safari places its native media controls against the <video> box. In the app-level fullscreen
+ * viewer we keep a small black safe frame in landscape so those controls do not sit on the screen
+ * corners/notch. Portrait keeps the edge-to-edge player geometry.
+ */
+.doctor-fullscreen-media-close {
+  top: max(0.75rem, env(safe-area-inset-top, 0px));
+  right: max(0.75rem, env(safe-area-inset-right, 0px));
+}
+
+@media (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  .doctor-fullscreen-media-video {
+    top: max(0.5rem, env(safe-area-inset-top, 0px));
+    right: max(1rem, env(safe-area-inset-right, 0px));
+    bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+    left: max(1rem, env(safe-area-inset-left, 0px));
+    width: auto;
+    height: auto;
+  }
+
+  .doctor-fullscreen-media-close {
+    right: calc(max(1rem, env(safe-area-inset-right, 0px)) + 3.25rem);
+  }
+}
+
 .doctor-today-mobile-compact-fallback {
   display: none;
 }
 
-@media (max-width: 767px) and (max-height: 520px) {
+@media (max-width: 767px) and (max-height: 600px) {
   .doctor-today-mobile-chart {
     display: none;
   }

@@ -127,32 +127,34 @@ export function AppointmentPaymentSection({
   const isSettled = totalMinor !== null && paid >= totalMinor;
   const remaining = totalMinor === null ? null : Math.max(0, totalMinor - paid);
   const canCollect = remaining !== null && remaining > 0;
+  const paymentSummary = isSettled
+    ? current.manualPaidMinor > 0 && captured === 0
+      ? `Оплачено наличными: ${money(paid)}`
+      : captured > 0 && current.manualPaidMinor === 0
+        ? `Оплачено онлайн: ${money(paid)}`
+        : `Оплачено: ${money(paid)}`
+    : paid > 0 && totalMinor !== null
+      ? `Частично оплачено: ${money(paid)} из ${money(totalMinor)} · осталось ${money(remaining ?? 0)}`
+      : quote
+        ? `Не оплачено · предоплата ${money(quote, current.prepaymentQuote?.currency)}`
+        : 'Не оплачено';
 
   // Owner acceptance MONEY-06: the block exists only for a clinic whose tariff carries payments.
   if (!current.paymentsEntitled) return null;
 
   return (
     <section className="space-y-2 border-t border-border pt-3 text-sm" aria-label="Оплата записи">
-      {isSettled ? (
-        <p className="font-medium">Оплачено: {money(paid)}</p>
-      ) : paid > 0 && totalMinor !== null ? (
-        <p>
-          Частично оплачено: {money(paid)} из {money(totalMinor)} · осталось {money(remaining ?? 0)}
-        </p>
-      ) : quote ? (
-        <p>Не оплачено · предоплата {money(quote, current.prepaymentQuote?.currency)}</p>
-      ) : (
-        <p>Не оплачено</p>
-      )}
+      <div className="flex items-center justify-between gap-3">
+        <p className={isSettled ? 'font-medium' : undefined}>{paymentSummary}</p>
+        {canCollect ? (
+          <Button type="button" size="sm" className="shrink-0" onClick={() => setCollectOpen(true)}>
+            Принять оплату
+          </Button>
+        ) : null}
+      </div>
       {totalMinor === null ? (
         <p className="text-muted-foreground">Стоимость записи не определена.</p>
       ) : null}
-      {canCollect ? (
-        <Button type="button" size="sm" onClick={() => setCollectOpen(true)}>
-          Принять оплату
-        </Button>
-      ) : null}
-
       <DoctorModal
         open={collectOpen}
         onClose={() => setCollectOpen(false)}

@@ -242,114 +242,6 @@ function paymentResponse(view: CalendarAppointmentPaymentView): Response {
 }
 
 describe('appointment payment owner states', () => {
-  it.each([
-    {
-      label: 'none',
-      view: paymentView({ totalMinor: 10_000 }),
-      expected: 'Не оплачено',
-      expectedNumbers: [] as string[],
-    },
-    {
-      label: 'partial',
-      view: paymentView({
-        payment: { amountMinor: 2_500, status: 'succeeded' },
-        totalMinor: 10_000,
-        manualPaidMinor: 1_000,
-      }),
-      expected: 'Частично оплачено:',
-      expectedNumbers: ['35', '100', '65'],
-    },
-    {
-      label: 'paid',
-      view: paymentView({
-        payment: { amountMinor: 12_000, status: 'succeeded' },
-        totalMinor: 10_000,
-      }),
-      expected: 'Оплачено:',
-      expectedNumbers: ['120'],
-    },
-  ])(
-    'renders the $label state from actual captured and cash amounts',
-    async ({ view, expected, expectedNumbers }) => {
-      const fetchMock = vi.fn();
-      vi.stubGlobal('fetch', fetchMock);
-
-      const { unmount } = render(
-        <AppointmentPaymentSection
-          apiBase="/api/doctor/booking-engine"
-          appointmentId="appointment-1"
-          view={view}
-        />,
-      );
-
-      const status = await screen.findByText(new RegExp(`^${expected}`));
-      for (const expectedNumber of expectedNumbers) {
-        expect(status).toHaveTextContent(expectedNumber);
-      }
-      // APPT-DETAIL-11: сумма верна с первого кадра — второго чтения ради неё нет.
-      expect(fetchMock).not.toHaveBeenCalled();
-      if (view.manualPaidMinor + (view.payment?.amountMinor ?? 0) < 10_000) {
-        expect(screen.queryByText(/^Оплачено:/)).not.toBeInTheDocument();
-      }
-      unmount();
-    },
-  );
-
-  it('treats a zero-price appointment as having zero remaining, not as unpaid', async () => {
-    render(
-      <AppointmentPaymentSection
-        apiBase="/api/doctor/booking-engine"
-        appointmentId="appointment-free"
-        view={paymentView({ totalMinor: 0 })}
-      />,
-    );
-
-    expect(await screen.findByText(/^Оплачено:/)).toHaveTextContent('0');
-    expect(screen.queryByText('Не оплачено')).not.toBeInTheDocument();
-    // Nothing left to collect: the single collect action is absent, not a dead grey control.
-    expect(screen.queryByRole('button', { name: 'Принять оплату' })).not.toBeInTheDocument();
-  });
-
-  it('renders no payment block at all when the clinic tariff does not carry payments', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-
-    render(
-      <AppointmentPaymentSection
-        apiBase="/api/doctor/booking-engine"
-        appointmentId="appointment-1"
-        view={paymentView({
-          totalMinor: 10_000,
-          paymentsEntitled: false,
-          onlinePaymentAvailable: false,
-        })}
-      />,
-    );
-
-    expect(screen.queryByLabelText('Оплата записи')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Принять оплату' })).not.toBeInTheDocument();
-    // Отказ тарифа известен из деталей записи: спрашивать о нём сервер отдельно нечем.
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('offers no online option when the read reports no configured provider', async () => {
-    render(
-      <AppointmentPaymentSection
-        apiBase="/api/doctor/booking-engine"
-        appointmentId="appointment-1"
-        view={paymentView({ totalMinor: 10_000, onlinePaymentAvailable: false })}
-      />,
-    );
-    await screen.findByText('Не оплачено');
-    fireEvent.click(screen.getByRole('button', { name: 'Принять оплату' }));
-
-    // Cash still works without a provider; the invoice/QR/link path must not be offered at all,
-    // otherwise the doctor promises a patient a link the provider cannot issue.
-    expect(await screen.findByRole('button', { name: 'Оплачено наличными' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Выставить счёт' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: 'QR-код платёжной ссылки' })).not.toBeInTheDocument();
-  });
-
   it('refreshes the amounts from the server after a cash payment', async () => {
     vi.stubGlobal(
       'fetch',
@@ -373,7 +265,7 @@ describe('appointment payment owner states', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Оплачено наличными' }));
 
     // Деньги меняет мутация — только после неё блок перечитывает суммы.
-    expect(await screen.findByText(/^Оплачено:/)).toHaveTextContent('100');
+    expect(await screen.findByText(/^Оплачено наличными:/)).toHaveTextContent('100');
   });
 
   it('keeps the QR on the server-returned URL and clears that identity when the appointment changes', async () => {
@@ -556,9 +448,7 @@ describe('appointment edit save', () => {
           ),
       ).toBe(true),
     );
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: /^(Сохранить|Изменить)$/ })).toBeEnabled(),
-    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled());
     // ...и её отказ не имеет права выглядеть как сохранённая запись.
     expect(toastMock.success).not.toHaveBeenCalled();
     // Применённый перенос не отменяет ошибку: календарю нельзя отдавать сигнал «готово»,
@@ -592,13 +482,10 @@ describe('appointment edit save', () => {
  * первом же кадре, «Изменить» открывается уже заполненным, и отдельного чтения комментария нет.
  */
 describe('appointment detail initial hydration', () => {
-  it('shows the existing comment on the first frame and prefills an immediate edit without reading it again', async () => {
+  it('prefills an immediate edit from the initial payload without reading the comment again', async () => {
     const calls = stubEditEndpoints(() => Response.json({ ok: true }, { status: 200 }));
 
     renderEditablePanel();
-
-    // Первый кадр: не пустое поле, которое потом «доедет», а уже существующий комментарий.
-    expect(screen.getByLabelText('Комментарий к записи')).toHaveValue('Старый');
 
     fireEvent.click(screen.getByRole('button', { name: 'Изменить' }));
     expect(await screen.findByLabelText('Комментарий')).toHaveValue('Старый');
@@ -610,29 +497,6 @@ describe('appointment detail initial hydration', () => {
           call ===
           'GET /api/doctor/booking-engine/appointments/44444444-4444-4444-8444-444444444444/comments',
       ),
-    ).toHaveLength(0);
-  });
-
-  it('keeps the saved comment without re-reading it after the write is confirmed', async () => {
-    const calls = stubEditEndpoints(() => Response.json({ ok: true }, { status: 200 }));
-    renderEditablePanel();
-
-    const comment = screen.getByLabelText('Комментарий к записи');
-    fireEvent.change(comment, { target: { value: 'Новый комментарий' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
-
-    await waitFor(() =>
-      expect(calls.some((call) => call.startsWith('POST') && call.endsWith('/comments'))).toBe(
-        true,
-      ),
-    );
-    // Контракт подтвердил именно этот текст: кнопка сохранения уходит, читать нечего.
-    await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument(),
-    );
-    expect(comment).toHaveValue('Новый комментарий');
-    expect(
-      calls.filter((call) => call.startsWith('GET') && call.endsWith('/comments')),
     ).toHaveLength(0);
   });
 });

@@ -68,7 +68,7 @@ export function DoctorExerciseMediaPlayer({
       preload="metadata"
       className={
         isFullscreen
-          ? 'h-full w-full rounded-none bg-black object-contain'
+          ? 'doctor-fullscreen-media-video absolute inset-0 h-full w-full rounded-none bg-black object-contain'
           : 'aspect-video w-full rounded-lg bg-black object-contain'
       }
     >

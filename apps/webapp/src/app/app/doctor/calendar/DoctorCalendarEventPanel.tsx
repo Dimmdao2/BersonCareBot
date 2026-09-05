@@ -8,10 +8,16 @@ import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
-import { Label } from '@/shared/ui/doctor/primitives/label';
-import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
-import { DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
-import { doctorMetricValueClass } from '@/shared/ui/doctor/doctorVisual';
+import {
+  DoctorModal,
+  DoctorModalFooter,
+  DoctorModalStackedTitle,
+} from '@/shared/ui/doctor/DoctorModal';
+import {
+  doctorBodyTextClass,
+  doctorInlineMetricValueClass,
+  doctorSecondaryListTextClass,
+} from '@/shared/ui/doctor/doctorVisual';
 import { doctorClientOverviewPrimaryCardClass } from '../clients/doctorClientCardChrome';
 import type {
   CalendarAppointmentEvent,
@@ -68,6 +74,8 @@ type Props = {
   clinicSpecialists?: readonly DoctorScheduleSpecialistOption[] | null;
   onClose: () => void;
   onChanged: () => void;
+  /** Обновляет открытую карточку после правки, не закрывая первый слой модалки. */
+  onUpdated?: (appointment?: CalendarAppointmentEvent) => void;
   /** §3.6: открыть панель сразу в режиме создания, минуя плейсхолдер */
   startInCreate?: boolean;
   /** R32: подставить время старта (datetime-local) при выделении области в календаре */
@@ -111,10 +119,13 @@ function formatEventAtWords(iso: string, timeZone: string): string {
   return dt.isValid ? dt.setLocale('ru').toFormat('d MMMM yyyy, HH:mm') : '—';
 }
 
-function isSameCalendarMinute(left: string, right: string, timeZone: string): boolean {
-  const l = parseEventDateTime(left, timeZone);
-  const r = parseEventDateTime(right, timeZone);
-  return l.isValid && r.isValid && l.toMillis() === r.toMillis();
+function formatRescheduleCount(count: number): string {
+  const mod100 = count % 100;
+  const mod10 = count % 10;
+  if (mod100 >= 11 && mod100 <= 14) return `${count} переносов`;
+  if (mod10 === 1) return `${count} перенос`;
+  if (mod10 >= 2 && mod10 <= 4) return `${count} переноса`;
+  return `${count} переносов`;
 }
 
 function isDifferentCalendarMinute(left: string, right: string, timeZone: string): boolean {
@@ -212,6 +223,7 @@ function DoctorCalendarEventPanelInner({
   clinicSpecialists = null,
   onClose,
   onChanged,
+  onUpdated,
   startInCreate = false,
   createInitialStart = null,
   createInitialEnd = null,
@@ -249,8 +261,6 @@ function DoctorCalendarEventPanelInner({
   // поверх существующего текста.
   const initialComment = selected?.primaryComment ?? '';
   const [primaryComment, setPrimaryComment] = useState(initialComment);
-  const [commentDraft, setCommentDraft] = useState(initialComment);
-  const [commentSaving, setCommentSaving] = useState(false);
   const createManualRequestIdRef = useRef(crypto.randomUUID());
   const selectedId = selected?.id ?? null;
 
@@ -585,6 +595,7 @@ function DoctorCalendarEventPanelInner({
       return;
     }
     const currentStart = parseEventDateTime(selected.startAt, timeZone);
+    const startChanged = !currentStart.isValid || currentStart.toMillis() !== start.toMillis();
     const nextPatientId = draft.patient?.id ?? null;
     const patientChanged = nextPatientId !== selected.platformUserId;
     const scheduleChanged =
@@ -659,29 +670,45 @@ function DoctorCalendarEventPanelInner({
         toast.error('Комментарий не сохранён.');
         return;
       }
+      const nextStartAt = start.toUTC().toISO() ?? selected.startAt;
+      const nextEndAt =
+        start.plus({ minutes: nextDurationMinutes }).toUTC().toISO() ?? selected.endAt;
+      const nextBranch = filterMeta.branches.find((branch) => branch.id === draft.branchId);
+      const nextService = filterMeta.services.find((service) => service.id === draft.serviceId);
+      const updatedAppointment: CalendarAppointmentEvent = {
+        ...selected,
+        startAt: nextStartAt,
+        endAt: nextEndAt,
+        status: statusChanged && draft.status === 'no_show' ? 'no_show' : selected.status,
+        branchId: draft.branchId,
+        branchTitle: nextBranch?.label ?? selected.branchTitle,
+        branchColor: nextBranch?.color ?? selected.branchColor,
+        serviceId: draft.serviceId,
+        serviceTitle: nextService?.label ?? selected.serviceTitle,
+        platformUserId: draft.patient?.id ?? selected.platformUserId,
+        patientName: draft.patient?.displayName ?? selected.patientName,
+        patientPhone: draft.patient?.phone ?? selected.patientPhone,
+        originalStartAt:
+          startChanged && !selected.originalStartAt ? selected.startAt : selected.originalStartAt,
+        rescheduleCount: startChanged ? selected.rescheduleCount + 1 : selected.rescheduleCount,
+      };
+      setPrimaryComment(draft.comment.trim());
+      setPendingRefresh(false);
       toast.success('Изменения сохранены');
       setMode('view');
-      onChanged();
+      if (onUpdated) onUpdated(updatedAppointment);
+      else onChanged();
     });
   };
 
-  const submitPrimaryComment = () => {
-    const body = commentDraft.trim();
-    if (body === primaryComment.trim()) return;
-    setCommentSaving(true);
-    void (async () => {
-      try {
-        if (!(await savePrimaryComment(selected.id, body))) {
-          toast.error('Не удалось сохранить комментарий.');
-          return;
-        }
-        // Контракт подтвердил запись именно этого текста — перечитывать его нечем и незачем.
-        setPrimaryComment(body);
-        setCommentDraft(body);
-      } finally {
-        setCommentSaving(false);
-      }
-    })();
+  const closeEditForm = () => {
+    if (pending) return;
+    setMessage(null);
+    setMode('view');
+    if (!pendingRefresh) return;
+    setPendingRefresh(false);
+    if (onUpdated) onUpdated();
+    else onChanged();
   };
 
   const confirmCancel = () => {
@@ -729,61 +756,9 @@ function DoctorCalendarEventPanelInner({
     });
   };
 
-  if (mode === 'edit') {
-    return (
-      <div
-        className={cn(
-          doctorClientOverviewPrimaryCardClass,
-          flushChrome && 'rounded-none border-0 bg-transparent p-0 shadow-none',
-        )}
-      >
-        <DoctorAppointmentForm
-          mode="edit"
-          draft={draft}
-          onDraftChange={patchDraft}
-          filterMeta={editFilterMeta}
-          serviceOptions={editServiceOptions}
-          activeFilters={activeFilters}
-          hideSpecialist={hideSpecialist}
-          statusOptions={statusOptions}
-          pending={pending}
-          message={message}
-        />
-        <DoctorModalFooter>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={pending}
-            onClick={() => {
-              setMessage(null);
-              if (pendingRefresh) {
-                onChanged();
-                return;
-              }
-              setMode('view');
-            }}
-          >
-            Отмена
-          </Button>
-          <Button type="button" disabled={pending} onClick={submitEdit}>
-            Сохранить
-          </Button>
-        </DoctorModalFooter>
-      </div>
-    );
-  }
-
   const hasRealOriginalStart = Boolean(
     selected.originalStartAt &&
     isDifferentCalendarMinute(selected.originalStartAt, selected.startAt, timeZone),
-  );
-  const relevantReschedules = (lifecycle?.reschedules ?? []).filter(
-    (r) =>
-      isSameCalendarMinute(r.toStartAt, selected.startAt, timeZone) ||
-      isSameCalendarMinute(r.fromStartAt, selected.startAt, timeZone) ||
-      (selected.originalStartAt
-        ? isSameCalendarMinute(r.fromStartAt, selected.originalStartAt, timeZone)
-        : false),
   );
   const patientName = selected.patientName ?? 'Пациент';
   const visitHref = selected.platformUserId
@@ -805,11 +780,13 @@ function DoctorCalendarEventPanelInner({
         data-testid="appointment-detail-header"
         className="flex items-start justify-between gap-3"
       >
-        <p className={doctorMetricValueClass}>{formatEventAtWords(selected.startAt, timeZone)}</p>
+        <p className={doctorInlineMetricValueClass}>
+          {formatEventAtWords(selected.startAt, timeZone)}
+        </p>
         <Badge
           variant="outline"
           className={cn(
-            'h-7 shrink-0 rounded-full px-3 text-sm font-medium',
+            'h-5 shrink-0 rounded-full px-2 text-xs font-medium',
             appointmentStatusToneClass(selected.status),
           )}
         >
@@ -818,49 +795,47 @@ function DoctorCalendarEventPanelInner({
       </div>
       {hasRealOriginalStart && selected.originalStartAt ? (
         <p className="mt-1 text-xs text-muted-foreground">
-          Исходное время: {formatEventAt(selected.originalStartAt, timeZone)}
+          Перенос с {formatEventAt(selected.originalStartAt, timeZone)}
+          {selected.rescheduleCount > 1
+            ? ` (${formatRescheduleCount(selected.rescheduleCount)})`
+            : ''}
         </p>
       ) : null}
 
-      <p className="mt-2 text-base font-semibold leading-snug text-foreground">
-        {selected.platformUserId ? (
-          <Link
-            href={patientCardHref(selected.platformUserId)}
-            className="text-primary underline-offset-2 hover:underline"
-          >
-            {patientName}
-          </Link>
-        ) : (
-          patientName
-        )}
-      </p>
-
-      <div className="mt-3 space-y-3 border-t border-border pt-3 text-sm">
-        <dl className="space-y-2">
+      <div className="mt-4 space-y-4">
+        <dl className="space-y-3">
           <div>
-            <dt className="text-xs text-muted-foreground">Филиал</dt>
-            <dd>{selected.branchTitle ?? '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Услуга</dt>
-            <dd>{selected.serviceTitle ?? '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Длительность</dt>
-            <dd>{durationMinutes != null ? `${durationMinutes} мин` : '—'}</dd>
+            <dt className={doctorSecondaryListTextClass}>Филиал</dt>
+            <dd className={doctorBodyTextClass}>{selected.branchTitle ?? '—'}</dd>
           </div>
           {!hideSpecialist ? (
             <div>
-              <dt className="text-xs text-muted-foreground">Специалист</dt>
-              <dd>{selected.specialistName ?? '—'}</dd>
+              <dt className={doctorSecondaryListTextClass}>Специалист</dt>
+              <dd className={doctorBodyTextClass}>{selected.specialistName ?? '—'}</dd>
             </div>
           ) : null}
+          <div>
+            <dt className={doctorSecondaryListTextClass}>Услуга</dt>
+            <dd className={doctorBodyTextClass}>{selected.serviceTitle ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className={doctorSecondaryListTextClass}>Длительность</dt>
+            <dd className={doctorBodyTextClass}>
+              {durationMinutes != null ? `${durationMinutes} мин` : '—'}
+            </dd>
+          </div>
           {selected.roomTitle ? (
             <div>
-              <dt className="text-xs text-muted-foreground">Кабинет</dt>
-              <dd>{selected.roomTitle}</dd>
+              <dt className={doctorSecondaryListTextClass}>Кабинет</dt>
+              <dd className={doctorBodyTextClass}>{selected.roomTitle}</dd>
             </div>
           ) : null}
+          {selected.formComments.map((comment) => (
+            <div key={comment.label}>
+              <dt className={doctorSecondaryListTextClass}>{comment.label}</dt>
+              <dd className={doctorBodyTextClass}>{comment.value}</dd>
+            </div>
+          ))}
         </dl>
         {selected.prepaymentPending ? <Badge variant="secondary">Ожидает предоплаты</Badge> : null}
         {selected.packageUsageRef || selected.packageTitle ? (
@@ -875,37 +850,19 @@ function DoctorCalendarEventPanelInner({
         {selected.paymentStatus ? (
           <Badge variant="secondary">Оплата: {paymentStatusLabel(selected.paymentStatus)}</Badge>
         ) : null}
-        {selected.rescheduleCount > 0 ? (
-          <p className="text-xs text-muted-foreground">Переносов: {selected.rescheduleCount}</p>
-        ) : null}
-        {selected.formComments.map((c) => (
-          <p key={c.label} className="text-xs">
-            {c.label}: {c.value}
-          </p>
-        ))}
 
-        {/* APPT-DETAIL-07: один основной комментарий записи, до блока оплаты. */}
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="appointment-primary-comment">Комментарий</Label>
-          <Textarea
-            id="appointment-primary-comment"
-            value={commentDraft}
-            disabled={commentSaving}
-            aria-label="Комментарий к записи"
-            onChange={(event) => setCommentDraft(event.target.value)}
-          />
-          {commentDraft.trim() !== primaryComment.trim() ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="self-start"
-              disabled={commentSaving || !commentDraft.trim()}
-              onClick={submitPrimaryComment}
-            >
-              Сохранить
-            </Button>
-          ) : null}
+        {/* Просмотр остаётся read-only; основной комментарий правится общей формой «Изменить». */}
+        <div>
+          <p className={doctorSecondaryListTextClass}>Комментарий</p>
+          <p
+            className={cn(
+              doctorBodyTextClass,
+              'whitespace-pre-wrap',
+              !primaryComment.trim() && 'text-muted-foreground',
+            )}
+          >
+            {primaryComment.trim() || '—'}
+          </p>
         </div>
 
         {selected.platformUserId && selected.payment ? (
@@ -917,17 +874,6 @@ function DoctorCalendarEventPanelInner({
           />
         ) : null}
 
-        {relevantReschedules.length ? (
-          <div className="space-y-1 border-t border-border pt-2">
-            {relevantReschedules.map((r) => (
-              <p key={r.id} className="text-xs text-muted-foreground">
-                Перенос: {formatEventAt(r.fromStartAt, timeZone)} →{' '}
-                {formatEventAt(r.toStartAt, timeZone)}
-                {r.staffComment ? ` · ${r.staffComment}` : ''}
-              </p>
-            ))}
-          </div>
-        ) : null}
         {lifecycle?.cancellations.length ? (
           <div className="space-y-1">
             {lifecycle.cancellations.map((c) => (
@@ -998,11 +944,49 @@ function DoctorCalendarEventPanelInner({
         onClose={() => setCancelOpen(false)}
         whenLabel={formatEventAtWords(selected.startAt, timeZone)}
         patientLabel={patientName}
+        patientHref={selected.platformUserId ? patientCardHref(selected.platformUserId) : null}
         draft={cancelDraft}
         onDraftChange={(patch) => setCancelDraft((current) => ({ ...current, ...patch }))}
         pending={pending}
         onConfirm={confirmCancel}
       />
+
+      <DoctorModal
+        open={mode === 'edit'}
+        onClose={closeEditForm}
+        title={
+          <DoctorModalStackedTitle
+            label="Изменить запись"
+            patientName={patientName}
+            patientHref={selected.platformUserId ? patientCardHref(selected.platformUserId) : null}
+          />
+        }
+        size="lg"
+        desktopPresentation="right-sheet"
+        nested
+      >
+        <DoctorAppointmentForm
+          mode="edit"
+          draft={draft}
+          onDraftChange={patchDraft}
+          filterMeta={editFilterMeta}
+          serviceOptions={editServiceOptions}
+          activeFilters={activeFilters}
+          hideSpecialist={hideSpecialist}
+          hidePatient={Boolean(selected.platformUserId)}
+          statusOptions={statusOptions}
+          pending={pending}
+          message={message}
+        />
+        <DoctorModalFooter>
+          <Button type="button" variant="outline" disabled={pending} onClick={closeEditForm}>
+            Отмена
+          </Button>
+          <Button type="button" disabled={pending} onClick={submitEdit}>
+            Сохранить
+          </Button>
+        </DoctorModalFooter>
+      </DoctorModal>
     </div>
   );
 }
