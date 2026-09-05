@@ -5,27 +5,16 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/ui/doctor/primitives/select';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import {
   VIDEO_PRESIGN_TTL_MAX_SEC,
   VIDEO_PRESIGN_TTL_MIN_SEC,
 } from '@/modules/media/videoPresignTtlConstants';
-import { videoDeliveryStrategySelectItems } from '@/shared/ui/doctor/selectOpaqueValueLabels';
 import { patchAdminSetting } from './patchAdminSetting';
-
-export type VideoDefaultDeliveryUi = 'mp4' | 'hls' | 'auto';
 
 export type VideoSystemSettingsSectionProps = {
   initialPlaybackApiEnabled: boolean;
-  initialDefaultDelivery: VideoDefaultDeliveryUi;
   initialHlsPipelineEnabled: boolean;
   initialNewUploadsAutoTranscode: boolean;
   initialHlsReconcileEnabled: boolean;
@@ -35,7 +24,6 @@ export type VideoSystemSettingsSectionProps = {
 
 export function VideoSystemSettingsSection({
   initialPlaybackApiEnabled,
-  initialDefaultDelivery,
   initialHlsPipelineEnabled,
   initialNewUploadsAutoTranscode,
   initialHlsReconcileEnabled,
@@ -43,8 +31,6 @@ export function VideoSystemSettingsSection({
   initialPresignTtlSeconds,
 }: VideoSystemSettingsSectionProps) {
   const [playbackApi, setPlaybackApi] = useState(initialPlaybackApiEnabled);
-  const [defaultDelivery, setDefaultDelivery] =
-    useState<VideoDefaultDeliveryUi>(initialDefaultDelivery);
   const [pipeline, setPipeline] = useState(initialHlsPipelineEnabled);
   const [autoTranscode, setAutoTranscode] = useState(initialNewUploadsAutoTranscode);
   const [reconcile, setReconcile] = useState(initialHlsReconcileEnabled);
@@ -107,39 +93,13 @@ export function VideoSystemSettingsSection({
         <CardContent className="flex flex-col gap-4">
           <LabeledSwitch
             label="Включить playback API"
-            hint="GET /api/media/…/playback и presigned HLS/MP4 в одном ответе."
+            hint="GET /api/media/…/playback — параметры воспроизведения одним ответом."
             checked={playbackApi}
             onCheckedChange={(next) =>
               void runPatch('video_playback_api_enabled', next, () => setPlaybackApi(next))
             }
             disabled={busyKey === 'video_playback_api_enabled'}
           />
-          <DoctorField
-            label="Стратегия выдачи по умолчанию"
-            htmlFor="video-default-delivery"
-            hint="Если HLS ещё не готов, сервер отдаёт MP4 (fallback)."
-          >
-            <Select
-              value={defaultDelivery}
-              onValueChange={(v) => {
-                if (v !== 'mp4' && v !== 'hls' && v !== 'auto') return;
-                void runPatch('video_default_delivery', v, () => setDefaultDelivery(v));
-              }}
-              disabled={busyKey === 'video_default_delivery'}
-            >
-              <SelectTrigger
-                id="video-default-delivery"
-                displayLabel={videoDeliveryStrategySelectItems[defaultDelivery]}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="mp4">{videoDeliveryStrategySelectItems.mp4}</SelectItem>
-                <SelectItem value="hls">{videoDeliveryStrategySelectItems.hls}</SelectItem>
-                <SelectItem value="auto">{videoDeliveryStrategySelectItems.auto}</SelectItem>
-              </SelectContent>
-            </Select>
-          </DoctorField>
         </CardContent>
       </Card>
 
@@ -219,7 +179,8 @@ export function VideoSystemSettingsSection({
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Приватное видео (S3)</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Срок жизни подписанных ссылок для playback и редиректа на MP4; доступ только по сессии.
+            Срок жизни подписанных ссылок для playback и прогрессивного редиректа; доступ только по
+            сессии.
           </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

@@ -134,7 +134,6 @@ export const AUTHENTICATED_RUNTIME_BOOLEAN_KEYS = [
 export const AUTHENTICATED_RUNTIME_STRING_KEYS = [
   'patient_app_maintenance_message',
   'patient_booking_url',
-  'video_default_delivery',
 ] as const;
 
 export const SERVER_RUNTIME_BOOLEAN_KEYS = [

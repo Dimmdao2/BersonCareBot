@@ -104,8 +104,6 @@ function snapshotWith(pageViews: PlatformAnalyticsSnapshot['pageViews']): Platfo
     playback: {
       viewsTotal: 9,
       viewsUnique: 4,
-      hlsResolves: 9,
-      mp4Resolves: 0,
       playbackErrors: 1,
       byDay: new Map([['2026-08-19', 7]]),
     },

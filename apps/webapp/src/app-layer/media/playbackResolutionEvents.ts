@@ -9,7 +9,6 @@ export async function recordPlaybackResolutionEvent(input: {
   userId: string;
   mediaId: string;
   delivery: PlaybackStatDelivery;
-  fallbackUsed: boolean;
 }): Promise<void> {
   if (!UUID.test(input.userId) || !UUID.test(input.mediaId)) return;
 

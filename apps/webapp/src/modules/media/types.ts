@@ -5,9 +5,6 @@ export type MediaPreviewStatus = 'pending' | 'ready' | 'failed' | 'skipped';
 /** VIDEO_HLS_DELIVERY — transcode pipeline state for library video rows (`media_files`). */
 export type VideoProcessingStatus = 'none' | 'pending' | 'processing' | 'ready' | 'failed';
 
-/** Per-file playback preference once HLS exists (optional override). */
-export type VideoDeliveryOverride = 'mp4' | 'hls' | 'auto';
-
 /** Serialized into `media_files.available_qualities_json` after transcoding. */
 export type MediaAvailableQuality = {
   /** Human label e.g. 720p (from worker). */
@@ -59,7 +56,6 @@ export type MediaRecord = {
   posterS3Key?: string | null;
   videoDurationSeconds?: number | null;
   availableQualities?: MediaAvailableQuality[] | null;
-  videoDeliveryOverride?: VideoDeliveryOverride | null;
 };
 
 export type MediaFolderKind = 'standard' | 'client_files_root' | 'client_patient';

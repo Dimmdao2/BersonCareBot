@@ -81,7 +81,6 @@ export function MediaPickerQuickPreviewDialog({ item, open, onOpenChange }: Prop
               ) : item.kind === 'video' ? (
                 <DoctorMediaPlaybackVideo
                   mediaId={item.id}
-                  mp4Url={`/api/media/${encodeURIComponent(item.id)}`}
                   title={title}
                   initialPlayback={null}
                   shellClassName="relative aspect-video w-full max-h-[65vh] overflow-hidden rounded-md bg-black"

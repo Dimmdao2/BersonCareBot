@@ -19,12 +19,11 @@ export async function recordPlaybackResolutionStat(input: {
   userId: string;
   mediaId: string;
   delivery: PlaybackStatDelivery;
-  fallbackUsed: boolean;
 }): Promise<void> {
   try {
     await runWebappSql(
       getWebappSqlDb(),
-      sql`SELECT app.increment_media_playback_resolution_stat(${input.userId}::uuid, ${input.mediaId}::uuid, ${input.delivery}, ${input.fallbackUsed})`,
+      sql`SELECT app.increment_media_playback_resolution_stat(${input.userId}::uuid, ${input.mediaId}::uuid, ${input.delivery})`,
     );
   } catch (e) {
     logger.error({ err: e, delivery: input.delivery }, 'playback_stats_hourly_write_failed');

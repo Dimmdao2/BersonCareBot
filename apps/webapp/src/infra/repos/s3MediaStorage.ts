@@ -48,7 +48,6 @@ import type {
 } from '@/modules/media/types';
 import {
   parseAvailableQualitiesJson,
-  parseVideoDeliveryOverride,
   parseVideoProcessingStatus,
 } from '@/modules/media/videoHlsFields';
 import { mediaPreviewUrlById } from '@/shared/lib/mediaPreviewUrls';
@@ -101,7 +100,6 @@ function mapVideoHlsColumns(row: {
   poster_s3_key: string | null;
   video_duration_seconds: number | null;
   available_qualities_json: unknown;
-  video_delivery_override: string | null;
 }) {
   const err = row.video_processing_error?.trim();
   return {
@@ -117,7 +115,6 @@ function mapVideoHlsColumns(row: {
         ? Number(row.video_duration_seconds)
         : null,
     availableQualities: parseAvailableQualitiesJson(row.available_qualities_json),
-    videoDeliveryOverride: parseVideoDeliveryOverride(row.video_delivery_override),
   };
 }
 
@@ -197,7 +194,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             m.source_width, m.source_height,
             m.video_processing_status, m.video_processing_error,
             m.hls_master_playlist_s3_key, m.hls_artifact_prefix, m.poster_s3_key,
-            m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
+            m.video_duration_seconds, m.available_qualities_json
          FROM media_files m
          WHERE m.id = ${id}::uuid
            AND m.organization_id = ${organizationId}::uuid
@@ -212,7 +209,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             m.source_width, m.source_height,
             m.video_processing_status, m.video_processing_error,
             m.hls_master_playlist_s3_key, m.hls_artifact_prefix, m.poster_s3_key,
-            m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
+            m.video_duration_seconds, m.available_qualities_json
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
          LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
@@ -241,7 +238,6 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         poster_s3_key: string | null;
         video_duration_seconds: number | null;
         available_qualities_json: unknown;
-        video_delivery_override: string | null;
       }>(
         getWebappSqlDb(),
         query,
@@ -379,7 +375,6 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         poster_s3_key: string | null;
         video_duration_seconds: number | null;
         available_qualities_json: unknown;
-        video_delivery_override: string | null;
         total_count: string;
       }>(
         getWebappSqlDb(),
@@ -393,7 +388,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             m.source_width, m.source_height,
             m.video_processing_status, m.video_processing_error,
             m.hls_master_playlist_s3_key, m.hls_artifact_prefix, m.poster_s3_key,
-            m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override,
+            m.video_duration_seconds, m.available_qualities_json,
             COUNT(*) OVER()::text AS total_count
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
@@ -872,7 +867,6 @@ type PlatformMediaRow = {
   poster_s3_key: string | null;
   video_duration_seconds: number | null;
   available_qualities_json: unknown;
-  video_delivery_override: string | null;
   preview_sm_key: string | null;
   preview_md_key: string | null;
   preview_status: string | null;
@@ -1109,7 +1103,6 @@ export type MediaPlaybackRow = {
   standard_rendition_at: string | Date | null;
   video_duration_seconds: number | null;
   available_qualities_json: unknown;
-  video_delivery_override: string | null;
   usage_purpose: string | null;
   uploaded_by: string;
 };
@@ -1127,7 +1120,7 @@ export async function getMediaRowForPlayback(
     sql`SELECT id::text, mime_type, s3_key, stored_path,
             video_processing_status, hls_master_playlist_s3_key, poster_s3_key,
             preview_sm_key, preview_md_key, preview_status, standard_rendition_at,
-            video_duration_seconds, available_qualities_json, video_delivery_override,
+            video_duration_seconds, available_qualities_json,
             usage_purpose, uploaded_by::text
      FROM media_files
      WHERE id = ${id}::uuid AND ${storagePredicate}
@@ -1158,7 +1151,6 @@ export async function getMediaRowForPlayback(
     standard_rendition_at: null,
     video_duration_seconds: platformRow.video_duration_seconds,
     available_qualities_json: platformRow.available_qualities_json,
-    video_delivery_override: platformRow.video_delivery_override,
     usage_purpose: platformRow.usage_purpose,
     uploaded_by: platformRow.uploaded_by,
   };

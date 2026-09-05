@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 
 type CatalogPlayerProps = Pick<
   PatientContentAdaptiveVideoProps,
-  'mediaId' | 'mp4Url' | 'title' | 'initialPlayback'
+  'mediaId' | 'title' | 'initialPlayback'
 >;
 
 type Props =

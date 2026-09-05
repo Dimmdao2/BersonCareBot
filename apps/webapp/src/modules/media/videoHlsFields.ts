@@ -1,7 +1,6 @@
-import type { MediaAvailableQuality, VideoDeliveryOverride, VideoProcessingStatus } from './types';
+import type { MediaAvailableQuality, VideoProcessingStatus } from './types';
 
 const PROCESSING: VideoProcessingStatus[] = ['none', 'pending', 'processing', 'ready', 'failed'];
-const DELIVERY: VideoDeliveryOverride[] = ['mp4', 'hls', 'auto'];
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -16,16 +15,6 @@ export function parseVideoProcessingStatus(
 ): VideoProcessingStatus | null {
   if (raw == null || raw === '') return null;
   return (PROCESSING as readonly string[]).includes(raw) ? (raw as VideoProcessingStatus) : null;
-}
-
-/**
- * Normalizes `media_files.video_delivery_override` for API types.
- */
-export function parseVideoDeliveryOverride(
-  raw: string | null | undefined,
-): VideoDeliveryOverride | null {
-  if (raw == null || raw === '') return null;
-  return (DELIVERY as readonly string[]).includes(raw) ? (raw as VideoDeliveryOverride) : null;
 }
 
 /**

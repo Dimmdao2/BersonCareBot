@@ -3,16 +3,7 @@
 import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import {
   Select,
@@ -32,12 +23,6 @@ const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
 const FILL_PRACTICE = 'hsl(142 45% 42% / 0.9)';
 const FILL_WARMUP_VIDEO = 'hsl(215 55% 48% / 0.9)';
 const FILL_EXERCISE_VIDEO = 'hsl(280 45% 50% / 0.9)';
-
-const VIDEO_DELIVERY_COLORS: Record<string, string> = {
-  HLS: 'hsl(215 60% 52%)',
-  MP4: 'hsl(38 75% 52%)',
-  Файл: 'hsl(142 45% 48%)',
-};
 
 const CHART_H_ROWS = 200;
 
@@ -97,57 +82,6 @@ function TopPagesHorizontalBarChart({
   );
 }
 
-function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: number }) {
-  const slices = [
-    { name: 'HLS', value: hls },
-    { name: 'MP4', value: mp4 },
-    { name: 'Файл', value: file },
-  ].filter((s) => s.value > 0);
-
-  if (slices.length === 0) {
-    return <p className="text-xs text-muted-foreground">Нет данных.</p>;
-  }
-
-  return (
-    <div className="flex items-center gap-4">
-      <div className="h-[88px] w-[88px] shrink-0">
-        <PositiveSizeResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={slices}
-              cx="50%"
-              cy="50%"
-              innerRadius={24}
-              outerRadius={40}
-              paddingAngle={2}
-              dataKey="value"
-            >
-              {slices.map((s) => (
-                <Cell
-                  key={s.name}
-                  fill={VIDEO_DELIVERY_COLORS[s.name] ?? 'hsl(var(--muted-foreground))'}
-                />
-              ))}
-            </Pie>
-            <DoctorRechartsTooltip formatter={(v) => [String(v), '']} />
-          </PieChart>
-        </PositiveSizeResponsiveContainer>
-      </div>
-      <ul className="space-y-1 text-xs">
-        {slices.map((s) => (
-          <li key={s.name} className="flex items-center gap-2">
-            <span
-              className="inline-block h-2 w-2 rounded-sm"
-              style={{ background: VIDEO_DELIVERY_COLORS[s.name] }}
-            />
-            <span className="text-muted-foreground">{s.name}</span>
-            <span className="font-semibold tabular-nums">{s.value}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
 
 export function MaterialContentStatsClient() {
   const [windowHours, setWindowHours] = useState<number>(168);
@@ -308,7 +242,7 @@ export function MaterialContentStatsClient() {
               <CardTitle className="text-sm">Видео: платформа</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <DoctorStatCard
                   id="content-stats-video-resolutions"
                   title="Выдач всего"
@@ -331,13 +265,6 @@ export function MaterialContentStatsClient() {
                   href="/app/admin/system-health"
                 />
                 <DoctorStatCard
-                  id="content-stats-video-fallback"
-                  title="Fallback на MP4"
-                  value={data.videoPlayback.fallbackTotal}
-                  hint={data.videoPlayback.fallbackTotal > 0 ? 'HLS → MP4' : 'не потребовался'}
-                  href="/app/admin/system-health"
-                />
-                <DoctorStatCard
                   id="content-stats-video-errors"
                   title="Ошибок плеера"
                   value={data.videoPlaybackClient.totalErrors}
@@ -352,17 +279,6 @@ export function MaterialContentStatsClient() {
                   href="/app/admin/system-health"
                 />
               </div>
-
-              {data.videoPlayback.totalResolutions > 0 ? (
-                <div>
-                  <p className="mb-2 text-xs font-medium text-muted-foreground">Формат доставки</p>
-                  <VideoDeliveryPie
-                    hls={data.videoPlayback.byDelivery.hls}
-                    mp4={data.videoPlayback.byDelivery.mp4}
-                    file={data.videoPlayback.byDelivery.file}
-                  />
-                </div>
-              ) : null}
 
               <p className="text-xs text-muted-foreground">
                 При выключенной выдаче видео в настройках счётчики могут быть нулевыми — это не

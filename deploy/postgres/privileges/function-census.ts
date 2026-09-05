@@ -3627,7 +3627,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.increment_media_playback_resolution_stat(uuid,uuid,text,boolean)": {
+  "app.increment_media_playback_resolution_stat(uuid,uuid,text)": {
     "owner": "app_seam_telemetry_media_owner",
     "security": "DEFINER",
     "returns": "void",
@@ -3644,8 +3644,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid",
       "uuid",
-      "text",
-      "boolean"
+      "text"
     ],
     "databases": [
       "bersoncarebot_test",
@@ -3669,8 +3668,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "organization_id",
           "bucket_hour",
           "delivery",
-          "resolved_count",
-          "fallback_count"
+          "resolved_count"
         ],
         "operations": [
           "SELECT",
@@ -6436,8 +6434,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       {
         "relation": "public.media_playback_resolution_events",
         "columns": [
-          "delivery",
-          "fallback_used",
           "resolved_at"
         ],
         "operations": [
@@ -6449,9 +6445,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "relation": "public.media_playback_stats_hourly",
         "columns": [
           "bucket_hour",
-          "delivery",
-          "resolved_count",
-          "fallback_count"
+          "resolved_count"
         ],
         "operations": [
           "SELECT"
@@ -8300,7 +8294,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "poster_s3_key",
           "video_duration_seconds",
           "available_qualities_json",
-          "video_delivery_override",
           "usage_purpose",
           "organization_id",
           "owner_kind"
@@ -8884,7 +8877,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.record_media_playback_resolution_event(uuid,uuid,text,boolean)": {
+  "app.record_media_playback_resolution_event(uuid,uuid,text)": {
     "owner": "app_seam_telemetry_media_owner",
     "security": "DEFINER",
     "returns": "void",
@@ -8901,8 +8894,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid",
       "uuid",
-      "text",
-      "boolean"
+      "text"
     ],
     "databases": [
       "bersoncarebot_test",
@@ -8927,7 +8919,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "user_id",
           "media_id",
           "delivery",
-          "fallback_used",
           "organization_id"
         ],
         "operations": [

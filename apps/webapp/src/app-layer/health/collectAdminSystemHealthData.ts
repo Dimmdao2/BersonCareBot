@@ -68,20 +68,16 @@ type VideoPlaybackClientHealthStatus = 'ok' | 'degraded' | 'error';
 type VideoPlaybackHealthPayload = {
   status: VideoPlaybackHealthStatus;
   windowHours: number;
-  /** Rolling short window for `byDeliveryLast1h` (UTC buckets), hours. */
+  /** Rolling short window for `totalResolutionsLast1h` (UTC buckets), hours. */
   windowHoursShort: number;
   /** Matches `video_playback_api_enabled`; informational for operators. */
   playbackApiEnabled: boolean;
-  byDelivery: { hls: number; mp4: number; file: number };
-  fallbackTotal: number;
   totalResolutions: number;
   /**
    * Пары (platform user, медиавидео), у которых первый когда-либо учтённый просмотр попал в rolling `windowHours`.
    * Отличается от `totalResolutions` (нет повторных визитов одного человека по тому же `media_id`).
    */
   uniquePlaybackPairsFirstSeenInWindow: number;
-  byDeliveryLast1h: { hls: number; mp4: number; file: number };
-  fallbackTotalLast1h: number;
   totalResolutionsLast1h: number;
 };
 
@@ -430,12 +426,8 @@ function emptyVideoPlaybackPayload(
     windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
     windowHoursShort: 1,
     playbackApiEnabled,
-    byDelivery: { hls: 0, mp4: 0, file: 0 },
-    fallbackTotal: 0,
     totalResolutions: 0,
     uniquePlaybackPairsFirstSeenInWindow: 0,
-    byDeliveryLast1h: { hls: 0, mp4: 0, file: 0 },
-    fallbackTotalLast1h: 0,
     totalResolutionsLast1h: 0,
   };
 }
@@ -522,12 +514,8 @@ async function probeVideoPlayback(
           windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
           windowHoursShort: 1,
           playbackApiEnabled: false,
-          byDelivery: { hls: 0, mp4: 0, file: 0 },
-          fallbackTotal: 0,
           totalResolutions: 0,
           uniquePlaybackPairsFirstSeenInWindow: 0,
-          byDeliveryLast1h: { hls: 0, mp4: 0, file: 0 },
-          fallbackTotalLast1h: 0,
           totalResolutionsLast1h: 0,
         },
         durationMs: elapsedMs(startedAt),
@@ -546,12 +534,8 @@ async function probeVideoPlayback(
         windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
         windowHoursShort: 1,
         playbackApiEnabled: true,
-        byDelivery: metrics24.byDelivery,
-        fallbackTotal: metrics24.fallbackTotal,
         totalResolutions: metrics24.totalResolutions,
         uniquePlaybackPairsFirstSeenInWindow: metrics24.uniquePlaybackPairsFirstSeenInWindow,
-        byDeliveryLast1h: metrics1.byDelivery,
-        fallbackTotalLast1h: metrics1.fallbackTotal,
         totalResolutionsLast1h: metrics1.totalResolutions,
       },
       durationMs: elapsedMs(startedAt),

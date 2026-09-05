@@ -169,12 +169,8 @@ type SystemHealthPayload = {
     windowHours: number;
     windowHoursShort?: number;
     playbackApiEnabled: boolean;
-    byDelivery: { hls: number; mp4: number; file: number };
-    fallbackTotal: number;
     totalResolutions: number;
     uniquePlaybackPairsFirstSeenInWindow: number;
-    byDeliveryLast1h?: { hls: number; mp4: number; file: number };
-    fallbackTotalLast1h?: number;
     totalResolutionsLast1h?: number;
   };
   videoPlaybackClient?: {
@@ -1339,20 +1335,8 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
                     value={String(data?.videoPlayback?.totalResolutions ?? 0)}
                   />
                   <DetailRow
-                    label="Формат выдачи за окно: HLS / MP4 / файл"
-                    value={`${data?.videoPlayback?.byDelivery.hls ?? 0} / ${data?.videoPlayback?.byDelivery.mp4 ?? 0} / ${data?.videoPlayback?.byDelivery.file ?? 0}`}
-                  />
-                  <DetailRow
                     label="За последний час"
-                    value={`${data?.videoPlayback?.totalResolutionsLast1h ?? 0} всего · HLS ${data?.videoPlayback?.byDeliveryLast1h?.hls ?? 0} / MP4 ${data?.videoPlayback?.byDeliveryLast1h?.mp4 ?? 0} / файл ${data?.videoPlayback?.byDeliveryLast1h?.file ?? 0}`}
-                  />
-                  <DetailRow
-                    label="Переходов на запасной вариант"
-                    value={String(data?.videoPlayback?.fallbackTotal ?? 0)}
-                  />
-                  <DetailRow
-                    label="Переходов на запасной вариант (1 ч)"
-                    value={String(data?.videoPlayback?.fallbackTotalLast1h ?? 0)}
+                    value={String(data?.videoPlayback?.totalResolutionsLast1h ?? 0)}
                   />
                   <DetailRow
                     label="Уникальных пациент+видео (первое событие в окне)"

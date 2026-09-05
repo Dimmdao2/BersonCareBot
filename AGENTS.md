@@ -1878,14 +1878,14 @@ _Scoped: `apps/webapp/src/app/app/patient/**`, media components._
 - Для **файлового** видео в `apps/webapp/src/app/app/patient/**` и в **Markdown-теле** страниц контента (`MarkdownEmbeddedLink`, `@/shared/ui/markdown/MarkdownEmbeddedLink.tsx`) используй **`PatientMediaPlaybackVideo`** (`@/shared/ui/media/PatientMediaPlaybackVideo`). Не добавляй «голый» `<video>` с прямым URL или отдельный progressive-only плеер вне этого компонента.
 - **Миниатюры** в списках пациента — по-прежнему только картинка (`PatientCatalogMediaStaticThumb`); воспроизведение — только в полноценном плеере.
 - **Быстрый превью видео** в `MediaPickerQuickPreviewDialog` использует тот же `PatientMediaPlaybackVideo` (единый стек с кабинетом пациента).
-- Режим доставки задаёт только **`GET /api/media/[id]/playback`** и внутренняя логика fallback при сбое HLS; **нет** UI для выбора **формата** (HLS vs MP4). При **двух и более** строках в **`hls.qualities`** и воспроизведении через **`hls.js`** допускается выбор **разрешения** и индикация текущего варианта; при нативном HLS — только «авто»; при отсутствии поддержки **`hls.js`** при выдаче HLS включается progressive MP4 и селектор качества скрывается — см. `docs/ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md`.
+- Режим доставки задаёт только **`GET /api/media/[id]/playback`**, и выводится он из самой строки медиа: готов HLS — отдаётся HLS, не готов (в т.ч. `usage_purpose=program_item_submission`) — progressive MP4. Настроек стратегии (`video_default_delivery`, per-file override, `?prefer=`) **нет**, UI выбора **формата** тоже нет. **MP4-fallback после готового HLS нет:** транскод удаляет исходный объект, поэтому при фатальной ошибке HLS плеер один раз обновляет playback JSON и дальше показывает штатную ошибку. При **двух и более** строках в **`hls.qualities`** и воспроизведении через **`hls.js`** допускается выбор **разрешения** и индикация текущего варианта; при нативном HLS селектор скрыт; если браузер не умеет ни нативный HLS, ни `hls.js`, показывается ошибка — см. `docs/ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md`.
 - Если на сервере JSON не резолвили — передай `initialPlayback={null}`; компонент сам запросит `/playback` на клиенте (сессия обязательна для успешного ответа).
 - Для извлечения `mediaId` из пути каталога и тела Markdown: **`parseApiMediaIdFromPlayableUrl`**, при необходимости **`parseApiMediaIdFromMarkdownHref`** (`@/shared/lib/parseApiMediaIdFromPlayableUrl`).
 
 Документация: `docs/ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md`.
 
-**Смысл:** отдельный самодельный плеер вне `PatientMediaPlaybackVideo` не получает fallback-логику HLS→MP4 и
-расходится с единым поведением воспроизведения при следующем изменении формата доставки.
+**Смысл:** отдельный самодельный плеер вне `PatientMediaPlaybackVideo` не получает ни обновление истёкшего
+playback JSON, ни телеметрию ошибок HLS, и расходится с единым поведением при следующем изменении формата доставки.
 
 ---
 

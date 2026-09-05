@@ -332,16 +332,6 @@ function DashboardBody({ data }: { data: PlatformAnalyticsDashboard }) {
             value={formatInt(data.patientActivity.videoViewsUnique)}
           />
           <DoctorStatCard
-            id="hls"
-            title="Выдача HLS"
-            value={formatInt(data.patientActivity.hlsResolves)}
-          />
-          <DoctorStatCard
-            id="mp4"
-            title="Выдача MP4"
-            value={formatInt(data.patientActivity.mp4Resolves)}
-          />
-          <DoctorStatCard
             id="perr"
             title="Ошибки воспроизведения"
             value={formatInt(data.patientActivity.playbackErrors)}

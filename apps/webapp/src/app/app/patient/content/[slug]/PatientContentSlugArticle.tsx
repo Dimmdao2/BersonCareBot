@@ -94,11 +94,7 @@ async function renderPatientContentSlugArticle({
   if (apiMediaId && session) {
     const playbackEnabled = await getPatientRuntimeBool('video_playback_api_enabled');
     if (playbackEnabled) {
-      const resolved = await resolveMediaPlaybackPayload({
-        id: apiMediaId,
-        session,
-        adminPrefer: null,
-      });
+      const resolved = await resolveMediaPlaybackPayload({ id: apiMediaId, session });
       if (resolved.ok) {
         patientPlaybackInitial = resolved.data;
       }
@@ -241,7 +237,6 @@ async function renderPatientContentSlugArticle({
                 contentPageId={dbRow.id}
                 player={{
                   mediaId: apiMediaId ?? '',
-                  mp4Url: videoPlayableUrl,
                   title: item.title,
                   initialPlayback: patientPlaybackInitial,
                 }}
@@ -260,7 +255,6 @@ async function renderPatientContentSlugArticle({
           ) : (
             <PatientContentAdaptiveVideo
               mediaId={apiMediaId ?? ''}
-              mp4Url={videoPlayableUrl}
               title={item.title}
               initialPlayback={patientPlaybackInitial}
             />

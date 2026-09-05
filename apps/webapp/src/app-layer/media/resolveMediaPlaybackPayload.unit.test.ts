@@ -4,7 +4,6 @@ import type { AppSession } from '@/shared/types/session';
 const mocks = vi.hoisted(() => ({
   getRow: vi.fn(),
   playbackEnabled: vi.fn(),
-  defaultDelivery: vi.fn(),
   ttl: vi.fn(),
   presign: vi.fn(),
   recordStat: vi.fn(),
@@ -22,7 +21,6 @@ vi.mock('@/app-layer/logging/logger', () => ({
 vi.mock('@/app-layer/media/s3MediaStorage', () => ({ getMediaRowForPlayback: mocks.getRow }));
 vi.mock('@/modules/system-settings/configAdapter', () => ({
   getPatientRuntimeBool: mocks.playbackEnabled,
-  getPatientRuntimeValue: mocks.defaultDelivery,
 }));
 vi.mock('@/app-layer/media/videoPresignTtl', () => ({ getVideoPresignTtlSeconds: mocks.ttl }));
 vi.mock('@/app-layer/media/s3Client', () => ({ presignGetUrl: mocks.presign }));
@@ -49,7 +47,6 @@ describe('resolveMediaPlaybackPayload', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.playbackEnabled.mockResolvedValue(true);
-    mocks.defaultDelivery.mockResolvedValue('auto');
     mocks.ttl.mockResolvedValue(900);
     mocks.recordStat.mockResolvedValue(undefined);
     mocks.recordEvent.mockResolvedValue(undefined);
@@ -67,7 +64,6 @@ describe('resolveMediaPlaybackPayload', () => {
       standard_rendition_at: null,
       video_duration_seconds: 12,
       available_qualities_json: [],
-      video_delivery_override: null,
       usage_purpose: null,
       uploaded_by: 'patient-1',
     });
@@ -87,13 +83,12 @@ describe('resolveMediaPlaybackPayload', () => {
       standard_rendition_at: '2026-08-19T08:00:00.000Z',
       video_duration_seconds: null,
       available_qualities_json: null,
-      video_delivery_override: null,
       usage_purpose: 'program_item_submission',
       uploaded_by: 'patient-1',
     });
 
     await expect(
-      resolveMediaPlaybackPayload({ id: mediaId, session, adminPrefer: null }),
+      resolveMediaPlaybackPayload({ id: mediaId, session }),
     ).resolves.toMatchObject({
       ok: true,
       data: {
@@ -122,34 +117,55 @@ describe('resolveMediaPlaybackPayload', () => {
       standard_rendition_at: null,
       video_duration_seconds: null,
       available_qualities_json: null,
-      video_delivery_override: null,
       usage_purpose: 'program_item_submission',
       uploaded_by: 'patient-1',
     });
 
     await expect(
-      resolveMediaPlaybackPayload({ id: mediaId, session, adminPrefer: null }),
+      resolveMediaPlaybackPayload({ id: mediaId, session }),
     ).resolves.toMatchObject({
       ok: true,
       data: { preview: { standardRendition: false } },
     });
   });
 
-  it('falls back to the protected MP4 route without reaching S3 for an untrusted HLS artifact key', async () => {
-    const result = await resolveMediaPlaybackPayload({
-      id: mediaId,
-      session,
-      adminPrefer: null,
-    });
+  it('serves the protected progressive route without reaching S3 for an untrusted HLS artifact key', async () => {
+    const result = await resolveMediaPlaybackPayload({ id: mediaId, session });
 
     expect(result).toMatchObject({
       ok: true,
-      data: { delivery: 'mp4', hls: null, mp4: { url: `/api/media/${mediaId}` } },
+      data: { delivery: 'mp4', hls: null, progressive: { url: `/api/media/${mediaId}` } },
     });
     expect(mocks.presign).not.toHaveBeenCalled();
   });
 
-  it('keeps a trusted HLS master same-origin with the protected MP4 fallback', async () => {
+  it('serves the progressive route for a patient submission, whose transcode leaves no HLS master', async () => {
+    mocks.getRow.mockResolvedValue({
+      mime_type: 'video/mp4',
+      s3_key: `media/${mediaId}/submission.mp4`,
+      stored_path: `media/${mediaId}/submission.mp4`,
+      video_processing_status: 'ready',
+      hls_master_playlist_s3_key: null,
+      poster_s3_key: null,
+      preview_sm_key: null,
+      preview_md_key: null,
+      preview_status: 'pending',
+      standard_rendition_at: null,
+      video_duration_seconds: 12,
+      available_qualities_json: [],
+      usage_purpose: 'program_item_submission',
+      uploaded_by: 'patient-1',
+    });
+
+    await expect(
+      resolveMediaPlaybackPayload({ id: mediaId, session }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { delivery: 'mp4', hls: null, progressive: { url: `/api/media/${mediaId}` } },
+    });
+  });
+
+  it('publishes no progressive route once HLS is ready: the source object is gone by then', async () => {
     mocks.getRow.mockResolvedValue({
       mime_type: 'video/mp4',
       s3_key: `media/${mediaId}/source.mp4`,
@@ -159,19 +175,18 @@ describe('resolveMediaPlaybackPayload', () => {
       poster_s3_key: null,
       video_duration_seconds: 12,
       available_qualities_json: [],
-      video_delivery_override: null,
       usage_purpose: null,
       uploaded_by: 'patient-1',
     });
 
     await expect(
-      resolveMediaPlaybackPayload({ id: mediaId, session, adminPrefer: null }),
+      resolveMediaPlaybackPayload({ id: mediaId, session }),
     ).resolves.toMatchObject({
       ok: true,
       data: {
         delivery: 'hls',
         hls: { masterUrl: `/api/media/${mediaId}/hls/master.m3u8` },
-        mp4: { url: `/api/media/${mediaId}` },
+        progressive: null,
       },
     });
     expect(mocks.presign).not.toHaveBeenCalled();

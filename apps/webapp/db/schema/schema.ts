@@ -1945,7 +1945,6 @@ export const mediaFiles = pgTable(
     posterS3Key: text('poster_s3_key'),
     videoDurationSeconds: integer('video_duration_seconds'),
     availableQualitiesJson: jsonb('available_qualities_json'),
-    videoDeliveryOverride: text('video_delivery_override'),
     usagePurpose: text('usage_purpose'),
     /**
      * Канонический URL ролика на внешнем хостинге, обложкой которого является эта строка
@@ -2021,10 +2020,6 @@ export const mediaFiles = pgTable(
       sql`(video_processing_status IS NULL) OR (video_processing_status = ANY (ARRAY['none'::text, 'pending'::text, 'processing'::text, 'ready'::text, 'failed'::text]))`,
     ),
     check(
-      'media_files_video_delivery_override_check',
-      sql`(video_delivery_override IS NULL) OR (video_delivery_override = ANY (ARRAY['mp4'::text, 'hls'::text, 'auto'::text]))`,
-    ),
-    check(
       'media_files_usage_purpose_check',
       sql`(usage_purpose IS NULL) OR (usage_purpose = ANY (ARRAY['program_item_submission'::text, 'hosted_video_preview'::text]))`,
     ),
@@ -2094,7 +2089,6 @@ export const mediaPlaybackStatsHourly = pgTable(
     bucketHour: timestamp('bucket_hour', { withTimezone: true, mode: 'string' }).notNull(),
     delivery: text().notNull(),
     resolvedCount: integer('resolved_count').default(0).notNull(),
-    fallbackCount: integer('fallback_count').default(0).notNull(),
   },
   (table) => [
     uniqueIndex('media_playback_stats_hourly_org_bucket_delivery_uidx').on(
@@ -2131,7 +2125,6 @@ export const mediaPlaybackResolutionEvents = pgTable(
     userId: uuid('user_id').notNull(),
     mediaId: uuid('media_id').notNull(),
     delivery: text().notNull(),
-    fallbackUsed: boolean('fallback_used').default(false).notNull(),
     resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),

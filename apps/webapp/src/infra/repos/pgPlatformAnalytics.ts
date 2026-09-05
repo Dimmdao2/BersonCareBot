@@ -165,8 +165,6 @@ export function createPgPlatformAnalyticsPort(): PlatformAnalyticsPort {
         playback: {
           viewsTotal: asCount(playback.viewsTotal),
           viewsUnique: asCount(playback.viewsUnique),
-          hlsResolves: asCount(playback.hlsResolves),
-          mp4Resolves: asCount(playback.mp4Resolves),
           playbackErrors: asCount(playback.playbackErrors),
           byDay: dayMap(playback.byDay),
         },

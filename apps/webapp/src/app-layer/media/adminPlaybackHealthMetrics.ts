@@ -13,8 +13,6 @@ export const ADMIN_PLAYBACK_METRICS_WINDOW_HOURS = 24;
 export const ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED = 3;
 
 export type AdminPlaybackHealthMetrics = {
-  byDelivery: { hls: number; mp4: number; file: number };
-  fallbackTotal: number;
   totalResolutions: number;
   /**
    * Число новых строк в `media_playback_user_video_first_resolve`, у которых `first_resolved_at` попадает в окно.
@@ -53,35 +51,23 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
     const hourlyTotalsQuery = () =>
       db
         .select({
-          delivery: mediaPlaybackStatsHourly.delivery,
           resolvedSum: sql<string>`COALESCE(SUM(${mediaPlaybackStatsHourly.resolvedCount}), 0)::text`,
-          fallbackSum: sql<string>`COALESCE(SUM(${mediaPlaybackStatsHourly.fallbackCount}), 0)::text`,
         })
         .from(mediaPlaybackStatsHourly)
-        .where(gte(mediaPlaybackStatsHourly.bucketHour, windowCutoffSql))
-        .groupBy(mediaPlaybackStatsHourly.delivery);
+        .where(gte(mediaPlaybackStatsHourly.bucketHour, windowCutoffSql));
 
     const audienceTotalsQuery = () =>
       db
-        .select({
-          delivery: mediaPlaybackResolutionEvents.delivery,
-          resolvedSum: sql<string>`COUNT(*)::text`,
-          fallbackSum: sql<string>`COALESCE(SUM(CASE WHEN ${mediaPlaybackResolutionEvents.fallbackUsed} THEN 1 ELSE 0 END), 0)::text`,
-        })
+        .select({ resolvedSum: sql<string>`COUNT(*)::text` })
         .from(mediaPlaybackResolutionEvents)
         .where(
           and(
             gte(mediaPlaybackResolutionEvents.resolvedAt, windowCutoffSql),
             resolutionUserExclude,
           ),
-        )
-        .groupBy(mediaPlaybackResolutionEvents.delivery);
+        );
 
-    let totalsRows: Array<{
-      delivery: string;
-      resolvedSum: string;
-      fallbackSum: string;
-    }>;
+    let totalsRows: Array<{ resolvedSum: string }>;
     if (audienceFiltered) {
       // Per-user resolution events only — hourly rollups cannot exclude test accounts.
       totalsRows = await audienceTotalsQuery();
@@ -101,7 +87,7 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
             ? String((eventsErr as { code?: string }).code)
             : '';
         if (code !== '42P01') throw eventsErr;
-        logger.warn({ err: eventsErr }, 'playback_resolution_events_missing_fallback_hourly');
+        logger.warn({ err: eventsErr }, 'playback_resolution_events_missing_use_hourly');
         totalsRows = await hourlyTotalsQuery();
       }
     }
@@ -116,27 +102,14 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
         ),
       );
 
-    const byDelivery = { hls: 0, mp4: 0, file: 0 };
-    let fallbackTotal = 0;
     let totalResolutions = 0;
     for (const row of totalsRows) {
-      const r = Number.parseInt(row.resolvedSum, 10) || 0;
-      const f = Number.parseInt(row.fallbackSum, 10) || 0;
-      totalResolutions += r;
-      fallbackTotal += f;
-      if (row.delivery === 'hls') byDelivery.hls = r;
-      else if (row.delivery === 'mp4') byDelivery.mp4 = r;
-      else if (row.delivery === 'file') byDelivery.file = r;
+      totalResolutions += Number.parseInt(row.resolvedSum, 10) || 0;
     }
 
     const uniquePlaybackPairsFirstSeenInWindow = Number.parseInt(uniqueRow[0]?.c ?? '0', 10) || 0;
 
-    return {
-      byDelivery,
-      fallbackTotal,
-      totalResolutions,
-      uniquePlaybackPairsFirstSeenInWindow,
-    };
+    return { totalResolutions, uniquePlaybackPairsFirstSeenInWindow };
   } catch (e) {
     logger.error({ err: e }, 'admin_playback_health_metrics_failed');
     throw e;

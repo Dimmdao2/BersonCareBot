@@ -9,7 +9,6 @@ export type {
   MediaRecord,
   MediaPreviewStatus,
   MediaAvailableQuality,
-  VideoDeliveryOverride,
   VideoProcessingStatus,
 } from './types';
 export type { MediaListParams, MediaListSortBy, MediaSortDirection, MediaUsageRef } from './types';

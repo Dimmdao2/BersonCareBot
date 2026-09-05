@@ -40,8 +40,6 @@ export function createInMemoryPlatformAnalyticsPort(): PlatformAnalyticsPort {
         playback: {
           viewsTotal: 0,
           viewsUnique: 0,
-          hlsResolves: 0,
-          mp4Resolves: 0,
           playbackErrors: 0,
           byDay: new Map<string, number>(),
         },

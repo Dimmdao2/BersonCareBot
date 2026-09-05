@@ -20,8 +20,12 @@ export type MediaPlaybackPayload = {
   };
   /** When delivery is HLS, `masterUrl` is same-origin `/api/media/{id}/hls/master.m3u8` (cookie session). */
   hls: { masterUrl: string; qualities?: MediaAvailableQuality[] } | null;
-  mp4: { url: string };
-  fallbackUsed: boolean;
-  /** TTL for poster presign and MP4 presigned redirect (`GET /api/media/{id}`); not applied to HLS master URL. */
+  /**
+   * Progressive source, and only for `delivery` `'mp4' | 'file'`. `null` for HLS, because the
+   * uploaded source object is deleted once the transcode is ready — there is nothing to fall
+   * back to, and offering the route would open a deleted object.
+   */
+  progressive: { url: string } | null;
+  /** TTL for poster presign and the progressive presigned redirect (`GET /api/media/{id}`); not applied to HLS master URL. */
   expiresInSeconds: number;
 };

@@ -1248,7 +1248,7 @@ test('patient page relations have exact self/current-clinic access and published
       'owner_kind', 'poster_s3_key', 'preview_md_key', 'preview_sm_key', 'preview_status',
       's3_key', 'size_bytes', 'source_height', 'source_width', 'standard_rendition_at', 'status',
       'stored_path', 'uploaded_by',
-      'usage_purpose', 'video_delivery_override', 'video_duration_seconds',
+      'usage_purpose', 'video_duration_seconds',
       'video_processing_error', 'video_processing_status']);
   const patientMediaPolicy = media.policies.find((policy) =>
     policy.name.startsWith('rev10_media_files_patient_read_'));

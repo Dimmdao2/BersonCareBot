@@ -16,14 +16,14 @@ function anchorTitle(children: ReactNode): string {
 function isPlaybackPayload(v: unknown): v is MediaPlaybackPayload {
   if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
-  const mp4 = o.mp4;
-  if (!mp4 || typeof mp4 !== 'object') return false;
-  const mp4o = mp4 as Record<string, unknown>;
+  const progressive = o.progressive;
   const delivery = o.delivery;
   return (
     typeof o.mediaId === 'string' &&
     typeof o.mimeType === 'string' &&
-    typeof mp4o.url === 'string' &&
+    (progressive === null ||
+      (typeof progressive === 'object' &&
+        typeof (progressive as Record<string, unknown>).url === 'string')) &&
     (delivery === 'hls' || delivery === 'mp4' || delivery === 'file')
   );
 }
@@ -87,8 +87,8 @@ function MarkdownDeferredLibraryMedia({
         const mime = json.mimeType.toLowerCase();
         if (mime.startsWith('video/')) {
           setResolved({ kind: 'video', mediaId, payload: json });
-        } else if (mime.startsWith('audio/')) {
-          setResolved({ kind: 'audio', src: json.mp4.url });
+        } else if (mime.startsWith('audio/') && json.progressive) {
+          setResolved({ kind: 'audio', src: json.progressive.url });
         }
       } catch {
         /* остаёмся ссылкой */
@@ -107,7 +107,6 @@ function MarkdownDeferredLibraryMedia({
       >
         <DoctorMediaPlaybackVideo
           mediaId={resolved.mediaId}
-          mp4Url={`/api/media/${resolved.mediaId}`}
           title={anchorTitle(children)}
           initialPlayback={resolved.payload}
           shellClassName="relative aspect-video w-full overflow-hidden rounded-lg bg-muted/30"
