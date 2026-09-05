@@ -57,6 +57,8 @@ function buildDeps(
   const bookingScheduling = {
     assertSlotAvailable: vi.fn(async () => undefined),
     getMaxConsecutiveSlotHours: vi.fn(async () => 8),
+    // PAY-APPT-07: срок ожидания оплаты — настройка клиники, её читает канонический create.
+    getPrepaymentWaitMinutes: vi.fn(async () => 20),
   };
   const bookingEngine = {
     createOnlineAppointmentsIfAvailable: vi.fn(async () => [
@@ -183,15 +185,25 @@ describe('D14, часть 5: booking.created отправляет doctorNotify/d
 
 describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff payment', () => {
   it('keeps an existing prepayment for a public booking while the clinic is read-only', async () => {
-    const resolvePrepayment = vi.fn(async () => ({
-      required: true,
+    // PAY-APPT-04: пациентская половина больше не спрашивает готовую сумму — она берёт ПОЛИТИКУ и
+    // считает снимок тем же доменным расчётом, что и врачебная. Оракул тот же: деньги пациента
+    // берутся и при read-only клинике.
+    const getPrepaymentPolicyForBooking = vi.fn(async () => ({
+      id: 'policy-1',
+      organizationId: 'org-1',
+      serviceId: null,
+      onlineCategory: null,
+      mode: 'fixed_minor',
       amountMinor: 5_000,
+      percentBps: null,
       currency: 'RUB',
+      isActive: true,
     }));
     const createAppointmentPaymentIntent = vi.fn();
     const deps = buildDeps(async () => undefined, {
       payments: {
-        resolvePrepayment,
+        getPrepaymentPolicyForBooking,
+        getSettings: vi.fn(async () => ({ enabled: true })),
         createAppointmentPaymentIntent,
       } as unknown as CanonicalBookingDeps['payments'],
       canAcceptBookingPrepayment: async () => true,
@@ -207,20 +219,17 @@ describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff 
     });
 
     expect(result.status).toBe('awaiting_payment');
-    expect(resolvePrepayment).toHaveBeenCalledOnce();
+    expect(getPrepaymentPolicyForBooking).toHaveBeenCalledOnce();
     expect(createAppointmentPaymentIntent).toHaveBeenCalledOnce();
   });
 
   it('confirms the booking without requesting or accepting prepayment when the mechanic is disabled', async () => {
-    const resolvePrepayment = vi.fn(async () => ({
-      required: true,
-      amountMinor: 5_000,
-      currency: 'RUB',
-    }));
+    const getPrepaymentPolicyForBooking = vi.fn();
     const createAppointmentPaymentIntent = vi.fn();
     const deps = buildDeps(async () => undefined, {
       payments: {
-        resolvePrepayment,
+        getPrepaymentPolicyForBooking,
+        getSettings: vi.fn(async () => ({ enabled: true })),
         createAppointmentPaymentIntent,
       } as unknown as CanonicalBookingDeps['payments'],
       canAcceptBookingPrepayment: async () => false,
@@ -229,7 +238,7 @@ describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff 
     const result = await createBookingOnCanonicalEngine(deps, createInput);
 
     expect(result.status).toBe('confirmed');
-    expect(resolvePrepayment).not.toHaveBeenCalled();
+    expect(getPrepaymentPolicyForBooking).not.toHaveBeenCalled();
     expect(createAppointmentPaymentIntent).not.toHaveBeenCalled();
     expect(deps.bookingsPort.markConfirmed).toHaveBeenCalledTimes(1);
   });

@@ -624,13 +624,18 @@ test('schedule grants cover the default columns emitted by Drizzle inserts', () 
       'manual_override', 'notifications_sent', 'organization_id', 'reason', 'staff_comment',
       'to_end_at', 'to_start_at', 'was_in_free_reschedule_window',
     ],
+    // PAY-APPT-01: the appointment carries its own price and prepayment snapshot, so the staff
+    // INSERT now names eight more columns — including `prepayment_paid_minor`, which the staff
+    // request never supplies but Drizzle still names.
     'public.be_appointments': [
       'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
       'appointment_reminder_selection_source', 'attribution_json', 'branch_id', 'chain_id',
       'chain_position', 'created_at', 'deleted_at', 'duration_minutes', 'end_at', 'id',
-      'organization_id', 'original_start_at', 'package_usage_ref', 'payment_ref',
-      'phone_normalized', 'platform_user_id', 'reschedule_count', 'room_id', 'service_id',
-      'source', 'specialist_id', 'start_at', 'status', 'updated_at',
+      'organization_id', 'original_start_at', 'package_usage_ref', 'payment_deadline_at',
+      'payment_ref', 'phone_normalized', 'platform_user_id', 'prepayment_amount_minor',
+      'prepayment_mode', 'prepayment_paid_minor', 'prepayment_percent_bps',
+      'prepayment_required_minor', 'price_currency', 'price_minor', 'reschedule_count',
+      'room_id', 'service_id', 'source', 'specialist_id', 'start_at', 'status', 'updated_at',
     ],
     'public.be_patient_timeline_events': [
       'created_at', 'domain', 'event_type', 'id', 'linked_object_id', 'linked_object_type',

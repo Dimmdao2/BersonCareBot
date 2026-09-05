@@ -46,6 +46,16 @@ const STAFF_INSERT_PATHS = [
     schemaModule: './db/schema/bookingMemberships.ts',
     door: 'pgMemberships.createManualPatientPackage / offerCatalogPackageToPatient',
   },
+  {
+    // PAY-APPT-01/18: the appointment now carries its own price and prepayment snapshot, so the
+    // staff INSERT names eight more columns than before. One of them — `prepayment_paid_minor` —
+    // is factual money the staff request never supplies; Drizzle still NAMES it, so the grant has
+    // to admit it or every manual booking dies with 42501 at the first save.
+    relation: 'public.be_appointments',
+    schemaExport: 'beAppointments',
+    schemaModule: './db/schema/bookingEngine.ts',
+    door: 'pgBookingEngine.insertAppointmentInTransaction',
+  },
 ];
 
 /**

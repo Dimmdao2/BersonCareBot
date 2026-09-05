@@ -26,6 +26,12 @@ vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
     fn: () => Promise<unknown>,
   ) => fn(),
 }));
+// PAY-APPT-03: расчёт снимка спрашивает тариф клиники; здесь механика оплаты доступна, а
+// политика предоплаты отсутствует — то есть требования нет и запись остаётся подтверждённой.
+vi.mock('@/app-layer/guards/requireEntitlement', async (importActual) => ({
+  ...(await importActual<object>()),
+  getMechanicMutationAvailability: vi.fn(async () => ({ available: true })),
+}));
 vi.mock('@/modules/integrator/bookingM2mApi', () => ({
   createBookingSyncPort: fakes.createBookingSyncPort,
 }));
@@ -79,6 +85,7 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
         session: { user: { userId: 'user-doc-1', role: 'specialist' } },
         service: {
           createAppointment: fakes.createAppointment,
+          services: { getService: vi.fn(async () => ({ priceMinor: 250_000 })) },
           getAppointment: vi.fn(async () => null),
           getSpecialistAppointmentReminderSettings: fakes.getSpecialistAppointmentReminderSettings,
         },

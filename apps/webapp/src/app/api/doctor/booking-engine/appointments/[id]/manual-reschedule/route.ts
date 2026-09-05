@@ -133,11 +133,11 @@ export async function POST(request: Request, context: RouteContext) {
 
   // PAY-APPT-12: финансовая часть правки идёт ДО проекции и до уведомлений, потому что проекция
   // и карточка обязаны увидеть уже НОВЫЙ снимок, а не прошлую цену.
+  const serviceChanged =
+    parsed.data.serviceId !== undefined &&
+    (parsed.data.serviceId ?? null) !== appointment.serviceId;
   const financialEditRequested =
-    parsed.data.priceMinor !== undefined ||
-    parsed.data.prepayment !== undefined ||
-    (parsed.data.serviceId !== undefined &&
-      (parsed.data.serviceId ?? null) !== appointment.serviceId);
+    parsed.data.priceMinor !== undefined || parsed.data.prepayment !== undefined || serviceChanged;
   if (financialEditRequested) {
     // Замок денег стоит ДО расчёта: запись с состоявшейся или удержанной оплатой финансовые
     // значения не переписывает — ни молча, ни новым снимком.
@@ -172,7 +172,7 @@ export async function POST(request: Request, context: RouteContext) {
               priceMinor:
                 parsed.data.priceMinor !== undefined
                   ? parsed.data.priceMinor
-                  : (parsed.data.serviceId ?? null) !== appointment.serviceId
+                  : serviceChanged
                     ? null
                     : currentAppointment.priceMinor,
               prepayment:
@@ -222,12 +222,15 @@ export async function POST(request: Request, context: RouteContext) {
         },
       );
     } catch (err) {
-      const locked =
-        err instanceof Error && err.message === 'appointment_financials_locked';
-      return NextResponse.json(
-        { ok: false, error: locked ? 'appointment_financials_locked' : 'financials_update_failed' },
-        { status: locked ? 409 : 500 },
-      );
+      // Наружу уходит только наш собственный код отказа — текст пойманной ошибки к пользователю
+      // не попадает никогда (§safe-error-transport).
+      if (err instanceof Error && err.message === 'appointment_financials_locked') {
+        return NextResponse.json(
+          { ok: false, error: 'appointment_financials_locked' },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({ ok: false, error: 'financials_update_failed' }, { status: 500 });
     }
   }
 
