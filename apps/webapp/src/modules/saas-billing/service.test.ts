@@ -160,7 +160,15 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
       repository: {
       ...SAAS_REPO_BILLING_PERIOD_STUB,
         listActiveTariffChoices: async () => [
-          { id: 'tariff-current', name: 'Current', periodPrices: [{ billingPeriodCode: 'month', priceMinor: 20_000 }] },
+          {
+            id: 'tariff-current',
+            name: 'Current',
+            periodPrices: [
+              { billingPeriodCode: 'month', priceMinor: 20_000 },
+              // #1069 — тот же тариф оценён и на год: смена ТОЛЬКО периода тоже покупка.
+              { billingPeriodCode: 'year', priceMinor: 200_000 },
+            ],
+          },
           { id: 'tariff-small', name: 'Small', periodPrices: [{ billingPeriodCode: 'month', priceMinor: 10_000 }] },
         ],
         requireOwnTariffBillingSubscription: async () => ({
@@ -214,6 +222,43 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
       preservePeriodSnapshot: true,
       period: { startsAt: '2026-08-01T00:00:00.000Z', endsAt: '2026-09-01T00:00:00.000Z' },
     }));
+    expect(createIntent).not.toHaveBeenCalled();
+  });
+
+  /**
+   * #1069 owner decision 2026-09-05 (Т14): клиент выбирает ПАРУ «тариф + период», и смена пары
+   * действует только на следующей оплаченной границе.
+   *
+   * Названная поломка: смена ТОЛЬКО периода (месяц → год на том же тарифе) принимается за «тот же
+   * тариф» и обрабатывается как ОТМЕНА запланированной смены. Клиника видит успешный ответ, но не
+   * запланировано ничего — и на границе ей снова выставляют МЕСЯЧНЫЙ счёт по месячной цене.
+   * Отказ дорогой (не тот период и не та сумма, бессрочно) и молчаливый (ответ успешный, ничего
+   * не падает).
+   *
+   * Самый дешёвый публичный слой — сервис: и решение «это смена, а не no-op», и запись пары живут
+   * здесь; UI/route ниже по течению видят только результат.
+   *
+   * Арбитр (проверено): убрать из `isCurrentPair` сравнение
+   * `currentSubscription.currentBillingPeriodCode === input.billingPeriodCode` — этот тест обязан
+   * покраснеть.
+   */
+  it('смена только периода на том же тарифе планируется как смена пары, а не как отмена', async () => {
+    const { service, setManualSaasBillingSubscription, createIntent } = scheduledService();
+
+    await expect(
+      service.scheduleOwnTariffChange({
+        organizationId: 'org', tariffId: 'tariff-current', billingPeriodCode: 'year', actorId: 'actor',
+      }),
+    ).resolves.toEqual({ outcome: 'scheduled' });
+
+    // Записана ИМЕННО выбранная пара, а оплаченный снимок не тронут: доступ доживает до границы.
+    expect(setManualSaasBillingSubscription).toHaveBeenCalledWith(expect.objectContaining({
+      tariffId: 'tariff-current', billingPeriodCode: 'month',
+      pendingTariffId: 'tariff-current', pendingBillingPeriodCode: 'year',
+      preservePeriodSnapshot: true,
+      period: { startsAt: '2026-08-01T00:00:00.000Z', endsAt: '2026-09-01T00:00:00.000Z' },
+    }));
+    // До границы деньги не двигаются.
     expect(createIntent).not.toHaveBeenCalled();
   });
 

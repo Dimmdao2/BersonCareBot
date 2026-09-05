@@ -1911,6 +1911,62 @@ describe('#1069 T9 — billing period catalog rejects retired day for new tariff
       ),
     ).rejects.toThrow('saas_tariff_period_price_unknown_period:day');
   });
+
+  /**
+   * #1069 owner decision 2026-09-05 (Т14 п.2): сетка периодов ОДНА на всю платформу, и «каждый
+   * тариф обязан иметь цену для каждого активного периода».
+   *
+   * Названная поломка: тариф сохраняется с ценой только на часть активных периодов. Тогда
+   * `listActiveTariffChoices`, который ведётся строками матрицы, просто не покажет клиникам
+   * недостающий период ИМЕННО на этом тарифе — и разные тарифы предложат разные лестницы
+   * периодов, ровно то, что решение владельца запрещает. Отказ дорогой (часть клиник не может
+   * купить годовой период и платит помесячно) и молчаливый (сохранение проходит успешно, ничего
+   * не падает, дыра видна только при сравнении двух тарифов глазами).
+   *
+   * Oracle — решение владельца, не реализация. Самый дешёвый публичный слой — сам сервис
+   * сохранения тарифа: это единственная дверь, знающая обе стороны (матрицу и глобальную сетку);
+   * ни route-, ни UI-слой другого класса поломки здесь не ловит, а БД полноту не проверяет —
+   * PK/FK/CHECK стерегут отдельную строку, а не отсутствие строки.
+   *
+   * Арбитр (проверено): заменить в `assertCompleteTariffPeriodPriceMatrix` условие
+   * `missing.length > 0` на `missing.length > 999` — этот тест обязан покраснеть; до него весь
+   * набор оставался зелёным.
+   */
+  it('refuses to save a tariff priced for only some of the currently selectable periods', async () => {
+    const port = createInMemoryPlatformEntitlementsPort();
+    port.listBillingPeriods = async () => [
+      { code: 'month', label: 'Месяц', months: 1, isSelectable: true, sortOrder: 10 },
+      { code: 'year', label: 'Год', months: 12, isSelectable: true, sortOrder: 20 },
+    ];
+    const service = createPlatformEntitlementsService({
+      ...port,
+      ...PLATFORM_BILLING_PORT_STUBS,
+      listBillingPeriods: port.listBillingPeriods,
+    });
+
+    await expect(
+      service.createTariff(
+        {
+          name: 'Half-priced grid',
+          description: '',
+          currency: 'RUB',
+          // Год активен в сетке выше, но цены на него у тарифа нет.
+          periodPrices: [{ billingPeriodCode: 'month', priceMinor: 100_000, discountedPriceMinor: null }],
+          mechanics: {},
+          quotas: TEST_BRANCH_QUOTA,
+          systemAccessPolicy: null,
+          mechanicAccessPolicies: {},
+          downgradePolicies: {},
+          mailingTemplates: [],
+          includedSeats: 1,
+          additionalSeatPriceMinor: null,
+          discountedPriceMinor: null,
+          isActive: true,
+        },
+        { actorId: 'admin', reason: 'test' },
+      ),
+    ).rejects.toThrow('saas_tariff_period_price_missing:year');
+  });
 });
 
 describe('#1069 T10 — global paid-period policy validation and commercial access', () => {

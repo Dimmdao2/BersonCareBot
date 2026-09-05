@@ -104,6 +104,9 @@ describe('scheduleOwnTariffChange — снятый период не прода�
     );
     const service = buildService(setManualSaasBillingSubscription);
 
+    // Отказ назван стабильным публичным кодом, а не любой ошибкой: маршрут отображает причины по
+    // ТОЧНОМУ равенству кода (`ApiErrorLiteralRules`), поэтому «упало хоть как-то» не отличило бы
+    // отказ по снятому периоду от падения на пустом каталоге или на несуществующем тарифе.
     await expect(
       service.scheduleOwnTariffChange({
         organizationId: 'org-1',
@@ -111,7 +114,7 @@ describe('scheduleOwnTariffChange — снятый период не прода�
         billingPeriodCode: 'year',
         actorId: 'user-1',
       }),
-    ).rejects.toThrow();
+    ).rejects.toThrow('saas_billing_period_not_selectable');
 
     // Главное утверждение: снятый период не должен доехать до записи подписки НИ ПРИ КАКОМ исходе.
     // Проверяем сам наблюдаемый side effect, а не только тип отказа: планирование снятого периода —

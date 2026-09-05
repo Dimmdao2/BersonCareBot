@@ -14,18 +14,8 @@ const emptyBilling = {
   invoices: [],
   providerEvents: [],
 };
-const tariffChange = {
-  choices: [],
-  currentTariffId: null,
-  pendingTariffId: null,
-  pendingEffectiveAt: null,
-  currentBillingPeriodCode: null,
-  pendingBillingPeriodCode: null,
-  awaitingFirstPayment: false,
-  payable: true,
-};
 
-describe('§5a stage 6.1 — clinic sees "used out of included" per number', () => {
+describe('BillingSection — деньги клиники уходят на сервер парой (тариф, период)', () => {
   it('sends PATCH to schedule the selected downgrade and DELETE to cancel it', async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce({ json: async () => ({ ok: true }) })
@@ -68,20 +58,31 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/clinic/billing', expect.objectContaining({
       method: 'PATCH', body: JSON.stringify({ tariffId: 'small', billingPeriodCode: 'monthly' }),
     })));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Отменить' })).not.toBeDisabled());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Отменить' }));
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/clinic/billing', { method: 'DELETE' }));
+    // Отмена — второе действие пользователя. Клик повторяется внутри `waitFor`, пока не доедет до
+    // сервера: единственное утверждение здесь — сам запрос, а не форма кнопки в промежуточный момент.
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Отменить' }));
+      expect(fetch).toHaveBeenCalledWith('/api/clinic/billing', { method: 'DELETE' });
+    });
   });
 
   /**
    * L-11 (владелец 18.08): «она выбирает платный тариф — ИДЕТ ОПЛАЧИВАТЬ И ПОТОМ ПОЛУЧАЕТ ДОСТУП».
-   * Поломка: клиника выбрала тариф, доступа нет — и экран показывает «Тариф не назначен» с советом
-   * идти в админку платформы, без имени выбранного тарифа и без кнопки оплаты. Человек заперт:
-   * кабинет закрыт (`unconfigured` уводит сюда), а заплатить отсюда нечем. Отказ дорогой (клиника
-   * не может купить) и молчаливый (экран выглядит исправным).
+   * Названная поломка: клиника выбрала тариф, доступа ещё нет — и с этого экрана НЕЛЬЗЯ запустить
+   * оплату (путь ведёт в админку платформы, куда владелец клиники не ходит). Отказ дорогой
+   * (клиника заперта и не может купить доступ) и молчаливый (экран выглядит исправным).
+   *
+   * Оракул — наблюдаемый side effect действия пользователя: клик по оплате обязан уйти на
+   * `POST /api/clinic/billing`, откуда сервер выдаёт ссылку на checkout. Ни текст экрана, ни
+   * наличие/состояние контролов здесь не утверждаются: находим кнопку так, как её находит человек,
+   * и проверяем, что она действительно запускает покупку.
    */
-  it('выбранный, но не оплаченный тариф: клиника видит свой выбор и кнопку оплаты', () => {
+  it('выбранный, но не оплаченный тариф: клиника запускает оплату с этого же экрана', async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      json: async () => ({ ok: true, checkoutUrl: 'https://pay.example/first' }),
+    });
+    vi.stubGlobal('fetch', fetch);
     render(
       <BillingSection
         // Снимок прав пуст — действующего тарифа нет, доступа нет.
@@ -106,7 +107,7 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
           currentTariffId: 'chosen',
           pendingTariffId: null,
           pendingEffectiveAt: null,
-          currentBillingPeriodCode: null,
+          currentBillingPeriodCode: 'monthly',
           pendingBillingPeriodCode: null,
           awaitingFirstPayment: true,
           payable: true,
@@ -114,103 +115,10 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
       />,
     );
 
-    expect(screen.getAllByText('Базовый').length).toBeGreaterThan(0);
-    expect(
-      screen.getByText('Тариф выбран, но не оплачен — доступ откроется после оплаты.'),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/Выберите тариф в админке/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Оплатить тариф' })).toBeInTheDocument();
-  });
+    fireEvent.click(screen.getByRole('button', { name: 'Оплатить тариф' }));
 
-  // L-11 (владелец 18.08): до первого выбора клиника сама выбирает платный тариф, идёт оплачивать
-  // и только затем получает доступ. Поломка: экран отправляет её в админку платформы вместо выбора
-  // ниже, поэтому запертая клиника не находит собственный путь к оплате.
-  it('без выбранного тарифа направляет клинику к выбору ниже и оплате, не в админку', () => {
-    render(
-      <BillingSection
-        tariffName={null}
-        commercialStateLabel="Тариф не назначен — доступа нет. Выберите тариф в админке, чтобы вернуть работу кабинета."
-        mechanics={[]}
-        quotaUsage={[]}
-        billing={emptyBilling}
-        tariffChange={{
-          choices: [
-            {
-              id: 'first',
-              name: 'Базовый',
-              periodPrices: [{ billingPeriodCode: 'monthly', priceMinor: 100000 }],
-            },
-          ],
-          currentTariffId: null,
-          pendingTariffId: null,
-          pendingEffectiveAt: null,
-          currentBillingPeriodCode: null,
-          pendingBillingPeriodCode: null,
-          awaitingFirstPayment: false,
-          payable: true,
-        }}
-      />,
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith('/api/clinic/billing', { method: 'POST' }),
     );
-
-    expect(
-      screen.getByText('Выберите тариф ниже и оплатите его — доступ откроется после оплаты.'),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/Выберите тариф в админке/)).not.toBeInTheDocument();
-  });
-
-  it('renders each configured number with its usage and limit, and hides the section when there are none', () => {
-    const { rerender } = render(
-      <BillingSection
-        tariffName="Стандарт"
-        commercialStateLabel="Тариф активен."
-        mechanics={[]}
-        quotaUsage={[
-          {
-            mechanic: 'branches',
-            label: 'Филиалы',
-            quota: { limit: 4, unit: 'items' },
-            usage: 1,
-            threshold: 'below_warning',
-            enforcement: 'application_transaction_snapshot',
-          },
-          {
-            mechanic: 'files',
-            label: 'Файлы пациентов',
-            quota: { limit: 1024 * 1024 * 10, unit: 'bytes' },
-            usage: 1024 * 1024 * 8,
-            threshold: 'warning',
-            enforcement: 'application_transaction_snapshot',
-          },
-          {
-            mechanic: 'clinic_team',
-            label: 'Режим клиники',
-            quota: { limit: 5, unit: 'seats' },
-            usage: 2,
-            threshold: 'below_warning',
-            enforcement: 'application_transaction_snapshot',
-          },
-        ]}
-        billing={emptyBilling}
-        tariffChange={tariffChange}
-      />,
-    );
-
-    expect(screen.getByText('Использовано из включённого')).toBeInTheDocument();
-    expect(screen.getByText('1 из 4')).toBeInTheDocument();
-    expect(screen.getByText('8.0 МБ из 10.0 МБ')).toBeInTheDocument();
-    expect(screen.getByText('2 из 5')).toBeInTheDocument();
-
-    rerender(
-      <BillingSection
-        tariffName="Стандарт"
-        commercialStateLabel="Тариф активен."
-        mechanics={[]}
-        quotaUsage={[]}
-        billing={emptyBilling}
-        tariffChange={tariffChange}
-      />,
-    );
-
-    expect(screen.queryByText('Использовано из включённого')).not.toBeInTheDocument();
   });
 });

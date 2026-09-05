@@ -100,7 +100,7 @@ describe('/api/clinic/billing tariff change', () => {
       new Request('http://test/api/clinic/billing', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ tariffId }),
+        body: JSON.stringify({ tariffId, billingPeriodCode: 'month' }),
       }),
     );
 
@@ -146,6 +146,7 @@ describe('/api/clinic/billing tariff change', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           tariffId,
+          billingPeriodCode: 'month',
           organizationId: 'attacker-org',
           amountMinor: 1,
           currency: 'USD',
@@ -160,9 +161,12 @@ describe('/api/clinic/billing tariff change', () => {
       invoiceId: 'upgrade-invoice',
       checkoutUrl: 'https://pay.example/upgrade',
     });
+    // #1069 (владелец 05.09): маршрут пропускает вниз ТОЛЬКО пару и принципала сессии. Сумма,
+    // валюта, границы периода и чужой organizationId из тела запроса не доезжают никуда.
     expect(scheduleOwnTariffChange).toHaveBeenCalledWith({
       organizationId,
       tariffId,
+      billingPeriodCode: 'month',
       actorId: 'actor',
     });
   });
@@ -177,7 +181,7 @@ describe('/api/clinic/billing tariff change', () => {
       new Request('http://test/api/clinic/billing', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ tariffId }),
+        body: JSON.stringify({ tariffId, billingPeriodCode: 'month' }),
       }),
     );
 

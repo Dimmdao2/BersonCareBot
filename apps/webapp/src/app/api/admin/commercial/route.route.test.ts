@@ -27,7 +27,11 @@ vi.mock('@bersoncare/db-principal', () => ({
 import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitlements';
 import { createPlatformEntitlementsService } from '@/modules/org-entitlements/service';
 import { PLATFORM_OPERATIONS_DB_SOURCE } from '@/shared/security/platformOperationsPrincipal';
-import { saasTariffs, saasBillingPeriods } from '../../../../../db/schema/saasEntitlements';
+import {
+  saasTariffs,
+  saasBillingPeriods,
+  saasTariffPeriodPrices,
+} from '../../../../../db/schema/saasEntitlements';
 import { GET, POST } from './route';
 
 const tariffId = '95200000-0000-4000-8000-000000000010';
@@ -48,10 +52,13 @@ const brandingPolicy = {
 } as const;
 
 let storedTariff: Record<string, unknown> | null;
+/** #1069 — матрица «цена × период», записанная тем же POST и прочитанная обратно следующим GET. */
+let storedPeriodPrices: Array<Record<string, unknown>>;
 
 beforeEach(() => {
   vi.clearAllMocks();
   storedTariff = null;
+  storedPeriodPrices = [];
   fakes.requirePlatformOperationsApiContext.mockResolvedValue({
     ok: true,
     session: { user: { userId: '95200000-0000-4000-8000-000000000011' } },
@@ -74,6 +81,9 @@ beforeEach(() => {
   const billingPeriodSelect = () => ({
     where: () => ({
       limit: async () => billingPeriodRows(),
+      // #1069 — сохранение тарифа берёт сетку под `FOR SHARE`, чтобы период не сняли посреди
+      // проверки полноты матрицы (`lockSelectablePeriodCodes`).
+      for: async () => billingPeriodRows(),
     }),
     orderBy: async () => billingPeriodRows(),
   });
@@ -81,6 +91,12 @@ beforeEach(() => {
     select: () => ({
       from: (table: unknown) => {
         if (table === saasBillingPeriods) return billingPeriodSelect();
+        // #1069 — чтение тарифов идёт вместе с матрицей цен: одним `select` без `orderBy`.
+        if (table === saasTariffPeriodPrices) {
+          return Object.assign(Promise.resolve(storedPeriodPrices), {
+            orderBy: async () => storedPeriodPrices,
+          });
+        }
         if (table !== saasTariffs) throw new Error('unexpected_select_table');
         return {
           orderBy: async () => (storedTariff ? [storedTariff] : []),
@@ -105,7 +121,16 @@ beforeEach(() => {
     }),
     insert: (table: unknown) => {
       if (table !== saasTariffs) {
-        return { values: async () => undefined };
+        // #1069 — матрица цен пишется upsert'ом (`.values(...).onConflictDoUpdate(...)`), аудит —
+        // обычным `.values(...)`: двойник обязан отвечать на оба, иначе маршрут падает на записи.
+        return {
+          values: (values: Array<Record<string, unknown>>) => {
+            if (table === saasTariffPeriodPrices) storedPeriodPrices = values;
+            return Object.assign(Promise.resolve(undefined), {
+              onConflictDoUpdate: async () => undefined,
+            });
+          },
+        };
       }
       return {
         values: (values: Record<string, unknown>) => ({
@@ -157,9 +182,12 @@ describe('/api/admin/commercial tariff persistence', () => {
           tariff: {
             name: 'Lifecycle policy',
             description: '',
-            priceMinor: 1000,
             currency: 'rub',
-            billingPeriod: 'month',
+            // #1069 (владелец 05.09): деньги тарифа — ПОЛНАЯ матрица «цена × активный период»
+            // глобальной сетки (здесь она из одного «month»), а не одна пара цена+период.
+            periodPrices: [
+              { billingPeriodCode: 'month', priceMinor: 1000, discountedPriceMinor: null },
+            ],
             mechanics: { payments: true, branding: true },
             quotas: {
               branches: { kind: 'unlimited', limit: null, unit: 'items' },
@@ -201,9 +229,10 @@ describe('/api/admin/commercial tariff persistence', () => {
           tariff: {
             name: 'Legacy clinical tests',
             description: '',
-            priceMinor: null,
-            currency: null,
-            billingPeriod: 'month',
+            currency: 'rub',
+            // Деньги здесь — фон: тест про сериализацию механик. Матрица дана полной, потому что
+            // #1069 иначе не пропустит сохранение (см. `assertCompleteTariffPeriodPriceMatrix`).
+            periodPrices: [{ billingPeriodCode: 'month', priceMinor: 0, discountedPriceMinor: null }],
             mechanics: { branding: true, clinical_tests: false },
             quotas: {
               branches: { kind: 'unlimited', limit: null, unit: 'items' },
