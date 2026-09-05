@@ -13,6 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
+import {
+  minorToRublesInput,
+  parseRublesInput,
+  rublesToMinor,
+} from '@/app/app/settings/bookingSoloAdminApi';
 
 const POLICY_API = '/api/admin/booking-engine/prepayment-policies';
 const SERVICES_API = '/api/admin/booking-engine/services';
@@ -39,7 +44,7 @@ type PrepaymentAvailability = {
 
 const MODE_LABELS: Record<PolicyRow['mode'], string> = {
   disabled: 'Отключена',
-  fixed_minor: 'Фикс (коп.)',
+  fixed_minor: 'Фиксированная сумма',
   percent: 'Процент',
   full_price: 'Полная цена',
 };
@@ -69,7 +74,7 @@ export function BookingPrepaymentSection() {
   const [onlineCategory, setOnlineCategory] =
     useState<(typeof ONLINE_CATEGORIES)[number]['value']>('general');
   const [mode, setMode] = useState<PolicyRow['mode']>('disabled');
-  const [amountMinor, setAmountMinor] = useState('');
+  const [amountRubles, setAmountRubles] = useState('');
   const [percentBps, setPercentBps] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -118,11 +123,11 @@ export function BookingPrepaymentSection() {
     const p = policies.find((x) => x.serviceId === id);
     if (p) {
       setMode(p.mode);
-      setAmountMinor(p.amountMinor != null ? String(p.amountMinor) : '');
+      setAmountRubles(p.amountMinor != null ? minorToRublesInput(p.amountMinor) : '');
       setPercentBps(p.percentBps != null ? String(p.percentBps / 100) : '');
     } else {
       setMode('disabled');
-      setAmountMinor('');
+      setAmountRubles('');
       setPercentBps('');
     }
   }
@@ -132,11 +137,11 @@ export function BookingPrepaymentSection() {
     const p = policies.find((x) => x.onlineCategory === cat);
     if (p) {
       setMode(p.mode);
-      setAmountMinor(p.amountMinor != null ? String(p.amountMinor) : '');
+      setAmountRubles(p.amountMinor != null ? minorToRublesInput(p.amountMinor) : '');
       setPercentBps(p.percentBps != null ? String(p.percentBps / 100) : '');
     } else {
       setMode('disabled');
-      setAmountMinor('');
+      setAmountRubles('');
       setPercentBps('');
     }
   }
@@ -144,30 +149,33 @@ export function BookingPrepaymentSection() {
   function save() {
     setError(null);
     startTransition(async () => {
-      const body =
-        scope === 'service'
-          ? {
-              scope: 'service' as const,
-              serviceId,
-              mode,
-              amountMinor: amountMinor.trim() ? Number.parseInt(amountMinor, 10) : null,
-              percentBps: percentBps.trim()
-                ? Math.round(Number.parseFloat(percentBps) * 100)
-                : null,
-              isActive: mode !== 'disabled',
-            }
-          : {
-              scope: 'online' as const,
-              onlineCategory,
-              mode,
-              amountMinor: amountMinor.trim() ? Number.parseInt(amountMinor, 10) : null,
-              percentBps: percentBps.trim()
-                ? Math.round(Number.parseFloat(percentBps) * 100)
-                : null,
-              isActive: mode !== 'disabled',
-            };
       if (scope === 'service' && !serviceId) return;
       try {
+        const amountMinor = amountRubles.trim()
+          ? rublesToMinor(parseRublesInput(amountRubles))
+          : null;
+        const body =
+          scope === 'service'
+            ? {
+                scope: 'service' as const,
+                serviceId,
+                mode,
+                amountMinor,
+                percentBps: percentBps.trim()
+                  ? Math.round(Number.parseFloat(percentBps) * 100)
+                  : null,
+                isActive: mode !== 'disabled',
+              }
+            : {
+                scope: 'online' as const,
+                onlineCategory,
+                mode,
+                amountMinor,
+                percentBps: percentBps.trim()
+                  ? Math.round(Number.parseFloat(percentBps) * 100)
+                  : null,
+                isActive: mode !== 'disabled',
+              };
         await apiJson(POLICY_API, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -289,11 +297,11 @@ export function BookingPrepaymentSection() {
         </div>
         {mode === 'fixed_minor' ? (
           <div className="space-y-2">
-            <Label>Сумма (коп.)</Label>
+            <Label>Сумма, ₽</Label>
             <Input
-              value={amountMinor}
-              onChange={(e) => setAmountMinor(e.target.value)}
-              inputMode="numeric"
+              value={amountRubles}
+              onChange={(e) => setAmountRubles(e.target.value)}
+              inputMode="decimal"
               disabled={!canEnable}
             />
           </div>
