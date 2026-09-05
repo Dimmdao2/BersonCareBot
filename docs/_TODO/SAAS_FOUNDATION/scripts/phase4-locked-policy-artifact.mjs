@@ -2,25 +2,12 @@
 
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { getP083PublicDirectOrgDescriptors, p083PolicyName } from './p0-8-3-policy-targets.mjs';
-import { getP084PublicPathDescriptors, p084PolicyName } from './p0-8-4-policy-targets.mjs';
-import { getP085IntegratorScopedDescriptors, p085PolicyName } from './p0-8-5-policy-targets.mjs';
-import { getP086BootstrapHybridDescriptors, p086PolicyName } from './p0-8-6-policy-targets.mjs';
 import {
-  hasAnyPatientOwnership,
-  dormantCompatibilityPredicate,
-  renderBootstrapHybridOrgGatedPredicate,
-  renderBootstrapHybridPredicate,
   renderCreatePolicy,
   renderDropPolicy,
   renderEnableRowLevelSecurity,
-  renderFkPathPatientPredicate,
-  renderFkPathPredicate,
-  renderOrgPredicate,
-  renderPatientPredicateForDescriptor,
-  renderStaffActorCheck,
 } from './rls-sql-renderer.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -29,29 +16,28 @@ const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
 export const phase4LockedPolicyArtifactPath =
   'deploy/postgres/phase4-locked-helper-rls-policies.sql';
 
+// Mechanical adapter (SaaS #1069 correction §B). Table targets, policy names and the exact
+// strict/dormant-compat predicates below are NOT computed here anymore — they are read straight
+// from `deploy/postgres/privileges/declaration.ts`'s `REV10_LOCKED_POLICY_DATA`, the single
+// human-authored source of every object-specific DB-access decision (`deploy/postgres/privileges/
+// README.md`). p0-8-{3,4,5,6}-policy-targets.mjs and rls-descriptor-model.mjs no longer feed this
+// file or the checked-in `phase4-locked-helper-rls-policies.sql` artifact — this module can no
+// longer diverge from what declaration.ts applies at deploy time; it only re-renders that data as
+// the legacy `\ir`-included SQL shape.
+const declarationPath = path.join(repoRoot, 'deploy', 'postgres', 'privileges', 'declaration.ts');
+const { REV10_LOCKED_POLICY_DATA } = await import(pathToFileURL(declarationPath).href);
+
 function compareTable(left, right) {
   return left.descriptor.table.localeCompare(right.descriptor.table);
 }
 
 export function getPhase4LockedPolicyTargets() {
-  const targets = [
-    ...getP083PublicDirectOrgDescriptors().map((descriptor) => ({
-      descriptor,
-      policyName: p083PolicyName,
-    })),
-    ...getP084PublicPathDescriptors().map((descriptor) => ({
-      descriptor,
-      policyName: p084PolicyName,
-    })),
-    ...getP085IntegratorScopedDescriptors().map((descriptor) => ({
-      descriptor,
-      policyName: p085PolicyName,
-    })),
-    ...getP086BootstrapHybridDescriptors().map((descriptor) => ({
-      descriptor,
-      policyName: p086PolicyName,
-    })),
-  ].sort(compareTable);
+  const targets = Object.entries(REV10_LOCKED_POLICY_DATA)
+    .map(([table, entry]) => ({
+      descriptor: { table, dormantMode: entry.dormantMode },
+      policyName: entry.policyName,
+    }))
+    .sort(compareTable);
 
   const keys = targets.map(({ descriptor, policyName }) => `${descriptor.table}\t${policyName}`);
   const uniqueKeys = new Set(keys);
@@ -70,48 +56,11 @@ export function getPhase4LockedPolicyTargets() {
 }
 
 export function renderPhase4StrictPredicate(descriptor) {
-  if (descriptor.scopingKind === 'bootstrap_hybrid_org_gated') {
-    return renderBootstrapHybridOrgGatedPredicate({ orgColumn: descriptor.orgColumn });
-  }
-
-  if (descriptor.scopingKind === 'bootstrap_hybrid') {
-    return renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn });
-  }
-
-  const orgPredicate =
-    descriptor.scopingKind === 'fk_path'
-      ? renderFkPathPredicate(descriptor, { mode: 'enforce' })
-      : renderOrgPredicate(descriptor, { mode: 'enforce' });
-  const staffOrgPredicate = `(${renderStaffActorCheck()} AND ${orgPredicate})`;
-
-  if (!hasAnyPatientOwnership(descriptor)) {
-    return staffOrgPredicate;
-  }
-
-  if (descriptor.scopingKind === 'fk_path') {
-    return `(${staffOrgPredicate} OR ${renderFkPathPatientPredicate(descriptor)})`;
-  }
-
-  // Форма здесь — `(staff AND org) OR (пациентская ветка)`, то есть организация НЕ стоит над всем
-  // выражением. Собственно пациентские ветки свою организацию несут (её дописывает classSafe в
-  // declaration.ts для org-таблиц), а вот «общие» вырезы внутри пациентской ветки — «строка без
-  // владельца» (media_folders.patient_user_id IS NULL) и «каталожные target_type» (comments) —
-  // никакой организации не несли и были истинны для любого принципала. Поэтому вырезам явно
-  // передаётся организационный предикат: «общая» строка общая ВНУТРИ своей клиники.
-  return `(${staffOrgPredicate} OR ${renderPatientPredicateForDescriptor(descriptor, { patientMode: 'enforce', sharedScopeSql: orgPredicate })})`;
+  return REV10_LOCKED_POLICY_DATA[descriptor.table].strictPredicate;
 }
 
 export function renderPhase4DormantCompatPredicate(descriptor) {
-  const strictPredicate = renderPhase4StrictPredicate(descriptor);
-
-  if (
-    descriptor.dormantMode === 'strict' ||
-    descriptor.scopingKind === 'bootstrap_hybrid'
-  ) {
-    return strictPredicate;
-  }
-
-  return `((${dormantCompatibilityPredicate}) OR ${strictPredicate})`;
+  return REV10_LOCKED_POLICY_DATA[descriptor.table].dormantCompatPredicate;
 }
 
 export function renderPhase4PolicyReplacement({ descriptor, policyName, legacyPolicyNames = [] }) {

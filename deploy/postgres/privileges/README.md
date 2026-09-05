@@ -54,6 +54,35 @@ PROD не входит в текущий объект декларации. Ег
 INSERT-путей (`patient_payment`, `be_patient_packages`) и сверяет их с объявленным грантом — доказательство
 конкретной двери, а не механизм, определяющий права по всей схеме.
 
+## RLS-политики locked-семейства — тоже только декларация, не внешний генератор
+
+До #1069-коррекции (2026-09-05, §B) `declaration.ts` вычислял `REV10_LOCKED_POLICIES` во время каждой генерации,
+импортируя `getPhase4LockedPolicyTargets`/`renderPhase4StrictPredicate` из
+`docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs` — а тот модуль сам собирал table targets,
+policy names и predicates из четырёх P0.8-*-`policy-targets.mjs`-модулей, `rls-descriptor-model.mjs` и
+`rls-sql-renderer.mjs`. Это был второй исполняемый источник тех же object-specific решений (какая таблица под
+locked-политикой, каким именем, с каким predicate), просто вызываемый изнутри `declaration.ts`.
+
+Теперь `declaration.ts` несёт эти решения сам, литералом: `REV10_LOCKED_POLICY_DATA` (141 отношение) —
+`policyName`, `dormantMode` и уже посчитанные `strictPredicate`/`dormantCompatPredicate` на каждую таблицу.
+`generate.mjs`/`generate-cli.mjs` по-прежнему не подключаются ни к чему внешнему при генерации emitted SQL —
+эта карта такой же литерал в файле, как и остальные ~240 решений.
+
+`phase4-locked-policy-artifact.mjs` остался — он рендерит закоммиченный legacy-артефакт
+`deploy/postgres/phase4-locked-helper-rls-policies.sql`, который `test-strict-rls-finalizer.sql` всё ещё
+`\ir`-ит как reviewed overlay поверх политик, сгенерированных из `declaration.ts`. Но он больше не независимый
+источник: его `getPhase4LockedPolicyTargets`/`renderPhase4StrictPredicate`/`renderPhase4DormantCompatPredicate`
+теперь читают ровно `REV10_LOCKED_POLICY_DATA` из `declaration.ts` (динамический `import()` — файл механически
+не может разойтись с декларацией; проверено побайтным сравнением до/после переноса). Файл остаётся, потому что
+удаление `\ir`-подключения из `test-strict-rls-finalizer.sql` меняет порядок применения RLS-policy на живой
+базе, а это требует миграционного/deploy-прогона вне скоупа этого прохода (правки БД тут не делались).
+
+`WALL_TEMPLATES`/`CLASS_DEFAULT_WALL` (какой RLS-режим и требование у каждой стены, какая стена — умолчание для
+класса данных) тем же решением перенесены из `types.ts` в `declaration.ts`: это default-decisions, влияющие на
+emitted `rls`/`wall` каждой таблицы, не грамматика. `types.ts` несёт только типы (`Wall`, `DataClass`,
+`WallTemplateMap`, `ClassDefaultWallMap`) и параметризованный `expandTables(rows, { wallTemplates,
+classDefaultWall })`, которому декларация передаёт эти решения явно.
+
 ## Проверки
 
 Типы:

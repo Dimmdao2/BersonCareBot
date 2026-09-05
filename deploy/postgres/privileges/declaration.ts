@@ -57,16 +57,79 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-import { WALL_TEMPLATES, expandTables } from './types.ts';
-// The canonical locked descriptor module is executable ESM; its public shape is narrowed below
-// so this declaration remains strict without a second source-of-truth .d.ts file.
-// @ts-expect-error no declaration file exists for the canonical executable descriptor module.
-import { getPhase4LockedPolicyTargets, renderPhase4StrictPredicate } from '../../../docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs';
+import { expandTables } from './types.ts';
 import type {
-  AcceptanceInvariant, DatabaseDecl, DeclaredFunction, DefinerException, DefinerExceptionsSection, GrantDecl, LoginRecord,
-  OwnerDecision, PatientVisibility, PlatformRoleScope, Port, PortSpec, PrivilegeDeclaration,
+  AcceptanceInvariant, ClassDefaultWallMap, DatabaseDecl, DeclaredFunction, DefinerException, DefinerExceptionsSection,
+  GrantDecl, LoginRecord, OwnerDecision, PatientVisibility, PlatformRoleScope, Port, PortSpec, PrivilegeDeclaration,
   FunctionRelationSurface, NamedSeamAccess, PolicyDecl, Privilege, ReferenceModel, RelationAccess, RoleDecl, TableDecl, TableRow,
+  WallTemplateMap,
 } from './types.ts';
+
+/* ============================================================================================
+ * СТЕНЫ: шаблон и умолчание по классу (D7 — стена по объявленному КЛАССУ, не по наличию
+ * organization_id). Ранее жили в `types.ts`; перенесены сюда решением SaaS #1069 correction §B —
+ * это object-specific default-decisions, влияющие на emitted SQL (RLS-режим и требование каждой
+ * таблицы), а не грамматика. `types.ts` несёт только типы `Wall`/`WallTemplateMap`/
+ * `ClassDefaultWallMap` и параметризованный `expandTables`, которому эти решения передаются явно.
+ * ========================================================================================== */
+
+const WALL_TEMPLATES: WallTemplateMap = {
+  'clinic+patient': {
+    rls: 'force',
+    requires: 'ветка персонала `organization_id = app.current_org_id() AND app.is_staff()`; ветка пациента '
+      + 'по своей строке (platform_user_id / patient_user_id либо EXISTS по родителю). Обе — в USING и в WITH CHECK.',
+  },
+  'parent+patient': {
+    rls: 'force',
+    requires: 'organization_id отсутствует ПО ЗАМЫСЛУ: org-ветка — EXISTS по org родителя, пациентская — '
+      + 'EXISTS по пациентскому ключу родителя. Объявляется, а не выводится.',
+  },
+  clinic: { rls: 'force', requires: 'ветка персонала по org; у app_patient ни гранта, ни ветки политики.' },
+  parent: { rls: 'force', requires: 'org-ветка через EXISTS по родителю; пациентского доступа нет.' },
+  'platform-role': {
+    rls: 'force',
+    requires: 'политика ограничена объявленной платформенной/сервисной ролью; app_staff и app_patient грантов '
+      + 'не имеют. «Стена своей роли» из нормы владельца.',
+  },
+  'platform-role+clinic': {
+    rls: 'force',
+    requires: 'две ветки: строки organization_id IS NULL достижимы только объявленной платформенной/сервисной '
+      + 'ролью; строки с организацией — под стеной клиники. NULL-ветка ОБЯЗАНА проверять роль — безусловный '
+      + 'дизъюнкт `organization_id IS NULL` и есть дефект Д3/Д7.',
+  },
+  'reference-template': {
+    rls: 'force',
+    requires: 'D3: строки платформенного шаблона. Арендным ролям — только SELECT (или ничего); '
+      + 'INSERT/UPDATE/DELETE арендатору запрещены. Пишет платформенная роль либо засевочный шов.',
+  },
+  'reference-org-copy': {
+    rls: 'force',
+    requires: 'D3: копия, сделанная для организации при её создании. Несёт organization_id, стену клиники, и '
+      + 'клиника ею владеет (правит/переименовывает/удаляет свои строки). Засевочный шов — перечисленное '
+      + 'definer-исключение, а не арендный грант.',
+  },
+  'definer-only': {
+    rls: 'force',
+    requires: 'ноль грантов любым рантайм-ролям; единственный путь — перечисленные SECURITY DEFINER аксессоры. '
+      + 'RLS+FORCE остаётся сверху как backstop (FINDINGS И1 + канон репо «FORCE RLS не снимать»): стена из '
+      + 'одних грантов держится ровно до дня, когда грант выдали, — и Д1 это тринадцать таблиц, где такой день настал.',
+  },
+  closed: { rls: 'force', requires: 'рантайм-грантов нет вовсе; только владелец/мигратор. RLS+FORCE — тот же backstop.' },
+  'pending-removal': {
+    rls: 'n/a',
+    requires: 'НИ стены, НИ грантов: таблица уходит (evidence/15 / evidence/18). Объявлена, чтобы у двустороннего '
+      + 'диффа §F было ИМЕНОВАННОЕ исключение вместо молчания и чтобы на неё не тратили работу по стенам.',
+  },
+};
+
+/** класс → стена по умолчанию (таблица может отклониться, но обязана назвать причину). */
+const CLASS_DEFAULT_WALL: ClassDefaultWallMap = {
+  P: 'clinic+patient',
+  C: 'clinic',
+  S: 'platform-role',
+  R: 'reference-template',
+  T: 'closed',
+};
 
 /* ============================================================================================
  * SECTION -1 — CONSOLIDATED MANUAL AUTHORITY (#1069 correction, 2026-09-05)
@@ -24014,7 +24077,10 @@ const TABLE_ROWS: TableRow[] = [
     wallWhy: 'Физически удалённый legacy-ledger остаётся именованным только для двусторонней проверки каталога' },
 ];
 
-const APP_TABLES: Record<string, TableDecl> = expandTables(TABLE_ROWS);
+const APP_TABLES: Record<string, TableDecl> = expandTables(TABLE_ROWS, {
+  wallTemplates: WALL_TEMPLATES,
+  classDefaultWall: CLASS_DEFAULT_WALL,
+});
 
 /* ============================================================================================
  * SECTION 5 — БАЗА: bersoncarebot_test (управляемая)
@@ -29999,10 +30065,730 @@ const REV10_CONTEXT = {
   }))),
 } as const;
 
-type LockedPolicyTarget = { policyName: string; descriptor: { table: string } };
+type LockedPolicyEntry = {
+  policyName: string;
+  dormantMode?: 'strict';
+  strictPredicate: string;
+  dormantCompatPredicate: string;
+};
 
-const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyTarget>(
-  (getPhase4LockedPolicyTargets() as LockedPolicyTarget[]).map((target: LockedPolicyTarget) => [target.descriptor.table, target]),
+// Materialized 05.09.2026 (SaaS #1069 correction §B) from the former external Phase-4 input
+// (docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs, which combined
+// p0-8-{3,4,5,6}-policy-targets.mjs, rls-descriptor-model.mjs and rls-sql-renderer.mjs into
+// table targets + policy names + predicates). Those modules no longer feed this declaration —
+// this map is now the single authored source for REV10_LOCKED_POLICIES, and
+// phase4-locked-policy-artifact.mjs re-exports it as a mechanical adapter (see that file's
+// header) so the legacy checked-in artifact cannot diverge from what declaration.ts applies.
+export const REV10_LOCKED_POLICY_DATA: Readonly<Record<string, LockedPolicyEntry>> = {
+  "public.admin_audit_log": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_appointment_cancellations": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_appointments\" AS \"b4f_appt\" WHERE \"b4f_appt\".\"id\" = \"appointment_id\" AND \"b4f_appt\".\"platform_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_appointments\" AS \"b4f_appt\" WHERE \"b4f_appt\".\"id\" = \"appointment_id\" AND \"b4f_appt\".\"platform_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.be_appointment_history_events": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_appointments\" AS \"b4f_appt\" WHERE \"b4f_appt\".\"id\" = \"appointment_id\" AND \"b4f_appt\".\"platform_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_appointments\" AS \"b4f_appt\" WHERE \"b4f_appt\".\"id\" = \"appointment_id\" AND \"b4f_appt\".\"platform_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.be_appointment_no_shows": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_appointments\" AS \"b4f_appt\" WHERE \"b4f_appt\".\"id\" = \"appointment_id\" AND \"b4f_appt\".\"platform_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_appointments\" AS \"b4f_appt\" WHERE \"b4f_appt\".\"id\" = \"appointment_id\" AND \"b4f_appt\".\"platform_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.be_appointment_reschedules": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_appointments\" AS \"b4f_appt\" WHERE \"b4f_appt\".\"id\" = \"appointment_id\" AND \"b4f_appt\".\"platform_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_appointments\" AS \"b4f_appt\" WHERE \"b4f_appt\".\"id\" = \"appointment_id\" AND \"b4f_appt\".\"platform_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.be_appointment_staff_comments": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.be_appointments": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.be_availability_rules": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_booking_form_fields": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_booking_form_submissions": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_appointments\" AS \"b4f_appt\" WHERE \"b4f_appt\".\"id\" = \"appointment_id\" AND \"b4f_appt\".\"platform_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_appointments\" AS \"b4f_appt\" WHERE \"b4f_appt\".\"id\" = \"appointment_id\" AND \"b4f_appt\".\"platform_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.be_branches": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_cancellation_policies": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_clinic_services": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_package_history_events": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_patient_packages\" AS \"b4f_pkg\" WHERE \"b4f_pkg\".\"id\" = \"patient_package_id\" AND \"b4f_pkg\".\"platform_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_patient_packages\" AS \"b4f_pkg\" WHERE \"b4f_pkg\".\"id\" = \"patient_package_id\" AND \"b4f_pkg\".\"platform_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.be_package_items": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND (EXISTS ( SELECT 1 FROM \"public\".\"be_subscription_packages\" AS \"p0_8_4_parent\" WHERE \"p0_8_4_parent\".\"id\" = \"package_id\" AND \"p0_8_4_parent\".\"organization_id\" = app.current_org_id() ) AND EXISTS ( SELECT 1 FROM \"public\".\"be_clinic_services\" AS \"p0_8_4_cross\" WHERE \"p0_8_4_cross\".\"id\" = \"service_id\" AND \"p0_8_4_cross\".\"organization_id\" = app.current_org_id() ))))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND (EXISTS ( SELECT 1 FROM \"public\".\"be_subscription_packages\" AS \"p0_8_4_parent\" WHERE \"p0_8_4_parent\".\"id\" = \"package_id\" AND \"p0_8_4_parent\".\"organization_id\" = app.current_org_id() ) AND EXISTS ( SELECT 1 FROM \"public\".\"be_clinic_services\" AS \"p0_8_4_cross\" WHERE \"p0_8_4_cross\".\"id\" = \"service_id\" AND \"p0_8_4_cross\".\"organization_id\" = app.current_org_id() )))))",
+  },
+  "public.be_package_usages": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_patient_packages\" AS \"b4f_pkg\" WHERE \"b4f_pkg\".\"id\" = \"patient_package_id\" AND \"b4f_pkg\".\"platform_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_patient_packages\" AS \"b4f_pkg\" WHERE \"b4f_pkg\".\"id\" = \"patient_package_id\" AND \"b4f_pkg\".\"platform_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.be_patient_booking_profiles": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.be_patient_package_items": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND (EXISTS ( SELECT 1 FROM \"public\".\"be_patient_packages\" AS \"p0_8_4_parent\" WHERE \"p0_8_4_parent\".\"id\" = \"patient_package_id\" AND \"p0_8_4_parent\".\"organization_id\" = app.current_org_id() ) AND EXISTS ( SELECT 1 FROM \"public\".\"be_clinic_services\" AS \"p0_8_4_cross\" WHERE \"p0_8_4_cross\".\"id\" = \"service_id\" AND \"p0_8_4_cross\".\"organization_id\" = app.current_org_id() )))) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_patient_packages\" AS \"p0_8_4_patient_parent\" WHERE \"p0_8_4_patient_parent\".\"id\" = \"patient_package_id\" AND \"p0_8_4_patient_parent\".\"platform_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND (EXISTS ( SELECT 1 FROM \"public\".\"be_patient_packages\" AS \"p0_8_4_parent\" WHERE \"p0_8_4_parent\".\"id\" = \"patient_package_id\" AND \"p0_8_4_parent\".\"organization_id\" = app.current_org_id() ) AND EXISTS ( SELECT 1 FROM \"public\".\"be_clinic_services\" AS \"p0_8_4_cross\" WHERE \"p0_8_4_cross\".\"id\" = \"service_id\" AND \"p0_8_4_cross\".\"organization_id\" = app.current_org_id() )))) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_patient_packages\" AS \"p0_8_4_patient_parent\" WHERE \"p0_8_4_patient_parent\".\"id\" = \"patient_package_id\" AND \"p0_8_4_patient_parent\".\"platform_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.be_patient_packages": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.be_patient_timeline_events": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.be_payment_history_events": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.be_payment_intents": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.be_payment_provider_events": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_payments": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.be_prepayment_policies": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_refunds": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_payments\" AS \"b4f_payment\" WHERE \"b4f_payment\".\"id\" = \"payment_id\" AND \"b4f_payment\".\"platform_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"be_payments\" AS \"b4f_payment\" WHERE \"b4f_payment\".\"id\" = \"payment_id\" AND \"b4f_payment\".\"platform_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.be_reschedule_policies": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_rooms": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_schedule_blocks": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_schedule_templates": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_service_location_availability": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_specialist_locations": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_specialist_rooms": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_specialist_service_availability": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_specialists": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_subscription_packages": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_working_days": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.be_working_hours": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.broadcast_audit": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.broadcast_audit_recipients": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.broadcast_drafts": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.clinic_public_directory_entries": {
+    policyName: "saas_org_dormant_p0_8_3", dormantMode: 'strict',
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+  },
+  "public.clinical_anamnesis_illness": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.clinical_anamnesis_lifestyle": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.clinical_anamnesis_trauma": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.clinical_complaint": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.clinical_complaint_update": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"clinical_complaint\" AS \"b4f_complaint\" WHERE \"b4f_complaint\".\"id\" = \"complaint_id\" AND \"b4f_complaint\".\"patient_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"clinical_complaint\" AS \"b4f_complaint\" WHERE \"b4f_complaint\".\"id\" = \"complaint_id\" AND \"b4f_complaint\".\"patient_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.clinical_diagnosis": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.clinical_diagnosis_catalog": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.clinical_diagnosis_status_history": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"clinical_diagnosis\" AS \"b4f_diagnosis\" WHERE \"b4f_diagnosis\".\"id\" = \"diagnosis_id\" AND \"b4f_diagnosis\".\"patient_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"clinical_diagnosis\" AS \"b4f_diagnosis\" WHERE \"b4f_diagnosis\".\"id\" = \"diagnosis_id\" AND \"b4f_diagnosis\".\"patient_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.clinical_diagnosis_update": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"clinical_diagnosis\" AS \"b4f_diagnosis\" WHERE \"b4f_diagnosis\".\"id\" = \"diagnosis_id\" AND \"b4f_diagnosis\".\"patient_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"clinical_diagnosis\" AS \"b4f_diagnosis\" WHERE \"b4f_diagnosis\".\"id\" = \"diagnosis_id\" AND \"b4f_diagnosis\".\"patient_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.clinical_test_regions": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.clinical_visit": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.comments": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR ((\"target_type\" = ANY (ARRAY['exercise', 'test', 'test_set', 'recommendation', 'lesson']::text[]) AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (\"target_type\" = 'program_instance' AND (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instances\" AS \"b4c4_comment_program\" WHERE \"b4c4_comment_program\".\"id\" = \"target_id\" AND \"b4c4_comment_program\".\"patient_user_id\" = app.current_patient_user_id() ))) OR (\"target_type\" = 'lfk_complex' AND (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"lfk_complexes\" AS \"b4c4_comment_complex\" WHERE \"b4c4_comment_complex\".\"id\" = \"target_id\" AND \"b4c4_comment_complex\".\"platform_user_id\" = app.current_patient_user_id() ))) OR (\"target_type\" = 'stage_instance' AND (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instance_stages\" AS \"b4c4_comment_stage\" JOIN \"public\".\"treatment_program_instances\" AS \"b4c4_comment_stage_program\" ON \"b4c4_comment_stage_program\".\"id\" = \"b4c4_comment_stage\".\"instance_id\" WHERE \"b4c4_comment_stage\".\"id\" = \"target_id\" AND \"b4c4_comment_stage_program\".\"patient_user_id\" = app.current_patient_user_id() ))) OR (\"target_type\" = 'stage_item_instance' AND (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instance_stage_items\" AS \"b4c4_comment_stage_item\" JOIN \"public\".\"treatment_program_instance_stages\" AS \"b4c4_comment_item_stage\" ON \"b4c4_comment_item_stage\".\"id\" = \"b4c4_comment_stage_item\".\"stage_id\" JOIN \"public\".\"treatment_program_instances\" AS \"b4c4_comment_item_program\" ON \"b4c4_comment_item_program\".\"id\" = \"b4c4_comment_item_stage\".\"instance_id\" WHERE \"b4c4_comment_stage_item\".\"id\" = \"target_id\" AND \"b4c4_comment_item_program\".\"patient_user_id\" = app.current_patient_user_id() )))))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR ((\"target_type\" = ANY (ARRAY['exercise', 'test', 'test_set', 'recommendation', 'lesson']::text[]) AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (\"target_type\" = 'program_instance' AND (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instances\" AS \"b4c4_comment_program\" WHERE \"b4c4_comment_program\".\"id\" = \"target_id\" AND \"b4c4_comment_program\".\"patient_user_id\" = app.current_patient_user_id() ))) OR (\"target_type\" = 'lfk_complex' AND (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"lfk_complexes\" AS \"b4c4_comment_complex\" WHERE \"b4c4_comment_complex\".\"id\" = \"target_id\" AND \"b4c4_comment_complex\".\"platform_user_id\" = app.current_patient_user_id() ))) OR (\"target_type\" = 'stage_instance' AND (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instance_stages\" AS \"b4c4_comment_stage\" JOIN \"public\".\"treatment_program_instances\" AS \"b4c4_comment_stage_program\" ON \"b4c4_comment_stage_program\".\"id\" = \"b4c4_comment_stage\".\"instance_id\" WHERE \"b4c4_comment_stage\".\"id\" = \"target_id\" AND \"b4c4_comment_stage_program\".\"patient_user_id\" = app.current_patient_user_id() ))) OR (\"target_type\" = 'stage_item_instance' AND (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instance_stage_items\" AS \"b4c4_comment_stage_item\" JOIN \"public\".\"treatment_program_instance_stages\" AS \"b4c4_comment_item_stage\" ON \"b4c4_comment_item_stage\".\"id\" = \"b4c4_comment_stage_item\".\"stage_id\" JOIN \"public\".\"treatment_program_instances\" AS \"b4c4_comment_item_program\" ON \"b4c4_comment_item_program\".\"id\" = \"b4c4_comment_item_stage\".\"instance_id\" WHERE \"b4c4_comment_stage_item\".\"id\" = \"target_id\" AND \"b4c4_comment_item_program\".\"patient_user_id\" = app.current_patient_user_id() ))))))",
+  },
+  "public.content_access_grants_webapp": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.content_pages": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.content_section_slug_history": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.content_sections": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.courses": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.doctor_notes": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.doctor_patient_support": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.lfk_complex_exercises": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"lfk_complexes\" AS \"b4f_complex\" WHERE \"b4f_complex\".\"id\" = \"complex_id\" AND \"b4f_complex\".\"platform_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"lfk_complexes\" AS \"b4f_complex\" WHERE \"b4f_complex\".\"id\" = \"complex_id\" AND \"b4f_complex\".\"platform_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.lfk_complex_template_exercises": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.lfk_complex_templates": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.lfk_complexes": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.lfk_exercise_media": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.lfk_exercise_regions": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.lfk_exercises": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.lfk_sessions": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.material_ratings": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.media_files": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND (\"usage_purpose\" IS DISTINCT FROM 'program_item_submission' OR \"uploaded_by\" = app.current_patient_user_id())))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND (\"usage_purpose\" IS DISTINCT FROM 'program_item_submission' OR \"uploaded_by\" = app.current_patient_user_id()))))",
+  },
+  "public.media_folders": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR ((\"patient_user_id\" IS NULL AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR ((\"patient_user_id\" IS NULL AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))))",
+  },
+  "public.media_hls_proxy_error_events": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.media_playback_client_events": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.media_playback_resolution_events": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.media_playback_user_video_first_resolve": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.media_transcode_jobs": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"media_files\" AS \"b4c4_transcode_media\" WHERE \"b4c4_transcode_media\".\"id\" = \"media_id\" AND (\"b4c4_transcode_media\".\"usage_purpose\" IS DISTINCT FROM 'program_item_submission' OR \"b4c4_transcode_media\".\"uploaded_by\" = app.current_patient_user_id()) )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"media_files\" AS \"b4c4_transcode_media\" WHERE \"b4c4_transcode_media\".\"id\" = \"media_id\" AND (\"b4c4_transcode_media\".\"usage_purpose\" IS DISTINCT FROM 'program_item_submission' OR \"b4c4_transcode_media\".\"uploaded_by\" = app.current_patient_user_id()) ))))",
+  },
+  "public.media_upload_sessions": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"owner_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"owner_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.message_log": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.motivational_quotes": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.notification_delivery_attempts": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.online_intake_answers": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"online_intake_requests\" AS \"b4f_intake_request\" WHERE \"b4f_intake_request\".\"id\" = \"request_id\" AND \"b4f_intake_request\".\"user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"online_intake_requests\" AS \"b4f_intake_request\" WHERE \"b4f_intake_request\".\"id\" = \"request_id\" AND \"b4f_intake_request\".\"user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.online_intake_attachments": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"online_intake_requests\" AS \"b4f_intake_request\" WHERE \"b4f_intake_request\".\"id\" = \"request_id\" AND \"b4f_intake_request\".\"user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"online_intake_requests\" AS \"b4f_intake_request\" WHERE \"b4f_intake_request\".\"id\" = \"request_id\" AND \"b4f_intake_request\".\"user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.online_intake_requests": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.online_intake_status_history": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"online_intake_requests\" AS \"b4f_intake_request\" WHERE \"b4f_intake_request\".\"id\" = \"request_id\" AND \"b4f_intake_request\".\"user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"online_intake_requests\" AS \"b4f_intake_request\" WHERE \"b4f_intake_request\".\"id\" = \"request_id\" AND \"b4f_intake_request\".\"user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.operator_health_failure_archive": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.org_enrollments": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.organization_member_invites": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.patient_comorbidity": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.patient_content_rating_feedback": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.patient_daily_warmup_presentations": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.patient_daily_warmup_video_views": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.patient_diary_day_snapshots": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.patient_files": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.patient_home_block_items": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.patient_home_blocks": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.patient_invites": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.patient_lfk_assignments": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.patient_merge_candidates": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.patient_payment": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.patient_practice_completions": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.patient_specialist_links": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.platform_user_contacts": {
+    policyName: "saas_bootstrap_hybrid_p0_8_6",
+    strictPredicate: "((app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()) OR (\"organization_id\" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()) OR (\"organization_id\" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff())))",
+  },
+  "public.product_analytics_events_recent": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.product_analytics_user_hourly": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.product_push_notifications": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"user_id\" = app.current_patient_user_id())))",
+  },
+  "public.program_action_log": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.program_item_discussion_messages": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.program_item_discussion_reads": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.recommendation_regions": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.recommendations": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.reference_categories": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.reference_items": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.reminder_occurrence_history": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"platform_users\" AS \"b4f_reminder_occurrence_platform_user\" WHERE \"b4f_reminder_occurrence_platform_user\".\"integrator_user_id\" = \"public\".\"reminder_occurrence_history\".\"integrator_user_id\" AND \"b4f_reminder_occurrence_platform_user\".\"id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"platform_users\" AS \"b4f_reminder_occurrence_platform_user\" WHERE \"b4f_reminder_occurrence_platform_user\".\"integrator_user_id\" = \"public\".\"reminder_occurrence_history\".\"integrator_user_id\" AND \"b4f_reminder_occurrence_platform_user\".\"id\" = app.current_patient_user_id() ))))",
+  },
+  "public.reminder_rules": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.saas_org_entitlement_overrides": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.saas_organization_trials": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.specialist_tasks": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.support_conversation_messages": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"support_conversations\" AS \"b4f_conv\" WHERE \"b4f_conv\".\"id\" = \"conversation_id\" AND \"b4f_conv\".\"platform_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"support_conversations\" AS \"b4f_conv\" WHERE \"b4f_conv\".\"id\" = \"conversation_id\" AND \"b4f_conv\".\"platform_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.support_conversations": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.support_question_messages": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"support_questions\" AS \"b4f_question\" JOIN \"public\".\"support_conversations\" AS \"b4f_conv\" ON \"b4f_conv\".\"id\" = \"b4f_question\".\"conversation_id\" WHERE \"b4f_question\".\"id\" = \"question_id\" AND \"b4f_conv\".\"platform_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"support_questions\" AS \"b4f_question\" JOIN \"public\".\"support_conversations\" AS \"b4f_conv\" ON \"b4f_conv\".\"id\" = \"b4f_question\".\"conversation_id\" WHERE \"b4f_question\".\"id\" = \"question_id\" AND \"b4f_conv\".\"platform_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.support_questions": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"support_conversations\" AS \"b4f_conv\" WHERE \"b4f_conv\".\"id\" = \"conversation_id\" AND \"b4f_conv\".\"platform_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"support_conversations\" AS \"b4f_conv\" WHERE \"b4f_conv\".\"id\" = \"conversation_id\" AND \"b4f_conv\".\"platform_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.symptom_entries": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.symptom_trackings": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.system_settings": {
+    policyName: "saas_bootstrap_hybrid_p0_8_6",
+    strictPredicate: "(\"organization_id\" IS NULL OR (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "(\"organization_id\" IS NULL OR (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+  },
+  "public.system_settings_audit": {
+    policyName: "saas_bootstrap_hybrid_p0_8_6",
+    strictPredicate: "(\"organization_id\" IS NULL OR (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "(\"organization_id\" IS NULL OR (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+  },
+  "public.test_attempts": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.test_results": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"test_attempts\" AS \"b4f_attempt\" WHERE \"b4f_attempt\".\"id\" = \"attempt_id\" AND \"b4f_attempt\".\"patient_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"test_attempts\" AS \"b4f_attempt\" WHERE \"b4f_attempt\".\"id\" = \"attempt_id\" AND \"b4f_attempt\".\"patient_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.test_set_items": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.test_sets": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.tests": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.treatment_program_events": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instances\" AS \"b4f_instance\" WHERE \"b4f_instance\".\"id\" = \"instance_id\" AND \"b4f_instance\".\"patient_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instances\" AS \"b4f_instance\" WHERE \"b4f_instance\".\"id\" = \"instance_id\" AND \"b4f_instance\".\"patient_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.treatment_program_instance_stage_groups": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instance_stages\" AS \"b4f_stage\" JOIN \"public\".\"treatment_program_instances\" AS \"b4f_instance\" ON \"b4f_instance\".\"id\" = \"b4f_stage\".\"instance_id\" WHERE \"b4f_stage\".\"id\" = \"stage_id\" AND \"b4f_instance\".\"patient_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instance_stages\" AS \"b4f_stage\" JOIN \"public\".\"treatment_program_instances\" AS \"b4f_instance\" ON \"b4f_instance\".\"id\" = \"b4f_stage\".\"instance_id\" WHERE \"b4f_stage\".\"id\" = \"stage_id\" AND \"b4f_instance\".\"patient_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.treatment_program_instance_stage_items": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instance_stages\" AS \"b4f_stage\" JOIN \"public\".\"treatment_program_instances\" AS \"b4f_instance\" ON \"b4f_instance\".\"id\" = \"b4f_stage\".\"instance_id\" WHERE \"b4f_stage\".\"id\" = \"stage_id\" AND \"b4f_instance\".\"patient_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instance_stages\" AS \"b4f_stage\" JOIN \"public\".\"treatment_program_instances\" AS \"b4f_instance\" ON \"b4f_instance\".\"id\" = \"b4f_stage\".\"instance_id\" WHERE \"b4f_stage\".\"id\" = \"stage_id\" AND \"b4f_instance\".\"patient_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.treatment_program_instance_stages": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instances\" AS \"b4f_instance\" WHERE \"b4f_instance\".\"id\" = \"instance_id\" AND \"b4f_instance\".\"patient_user_id\" = app.current_patient_user_id() )))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"treatment_program_instances\" AS \"b4f_instance\" WHERE \"b4f_instance\".\"id\" = \"instance_id\" AND \"b4f_instance\".\"patient_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.treatment_program_instances": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.treatment_program_template_stage_groups": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.treatment_program_template_stage_items": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.treatment_program_template_stages": {
+    policyName: "saas_org_dormant_p0_8_4",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.treatment_program_templates": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
+  },
+  "public.user_phone_history": {
+    policyName: "saas_bootstrap_hybrid_p0_8_6",
+    strictPredicate: "((app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()) OR (\"organization_id\" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()) OR (\"organization_id\" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff())))",
+  },
+} as const;
+
+const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyEntry>(
+  Object.entries(REV10_LOCKED_POLICY_DATA),
 );
 
 type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams'>;
@@ -31585,8 +32371,8 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       : access?.kind === 'direct' && specialized ? directBusiness
       : access?.kind === 'direct' && locked && ordinaryDirectRoles.length > 0 ? [{
         name: `rev10_${locked.policyName}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
-        using: platformScoped(renderPhase4StrictPredicate(locked.descriptor)),
-        withCheck: platformScoped(renderPhase4StrictPredicate(locked.descriptor)), note: `locked descriptor policy for ${key}`,
+        using: platformScoped(locked.strictPredicate),
+        withCheck: platformScoped(locked.strictPredicate), note: `locked descriptor policy for ${key}`,
       }]
       : access?.kind === 'direct' && explicitPolicies.length > 0 && ordinaryDirectRoles.length > 0
         ? explicitPolicies.map((policy) => ({ ...policy, to: ordinaryDirectRoles }))

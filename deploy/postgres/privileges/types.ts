@@ -35,63 +35,13 @@ export type Wall =
   | 'closed' // техническое: закрыто от всех прикладных ролей (владелец/мигратор)
   | 'pending-removal'; // таблица уходит — ни стены, ни грантов (evidence/15, evidence/18)
 
-export const WALL_TEMPLATES: Record<Wall, { rls: 'force' | 'n/a'; requires: string }> = {
-  'clinic+patient': {
-    rls: 'force',
-    requires: 'ветка персонала `organization_id = app.current_org_id() AND app.is_staff()`; ветка пациента '
-      + 'по своей строке (platform_user_id / patient_user_id либо EXISTS по родителю). Обе — в USING и в WITH CHECK.',
-  },
-  'parent+patient': {
-    rls: 'force',
-    requires: 'organization_id отсутствует ПО ЗАМЫСЛУ: org-ветка — EXISTS по org родителя, пациентская — '
-      + 'EXISTS по пациентскому ключу родителя. Объявляется, а не выводится.',
-  },
-  clinic: { rls: 'force', requires: 'ветка персонала по org; у app_patient ни гранта, ни ветки политики.' },
-  parent: { rls: 'force', requires: 'org-ветка через EXISTS по родителю; пациентского доступа нет.' },
-  'platform-role': {
-    rls: 'force',
-    requires: 'политика ограничена объявленной платформенной/сервисной ролью; app_staff и app_patient грантов '
-      + 'не имеют. «Стена своей роли» из нормы владельца.',
-  },
-  'platform-role+clinic': {
-    rls: 'force',
-    requires: 'две ветки: строки organization_id IS NULL достижимы только объявленной платформенной/сервисной '
-      + 'ролью; строки с организацией — под стеной клиники. NULL-ветка ОБЯЗАНА проверять роль — безусловный '
-      + 'дизъюнкт `organization_id IS NULL` и есть дефект Д3/Д7.',
-  },
-  'reference-template': {
-    rls: 'force',
-    requires: 'D3: строки платформенного шаблона. Арендным ролям — только SELECT (или ничего); '
-      + 'INSERT/UPDATE/DELETE арендатору запрещены. Пишет платформенная роль либо засевочный шов.',
-  },
-  'reference-org-copy': {
-    rls: 'force',
-    requires: 'D3: копия, сделанная для организации при её создании. Несёт organization_id, стену клиники, и '
-      + 'клиника ею владеет (правит/переименовывает/удаляет свои строки). Засевочный шов — перечисленное '
-      + 'definer-исключение, а не арендный грант.',
-  },
-  'definer-only': {
-    rls: 'force',
-    requires: 'ноль грантов любым рантайм-ролям; единственный путь — перечисленные SECURITY DEFINER аксессоры. '
-      + 'RLS+FORCE остаётся сверху как backstop (FINDINGS И1 + канон репо «FORCE RLS не снимать»): стена из '
-      + 'одних грантов держится ровно до дня, когда грант выдали, — и Д1 это тринадцать таблиц, где такой день настал.',
-  },
-  closed: { rls: 'force', requires: 'рантайм-грантов нет вовсе; только владелец/мигратор. RLS+FORCE — тот же backstop.' },
-  'pending-removal': {
-    rls: 'n/a',
-    requires: 'НИ стены, НИ грантов: таблица уходит (evidence/15 / evidence/18). Объявлена, чтобы у двустороннего '
-      + 'диффа §F было ИМЕНОВАННОЕ исключение вместо молчания и чтобы на неё не тратили работу по стенам.',
-  },
-};
+/** Тип шаблона стены — сами значения (решение, какой rls-режим и требование у каждой стены)
+ *  объявляет `declaration.ts` (SaaS #1069 correction §B: default-decisions, влияющие на emitted
+ *  SQL, живут в декларации, не в грамматике). */
+export type WallTemplateMap = Record<Wall, { rls: 'force' | 'n/a'; requires: string }>;
 
-/** класс → стена по умолчанию (таблица может отклониться, но обязана назвать причину). */
-export const CLASS_DEFAULT_WALL: Record<DataClass, Wall> = {
-  P: 'clinic+patient',
-  C: 'clinic',
-  S: 'platform-role',
-  R: 'reference-template',
-  T: 'closed',
-};
+/** Тип умолчания «класс → стена» — значения объявляет `declaration.ts`, тем же правилом. */
+export type ClassDefaultWallMap = Record<DataClass, Wall>;
 
 /** Решение D4 — ровно два порта. */
 export type Port = 'webapp' | 'integrator';
@@ -534,7 +484,7 @@ export interface PrivilegeDeclaration {
   patientVisibility: PatientVisibility;
   referenceModel: ReferenceModel;
   ports: Record<Port, PortSpec>;
-  wallTemplates: Record<Wall, { rls: 'force' | 'n/a'; requires: string }>;
+  wallTemplates: WallTemplateMap;
   codeMustChange: CodeChange[];
   ownerGatesOpen: OwnerGate[];
   cluster: {
@@ -569,9 +519,11 @@ export interface PrivilegeDeclaration {
 
 /* ============================================================================================
  * РАЗВОРАЧИВАНИЕ КОМПАКТНЫХ СТРОК
- *   Правила умолчаний (они же — конвенция ревью, README §«Компактная форма»):
- *     wall        = row.wall ?? (row.drop ? 'pending-removal' : CLASS_DEFAULT_WALL[cls])
- *     rls         = row.rls  ?? WALL_TEMPLATES[wall].rls
+ *   Правила умолчаний (они же — конвенция ревью, README §«Компактная форма»); wallTemplates и
+ *   classDefaultWall — те самые решения, которые объявляет `declaration.ts` (WALL_TEMPLATES,
+ *   CLASS_DEFAULT_WALL) и передаёт сюда явным параметром — эта функция сама решений не хранит:
+ *     wall        = row.wall ?? (row.drop ? 'pending-removal' : classDefaultWall[cls])
+ *     rls         = row.rls  ?? wallTemplates[wall].rls
  *     disposition = row.disp ?? (row.drop ? 'PENDING_REMOVAL' : 'ACTIVE')
  *     owner       = row.owner ?? 'migrator'
  *     grantMatrix = 'G2-pending' на каждой ACTIVE-таблице, кроме row.acl === 'enumerated'
@@ -579,16 +531,20 @@ export interface PrivilegeDeclaration {
  *   по шаблону» — это решения, и они обязаны нести одну строку обоснования.
  * ========================================================================================== */
 
-export function expandTables(rows: TableRow[]): Record<string, TableDecl> {
+export function expandTables(
+  rows: TableRow[],
+  defaults: { wallTemplates: WallTemplateMap; classDefaultWall: ClassDefaultWallMap },
+): Record<string, TableDecl> {
+  const { wallTemplates, classDefaultWall } = defaults;
   const out: Record<string, TableDecl> = {};
   for (const row of rows) {
     if (out[row.t]) throw new Error(`declaration: таблица '${row.t}' объявлена дважды`);
-    const defaultWall: Wall = row.drop ? 'pending-removal' : CLASS_DEFAULT_WALL[row.cls];
+    const defaultWall: Wall = row.drop ? 'pending-removal' : classDefaultWall[row.cls];
     const wall: Wall = row.wall ?? defaultWall;
     if (row.wall && row.wall !== defaultWall && !row.wallWhy) {
       throw new Error(`declaration: '${row.t}' отклоняет стену (${row.cls} → ${wall}) без wallWhy`);
     }
-    const templateRls = WALL_TEMPLATES[wall].rls;
+    const templateRls = wallTemplates[wall].rls;
     const rls: RlsMode = row.rls ?? templateRls;
     if (row.rls && row.rls !== templateRls && !row.rlsWhy) {
       throw new Error(`declaration: '${row.t}' отклоняет rls ('${rls}' против шаблона '${templateRls}') без rlsWhy`);
