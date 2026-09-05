@@ -132,11 +132,20 @@ export async function POST(request: Request) {
           ReturnType<NonNullable<typeof deps.patientBooking>['getBookingByCanonicalAppointment']>
         > = null;
         try {
-          bookingRow = deps.patientBooking
-            ? await deps.patientBooking.getBookingByCanonicalAppointment(created.id)
-            : null;
+          bookingRow =
+            deps.patientBooking && parsed.data.platformUserId
+              ? await deps.patientBooking.ensureStaffBookingProjection({
+                  appointment: created,
+                  contactName: staffBookingContactNameFromAppointment(created),
+                  contactPhone: created.phoneNormalized ?? '+70000000000',
+                })
+              : null;
         } catch {
-          // Optional compatibility projection read; the canonical appointment remains authoritative.
+          // The canonical appointment is already committed. A projection failure must not make a
+          // retry create a duplicate appointment; diagnostics retain the failure server-side.
+          console.error('[manual-appointment] booking projection failed', {
+            appointmentId: created.id,
+          });
         }
         try {
           const reminderPlan = appointmentReminderPlanForPreset(
@@ -196,6 +205,9 @@ export async function POST(request: Request) {
           ? String((err as { code: unknown }).code)
           : 'unknown',
     });
-    return NextResponse.json({ ok: false, error: 'appointment_create_unavailable' }, { status: 503 });
+    return NextResponse.json(
+      { ok: false, error: 'appointment_create_unavailable' },
+      { status: 503 },
+    );
   }
 }

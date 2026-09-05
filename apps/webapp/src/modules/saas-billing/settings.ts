@@ -3,20 +3,7 @@ import { SAAS_BILLING_INVOICE_VALIDITY_DAYS } from './invoiceValidity';
 
 export const DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID = 'yookassa';
 
-const YOOKASSA_VAT_CODES = new Set([
-  '1',
-  '2',
-  '3',
-  '4',
-  '5',
-  '6',
-  '7',
-  '8',
-  '9',
-  '10',
-  '11',
-  '12',
-]);
+const YOOKASSA_VAT_CODES = new Set(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']);
 const YOOKASSA_TAX_SYSTEM_CODES = new Set(['1', '2', '3', '4', '5', '6']);
 
 /**
@@ -89,7 +76,9 @@ function parseProviders(raw: unknown): PaymentProviderConfig[] {
         id,
         label: nullableString(row.label) ?? id,
         enabled: row.enabled === true,
-        webhookSecret: nullableString(row.webhookSecret) ?? undefined,
+        ...(id === 'yookassa'
+          ? {}
+          : { webhookSecret: nullableString(row.webhookSecret) ?? undefined }),
         apiKey: nullableString(row.apiKey) ?? undefined,
         shopId: nullableString(row.shopId) ?? undefined,
         terminalKey: nullableString(row.terminalKey) ?? undefined,
@@ -169,6 +158,14 @@ export function isValidSaasBillingPaymentProviderFiscalSettings(envelope: unknow
 }
 
 function redactProvider(provider: PaymentProviderConfig): PaymentProviderConfig {
+  if (provider.id === 'yookassa') {
+    const withoutWebhookSecret = { ...provider };
+    delete withoutWebhookSecret.webhookSecret;
+    return {
+      ...withoutWebhookSecret,
+      apiKey: provider.apiKey ? '[REDACTED]' : '',
+    };
+  }
   return {
     ...provider,
     webhookSecret: provider.webhookSecret ? '[REDACTED]' : '',
@@ -192,6 +189,17 @@ export async function mergeSaasBillingPaymentProviderSecretsRetain(
       ...next,
       providers: next.providers.map((provider) => {
         const previousProvider = previous.providers.find(({ id }) => id === provider.id);
+        if (provider.id === 'yookassa') {
+          const withoutWebhookSecret = { ...provider };
+          delete withoutWebhookSecret.webhookSecret;
+          return {
+            ...withoutWebhookSecret,
+            apiKey:
+              provider.apiKey === '[REDACTED]' || provider.apiKey === undefined
+                ? previousProvider?.apiKey
+                : provider.apiKey,
+          };
+        }
         return {
           ...provider,
           webhookSecret:

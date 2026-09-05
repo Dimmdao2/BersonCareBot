@@ -5138,9 +5138,15 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
+          "branch_title_snapshot",
           "cancel_reason",
           "cancelled_at",
           "canonical_appointment_id",
+          "city",
+          "city_code_snapshot",
+          "duration_minutes_snapshot",
+          "price_minor_snapshot",
+          "service_title_snapshot",
           "slot_end",
           "slot_start",
           "status",

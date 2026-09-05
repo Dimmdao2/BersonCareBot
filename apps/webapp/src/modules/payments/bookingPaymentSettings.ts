@@ -1,19 +1,6 @@
 import type { BookingPaymentSettings, PaymentProviderConfig } from './types';
 
-const YOOKASSA_VAT_CODES = new Set([
-  '1',
-  '2',
-  '3',
-  '4',
-  '5',
-  '6',
-  '7',
-  '8',
-  '9',
-  '10',
-  '11',
-  '12',
-]);
+const YOOKASSA_VAT_CODES = new Set(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']);
 const YOOKASSA_TAX_SYSTEM_CODES = new Set(['1', '2', '3', '4', '5', '6']);
 
 function fiscalCode(value: unknown, allowed: ReadonlySet<string>): string | null {
@@ -33,7 +20,11 @@ function parseProviders(raw: unknown): PaymentProviderConfig[] {
       id,
       label: typeof o.label === 'string' ? o.label : id,
       enabled: o.enabled === true,
-      webhookSecret: typeof o.webhookSecret === 'string' ? o.webhookSecret : undefined,
+      ...(id === 'yookassa'
+        ? {}
+        : {
+            webhookSecret: typeof o.webhookSecret === 'string' ? o.webhookSecret : undefined,
+          }),
       apiKey: typeof o.apiKey === 'string' ? o.apiKey : undefined,
       shopId: typeof o.shopId === 'string' ? o.shopId : undefined,
       terminalKey: typeof o.terminalKey === 'string' ? o.terminalKey : undefined,
@@ -83,11 +74,21 @@ export function redactBookingPaymentProvidersForClient(
 ): BookingPaymentSettings {
   return {
     ...settings,
-    providers: settings.providers.map((p) => ({
-      ...p,
-      webhookSecret: p.webhookSecret?.trim() ? '[REDACTED]' : '',
-      apiKey: p.apiKey?.trim() ? '[REDACTED]' : '',
-    })),
+    providers: settings.providers.map((provider) => {
+      if (provider.id === 'yookassa') {
+        const withoutWebhookSecret = { ...provider };
+        delete withoutWebhookSecret.webhookSecret;
+        return {
+          ...withoutWebhookSecret,
+          apiKey: provider.apiKey?.trim() ? '[REDACTED]' : '',
+        };
+      }
+      return {
+        ...provider,
+        webhookSecret: provider.webhookSecret?.trim() ? '[REDACTED]' : '',
+        apiKey: provider.apiKey?.trim() ? '[REDACTED]' : '',
+      };
+    }),
   };
 }
 
@@ -123,6 +124,15 @@ export async function mergeBookingPaymentProvidersSecretsRetain(
   const next = parseBookingPaymentSettingsValue({ value: inner });
   const mergedProviders = next.providers.map((p) => {
     const prevP = prev.providers.find((x) => x.id === p.id);
+    if (p.id === 'yookassa') {
+      const withoutWebhookSecret = { ...p };
+      delete withoutWebhookSecret.webhookSecret;
+      return {
+        ...withoutWebhookSecret,
+        apiKey:
+          p.apiKey?.trim() === '' || p.apiKey === '[REDACTED]' ? (prevP?.apiKey ?? '') : p.apiKey,
+      };
+    }
     const webhookSecret =
       p.webhookSecret?.trim() === '' || p.webhookSecret === '[REDACTED]'
         ? (prevP?.webhookSecret ?? '')

@@ -78,6 +78,7 @@ function inspectCloudpaymentsWebhook(headers: Headers, bodyText: string) {
 
 export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
   return {
+    requiresWebhookSecret: true,
     async createIntent({
       amountMinor,
       currency,

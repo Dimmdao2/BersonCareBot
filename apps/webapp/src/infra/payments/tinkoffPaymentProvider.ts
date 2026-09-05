@@ -71,6 +71,7 @@ function inspectTinkoffWebhook(bodyText: string) {
 
 export function createTinkoffPaymentProvider(): PaymentProviderPort {
   return {
+    requiresWebhookSecret: true,
     async createIntent({
       amountMinor,
       currency,

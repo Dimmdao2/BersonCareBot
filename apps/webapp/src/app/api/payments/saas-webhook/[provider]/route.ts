@@ -23,6 +23,7 @@
 import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { resolvePaymentProviderWebhookSecret } from '@/modules/payments/providerPort';
 import {
   jsonError,
   jsonOk,
@@ -49,13 +50,12 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError('payment_provider_unavailable', {}, { status: 400 });
   }
 
-  const secret = resolvedProvider.providerConfig.webhookSecret?.trim();
-  if (!secret) {
-    return jsonError('webhook_secret_missing', {}, { status: 503 });
-  }
-
   let verified;
   try {
+    const secret = resolvePaymentProviderWebhookSecret(
+      resolvedProvider.adapter,
+      resolvedProvider.providerConfig,
+    );
     verified = await resolvedProvider.adapter.verifyWebhook({
       headers: request.headers,
       bodyText,
@@ -79,10 +79,11 @@ export async function POST(request: Request, context: RouteContext) {
   if (verified.eventType.startsWith('refund.')) {
     const resolvedRefund = await runWithDbInfraPrincipal(
       { source: 'api/payments/saas-webhook:POST:verified-resolver' },
-      () => deps.saasBilling.resolveSaasBillingRefundForWebhook({
-        providerId: resolvedProvider.providerId,
-        verified,
-      }),
+      () =>
+        deps.saasBilling.resolveSaasBillingRefundForWebhook({
+          providerId: resolvedProvider.providerId,
+          verified,
+        }),
     );
     if (resolvedRefund.outcome === 'unknown_reference') {
       return jsonOk({ acknowledged: true, reason: 'unknown_reference' as const });
@@ -95,23 +96,25 @@ export async function POST(request: Request, context: RouteContext) {
         organizationId: resolvedRefund.organizationId,
         source: 'api/payments/saas-webhook:POST:capture',
       },
-      () => deps.saasBilling.captureSaasBillingRefundWebhookEvent({
-        organizationId: resolvedRefund.organizationId,
-        saasBillingInvoiceId: resolvedRefund.saasBillingInvoiceId,
-        saasBillingRefundId: resolvedRefund.saasBillingRefundId,
-        providerId: resolvedProvider.providerId,
-        verified,
-      }),
+      () =>
+        deps.saasBilling.captureSaasBillingRefundWebhookEvent({
+          organizationId: resolvedRefund.organizationId,
+          saasBillingInvoiceId: resolvedRefund.saasBillingInvoiceId,
+          saasBillingRefundId: resolvedRefund.saasBillingRefundId,
+          providerId: resolvedProvider.providerId,
+          verified,
+        }),
     );
     return jsonOk({ captured: refundResult.captured, duplicate: refundResult.duplicate });
   }
 
   const resolved = await runWithDbInfraPrincipal(
     { source: 'api/payments/saas-webhook:POST:verified-resolver' },
-    () => deps.saasBilling.resolveSaasBillingInvoiceForWebhook({
-      providerId: resolvedProvider.providerId,
-      verified,
-    }),
+    () =>
+      deps.saasBilling.resolveSaasBillingInvoiceForWebhook({
+        providerId: resolvedProvider.providerId,
+        verified,
+      }),
   );
 
   if (resolved.outcome === 'unknown_reference') {
@@ -126,12 +129,13 @@ export async function POST(request: Request, context: RouteContext) {
       organizationId: resolved.organizationId,
       source: 'api/payments/saas-webhook:POST:capture',
     },
-    () => deps.saasBilling.captureSaasBillingProviderWebhookEvent({
-      organizationId: resolved.organizationId,
-      saasBillingInvoiceId: resolved.saasBillingInvoiceId,
-      providerId: resolvedProvider.providerId,
-      verified,
-    }),
+    () =>
+      deps.saasBilling.captureSaasBillingProviderWebhookEvent({
+        organizationId: resolved.organizationId,
+        saasBillingInvoiceId: resolved.saasBillingInvoiceId,
+        providerId: resolvedProvider.providerId,
+        verified,
+      }),
   );
 
   return jsonOk({ captured: result.captured, duplicate: result.duplicate });

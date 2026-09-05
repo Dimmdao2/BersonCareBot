@@ -44,10 +44,7 @@ export class PaymentProviderRequestRefusedError extends Error {
 }
 
 export type PaymentProviderTransportCode =
-  | 'ECONNREFUSED'
-  | 'ECONNRESET'
-  | 'ENOTFOUND'
-  | 'ETIMEDOUT';
+  'ECONNREFUSED' | 'ECONNRESET' | 'ENOTFOUND' | 'ETIMEDOUT';
 
 /**
  * The provider adapter creates this only when its own network call rejects before a response
@@ -130,6 +127,9 @@ export type PaymentProviderListPaymentsResult = {
 export type PaymentProviderPort = {
   /** Only adapters that can issue a shareable invoice set this; it is a capability, not a second payment entry. */
   supportsInvoice?: true;
+  /** Provider signs callbacks with a configured shared secret. YooKassa instead uses IP allowlisting
+   * plus an authenticated API refetch and deliberately leaves this capability unset. */
+  requiresWebhookSecret?: true;
 
   /**
    * B1.1 — the one door every payment intent is opened through. `payerRef`, `purpose`, `subjectRef`
@@ -198,3 +198,12 @@ export type PaymentProviderPort = {
     providerConfig?: PaymentProviderConfig;
   }): Promise<PaymentProviderListPaymentsResult>;
 };
+
+export function resolvePaymentProviderWebhookSecret(
+  adapter: PaymentProviderPort,
+  providerConfig: PaymentProviderConfig,
+): string {
+  const secret = providerConfig.webhookSecret?.trim() ?? '';
+  if (adapter.requiresWebhookSecret && !secret) throw new Error('webhook_secret_missing');
+  return secret;
+}

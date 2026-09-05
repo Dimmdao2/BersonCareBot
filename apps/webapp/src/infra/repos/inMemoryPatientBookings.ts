@@ -199,6 +199,25 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     return next;
   },
 
+  async updateStaffProjection(input) {
+    const row = byId.get(input.bookingId);
+    if (!row) return null;
+    const next = {
+      ...row,
+      slotStart: input.slotStart,
+      slotEnd: input.slotEnd,
+      city: input.city,
+      cityCodeSnapshot: input.cityCodeSnapshot,
+      branchTitleSnapshot: input.branchTitleSnapshot,
+      serviceTitleSnapshot: input.serviceTitleSnapshot,
+      durationMinutesSnapshot: input.durationMinutesSnapshot,
+      priceMinorSnapshot: input.priceMinorSnapshot ?? row.priceMinorSnapshot,
+      updatedAt: new Date().toISOString(),
+    };
+    byId.set(input.bookingId, next);
+    return next;
+  },
+
   async getById(bookingId) {
     return byId.get(bookingId) ?? null;
   },

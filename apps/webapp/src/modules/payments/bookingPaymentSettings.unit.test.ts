@@ -55,6 +55,7 @@ describe('booking payment fiscal settings', () => {
               id: 'yookassa',
               label: 'ЮKassa',
               enabled: true,
+              webhookSecret: 'obsolete-secret',
               apiKey: 'secret',
             },
           ],
@@ -70,6 +71,7 @@ describe('booking payment fiscal settings', () => {
               id: 'yookassa',
               label: 'ЮKassa',
               enabled: true,
+              webhookSecret: '[REDACTED]',
               apiKey: '[REDACTED]',
             },
           ],
@@ -84,5 +86,8 @@ describe('booking payment fiscal settings', () => {
         providers: [expect.objectContaining({ apiKey: 'secret' })],
       }),
     });
+    expect(
+      (merged.value as { providers: Array<Record<string, unknown>> }).providers[0],
+    ).not.toHaveProperty('webhookSecret');
   });
 });

@@ -7,6 +7,7 @@ const fakes = vi.hoisted(() => ({
   createBookingSyncPort: vi.fn(),
   createAppointment: vi.fn(),
   getSpecialistAppointmentReminderSettings: vi.fn(),
+  ensureStaffBookingProjection: vi.fn(),
 }));
 
 vi.mock('../../_requireDoctorBookingEngine', () => ({
@@ -69,6 +70,7 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
       allowedPresetIds: ['day_before', 'two_hours_before'],
       defaultPresetId: 'day_before',
     });
+    fakes.ensureStaffBookingProjection.mockResolvedValue(null);
 
     fakes.requireDoctorBookingEngine.mockResolvedValue({
       ok: true,
@@ -78,8 +80,7 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
         service: {
           createAppointment: fakes.createAppointment,
           getAppointment: vi.fn(async () => null),
-          getSpecialistAppointmentReminderSettings:
-            fakes.getSpecialistAppointmentReminderSettings,
+          getSpecialistAppointmentReminderSettings: fakes.getSpecialistAppointmentReminderSettings,
         },
       },
     });
@@ -91,15 +92,16 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
 
     fakes.buildAppDeps.mockReturnValue({
       bookingScheduling: null,
-      patientBooking: { getBookingByCanonicalAppointment: async () => null },
+      patientBooking: {
+        ensureStaffBookingProjection: fakes.ensureStaffBookingProjection,
+      },
       patientOrganization: null,
       memberships: null,
       systemSettings: {
         getSetting: vi.fn(async (key: string) => settingsRows[key] ?? null),
       },
       bookingEngine: {
-        getSpecialistAppointmentReminderSettings:
-          fakes.getSpecialistAppointmentReminderSettings,
+        getSpecialistAppointmentReminderSettings: fakes.getSpecialistAppointmentReminderSettings,
       },
     });
 
@@ -162,6 +164,8 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
           durationMinutes: 30,
           branchId: BRANCH_ID,
           serviceId: SERVICE_ID,
+          platformUserId: '55555555-5555-4555-8555-555555555555',
+          phoneNormalized: '+79990000000',
         }),
       }),
     );
@@ -183,6 +187,11 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
       },
     });
     expect(captured[0]!.reminderPlan).toEqual({ enabled: true, offsetsMinutes: [1440] });
+    expect(fakes.ensureStaffBookingProjection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointment: expect.objectContaining({ id: 'appt-1', serviceId: SERVICE_ID }),
+      }),
+    );
   });
 
   it('maps an organization-scoped catalog refusal without attempting a partial create', async () => {

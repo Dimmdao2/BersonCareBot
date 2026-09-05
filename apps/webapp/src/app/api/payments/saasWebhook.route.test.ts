@@ -19,15 +19,14 @@ vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
 }));
 vi.mock('@bersoncare/db-principal', () => ({
   runWithDbInfraPrincipal: <T>(_principal: unknown, callback: () => T): T => callback(),
-  runWithDbOrganizationPrincipal: <T>(_organizationId: string, callback: () => T): T =>
-    callback(),
+  runWithDbOrganizationPrincipal: <T>(_organizationId: string, callback: () => T): T => callback(),
   // The shared error door resolves this request's correlation id and the root logger stamps it on
   // every line, so both live on the module graph of any route that answers with `jsonError`.
   ensureCorrelationId: () => 'test-correlation-id',
   getCurrentObservabilityContext: () => ({}),
 }));
 
-function buildService(webhookSecret: string | null = 'unused-webhook-secret-9021') {
+function buildService() {
   return createSaasBillingService({
     repository: createInMemorySaasBillingRepository(),
     settings: {
@@ -38,7 +37,6 @@ function buildService(webhookSecret: string | null = 'unused-webhook-secret-9021
             id: 'yookassa',
             label: 'ЮKassa',
             enabled: true,
-            ...(webhookSecret === null ? {} : { webhookSecret }),
             shopId: SHOP_ID,
             apiKey: API_KEY,
           },
@@ -200,20 +198,6 @@ describe('POST /api/payments/saas-webhook/[provider]', () => {
     vi.unstubAllGlobals();
   });
 
-  // Отказ 0/5: без секрета нельзя проверять webhook — запрос не должен доходить до провайдера или capture.
-  it('rejects a configured provider without webhookSecret before provider fetch or capture', async () => {
-    service = buildService(null);
-    fakes.buildAppDeps.mockReturnValue({ saasBilling: service });
-    const captureSpy = vi.spyOn(service, 'captureSaasBillingProviderWebhookEvent');
-
-    const response = await invoke(webhookRequest(yookassaWebhookBody(YOOKASSA_PAYMENT_ID)));
-
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({ ok: false, error: 'webhook_secret_missing' });
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(captureSpy).not.toHaveBeenCalled();
-  });
-
   // Отказ 0a/5: неизвестный сегмент URL не выбирает adapter и не может провести платёж.
   it('rejects an unknown provider path before provider fetch or capture', async () => {
     const captureSpy = vi.spyOn(service, 'captureSaasBillingProviderWebhookEvent');
@@ -224,7 +208,10 @@ describe('POST /api/payments/saas-webhook/[provider]', () => {
     );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ ok: false, error: 'payment_provider_unavailable' });
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'payment_provider_unavailable',
+    });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(captureSpy).not.toHaveBeenCalled();
   });
@@ -261,7 +248,10 @@ describe('POST /api/payments/saas-webhook/[provider]', () => {
   it('does not capture when the notification body diverges from the API payment object', async () => {
     const invoice = await seedPendingInvoice(service);
     // Body claims success; the real payment (per the API) is still awaiting capture.
-    remotePaymentObject = { status: 'waiting_for_capture', amount: { value: '0.00', currency: 'RUB' } };
+    remotePaymentObject = {
+      status: 'waiting_for_capture',
+      amount: { value: '0.00', currency: 'RUB' },
+    };
     const body = yookassaWebhookBody(invoice.providerInvoiceRef ?? '');
 
     const response = await invoke(webhookRequest(body));

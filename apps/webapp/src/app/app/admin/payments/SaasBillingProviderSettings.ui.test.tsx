@@ -21,7 +21,6 @@ const storedSetting = {
           enabled: true,
           shopId: '1425962',
           apiKey: '[REDACTED]',
-          webhookSecret: '[REDACTED]',
         },
       ],
       payeeRequisites: { vatCode: null, taxSystemCode: null },
@@ -33,7 +32,7 @@ const storedSetting = {
 };
 
 describe('SaasBillingProviderSettings', () => {
-  it('saves a fiscal selection while retaining the stored secret markers', async () => {
+  it('saves a fiscal selection while retaining the stored API key marker', async () => {
     const user = userEvent.setup();
     let patchBody: unknown = null;
     const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -49,12 +48,7 @@ describe('SaasBillingProviderSettings', () => {
                 valueJson: {
                   value: {
                     ...storedSetting.valueJson.value,
-                    providers: [
-                      {
-                        ...storedSetting.valueJson.value.providers[0],
-                        webhookSecret: '[REDACTED]',
-                      },
-                    ],
+                    providers: [storedSetting.valueJson.value.providers[0]],
                   },
                 },
               },
@@ -72,10 +66,8 @@ describe('SaasBillingProviderSettings', () => {
 
     expect(await screen.findByDisplayValue('1425962')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Ключ сохранён')).toHaveValue('');
-    expect(screen.getByPlaceholderText('Секрет сохранён')).toHaveValue('');
     await user.click(screen.getByLabelText('НДС в чеке'));
     await user.click(await screen.findByRole('option', { name: '20%' }));
-    await user.type(screen.getByLabelText('Секрет вебхука'), 'fresh-webhook-secret');
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
 
     await waitFor(() => expect(patchBody).not.toBeNull());
@@ -87,7 +79,6 @@ describe('SaasBillingProviderSettings', () => {
             {
               id: 'yookassa',
               apiKey: '[REDACTED]',
-              webhookSecret: 'fresh-webhook-secret',
               shopId: '1425962',
             },
           ],

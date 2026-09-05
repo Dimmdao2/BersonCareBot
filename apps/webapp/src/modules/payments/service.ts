@@ -16,6 +16,7 @@ import { parsePatientPackageProductRef } from '@/modules/memberships/patientPack
 import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildBookingPaymentReceipt } from './fiscalReceipt';
+import { resolvePaymentProviderWebhookSecret } from './providerPort';
 
 /**
  * The caller always computes a screen-specific return address; this is only the safety net for
@@ -589,10 +590,8 @@ export function createPaymentsService(deps: {
       const settings = await loadSettings(input.organizationId);
       const provider = settings.providers.find((p) => p.id === input.providerId);
       if (!provider?.enabled) throw new Error('payment_provider_unavailable');
-      const secret = provider.webhookSecret?.trim();
-      if (!secret) throw new Error('webhook_secret_missing');
-
       const adapter = getPaymentProviderAdapter(input.providerId);
+      const secret = resolvePaymentProviderWebhookSecret(adapter, provider);
       const verified = await adapter.verifyWebhook({
         headers: input.headers,
         bodyText: input.bodyText,

@@ -8,6 +8,7 @@ import type {
   PatientBookingRecord,
   PatientBookingStatus,
 } from './types';
+import type { BeAppointment } from '@/modules/booking-engine/types';
 
 /** Patient-facing slots query (cabinet / public booking API). */
 export type BookingSlotsQuery =
@@ -154,6 +155,17 @@ export type PatientBookingsPort = {
     slotEnd: string;
     status?: PatientBookingStatus;
   }): Promise<PatientBookingRecord | null>;
+  updateStaffProjection(input: {
+    bookingId: string;
+    slotStart: string;
+    slotEnd: string;
+    city: string;
+    cityCodeSnapshot: string;
+    branchTitleSnapshot: string;
+    serviceTitleSnapshot: string;
+    durationMinutesSnapshot: number;
+    priceMinorSnapshot?: number;
+  }): Promise<PatientBookingRecord | null>;
 };
 
 export type PatientBookingService = {
@@ -178,6 +190,17 @@ export type PatientBookingService = {
   listBookingsByCanonicalAppointments(
     canonicalAppointmentIds: string[],
   ): Promise<PatientBookingRecord[]>;
+  /**
+   * Staff-created canonical appointments bypass the patient self-booking flow. Keep the historical
+   * booking projection in sync so the appointment retains the service price snapshot used by
+   * payment links and receipts even when the catalog price changes later.
+   */
+  ensureStaffBookingProjection(input: {
+    appointment: BeAppointment;
+    contactName: string;
+    contactPhone: string;
+    contactEmail?: string | null;
+  }): Promise<PatientBookingRecord | null>;
   syncLinkedPatientBookingCancelled(input: {
     canonicalAppointmentId: string;
     reason?: string;

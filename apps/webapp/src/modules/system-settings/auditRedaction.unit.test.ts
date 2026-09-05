@@ -98,12 +98,15 @@ describe('integration credential audit redaction', () => {
       const serialized = JSON.stringify(result);
       expect(serialized).not.toContain(webhookSecret);
       expect(serialized).not.toContain(apiKey);
+      const yookassa = (
+        result as { value: { providers: Array<Record<string, unknown>> } }
+      ).value.providers.find((provider) => provider.id === 'yookassa');
+      expect(yookassa).not.toHaveProperty('webhookSecret');
       expect(result).toMatchObject({
         value: {
           providers: [
             expect.objectContaining({
               id: 'yookassa',
-              webhookSecret: '[REDACTED]',
               apiKey: '[REDACTED]',
             }),
             expect.objectContaining({ id: 'tinkoff' }),
@@ -124,12 +127,15 @@ describe('integration credential audit redaction', () => {
       const serialized = JSON.stringify(result);
       expect(serialized).not.toContain(webhookSecret);
       expect(serialized).not.toContain(apiKey);
+      const yookassa = (
+        result as { value: { providers: Array<Record<string, unknown>> } }
+      ).value.providers.find((provider) => provider.id === 'yookassa');
+      expect(yookassa).not.toHaveProperty('webhookSecret');
       expect(result).toMatchObject({
         value: {
           providers: [
             expect.objectContaining({
               id: 'yookassa',
-              webhookSecret: '[REDACTED]',
               apiKey: '[REDACTED]',
             }),
           ],

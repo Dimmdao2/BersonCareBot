@@ -7,6 +7,7 @@ const fakes = vi.hoisted(() => ({
   createBookingSyncPort: vi.fn(),
   createScheduledManualPatientVisit: vi.fn(),
   getSpecialistAppointmentReminderSettings: vi.fn(),
+  ensureStaffBookingProjection: vi.fn(),
 }));
 
 vi.mock('../../_requireDoctorBookingEngine', () => ({
@@ -52,6 +53,7 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
       allowedPresetIds: ['day_before'],
       defaultPresetId: 'day_before',
     });
+    fakes.ensureStaffBookingProjection.mockResolvedValue(null);
 
     fakes.requireDoctorBookingEngine.mockResolvedValue({
       ok: true,
@@ -59,8 +61,7 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
         organizationId: 'org-1',
         session: { user: { userId: 'user-doc-1' } },
         service: {
-          getSpecialistAppointmentReminderSettings:
-            fakes.getSpecialistAppointmentReminderSettings,
+          getSpecialistAppointmentReminderSettings: fakes.getSpecialistAppointmentReminderSettings,
         },
       },
     });
@@ -72,40 +73,42 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
 
     fakes.buildAppDeps.mockReturnValue({
       bookingScheduling: null,
-      patientBooking: { getBookingByCanonicalAppointment: async () => null },
+      patientBooking: {
+        ensureStaffBookingProjection: fakes.ensureStaffBookingProjection,
+      },
       emailSetupAccess: {},
     });
 
-    fakes.createScheduledManualPatientVisit.mockImplementation(async (input: {
-      appointment: Record<string, unknown>;
-    }) => ({
-      ok: true,
-      kind: 'scheduled',
-      replayed: false,
-      appointment: {
-        id: 'appt-1',
-        organizationId: 'org-1',
-        specialistId: input.appointment.specialistId,
-        branchId: input.appointment.branchId,
-        serviceId: input.appointment.serviceId,
-        startAt: '2027-03-10T09:00:00.000Z',
-        endAt: '2027-03-10T09:30:00.000Z',
-        appointmentReminderAllowedPresetIds:
-          input.appointment.appointmentReminderAllowedPresetIds ?? [],
-        appointmentReminderPresetId: input.appointment.appointmentReminderPresetId ?? null,
-        attributionJson: {},
-      },
-      patient: {
-        userId: 'user-patient-1',
-        displayName: 'Иванов Иван',
-        lastName: 'Иванов',
-        firstName: 'Иван',
-        patronymic: null,
-        phoneNormalized: '+79990000000',
-      },
-      clinicalVisitId: 'visit-1',
-      portalStatus: 'active',
-    }));
+    fakes.createScheduledManualPatientVisit.mockImplementation(
+      async (input: { appointment: Record<string, unknown> }) => ({
+        ok: true,
+        kind: 'scheduled',
+        replayed: false,
+        appointment: {
+          id: 'appt-1',
+          organizationId: 'org-1',
+          specialistId: input.appointment.specialistId,
+          branchId: input.appointment.branchId,
+          serviceId: input.appointment.serviceId,
+          startAt: '2027-03-10T09:00:00.000Z',
+          endAt: '2027-03-10T09:30:00.000Z',
+          appointmentReminderAllowedPresetIds:
+            input.appointment.appointmentReminderAllowedPresetIds ?? [],
+          appointmentReminderPresetId: input.appointment.appointmentReminderPresetId ?? null,
+          attributionJson: {},
+        },
+        patient: {
+          userId: 'user-patient-1',
+          displayName: 'Иванов Иван',
+          lastName: 'Иванов',
+          firstName: 'Иван',
+          patronymic: null,
+          phoneNormalized: '+79990000000',
+        },
+        clinicalVisitId: 'visit-1',
+        portalStatus: 'active',
+      }),
+    );
 
     fakes.createBookingSyncPort.mockReturnValue({
       emitBookingEvent: vi.fn(async (evt: { payload: Record<string, unknown> }) => {
@@ -194,5 +197,10 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
         serviceId: SERVICE_ID,
       },
     });
+    expect(fakes.ensureStaffBookingProjection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointment: expect.objectContaining({ id: 'appt-1', serviceId: SERVICE_ID }),
+      }),
+    );
   });
 });
