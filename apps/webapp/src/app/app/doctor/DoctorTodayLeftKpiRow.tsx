@@ -32,6 +32,7 @@ import { SpecialistTaskRow as TaskRow } from './clients/SpecialistTaskRow';
 import { SpecialistTaskDetailsDialog } from './clients/SpecialistTaskDetailsDialog';
 import { SpecialistTaskFormDialog } from './clients/SpecialistTaskFormDialog';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
 
 type Props = Pick<
   TodayDashboardData,
@@ -61,6 +62,7 @@ type Props = Pick<
   taskMutationPending: boolean;
   onTaskComplete: (taskId: string) => Promise<boolean>;
   onTaskSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
+  onTaskDeleted: (taskId: string) => void;
 };
 
 type KpiModal = 'messages' | 'comments' | 'tests' | 'tasks' | null;
@@ -129,8 +131,10 @@ export function DoctorTodayLeftKpiRow({
   taskMutationPending,
   onTaskComplete,
   onTaskSaved,
+  onTaskDeleted,
 }: Props) {
   const [kpiModal, setKpiModal] = useState<KpiModal>(null);
+  const shellBadges = useOptionalDoctorShellBadgeCounts();
   const [selectedConversation, setSelectedConversation] =
     useState<TodayUnreadConversationItem | null>(null);
   const [locallyReadConversationIds, setLocallyReadConversationIds] = useState<Set<string>>(
@@ -155,7 +159,10 @@ export function DoctorTodayLeftKpiRow({
         : total,
     0,
   );
-  const messageTotal = Math.max(0, unreadTotal - locallyReadMessageCount);
+  const localMessageTotal = Math.max(0, unreadTotal - locallyReadMessageCount);
+  const messageTotal = shellBadges.messagesUnreadReady
+    ? shellBadges.messagesUnread
+    : localMessageTotal;
   const exerciseCommentItems = exerciseCommentAttentionItems.filter(
     (item) => !locallyReadCommentKeys.has(`${item.instanceId}:${item.stageItemId}`),
   );
@@ -166,10 +173,13 @@ export function DoctorTodayLeftKpiRow({
         : total,
     0,
   );
-  const displayTotal = Math.max(
+  const localExerciseCommentTotal = Math.max(
     0,
     (exerciseCommentsTotalOverride ?? exerciseCommentAttentionTotal) - locallyReadCommentCount,
   );
+  const displayTotal = shellBadges.unreadExerciseCommentsReady
+    ? shellBadges.unreadExerciseComments
+    : localExerciseCommentTotal;
   const attentionTasks = selectSpecialistTasksDueTodayOrOverdue(tasks, todayIso, displayIana);
   const selectedTask = selectedTaskId
     ? (tasks.find((task) => task.id === selectedTaskId) ?? null)
@@ -250,7 +260,6 @@ export function DoctorTodayLeftKpiRow({
             next.add(`${item.instanceId}:${item.stageItemId}`);
             return next;
           });
-          router.refresh();
         }}
       />
 
@@ -286,7 +295,6 @@ export function DoctorTodayLeftKpiRow({
                 next.add(readConversationId);
                 return next;
               });
-              router.refresh();
             }}
           />
         }
@@ -360,6 +368,7 @@ export function DoctorTodayLeftKpiRow({
               busy={taskMutationPending}
               onComplete={onTaskComplete}
               onTaskSaved={onTaskSaved}
+              onTaskDeleted={onTaskDeleted}
             />
           </>
         }

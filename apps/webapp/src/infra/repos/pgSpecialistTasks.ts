@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, or } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
@@ -133,6 +133,7 @@ export function createPgSpecialistTasksPort(
     async update(taskId, ownerUserId, patch: UpdateSpecialistTaskInput) {
       const now = new Date().toISOString();
       const set: Partial<typeof specialistTasks.$inferInsert> = { updatedAt: now };
+      if (patch.patientUserId !== undefined) set.patientUserId = patch.patientUserId;
       if (patch.title !== undefined) set.title = patch.title;
       if (patch.description !== undefined) set.description = patch.description;
       if (patch.dueAt !== undefined) set.dueAt = patch.dueAt;
@@ -148,10 +149,30 @@ export function createPgSpecialistTasksPort(
           where: and(eq(specialistTasks.id, taskId), eq(specialistTasks.ownerUserId, ownerUserId)),
         });
         if (!existing) return null;
+        if (
+          patch.patientUserId !== undefined &&
+          existing.patientUserId !== null &&
+          existing.patientUserId !== patch.patientUserId
+        ) {
+          throw new Error('task_patient_immutable');
+        }
+        const patientInvariant =
+          patch.patientUserId === undefined
+            ? undefined
+            : or(
+                isNull(specialistTasks.patientUserId),
+                eq(specialistTasks.patientUserId, patch.patientUserId),
+              );
         const updated = await tx
           .update(specialistTasks)
           .set({ ...set, organizationId: currentWriteOrganizationId(existing.organizationId) })
-          .where(and(eq(specialistTasks.id, taskId), eq(specialistTasks.ownerUserId, ownerUserId)))
+          .where(
+            and(
+              eq(specialistTasks.id, taskId),
+              eq(specialistTasks.ownerUserId, ownerUserId),
+              patientInvariant,
+            ),
+          )
           .returning();
         const task = updated[0] ? mapRow(updated[0]) : null;
         if (!task) return null;

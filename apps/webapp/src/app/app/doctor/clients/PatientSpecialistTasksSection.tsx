@@ -9,6 +9,7 @@ import {
 } from './doctorClientCardChrome';
 import { SpecialistTaskFormDialog } from './SpecialistTaskFormDialog';
 import { SpecialistTaskRow as TaskRow } from './SpecialistTaskRow';
+import { notifyDoctorTasksChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
 
 type Props = {
   patientUserId: string;
@@ -58,7 +59,10 @@ export function PatientSpecialistTasksSection({ patientUserId }: Props) {
 
   function handleComplete(taskId: string) {
     startTransition(async () => {
-      await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/complete`, { method: 'POST' });
+      const response = await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/complete`, {
+        method: 'POST',
+      });
+      if (response.ok) notifyDoctorTasksChanged();
       setCompletedTasks(null);
       reloadOpen();
     });
@@ -115,6 +119,11 @@ export function PatientSpecialistTasksSection({ patientUserId }: Props) {
         onOpenChange={setDialogOpen}
         patientUserId={patientUserId}
         editing={editing}
+        onDeleted={(taskId) => {
+          setOpenTasks((current) => current.filter((task) => task.id !== taskId));
+          setCompletedTasks(null);
+          setEditing(null);
+        }}
         onSaved={() => {
           setCompletedTasks(null);
           reloadOpen();

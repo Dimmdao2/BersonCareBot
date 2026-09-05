@@ -55,6 +55,7 @@ export function DoctorGlobalTasksSection({
   busy = false,
   onComplete,
   onTaskSaved,
+  onTaskDeleted,
 }: {
   tasks: SpecialistTaskRow[];
   taskPatientNames: Record<string, string>;
@@ -69,6 +70,7 @@ export function DoctorGlobalTasksSection({
   busy?: boolean;
   onComplete: (taskId: string) => Promise<boolean>;
   onTaskSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
+  onTaskDeleted?: (taskId: string) => void;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
@@ -219,6 +221,7 @@ export function DoctorGlobalTasksSection({
         busy={busy}
         onComplete={onComplete}
         onTaskSaved={onTaskSaved}
+        onTaskDeleted={onTaskDeleted}
       />
     </DoctorSection>
   );

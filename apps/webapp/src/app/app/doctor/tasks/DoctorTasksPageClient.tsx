@@ -33,6 +33,7 @@ import {
   SpecialistTaskFormContent,
   SpecialistTaskFormDialog,
 } from '../clients/SpecialistTaskFormDialog';
+import { notifyDoctorTasksChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
 
 type Pane = { kind: 'details' | 'edit'; taskId: string } | null;
 type TaskView = 'open' | 'completed';
@@ -177,6 +178,7 @@ export function DoctorTasksPageClient({
       }
       const completedTask = data.task;
       setTasks((current) => current.map((task) => (task.id === taskId ? completedTask : task)));
+      notifyDoctorTasksChanged();
       setPane(null);
       return true;
     } catch {
@@ -187,6 +189,11 @@ export function DoctorTasksPageClient({
     }
   };
 
+  const deleteTask = (taskId: string) => {
+    setTasks((current) => current.filter((task) => task.id !== taskId));
+    setPane(null);
+  };
+
   const right =
     pane?.kind === 'edit' && selected ? (
       <SpecialistTaskFormContent
@@ -194,6 +201,7 @@ export function DoctorTasksPageClient({
         patientUserId=""
         editing={selected}
         onSaved={saveTask}
+        onDeleted={deleteTask}
         onClose={() => setPane({ kind: 'details', taskId: selected.id })}
       />
     ) : selected ? (
@@ -333,6 +341,7 @@ export function DoctorTasksPageClient({
           desktopPresentation="right-sheet"
           onComplete={complete}
           onTaskSaved={saveTask}
+          onTaskDeleted={deleteTask}
         />
       ) : null}
       {canMutate ? (

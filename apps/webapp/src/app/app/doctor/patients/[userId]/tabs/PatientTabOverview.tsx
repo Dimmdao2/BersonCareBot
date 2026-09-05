@@ -1486,6 +1486,14 @@ export function PatientTabOverview({
     setEditingTask(null);
   }
 
+  function handleTaskDeleted(taskId: string) {
+    setData((prev) =>
+      prev ? { ...prev, tasks: prev.tasks.filter((task) => task.id !== taskId) } : prev,
+    );
+    setTaskFormOpen(false);
+    setEditingTask(null);
+  }
+
   // Calendar month nav helpers
   const nowCal = new Date();
   const isCalCurrentMonth = calYear === nowCal.getFullYear() && calMonth === nowCal.getMonth() + 1;
@@ -1673,7 +1681,9 @@ export function PatientTabOverview({
       }}
       patientUserId={userId}
       editing={editingTask}
+      patientDisplayName={patientHeaderName ?? undefined}
       onSaved={handleTaskSaved}
+      onDeleted={handleTaskDeleted}
     />
   );
 

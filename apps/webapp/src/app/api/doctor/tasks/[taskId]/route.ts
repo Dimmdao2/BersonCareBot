@@ -39,6 +39,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
+  if (parsed.data.patientUserId) {
+    if (existing.patientUserId && existing.patientUserId !== parsed.data.patientUserId) {
+      return NextResponse.json({ ok: false, error: 'task_patient_immutable' }, { status: 409 });
+    }
+    if (!existing.patientUserId) {
+      const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+        parsed.data.patientUserId,
+        gate.ctx.organizationId,
+        gate.ctx,
+      );
+      if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+    }
+  }
+
   const clearReminderSent =
     parsed.data.remindAt !== undefined && parsed.data.remindAt !== existing.remindAt;
 
@@ -54,6 +68,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ taskI
   } catch (e) {
     if (e instanceof Error && e.message === 'empty_title') {
       return NextResponse.json({ ok: false, error: 'empty_title' }, { status: 400 });
+    }
+    if (e instanceof Error && e.message === 'task_patient_immutable') {
+      return NextResponse.json({ ok: false, error: 'task_patient_immutable' }, { status: 409 });
     }
     throw e;
   }

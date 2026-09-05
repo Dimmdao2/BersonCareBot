@@ -114,7 +114,7 @@ export function SpecialistTaskRow({
                     overdue
                       ? 'text-destructive'
                       : dueToday
-                        ? 'text-primary'
+                        ? 'text-foreground'
                         : 'text-muted-foreground',
                   )}
                 >

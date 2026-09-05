@@ -36,6 +36,7 @@ import { DoctorStatCard } from './analytics/clients/DoctorStatCard';
 import type { TodayDashboardData } from './loadDoctorTodayDashboard';
 import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
 import { ON_SUPPORT_LIST_HREF, RECENT_VISITS_LIST_HREF } from './doctorTodayLinks';
+import { notifyDoctorTasksChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
 
 export type DoctorTodayCalendarSnapshot = {
   todayIso: string;
@@ -225,11 +226,9 @@ export function DoctorTodayDashboard({
     const refresh = () => {
       if (document.visibilityState === 'visible') router.refresh();
     };
-    const intervalId = window.setInterval(refresh, 10_000);
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('focus', refresh);
     return () => {
-      window.clearInterval(intervalId);
       document.removeEventListener('visibilitychange', refresh);
       window.removeEventListener('focus', refresh);
     };
@@ -265,12 +264,23 @@ export function DoctorTodayDashboard({
       });
       if (!response.ok) return false;
       setLocallyCompletedTaskIds((current) => new Set(current).add(taskId));
+      notifyDoctorTasksChanged();
       return true;
     } catch {
       return false;
     } finally {
       setTaskMutationPending(false);
     }
+  };
+
+  const handleTaskDeleted = (taskId: string) => {
+    setLocallyCompletedTaskIds((current) => new Set(current).add(taskId));
+    setTaskOverrides((current) => {
+      if (!(taskId in current)) return current;
+      const next = { ...current };
+      delete next[taskId];
+      return next;
+    });
   };
 
   return (
@@ -315,6 +325,7 @@ export function DoctorTodayDashboard({
             taskMutationPending={taskMutationPending}
             onTaskComplete={handleTaskComplete}
             onTaskSaved={handleTaskSaved}
+            onTaskDeleted={handleTaskDeleted}
           />
 
           <DoctorTodayNextAppointment

@@ -93,6 +93,7 @@ export function usePatientNotificationUnreadCount() {
  */
 export function useDoctorSupportUnreadCountPolling(enabled = true) {
   const [count, setCount] = useState(0);
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
@@ -101,7 +102,10 @@ export function useDoctorSupportUnreadCountPolling(enabled = true) {
       try {
         const res = await fetch('/api/doctor/messages/unread-count');
         const j = (await res.json()) as { ok?: boolean; unreadCount?: number };
-        if (!cancelled && j.ok && typeof j.unreadCount === 'number') setCount(j.unreadCount);
+        if (!cancelled && j.ok && typeof j.unreadCount === 'number') {
+          setCount(j.unreadCount);
+          setReady(true);
+        }
       } catch {
         /* ignore */
       }
@@ -120,5 +124,5 @@ export function useDoctorSupportUnreadCountPolling(enabled = true) {
       window.removeEventListener(DOCTOR_SUPPORT_UNREAD_REFRESH_EVENT, run);
     };
   }, [enabled]);
-  return enabled ? count : 0;
+  return { count: enabled ? count : 0, ready: enabled && ready };
 }

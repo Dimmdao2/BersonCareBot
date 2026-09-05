@@ -37,7 +37,9 @@ export function isSpecialistTaskDueOnDate(
   displayIana: string,
 ): boolean {
   if (task.completedAt || !task.dueAt) return false;
-  const due = DateTime.fromISO(task.dueAt, { setZone: true }).setZone(displayIana);
+  const dueMs = Date.parse(task.dueAt);
+  if (Number.isNaN(dueMs)) return false;
+  const due = DateTime.fromMillis(dueMs).setZone(displayIana);
   return due.isValid && due.toISODate() === dateIso;
 }
 

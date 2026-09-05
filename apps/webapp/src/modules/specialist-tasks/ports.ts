@@ -12,6 +12,8 @@ export type CreateSpecialistTaskInput = {
 };
 
 export type UpdateSpecialistTaskInput = {
+  /** A patient may only be attached to a previously unlinked task. */
+  patientUserId?: string;
   title?: string;
   description?: string | null;
   dueAt?: string | null;

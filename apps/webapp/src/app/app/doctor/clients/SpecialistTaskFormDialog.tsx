@@ -2,7 +2,11 @@
 
 import { useEffect, useId, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import {
+  DoctorModal,
+  DoctorModalFooter,
+  DoctorModalStackedTitle,
+} from '@/shared/ui/doctor/DoctorModal';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
@@ -13,6 +17,8 @@ import {
   type CalendarPatientOption,
 } from '@/app/app/doctor/calendar/DoctorCalendarPatientSearch';
 import { formatDoctorFio } from '@/shared/lib/fio';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
+import { notifyDoctorTasksChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
 
 function toLocalInput(iso: string | null, includeTime = true): string {
   if (!iso) return '';
@@ -50,6 +56,7 @@ export type SpecialistTaskFormContentProps = {
   patientUserId: string;
   editing: SpecialistTaskRow | null;
   onSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
+  onDeleted?: (taskId: string) => void;
   onClose: () => void;
   formId?: string;
   showInlineActions?: boolean;
@@ -59,6 +66,7 @@ export function SpecialistTaskFormContent({
   patientUserId,
   editing,
   onSaved,
+  onDeleted,
   onClose,
   formId,
   showInlineActions = true,
@@ -71,6 +79,8 @@ export function SpecialistTaskFormContent({
   const [remindAt, setRemindAt] = useState(() => toLocalInput(editing?.remindAt ?? null));
   const [isImportant, setIsImportant] = useState(editing?.isImportant ?? false);
   const [error, setError] = useState<string | null>(null);
+  const [titleInvalid, setTitleInvalid] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   /**
@@ -131,9 +141,15 @@ export function SpecialistTaskFormContent({
   }, [editing?.patientUserId, patientUserId]);
 
   const isGlobal = !patientUserId.trim();
+  const canSelectPatient = isGlobal && !editing?.patientUserId;
 
   function handleSubmit() {
-    if (isPending || !title.trim()) return;
+    if (isPending) return;
+    if (!title.trim()) {
+      setTitleInvalid(true);
+      return;
+    }
+    setTitleInvalid(false);
     setError(null);
     const effectivePatientUserId = isGlobal ? (linkedPatient?.id ?? null) : patientUserId;
 
@@ -145,6 +161,12 @@ export function SpecialistTaskFormContent({
       remindAt: fromLocalInput(remindAt),
       isImportant,
     };
+    const requestBody =
+      isGlobal && !editing
+        ? { ...body, patientUserId: effectivePatientUserId }
+        : isGlobal && !editing?.patientUserId && effectivePatientUserId
+          ? { ...body, patientUserId: effectivePatientUserId }
+          : body;
 
     startTransition(async () => {
       try {
@@ -156,9 +178,7 @@ export function SpecialistTaskFormContent({
         const res = await fetch(url, {
           method: editing ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(
-            isGlobal && !editing ? { ...body, patientUserId: effectivePatientUserId } : body,
-          ),
+          body: JSON.stringify(requestBody),
         });
         if (!res.ok) {
           setError('Не удалось сохранить');
@@ -176,12 +196,60 @@ export function SpecialistTaskFormContent({
             ? linkedPatientDisplayName
             : undefined,
         );
+        notifyDoctorTasksChanged();
         onClose();
       } catch {
         setError('Ошибка сети');
       }
     });
   }
+
+  function handleDelete() {
+    if (!editing || isPending) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/doctor/tasks/${encodeURIComponent(editing.id)}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) {
+          setDeleteConfirmOpen(false);
+          setError('Не удалось удалить задачу');
+          return;
+        }
+        setDeleteConfirmOpen(false);
+        onDeleted?.(editing.id);
+        notifyDoctorTasksChanged();
+        onClose();
+      } catch {
+        setDeleteConfirmOpen(false);
+        setError('Ошибка сети');
+      }
+    });
+  }
+
+  const actions = (
+    <>
+      {editing ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="border-destructive/40 text-destructive hover:bg-destructive/10"
+          onClick={() => setDeleteConfirmOpen(true)}
+          disabled={isPending}
+        >
+          Удалить
+        </Button>
+      ) : (
+        <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
+          Отмена
+        </Button>
+      )}
+      <Button type="submit" form={formId} disabled={isPending}>
+        {isPending ? 'Сохранение…' : 'Сохранить'}
+      </Button>
+    </>
+  );
 
   return (
     <form
@@ -192,8 +260,7 @@ export function SpecialistTaskFormContent({
         handleSubmit();
       }}
     >
-      {/* Patient picker: shown only for global tasks (patientUserId === "") */}
-      {isGlobal ? (
+      {canSelectPatient ? (
         <DoctorCalendarPatientSearch
           value={linkedPatient}
           onChange={setLinkedPatient}
@@ -204,11 +271,20 @@ export function SpecialistTaskFormContent({
         <span className="font-medium">Задача</span>
         <Input
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            if (e.target.value.trim()) setTitleInvalid(false);
+          }}
           placeholder="Кратко"
           maxLength={500}
-          required
+          aria-invalid={titleInvalid || undefined}
+          className={titleInvalid ? 'border-destructive focus-visible:ring-destructive/30' : undefined}
         />
+        {titleInvalid ? (
+          <span role="alert" className="w-fit rounded bg-white px-1 text-sm text-destructive">
+            Заполните это поле
+          </span>
+        ) : null}
       </label>
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Описание</span>
@@ -234,16 +310,34 @@ export function SpecialistTaskFormContent({
         <DoctorDateTimePicker value={remindAt} onChange={setRemindAt} />
       </label>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {showInlineActions ? (
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
-            Отмена
-          </Button>
-          <Button type="submit" disabled={isPending || !title.trim()}>
-            {isPending ? 'Сохранение…' : 'Сохранить'}
-          </Button>
-        </div>
-      ) : null}
+      {showInlineActions ? <div className="flex justify-end gap-2 pt-1">{actions}</div> : null}
+      {!showInlineActions ? <DoctorModalFooter>{actions}</DoctorModalFooter> : null}
+      <DoctorModal
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        title="Удалить задачу?"
+        size="sm"
+        nested
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteConfirmOpen(false)}
+              disabled={isPending}
+            >
+              Не удалять
+            </Button>
+            <Button type="button" variant="destructive" onClick={handleDelete} disabled={isPending}>
+              {isPending ? 'Удаление…' : 'Удалить'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-foreground">
+          Вы действительно хотите удалить задачу «{editing?.title.trim() || 'Без названия'}»?
+        </p>
+      </DoctorModal>
     </form>
   );
 }
@@ -254,6 +348,9 @@ type Props = {
   patientUserId: string;
   editing: SpecialistTaskRow | null;
   onSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
+  onDeleted?: (taskId: string) => void;
+  patientDisplayName?: string;
+  patientOnSupport?: boolean;
 };
 
 export function SpecialistTaskFormDialog({
@@ -262,25 +359,69 @@ export function SpecialistTaskFormDialog({
   patientUserId,
   editing,
   onSaved,
+  onDeleted,
+  patientDisplayName,
+  patientOnSupport = false,
 }: Props) {
   const formId = useId();
+  const [resolvedPatientDisplayName, setResolvedPatientDisplayName] = useState(
+    patientDisplayName?.trim() || '',
+  );
+
+  useEffect(() => {
+    setResolvedPatientDisplayName(patientDisplayName?.trim() || '');
+    if (!editing?.patientUserId || patientDisplayName?.trim()) return;
+    const controller = new AbortController();
+    void fetch(`/api/doctor/patients/${encodeURIComponent(editing.patientUserId)}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          ok?: boolean;
+          header?: {
+            identity?: {
+              displayName?: string | null;
+              firstName?: string | null;
+              lastName?: string | null;
+              patronymic?: string | null;
+            };
+          };
+        };
+        const identity = data.header?.identity;
+        if (!data.ok || !identity) return;
+        setResolvedPatientDisplayName(
+          formatDoctorFio(
+            {
+              lastName: identity.lastName ?? null,
+              firstName: identity.firstName ?? null,
+              patronymic: identity.patronymic ?? null,
+            },
+            identity.displayName?.trim() || 'Пациент',
+          ),
+        );
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [editing?.patientUserId, patientDisplayName]);
 
   return (
     <DoctorModal
       open={open}
       onClose={() => onOpenChange(false)}
-      title={editing ? 'Изменить задачу' : 'Новая задача'}
-      size="sm"
-      footer={
-        <>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Отмена
-          </Button>
-          <Button type="submit" form={formId}>
-            Сохранить
-          </Button>
-        </>
+      title={
+        editing ? (
+          <DoctorModalStackedTitle
+            label="Изменить задачу"
+            patientName={editing.patientUserId ? resolvedPatientDisplayName || 'Пациент' : undefined}
+            patientHref={editing.patientUserId ? patientCardHref(editing.patientUserId) : null}
+            patientOnSupport={patientOnSupport}
+          />
+        ) : (
+          'Новая задача'
+        )
       }
+      size="sm"
     >
       {open ? (
         <SpecialistTaskFormContent
@@ -288,6 +429,7 @@ export function SpecialistTaskFormDialog({
           patientUserId={patientUserId}
           editing={editing}
           onSaved={onSaved}
+          onDeleted={onDeleted}
           onClose={() => onOpenChange(false)}
           formId={formId}
           showInlineActions={false}

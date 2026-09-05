@@ -26,4 +26,10 @@ describe('isSpecialistTaskDueOnDate', () => {
     expect(isSpecialistTaskDueOnDate(nearUtcMidnight, '2026-08-23', 'Europe/Moscow')).toBe(true);
     expect(isSpecialistTaskDueOnDate(nearUtcMidnight, '2026-08-22', 'Europe/Moscow')).toBe(false);
   });
+
+  it('recognizes a date-only deadline returned in PostgreSQL timestamp format', () => {
+    const endOfDay = task('2026-09-05 20:59:59.999+00');
+
+    expect(isSpecialistTaskDueOnDate(endOfDay, '2026-09-05', 'Europe/Moscow')).toBe(true);
+  });
 });

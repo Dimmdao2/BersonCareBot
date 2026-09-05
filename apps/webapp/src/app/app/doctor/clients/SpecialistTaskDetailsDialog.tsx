@@ -39,6 +39,7 @@ type Props = {
   desktopPresentation?: DoctorModalDesktopPresentation;
   onComplete: (taskId: string) => Promise<boolean>;
   onTaskSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
+  onTaskDeleted?: (taskId: string) => void;
 };
 
 export type SpecialistTaskDetailsContentProps = {
@@ -122,7 +123,6 @@ export function SpecialistTaskDetailsContent({
               className={cn(
                 doctorBodyTextClass,
                 overdue && 'text-destructive',
-                dueToday && 'text-primary',
               )}
             >
               {dueLabel}
@@ -170,6 +170,7 @@ export function SpecialistTaskDetailsDialog({
   desktopPresentation,
   onComplete,
   onTaskSaved,
+  onTaskDeleted,
 }: Props) {
   const [editOpen, setEditOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -240,9 +241,16 @@ export function SpecialistTaskDetailsDialog({
           onOpenChange={setEditOpen}
           patientUserId=""
           editing={task}
+          patientDisplayName={patientDisplayName}
+          patientOnSupport={patientOnSupport}
           onSaved={(savedTask, savedPatientDisplayName) => {
             onTaskSaved(savedTask, savedPatientDisplayName ?? patientDisplayName);
             setEditOpen(false);
+          }}
+          onDeleted={(taskId) => {
+            onTaskDeleted?.(taskId);
+            setEditOpen(false);
+            onClose();
           }}
         />
       ) : null}

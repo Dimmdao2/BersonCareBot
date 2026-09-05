@@ -2100,11 +2100,6 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.user_contacts': 'почта человека приглашения — её подтверждение и есть смысл двери',
   },
 
-  'app.resolve_payment_webhook_organization(text,text,text)': {
-    'public.be_payment_provider_events': 'дверь НАХОДИТ клинику по ключу идемпотентности вебхука провайдера — организация здесь ответ, а не условие',
-    'public.be_payment_intents': 'тот же поиск клиники по ключу идемпотентности намерения оплаты — организация ответ, а не условие',
-  },
-
   'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)': {
     'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; подтверждение почты идёт до вступления в клинику',
     'public.be_organizations': 'клиника приглашения проверяется на активность перед отправкой кода',

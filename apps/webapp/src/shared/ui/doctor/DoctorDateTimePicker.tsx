@@ -26,7 +26,7 @@ function currentLocalTimeSlot(stepMinutes: number): string {
   const now = DateTime.local();
   const totalMinutes = now.hour * 60 + now.minute;
   const roundedMinutes = Math.round(totalMinutes / stepMinutes) * stepMinutes;
-  const boundedMinutes = Math.min(23 * 60 + 59, roundedMinutes);
+  const boundedMinutes = Math.min(24 * 60 - stepMinutes, roundedMinutes);
   return `${String(Math.floor(boundedMinutes / 60)).padStart(2, '0')}:${String(
     boundedMinutes % 60,
   ).padStart(2, '0')}`;
@@ -70,6 +70,7 @@ export function DoctorDateTimePicker({
 }: Props) {
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobileViewport();
+  const mobileTimeStepMinutes = 5;
   const isTimeOnly = mode === 'time';
   const isDateOnly = mode === 'date';
   const hasExplicitTime = /T\d{2}:\d{2}/.test(value);
@@ -145,7 +146,7 @@ export function DoctorDateTimePicker({
         DateTime.fromJSDate(draftDate),
         isDateOnly || (optionalTime && !draftTimeEnabled)
           ? ''
-          : draftTime || currentLocalTimeSlot(timeStepMinutes),
+          : draftTime || currentLocalTimeSlot(mobileTimeStepMinutes),
       );
     }
     setOpen(false);
@@ -155,7 +156,7 @@ export function DoctorDateTimePicker({
     exceedsMax(formatValue(DateTime.fromJSDate(date), hhmm));
   const isDraftTimeUnavailable =
     !isTimeOnly && !isDateOnly && draftDate && draftTimeEnabled
-      ? isTimeUnavailable(draftDate, draftTime || currentLocalTimeSlot(timeStepMinutes))
+      ? isTimeUnavailable(draftDate, draftTime || currentLocalTimeSlot(mobileTimeStepMinutes))
       : false;
 
   const triggerClassName = cn(
@@ -195,7 +196,7 @@ export function DoctorDateTimePicker({
             isTimeOnly ? 'Выберите время' : isDateOnly ? 'Выберите дату' : 'Выберите дату и время'
           }
           size="sm"
-          bodyClassName="p-0"
+          bodyClassName="flex flex-col !overflow-hidden p-0"
           footer={
             <Button
               type="button"
@@ -206,20 +207,22 @@ export function DoctorDateTimePicker({
             </Button>
           }
         >
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {isTimeOnly ? (
-              <div>
+              <div className="flex min-h-0 flex-1 flex-col">
                 <DoctorTimeColumn
                   value={draftTime}
                   disabled={disabled}
                   startHour={0}
                   endHour={23}
-                  stepMinutes={timeStepMinutes}
+                  stepMinutes={mobileTimeStepMinutes}
+                  splitColumns
                   onChange={setDraftTime}
+                  className="min-h-0 flex-1 max-h-none sm:max-h-none"
                 />
               </div>
             ) : (
-              <div className="flex flex-col">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <DayPicker
                   mode="single"
                   locale={ru}
@@ -230,10 +233,10 @@ export function DoctorDateTimePicker({
                   modifiers={{ past: { before: today } }}
                   modifiersClassNames={{ past: 'doctor-day-picker-past' }}
                   onSelect={(d) => setDraftDate(d)}
-                  className={cn(RDP_CLASS, 'flex justify-center p-3')}
+                  className={cn(RDP_CLASS, 'flex shrink-0 justify-center p-3')}
                 />
                 {!isDateOnly ? (
-                  <div className="border-t border-border pt-3">
+                  <div className="flex min-h-0 flex-1 flex-col border-t border-border pt-3">
                     <div className="mb-1 flex items-center gap-2 px-3">
                       <span className="text-sm text-muted-foreground">Время</span>
                       {optionalTime ? (
@@ -242,7 +245,7 @@ export function DoctorDateTimePicker({
                           onCheckedChange={(enabled) => {
                             setDraftTimeEnabled(enabled);
                             if (enabled && !draftTime) {
-                              setDraftTime(currentLocalTimeSlot(timeStepMinutes));
+                              setDraftTime(currentLocalTimeSlot(mobileTimeStepMinutes));
                             }
                           }}
                           aria-label="Указать время"
@@ -256,8 +259,10 @@ export function DoctorDateTimePicker({
                         isSlotDisabled={(hhmm) =>
                           draftDate ? isTimeUnavailable(draftDate, hhmm) : false
                         }
-                        stepMinutes={timeStepMinutes}
+                        stepMinutes={mobileTimeStepMinutes}
+                        splitColumns
                         onChange={setDraftTime}
+                        className="min-h-0 flex-1 max-h-none sm:max-h-none"
                       />
                     ) : null}
                   </div>

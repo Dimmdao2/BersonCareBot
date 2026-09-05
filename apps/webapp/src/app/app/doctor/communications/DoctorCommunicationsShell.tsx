@@ -25,6 +25,7 @@ import {
   COMMUNICATIONS_TAB_REGISTRY,
   type CommunicationsTabProps,
 } from './communicationsTabRegistry';
+import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
 
 // ---------------------------------------------------------------------------
 // Tabs nav (inline, passed to DoctorPageHeader.tabs slot)
@@ -136,6 +137,17 @@ export function DoctorCommunicationsShell({
   })();
 
   const [activeTab, setActiveTab] = useState<CommunicationsTabId>(resolvedInit);
+  const shellBadges = useOptionalDoctorShellBadgeCounts();
+  const liveBadges = useMemo(
+    () => ({
+      ...badges,
+      chats: shellBadges.messagesUnreadReady ? shellBadges.messagesUnread : badges?.chats,
+      comments: shellBadges.unreadExerciseCommentsReady
+        ? shellBadges.unreadExerciseComments
+        : badges?.comments,
+    }),
+    [badges, shellBadges],
+  );
   const activeTabRef = useRef(activeTab);
 
   // Множество смонтированных табов — только растёт (keepMounted).
@@ -216,13 +228,13 @@ export function DoctorCommunicationsShell({
   const mobileBottomTabs = useMemo(
     () => (
       <DoctorMobileSectionTabs
-        tabs={COMMUNICATIONS_TABS.map((tab) => ({ ...tab, badge: badges?.[tab.id] }))}
+        tabs={COMMUNICATIONS_TABS.map((tab) => ({ ...tab, badge: liveBadges[tab.id] }))}
         activeTab={activeTab}
         onTabChange={handleTabChange}
         ariaLabel="Разделы коммуникаций"
       />
     ),
-    [activeTab, badges, handleTabChange],
+    [activeTab, handleTabChange, liveBadges],
   );
 
   return (
@@ -250,7 +262,7 @@ export function DoctorCommunicationsShell({
         tabs={
           <CommunicationsTabsNav
             activeTab={activeTab}
-            badges={badges}
+            badges={liveBadges}
             onTabClick={handleTabChange}
           />
         }

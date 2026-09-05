@@ -249,3 +249,47 @@ describe('specialist task tariff mutations', () => {
     expect(write).toHaveBeenCalledOnce();
   });
 });
+
+describe('specialist task patient attachment', () => {
+  beforeEach(() => {
+    fakes.requireEntitlementForMutation.mockResolvedValue({ ok: true });
+  });
+
+  it('allows attaching a visible patient to a previously unlinked task', async () => {
+    fakes.getByIdForOwner.mockResolvedValue({ ...task, patientUserId: null });
+
+    const response = await updateTask(
+      jsonRequest('https://app.example.test/api/doctor/tasks/' + TASK_ID, 'PATCH', {
+        patientUserId: PATIENT_ID,
+      }),
+      taskParams(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fakes.getClientIdentityForOrganization).toHaveBeenCalledWith(
+      PATIENT_ID,
+      ORGANIZATION_ID,
+      workspace,
+    );
+    expect(fakes.update).toHaveBeenCalledWith(
+      TASK_ID,
+      DOCTOR_ID,
+      expect.objectContaining({ patientUserId: PATIENT_ID }),
+    );
+  });
+
+  it('refuses replacing a patient already linked to the task', async () => {
+    const otherPatientId = '00000000-0000-4000-8000-000000005069';
+
+    const response = await updateTask(
+      jsonRequest('https://app.example.test/api/doctor/tasks/' + TASK_ID, 'PATCH', {
+        patientUserId: otherPatientId,
+      }),
+      taskParams(),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ error: 'task_patient_immutable' });
+    expect(fakes.update).not.toHaveBeenCalled();
+  });
+});

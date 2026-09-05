@@ -1,7 +1,16 @@
 'use client';
 
 import 'react-day-picker/style.css';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type CSSProperties,
+} from 'react';
 import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
 import { DayPicker } from 'react-day-picker';
@@ -565,13 +574,21 @@ function listRowClass(appt: CalendarAppointmentEvent, timeZone: string): string 
   if (isCancelledAppointmentStatus(appt.status))
     return 'border-destructive/25 bg-destructive/10 text-destructive/80 hover:bg-destructive/15';
   const isPast = parseFeedInstant(appt.startAt, timeZone) < DateTime.now();
-  const base =
-    appt.status === 'awaiting_payment' || appt.prepaymentPending
-      ? 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/15'
-      : appt.packageUsageRef || appt.packageTitle
-        ? 'border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/15'
-        : 'border-primary/30 bg-primary/10 hover:bg-primary/15';
+  const base = appt.branchColor
+    ? 'border-[color:var(--list-branch-border)] bg-[color:var(--list-branch-bg)] text-foreground hover:brightness-[0.98]'
+    : 'border-primary/30 bg-primary/10 hover:bg-primary/15';
   return cn(base, isPast && 'opacity-60');
+}
+
+function listRowStyle(appt: CalendarAppointmentEvent): CSSProperties | undefined {
+  if (!appt.branchColor || isCancelledAppointmentStatus(appt.status)) return undefined;
+  const background = rgba(appt.branchColor, 0.16);
+  const border = rgba(appt.branchColor, 0.42);
+  if (!background || !border) return undefined;
+  return {
+    '--list-branch-bg': background,
+    '--list-branch-border': border,
+  } as CSSProperties;
 }
 
 function ListDayCard({
@@ -610,6 +627,7 @@ function ListDayCard({
               type="button"
               variant="ghost"
               onClick={() => onSelect(appt)}
+              style={listRowStyle(appt)}
               className={cn(
                 'flex h-auto min-h-0 w-full items-start gap-3 whitespace-normal rounded-none border-0 border-b border-border/60 px-3 py-2 text-left text-sm md:rounded-md md:border md:px-3 md:py-2',
                 listRowClass(appt, timeZone),
@@ -617,7 +635,7 @@ function ListDayCard({
                 // tailwind-merge считает `border-primary/30` из палитры конфликтующим и
                 // выбрасывает цвет верхней линии. Нижняя линия остаётся обычным разделителем,
                 // чтобы синей была ровно одна линия и только сверху.
-                isNext ? 'border-t-2 border-t-primary border-b-border/60' : '',
+                isNext ? 'border-t-2 !border-t-primary border-b-border/60' : '',
               )}
               data-testid={`list-appt-${appt.id}`}
             >
@@ -681,6 +699,7 @@ type ListViewProps = {
   onSelect: (appt: CalendarAppointmentEvent) => void;
   branchShortLabels: ReadonlyMap<string, string>;
   showSpecialist: boolean;
+  scrollToTodayRequest: number;
 };
 
 function ListView({
@@ -697,12 +716,14 @@ function ListView({
   onSelect,
   branchShortLabels,
   showSpecialist,
+  scrollToTodayRequest,
 }: ListViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchorMarkerRef = useRef<HTMLDivElement>(null);
   const earlierSentinelRef = useRef<HTMLDivElement>(null);
   const laterSentinelRef = useRef<HTMLDivElement>(null);
   const positionedAnchorRef = useRef<string | null>(null);
+  const positionedTodayRequestRef = useRef(0);
   const prependSnapshotRef = useRef<{ height: number; top: number } | null>(null);
   const dayGroups = useMemo<
     Array<{
@@ -764,13 +785,27 @@ function ListView({
   useEffect(() => {
     const scrollNode = scrollRef.current;
     const markerNode = anchorMarkerRef.current;
-    if (loading || !scrollNode || !markerNode || positionedAnchorRef.current === anchorDate) return;
+    if (
+      loading ||
+      !scrollNode ||
+      !markerNode ||
+      (positionedAnchorRef.current === anchorDate &&
+        positionedTodayRequestRef.current === scrollToTodayRequest)
+    ) {
+      return;
+    }
+    const isExplicitTodayRequest =
+      scrollToTodayRequest > positionedTodayRequestRef.current;
     const frame = window.requestAnimationFrame(() => {
-      scrollNode.scrollTop = Math.max(0, markerNode.offsetTop - 8);
+      scrollNode.scrollTo({
+        top: Math.max(0, markerNode.offsetTop - 8),
+        behavior: isExplicitTodayRequest ? 'smooth' : 'auto',
+      });
       positionedAnchorRef.current = anchorDate;
+      positionedTodayRequestRef.current = scrollToTodayRequest;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [anchorDate, loading]);
+  }, [anchorDate, loading, scrollToTodayRequest]);
 
   useEffect(() => {
     const root = scrollRef.current;
@@ -822,7 +857,7 @@ function ListView({
   return (
     <div
       ref={scrollRef}
-      className="flex h-full min-h-0 flex-col overflow-y-auto pb-4 md:gap-3 md:pr-1"
+      className="flex h-full min-h-0 flex-col overflow-y-auto bg-card md:gap-3 md:pr-1"
       data-testid="list-view"
     >
       <div ref={earlierSentinelRef} className="h-px" aria-hidden />
@@ -842,7 +877,7 @@ function ListView({
             <Fragment key={dateKey}>
               {index === anchorMarkerIndex ? <div ref={anchorMarkerRef} /> : null}
               {index === 0 || dayGroups[index - 1]?.monthKey !== dayGroups[index]?.monthKey ? (
-                <p className="px-3 pb-1 pt-3 text-sm font-medium capitalize text-muted-foreground md:px-0">
+                <p className="mt-2 border-t border-border/70 px-3 py-4 text-center text-base font-normal capitalize text-foreground md:px-0">
                   {dayGroups[index]?.monthLabel}
                 </p>
               ) : null}
@@ -964,6 +999,7 @@ export function ScheduleCalendarTab({
   const [listAppointments, setListAppointments] = useState<CalendarAppointmentEvent[]>(
     () => bootstrap?.appointmentFeed?.items ?? [],
   );
+  const [listTodayRequest, setListTodayRequest] = useState(0);
   const [listLoading, setListLoading] = useState(false);
   const [listLoadingEarlier, setListLoadingEarlier] = useState(false);
   const [listLoadingLater, setListLoadingLater] = useState(false);
@@ -1553,6 +1589,7 @@ export function ScheduleCalendarTab({
     if (!today) return;
     updateMobileVisibleDate(today, true);
     setAnchorDate(today);
+    if (renderMode === 'list') setListTodayRequest((current) => current + 1);
   }
 
   function jumpToDate(date: Date) {
@@ -1675,7 +1712,7 @@ export function ScheduleCalendarTab({
   const renderScheduleFilters = (className: string, controlClassName?: string) => (
     <div className={className}>
       <DoctorCalendarToolbarFilter
-        noneLabel="Локация"
+        noneLabel="Все локации"
         options={filters.branches}
         value={branchId}
         onChange={setBranchId}
@@ -1697,7 +1734,7 @@ export function ScheduleCalendarTab({
         />
       ) : null}
       <DoctorCalendarToolbarFilter
-        noneLabel="Услуга"
+        noneLabel="Все услуги"
         options={filters.services}
         value={serviceId}
         onChange={setServiceId}
@@ -3021,6 +3058,7 @@ export function ScheduleCalendarTab({
               }}
               branchShortLabels={branchShortLabels}
               showSpecialist={filters.specialists.length > 1}
+              scrollToTodayRequest={listTodayRequest}
             />
           ) : (
             // FullCalendar

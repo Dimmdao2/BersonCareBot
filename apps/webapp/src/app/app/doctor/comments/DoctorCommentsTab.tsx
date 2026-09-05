@@ -141,6 +141,53 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
     setPatients(initialPatients ?? []);
   }, [initialPatients]);
 
+  const refreshUnreadPatients = useCallback(async () => {
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    try {
+      const response = await fetch('/api/doctor/comments/patients?mode=unread', {
+        cache: 'no-store',
+      });
+      const data = (await response.json()) as {
+        ok?: boolean;
+        patients?: CommentPatientRow[];
+      };
+      if (!response.ok || !data.ok || !Array.isArray(data.patients)) return;
+      const nextUnreadPatients = data.patients;
+      setPatients(nextUnreadPatients);
+      setAllModePatients((current) => {
+        if (!current) return current;
+        const unreadByPatientId = new Map(
+          nextUnreadPatients.map((patient) => [patient.patientUserId, patient]),
+        );
+        const currentIds = new Set(current.map((patient) => patient.patientUserId));
+        return [
+          ...nextUnreadPatients.filter((patient) => !currentIds.has(patient.patientUserId)),
+          ...current.map((patient) => ({
+            ...patient,
+            unreadCount: unreadByPatientId.get(patient.patientUserId)?.unreadCount ?? 0,
+          })),
+        ];
+      });
+    } catch {
+      // Keep the current list stable during a transient polling failure.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!active) return;
+    const intervalId = window.setInterval(() => void refreshUnreadPatients(), 8_000);
+    const refreshVisible = () => {
+      if (document.visibilityState === 'visible') void refreshUnreadPatients();
+    };
+    document.addEventListener('visibilitychange', refreshVisible);
+    window.addEventListener('focus', refreshVisible);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', refreshVisible);
+      window.removeEventListener('focus', refreshVisible);
+    };
+  }, [active, refreshUnreadPatients]);
+
   // ── Fetch all-mode patients ──
   const fetchAllMode = useCallback(async () => {
     if (allModeFetchedRef.current) return;

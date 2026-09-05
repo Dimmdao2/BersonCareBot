@@ -19,6 +19,7 @@ import { DoctorExerciseStatisticsModal } from '@/app/app/doctor/treatment-progra
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
+import { notifyDoctorExerciseCommentsChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -108,6 +109,8 @@ export function DoctorProgramItemDiscussionDialog(props: {
   const [statisticsOpen, setStatisticsOpen] = useState(false);
   const loadGenerationRef = useRef(0);
   const onMarkedReadRef = useRef(onMarkedRead);
+  const lastMarkedPatientMessageIdRef = useRef<string | null>(null);
+  const markingPatientMessageIdRef = useRef<string | null>(null);
   onMarkedReadRef.current = onMarkedRead;
 
   const basePath = useMemo(
@@ -158,6 +161,32 @@ export function DoctorProgramItemDiscussionDialog(props: {
     [basePath],
   );
 
+  const markLatestPatientMessageRead = useCallback(
+    (loaded: ProgramItemDiscussionMessage[]) => {
+      const latestPatientMessage = [...loaded]
+        .reverse()
+        .find((message) => message.senderRole === 'patient');
+      if (
+        !latestPatientMessage ||
+        latestPatientMessage.id === lastMarkedPatientMessageIdRef.current ||
+        latestPatientMessage.id === markingPatientMessageIdRef.current
+      ) {
+        return;
+      }
+      markingPatientMessageIdRef.current = latestPatientMessage.id;
+      void markDoctorProgramDiscussionRead({ instanceId, stageItemId: itemId }).then((result) => {
+        if (markingPatientMessageIdRef.current === latestPatientMessage.id) {
+          markingPatientMessageIdRef.current = null;
+        }
+        if (!result.ok) return;
+        lastMarkedPatientMessageIdRef.current = latestPatientMessage.id;
+        notifyDoctorExerciseCommentsChanged();
+        onMarkedReadRef.current?.();
+      });
+    },
+    [instanceId, itemId],
+  );
+
   const bootstrap = useCallback(async () => {
     const generation = ++loadGenerationRef.current;
     setLoading(true);
@@ -170,13 +199,11 @@ export function DoctorProgramItemDiscussionDialog(props: {
     setRecommendationsEditable(false);
     setRecommendationsOpen(false);
     setStatisticsOpen(false);
+    lastMarkedPatientMessageIdRef.current = null;
+    markingPatientMessageIdRef.current = null;
     try {
       const loaded = await loadPage(null, false, generation);
-      if (loaded) {
-        void markDoctorProgramDiscussionRead({ instanceId, stageItemId: itemId }).then((result) => {
-          if (result.ok) onMarkedReadRef.current?.();
-        });
-      }
+      if (loaded) markLatestPatientMessageRead(loaded);
     } catch (e) {
       if (generation !== loadGenerationRef.current) return;
       const msg = e instanceof Error ? e.message : 'Не удалось загрузить обсуждение';
@@ -186,7 +213,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
         setLoading(false);
       }
     }
-  }, [loadPage, instanceId, itemId, initialPatientUserId]);
+  }, [loadPage, initialPatientUserId, markLatestPatientMessageRead]);
 
   useEffect(() => {
     if (!open) return;
@@ -198,13 +225,11 @@ export function DoctorProgramItemDiscussionDialog(props: {
     try {
       const loaded = await loadPage(null, false, generation);
       if (!loaded) return;
-      void markDoctorProgramDiscussionRead({ instanceId, stageItemId: itemId }).then((result) => {
-        if (result.ok) onMarkedReadRef.current?.();
-      });
+      markLatestPatientMessageRead(loaded);
     } catch {
       // Открытый тред сохраняет уже загруженные сообщения при временном сетевом сбое.
     }
-  }, [instanceId, itemId, loadPage]);
+  }, [loadPage, markLatestPatientMessageRead]);
 
   useMessagePolling(poll, open, 8000, false);
 

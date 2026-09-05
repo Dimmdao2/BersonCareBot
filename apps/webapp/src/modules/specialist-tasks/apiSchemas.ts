@@ -17,6 +17,7 @@ export const specialistTaskBodySchema = z.object({
 });
 
 export const specialistTaskPatchSchema = z.object({
+  patientUserId: z.string().uuid().optional(),
   title: z.string().min(1).max(500).optional(),
   description: z.string().max(8000).nullable().optional(),
   dueAt: isoDateTime.nullable().optional(),

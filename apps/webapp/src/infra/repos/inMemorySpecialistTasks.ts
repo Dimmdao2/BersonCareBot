@@ -44,10 +44,18 @@ export const inMemorySpecialistTasksPort: SpecialistTasksPort = {
     const idx = store.findIndex((t) => t.id === taskId && t.ownerUserId === ownerUserId);
     if (idx < 0) return null;
     const prev = store[idx]!;
+    if (
+      patch.patientUserId !== undefined &&
+      prev.patientUserId !== null &&
+      prev.patientUserId !== patch.patientUserId
+    ) {
+      throw new Error('task_patient_immutable');
+    }
     const next: SpecialistTaskRow = {
       ...prev,
       ...patch,
       title: patch.title ?? prev.title,
+      patientUserId: patch.patientUserId ?? prev.patientUserId,
       description: patch.description !== undefined ? patch.description : prev.description,
       dueAt: patch.dueAt !== undefined ? patch.dueAt : prev.dueAt,
       dueHasTime: patch.dueHasTime !== undefined ? patch.dueHasTime : prev.dueHasTime,

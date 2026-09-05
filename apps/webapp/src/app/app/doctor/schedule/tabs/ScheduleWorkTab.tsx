@@ -555,19 +555,20 @@ function DayCell({
   let cellClass =
     'rounded-md border p-1 min-h-[52px] cursor-pointer select-none transition-colors ';
 
-  if (branchHex) {
-    // Location colour remains the signal of every scheduled day; only its weight differs by
-    // source. Selection/today are additive rings so they do not erase the location signal.
+  if (isToday) {
+    // Today is a temporal marker, not a location state. It fully replaces the branch
+    // surface so arbitrary branch colours cannot compete with the shared doctor marker.
+    cellClass +=
+      'border-doctor-calendar-today bg-doctor-calendar-today/90 text-white hover:bg-doctor-calendar-today/80 ';
+  } else if (branchHex) {
+    // Location colour remains the surface signal of every scheduled day; only its weight differs
+    // by source. Today replaces the location border with the shared doctor-calendar marker.
     cellClass += isInheritedFromWeeklyTemplate
       ? 'bg-transparent border-[color:var(--branch-border)] hover:bg-[color:var(--branch-hover)] '
       : 'bg-[color:var(--branch-bg)] border-[color:var(--branch-border)] hover:bg-[color:var(--branch-hover)] ';
-    if (isToday) cellClass += 'ring-1 ring-doctor-calendar-today/70 ';
-    else if (isSelected) cellClass += 'ring-1 ring-primary/60 ';
+    if (isSelected) cellClass += 'ring-1 ring-primary/60 ';
   } else if (isSelected) {
     cellClass += 'bg-primary/15 border-primary/40 ring-1 ring-primary/40 ';
-  } else if (isToday) {
-    cellClass +=
-      'bg-doctor-calendar-today/15 border-doctor-calendar-today/70 ring-1 ring-doctor-calendar-today/60 hover:bg-doctor-calendar-today/20 ';
   } else if (hasSchedule) {
     // SCH-R-06: scheduled day without a location = light blue tint; the same source rule applies.
     cellClass += isInheritedFromWeeklyTemplate
@@ -600,7 +601,7 @@ function DayCell({
           ? ` ${lines.map((line) => formatHourRange(line.startMinute, line.endMinute)).join(', ')}`
           : ''
       }`}
-      style={branchHex ? branchCellStyle(branchHex, !isInheritedFromWeeklyTemplate) : undefined}
+      style={branchHex && !isToday ? branchCellStyle(branchHex, !isInheritedFromWeeklyTemplate) : undefined}
       onClick={(e) => onToggle(dateKey, e.shiftKey, e.metaKey || e.ctrlKey)}
       onKeyDown={(e) => {
         if (e.key === ' ' || e.key === 'Enter') {
@@ -614,7 +615,7 @@ function DayCell({
         className={cn(
           'text-[11px] font-normal leading-none text-foreground',
           isToday
-            ? 'font-semibold text-doctor-calendar-today'
+            ? 'font-semibold text-white'
             : isSelected
               ? 'text-primary'
               : null,
@@ -636,14 +637,19 @@ function DayCell({
             <div
               className={cn(
                 'truncate text-[11px] font-semibold whitespace-nowrap',
-                !lineHex && 'text-primary',
+                isToday ? 'text-white' : !lineHex && 'text-primary',
               )}
-              style={lineHex ? { color: lineHex } : undefined}
+              style={lineHex && !isToday ? { color: lineHex } : undefined}
             >
               {formatHourRange(line.startMinute, line.endMinute)}
             </div>
             {shortLabel ? (
-              <div className="mt-0.5 truncate text-[10px] leading-none text-muted-foreground">
+              <div
+                className={cn(
+                  'mt-0.5 truncate text-[10px] leading-none',
+                  isToday ? 'text-white/85' : 'text-muted-foreground',
+                )}
+              >
                 {shortLabel}
               </div>
             ) : null}
