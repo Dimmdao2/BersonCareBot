@@ -156,6 +156,13 @@ function runPaymentMutation<T>(
   organizationId: string,
   fn: (db: DrizzleDb) => Promise<T>,
 ): Promise<T> {
+  // Кабинет врача уже несёт проверенный staff-принципал и пишет через точечно выданные права
+  // app_staff. Не заменяем его организационным принципалом: у webapp намеренно нет сквозной
+  // tenant_service relation-capability, поэтому такая подмена обрывала создание ссылки на оплату
+  // ещё до первого SQL statement.
+  if (getCurrentDbPrincipal()?.kind === 'staff') {
+    return runDrizzleMutationTransaction(fn);
+  }
   return runWithDbOrganizationPrincipal(organizationId, () => runDrizzleMutationTransaction(fn));
 }
 
