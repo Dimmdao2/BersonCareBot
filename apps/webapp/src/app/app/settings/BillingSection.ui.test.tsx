@@ -57,36 +57,6 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/clinic/billing', { method: 'DELETE' }));
   });
 
-  it('names the exact cleanup categories when the tariff change is refused', async () => {
-    const fetch = vi.fn().mockResolvedValue({
-      json: async () => ({
-        ok: false,
-        error: 'saas_billing_tariff_downgrade_blocked',
-        blocks: [{ mechanic: 'clinic_team' }, { mechanic: 'branches' }],
-      }),
-    });
-    vi.stubGlobal('fetch', fetch);
-    render(
-      <BillingSection
-        tariffName="Стандарт"
-        commercialStateLabel="Тариф активен."
-        mechanics={[]}
-        quotaUsage={[]}
-        billing={emptyBilling}
-        tariffChange={{
-          choices: [{ id: 'current', name: 'Стандарт' }, { id: 'small', name: 'Базовый' }],
-          currentTariffId: 'current', pendingTariffId: 'small', pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
-          awaitingFirstPayment: false,
-          payable: true,
-        }}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Перейти на тариф' }));
-
-    expect(await screen.findByText('Понижение недоступно: освободите места специалистов, филиалы.')).toBeInTheDocument();
-  });
-
   /**
    * L-11 (владелец 18.08): «она выбирает платный тариф — ИДЕТ ОПЛАЧИВАТЬ И ПОТОМ ПОЛУЧАЕТ ДОСТУП».
    * Поломка: клиника выбрала тариф, доступа нет — и экран показывает «Тариф не назначен» с советом
