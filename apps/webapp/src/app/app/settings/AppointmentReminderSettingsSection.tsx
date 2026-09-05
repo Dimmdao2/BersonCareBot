@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
 import { apiJson } from '@/shared/lib/apiJson';
 import {
   isAppointmentReminderPresetId,
@@ -29,12 +30,8 @@ export function AppointmentReminderSettingsSection({
   initialSettings: AppointmentReminderSpecialistSettings;
 }) {
   const [settings, setSettings] = useState(initialSettings);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
   const save = (next: AppointmentReminderSpecialistSettings) => {
-    setSaved(false);
-    setError(null);
     startTransition(async () => {
       try {
         const response = (await apiJson('/api/doctor/appointment-reminder-presets', {
@@ -43,9 +40,9 @@ export function AppointmentReminderSettingsSection({
           body: JSON.stringify(next),
         })) as { settings: AppointmentReminderSpecialistSettings };
         setSettings(response.settings);
-        setSaved(true);
+        toast.success('Сохранено');
       } catch {
-        setError('Не удалось сохранить настройки напоминаний');
+        toast.error('Не удалось сохранить настройки напоминаний');
       }
     });
   };
@@ -117,8 +114,6 @@ export function AppointmentReminderSettingsSection({
             </SelectContent>
           </Select>
         </DoctorField>
-        {saved ? <span className="text-sm text-green-600">Сохранено</span> : null}
-        {error ? <span className="text-sm text-destructive">{error}</span> : null}
       </div>
     </DoctorSection>
   );

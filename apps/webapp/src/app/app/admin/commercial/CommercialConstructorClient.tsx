@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import toast from 'react-hot-toast';
 import { useSearchParams } from 'next/navigation';
 import type { CommercialMutationResult } from '@/app/app/admin/commercial/commercialOrganizationLabels';
 import {
@@ -598,7 +599,6 @@ export function CommercialConstructorClient() {
   );
   // §T3 — which of the current tariff's letters is open in the «Рассылки» tab editor.
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-  const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -719,7 +719,6 @@ export function CommercialConstructorClient() {
     success: string | ((result: CommercialMutationResult | undefined) => string),
   ) {
     setBusy(true);
-    setMessage('');
     try {
       const response = await fetch('/api/admin/commercial', {
         method: 'POST',
@@ -729,9 +728,9 @@ export function CommercialConstructorClient() {
       const payload = (await response.json()) as CommercialMutationResponse;
       if (!response.ok) throw new Error(payload.error ?? 'commercial_operation_failed');
       await loadState();
-      setMessage(typeof success === 'function' ? success(payload.result) : success);
+      toast.success(typeof success === 'function' ? success(payload.result) : success);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Операция не выполнена');
+      toast.error(error instanceof Error ? error.message : 'Операция не выполнена');
     } finally {
       setBusy(false);
     }
@@ -747,7 +746,7 @@ export function CommercialConstructorClient() {
     try {
       systemAccessPolicy = accessPolicyFromDraft(tariff.systemAccessPolicy);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Проверьте лестницу доступа');
+      toast.error(error instanceof Error ? error.message : 'Проверьте лестницу доступа');
       return;
     }
     const input = {
@@ -819,12 +818,6 @@ export function CommercialConstructorClient() {
         <TabsTrigger value="notifications">Уведомления</TabsTrigger>
         <TabsTrigger value="mailings">Рассылки</TabsTrigger>
       </TabsList>
-      {message ? (
-        <p className="text-sm text-muted-foreground" role="status">
-          {message}
-        </p>
-      ) : null}
-
       <TabsContent
         value="tariffs"
         className="grid gap-3 xl:grid-cols-[minmax(240px,0.7fr)_minmax(0,1.3fr)]"
@@ -1365,7 +1358,7 @@ export function CommercialConstructorClient() {
             onSubmit={(event) => {
               event.preventDefault();
               if (!postTrialBehavior) {
-                setMessage('Выберите действие после триала');
+                toast.error('Выберите действие после триала');
                 return;
               }
               void mutate(
@@ -1514,7 +1507,7 @@ export function CommercialConstructorClient() {
             onSubmit={(event) => {
               event.preventDefault();
               if (!postPaidPeriodBehavior) {
-                setMessage('Выберите действие после оплаченного периода');
+                toast.error('Выберите действие после оплаченного периода');
                 return;
               }
               void mutate(

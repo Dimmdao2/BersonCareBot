@@ -64,6 +64,28 @@ export type AddCashPaymentInput = {
 /** Alias for PaymentStatus — used in port method signatures for clarity. */
 export type PatientPaymentStatus = PaymentStatus;
 
+/** The only two states an acquiring callback can drive a pending ledger row into. */
+export type AcquiringSettlementStatus = Extract<PatientPaymentStatus, 'paid' | 'failed'>;
+
+export type SettleAcquiringWebhookPaymentInput = {
+  /** Verified route provider; together with providerPaymentId it identifies one lifecycle row. */
+  providerId: string;
+  /** The provider's own reference, stored on the row at charge initiation. */
+  providerPaymentId: string;
+  /** Terminal state derived from the verified provider event. */
+  status: AcquiringSettlementStatus;
+};
+
+/**
+ * What the ledger did with one verified callback.
+ *
+ * `not_found` — no row of the accepted organization carries this exact provider reference, or more
+ * than one does (ambiguous references never pick a winner).
+ * `already_processed` — the row is already terminal, so a repeated callback changes nothing.
+ * `settled` — this callback is the one that moved the row out of `pending`.
+ */
+export type AcquiringWebhookSettlementOutcome = 'settled' | 'already_processed' | 'not_found';
+
 export type InsertAcquiringPendingInput = {
   organizationId: string;
   patientUserId: string;
@@ -83,16 +105,16 @@ export interface PatientPaymentsPort {
   listPayments(patientUserId: string): Promise<PatientPayment[]>;
   /** Paid/pending ledger rows for one exact appointment inside the installed tenant principal. */
   listAppointmentPayments(appointmentId: string, patientUserId: string): Promise<PatientPayment[]>;
+  /**
+   * APPT-DETAIL-11: сумма фактически оплаченного (`status='paid'`) сразу по набору записей.
+   * Карточка деталей открывается из уже загруженного диапазона календаря, поэтому поштучное
+   * чтение дало бы запрос на каждую запись месяца.
+   */
+  sumPaidMinorForAppointments(
+    appointmentIds: string[],
+  ): Promise<{ appointmentId: string; paidMinor: number }[]>;
   /** Записать ручной платёж наличными (kind='cash', status='paid'). */
   addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment>;
-  /**
-   * Find exactly one acquiring ledger row by the provider-owned composite reference.
-   * Returns null for no match and for duplicate same-provider references.
-   */
-  findByProviderPaymentReference(
-    providerId: string,
-    providerPaymentId: string,
-  ): Promise<PatientPayment | null>;
   /**
    * Bootstrap-only webhook resolver. Returns only the owning organization for one exact
    * acquiring lifecycle row; it must not read or return the payment payload.
@@ -101,13 +123,17 @@ export interface PatientPaymentsPort {
     providerId: string,
     providerPaymentId: string,
   ): Promise<string | null>;
-  /** Обновить статус acquiring-платежа по его ID. */
-  updatePatientPaymentStatus(
-    id: string,
-    status: PatientPaymentStatus,
-    organizationId: string,
-    providerPaymentId?: string,
-  ): Promise<void>;
+  /**
+   * Settle one verified acquiring callback inside the organization principal the route installed.
+   *
+   * Match, idempotency check and write are ONE operation on purpose: the callback carries no row id,
+   * the acquirer retries the same event, and a read-then-write pair would let two simultaneous
+   * copies both see `pending`. The organization is never an argument — it comes from the installed
+   * principal — so a callback verified for one clinic cannot name another's payment.
+   */
+  settleAcquiringWebhookPayment(
+    input: SettleAcquiringWebhookPaymentInput,
+  ): Promise<AcquiringWebhookSettlementOutcome>;
   /** Создать запись ожидающего acquiring-платежа (kind='acquiring', status='pending'). */
   insertAcquiringPending(input: InsertAcquiringPendingInput): Promise<PatientPayment>;
 }

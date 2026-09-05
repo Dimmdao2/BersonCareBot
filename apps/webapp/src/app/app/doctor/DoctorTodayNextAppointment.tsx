@@ -34,35 +34,43 @@ export function DoctorTodayNextAppointment({ appointment, displayIana }: Props) 
 
   return (
     <DoctorSection id="doctor-today-next-appointment">
-      <DoctorSectionHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-        <DoctorSectionTitle>
-          {appointment?.isCurrent
-            ? 'Сейчас на приеме'
-            : appointment
-              ? 'Следующий прием'
-              : 'Следующий прием: нет записей'}
-        </DoctorSectionTitle>
-        {appointment?.relativeLabel ? (
-          <p className="shrink-0 text-sm font-medium">{appointment.relativeLabel}</p>
-        ) : null}
-      </DoctorSectionHeader>
-
       {appointment ? (
         <div className="flex min-w-0 flex-col gap-3">
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 text-sm">
-            <p className="min-w-0 truncate">{appointment.clientLabel}</p>
-            <p className="shrink-0 font-medium tabular-nums">{appointment.dateTimeLabel}</p>
-          </div>
-          {appointmentComment ? (
-            <div className="grid min-w-0 gap-2 text-sm">
-              <dl className="grid min-w-0 gap-1.5">
-                <div className="grid min-w-0 grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
-                  <dt className="text-muted-foreground">Комментарий</dt>
-                  <dd className="min-w-0 whitespace-pre-wrap">{appointmentComment}</dd>
-                </div>
-              </dl>
+          <div className="flex min-w-0 flex-col">
+            <div className="flex min-w-0 items-baseline justify-between gap-2">
+              <DoctorSectionTitle>
+                {appointment.isCurrent ? 'Сейчас на приеме' : 'Следующий прием'}
+              </DoctorSectionTitle>
+              {patientHref ? (
+                <Link
+                  href={patientHref}
+                  className="min-w-0 truncate text-right text-sm font-medium text-primary underline decoration-1 underline-offset-2"
+                >
+                  {appointment.clientLabel}
+                </Link>
+              ) : (
+                <p className="min-w-0 truncate text-right text-sm font-medium text-primary">
+                  {appointment.clientLabel}
+                </p>
+              )}
             </div>
-          ) : null}
+
+            <div className="mt-1.5 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 text-sm">
+              <p className="min-w-0 text-base font-medium tabular-nums">
+                {appointment.dateTimeLabel}
+              </p>
+              {appointment.relativeLabel ? (
+                <p className="shrink-0 font-medium">{appointment.relativeLabel}</p>
+              ) : null}
+            </div>
+
+            {appointmentComment ? (
+              <p className="mt-1 line-clamp-2 min-w-0 whitespace-pre-wrap break-words text-sm leading-[18px]">
+                <span className="text-muted-foreground">Комментарий: </span>
+                {appointmentComment}
+              </p>
+            ) : null}
+          </div>
 
           <div className="grid w-full min-w-0 grid-cols-3 items-center gap-1.5">
             {createVisitHref ? (
@@ -112,7 +120,11 @@ export function DoctorTodayNextAppointment({ appointment, displayIana }: Props) 
             </Button>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Следующий прием: нет записей</DoctorSectionTitle>
+        </DoctorSectionHeader>
+      )}
 
       <TodayAppointmentFullModal
         apptId={detailsOpen && appointment ? appointment.id : null}

@@ -50,6 +50,8 @@ type Props = {
    * (APPT-FORM-07). Во всех остальных случаях поле остаётся видимым.
    */
   hideSpecialist: boolean;
+  /** Пациент уже закреплён за существующей записью и в этой форме не меняется. */
+  hidePatient?: boolean;
   /** Достижимые статусы: только те, за которыми стоит существующий контракт. */
   statusOptions: AppointmentStatusOption[];
   pending: boolean;
@@ -64,6 +66,7 @@ export function DoctorAppointmentForm({
   serviceOptions,
   activeFilters,
   hideSpecialist,
+  hidePatient = false,
   statusOptions,
   pending,
   message,
@@ -85,17 +88,14 @@ export function DoctorAppointmentForm({
 
   return (
     <div className="flex flex-col gap-3">
-      {/*
-        APPT-FORM-13: пациента можно сменить и при правке записи. Создание записи фиксирует
-        нового пациента вместе с записью одним запросом, правка же меняет уже существующую
-        запись — там карточка пациента должна получить id до сохранения.
-      */}
-      <DoctorCalendarPatientSearch
-        value={draft.patient}
-        onChange={(patient) => onDraftChange({ patient })}
-        disabled={pending}
-        deferNewPatientCreation={mode === 'create'}
-      />
+      {hidePatient ? null : (
+        <DoctorCalendarPatientSearch
+          value={draft.patient}
+          onChange={(patient) => onDraftChange({ patient })}
+          disabled={pending}
+          deferNewPatientCreation={mode === 'create'}
+        />
+      )}
 
       <div className="flex flex-col gap-1">
         <Label>Начало</Label>

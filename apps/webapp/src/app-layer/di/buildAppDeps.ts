@@ -427,6 +427,7 @@ import { createBookingEngineService } from '@/modules/booking-engine/service';
 import { createPgBookingSchedulingPort } from '@/infra/repos/pgBookingScheduling';
 import { createBookingSchedulingService } from '@/modules/booking-scheduling/service';
 import { createBookingCalendarService } from '@/modules/booking-calendar/service';
+import { hydrateCalendarAppointmentPayments } from '@/app-layer/booking/staffAppointmentPayments';
 import { createPgBookingCalendarPort } from '@/infra/repos/pgBookingCalendar';
 import { createClientHistoryService } from '@/modules/client-history/service';
 import { createPgClientHistoryPort } from '@/infra/repos/pgClientHistory';
@@ -747,6 +748,20 @@ const bookingCalendarService =
         calendarPort: bookingCalendarPort,
         listScheduleBlocks: (input) => bookingSchedulingPort.listScheduleBlocks(input),
         schedulingPort: bookingSchedulingPort,
+        // APPT-DETAIL-11: сводка оплаты досбирается на общем пути чтения календаря, поэтому
+        // карточка деталей везде открывается с готовым блоком оплаты. Сервисы читаются в теле
+        // замыкания: на момент создания календаря часть из них ещё не объявлена.
+        hydrateAppointmentDetails: (organizationId, events) =>
+          hydrateCalendarAppointmentPayments(
+            {
+              payments: paymentsService,
+              patientBooking: patientBookingService,
+              patientPayments: patientPaymentsService,
+              patientInvites: patientInvitesService,
+            },
+            organizationId,
+            events,
+          ),
         resolveShowWorkingHours: async () => {
           if (inMemoryRepos) return true;
           const row = await systemSettingsService.getSetting(

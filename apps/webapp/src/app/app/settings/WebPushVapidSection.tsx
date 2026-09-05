@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { useEffect, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
@@ -21,7 +22,7 @@ export function WebPushVapidSection({
   const [publicKey, setPublicKey] = useState(initialPublicKey);
   const [privateKeyInput, setPrivateKeyInput] = useState('');
   const [hasPrivate, setHasPrivate] = useState(hasStoredPrivateKey);
-  const [saved, setSaved] = useState(false);
+  /** Только предзапросная валидация полей; исход сохранения уходит во всплывающее уведомление. */
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -34,7 +35,6 @@ export function WebPushVapidSection({
   }, [initialPublicKey]);
 
   function handleSave() {
-    setSaved(false);
     setError(null);
     startTransition(async () => {
       try {
@@ -48,17 +48,17 @@ export function WebPushVapidSection({
           privateKey: privateKeyInput,
         });
         if (!ok) {
-          setError('Не удалось сохранить');
+          toast.error('Не удалось сохранить');
           return;
         }
         if (trimmedPriv.length > 0) {
           setHasPrivate(true);
         }
         setPrivateKeyInput('');
-        setSaved(true);
+        toast.success('Сохранено');
         router.refresh();
       } catch {
-        setError('Ошибка при сохранении');
+        toast.error('Ошибка при сохранении');
       }
     });
   }
@@ -98,7 +98,6 @@ export function WebPushVapidSection({
           <Button type="button" onClick={handleSave} disabled={isPending}>
             Сохранить
           </Button>
-          {saved ? <span className="text-sm text-muted-foreground">Сохранено</span> : null}
           {error ? <span className="text-sm text-destructive">{error}</span> : null}
         </div>
       </CardContent>

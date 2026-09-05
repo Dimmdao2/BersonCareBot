@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -60,7 +61,6 @@ export function BookingManualLifecycleSection({
   const [cancelType, setCancelType] = useState<string>('free');
   const [newStartAt, setNewStartAt] = useState('');
   const [newEndAt, setNewEndAt] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -163,9 +163,9 @@ export function BookingManualLifecycleSection({
                         body: JSON.stringify({ decisionType: cancelType }),
                       },
                     );
-                    setMessage('Отмена применена');
+                    toast.success('Отмена применена');
                   } catch (e) {
-                    setMessage(e instanceof Error ? e.message : 'error');
+                    toast.error(e instanceof Error ? e.message : 'error');
                   }
                 });
               }}
@@ -217,9 +217,9 @@ export function BookingManualLifecycleSection({
                         }),
                       },
                     );
-                    setMessage('Перенос применён');
+                    toast.success('Перенос применён');
                   } catch (e) {
-                    setMessage(e instanceof Error ? e.message : 'error');
+                    toast.error(e instanceof Error ? e.message : 'error');
                   }
                 });
               }}
@@ -229,7 +229,6 @@ export function BookingManualLifecycleSection({
           </div>
         </div>
         <BookingStaffPaymentPanel apiBase={apiBase} appointmentId={appointmentId} />
-        {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
       </CardContent>
     </Card>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
@@ -24,7 +25,7 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
       : [...DEFAULT_PATIENT_HOME_DAILY_WARMUP_ROTATION_TIMES],
   );
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  /** Только предзапросная валидация полей; исход сохранения уходит во всплывающее уведомление. */
   const [error, setError] = useState<string | null>(null);
 
   function addTimeRow() {
@@ -37,7 +38,6 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
   }
 
   async function onSave() {
-    setMessage(null);
     setError(null);
     for (const t of times) {
       if (!/^([01]?\d|2[0-3]):([0-5]\d)$/.test(t.trim())) {
@@ -61,10 +61,10 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
         times: [...times].map((t) => t.trim()),
       });
       if (!result.ok) {
-        setError(result.error);
+        toast.error(result.error);
         return;
       }
-      setMessage('Сохранено');
+      toast.success('Сохранено');
     } finally {
       setPending(false);
     }
@@ -139,11 +139,6 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
       {error ? (
         <p className="mt-2 text-sm text-destructive" role="alert">
           {error}
-        </p>
-      ) : null}
-      {message ? (
-        <p className="mt-2 text-sm text-green-700" role="status">
-          {message}
         </p>
       ) : null}
     </section>

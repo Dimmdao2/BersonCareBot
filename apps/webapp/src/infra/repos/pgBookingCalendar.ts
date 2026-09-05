@@ -1,4 +1,18 @@
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, notInArray, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lte,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import {
   beAppointments,
@@ -12,6 +26,7 @@ import {
   beBookingFormFields,
   beBookingFormSubmissions,
 } from '../../../db/schema/bookingScheduling';
+import { beAppointmentStaffComments } from '../../../db/schema/bookingClientProfile';
 import { bePaymentIntents } from '../../../db/schema/bookingPayments';
 import { bePackageUsages, bePatientPackages } from '../../../db/schema/bookingMemberships';
 import { patientBookings, platformUsers, userIdentity } from '../../../db/schema/schema';
@@ -234,62 +249,80 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
       const paymentByAppt = new Map<string, string>();
       const packageByUsageRef = new Map<string, { title: string; displayNumber: number }>();
       const formCommentsByAppt = new Map<string, { label: string; value: string }[]>();
+      const primaryCommentByAppt = new Map<string, string>();
       const packageUsageRefs = rows
         .map((row) => row.packageUsageRef)
         .filter((usageRef): usageRef is string => usageRef != null && UUID_RE.test(usageRef));
 
       if (appointmentIds.length > 0) {
-        const [bookingRows, paymentRows, packageRows, submissionRows] = await Promise.all([
-          db
-            .select({
-              appointmentId: patientBookings.canonicalAppointmentId,
-              status: patientBookings.status,
-            })
-            .from(patientBookings)
-            .where(inArray(patientBookings.canonicalAppointmentId, appointmentIds)),
-          db
-            .select({
-              appointmentId: bePaymentIntents.appointmentId,
-              status: bePaymentIntents.status,
-            })
-            .from(bePaymentIntents)
-            .where(inArray(bePaymentIntents.appointmentId, appointmentIds))
-            .orderBy(desc(bePaymentIntents.createdAt)),
-          db
-            .select({
-              usageId: bePackageUsages.id,
-              title: bePatientPackages.title,
-              displayNumber: bePatientPackages.displayNumber,
-            })
-            .from(bePackageUsages)
-            .innerJoin(
-              bePatientPackages,
-              eq(bePatientPackages.id, bePackageUsages.patientPackageId),
-            )
-            .where(
-              packageUsageRefs.length > 0
-                ? inArray(bePackageUsages.id, packageUsageRefs)
-                : sql`false`,
-            ),
-          db
-            .select({
-              appointmentId: beBookingFormSubmissions.appointmentId,
-              label: beBookingFormFields.label,
-              valueText: beBookingFormSubmissions.valueText,
-            })
-            .from(beBookingFormSubmissions)
-            .innerJoin(
-              beBookingFormFields,
-              eq(beBookingFormFields.id, beBookingFormSubmissions.fieldId),
-            )
-            .where(
-              and(
-                eq(beBookingFormSubmissions.organizationId, filters.organizationId),
-                inArray(beBookingFormSubmissions.appointmentId, appointmentIds),
-                eq(beBookingFormFields.visibleToStaff, true),
+        const [bookingRows, paymentRows, packageRows, submissionRows, staffCommentRows] =
+          await Promise.all([
+            db
+              .select({
+                appointmentId: patientBookings.canonicalAppointmentId,
+                status: patientBookings.status,
+              })
+              .from(patientBookings)
+              .where(inArray(patientBookings.canonicalAppointmentId, appointmentIds)),
+            db
+              .select({
+                appointmentId: bePaymentIntents.appointmentId,
+                status: bePaymentIntents.status,
+              })
+              .from(bePaymentIntents)
+              .where(inArray(bePaymentIntents.appointmentId, appointmentIds))
+              .orderBy(desc(bePaymentIntents.createdAt)),
+            db
+              .select({
+                usageId: bePackageUsages.id,
+                title: bePatientPackages.title,
+                displayNumber: bePatientPackages.displayNumber,
+              })
+              .from(bePackageUsages)
+              .innerJoin(
+                bePatientPackages,
+                eq(bePatientPackages.id, bePackageUsages.patientPackageId),
+              )
+              .where(
+                packageUsageRefs.length > 0
+                  ? inArray(bePackageUsages.id, packageUsageRefs)
+                  : sql`false`,
               ),
-            ),
-        ]);
+            db
+              .select({
+                appointmentId: beBookingFormSubmissions.appointmentId,
+                label: beBookingFormFields.label,
+                valueText: beBookingFormSubmissions.valueText,
+              })
+              .from(beBookingFormSubmissions)
+              .innerJoin(
+                beBookingFormFields,
+                eq(beBookingFormFields.id, beBookingFormSubmissions.fieldId),
+              )
+              .where(
+                and(
+                  eq(beBookingFormSubmissions.organizationId, filters.organizationId),
+                  inArray(beBookingFormSubmissions.appointmentId, appointmentIds),
+                  eq(beBookingFormFields.visibleToStaff, true),
+                ),
+              ),
+            // APPT-DETAIL-11: основной комментарий записи едет тем же батчем, что и остальные
+            // детали. Иначе карточка сначала рисует пустое поле, а «Изменить» открывается с
+            // пустым черновиком поверх существующего текста.
+            db
+              .select({
+                appointmentId: beAppointmentStaffComments.appointmentId,
+                body: beAppointmentStaffComments.body,
+              })
+              .from(beAppointmentStaffComments)
+              .where(
+                and(
+                  eq(beAppointmentStaffComments.organizationId, filters.organizationId),
+                  inArray(beAppointmentStaffComments.appointmentId, appointmentIds),
+                ),
+              )
+              .orderBy(desc(beAppointmentStaffComments.createdAt)),
+          ]);
 
         for (const b of bookingRows) {
           if (b.appointmentId && !bookingStatusByAppt.has(b.appointmentId)) {
@@ -307,6 +340,12 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
               title: pkg.title,
               displayNumber: pkg.displayNumber,
             });
+          }
+        }
+        // Порт отдаёт комментарии от новых к старым: основной — самый свежий.
+        for (const comment of staffCommentRows) {
+          if (!primaryCommentByAppt.has(comment.appointmentId)) {
+            primaryCommentByAppt.set(comment.appointmentId, comment.body);
           }
         }
         for (const sub of submissionRows) {
@@ -365,13 +404,15 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           rescheduleCount: row.rescheduleCount,
           originalStartAt: row.originalStartAt ?? null,
           formComments: formCommentsByAppt.get(row.id) ?? [],
+          primaryComment: primaryCommentByAppt.get(row.id)?.trim() || null,
+          // Сводку оплаты наполняет app-layer: она требует тарифных решений и платёжного
+          // контура, которых у репозитория календаря нет.
+          payment: null,
         };
       });
     },
 
-    async listAppointmentFeed(
-      filters: AppointmentFeedFilters,
-    ): Promise<AppointmentFeedPage> {
+    async listAppointmentFeed(filters: AppointmentFeedFilters): Promise<AppointmentFeedPage> {
       const db = getDrizzle();
       const conds = [
         eq(beAppointments.organizationId, filters.organizationId),
@@ -416,9 +457,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
       const [pageRows, totalRows] = await Promise.all([
         base
           .orderBy(
-            filters.order === 'desc'
-              ? desc(beAppointments.startAt)
-              : asc(beAppointments.startAt),
+            filters.order === 'desc' ? desc(beAppointments.startAt) : asc(beAppointments.startAt),
             filters.order === 'desc' ? desc(beAppointments.id) : asc(beAppointments.id),
           )
           .limit(filters.limit)

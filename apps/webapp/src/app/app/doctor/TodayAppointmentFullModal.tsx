@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { patientCardHref } from './patients/patientCardHref';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorCalendarEventPanel } from './calendar/DoctorCalendarEventPanel';
 import type {
@@ -101,11 +102,23 @@ export function TodayAppointmentFullModal({
     setRefetch((n) => n + 1);
   }
 
+  function handleUpdated(updated?: CalendarAppointmentEvent) {
+    if (updated) setEvent(updated);
+    else setRefetch((n) => n + 1);
+    onChanged?.();
+  }
+
   return (
     <DoctorModal
       open={apptId !== null}
       onClose={onClose}
-      title="Детали записи"
+      title={
+        <DoctorModalStackedTitle
+          label="Запись на приём"
+          patientName={event?.patientName ?? undefined}
+          patientHref={event?.platformUserId ? patientCardHref(event.platformUserId) : null}
+        />
+      }
       size="lg"
       desktopPresentation="right-sheet"
     >
@@ -122,6 +135,7 @@ export function TodayAppointmentFullModal({
           clinicSpecialists={clinicSpecialists}
           onClose={onClose}
           onChanged={handleChanged}
+          onUpdated={handleUpdated}
           flushChrome
         />
       ) : apptId ? (

@@ -354,7 +354,7 @@ describe('tariff refusal UI', () => {
     render(<DoctorClientWarmupSchedulePanel userId="22222222-2222-4222-8222-222222222222" />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Сохранить' }));
-    expect(await screen.findByText(REFUSAL)).toBeInTheDocument();
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith(REFUSAL));
   });
 
   it('shows backend promo refusals for both save and refresh', async () => {
@@ -417,7 +417,7 @@ describe('tariff refusal UI', () => {
     for (const testCase of cases) {
       const view = render(testCase.node);
       fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
-      expect(await screen.findByRole('alert')).toHaveTextContent(REFUSAL);
+      await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith(REFUSAL));
       expect(testCase.action).toHaveBeenCalledOnce();
       view.unmount();
     }

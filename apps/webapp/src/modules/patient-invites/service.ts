@@ -86,6 +86,11 @@ export function createPatientInvitesService(deps: {
       return deps.port.getPortalStatus({ organizationId, patientUserId });
     },
 
+    /** APPT-DETAIL-11: те же «linked», но сразу по набору пациентов. */
+    listPortalLinkedPatients(organizationId: string, patientUserIds: string[]) {
+      return deps.port.listPortalLinkedPatients({ organizationId, patientUserIds });
+    },
+
     async issue(input: {
       organizationId: string;
       patientUserId: string;

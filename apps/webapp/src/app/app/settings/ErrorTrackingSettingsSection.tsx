@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
 
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
@@ -18,11 +19,9 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
   const [enabled, setEnabled] = useState(initialEnabled);
   const [dsn, setDsn] = useState('');
   const [stored, setStored] = useState(hasStoredDsn);
-  const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function save(): void {
-    setMessage(null);
     startTransition(async () => {
       try {
         const response = await fetch('/api/platform/error-tracking', {
@@ -36,7 +35,7 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
           error?: string;
         };
         if (!response.ok || body.ok !== true) {
-          setMessage(
+          toast.error(
             body.error === 'invalid_dsn'
               ? 'Укажите корректный HTTP(S) DSN'
               : 'Не удалось сохранить',
@@ -45,9 +44,9 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
         }
         setStored(body.config?.hasStoredDsn === true);
         setDsn('');
-        setMessage('Сохранено. Новая конфигурация применяется после перезапуска процессов.');
+        toast.success('Сохранено. Новая конфигурация применяется после перезапуска процессов.');
       } catch {
-        setMessage('Не удалось сохранить');
+        toast.error('Не удалось сохранить');
       }
     });
   }
@@ -89,7 +88,6 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
             spellCheck={false}
           />
         </DoctorField>
-        {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
         <DoctorSectionActions>
           <Button
             type="button"

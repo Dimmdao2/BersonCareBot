@@ -14,7 +14,10 @@
  * и findings F-1/F-2 закрывающего аудита LOG-01.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock('react-hot-toast', () => ({ default: toastMock }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
@@ -45,6 +48,10 @@ function stubPatch(body: Record<string, unknown>, status: number) {
   );
 }
 
+beforeEach(() => {
+  toastMock.success.mockClear();
+  toastMock.error.mockClear();
+});
 afterEach(() => vi.unstubAllGlobals());
 
 describe('DoctorCourseEditForm — что видит врач при отказе сохранения', () => {
@@ -63,10 +70,7 @@ describe('DoctorCourseEditForm — что видит врач при отказ�
 
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
 
-    await waitFor(() => {
-      const alert = screen.getByRole('alert');
-      expect(alert).toHaveTextContent('Курс не найден');
-      expect(alert).not.toHaveTextContent('course_update_failed');
-    });
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('Курс не найден'));
+    expect(toastMock.error).not.toHaveBeenCalledWith('course_update_failed');
   });
 });

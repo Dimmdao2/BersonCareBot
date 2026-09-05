@@ -11,7 +11,8 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
+import { doctorInlineMetricValueClass } from '@/shared/ui/doctor/doctorVisual';
 import {
   APPOINTMENT_CANCEL_CHARGE_OPTIONS,
   APPOINTMENT_CANCEL_REASONS,
@@ -30,10 +31,10 @@ type Props = {
   /** Контекст отменяемой записи: дата/время и пациент (CANCEL-03). */
   whenLabel: string;
   patientLabel: string;
+  patientHref?: string | null;
   draft: AppointmentCancelDraft;
   onDraftChange: (patch: Partial<AppointmentCancelDraft>) => void;
   pending: boolean;
-  message: string | null;
   onConfirm: () => void;
 };
 
@@ -46,10 +47,10 @@ export function DoctorAppointmentCancelModal({
   onClose,
   whenLabel,
   patientLabel,
+  patientHref,
   draft,
   onDraftChange,
   pending,
-  message,
   onConfirm,
 }: Props) {
   return (
@@ -57,29 +58,27 @@ export function DoctorAppointmentCancelModal({
       open={open}
       onClose={onClose}
       nested
-      title="Отмена записи"
+      title={
+        <DoctorModalStackedTitle
+          label="Отмена записи"
+          patientName={patientLabel}
+          patientHref={patientHref}
+        />
+      }
       size="sm"
       footer={
         <>
           <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
             Отмена
           </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={pending}
-            onClick={onConfirm}
-          >
+          <Button type="button" variant="destructive" disabled={pending} onClick={onConfirm}>
             Подтвердить отмену
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-0.5">
-          <p className="text-sm font-medium tabular-nums text-foreground">{whenLabel}</p>
-          <p className="text-sm text-muted-foreground">{patientLabel}</p>
-        </div>
+        <p className={doctorInlineMetricValueClass}>{whenLabel}</p>
 
         <div className="flex flex-col gap-1">
           <Label>Причина отмены</Label>
@@ -154,8 +153,6 @@ export function DoctorAppointmentCancelModal({
             onCheckedChange={(notify) => onDraftChange({ notify })}
           />
         </label>
-
-        {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
       </div>
     </DoctorModal>
   );

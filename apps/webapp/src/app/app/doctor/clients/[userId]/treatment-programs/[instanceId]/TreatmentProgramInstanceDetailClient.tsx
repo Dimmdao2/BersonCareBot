@@ -302,6 +302,7 @@ function DoctorInstanceStageItemLoadForm(props: { item: InstanceStageItemT; edit
   const [reps, setReps] = useState('');
   const [sets, setSets] = useState('');
   const [maxPain, setMaxPain] = useState('');
+  /** Валидация полей нагрузки живёт у своей формы; результаты действий — во всплывающем уведомлении. */
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -521,14 +522,12 @@ function ProgramInstanceCompleteControl(props: {
   const { runOrPromptSave, unsavedDialog } = useInstanceEditorUnsavedGate();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
 
   const targetStatus: TreatmentProgramInstanceStatus = status === 'active' ? 'completed' : 'active';
   const completing = targetStatus === 'completed';
 
   const patchStatus = async () => {
     setSaving(true);
-    setMsg(null);
     try {
       const res = await fetch(
         `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}`,
@@ -540,7 +539,7 @@ function ProgramInstanceCompleteControl(props: {
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setMsg(readSafeApiErrorText(data, 'Ошибка'));
+        toast.error(readSafeApiErrorText(data, 'Ошибка'));
         return;
       }
       setOpen(false);
@@ -563,11 +562,6 @@ function ProgramInstanceCompleteControl(props: {
         >
           {completing ? 'Завершить программу' : 'Активировать программу'}
         </Button>
-        {msg ? (
-          <span className="text-xs text-destructive" role="alert">
-            {msg}
-          </span>
-        ) : null}
       </div>
       {unsavedDialog}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -786,7 +780,6 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   } = props;
   const { displayDetail, setItemReorder } = useInstanceEditorDraft();
   const detail = displayDetail;
-  const [error, setError] = useState<string | null>(null);
   const [testResults, setTestResults] =
     useState<TreatmentProgramTestResultDetailRow[]>(initialTestResults);
   const [attemptAcceptMap, setAttemptAcceptMap] =
@@ -860,11 +853,10 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   );
 
   const refresh = useCallback(async () => {
-    setError(null);
     try {
       await refreshBaseline();
     } catch {
-      setError('Не удалось обновить данные');
+      toast.error('Не удалось обновить данные');
     }
   }, [refreshBaseline]);
 
@@ -1004,12 +996,6 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         stageTitle={currentStage?.title ?? null}
         onUnreadCleared={({ stageItemId }) => handleDiscussionRead([stageItemId])}
       />
-      {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
-
       <DoctorSection
         className="overflow-hidden p-0"
         id="doctor-program-instance-phase0-recommendations"
@@ -1243,7 +1229,6 @@ function InstanceStageGroupsPanel(props: {
     description: string;
     scheduleText: string;
   } | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
   const displayStage = stage;
   const sortedGroups = sortDoctorInstanceStageGroupsForDisplay(stage.groups);
   const userGroupsOrdered = sortedGroups.filter((g) => !g.systemKind);
@@ -1267,7 +1252,6 @@ function InstanceStageGroupsPanel(props: {
     const b = newOrder[j]!;
     newOrder[idx] = b;
     newOrder[j] = a;
-    setMsg(null);
     setGroupReorder(stage.id, newOrder);
   };
 
@@ -1280,7 +1264,6 @@ function InstanceStageGroupsPanel(props: {
       dir,
     );
     if (!ordered) return;
-    setMsg(null);
     setItemReorder(stage.id, ordered);
   };
 
@@ -1290,13 +1273,12 @@ function InstanceStageGroupsPanel(props: {
     const plan = planStageItemDndReorder(displayStage.items, activeId, overId, canParticipate);
     if (!plan.ok) {
       if (plan.error === 'ungrouped_type') {
-        setMsg('Без группы допустимы только рекомендации и клинические тесты');
+        toast.error('Без группы допустимы только рекомендации и клинические тесты');
       } else {
-        setMsg('Не удалось изменить порядок элементов');
+        toast.error('Не удалось изменить порядок элементов');
       }
       return;
     }
-    setMsg(null);
     if (plan.needsGroupPatch) {
       patchItemStructural(activeId, { groupId: plan.nextGroupId });
     }
@@ -1313,7 +1295,6 @@ function InstanceStageGroupsPanel(props: {
         ? 'Применить к активной программе пациента? Элементы группы будут скрыты у пациента, группа удалена. Продолжить?'
         : 'Элементы группы будут скрыты у пациента, сама группа удалена. Продолжить?';
     if (!globalThis.confirm(merged)) return;
-    setMsg(null);
     hideGroup(groupEdit.id);
     setGroupEdit(null);
   };
@@ -1325,7 +1306,6 @@ function InstanceStageGroupsPanel(props: {
     addGroupCreate({ stageId: stage.id, title: t });
     setTitle('');
     onNewGroupOpenChange(false);
-    setMsg(null);
   };
 
   const saveGroupEdit = () => {
@@ -1336,7 +1316,7 @@ function InstanceStageGroupsPanel(props: {
     if (!isSysGroup) {
       const t = groupEdit.title.trim();
       if (!t) {
-        setMsg('Название группы не может быть пустым');
+        toast.error('Название группы не может быть пустым');
         return;
       }
     }
@@ -1354,7 +1334,6 @@ function InstanceStageGroupsPanel(props: {
           },
     );
     setGroupEdit(null);
-    setMsg(null);
   };
 
   const shouldRenderDropPreviewBeforeItem = (
@@ -1658,7 +1637,6 @@ function InstanceStageGroupsPanel(props: {
           }}
         </TreatmentProgramStageItemsDnd>
       )}
-      {msg ? <p className="mt-2 text-xs text-destructive">{msg}</p> : null}
       <Dialog open={newGroupOpen} modal={false} onOpenChange={onNewGroupOpenChange}>
         <DialogContent>
           <DialogHeader>
@@ -1790,7 +1768,6 @@ function InstanceStageItemDoctorRow(props: {
 }) {
   const { item, groups, testResults, editLocked, hideGroupSelect = false } = props;
   const { patchItemStructural, deleteItem: deleteItemDraft } = useInstanceEditorDraft();
-  const [msg, setMsg] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const hasHistory =
@@ -1819,7 +1796,6 @@ function InstanceStageItemDoctorRow(props: {
 
   const applyStructural = (patch: InstanceEditorItemStructuralPatch) => {
     if (editLocked) return;
-    setMsg(null);
     patchItemStructural(item.id, patch);
   };
 
@@ -1913,7 +1889,6 @@ function InstanceStageItemDoctorRow(props: {
           Удалить
         </Button>
       </div>
-      {msg ? <p className="text-xs text-destructive">{msg}</p> : null}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1977,8 +1952,8 @@ function StageDoctorControls(props: {
 
   const [skipDialogOpen, setSkipDialogOpen] = useState(false);
   const [skipReasonDraft, setSkipReasonDraft] = useState('');
+  /** Валидация полей диалога пропуска; результаты действий — во всплывающем уведомлении. */
   const [skipDialogError, setSkipDialogError] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [stageSettingsOpen, setStageSettingsOpen] = useState(false);
@@ -2018,7 +1993,6 @@ function StageDoctorControls(props: {
       void (async () => {
         await runIfProgramInstanceMutationAllowed(programStatus, async () => {
           setSaving(true);
-          setMsg(null);
           try {
             const res = await fetch(
               `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
@@ -2030,11 +2004,11 @@ function StageDoctorControls(props: {
             );
             const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
             if (!res.ok || !data.ok) {
-              setMsg(readSafeApiErrorText(data, 'Ошибка'));
+              toast.error(readSafeApiErrorText(data, 'Ошибка'));
               return;
             }
             await onPatched();
-            setMsg('Сохранено');
+            toast.success('Сохранено');
           } finally {
             setSaving(false);
           }
@@ -2057,7 +2031,6 @@ function StageDoctorControls(props: {
         await runIfProgramInstanceMutationAllowed(programStatus, async () => {
           setSkipDialogError(null);
           setSaving(true);
-          setMsg(null);
           try {
             const res = await fetch(
               `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
@@ -2069,13 +2042,13 @@ function StageDoctorControls(props: {
             );
             const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
             if (!res.ok || !data.ok) {
-              setSkipDialogError(readSafeApiErrorText(data, 'Ошибка'));
+              toast.error(readSafeApiErrorText(data, 'Ошибка'));
               return;
             }
             await onPatched();
             setSkipDialogOpen(false);
             setSkipReasonDraft('');
-            setMsg('Сохранено');
+            toast.success('Сохранено');
           } finally {
             setSaving(false);
           }
@@ -2187,7 +2160,6 @@ function StageDoctorControls(props: {
           </Button>
         </div>
       </div>
-      {msg ? <p className="text-xs text-muted-foreground">{msg}</p> : null}
       <Dialog
         open={stageSettingsOpen}
         onOpenChange={(open) => {

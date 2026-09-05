@@ -83,7 +83,7 @@ export function DoctorTodayWeeklyAppointmentsChart({
   }, [anchorIndex, points.length]);
 
   return (
-    <Card className="flex h-full min-h-0 min-w-0 flex-col gap-2 py-3">
+    <Card className="flex h-full min-h-0 min-w-0 flex-col gap-1 pt-3 pb-2">
       <CardHeader className="shrink-0 px-3">
         <DoctorSectionTitle>Записи по неделям</DoctorSectionTitle>
       </CardHeader>
@@ -92,9 +92,9 @@ export function DoctorTodayWeeklyAppointmentsChart({
           ref={scrollAreaRef}
           className="doctor-weekly-chart-scroll doctor-touch-focus-surface h-full w-full overflow-x-auto overscroll-x-contain"
         >
-          <div className="h-full min-h-0 px-2 pb-2" style={{ width: chartWidth, minWidth: '100%' }}>
+          <div className="h-full min-h-0 px-2" style={{ width: chartWidth, minWidth: '100%' }}>
             <PositiveSizeResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartPoints} margin={{ top: 12, right: 14, left: 0, bottom: 2 }}>
+              <ComposedChart data={chartPoints} margin={{ top: 6, right: 14, left: 0, bottom: 2 }}>
                 <CartesianGrid
                   stroke="var(--border)"
                   vertical={false}
@@ -116,7 +116,7 @@ export function DoctorTodayWeeklyAppointmentsChart({
                     <text
                       x={x}
                       y={y}
-                      dy="0.71em"
+                      dy="0.5em"
                       fill={chartPoints[payload.index]?.isCurrent ? '#c4594f' : '#8b929b'}
                       fontSize={10}
                       textAnchor="middle"
@@ -127,7 +127,7 @@ export function DoctorTodayWeeklyAppointmentsChart({
                   tickLine={false}
                   axisLine={false}
                   interval={0}
-                  height={24}
+                  height={22}
                 />
                 <YAxis
                   domain={[0, visibleValuesMax]}

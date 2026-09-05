@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -41,17 +42,13 @@ export function SettingsForm({
     supportCommentsWithoutSupportDefault,
   );
   const [supportMediaDefault, setSupportMediaDefault] = useState(supportMediaWithoutSupportDefault);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   async function handleSave() {
-    setSaved(false);
-    setError(null);
     startTransition(async () => {
       try {
         if (showPatientLabel && showSupportDefaults) {
-          setError('Форма содержит несовместимые области настроек');
+          toast.error('Форма содержит несовместимые области настроек');
           return;
         }
         let response: Response;
@@ -88,7 +85,7 @@ export function SettingsForm({
           settings?: Array<{ key: string; valueJson: unknown }>;
         } | null;
         if (!response.ok || !body?.ok) {
-          setError('Не удалось сохранить настройки');
+          toast.error('Не удалось сохранить настройки');
           return;
         }
         if (showSupportDefaults) {
@@ -105,13 +102,13 @@ export function SettingsForm({
             valueFor('doctor_patient_support_media_without_support_default_enabled') !==
               supportMediaDefault
           ) {
-            setError('Не удалось подтвердить сохранённые настройки');
+            toast.error('Не удалось подтвердить сохранённые настройки');
             return;
           }
         }
-        setSaved(true);
+        toast.success('Сохранено');
       } catch {
-        setError('Ошибка при сохранении');
+        toast.error('Ошибка при сохранении');
       }
     });
   }
@@ -179,8 +176,6 @@ export function SettingsForm({
           <Button onClick={handleSave} disabled={isPending}>
             {isPending ? 'Сохранение...' : 'Сохранить'}
           </Button>
-          {saved && <span className="text-sm text-green-600">Сохранено</span>}
-          {error && <span className="text-sm text-destructive">{error}</span>}
         </div>
       </div>
     </DoctorSection>

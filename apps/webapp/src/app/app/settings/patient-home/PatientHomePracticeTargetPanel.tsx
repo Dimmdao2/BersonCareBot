@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { savePatientHomePracticeTargetAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
@@ -9,11 +10,10 @@ import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doc
 export function PatientHomePracticeTargetPanel(props: { initialTarget: number }) {
   const [value, setValue] = useState(String(props.initialTarget));
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  /** Только предзапросная валидация полей; исход сохранения уходит во всплывающее уведомление. */
   const [error, setError] = useState<string | null>(null);
 
   async function onSave() {
-    setMessage(null);
     setError(null);
     const n = Number.parseInt(value, 10);
     if (!Number.isFinite(n) || n < 1 || n > 10) {
@@ -24,12 +24,12 @@ export function PatientHomePracticeTargetPanel(props: { initialTarget: number })
     try {
       const res = await savePatientHomePracticeTargetAction(n);
       if (!res.ok) {
-        setError(res.error);
+        toast.error(res.error);
         return;
       }
-      setMessage('Сохранено');
+      toast.success('Сохранено');
     } catch {
-      setError('Не удалось сохранить.');
+      toast.error('Не удалось сохранить.');
     } finally {
       setPending(false);
     }
@@ -66,11 +66,6 @@ export function PatientHomePracticeTargetPanel(props: { initialTarget: number })
       {error ? (
         <p className="mt-2 text-sm text-destructive" role="alert">
           {error}
-        </p>
-      ) : null}
-      {message ? (
-        <p className="mt-2 text-sm text-green-700" role="status">
-          {message}
         </p>
       ) : null}
     </section>

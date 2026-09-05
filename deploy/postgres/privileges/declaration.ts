@@ -3204,6 +3204,21 @@ const REV10_CONTEXT = {
     patient_acquiring_webhook_resolve: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'patient-payment.webhook.resolve',
       functionIdentity: 'app.resolve_patient_acquiring_webhook_organization(text,text)' },
+    // Обе двери эквайрингового callback'а ПОСЛЕ резолвера выше: он отдаёт клинику, маршрут ставит
+    // организационный принципал, и дальше класс `tenant_service` ходит ТОЛЬКО именованными корнями —
+    // сквозной `purpose: 'relation'` этому классу не выдают (SCHEME §3). До MONEY-12 обе половины
+    // callback'а шли отношением, рантайм порта не находил возможности `tenant_service` и бросал ДО
+    // первого statement'а: деньги списаны, `patient_payment.status` навсегда `pending`, 5xx и вечный
+    // ретрай провайдера. Организацию ни одна из дверей не принимает аргументом — только принятый
+    // контекст, поэтому callback, проверенный для клиники A, физически не назовёт клинику B.
+    patient_acquiring_webhook_settle: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'patient-payment.webhook.settle',
+      functionIdentity: 'app.settle_patient_acquiring_webhook_payment(text,text,text)' },
+    patient_acquiring_webhook_booking_payment_config_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'patient-payment.webhook.booking-payment-config.read',
+      functionIdentity: 'app.read_acquiring_webhook_booking_payment_setting(text)' },
     saas_billing_provider_preauth_read: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'billing.webhook.provider.read',
       functionIdentity: 'app.read_saas_billing_payment_provider_preauth()' },
@@ -5045,6 +5060,40 @@ const REV10_CONTEXT = {
       owner: 'app_seam_payment_webhook_owner', execute: ['app_pre_session'],
       purpose: 'patient-payment.webhook.resolve', typedArgs: ['text', 'text'], volatility: 'STABLE',
       parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+    }),
+    // MONEY-12. Оплаченный callback переводит ОДНУ свою строку `pending → paid|failed` внутри уже
+    // принятой клиники. Владелец шва тот же, что у резолвера выше, и на `public.patient_payment` у
+    // него уже есть поколоночный SELECT — здесь добавляется ровно `UPDATE (status)`, ничего шире.
+    // Организация берётся из `app.current_org_id()`, а не из аргумента, поэтому чужая клиника не
+    // выражается; повтор callback'а не переписывает уже терминальную строку (compare-and-set в теле).
+    'app.settle_patient_acquiring_webhook_payment(text,text,text)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'settle exactly one acquiring ledger row of the accepted organization',
+      typedArgs: ['text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.patient_payment',
+          columns: ['id', 'kind', 'organization_id', 'provider', 'provider_payment_id', 'status'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: { UPDATE: ['status'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Вторая половина того же callback'а: провайдер и его webhook-секрет ИМЕННО этой клиники.
+    // Близнец `app.read_current_patient_booking_payment_setting(text)` — тот же владелец шва, тот же
+    // закрытый набор из двух ключей, тот же `admin`-скоуп с платформенной строкой как fallback;
+    // стена зачисления пациента заменена принятым арендатором, потому что у вебхука нет человека.
+    'app.read_acquiring_webhook_booking_payment_setting(text)': rev10Function({
+      owner: 'app_seam_settings_runtime_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'return only booking payment config of the accepted organization for its acquiring callback',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id', 'value_json'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     }),
     'app.read_saas_billing_payment_provider_preauth()': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_saas_billing_payment_provider_preauth()'],

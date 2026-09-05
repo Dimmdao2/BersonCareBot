@@ -42,7 +42,7 @@ import type { ScheduleKpis } from '@/modules/doctor-appointments/ports';
 import type { ScheduleTabProps } from '../scheduleTabRegistry';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
@@ -57,6 +57,7 @@ import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doc
 import { routePaths } from '@/app-layer/routes/paths';
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from '../scheduleCalendarEvents';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
+import { patientCardHref } from '../../patients/patientCardHref';
 import { deriveCalendarInitialScrollTime } from '@/modules/booking-calendar/visibleTimeWindow';
 import {
   addBreakToWorkingDay,
@@ -1202,6 +1203,15 @@ export function ScheduleCalendarTab({
             return;
           }
           setData(json);
+          setSelected((current) => {
+            if (!current) return current;
+            return (
+              json.events.find(
+                (event): event is CalendarAppointmentEvent =>
+                  event.kind === 'appointment' && event.id === current.id,
+              ) ?? current
+            );
+          });
           setError(null);
           // Do not write branchId/serviceId from feed into load-key state — that retriggers
           // load() in single-branch clinics. Create-form defaults resolve from filters on open.
@@ -2555,7 +2565,15 @@ export function ScheduleCalendarTab({
     ? (KPI_ITEMS.find((k) => k.key === kpiModalFilter)?.label ?? '')
     : '';
   const eventPanelOpen = selected !== null || showCreatePanel;
-  const eventPanelTitle = selected ? 'Детали записи' : 'Новая запись';
+  const eventPanelTitle = selected ? (
+    <DoctorModalStackedTitle
+      label="Запись на приём"
+      patientName={selected.patientName ?? 'Пациент'}
+      patientHref={selected.platformUserId ? patientCardHref(selected.platformUserId) : null}
+    />
+  ) : (
+    'Новая запись'
+  );
   const eventPanelNode = eventPanelOpen ? (
     <DoctorCalendarEventPanel
       key={selected?.id ?? 'create'}
@@ -2578,6 +2596,12 @@ export function ScheduleCalendarTab({
       onChanged={() => {
         clearDraftAndPanel();
         load();
+      }}
+      onUpdated={(updated) => {
+        if (updated) setSelected(updated);
+        recentLoadRef.current = null;
+        load();
+        if (renderMode === 'list') void loadInitialAppointmentFeed();
       }}
     />
   ) : null;

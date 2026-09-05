@@ -331,7 +331,7 @@ export function DoctorModal({
   if (presentation === 'fullscreen-media') {
     const fullscreenBody = (
       <div className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-black text-white">
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-end px-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
+        <div className="doctor-fullscreen-media-close pointer-events-none absolute z-10">
           <Button
             type="button"
             size="icon"

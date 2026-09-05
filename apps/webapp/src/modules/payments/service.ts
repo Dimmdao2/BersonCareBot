@@ -50,6 +50,21 @@ function persistedProviderIntentRef(event: StoredPaymentProviderEvent): string |
   return direct('intentRef') ?? direct('intentId');
 }
 
+/**
+ * Доля одной записи в платеже, который может покрывать несколько записей. Одно правило на оба
+ * пути чтения: поштучную сводку карточки и батч, которым детали приезжают вместе с календарём.
+ */
+export function splitAppointmentPaymentAmountMinor(
+  amountMinor: number,
+  appointmentCount: number,
+): number {
+  if (appointmentCount <= 1) return amountMinor;
+  if (amountMinor % appointmentCount !== 0) {
+    throw new Error('combined_payment_amount_not_divisible');
+  }
+  return amountMinor / appointmentCount;
+}
+
 export function createPaymentsService(deps: {
   port: PaymentsPort;
   config: PaymentsConfigReader;
@@ -112,11 +127,7 @@ export function createPaymentsService(deps: {
       payment.id,
       organizationId,
     );
-    if (appointmentCount <= 1) return payment.amountMinor;
-    if (payment.amountMinor % appointmentCount !== 0) {
-      throw new Error('combined_payment_amount_not_divisible');
-    }
-    return payment.amountMinor / appointmentCount;
+    return splitAppointmentPaymentAmountMinor(payment.amountMinor, appointmentCount);
   }
 
   function providerHasCredentials(provider: BookingPaymentSettings['providers'][number]): boolean {
@@ -309,6 +320,11 @@ export function createPaymentsService(deps: {
 
     async listPrepaymentPolicies(organizationId: string) {
       return deps.port.listPrepaymentPolicies(organizationId);
+    },
+
+    /** APPT-DETAIL-11: сырые платежи набора записей; долю считает вызывающий тем же правилом. */
+    async listAppointmentPaymentBriefs(organizationId: string, appointmentIds: string[]) {
+      return deps.port.listAppointmentPaymentBriefs(organizationId, appointmentIds);
     },
 
     async upsertPrepaymentPolicy(input: Parameters<PaymentsPort['upsertPrepaymentPolicy']>[0]) {

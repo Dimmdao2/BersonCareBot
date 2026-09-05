@@ -2,7 +2,8 @@
 
 import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { patientCardHref } from './patients/patientCardHref';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
 import type { DoctorTodayCalendarSnapshot } from './DoctorTodayDashboard';
@@ -162,7 +163,18 @@ export function TodayMiniCalendarWithModal({
   function fetchTodayEvents(onDone?: () => void) {
     loadTodayCalendar(todayIso, true)
       .then((data: CalendarApiResponse) => {
-        if (data.ok && Array.isArray(data.events)) setCalendarEvents(data.events);
+        if (data.ok && Array.isArray(data.events)) {
+          setCalendarEvents(data.events);
+          setSelected((current) => {
+            if (!current) return current;
+            return (
+              data.events?.find(
+                (event): event is CalendarAppointmentEvent =>
+                  event.kind === 'appointment' && event.id === current.id,
+              ) ?? current
+            );
+          });
+        }
         if (data.filters) setFilterMeta(data.filters);
         setWorkingBounds(data.workingBounds);
         if (data.timeZone) setCalendarTimeZone(data.timeZone);
@@ -206,6 +218,11 @@ export function TodayMiniCalendarWithModal({
     fetchTodayEvents();
   }
 
+  function handleUpdated(updated?: CalendarAppointmentEvent) {
+    if (updated) setSelected(updated);
+    fetchTodayEvents();
+  }
+
   return (
     <>
       {showFc ? (
@@ -233,7 +250,13 @@ export function TodayMiniCalendarWithModal({
       <DoctorModal
         open={selected !== null}
         onClose={() => setSelected(null)}
-        title="Детали записи"
+        title={
+          <DoctorModalStackedTitle
+            label="Запись на приём"
+            patientName={selected?.patientName ?? undefined}
+            patientHref={selected?.platformUserId ? patientCardHref(selected.platformUserId) : null}
+          />
+        }
         size="lg"
         desktopPresentation="right-sheet"
       >
@@ -248,6 +271,7 @@ export function TodayMiniCalendarWithModal({
             clinicSpecialists={clinicSpecialists}
             onClose={() => setSelected(null)}
             onChanged={handleChanged}
+            onUpdated={handleUpdated}
             flushChrome
           />
         ) : null}

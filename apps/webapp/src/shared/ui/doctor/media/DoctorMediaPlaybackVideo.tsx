@@ -114,6 +114,7 @@ function PlaybackEngine({
   initialPayload,
   shellClassName,
   containerClassName,
+  isFullscreen,
   onFirstPlaying,
 }: {
   mediaId: string;
@@ -121,6 +122,7 @@ function PlaybackEngine({
   initialPayload: MediaPlaybackPayload;
   shellClassName: string;
   containerClassName?: string;
+  isFullscreen: boolean;
   onFirstPlaying?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -511,7 +513,10 @@ function PlaybackEngine({
               controlsList="nodownload"
               preload="metadata"
               playsInline
-              className="absolute inset-0 z-0 h-full w-full object-contain"
+              className={cn(
+                'absolute inset-0 z-0 h-full w-full object-contain',
+                isFullscreen && 'doctor-fullscreen-media-video',
+              )}
               title={title}
             />
           </>
@@ -679,6 +684,7 @@ export function DoctorMediaPlaybackVideo({
       initialPayload={payload}
       shellClassName={shell}
       containerClassName={isFullscreen ? 'h-full min-h-0 bg-black' : undefined}
+      isFullscreen={isFullscreen}
       onFirstPlaying={onFirstPlaying}
     />
   );

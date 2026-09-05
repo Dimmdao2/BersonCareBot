@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -98,7 +99,7 @@ export function OperatorHealthAlertsSection({
   }));
   const [digestTime, setDigestTime] = useState(initialConfig.digestTime);
   const [fallbackEmail, setFallbackEmail] = useState(initialFallbackEmail);
-  const [saved, setSaved] = useState(false);
+  /** Только предзапросная валидация полей; исход сохранения уходит во всплывающее уведомление. */
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -107,7 +108,6 @@ export function OperatorHealthAlertsSection({
   }
 
   function handleSave() {
-    setSaved(false);
     setError(null);
     const trimmedDigestTime = digestTime.trim();
     if (!/^([01]?\d|2[0-3]):([0-5]\d)$/.test(trimmedDigestTime)) {
@@ -127,7 +127,7 @@ export function OperatorHealthAlertsSection({
         digestTime: normalizedDigestTime,
       });
       if (!alertsResult.ok) {
-        setError(alertsResult.error ?? 'Не удалось сохранить настройки операторских алертов.');
+        toast.error(alertsResult.error ?? 'Не удалось сохранить настройки операторских алертов.');
         return;
       }
       const fallbackResult = await patchAdminSettingWithResult(
@@ -135,11 +135,11 @@ export function OperatorHealthAlertsSection({
         checkedFallbackEmail.value,
       );
       if (!fallbackResult.ok) {
-        setError(fallbackResult.error ?? 'Не удалось сохранить резервный e-mail.');
+        toast.error(fallbackResult.error ?? 'Не удалось сохранить резервный e-mail.');
         return;
       }
       setFallbackEmail(checkedFallbackEmail.value);
-      setSaved(true);
+      toast.success('Сохранено');
     });
   }
 
@@ -232,7 +232,6 @@ export function OperatorHealthAlertsSection({
           </section>
         ))}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        {saved ? <p className="text-sm text-muted-foreground">Сохранено</p> : null}
         <Button type="button" disabled={isPending} onClick={handleSave}>
           Сохранить
         </Button>

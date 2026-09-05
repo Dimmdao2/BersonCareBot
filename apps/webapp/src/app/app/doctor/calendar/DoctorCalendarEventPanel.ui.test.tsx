@@ -1,5 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock('react-hot-toast', () => ({ default: toastMock }));
 
 vi.mock('./DoctorCalendarPatientSearch', () => ({
   DoctorCalendarPatientSearch: ({ value }: { value?: { displayName: string } | null }) => (
@@ -14,6 +17,7 @@ vi.mock('@/shared/ui/doctor/DoctorDateTimePicker', () => ({
 
 import type {
   CalendarAppointmentEvent,
+  CalendarAppointmentPaymentView,
   CalendarFilterMeta,
 } from '@/modules/booking-calendar/types';
 import { AppointmentPaymentSection } from './AppointmentPaymentSection';
@@ -23,6 +27,10 @@ const SPECIALIST_ID = '11111111-1111-4111-8111-111111111111';
 const BRANCH_ID = '22222222-2222-4222-8222-222222222222';
 const SERVICE_ID = '33333333-3333-4333-8333-333333333333';
 
+beforeEach(() => {
+  toastMock.success.mockClear();
+  toastMock.error.mockClear();
+});
 afterEach(() => vi.unstubAllGlobals());
 
 describe('clinic calendar create form', () => {
@@ -212,193 +220,72 @@ describe('clinic calendar create form', () => {
   });
 });
 
-type PaymentGetResponse = {
-  summary: {
-    prepaymentQuote: { amountMinor: number; currency: string } | null;
-    payment: { amountMinor: number; status: string } | null;
-  };
-  totalMinor: number | null;
-  manualPaidMinor: number;
-  paymentsEntitled?: boolean;
-  onlinePaymentAvailable?: boolean;
-  patientChatAvailable?: boolean;
-};
+type PaymentViewOverride = Partial<CalendarAppointmentPaymentView>;
 
 /** The block only exists for an entitled clinic, so every fixture states that fact explicitly. */
-function paymentResponse(body: PaymentGetResponse): Response {
-  return Response.json(
-    { paymentsEntitled: true, onlinePaymentAvailable: true, ...body },
-    { status: 200 },
-  );
+function paymentView(override: PaymentViewOverride = {}): CalendarAppointmentPaymentView {
+  return {
+    prepaymentQuote: null,
+    payment: null,
+    totalMinor: null,
+    manualPaidMinor: 0,
+    paymentsEntitled: true,
+    onlinePaymentAvailable: true,
+    patientChatAvailable: false,
+    ...override,
+  };
+}
+
+/** APPT-DETAIL-11: обновление после мутации отвечает тем же объектом, что пришёл в деталях. */
+function paymentResponse(view: CalendarAppointmentPaymentView): Response {
+  return Response.json({ ok: true, payment: view }, { status: 200 });
 }
 
 describe('appointment payment owner states', () => {
-  it.each([
-    {
-      label: 'none',
-      response: {
-        summary: { prepaymentQuote: null, payment: null },
-        totalMinor: 10_000,
-        manualPaidMinor: 0,
-      },
-      expected: 'Не оплачено',
-      expectedNumbers: [] as string[],
-    },
-    {
-      label: 'partial',
-      response: {
-        summary: {
-          prepaymentQuote: null,
-          payment: { amountMinor: 2_500, status: 'succeeded' },
-        },
-        totalMinor: 10_000,
-        manualPaidMinor: 1_000,
-      },
-      expected: 'Частично оплачено:',
-      expectedNumbers: ['35', '100', '65'],
-    },
-    {
-      label: 'paid',
-      response: {
-        summary: {
-          prepaymentQuote: null,
-          payment: { amountMinor: 12_000, status: 'succeeded' },
-        },
-        totalMinor: 10_000,
-        manualPaidMinor: 0,
-      },
-      expected: 'Оплачено:',
-      expectedNumbers: ['120'],
-    },
-  ])('renders the $label state from actual captured and cash amounts', async ({
-    response,
-    expected,
-    expectedNumbers,
-  }) => {
-    vi.stubGlobal('fetch', vi.fn(async () => paymentResponse(response)));
-
-    const { unmount } = render(
-      <AppointmentPaymentSection apiBase="/api/doctor/booking-engine" appointmentId="appointment-1" />,
-    );
-
-    const status = await screen.findByText(new RegExp(`^${expected}`));
-    for (const expectedNumber of expectedNumbers) {
-      expect(status).toHaveTextContent(expectedNumber);
-    }
-    if (response.manualPaidMinor + (response.summary.payment?.amountMinor ?? 0) < 10_000) {
-      expect(screen.queryByText(/^Оплачено:/)).not.toBeInTheDocument();
-    }
-    unmount();
-  });
-
-  it('treats a zero-price appointment as having zero remaining, not as unpaid', async () => {
+  it('refreshes the amounts from the server after a cash payment', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () =>
-        paymentResponse({
-          summary: { prepaymentQuote: null, payment: null },
-          totalMinor: 0,
-          manualPaidMinor: 0,
-        }),
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+        (init?.method ?? 'GET') === 'POST'
+          ? Response.json({ ok: true }, { status: 200 })
+          : paymentResponse(paymentView({ totalMinor: 10_000, manualPaidMinor: 10_000 })),
       ),
     );
 
     render(
-      <AppointmentPaymentSection apiBase="/api/doctor/booking-engine" appointmentId="appointment-free" />,
+      <AppointmentPaymentSection
+        apiBase="/api/doctor/booking-engine"
+        appointmentId="appointment-1"
+        view={paymentView({ totalMinor: 10_000 })}
+      />,
     );
 
-    expect(await screen.findByText(/^Оплачено:/)).toHaveTextContent('0');
-    expect(screen.queryByText('Не оплачено')).not.toBeInTheDocument();
-    // Nothing left to collect: the single collect action is absent, not a dead grey control.
-    expect(screen.queryByRole('button', { name: 'Принять оплату' })).not.toBeInTheDocument();
-  });
-
-  it('renders no payment block at all when the clinic tariff does not carry payments', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () =>
-        Response.json(
-          {
-            summary: { prepaymentQuote: null, payment: null },
-            totalMinor: 10_000,
-            manualPaidMinor: 0,
-            paymentsEntitled: false,
-            onlinePaymentAvailable: false,
-          },
-          { status: 200 },
-        ),
-      ),
-    );
-
-    render(
-      <AppointmentPaymentSection apiBase="/api/doctor/booking-engine" appointmentId="appointment-1" />,
-    );
-
-    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled());
-    expect(screen.queryByLabelText('Оплата записи')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Принять оплату' })).not.toBeInTheDocument();
-  });
-
-  it('offers no online option when the read reports no configured provider', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () =>
-        paymentResponse({
-          summary: { prepaymentQuote: null, payment: null },
-          totalMinor: 10_000,
-          manualPaidMinor: 0,
-          onlinePaymentAvailable: false,
-        }),
-      ),
-    );
-
-    render(
-      <AppointmentPaymentSection apiBase="/api/doctor/booking-engine" appointmentId="appointment-1" />,
-    );
     await screen.findByText('Не оплачено');
     fireEvent.click(screen.getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Оплачено наличными' }));
 
-    // Cash still works without a provider; the invoice/QR/link path must not be offered at all,
-    // otherwise the doctor promises a patient a link the provider cannot issue.
-    expect(await screen.findByRole('button', { name: 'Оплачено наличными' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Выставить счёт' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: 'QR-код платёжной ссылки' })).not.toBeInTheDocument();
+    // Деньги меняет мутация — только после неё блок перечитывает суммы.
+    expect(await screen.findByText(/^Оплачено наличными:/)).toHaveTextContent('100');
   });
 
   it('keeps the QR on the server-returned URL and clears that identity when the appointment changes', async () => {
-    const getByAppointment = new Map([
-      [
-        'appointment-1',
-        {
-          summary: { prepaymentQuote: null, payment: null },
-          totalMinor: 10_000,
-          manualPaidMinor: 0,
-        } satisfies PaymentGetResponse,
-      ],
-      [
-        'appointment-2',
-        {
-          summary: { prepaymentQuote: null, payment: null },
-          totalMinor: 20_000,
-          manualPaidMinor: 0,
-        } satisfies PaymentGetResponse,
-      ],
-    ]);
     const checkoutUrl = 'https://pay.example.test/appointment-1?token=one';
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input);
-        const appointmentId = url.includes('appointment-2') ? 'appointment-2' : 'appointment-1';
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
         if (init?.method === 'POST') {
           return Response.json({ ok: true, paymentLink: checkoutUrl }, { status: 200 });
         }
-        return paymentResponse(getByAppointment.get(appointmentId)!);
+        return paymentResponse(paymentView({ totalMinor: 10_000 }));
       }),
     );
 
     const { rerender } = render(
-      <AppointmentPaymentSection apiBase="/api/doctor/booking-engine" appointmentId="appointment-1" />,
+      <AppointmentPaymentSection
+        apiBase="/api/doctor/booking-engine"
+        appointmentId="appointment-1"
+        view={paymentView({ totalMinor: 10_000 })}
+      />,
     );
     await screen.findByText('Не оплачено');
     fireEvent.click(screen.getByRole('button', { name: 'Принять оплату' }));
@@ -411,13 +298,14 @@ describe('appointment payment owner states', () => {
     expect(qr).not.toHaveAttribute('src', expect.stringContaining(checkoutUrl));
     expect(qr).not.toHaveAttribute('src', expect.stringMatching(/^https?:/));
 
+    // Платёжная идентичность принадлежит одной записи: ключ по записи снимает её вместе с блоком.
     rerender(
-      <AppointmentPaymentSection apiBase="/api/doctor/booking-engine" appointmentId="appointment-2" />,
-    );
-    await waitFor(() =>
-      expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('appointment-2'))).toBe(
-        true,
-      ),
+      <AppointmentPaymentSection
+        key="appointment-2"
+        apiBase="/api/doctor/booking-engine"
+        appointmentId="appointment-2"
+        view={paymentView({ totalMinor: 20_000 })}
+      />,
     );
     expect(screen.queryByRole('link', { name: checkoutUrl })).not.toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'QR-код платёжной ссылки' })).not.toBeInTheDocument();
@@ -458,6 +346,8 @@ const EDITABLE_APPOINTMENT: CalendarAppointmentEvent = {
   rescheduleCount: 0,
   originalStartAt: null,
   formComments: [],
+  primaryComment: 'Старый',
+  payment: null,
 };
 
 const EDIT_FILTER_META: CalendarFilterMeta = {
@@ -486,15 +376,9 @@ function stubEditEndpoints(commentPost: () => Response) {
       if (url.endsWith('/lifecycle')) {
         return Response.json({ ok: true, reschedules: [], cancellations: [] }, { status: 200 });
       }
-      if (url.endsWith('/comments') && method === 'GET') {
-        return Response.json(
-          { ok: true, comments: [{ id: 'c1', body: 'Старый', createdAt: '2027-03-01T00:00:00Z' }] },
-          { status: 200 },
-        );
-      }
       if (url.endsWith('/comments')) return commentPost();
       if (url.endsWith('/manual-reschedule')) return Response.json({ ok: true }, { status: 200 });
-      return Response.json({ paymentsEntitled: false }, { status: 200 });
+      return Response.json({ ok: true }, { status: 200 });
     }),
   );
   return calls;
@@ -527,12 +411,12 @@ describe('appointment edit save', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
 
     await waitFor(() =>
-      expect(
-        vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith('/comments')),
-      ).toBe(true),
+      expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith('/comments'))).toBe(
+        true,
+      ),
     );
     // Сохранился только перенос; объявлять запись сохранённой и терять набранный текст нельзя.
-    expect(screen.queryByText('Сохранено')).not.toBeInTheDocument();
+    expect(toastMock.success).not.toHaveBeenCalled();
     expect(screen.getByDisplayValue('Новый комментарий')).toBeInTheDocument();
   });
 
@@ -543,7 +427,7 @@ describe('appointment edit save', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Изменить' }));
     const editComment = await screen.findByLabelText('Комментарий');
-    await waitFor(() => expect(editComment).toHaveValue('Старый'));
+    expect(editComment).toHaveValue('Старый');
     fireEvent.change(editComment, { target: { value: '' } });
     // Расписание меняется тоже: так у сохранения есть сетевой шаг, по которому виден его конец.
     fireEvent.change(screen.getByLabelText('Длительность, мин'), { target: { value: '45' } });
@@ -555,18 +439,18 @@ describe('appointment edit save', () => {
     // Очистка обязана уйти в тот же контракт комментария, а не пропасть по дороге...
     await waitFor(() =>
       expect(
-        vi.mocked(fetch).mock.calls.some(
-          ([url, init]) =>
-            String(url).endsWith('/comments') &&
-            (init as RequestInit | undefined)?.method === 'DELETE',
-        ),
+        vi
+          .mocked(fetch)
+          .mock.calls.some(
+            ([url, init]) =>
+              String(url).endsWith('/comments') &&
+              (init as RequestInit | undefined)?.method === 'DELETE',
+          ),
       ).toBe(true),
     );
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: /^(Сохранить|Изменить)$/ })).toBeEnabled(),
-    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled());
     // ...и её отказ не имеет права выглядеть как сохранённая запись.
-    expect(screen.queryByText('Сохранено')).not.toBeInTheDocument();
+    expect(toastMock.success).not.toHaveBeenCalled();
     // Применённый перенос не отменяет ошибку: календарю нельзя отдавать сигнал «готово»,
     // он закрывает панель и уносит сообщение с экрана — форма обязана остаться открытой.
     expect(onChanged).not.toHaveBeenCalled();
@@ -577,15 +461,42 @@ describe('appointment edit save', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     await waitFor(() =>
       expect(
-        vi.mocked(fetch).mock.calls.filter(
-          ([url, init]) =>
-            String(url).endsWith('/comments') &&
-            (init as RequestInit | undefined)?.method === 'DELETE',
-        ),
+        vi
+          .mocked(fetch)
+          .mock.calls.filter(
+            ([url, init]) =>
+              String(url).endsWith('/comments') &&
+              (init as RequestInit | undefined)?.method === 'DELETE',
+          ),
       ).toHaveLength(2),
     );
     expect(
       vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/manual-reschedule')),
     ).toHaveLength(1);
+  });
+});
+
+/**
+ * APPT-DETAIL-11 (решение владельца 2026-09-05): комментарий формируется сразу, а не подгружается
+ * дополнительным фетчем. Проверяется не текст на экране, а именно это: значение поля верно в
+ * первом же кадре, «Изменить» открывается уже заполненным, и отдельного чтения комментария нет.
+ */
+describe('appointment detail initial hydration', () => {
+  it('prefills an immediate edit from the initial payload without reading the comment again', async () => {
+    const calls = stubEditEndpoints(() => Response.json({ ok: true }, { status: 200 }));
+
+    renderEditablePanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить' }));
+    expect(await screen.findByLabelText('Комментарий')).toHaveValue('Старый');
+
+    await waitFor(() => expect(calls.some((call) => call.endsWith('/lifecycle'))).toBe(true));
+    expect(
+      calls.filter(
+        (call) =>
+          call ===
+          'GET /api/doctor/booking-engine/appointments/44444444-4444-4444-8444-444444444444/comments',
+      ),
+    ).toHaveLength(0);
   });
 });

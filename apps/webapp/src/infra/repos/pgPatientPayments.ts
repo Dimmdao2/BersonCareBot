@@ -3,12 +3,9 @@
  * Uses Drizzle ORM. listPayments returns newest-first.
  */
 
-import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, sum } from 'drizzle-orm';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
-import {
-  getCurrentDbPrincipalOrganizationId,
-  runWithDbOrganizationPrincipal,
-} from '@bersoncare/db-principal';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import {
   getWebappSqlDb,
   getWebappSqlFromPgClient,
@@ -17,10 +14,10 @@ import {
 import { withTransaction } from '@/infra/db/withClient';
 import { sql } from 'drizzle-orm';
 import type {
+  AcquiringWebhookSettlementOutcome,
   AddCashPaymentInput,
   InsertAcquiringPendingInput,
   PatientPayment,
-  PatientPaymentStatus,
   PatientPaymentsPort,
 } from '@/modules/patient-payments/ports';
 import { patientPayment } from '../../../db/schema/patientPayments';
@@ -47,13 +44,27 @@ function rowToPayment(row: typeof patientPayment.$inferSelect): PatientPayment {
   };
 }
 
+/**
+ * The ledger is plain relation access, and the webapp port hands the tenant-service class no
+ * through-door for that: `deploy/postgres/privileges/declaration.ts` states «сквозной
+ * `purpose: 'relation'` этому классу не выдают (SCHEME §3)», so the only declared relation
+ * capabilities are `staff`, `patient` and `platform`. Re-entering an organization principal here
+ * therefore made every write physically unreachable — the port-context resolver looked up a
+ * `tenant_service` capability that does not exist and threw before any SQL was issued. The
+ * declared writer of `public.patient_payment` is `app_staff` (`privileges/relation-access.ts`),
+ * which is exactly the principal every cabinet cash/acquiring door already installs.
+ *
+ * So the write runs under the principal its caller installed, and `organizationId` stays an
+ * honest argument by being checked against it instead of silently redefining the tenant.
+ */
 function runPatientPaymentMutation<T>(
   organizationId: string,
   fn: (db: DrizzleDb) => Promise<T>,
 ): Promise<T> {
-  return runWithDbOrganizationPrincipal(organizationId, () =>
-    withTransaction((client) => fn(getWebappSqlFromPgClient(client) as DrizzleDb)),
-  );
+  if (requiredPrincipalOrganizationId() !== organizationId) {
+    throw new Error('patient_payment_organization_principal_mismatch');
+  }
+  return withTransaction((client) => fn(getWebappSqlFromPgClient(client) as DrizzleDb));
 }
 
 function requiredPrincipalOrganizationId(): string {
@@ -96,6 +107,29 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
         )
         .orderBy(desc(patientPayment.createdAt));
       return rows.map(rowToPayment);
+    },
+
+    async sumPaidMinorForAppointments(appointmentIds) {
+      if (appointmentIds.length === 0) return [];
+      const organizationId = requiredPrincipalOrganizationId();
+      const rows = await getDrizzle()
+        .select({
+          appointmentId: patientPayment.appointmentId,
+          paidMinor: sum(patientPayment.amountMinor),
+        })
+        .from(patientPayment)
+        .where(
+          and(
+            inArray(patientPayment.appointmentId, appointmentIds),
+            eq(patientPayment.organizationId, organizationId),
+            eq(patientPayment.status, 'paid'),
+          ),
+        )
+        .groupBy(patientPayment.appointmentId);
+      return rows.map((row) => ({
+        appointmentId: row.appointmentId as string,
+        paidMinor: Number(row.paidMinor ?? 0),
+      }));
     },
 
     async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
@@ -149,24 +183,6 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
       return rowToPayment(row);
     },
 
-    async findByProviderPaymentReference(
-      providerId: string,
-      providerPaymentId: string,
-    ): Promise<PatientPayment | null> {
-      const db = getDrizzle();
-      const rows = await db
-        .select()
-        .from(patientPayment)
-        .where(
-          and(
-            eq(patientPayment.kind, 'acquiring'),
-            eq(patientPayment.provider, providerId),
-            eq(patientPayment.providerPaymentId, providerPaymentId),
-          ),
-        );
-      return rows.length === 1 ? rowToPayment(rows[0]) : null;
-    },
-
     async resolveAcquiringWebhookOrganization(providerId, providerPaymentId) {
       const result = await runWebappNamedRoot<{ organization_id: string | null }>(
         getWebappSqlDb(),
@@ -180,21 +196,33 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
       return result.rows[0]?.organization_id ?? null;
     },
 
-    async updatePatientPaymentStatus(
-      id: string,
-      status: PatientPaymentStatus,
-      organizationId: string,
-      providerPaymentId?: string,
-    ): Promise<void> {
-      await runPatientPaymentMutation(organizationId, (tx) =>
-        tx
-          .update(patientPayment)
-          .set({
-            status,
-            ...(providerPaymentId !== undefined ? { providerPaymentId } : {}),
-          })
-          .where(and(eq(patientPayment.id, id), eq(patientPayment.organizationId, organizationId))),
+    /**
+     * The acquiring callback runs under the ORGANIZATION principal its route installed, i.e. the
+     * port's `tenant_service` class — and that class has no through-relation capability at all
+     * (`privileges/declaration.ts`: «сквозной `purpose: 'relation'` этому классу не выдают»). Every
+     * plain `db.select()`/`db.update()` here therefore threw on the missing capability before any
+     * SQL was issued, which is why a charged patient's row stayed `pending` and the acquirer retried
+     * forever. `tenant_service` reaches data through NAMED ROOTS, so this is one.
+     *
+     * The root also takes no organization argument: it reads the accepted tenant from the installed
+     * context, matches exactly one row, and moves it out of `pending` in a single compare-and-set.
+     */
+    async settleAcquiringWebhookPayment({ providerId, providerPaymentId, status }) {
+      const result = await runWebappNamedRoot<{ outcome: AcquiringWebhookSettlementOutcome }>(
+        getWebappSqlDb(),
+        'app.settle_patient_acquiring_webhook_payment(text,text,text)',
+        [providerId, providerPaymentId, status],
+        sql`SELECT app.settle_patient_acquiring_webhook_payment(
+          ${providerId}::text,
+          ${providerPaymentId}::text,
+          ${status}::text
+        ) AS outcome`,
       );
+      const outcome = result.rows[0]?.outcome;
+      if (outcome !== 'settled' && outcome !== 'already_processed' && outcome !== 'not_found') {
+        throw new Error('patient_acquiring_webhook_settlement_outcome_unrecognised');
+      }
+      return outcome;
     },
 
     async insertAcquiringPending(input: InsertAcquiringPendingInput): Promise<PatientPayment> {

@@ -1,7 +1,15 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock('react-hot-toast', () => ({ default: toastMock }));
+
 import { SettingsForm } from './SettingsForm';
 
+beforeEach(() => {
+  toastMock.success.mockClear();
+  toastMock.error.mockClear();
+});
 afterEach(() => vi.unstubAllGlobals());
 
 describe('clinic-owner cabinet settings form', () => {
@@ -36,7 +44,7 @@ describe('clinic-owner cabinet settings form', () => {
     expect(screen.getByText(/SMS/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
 
-    expect(await screen.findByText('Сохранено')).toBeInTheDocument();
+    await waitFor(() => expect(toastMock.success).toHaveBeenCalledTimes(1));
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [, init] = fetchMock.mock.calls[0]!;
     const body = JSON.parse(String(init?.body)) as { items: Array<{ key: string }> };
@@ -45,6 +53,6 @@ describe('clinic-owner cabinet settings form', () => {
       'doctor_patient_support_comments_without_support_default_enabled',
       'doctor_patient_support_media_without_support_default_enabled',
     ]);
-    await waitFor(() => expect(screen.queryByText('Не удалось сохранить настройки')).toBeNull());
+    expect(toastMock.error).not.toHaveBeenCalled();
   });
 });

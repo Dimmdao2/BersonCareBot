@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
@@ -17,7 +18,6 @@ type Props = {
 export function DoctorClientLifecycleActions({ userId, isArchived }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<'archive' | 'unarchive' | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
 
   async function archiveClient() {
     if (
@@ -29,7 +29,6 @@ export function DoctorClientLifecycleActions({ userId, isArchived }: Props) {
       return;
     }
     setBusy('archive');
-    setMsg(null);
     try {
       const res = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/archive`, {
         method: 'PATCH',
@@ -38,7 +37,7 @@ export function DoctorClientLifecycleActions({ userId, isArchived }: Props) {
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setMsg('Не удалось архивировать. Попробуйте снова или обратитесь к администратору.');
+        toast.error('Не удалось архивировать. Попробуйте снова или обратитесь к администратору.');
         return;
       }
       router.refresh();
@@ -50,7 +49,6 @@ export function DoctorClientLifecycleActions({ userId, isArchived }: Props) {
   async function unarchiveClient() {
     if (!window.confirm('Вернуть клиента из архива в обычные списки?')) return;
     setBusy('unarchive');
-    setMsg(null);
     try {
       const res = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/archive`, {
         method: 'PATCH',
@@ -59,7 +57,7 @@ export function DoctorClientLifecycleActions({ userId, isArchived }: Props) {
       });
       const data = (await res.json()) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        setMsg('Не удалось снять архив.');
+        toast.error('Не удалось снять архив.');
         return;
       }
       router.refresh();
@@ -79,11 +77,6 @@ export function DoctorClientLifecycleActions({ userId, isArchived }: Props) {
       <p className="text-muted-foreground text-sm">
         Архивирование скрывает карточку из обычных списков и не удаляет данные клиента.
       </p>
-      {msg ? (
-        <p className="text-sm text-foreground" role="status">
-          {msg}
-        </p>
-      ) : null}
       <div className="flex flex-wrap gap-2">
         {!isArchived ? (
           <Button

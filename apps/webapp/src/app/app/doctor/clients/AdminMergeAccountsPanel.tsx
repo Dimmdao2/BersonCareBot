@@ -5,6 +5,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -101,7 +102,6 @@ export function AdminMergeAccountsPanel({
   const [previewLoading, setPreviewLoading] = useState(false);
 
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
 
   const mergeCandidatesFetchRef = useRef<AbortController | null>(null);
   /** Serializes merge-preview fetches; incremented on each new request so stale responses are ignored. */
@@ -425,12 +425,11 @@ export function AdminMergeAccountsPanel({
     );
     if (typed === null) return;
     if (!mergeDuplicatePrefixConfirmed(typed, preview.duplicateId)) {
-      setMsg('Первые 4 символа не совпали с UUID дубликата — merge отменён.');
+      toast.error('Первые 4 символа не совпали с UUID дубликата — merge отменён.');
       return;
     }
 
     setBusy(true);
-    setMsg(null);
     try {
       const res = await fetch('/api/doctor/clients/merge', {
         method: 'POST',
@@ -442,7 +441,7 @@ export function AdminMergeAccountsPanel({
       try {
         data = (await res.json()) as { ok?: boolean; error?: string; message?: string };
       } catch {
-        setMsg(
+        toast.error(
           res.status === 403
             ? 'Доступ запрещён: нужны роль admin и режим администратора.'
             : `Ответ сервера без JSON (HTTP ${res.status}).`,
@@ -454,10 +453,10 @@ export function AdminMergeAccountsPanel({
           res.status === 403
             ? 'Доступ запрещён: нужны роль admin и режим администратора.'
             : (data.message ?? data.error ?? `merge_failed (HTTP ${res.status})`);
-        setMsg(hint);
+        toast.error(hint);
         return;
       }
-      setMsg('Объединение выполнено.');
+      toast.success('Объединение выполнено.');
       setSecondUserId('');
       setMergeSearchQ('');
       setMergeSearchResults([]);
@@ -942,11 +941,6 @@ export function AdminMergeAccountsPanel({
           </div>
         ) : null}
 
-        {msg ? (
-          <p className="text-sm" role="status">
-            {msg}
-          </p>
-        ) : null}
       </>
     </div>
   );

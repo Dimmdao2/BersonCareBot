@@ -4,6 +4,7 @@
  */
 
 import type {
+  AcquiringSettlementStatus,
   AddCashPaymentInput,
   InsertAcquiringPendingInput,
   PatientPayment,
@@ -32,6 +33,16 @@ export type AcquiringWebhookEvent = {
   providerPaymentId: string;
 };
 
+/**
+ * Provider-agnostic event type -> ledger transition. `null` means "this event says nothing about
+ * settlement", which is acknowledged without touching the ledger.
+ */
+function acquiringSettlementStatusFor(eventType: string): AcquiringSettlementStatus | null {
+  if (eventType === 'payment.succeeded') return 'paid';
+  if (eventType === 'payment.canceled' || eventType === 'payment.failed') return 'failed';
+  return null;
+}
+
 export function createPatientPaymentsService({
   patientPaymentsPort,
   assertWriteClearance,
@@ -59,6 +70,11 @@ export function createPatientPaymentsService({
       return patientPaymentsPort.listAppointmentPayments(appointmentId, patientUserId);
     },
 
+    /** APPT-DETAIL-11: оплаченное наличными/эквайрингом сразу по набору записей. */
+    async sumPaidMinorForAppointments(appointmentIds: string[]) {
+      return patientPaymentsPort.sumPaidMinorForAppointments(appointmentIds);
+    },
+
     async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
       assertWriteClearance?.('payments');
       if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
@@ -72,48 +88,31 @@ export function createPatientPaymentsService({
      * Handle a pre-verified acquiring webhook event.
      * The route layer is responsible for verifying the signature and extracting the event.
      *
-     * Returns { ok: true, alreadyProcessed: true } if the payment is already in a terminal state.
-     * Returns { ok: false, reason } if the payment was not found.
+     * Returns { ok: true, alreadyProcessed: true } if the callback changed nothing — the row was
+     * already terminal, or the event type carries no transition at all.
+     * Returns { ok: false, reason } if no single payment of the installed clinic matches.
+     *
+     * The match and the transition are ONE port call, not a read followed by a write: the acquirer
+     * retries the same event, and two copies racing on a read-then-write pair would both see
+     * `pending`. The clinic is not passed here either — the port settles inside the principal the
+     * route installed, so this service cannot address another tenant's payment even by mistake.
      */
     async handleAcquiringWebhookEvent(
       event: AcquiringWebhookEvent,
     ): Promise<{ ok: true; alreadyProcessed?: boolean } | { ok: false; reason: string }> {
-      const payment = await patientPaymentsPort.findByProviderPaymentReference(
-        event.providerId,
-        event.providerPaymentId,
-      );
-      if (!payment) {
-        return { ok: false, reason: 'payment_not_found' };
-      }
-
-      // Skip if already in terminal state (idempotency)
-      if (
-        payment.status === 'paid' ||
-        payment.status === 'failed' ||
-        payment.status === 'refunded'
-      ) {
+      const status = acquiringSettlementStatusFor(event.eventType);
+      if (!status) {
+        // Unrecognised event type — ack with ok but no state change, and no ledger lookup at all.
         return { ok: true, alreadyProcessed: true };
       }
 
-      let newStatus: 'paid' | 'failed';
-      if (event.eventType === 'payment.succeeded') {
-        newStatus = 'paid';
-      } else if (event.eventType === 'payment.canceled' || event.eventType === 'payment.failed') {
-        newStatus = 'failed';
-      } else {
-        // Unrecognised event type — ack with ok but no state change
-        return { ok: true, alreadyProcessed: true };
-      }
-
-      if (!payment.organizationId) {
-        return { ok: false, reason: 'payment_org_missing' };
-      }
-
-      await patientPaymentsPort.updatePatientPaymentStatus(
-        payment.id,
-        newStatus,
-        payment.organizationId,
-      );
+      const outcome = await patientPaymentsPort.settleAcquiringWebhookPayment({
+        providerId: event.providerId,
+        providerPaymentId: event.providerPaymentId,
+        status,
+      });
+      if (outcome === 'not_found') return { ok: false, reason: 'payment_not_found' };
+      if (outcome === 'already_processed') return { ok: true, alreadyProcessed: true };
       return { ok: true };
     },
 
