@@ -7,7 +7,6 @@ import type {
   PaymentCaptureUnitOfWork,
   PaymentsConfigReader,
   PaymentsPort,
-  StoredPaymentProviderEvent,
 } from './ports';
 import type { AppointmentPaymentSummary, BookingPaymentSettings, PrepaymentQuote } from './types';
 import type { ResolvePrepaymentParams } from './ports';
@@ -24,31 +23,6 @@ import { resolvePaymentProviderWebhookSecret } from './providerPort';
  */
 function resolveReturnUrl(returnUrl: string | null | undefined): string {
   return returnUrl?.trim() || `${env.APP_BASE_URL}${routePaths.patient}`;
-}
-
-function persistedProviderIntentRef(event: StoredPaymentProviderEvent): string | null {
-  const explicit = event.intentRef?.trim();
-  if (explicit) return explicit;
-
-  const payload = event.payloadJson;
-  const direct = (key: string) => {
-    const value = payload[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
-    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
-    return null;
-  };
-  if (event.providerId === 'cloudpayments') return direct('TransactionId');
-  if (event.providerId === 'tinkoff') return direct('PaymentId');
-  if (event.providerId === 'alfabank') return direct('mdOrder') ?? direct('orderId');
-  if (event.providerId === 'yookassa') {
-    const object = payload.object;
-    if (object && typeof object === 'object' && !Array.isArray(object)) {
-      const id = (object as Record<string, unknown>).id;
-      if (typeof id === 'string' && id.trim()) return id.trim();
-      if (typeof id === 'number' && Number.isFinite(id)) return String(id);
-    }
-  }
-  return direct('intentRef') ?? direct('intentId');
 }
 
 /**
@@ -263,18 +237,6 @@ export function createPaymentsService(deps: {
       }
     }
     return captured.result;
-  }
-
-  async function resolveStoredProviderEventIntent(event: StoredPaymentProviderEvent) {
-    const payloadIntentId = event.payloadJson.intentId;
-    if (typeof payloadIntentId === 'string' && payloadIntentId.trim()) {
-      const intent = await deps.port.findIntentById(payloadIntentId.trim());
-      if (intent?.organizationId === event.organizationId) return intent;
-    }
-
-    const providerIntentRef = persistedProviderIntentRef(event);
-    if (!providerIntentRef) return null;
-    return deps.port.findIntentByProviderRef(event.organizationId, providerIntentRef);
   }
 
   return {
@@ -599,7 +561,12 @@ export function createPaymentsService(deps: {
         providerConfig: provider,
       });
 
-      const stored = await deps.port.recordProviderEvent({
+      // Журнал события, намерение, платёж, история и ссылка оплаты на записях проводятся ОДНОЙ
+      // дверью. Раньше здесь стояло десять отдельных обращений к отношениям, и ни одно из них не
+      // достижимо принципалом, который ставит этот маршрут: класс `tenant_service` ходит только
+      // именованными корнями. Идемпотентность держит сам корень — уникальный ключ события
+      // провайдера плюс compare-and-set намерения, — поэтому внешний замок здесь больше не нужен.
+      const settled = await deps.port.settleProviderWebhookEvent({
         organizationId: input.organizationId,
         providerId: input.providerId,
         idempotencyKey: verified.idempotencyKey,
@@ -607,33 +574,32 @@ export function createPaymentsService(deps: {
         intentRef: verified.intentRef?.trim() || null,
         payloadJson: verified.payload,
       });
-      if (!stored.inserted && stored.processedAt) {
-        return { ok: true as const, duplicate: true as const };
+
+      // Доставка — после коммита корня и только за проведённый платёж: повтор уведомления приходит
+      // с `outcome: 'already_processed'` и никого повторно не уведомляет.
+      if (settled.outcome === 'captured' && settled.paymentId) {
+        const paymentId = settled.paymentId;
+        if (deps.onAppointmentPaymentConfirmed) {
+          for (const appointmentId of settled.confirmedAppointmentIds) {
+            await deps.onAppointmentPaymentConfirmed({
+              appointmentId,
+              paymentId,
+              platformUserId: settled.platformUserId,
+            });
+          }
+        }
+        const patientPackageId = parsePatientPackageProductRef(settled.productRef);
+        if (patientPackageId && deps.onPackagePaymentCaptured) {
+          await deps.onPackagePaymentCaptured({
+            patientPackageId,
+            paymentId,
+            platformUserId: settled.platformUserId,
+            organizationId: input.organizationId,
+          });
+        }
       }
-      if (!stored.id) throw new Error('provider_event_persist_failed');
 
-      const storedIntent = await resolveStoredProviderEventIntent(stored);
-      const captureKey = storedIntent ? `intent:${storedIntent.id}` : `event:${stored.id}`;
-
-      return deps.captureUnitOfWork.runSerializedPostCommit(
-        input.organizationId,
-        captureKey,
-        async () => {
-          const current = await deps.port.getProviderEventById(stored.id, input.organizationId);
-          if (!current) throw new Error('provider_event_not_found');
-          if (current.processedAt) {
-            return { ok: true as const, duplicate: true as const };
-          }
-
-          if (current.eventType === 'payment.succeeded') {
-            const intent = await resolveStoredProviderEventIntent(current);
-            if (intent) await captureIntentSuccess(intent.id, input.organizationId);
-          }
-
-          await deps.port.markProviderEventProcessed(current.id, input.organizationId);
-          return { ok: true as const, duplicate: !stored.inserted };
-        },
-      );
+      return { ok: true as const, duplicate: settled.duplicate };
     },
 
     async applyCancelPaymentOutcome(input: {
