@@ -25744,6 +25744,21 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'patient-payment.webhook.booking-payment-config.read',
       functionIdentity: 'app.read_acquiring_webhook_booking_payment_setting(text)' },
+    // Тот же класс отказа у ОБЩЕГО эквайрингового callback'а брони
+    // (`/api/payments/webhook/[provider]`), и он оставался незакрытым после MONEY-12. Резолвер
+    // клиники звался беспринципально: маршрут ставит bootstrap, порт ищет возможность `pre_session`,
+    // такого ключа в каталоге нет (239 записей) — исключение ДО первого statement'а и 400
+    // `webhook_failed` провайдеру. Дальше шёл организационный принципал, то есть тот же
+    // `tenant_service` без сквозной двери. Обе половины теперь именованные корни; клинику ни одна
+    // не принимает аргументом — только принятый контекст.
+    booking_payment_webhook_resolve: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'booking-payment.webhook.resolve',
+      functionIdentity: 'app.resolve_payment_webhook_organization(text,text,text)' },
+    booking_payment_webhook_settle: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'booking-payment.webhook.settle',
+      functionIdentity: 'app.settle_booking_payment_webhook_event(text,text,text,text,text)' },
     saas_billing_provider_preauth_read: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'billing.webhook.provider.read',
       functionIdentity: 'app.read_saas_billing_payment_provider_preauth()' },
@@ -27619,6 +27634,69 @@ const REV10_CONTEXT = {
           columns: ['id', 'kind', 'organization_id', 'provider', 'provider_payment_id', 'status'],
           operations: ['SELECT' as const, 'UPDATE' as const],
           operationColumns: { UPDATE: ['status'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Резолвер клиники ОБЩЕГО эквайрингового callback'а брони. Тело у него было, право — нет: EXECUTE
+    // стоял на `app_patient`, а маршрут вебхука приходит с bootstrap-принципалом, у которого этой роли
+    // нет и быть не может. Дверь переезжает в pre-session класс — ровно туда же, где уже стоит её
+    // близнец `app.resolve_patient_acquiring_webhook_organization(text,text)`.
+    'app.resolve_payment_webhook_organization(text,text,text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.resolve_payment_webhook_organization(text,text,text)'],
+      owner: 'app_seam_payment_webhook_owner', execute: ['app_pre_session'],
+      purpose: 'booking-payment.webhook.resolve', typedArgs: ['text', 'text', 'text'],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+    }),
+    // Вторая половина того же callback'а: ВСЁ проведение оплаченной брони внутри уже принятой
+    // клиники, одним statement-атомарным корнем. Десять реляционных обращений прежнего пути не могли
+    // разделить транзакцию под этим классом в принципе (именованный корень отказывается стартовать
+    // внутри реляционной транзакции), поэтому дверь одна, а не десять. Повтор уведомления упирается в
+    // уникальный ключ журнала событий провайдера и в compare-and-set намерения: второй раз деньги не
+    // проводятся. Организация — только принятый контекст, аргументом её не назвать.
+    'app.settle_booking_payment_webhook_event(text,text,text,text,text)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'settle exactly one booking payment provider event of the accepted organization',
+      typedArgs: ['text', 'text', 'text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_payment_provider_events',
+          columns: ['id', 'organization_id', 'provider_id', 'idempotency_key', 'event_type',
+            'intent_ref', 'payload_json', 'processed_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          operationColumns: { UPDATE: ['processed_at'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_payment_intents',
+          columns: ['id', 'organization_id', 'provider_id', 'provider_intent_ref', 'appointment_id',
+            'platform_user_id', 'product_ref', 'amount_minor', 'currency', 'status', 'purpose',
+            'created_at', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: { UPDATE: ['status', 'updated_at'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_payments',
+          columns: ['id', 'organization_id', 'payment_intent_id', 'appointment_id', 'platform_user_id',
+            'provider_id', 'amount_minor', 'currency', 'status', 'purpose', 'captured_at', 'created_at'],
+          operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_payment_history_events',
+          columns: ['organization_id', 'appointment_id', 'platform_user_id', 'payment_id', 'event_type',
+            'amount_minor', 'currency', 'provider_id', 'status', 'purpose'],
+          operations: ['INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments',
+          columns: ['id', 'organization_id', 'chain_id', 'platform_user_id', 'status', 'payment_ref',
+            'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: { UPDATE: ['payment_ref', 'status', 'updated_at'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_history_events',
+          columns: ['organization_id', 'appointment_id', 'event_type', 'payload', 'occurred_at'],
+          operations: ['INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_patient_timeline_events',
+          columns: ['organization_id', 'platform_user_id', 'domain', 'event_type', 'linked_object_type',
+            'linked_object_id', 'payload', 'occurred_at'],
+          operations: ['INSERT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
