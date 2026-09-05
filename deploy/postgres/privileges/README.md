@@ -11,6 +11,15 @@
 - FORCE RLS и точных policy;
 - transaction-bound port context и каталога допустимых вызовов.
 
+`declaration.ts` — единственный файл, который человек правит руками для этих решений. `relation-access.ts` и
+`function-census.ts` физически пусты: с #1069 (2026-09-05) обе бывшие независимые ручные карты
+(`REV10_CLINICAL_ACCESS`, `BUSINESS_SEAM_FUNCTIONS` и её компаньоны) перенесены внутрь `declaration.ts`
+(SECTION -1), а эти два файла остались только тонкими `export { X } from './declaration.ts'` — только чтобы не
+ломать существующие импорты. Причина: до #1069 колоночные решения для 51 пересекающегося отношения жили
+одновременно в `declaration.ts` и в `relation-access.ts`, объединялись `revision10RelationAccess` во время
+генерации, и правка одного файла без второго не красила ничего — ровно так SaaS billing-period ship добавил
+новые колонки в `declaration.ts`, не тронул `relation-access.ts`, и получил живой `42501` при первой же записи.
+
 Обычный deploy/migrate после schema/data migrations запускает
 [`reconcile-access.mjs`](./reconcile-access.mjs). Он одной транзакцией приводит target к декларации и затем
 двусторонне проверяет каталог. Schema migrations не выдают и не отзывают права.
@@ -22,35 +31,57 @@
 PROD не входит в текущий объект декларации. Его переход из старого снимка A в B0 — отдельная атомарная миграция
 с rollback после явного разрешения владельца; DEV/TEST-конфигурацию нельзя молча выдать за PROD target.
 
-## Колоночный `INSERT` выводится из схемы Drizzle, а не пишется руками
+## Колоночные `INSERT`/`UPDATE` — ручное решение, не вывод из скана продукта
 
-Drizzle перечисляет в `INSERT INTO t (...)` **каждую** колонку схемы: ключ, отсутствующий в `.values({...})`,
-всё равно попадает в список со значением `DEFAULT`. Postgres требует колоночного `INSERT`-права на каждую
-НАЗВАННУЮ колонку, включая `DEFAULT`, поэтому грант, написанный по «бизнес-колонкам», роняет весь стейтмент
-через `42501` — так и ломалась продажа абонемента на `be_patient_package_items.id`.
+До #1069-коррекции (2026-09-05) колоночный `INSERT` домысливался механически: закоммиченный артефакт
+`drizzle-insert-surface.ts`, сгенерированный AST-сканом `.insert()`-callsites в `apps/webapp/src` плюс живых
+метаданных Drizzle, объединялся с объявленным грантом во время генерации (`withDrizzleInsertColumns`), а второй
+такой же артефакт для `UPDATE` только гейтил расхождение. Владелец снял это решение: скан продуктового кода
+(«эта роль зовёт `.insert()`/`.update()` на эту таблицу») отвечает на вопрос «что код делает сегодня», а не на
+вопрос «должна ли эта роль иметь это право» — и провоцирует незаметное авторасширение гранта при появлении
+нового callsite, которое никто не решал явно.
 
-Генератор при этом обязан остаться чистым Node-модулем: `drizzle-orm` не разрешается из корня репозитория, а
-`apps/webapp/db/schema/*.ts` резолвится только бандлером. Поэтому метаданные приходят машинным закоммиченным
-артефактом [`drizzle-insert-surface.ts`](./drizzle-insert-surface.ts) — «отношение → колонки, которые ORM
-называет в `INSERT`» плюс каждый прямой `.insert()`-callsite в `apps/webapp/src`. Артефакт производит
-workspace webapp:
+Оба артефакта, их генераторы (`apps/webapp/scripts/generate-drizzle-{insert,update}-surface.ts`) и побайтные
+гейты (`check:drizzle-insert-surface`, `check:drizzle-update-surface`) удалены. Каждый грант в
+`REV10_CLINICAL_ACCESS`/`REV10_SYSTEM_DIRECT_ACCESS` называет теперь колонки INSERT/UPDATE напрямую и полностью,
+включая колонки, которые Postgres требует НАЗВАННЫМИ в `INSERT` даже со значением `DEFAULT`
+(`defaultRandom()`-первичные ключи и подобные) — это по-прежнему тот же факт про Drizzle (`pg-core/dialect.js`,
+`buildInsertQuery`), но теперь он один раз материализован как объявленное решение, а не выводится заново при
+каждой генерации.
 
-```bash
-pnpm --dir apps/webapp exec tsx scripts/generate-drizzle-insert-surface.ts          # перегенерировать
-pnpm run check:drizzle-insert-surface                                              # побайтный гейт
-```
+Точечный приёмочный гейт [`staff-drizzle-insert-grant-coverage.test.mjs`](./staff-drizzle-insert-grant-coverage.test.mjs)
+остаётся: он сам, без какого-либо артефакта, спрашивает у живых метаданных Drizzle колонки двух денежных
+INSERT-путей (`patient_payment`, `be_patient_packages`) и сверяет их с объявленным грантом — доказательство
+конкретной двери, а не механизм, определяющий права по всей схеме.
 
-Побайтный гейт идёт первым шагом `pnpm run test:db-privileges`, поэтому правка схемы, не перегенерировавшая
-артефакт, краснеет раньше любого privilege-теста.
+## RLS-политики locked-семейства — тоже только декларация, не внешний генератор
 
-`declaration.ts` читает артефакт как данные и расширяет **только** колоночный `INSERT` и **только** там, где
-есть и прямой `.insert()`-callsite, и роль с webapp-возможностью `purpose: 'relation'`. Объявленные колонки
-никогда не удаляются: отношения без Drizzle-модели (`public.broadcast_drafts`, `public.system_settings_audit`)
-и `public.platform_users.session_epoch`, которой модель не знает, остаются как объявлены.
+До #1069-коррекции (2026-09-05, §B) `declaration.ts` вычислял `REV10_LOCKED_POLICIES` во время каждой генерации,
+импортируя `getPhase4LockedPolicyTargets`/`renderPhase4StrictPredicate` из
+`docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs` — а тот модуль сам собирал table targets,
+policy names и predicates из четырёх P0.8-*-`policy-targets.mjs`-модулей, `rls-descriptor-model.mjs` и
+`rls-sql-renderer.mjs`. Это был второй исполняемый источник тех же object-specific решений (какая таблица под
+locked-политикой, каким именем, с каким predicate), просто вызываемый изнутри `declaration.ts`.
 
-Приёмочный гейт [`drizzle-insert-grant-completeness.test.mjs`](./drizzle-insert-grant-completeness.test.mjs)
-выводит обе стороны независимо — сам зовёт печать метаданных и сам разбирает callsites по AST — и сверяет их с
-грантами, которые генератор реально пишет.
+Теперь `declaration.ts` несёт эти решения сам, литералом: `REV10_LOCKED_POLICY_DATA` (141 отношение) —
+`policyName`, `dormantMode` и уже посчитанные `strictPredicate`/`dormantCompatPredicate` на каждую таблицу.
+`generate.mjs`/`generate-cli.mjs` по-прежнему не подключаются ни к чему внешнему при генерации emitted SQL —
+эта карта такой же литерал в файле, как и остальные ~240 решений.
+
+`phase4-locked-policy-artifact.mjs` остался — он рендерит закоммиченный legacy-артефакт
+`deploy/postgres/phase4-locked-helper-rls-policies.sql`, который `test-strict-rls-finalizer.sql` всё ещё
+`\ir`-ит как reviewed overlay поверх политик, сгенерированных из `declaration.ts`. Но он больше не независимый
+источник: его `getPhase4LockedPolicyTargets`/`renderPhase4StrictPredicate`/`renderPhase4DormantCompatPredicate`
+теперь читают ровно `REV10_LOCKED_POLICY_DATA` из `declaration.ts` (динамический `import()` — файл механически
+не может разойтись с декларацией; проверено побайтным сравнением до/после переноса). Файл остаётся, потому что
+удаление `\ir`-подключения из `test-strict-rls-finalizer.sql` меняет порядок применения RLS-policy на живой
+базе, а это требует миграционного/deploy-прогона вне скоупа этого прохода (правки БД тут не делались).
+
+`WALL_TEMPLATES`/`CLASS_DEFAULT_WALL` (какой RLS-режим и требование у каждой стены, какая стена — умолчание для
+класса данных) тем же решением перенесены из `types.ts` в `declaration.ts`: это default-decisions, влияющие на
+emitted `rls`/`wall` каждой таблицы, не грамматика. `types.ts` несёт только типы (`Wall`, `DataClass`,
+`WallTemplateMap`, `ClassDefaultWallMap`) и параметризованный `expandTables(rows, { wallTemplates,
+classDefaultWall })`, которому декларация передаёт эти решения явно.
 
 ## Проверки
 

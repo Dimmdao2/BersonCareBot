@@ -12,7 +12,10 @@ import { declaration } from './declaration.ts';
 // Отказ, который ловят эти проверки, дорогой и молчаливый: грант на денежную колонку не роняет ни
 // сборку, ни тесты, ни живой экран — он просто расширяет то, что арендатор способен переписать, и
 // заметить это можно только сверкой прав.
-const REFRESH_SEAM = 'app.refresh_saas_billing_invoice_purchased_tariff(uuid,uuid,uuid)';
+// #1069 owner decision 2026-09-05 (period grid) — the seam grew a 4th argument
+// (`p_billing_period_code`) naming the period of the pair being refreshed; DROP+CREATE changed its
+// identity (see the migration owning this signature).
+const REFRESH_SEAM = 'app.refresh_saas_billing_invoice_purchased_tariff(uuid,uuid,uuid,text)';
 const MONEY_COLUMNS = ['amount_minor', 'additional_seat_quantity'];
 const DATABASES = ['bcb_webapp_dev', 'bersoncarebot_test'];
 
@@ -60,23 +63,42 @@ test('сумму черновика переписывает только узк
   assert.deepEqual(Object.keys(surfaces).sort(), [
     'public.saas_billing_invoices',
     'public.saas_billing_subscriptions',
+    'public.saas_tariff_period_prices',
     'public.saas_tariffs',
   ]);
-  // Сумма выводится ВНУТРИ шва: без чтения подписки (мест) и строки тарифа (цены) вывести её
-  // неоткуда, а значит она пришла бы аргументом от вызывающего — ровно то, чего быть не должно.
+  // Сумма выводится ВНУТРИ шва: без чтения подписки (пары+мест), матрицы цен (цены за период) и
+  // строки тарифа (валюты/названия) вывести её неоткуда, а значит она пришла бы аргументом от
+  // вызывающего — ровно то, чего быть не должно.
   assert.deepEqual(surfaces['public.saas_billing_subscriptions'].operations, ['SELECT']);
-  for (const column of ['tariff_id', 'pending_tariff_id', 'paid_additional_seats']) {
+  for (const column of [
+    'tariff_id', 'billing_period_code', 'pending_tariff_id', 'pending_billing_period_code',
+    'paid_additional_seats',
+  ]) {
     assert(
       surfaces['public.saas_billing_subscriptions'].columns.includes(column),
       `шов не читает подписку по ${column}`,
     );
   }
+  // #1069 owner decision 2026-09-05 (period grid) — цена больше не читается из
+  // `saas_tariffs.price_minor`, а приходит из денежной матрицы по паре.
+  assert.deepEqual(surfaces['public.saas_tariff_period_prices'].operations, ['SELECT']);
+  for (const column of ['tariff_id', 'billing_period_code', 'price_minor']) {
+    assert(
+      surfaces['public.saas_tariff_period_prices'].columns.includes(column),
+      `шов не читает матрицу цен по ${column}`,
+    );
+  }
   assert.deepEqual(surfaces['public.saas_tariffs'].operations, ['SELECT']);
-  for (const column of ['price_minor', 'additional_seat_price_minor', 'currency', 'billing_period']) {
+  for (const column of ['additional_seat_price_minor', 'currency']) {
     assert(surfaces['public.saas_tariffs'].columns.includes(column), `шов не читает тариф по ${column}`);
   }
-  // Шов не пишет ни в подписку, ни в тариф: тариф остаётся справочником, подписка меняется оплатой.
-  for (const relation of ['public.saas_billing_subscriptions', 'public.saas_tariffs']) {
+  // Шов не пишет ни в подписку, ни в матрицу цен, ни в тариф: они остаются справочниками, только
+  // счёт меняется этим швом.
+  for (const relation of [
+    'public.saas_billing_subscriptions',
+    'public.saas_tariff_period_prices',
+    'public.saas_tariffs',
+  ]) {
     assert(
       !surfaces[relation].operations.includes('UPDATE'),
       `${REFRESH_SEAM} пишет в ${relation}`,

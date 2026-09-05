@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -50,8 +51,17 @@ export const saasTariffs = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     name: text().notNull(),
     description: text().default('').notNull(),
+    /**
+     * @deprecated #1069 owner decision 2026-09-05 (period grid) — a tariff no longer has ONE price
+     * or ONE period; both live per-period in {@link saasTariffPeriodPrices}. Kept only as a frozen
+     * rollout-compatibility column for pre-cutover rows; new reads/writes never touch it.
+     */
     priceMinor: integer('price_minor'),
     currency: text(),
+    /**
+     * @deprecated #1069 owner decision 2026-09-05 (period grid) — see {@link priceMinor}. Frozen at
+     * whatever legacy value the tariff carried before the price matrix; not an active period source.
+     */
     billingPeriod: text('billing_period').default('month').notNull(),
     mechanics: jsonb()
       .$type<Record<string, boolean>>()
@@ -127,6 +137,55 @@ export const saasTariffs = pgTable(
       foreignColumns: [saasBillingPeriods.code],
       name: 'saas_tariffs_billing_period_fkey',
     }).onDelete('restrict'),
+  ],
+);
+
+/**
+ * #1069 owner decision 2026-09-05 (period grid) — the money authority for a (tariff, billing
+ * period) pair. One global period grid ({@link saasBillingPeriods}); every ACTIVE tariff owns one
+ * price row per globally SELECTABLE period, never a per-tariff subset. Composite identity mirrors
+ * how a subscription and an invoice reference this pair together (see `saasBillingSubscriptions`
+ * and `saasBillingInvoices` below) — a tariff row's own `priceMinor`/`billingPeriod` are frozen
+ * legacy compatibility fields, not a second source for this table.
+ */
+export const saasTariffPeriodPrices = pgTable(
+  'saas_tariff_period_prices',
+  {
+    tariffId: uuid('tariff_id').notNull(),
+    billingPeriodCode: text('billing_period_code').notNull(),
+    priceMinor: integer('price_minor').notNull(),
+    discountedPriceMinor: integer('discounted_price_minor'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // Composite identity — one price per (tariff, period), never a bare surrogate id.
+    primaryKey({ columns: [table.tariffId, table.billingPeriodCode] }),
+    // Reverse lookup: "which tariffs are priced for this period" — the completeness check an
+    // activation runs (every active tariff has a row for the period being turned selectable).
+    index('idx_saas_tariff_period_prices_period_tariff').on(
+      table.billingPeriodCode,
+      table.tariffId,
+    ),
+    foreignKey({
+      columns: [table.tariffId],
+      foreignColumns: [saasTariffs.id],
+      name: 'saas_tariff_period_prices_tariff_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.billingPeriodCode],
+      foreignColumns: [saasBillingPeriods.code],
+      name: 'saas_tariff_period_prices_billing_period_code_fkey',
+    }).onDelete('restrict'),
+    check('saas_tariff_period_prices_price_nonnegative_check', sql`${table.priceMinor} >= 0`),
+    check(
+      'saas_tariff_period_prices_discounted_price_nonnegative_check',
+      sql`${table.discountedPriceMinor} IS NULL OR ${table.discountedPriceMinor} >= 0`,
+    ),
   ],
 );
 

@@ -16,6 +16,7 @@ import type { SaasBillingOverview } from '@/modules/saas-billing/ports';
 import { SaasBillingOverview as SaasBillingOverviewSection } from '@/shared/ui/doctor/SaasBillingOverview';
 import { PayTariffButton, type ClinicTariffChangeState } from './PayTariffButton';
 import { AutopayToggleButton } from './AutopayToggleButton';
+import { CancelSubscriptionButton } from './CancelSubscriptionButton';
 
 export type BillingMechanicRow = {
   mechanic: OrgMechanic;
@@ -103,11 +104,18 @@ export function BillingSection({
             действующего тарифа нельзя оставить на экране, где не выбрать и не оплатить. */}
         <PayTariffButton tariffChange={tariffChange} billingEmail={billing.billingEmail} />
         {tariffName !== null && (
-          <AutopayToggleButton
-            subscription={
-              billing.subscriptions.find((row) => row.source === 'paid_subscription') ?? null
-            }
-          />
+          <>
+            <AutopayToggleButton
+              subscription={
+                billing.subscriptions.find((row) => row.source === 'paid_subscription') ?? null
+              }
+            />
+            <CancelSubscriptionButton
+              subscription={
+                billing.subscriptions.find((row) => row.source === 'paid_subscription') ?? null
+              }
+            />
+          </>
         )}
 
         {quotaUsage.length > 0 && (

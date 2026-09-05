@@ -46,3 +46,26 @@ export function purchasedTariffId(subscription: {
 }): string | null {
   return subscription.pendingTariffId ?? subscription.tariffId;
 }
+
+/**
+ * #1069 owner decision 2026-09-05 (period grid) — same rule as {@link purchasedTariffId}, extended
+ * to the (tariff, period) PAIR: a scheduled change carries its own period, never the old tariff's.
+ * Returns `null` only when neither pair is set (no period ever chosen yet).
+ */
+export function purchasedTariffPeriodPair(subscription: {
+  tariffId: string;
+  billingPeriodCode: string | null;
+  pendingTariffId: string | null;
+  pendingBillingPeriodCode: string | null;
+}): { tariffId: string; billingPeriodCode: string } | null {
+  if (subscription.pendingTariffId && subscription.pendingBillingPeriodCode) {
+    return {
+      tariffId: subscription.pendingTariffId,
+      billingPeriodCode: subscription.pendingBillingPeriodCode,
+    };
+  }
+  if (subscription.billingPeriodCode) {
+    return { tariffId: subscription.tariffId, billingPeriodCode: subscription.billingPeriodCode };
+  }
+  return null;
+}

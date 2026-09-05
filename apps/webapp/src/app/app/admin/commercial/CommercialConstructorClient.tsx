@@ -91,12 +91,23 @@ const TRIAL_STATUS_LABELS: Record<
   ended: 'Завершён',
 };
 
+/**
+ * #1069 owner decision 2026-09-05 (period grid) — one editable row per globally SELECTABLE period.
+ * Sparse by design: a period the admin has not typed a price for is simply absent here (never a
+ * placeholder `'0'`) — the server's completeness gate (`assertCompleteTariffPeriodPriceMatrix`)
+ * names exactly which period is still missing instead of the constructor silently sending a zero.
+ */
+type TariffPeriodPriceDraft = {
+  billingPeriodCode: string;
+  priceRub: string;
+  discountedPriceRub: string;
+};
+
 type TariffDraft = {
   id: string | null;
   name: string;
   description: string;
-  priceRub: string;
-  billingPeriod: Tariff['billingPeriod'];
+  periodPrices: TariffPeriodPriceDraft[];
   includedSeats: string;
   /** §5a item 5.1 — empty means overage past includedSeats stays hard-blocked (§5.2, unchanged). */
   additionalSeatPriceRub: string;
@@ -163,8 +174,7 @@ function emptyTariffDraft(): TariffDraft {
     id: null,
     name: '',
     description: '',
-    priceRub: '',
-    billingPeriod: 'month',
+    periodPrices: [],
     // Owner 31.07: «при создании тарифа по умолчанию пусть ставится одно — это разумный
     // минимум». A prefilled value the owner sees and changes, not a runtime substitution.
     includedSeats: '1',
@@ -183,8 +193,11 @@ function tariffToDraft(tariff: Tariff): TariffDraft {
     id: tariff.id,
     name: tariff.name,
     description: tariff.description,
-    priceRub: tariff.priceMinor === null ? '' : String(tariff.priceMinor / 100),
-    billingPeriod: tariff.billingPeriod,
+    periodPrices: tariff.periodPrices.map((row) => ({
+      billingPeriodCode: row.billingPeriodCode,
+      priceRub: String(row.priceMinor / 100),
+      discountedPriceRub: row.discountedPriceMinor === null ? '' : String(row.discountedPriceMinor / 100),
+    })),
     includedSeats: tariff.includedSeats === null ? '' : String(tariff.includedSeats),
     additionalSeatPriceRub:
       tariff.additionalSeatPriceMinor === null ? '' : String(tariff.additionalSeatPriceMinor / 100),
@@ -559,6 +572,180 @@ function AccessNotificationsEditor({
   );
 }
 
+/**
+ * #1069 owner decision 2026-09-05 (period grid) — the ONE global period editor: rows are DATA
+ * (arbitrary positive month counts, labels, ordering, selectable/retired state), never a code
+ * literal or a closed list. A brand-new code always lands non-selectable (the port refuses
+ * anything else); making it selectable is a separate, gated action on the «Тарифы» completeness
+ * check, exposed here as a plain toggle whose failure the caller's toast already reports.
+ */
+function BillingPeriodsPanel({
+  periods,
+  busy,
+  onSave,
+  onToggle,
+  onCreate,
+}: {
+  periods: BillingPeriodOption[];
+  busy: boolean;
+  onSave: (input: { code: string; label: string; months: number }) => Promise<void>;
+  onToggle: (code: string, isSelectable: boolean) => Promise<void>;
+  onCreate: (input: { code: string; label: string; months: number }) => Promise<void>;
+}) {
+  const [drafts, setDrafts] = useState<Record<string, { label: string; months: string }>>({});
+  // Reset row drafts when the fetched period list itself changes (save/create/toggle round-trip) —
+  // adjusted during render, not an effect, per https://react.dev/learn/you-might-not-need-an-effect.
+  const [seenPeriods, setSeenPeriods] = useState(periods);
+  if (periods !== seenPeriods) {
+    setSeenPeriods(periods);
+    setDrafts(
+      Object.fromEntries(
+        periods.map((period) => [period.code, { label: period.label, months: String(period.months) }]),
+      ),
+    );
+  }
+  const [newCode, setNewCode] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [newMonths, setNewMonths] = useState('');
+
+  const sorted = useMemo(() => [...periods].sort((a, b) => a.sortOrder - b.sortOrder), [periods]);
+
+  return (
+    <DoctorSection className="space-y-4">
+      <DoctorSectionHeader>
+        <DoctorSectionTitle>Глобальная сетка периодов оплаты</DoctorSectionTitle>
+      </DoctorSectionHeader>
+      <p className="px-[18px] text-sm text-muted-foreground">
+        Одна сетка периодов действует для ВСЕХ тарифов. Новый период создаётся неактивным; сделать
+        его выбираемым можно только после того, как у каждого активного тарифа появится цена за
+        него — на вкладке «Тарифы». Отключение периода глобально и никогда не удаляет уже
+        существующие подписки и счета.
+      </p>
+      <div className="divide-y divide-border/70">
+        {sorted.length === 0 ? (
+          <p className="px-[18px] py-3 text-sm text-muted-foreground">Периоды ещё не созданы.</p>
+        ) : null}
+        {sorted.map((period) => {
+          const draft = drafts[period.code] ?? { label: period.label, months: String(period.months) };
+          return (
+            <div
+              key={period.code}
+              className="grid items-end gap-2 px-[18px] py-3 sm:grid-cols-[0.8fr_1fr_0.6fr_auto_auto]"
+            >
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Код</Label>
+                <div className="font-mono text-sm">{period.code}</div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor={`period-label-${period.code}`} className="text-xs text-muted-foreground">
+                  Название
+                </Label>
+                <Input
+                  id={`period-label-${period.code}`}
+                  value={draft.label}
+                  onChange={(event) =>
+                    setDrafts({ ...drafts, [period.code]: { ...draft, label: event.target.value } })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor={`period-months-${period.code}`} className="text-xs text-muted-foreground">
+                  Месяцев
+                </Label>
+                <Input
+                  id={`period-months-${period.code}`}
+                  type="number"
+                  min="1"
+                  value={draft.months}
+                  onChange={(event) =>
+                    setDrafts({ ...drafts, [period.code]: { ...draft, months: event.target.value } })
+                  }
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => {
+                  const months = Number.parseInt(draft.months, 10);
+                  if (!draft.label.trim() || !Number.isFinite(months) || months <= 0) return;
+                  void onSave({ code: period.code, label: draft.label.trim(), months });
+                }}
+              >
+                Сохранить
+              </Button>
+              <Button
+                type="button"
+                variant={period.isSelectable ? 'outline' : 'default'}
+                size="sm"
+                disabled={busy}
+                onClick={() => void onToggle(period.code, !period.isSelectable)}
+              >
+                {period.isSelectable ? 'Отключить' : 'Включить'}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+      <div className="space-y-2 px-[18px] pb-3">
+        <Label className="text-sm font-medium">Новый период</Label>
+        <div className="grid gap-2 sm:grid-cols-[0.8fr_1fr_0.6fr_auto]">
+          <div className="space-y-1">
+            <Label htmlFor="new-period-code" className="text-xs text-muted-foreground">
+              Код
+            </Label>
+            <Input
+              id="new-period-code"
+              value={newCode}
+              onChange={(event) => setNewCode(event.target.value)}
+              placeholder="quarter"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="new-period-label" className="text-xs text-muted-foreground">
+              Название
+            </Label>
+            <Input
+              id="new-period-label"
+              value={newLabel}
+              onChange={(event) => setNewLabel(event.target.value)}
+              placeholder="квартал"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="new-period-months" className="text-xs text-muted-foreground">
+              Месяцев
+            </Label>
+            <Input
+              id="new-period-months"
+              type="number"
+              min="1"
+              value={newMonths}
+              onChange={(event) => setNewMonths(event.target.value)}
+            />
+          </div>
+          <Button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              const months = Number.parseInt(newMonths, 10);
+              if (!newCode.trim() || !newLabel.trim() || !Number.isFinite(months) || months <= 0) return;
+              void onCreate({ code: newCode.trim(), label: newLabel.trim(), months }).then(() => {
+                setNewCode('');
+                setNewLabel('');
+                setNewMonths('');
+              });
+            }}
+          >
+            Создать
+          </Button>
+        </div>
+      </div>
+    </DoctorSection>
+  );
+}
+
 export function CommercialConstructorClient() {
   const searchParams = useSearchParams();
   const organizationIdFromUrl = searchParams.get('organizationId')?.trim() ?? '';
@@ -738,7 +925,23 @@ export function CommercialConstructorClient() {
 
   async function saveTariff(event: FormEvent) {
     event.preventDefault();
-    const price = tariff.priceRub.trim() ? Math.round(Number(tariff.priceRub) * 100) : null;
+    // #1069 owner decision 2026-09-05 (period grid) — a row with an untyped price is simply
+    // OMITTED, never sent as a zero: `assertCompleteTariffPeriodPriceMatrix` on the server names
+    // exactly which selectable period is still missing (`saas_tariff_period_price_missing`).
+    const periodPrices = tariff.periodPrices.flatMap((row) => {
+      const priceMinor = row.priceRub.trim() ? Math.round(Number(row.priceRub) * 100) : null;
+      if (priceMinor === null || !Number.isFinite(priceMinor)) return [];
+      const discountedPriceMinor = row.discountedPriceRub.trim()
+        ? Math.round(Number(row.discountedPriceRub) * 100)
+        : null;
+      return [
+        {
+          billingPeriodCode: row.billingPeriodCode,
+          priceMinor,
+          discountedPriceMinor: Number.isFinite(discountedPriceMinor) ? discountedPriceMinor : null,
+        },
+      ];
+    });
     const additionalSeatPrice = tariff.additionalSeatPriceRub.trim()
       ? Math.round(Number(tariff.additionalSeatPriceRub) * 100)
       : null;
@@ -752,12 +955,11 @@ export function CommercialConstructorClient() {
     const input = {
       name: tariff.name,
       description: tariff.description,
-      priceMinor: Number.isFinite(price) ? price : null,
+      periodPrices,
       currency:
-        price === null && additionalSeatPrice === null && tariff.discountedPriceMinor === null
+        periodPrices.length === 0 && additionalSeatPrice === null && tariff.discountedPriceMinor === null
           ? null
           : 'RUB',
-      billingPeriod: tariff.billingPeriod,
       mechanics: tariff.mechanics,
       quotas: tariff.quotas,
       systemAccessPolicy,
@@ -813,6 +1015,7 @@ export function CommercialConstructorClient() {
     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
       <TabsList>
         <TabsTrigger value="tariffs">Тарифы</TabsTrigger>
+        <TabsTrigger value="periods">Периоды оплаты</TabsTrigger>
         <TabsTrigger value="organizations">Организации</TabsTrigger>
         <TabsTrigger value="trial">Триал</TabsTrigger>
         <TabsTrigger value="notifications">Уведомления</TabsTrigger>
@@ -866,36 +1069,67 @@ export function CommercialConstructorClient() {
                   required
                 />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="tariff-price">Цена, ₽</Label>
-                <Input
-                  id="tariff-price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={tariff.priceRub}
-                  onChange={(event) => setTariff({ ...tariff, priceRub: event.target.value })}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Период</Label>
-                <Select
-                  value={tariff.billingPeriod}
-                  onValueChange={(value) => {
-                    if (value) setTariff({ ...tariff, billingPeriod: value });
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {selectableBillingPeriods.map((period) => (
-                      <SelectItem key={period.code} value={period.code}>
-                        {period.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* #1069 owner decision 2026-09-05 (period grid) — ONE global period grid, every
+                  ACTIVE tariff prices EVERY selectable period; there is no single "цена"/"период"
+                  pair to pick anymore. A period missing from `selectableBillingPeriods` altogether
+                  (none active yet) reads as a save the server will refuse for the same reason. */}
+              <div className="space-y-1.5 md:col-span-2">
+                <Label>Цена за период, ₽</Label>
+                {selectableBillingPeriods.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Нет ни одного активного периода оплаты — включите период на вкладке «Периоды
+                    оплаты», прежде чем сохранять цену.
+                  </p>
+                ) : (
+                  <div className="space-y-2 rounded-md border border-border/60 p-3">
+                    {selectableBillingPeriods.map((period) => {
+                      const row = tariff.periodPrices.find(
+                        (candidate) => candidate.billingPeriodCode === period.code,
+                      );
+                      const updateRow = (patch: Partial<TariffPeriodPriceDraft>) => {
+                        const next = { ...(row ?? { billingPeriodCode: period.code, priceRub: '', discountedPriceRub: '' }), ...patch };
+                        setTariff({
+                          ...tariff,
+                          periodPrices: [
+                            ...tariff.periodPrices.filter((candidate) => candidate.billingPeriodCode !== period.code),
+                            next,
+                          ],
+                        });
+                      };
+                      return (
+                        <div key={period.code} className="grid items-end gap-2 sm:grid-cols-[1fr_1fr_1fr]">
+                          <div className="text-sm font-medium">{period.label}</div>
+                          <div className="space-y-1">
+                            <Label htmlFor={`tariff-period-price-${period.code}`} className="text-xs text-muted-foreground">
+                              Цена, ₽
+                            </Label>
+                            <Input
+                              id={`tariff-period-price-${period.code}`}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row?.priceRub ?? ''}
+                              onChange={(event) => updateRow({ priceRub: event.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor={`tariff-period-discount-${period.code}`} className="text-xs text-muted-foreground">
+                              Льготная цена, ₽ (необязательно)
+                            </Label>
+                            <Input
+                              id={`tariff-period-discount-${period.code}`}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row?.discountedPriceRub ?? ''}
+                              onChange={(event) => updateRow({ discountedPriceRub: event.target.value })}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <Label htmlFor="tariff-seats">Мест специалистов</Label>
@@ -1035,6 +1269,25 @@ export function CommercialConstructorClient() {
             </div>
           </form>
         </DoctorSection>
+      </TabsContent>
+
+      <TabsContent value="periods">
+        <BillingPeriodsPanel
+          periods={state.billingPeriods}
+          busy={busy}
+          onCreate={(period) =>
+            mutate({ action: 'upsert_billing_period', period, reason }, 'Период создан')
+          }
+          onSave={(period) =>
+            mutate({ action: 'upsert_billing_period', period, reason }, 'Период обновлён')
+          }
+          onToggle={(code, isSelectable) =>
+            mutate(
+              { action: 'set_billing_period_selectable', code, isSelectable, reason },
+              isSelectable ? 'Период включён' : 'Период отключён',
+            )
+          }
+        />
       </TabsContent>
 
       <TabsContent value="organizations" className="grid gap-3 lg:grid-cols-2">

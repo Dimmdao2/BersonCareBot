@@ -7,9 +7,7 @@ import type {
   SaasBillingPlatformInvoiceRow,
   SaasBillingPlatformSummary,
   SaasBillingReconciliationDiscrepancy,
-  SaasBillingRefund,
 } from '@/modules/saas-billing/ports';
-import { formatBillingPeriodLabelRu } from '@/modules/saas-billing/billingPeriodCatalog';
 import { isSaasBillingInvoicePayable } from '@/modules/saas-billing/invoiceValidity';
 import { saasBillingInvoiceCancelVerdict } from '@/modules/saas-billing/invoiceOperations';
 import {
@@ -94,21 +92,6 @@ function formatDate(value: string, displayTimeZone: string): string {
   return formatDisplayZoneInstantRu(value, displayTimeZone).split(',')[0]!;
 }
 
-const REFUND_ERROR_LABELS: Record<string, string> = {
-  invoice_not_found: 'Платёж не найден.',
-  invoice_not_refundable: 'Возврат недоступен: платёж ещё не оплачен.',
-  seat_overage_partial_refund_forbidden: 'Дополнительное место можно вернуть только полной суммой.',
-  amount_exceeds_remaining: 'Сумма превышает остаток по платежу.',
-  provider_error: 'Провайдер не принял возврат. Попробуйте ещё раз.',
-  invalid_refund_request: 'Некорректная сумма возврата.',
-  forbidden: 'Нет прав на возврат.',
-  unauthorized: 'Сессия истекла — войдите заново.',
-};
-
-function refundErrorLabel(code: string): string {
-  return REFUND_ERROR_LABELS[code] ?? `Возврат не выполнен (${code}).`;
-}
-
 // К4 — manual invoice: issued from the cabinet via YooKassa's /v3/invoices, distinct from the
 // self-serve renewal checkout (createIntent). See PAYMENTS_CABINET_PLAN.md К4.
 const MANUAL_INVOICE_ERROR_LABELS: Record<string, string> = {
@@ -154,8 +137,6 @@ function formatAmount(amountMinor: number, currency: string): string {
     return `${new Intl.NumberFormat('ru-RU').format(amountMinor / 100)} ${currency}`;
   }
 }
-
-const BILLING_PERIOD_LABELS = formatBillingPeriodLabelRu;
 
 type SummaryApiResponse =
   | { ok: true; summary: SaasBillingPlatformSummary; breakdown: SaasBillingPlatformBreakdownRow[] }
@@ -289,7 +270,7 @@ function PlatformPaymentsSummarySection({
                       {row.invoiceKind === 'seat_overage' ? 'Дополнительные места' : row.tariffName}
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">
-                      {BILLING_PERIOD_LABELS(row.tariffBillingPeriod)}
+                      {row.tariffBillingPeriod}
                     </td>
                     <td className="px-3 py-2">{row.count}</td>
                     <td className="px-3 py-2 font-medium">
@@ -500,24 +481,13 @@ const emptyFilters = (): FilterState => ({ status: '', from: '', to: '', payer: 
 type ApiResponse =
   { ok: true; payments: SaasBillingPlatformInvoiceRow[] } | { ok: false; error?: string };
 
-type RefundApiResponse =
-  { ok: true; refund: SaasBillingRefund; duplicate: boolean } | { ok: false; error?: string };
-
 /**
- * К2 — "в обработке" until the provider webhook confirms the refund (plan requirement: never show
- * "возвращено" before that). `remainingMinor` excludes both confirmed and pending refunds, so a
- * second partial refund can't be requested for more than what a first one has already reserved.
+ * #1069 owner decision 2026-09-05 — SaaS clinic-to-platform payments are non-refundable; the
+ * actionable refund door (К2) is removed along with its route. This cell keeps ONLY historical
+ * reporting of refund rows recorded before this cutover — no button, no new refund is initiated.
  */
-function RefundCell({
-  row,
-  onOpenRefund,
-}: {
-  row: SaasBillingPlatformInvoiceRow;
-  onOpenRefund: () => void;
-}) {
-  const remainingMinor = row.amountMinor - row.refundedMinor - row.pendingRefundMinor;
-
-  if (row.status !== 'paid') {
+function RefundCell({ row }: { row: SaasBillingPlatformInvoiceRow }) {
+  if (row.pendingRefundMinor === 0 && row.refundedMinor === 0) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
 
@@ -533,108 +503,7 @@ function RefundCell({
           Возвращено: {formatAmount(row.refundedMinor, row.currency)}
         </div>
       )}
-      {remainingMinor > 0 && (
-        <Button type="button" variant="outline" size="sm" onClick={onOpenRefund}>
-          Возврат
-        </Button>
-      )}
     </div>
-  );
-}
-
-function RefundDialog({
-  row,
-  onClose,
-  onSuccess,
-}: {
-  row: SaasBillingPlatformInvoiceRow;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const remainingMinor = row.amountMinor - row.refundedMinor - row.pendingRefundMinor;
-  // Generated once per dialog instance (i.e. once per открытие) and reused for every submit
-  // attempt of THIS dialog — a repeated click while a request is in flight, or a resubmit after a
-  // transient error, carries the same key, so the server treats it as the same refund attempt.
-  const [requestKey] = useState(() => crypto.randomUUID());
-  const [amountRub, setAmountRub] = useState((remainingMinor / 100).toFixed(2));
-  const [reason, setReason] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = useCallback(async () => {
-    const amountMinor = Math.round(Number.parseFloat(amountRub.replace(',', '.')) * 100);
-    if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
-      setError('Введите сумму больше нуля.');
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      const json = await apiJson<RefundApiResponse>(
-        `/api/admin/saas-billing/payments/${row.id}/refund`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amountMinor, requestKey, reason }),
-        },
-      );
-      if (json.ok) onSuccess();
-    } catch (e) {
-      setError(refundErrorLabel(e instanceof Error ? e.message : 'network'));
-    } finally {
-      setSubmitting(false);
-    }
-  }, [amountRub, reason, requestKey, row.id, onSuccess]);
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Возврат — {row.organizationTitle}</DialogTitle>
-          <DialogDescription>
-            {row.tariffName}, оплачено {formatAmount(row.amountMinor, row.currency)}. Остаток к
-            возврату: {formatAmount(remainingMinor, row.currency)}.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="refund-amount">Сумма возврата, {row.currency}</Label>
-            <Input
-              id="refund-amount"
-              type="number"
-              min="0.01"
-              max={(remainingMinor / 100).toFixed(2)}
-              step="0.01"
-              value={amountRub}
-              onChange={(e) => setAmountRub(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="refund-reason">Причина (необязательно)</Label>
-            <Input
-              id="refund-reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              maxLength={500}
-            />
-          </div>
-          {error && (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          )}
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>
-            Отмена
-          </Button>
-          <Button type="button" onClick={submit} disabled={submitting}>
-            {submitting ? 'Отправка…' : 'Вернуть'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -717,7 +586,7 @@ function ManualInvoiceDialog({
     setDescription((prev) =>
       prev
         ? prev
-        : `${selectedTariff.name}, ${BILLING_PERIOD_LABELS(selectedTariff.billingPeriod)}`,
+        : `${selectedTariff.name}, ${selectedTariff.billingPeriod}`,
     );
   }, [selectedTariff]);
 
@@ -959,7 +828,6 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [payments, setPayments] = useState<SaasBillingPlatformInvoiceRow[] | null>(null);
-  const [refundRow, setRefundRow] = useState<SaasBillingPlatformInvoiceRow | null>(null);
   const [cancelRow, setCancelRow] = useState<SaasBillingPlatformInvoiceRow | null>(null);
   const [manualInvoiceOpen, setManualInvoiceOpen] = useState(false);
 
@@ -1181,7 +1049,7 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
                           {row.providerId}
                         </td>
                         <td className="px-3 py-2 align-top">
-                          <RefundCell row={row} onOpenRefund={() => setRefundRow(row)} />
+                          <RefundCell row={row} />
                         </td>
                         {/* Какое действие применимо к счёту, решает не статус на экране, а общий
                             вердикт `invoiceOperations.ts` — тот же, которым маршрут отказывает
@@ -1208,16 +1076,6 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
             </div>
           )}
         </CardContent>
-        {refundRow && (
-          <RefundDialog
-            row={refundRow}
-            onClose={() => setRefundRow(null)}
-            onSuccess={() => {
-              setRefundRow(null);
-              void load();
-            }}
-          />
-        )}
         {cancelRow && (
           <CancelInvoiceDialog
             row={cancelRow}

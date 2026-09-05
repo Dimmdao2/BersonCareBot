@@ -59,10 +59,21 @@ function formatTariffChangeError(body: { error?: string; blocks?: Array<{ mechan
 
 /** K0 — the one payment element on the tariff screen: issues a checkout link and hands the browser to it. */
 export type ClinicTariffChangeState = {
-  choices: Array<{ id: string; name: string }>;
+  choices: Array<{
+    id: string;
+    name: string;
+    /**
+     * #1069 owner decision 2026-09-05 (period grid) — this tariff's price for every globally
+     * selectable period; the picker below reads it directly instead of trusting a client amount.
+     */
+    periodPrices: Array<{ billingPeriodCode: string; priceMinor: number }>;
+  }>;
   currentTariffId: string | null;
   pendingTariffId: string | null;
   pendingEffectiveAt: string | null;
+  /** #1069 owner decision 2026-09-05 (period grid) — the pair currently paid and the one scheduled. */
+  currentBillingPeriodCode: string | null;
+  pendingBillingPeriodCode: string | null;
   /**
    * Решение владельца 18.08 (L-11): тариф выбран, но ещё не оплачен — значит ещё не действует.
    * Сервер решает это один раз (`getOwnTariffChangeState`), экран только подчиняется.
@@ -84,8 +95,16 @@ export function PayTariffButton({
     tariffChange.pendingTariffId ?? tariffChange.currentTariffId ?? '',
   );
   const [pendingTariffId, setPendingTariffId] = useState(tariffChange.pendingTariffId);
+  // #1069 owner decision 2026-09-05 (period grid) — the pair being purchased is `tariffId` +
+  // `billingPeriodCode`; the amount is never sent, only looked up here to label the option.
+  const [selectedBillingPeriodCode, setSelectedBillingPeriodCode] = useState(
+    tariffChange.pendingBillingPeriodCode ?? tariffChange.currentBillingPeriodCode ?? '',
+  );
   const [billingEmail, setBillingEmail] = useState(initialBillingEmail ?? '');
   const [savedBillingEmail, setSavedBillingEmail] = useState(initialBillingEmail ?? '');
+
+  const selectedTariffPeriodPrices =
+    tariffChange.choices.find((choice) => choice.id === selectedTariffId)?.periodPrices ?? [];
 
   async function saveBillingEmail() {
     setPending(true);
@@ -132,13 +151,13 @@ export function PayTariffButton({
   }
 
   async function changeTariff() {
-    if (!selectedTariffId) return;
+    if (!selectedTariffId || !selectedBillingPeriodCode) return;
     setPending(true);
     try {
       const response = await fetch('/api/clinic/billing', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ tariffId: selectedTariffId }),
+        body: JSON.stringify({ tariffId: selectedTariffId, billingPeriodCode: selectedBillingPeriodCode }),
       });
       const body = (await response.json().catch(() => null)) as
         | { ok?: boolean; error?: string; blocks?: Array<{ mechanic?: string }>; checkoutUrl?: string }
@@ -162,6 +181,7 @@ export function PayTariffButton({
       else {
         setPendingTariffId(null);
         setSelectedTariffId(tariffChange.currentTariffId ?? '');
+        setSelectedBillingPeriodCode(tariffChange.currentBillingPeriodCode ?? '');
       }
     } catch {
       toast.error(formatError(undefined));
@@ -195,8 +215,20 @@ export function PayTariffButton({
           Сохранить
         </Button>
       </div>
-      <Select value={selectedTariffId} onValueChange={(value) => setSelectedTariffId(value ?? '')}>
-        <SelectTrigger className="w-full">
+      <Select
+        value={selectedTariffId}
+        onValueChange={(value) => {
+          if (!value) return;
+          setSelectedTariffId(value);
+          // #1069 owner decision 2026-09-05 (period grid) — a period valid for the previous
+          // tariff may not be priced for the new one; keep it only if it still is.
+          const nextPeriods = tariffChange.choices.find((choice) => choice.id === value)?.periodPrices ?? [];
+          if (!nextPeriods.some((row) => row.billingPeriodCode === selectedBillingPeriodCode)) {
+            setSelectedBillingPeriodCode(nextPeriods[0]?.billingPeriodCode ?? '');
+          }
+        }}
+      >
+        <SelectTrigger className="w-full" aria-label="Тариф">
           <SelectValue placeholder="Выберите тариф" />
         </SelectTrigger>
         <SelectContent>
@@ -207,7 +239,33 @@ export function PayTariffButton({
           ))}
         </SelectContent>
       </Select>
-      <Button size="sm" variant="outline" onClick={changeTariff} disabled={pending || !selectedTariffId}>
+      {/* #1069 owner decision 2026-09-05 (period grid) — the catalog period being purchased; the
+          server trusts only this code + the tariff id above, never a price typed anywhere. */}
+      <Select
+        value={selectedBillingPeriodCode}
+        onValueChange={(value) => setSelectedBillingPeriodCode(value ?? '')}
+      >
+        <SelectTrigger className="w-full" aria-label="Период оплаты">
+          <SelectValue placeholder="Выберите период оплаты" />
+        </SelectTrigger>
+        <SelectContent>
+          {selectedTariffPeriodPrices.map((row) => (
+            <SelectItem
+              key={row.billingPeriodCode}
+              value={row.billingPeriodCode}
+              label={`${row.billingPeriodCode} — ${(row.priceMinor / 100).toFixed(2)} ₽`}
+            >
+              {row.billingPeriodCode} — {(row.priceMinor / 100).toFixed(2)} ₽
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={changeTariff}
+        disabled={pending || !selectedTariffId || !selectedBillingPeriodCode}
+      >
         {/* Пока первый выбор не оплачен, менять нечего и отменять нечего: тариф ещё не действует,
             и та же кнопка ведёт к оплате выбранного (владелец 18.08, L-11). */}
         {selectedTariffId === tariffChange.currentTariffId && !tariffChange.awaitingFirstPayment

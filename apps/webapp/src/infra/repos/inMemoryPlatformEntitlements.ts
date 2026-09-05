@@ -69,15 +69,35 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
     },
     async upsertBillingPeriod(input) {
       const code = input.code.trim();
+      const before = billingPeriods.get(code);
       const option: BillingPeriodOption = {
         code,
         label: input.label.trim(),
         months: input.months,
-        isSelectable: true,
-        sortOrder: input.months * 10,
+        // #1069 owner decision 2026-09-05 (period grid) — a brand-new code is always born
+        // non-selectable; editing an existing one never flips its selectable state here.
+        isSelectable: before?.isSelectable ?? false,
+        sortOrder: before?.sortOrder ?? input.months * 10,
       };
       billingPeriods.set(code, option);
       return option;
+    },
+    async setBillingPeriodSelectable(code, isSelectable) {
+      const before = billingPeriods.get(code);
+      if (!before) throw new Error('billing_period_not_found');
+      if (isSelectable) {
+        const missing = [...tariffs.values()]
+          .filter((tariff) => tariff.isActive)
+          .filter((tariff) => !tariff.periodPrices.some((row) => row.billingPeriodCode === code));
+        if (missing.length > 0) {
+          throw new Error(
+            `saas_billing_period_activation_incomplete:${missing.map((tariff) => tariff.id).join(',')}`,
+          );
+        }
+      }
+      const after = { ...before, isSelectable };
+      billingPeriods.set(code, after);
+      return after;
     },
     async getTrialPolicy() {
       return policy;
@@ -92,20 +112,24 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
       return {};
     },
     async createTariff(input) {
-      if (!billingPeriods.get(input.billingPeriod)?.isSelectable) {
-        throw new Error('tariff_billing_period_invalid');
-      }
       const now = new Date().toISOString();
-      const tariff: Tariff = { ...input, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
+      const tariff: Tariff = {
+        ...input,
+        id: crypto.randomUUID(),
+        // #1069 owner decision 2026-09-05 (period grid) — frozen legacy fields; the port input no
+        // longer carries them, so a freshly created in-memory tariff starts at the same neutral
+        // defaults a real `INSERT` would leave it at.
+        priceMinor: null,
+        billingPeriod: 'month',
+        createdAt: now,
+        updatedAt: now,
+      };
       tariffs.set(tariff.id, tariff);
       return tariff;
     },
     async updateTariff(id, input) {
       const current = tariffs.get(id);
       if (!current) throw new Error('tariff_not_found');
-      if (!billingPeriods.get(input.billingPeriod)?.isSelectable) {
-        throw new Error('tariff_billing_period_invalid');
-      }
       if (current.isActive && !input.isActive && registrationTariffPolicy.tariffId === id) {
         throw new Error('tariff_used_by_registration_tariff_policy');
       }

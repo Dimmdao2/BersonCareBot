@@ -26,9 +26,11 @@ import type {
 import {
   MECHANIC_REGISTRY,
   MECHANICS,
+  type BillingPeriodOption,
   type MechanicDefinition,
   type OrgMechanic,
   type Tariff,
+  type TariffPeriodPrice,
   type TariffQuota,
   type TariffQuotaMap,
   type TrialPolicy,
@@ -39,14 +41,48 @@ import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPl
 import { resolveAccess } from '@/infra/repos/pgOrgEntitlements';
 import { effectiveAccessForPlatform } from '@/infra/repos/pgPlatformEntitlements';
 
+/**
+ * #1069 (period grid) — default global selectable-period fixture for every test that does not
+ * specifically exercise period-catalog validation. Two periods (not one) so a matrix-shape mistake
+ * that only happens to work for a single row cannot hide.
+ */
+const DEFAULT_TEST_BILLING_PERIODS: BillingPeriodOption[] = [
+  { code: 'month', label: 'Месяц', months: 1, isSelectable: true, sortOrder: 10 },
+  { code: 'year', label: 'Год', months: 12, isSelectable: true, sortOrder: 20 },
+];
+
+/** Complete matrix covering {@link DEFAULT_TEST_BILLING_PERIODS} — the shape every default fixture tariff saves. */
+const DEFAULT_TEST_PERIOD_PRICES: TariffPeriodPrice[] = [
+  { billingPeriodCode: 'month', priceMinor: 1000, discountedPriceMinor: null },
+  { billingPeriodCode: 'year', priceMinor: 10_000, discountedPriceMinor: null },
+];
+
+/**
+ * Complete matrix for the REAL `createInMemoryPlatformEntitlementsPort()` fake, whose own default
+ * selectable set (`month`/`half_year`/`year`) is wider than {@link DEFAULT_TEST_BILLING_PERIODS} —
+ * tests that construct that fake directly (instead of stubbing `listBillingPeriods`) need this one.
+ */
+const DEFAULT_INMEMORY_PERIOD_PRICES: TariffPeriodPrice[] = [
+  { billingPeriodCode: 'month', priceMinor: 1000, discountedPriceMinor: null },
+  { billingPeriodCode: 'half_year', priceMinor: 5_000, discountedPriceMinor: null },
+  { billingPeriodCode: 'year', priceMinor: 10_000, discountedPriceMinor: null },
+];
+
 const PLATFORM_BILLING_PORT_STUBS = {
-  listBillingPeriods: async () => [],
+  listBillingPeriods: async () => DEFAULT_TEST_BILLING_PERIODS,
   upsertBillingPeriod: async (input: { code: string; label: string; months: number }) => ({
     code: input.code,
     label: input.label,
     months: input.months,
     isSelectable: true,
     sortOrder: input.months * 10,
+  }),
+  setBillingPeriodSelectable: async (code: string, isSelectable: boolean) => ({
+    code,
+    label: code,
+    months: 1,
+    isSelectable,
+    sortOrder: 0,
   }),
   getPaidPeriodPolicy: async () => null,
   setPaidPeriodPolicy: async () => {},
@@ -58,6 +94,7 @@ const PLATFORM_BILLING_PORT_STUBS = {
   PlatformEntitlementsPort,
   | 'listBillingPeriods'
   | 'upsertBillingPeriod'
+  | 'setBillingPeriodSelectable'
   | 'getPaidPeriodPolicy'
   | 'setPaidPeriodPolicy'
   | 'setOrganizationActive'
@@ -85,8 +122,9 @@ describe('registration tariff policy archive wall', () => {
     name: 'Registration tariff',
     description: '',
     priceMinor: null,
-    currency: null,
+    currency: 'RUB',
     billingPeriod: 'month',
+    periodPrices: DEFAULT_INMEMORY_PERIOD_PRICES,
     mechanics: {},
     quotas: TEST_BRANCH_QUOTA,
     systemAccessPolicy: null,
@@ -301,6 +339,8 @@ describe('org entitlement mechanic classes', () => {
       createTariff: async (input) => {
         storedTariff = {
           ...input,
+          priceMinor: null,
+          billingPeriod: 'month',
           id: 'tariff',
           createdAt: '2026-07-30T00:00:00.000Z',
           updatedAt: '2026-07-30T00:00:00.000Z',
@@ -323,9 +363,8 @@ describe('org entitlement mechanic classes', () => {
       {
         name: 'Новый',
         description: '',
-        priceMinor: null,
-        currency: null,
-        billingPeriod: 'month',
+        currency: 'RUB',
+        periodPrices: DEFAULT_TEST_PERIOD_PRICES,
         mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
         quotas: {
           ...TEST_BRANCH_QUOTA,
@@ -454,6 +493,8 @@ describe('org entitlement mechanic classes', () => {
       createTariff: async (input) => {
         storedTariff = {
           ...input,
+          priceMinor: null,
+          billingPeriod: 'month',
           id: 'stock-tariff',
           createdAt: '2026-07-30T00:00:00.000Z',
           updatedAt: '2026-07-30T00:00:00.000Z',
@@ -477,9 +518,8 @@ describe('org entitlement mechanic classes', () => {
       {
         name: 'Запасы',
         description: '',
-        priceMinor: null,
-        currency: null,
-        billingPeriod: 'month',
+        currency: 'RUB',
+        periodPrices: DEFAULT_TEST_PERIOD_PRICES,
         mechanics: {},
         quotas: {
           files: {
@@ -758,6 +798,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       priceMinor: null,
       currency: null,
       billingPeriod: 'month',
+      periodPrices: DEFAULT_TEST_PERIOD_PRICES,
       mechanics: {},
       quotas: {},
       systemAccessPolicy: null,
@@ -904,33 +945,12 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
     });
   });
 
-  it('classifies a cheaper tariff as a next-period downgrade even when its entitlement shape is unchanged', async () => {
-    const currentTariff = baseTariff({ id: 'expensive', priceMinor: 20_000, currency: 'RUB' });
-    const targetTariff = baseTariff({ id: 'cheaper', priceMinor: 10_000, currency: 'RUB' });
-    const port: OrgEntitlementsPort = {
-      ...lifecycleNotificationStub,
-      resolveCabinetAccess: async () => ({ state: 'full_access', policySource: 'system', warning: null }),
-      resolveMechanicAccess: async (_organizationId, mechanic) => ({ mechanic, state: 'full_access', policySource: 'system', warning: null }),
-      getSnapshot: async () => ({ tariff: currentTariff, overrides: [], access: activeAccess }),
-      getTariffForOrg: async () => currentTariff,
-      getActiveTariffById: async (tariffId) =>
-        tariffId === targetTariff.id
-          ? targetTariff
-          : tariffId === currentTariff.id
-            ? currentTariff
-            : null,
-      listOverrides: async () => [],
-      getEffectiveCommercialAccess: async () => activeAccess,
-      getEnforcedQuotaUsage: async () => ({}),
-      getOwnQuotaUsage: async () => ({}),
-    };
-
-    await expect(resolveOwnTariffTransition(port, 'org', targetTariff.id)).resolves.toMatchObject({
-      currentTariffId: currentTariff.id,
-      targetTariffId: targetTariff.id,
-      appliesNextPeriod: true,
-    });
-  });
+  // #1069 owner decision 2026-09-05 (period grid) — DELETED: this test classified a tariff switch
+  // as "next-period downgrade" purely from priceMinor comparison (20_000 -> 10_000). A tariff no
+  // longer has one price to rank against another (it has a per-period matrix, no rank/"cheaper"
+  // metadata), and price-based immediate/scheduled classification is explicitly forbidden — every
+  // switch applies only at the paid-period boundary, decided solely by capacity (seats/quotas/
+  // mechanics), never by price direction. See `evaluateTariffTransition` in service.ts.
 
   function platformPortWithUsage(input: {
     organizationId: string;
@@ -1062,6 +1082,8 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
       getOrganizationMechanicUsage: async () => ({}),
       createTariff: async (input) => ({
         ...input,
+        priceMinor: null,
+        billingPeriod: 'month',
         id: 'x',
         createdAt: '2026-07-30T00:00:00.000Z',
         updatedAt: '2026-07-30T00:00:00.000Z',
@@ -1079,14 +1101,13 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
     };
     const service = createPlatformEntitlementsService(platformPort);
 
-    expect(() =>
+    await expect(
       service.createTariff(
         {
           name: 'Broken',
           description: '',
-          priceMinor: null,
-          currency: null,
-          billingPeriod: 'month',
+          currency: 'RUB',
+          periodPrices: DEFAULT_TEST_PERIOD_PRICES,
           mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
           quotas: TEST_BRANCH_QUOTA,
           // @ts-expect-error `full_access` was removed from AccessTerminalState — this must be a type error too.
@@ -1101,7 +1122,7 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
         },
         { actorId: null, reason: '' },
       ),
-    ).toThrow('access_policy_terminal_state_invalid');
+    ).rejects.toThrow('access_policy_terminal_state_invalid');
   });
 });
 
@@ -1117,8 +1138,9 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
       name: 'Тест',
       description: '',
       priceMinor: null,
-      currency: null,
+      currency: 'RUB',
       billingPeriod: 'month',
+      periodPrices: DEFAULT_TEST_PERIOD_PRICES,
       mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
       quotas: TEST_BRANCH_QUOTA,
       systemAccessPolicy: null,
@@ -1143,6 +1165,8 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
       getOrganizationMechanicUsage: async () => ({}),
       createTariff: async (input) => ({
         ...input,
+        priceMinor: null,
+        billingPeriod: 'month',
         id: 'x',
         createdAt: '2026-07-31T00:00:00.000Z',
         updatedAt: '2026-07-31T00:00:00.000Z',
@@ -1184,16 +1208,16 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
     expect(tariff.mechanicAccessPolicies).toEqual({});
   });
 
-  it('refuses a numeric quota on any critical mechanic (no number)', () => {
+  it('refuses a numeric quota on any critical mechanic (no number)', async () => {
     const service = createPlatformEntitlementsService(servicePort());
     for (const mechanic of criticalMechanics()) {
       const quotas = {
         ...TEST_BRANCH_QUOTA,
         [mechanic]: { kind: 'numeric', limit: 1, unit: 'items', warningAtPercent: null },
       } as never;
-      expect(() =>
+      await expect(
         service.createTariff(baseTariffInput({ quotas }), { actorId: null, reason: '' }),
-      ).toThrow('tariff_quota_unit_invalid');
+      ).rejects.toThrow('tariff_quota_unit_invalid');
     }
   });
 
@@ -1418,8 +1442,9 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
       name: 'Тест',
       description: '',
       priceMinor: null,
-      currency: null,
+      currency: 'RUB',
       billingPeriod: 'month',
+      periodPrices: DEFAULT_TEST_PERIOD_PRICES,
       mechanics: {},
       quotas: TEST_BRANCH_QUOTA,
       systemAccessPolicy: null,
@@ -1441,6 +1466,7 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
     const port = {
       listTariffs: async () => [],
       listOrganizations: async () => [],
+      listBillingPeriods: PLATFORM_BILLING_PORT_STUBS.listBillingPeriods,
       getTrialPolicy: async () => null,
       getRegistrationTariffPolicy: async () => ({ tariffId: null }),
       getOrganizationMechanicUsage: async () => ({}),
@@ -1470,10 +1496,10 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
   // Owner 31.07: «количество разрешённых специалистов должно быть явно настроено в тарифе, иначе
   // он не сохранится». Breakage: the refusal is replaced by a runtime substitution, so a tariff
   // with no seat count is saved and some baseline is invented on read.
-  it('refuses to SAVE a tariff without a specialist seat count', () => {
-    expect(() =>
+  it('refuses to SAVE a tariff without a specialist seat count', async () => {
+    await expect(
       service().createTariff(tariffInput({ includedSeats: null }), { actorId: null, reason: '' }),
-    ).toThrow('tariff_included_seats_required');
+    ).rejects.toThrow('tariff_included_seats_required');
   });
 
   it('saves the seat count the owner set, including zero', async () => {
@@ -1501,7 +1527,7 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
   // Breakage: a threshold reappears on branches — either accepted and silently ignored, or
   // accepted and acted upon, both of which are the agent deciding.
   it('refuses an early-warning threshold on branches and keeps it for file volume', async () => {
-    expect(() =>
+    await expect(
       service().createTariff(
         tariffInput({
           quotas: {
@@ -1510,7 +1536,7 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
         }),
         { actorId: null, reason: '' },
       ),
-    ).toThrow('tariff_quota_warning_unsupported');
+    ).rejects.toThrow('tariff_quota_warning_unsupported');
 
     const created = await service().createTariff(
       tariffInput({
@@ -1557,8 +1583,8 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
       'access_notification_template_id_invalid',
       { offsetDays: 1, condition: 'payment_failed' as const, templateId: 42, template: 'т' },
     ],
-  ])('refuses a malformed notification row with %s', (error, row) => {
-    expect(() =>
+  ])('refuses a malformed notification row with %s', async (error, row) => {
+    await expect(
       service().createTariff(
         tariffInput({
           systemAccessPolicy: {
@@ -1570,12 +1596,12 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
         }),
         { actorId: null, reason: '' },
       ),
-    ).toThrow(error);
+    ).rejects.toThrow(error);
   });
 
   // §T3 — a rule POINTS AT a template; a row cannot save while its reference resolves to nothing.
-  it('refuses a notification row whose templateId names no template on the tariff', () => {
-    expect(() =>
+  it('refuses a notification row whose templateId names no template on the tariff', async () => {
+    await expect(
       service().createTariff(
         tariffInput({
           mailingTemplates: [{ id: 'letter-1', name: 'Письмо', subject: '', body: '' }],
@@ -1590,7 +1616,7 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
         }),
         { actorId: null, reason: '' },
       ),
-    ).toThrow('access_notification_template_not_found');
+    ).rejects.toThrow('access_notification_template_not_found');
   });
 
   // §T3 boundary #4 — a rule with no template chosen keeps saving exactly as before.
@@ -1619,6 +1645,7 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
     const svc = createPlatformEntitlementsService(createInMemoryPlatformEntitlementsPort());
     const created = await svc.createTariff(
       tariffInput({
+        periodPrices: DEFAULT_INMEMORY_PERIOD_PRICES,
         mailingTemplates: [
           { id: 'letter-1', name: 'Напоминание', subject: 'Тема', body: 'Текст про {{тариф}}' },
         ],
@@ -1646,6 +1673,7 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
     const updated = await svc.updateTariff(
       created.id,
       tariffInput({
+        periodPrices: DEFAULT_INMEMORY_PERIOD_PRICES,
         mailingTemplates: [
           { id: 'letter-1', name: 'Напоминание', subject: 'Тема', body: 'Новый текст' },
         ],
@@ -1666,10 +1694,10 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
         { id: 'x', name: 'Два', subject: '', body: '' },
       ],
     ],
-  ])('refuses a malformed mailing template with %s', (error, mailingTemplates) => {
-    expect(() =>
+  ])('refuses a malformed mailing template with %s', async (error, mailingTemplates) => {
+    await expect(
       service().createTariff(tariffInput({ mailingTemplates }), { actorId: null, reason: '' }),
-    ).toThrow(error);
+    ).rejects.toThrow(error);
   });
 });
 
@@ -1796,6 +1824,7 @@ describe('§5a #1069 Т5 (owner 03.08) — the trial is one-time per organizatio
     priceMinor: 1000,
     currency: 'RUB',
     billingPeriod: 'month',
+    periodPrices: DEFAULT_INMEMORY_PERIOD_PRICES,
     mechanics: {},
     quotas: TEST_BRANCH_QUOTA,
     systemAccessPolicy: null,
@@ -1846,7 +1875,7 @@ describe('§5a #1069 Т5 (owner 03.08) — the trial is one-time per organizatio
 });
 
 describe('#1069 T9 — billing period catalog rejects retired day for new tariffs', () => {
-  it('refuses createTariff when billingPeriod is not selectable in the catalog', async () => {
+  it('refuses createTariff when a periodPrices row names a period that is not selectable in the catalog', async () => {
     const port = createInMemoryPlatformEntitlementsPort();
     port.listBillingPeriods = async () => [
       { code: 'day', label: 'День (снят)', months: 1, isSelectable: false, sortOrder: 0 },
@@ -1863,9 +1892,10 @@ describe('#1069 T9 — billing period catalog rejects retired day for new tariff
         {
           name: 'Day tariff',
           description: '',
-          priceMinor: 1000,
           currency: 'RUB',
-          billingPeriod: 'day',
+          // #1069 (period grid) — 'day' is retired (isSelectable: false above); a matrix row naming
+          // it is an unknown-period save, exactly like naming a code that never existed at all.
+          periodPrices: [{ billingPeriodCode: 'day', priceMinor: 1000, discountedPriceMinor: null }],
           mechanics: {},
           quotas: TEST_BRANCH_QUOTA,
           systemAccessPolicy: null,
@@ -1879,7 +1909,63 @@ describe('#1069 T9 — billing period catalog rejects retired day for new tariff
         },
         { actorId: 'admin', reason: 'test' },
       ),
-    ).rejects.toThrow('tariff_billing_period_invalid');
+    ).rejects.toThrow('saas_tariff_period_price_unknown_period:day');
+  });
+
+  /**
+   * #1069 owner decision 2026-09-05 (Т14 п.2): сетка периодов ОДНА на всю платформу, и «каждый
+   * тариф обязан иметь цену для каждого активного периода».
+   *
+   * Названная поломка: тариф сохраняется с ценой только на часть активных периодов. Тогда
+   * `listActiveTariffChoices`, который ведётся строками матрицы, просто не покажет клиникам
+   * недостающий период ИМЕННО на этом тарифе — и разные тарифы предложат разные лестницы
+   * периодов, ровно то, что решение владельца запрещает. Отказ дорогой (часть клиник не может
+   * купить годовой период и платит помесячно) и молчаливый (сохранение проходит успешно, ничего
+   * не падает, дыра видна только при сравнении двух тарифов глазами).
+   *
+   * Oracle — решение владельца, не реализация. Самый дешёвый публичный слой — сам сервис
+   * сохранения тарифа: это единственная дверь, знающая обе стороны (матрицу и глобальную сетку);
+   * ни route-, ни UI-слой другого класса поломки здесь не ловит, а БД полноту не проверяет —
+   * PK/FK/CHECK стерегут отдельную строку, а не отсутствие строки.
+   *
+   * Арбитр (проверено): заменить в `assertCompleteTariffPeriodPriceMatrix` условие
+   * `missing.length > 0` на `missing.length > 999` — этот тест обязан покраснеть; до него весь
+   * набор оставался зелёным.
+   */
+  it('refuses to save a tariff priced for only some of the currently selectable periods', async () => {
+    const port = createInMemoryPlatformEntitlementsPort();
+    port.listBillingPeriods = async () => [
+      { code: 'month', label: 'Месяц', months: 1, isSelectable: true, sortOrder: 10 },
+      { code: 'year', label: 'Год', months: 12, isSelectable: true, sortOrder: 20 },
+    ];
+    const service = createPlatformEntitlementsService({
+      ...port,
+      ...PLATFORM_BILLING_PORT_STUBS,
+      listBillingPeriods: port.listBillingPeriods,
+    });
+
+    await expect(
+      service.createTariff(
+        {
+          name: 'Half-priced grid',
+          description: '',
+          currency: 'RUB',
+          // Год активен в сетке выше, но цены на него у тарифа нет.
+          periodPrices: [{ billingPeriodCode: 'month', priceMinor: 100_000, discountedPriceMinor: null }],
+          mechanics: {},
+          quotas: TEST_BRANCH_QUOTA,
+          systemAccessPolicy: null,
+          mechanicAccessPolicies: {},
+          downgradePolicies: {},
+          mailingTemplates: [],
+          includedSeats: 1,
+          additionalSeatPriceMinor: null,
+          discountedPriceMinor: null,
+          isActive: true,
+        },
+        { actorId: 'admin', reason: 'test' },
+      ),
+    ).rejects.toThrow('saas_tariff_period_price_missing:year');
   });
 });
 
@@ -1971,6 +2057,7 @@ describe('§5a #1069 Т8 (owner 03.08) — discounted price is explicit per tari
       priceMinor: 1000,
       currency: 'RUB',
       billingPeriod: 'month',
+      periodPrices: DEFAULT_INMEMORY_PERIOD_PRICES,
       mechanics: {},
       quotas: TEST_BRANCH_QUOTA,
       systemAccessPolicy: null,
@@ -2001,13 +2088,13 @@ describe('§5a #1069 Т8 (owner 03.08) — discounted price is explicit per tari
     expect(withDiscount.discountedPriceMinor).toBe(700);
   });
 
-  it('refuses a negative discounted price instead of silently clamping it', () => {
+  it('refuses a negative discounted price instead of silently clamping it', async () => {
     const service = createPlatformEntitlementsService(createInMemoryPlatformEntitlementsPort());
-    expect(() =>
+    await expect(
       service.createTariff(tariffInput({ discountedPriceMinor: -1 }), {
         actorId: 'admin',
         reason: '',
       }),
-    ).toThrow('tariff_discounted_price_invalid');
+    ).rejects.toThrow('tariff_discounted_price_invalid');
   });
 });

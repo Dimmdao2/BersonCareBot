@@ -50,11 +50,16 @@ export async function GET() {
 }
 
 const billingPatchSchema = z.union([
-  z.object({ tariffId: z.string().uuid() }),
+  z.object({ tariffId: z.string().uuid(), billingPeriodCode: z.string().trim().min(1) }),
   z.object({
     action: z.literal('billing_contact'),
     billingEmail: z.string().trim().email().max(320),
   }),
+  // F-6 (independent audit-live, 2026-09-05) — the clinic's own "cancel the subscription" door:
+  // stops future renewal/autopay, never touches the already-paid `currentPeriodEndsAt`. Distinct
+  // from `DELETE` above, which cancels a scheduled PENDING tariff/period change, not the
+  // subscription itself.
+  z.object({ action: z.literal('cancel_subscription') }),
 ]);
 
 async function requireBillingManager() {
@@ -94,6 +99,10 @@ const TARIFF_CHANGE_CONFLICT_RULES: ApiErrorLiteralRules = {
   },
   saas_billing_no_active_paid_subscription: {
     code: 'saas_billing_no_active_paid_subscription',
+    status: 409,
+  },
+  saas_billing_no_tariff_assigned: {
+    code: 'saas_billing_no_tariff_assigned',
     status: 409,
   },
 };
@@ -156,6 +165,26 @@ export async function PATCH(request: Request) {
   if (!parsed.success)
     return NextResponse.json({ ok: false, error: 'invalid_request' }, { status: 400 });
   try {
+    if ('action' in parsed.data && parsed.data.action === 'cancel_subscription') {
+      const result = await runWithDbClinicBillingPrincipal(
+        {
+          organizationId: gate.ctx.organizationId,
+          platformUserId: gate.ctx.session.user.userId,
+          source: 'clinic-billing-subscription-cancel',
+        },
+        () =>
+          buildAppDeps().saasBilling.cancelOwnTariffBillingSubscription({
+            organizationId: gate.ctx.organizationId,
+          }),
+      );
+      if (result.outcome === 'no_subscription') {
+        return NextResponse.json(
+          { ok: false, error: 'saas_billing_no_active_paid_subscription' },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({ ok: true });
+    }
     if ('billingEmail' in parsed.data) {
       const billingEmailInput = parsed.data.billingEmail;
       const billingEmail = await runWithDbClinicBillingPrincipal(
@@ -173,6 +202,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: true, billingEmail });
     }
     const tariffId = parsed.data.tariffId;
+    const billingPeriodCode = parsed.data.billingPeriodCode;
     const result = await runWithDbClinicBillingPrincipal(
       {
         organizationId: gate.ctx.organizationId,
@@ -183,6 +213,7 @@ export async function PATCH(request: Request) {
         buildAppDeps().saasBilling.scheduleOwnTariffChange({
           organizationId: gate.ctx.organizationId,
           tariffId,
+          billingPeriodCode,
           actorId: gate.ctx.session.user.userId,
         }),
     );

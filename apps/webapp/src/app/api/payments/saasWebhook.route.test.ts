@@ -28,7 +28,19 @@ vi.mock('@bersoncare/db-principal', () => ({
 
 function buildService() {
   return createSaasBillingService({
-    repository: createInMemorySaasBillingRepository(),
+    // #1069 (владелец 05.09): двойник больше не выдаёт «месяц» любому неизвестному тарифу — период
+    // и цена берутся из матрицы самого тарифа, поэтому тариф, который сеются счета, объявлен явно.
+    // Цена 0 сохраняет прежнее свойство набора: счёт продления здесь на 0.00 RUB.
+    repository: createInMemorySaasBillingRepository({
+      tariffs: [
+        {
+          id: 'tariff-9021',
+          name: 'Тариф вебхука',
+          currency: 'RUB',
+          periodPrices: [{ billingPeriodCode: 'month', priceMinor: 0 }],
+        },
+      ],
+    }),
     settings: {
       getSaasBillingPaymentProviderValue: async () => ({
         defaultProviderId: 'yookassa',

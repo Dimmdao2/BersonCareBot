@@ -105,20 +105,36 @@ export type PlatformEntitlementsPort = {
   listTariffs(): Promise<Tariff[]>;
   listOrganizations(): Promise<PlatformOrganizationSummary[]>;
   listBillingPeriods(): Promise<BillingPeriodOption[]>;
+  /**
+   * #1069 owner decision 2026-09-05 (period grid) — a brand-new code is always created
+   * `isSelectable: false` regardless of what the caller passes; editing label/months of an
+   * EXISTING code never changes its selectable state. Activation is a separate, gated call
+   * ({@link setBillingPeriodSelectable}).
+   */
   upsertBillingPeriod(
     input: Pick<BillingPeriodOption, 'code' | 'label' | 'months'>,
+    audit: PlatformMutationAudit,
+  ): Promise<BillingPeriodOption>;
+  /**
+   * #1069 owner decision 2026-09-05 (period grid) — turning a period selectable (`true`) is
+   * refused atomically unless EVERY active tariff already carries a price row for it; turning it
+   * off (retirement) is always allowed and never deletes price rows or history.
+   */
+  setBillingPeriodSelectable(
+    code: string,
+    isSelectable: boolean,
     audit: PlatformMutationAudit,
   ): Promise<BillingPeriodOption>;
   getTrialPolicy(): Promise<TrialPolicy | null>;
   getPaidPeriodPolicy(): Promise<PaidPeriodPolicy | null>;
   getRegistrationTariffPolicy(): Promise<RegistrationTariffPolicy>;
   createTariff(
-    input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>,
+    input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt' | 'priceMinor' | 'billingPeriod'>,
     audit: PlatformMutationAudit,
   ): Promise<Tariff>;
   updateTariff(
     id: string,
-    input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>,
+    input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt' | 'priceMinor' | 'billingPeriod'>,
     audit: PlatformMutationAudit,
   ): Promise<Tariff>;
   archiveTariff(id: string, audit: PlatformMutationAudit): Promise<void>;

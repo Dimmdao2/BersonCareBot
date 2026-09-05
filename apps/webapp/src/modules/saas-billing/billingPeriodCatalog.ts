@@ -12,6 +12,52 @@ export type BillingPeriodOption = {
   sortOrder: number;
 };
 
+/**
+ * #1069 owner decision 2026-09-05 (period grid) — one tariff's amount for one globally selectable
+ * period. `discountedPriceMinor` mirrors {@link import('../org-entitlements/types').Tariff.discountedPriceMinor}'s
+ * shape (Т8: exact price, `null` = no discount), now per period instead of once per tariff.
+ */
+export type TariffPeriodPrice = {
+  billingPeriodCode: string;
+  priceMinor: number;
+  discountedPriceMinor: number | null;
+};
+
+/**
+ * A platform tariff save writes the COMPLETE matrix in one call: exactly one row per currently
+ * selectable period, no unknown code, no duplicate, no negative amount. Called by BOTH the write
+ * path (`createTariff`/`updateTariff`) and the completeness gate a period activation runs, so the
+ * two can never silently disagree on what "complete" means.
+ */
+export function assertCompleteTariffPeriodPriceMatrix(
+  periodPrices: readonly TariffPeriodPrice[],
+  selectablePeriodCodes: readonly string[],
+): void {
+  const seen = new Set<string>();
+  for (const row of periodPrices) {
+    if (seen.has(row.billingPeriodCode)) {
+      throw new Error(`saas_tariff_period_price_duplicate:${row.billingPeriodCode}`);
+    }
+    seen.add(row.billingPeriodCode);
+    if (!selectablePeriodCodes.includes(row.billingPeriodCode)) {
+      throw new Error(`saas_tariff_period_price_unknown_period:${row.billingPeriodCode}`);
+    }
+    if (!Number.isInteger(row.priceMinor) || row.priceMinor < 0) {
+      throw new Error(`saas_tariff_period_price_invalid:${row.billingPeriodCode}`);
+    }
+    if (
+      row.discountedPriceMinor !== null &&
+      (!Number.isInteger(row.discountedPriceMinor) || row.discountedPriceMinor < 0)
+    ) {
+      throw new Error(`saas_tariff_period_price_discount_invalid:${row.billingPeriodCode}`);
+    }
+  }
+  const missing = selectablePeriodCodes.filter((code) => !seen.has(code));
+  if (missing.length > 0) {
+    throw new Error(`saas_tariff_period_price_missing:${missing.join(',')}`);
+  }
+}
+
 /** Retired period code kept only for historical invoice/tariff snapshots. */
 export const LEGACY_BILLING_PERIOD_DAY = 'day';
 
@@ -70,14 +116,8 @@ export function billingPeriodMonthsMap(
   return new Map(options.map((option) => [option.code, option.months]));
 }
 
-const KNOWN_BILLING_PERIOD_LABELS_RU: Record<string, string> = {
-  day: 'день',
-  month: 'месяц',
-  half_year: 'полгода',
-  year: 'год',
-};
-
-/** Display label for invoice breakdown rows; unknown codes fall back to the code itself. */
-export function formatBillingPeriodLabelRu(code: string): string {
-  return KNOWN_BILLING_PERIOD_LABELS_RU[code] ?? code;
-}
+/**
+ * #1069 owner decision 2026-09-05 (period grid) — a period's display label is DATA
+ * (`saas_billing_periods.label`), owner-edited through the global period editor, never a code
+ * literal here. Callers that only have the code and no fetched catalog show the code itself.
+ */

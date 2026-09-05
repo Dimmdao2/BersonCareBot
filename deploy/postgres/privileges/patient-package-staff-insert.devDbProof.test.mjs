@@ -4,10 +4,11 @@
  * rights are installed and rolled back inside each transaction.
  *
  * Production Drizzle builds the package and payment statements so their named-column set cannot
- * drift from this proof. The chain-only relations use the generated Drizzle insert surface that the
- * privilege declaration consumes. Revoking every named column in turn must produce PostgreSQL
- * `42501`; this catches both a half-created package and a payment that succeeded while the UI saw a
- * privilege failure.
+ * drift from this proof. The chain-only relations ask live Drizzle metadata for their own named-column
+ * set the same way (`liveInsertColumns` below, same technique as
+ * `staff-drizzle-insert-grant-coverage.test.mjs`) — no committed scan artifact sits between the schema
+ * and this proof. Revoking every named column in turn must produce PostgreSQL `42501`; this catches
+ * both a half-created package and a payment that succeeded while the UI saw a privilege failure.
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -15,8 +16,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-
-import { DRIZZLE_INSERT_SURFACE } from './drizzle-insert-surface.ts';
 
 const ENABLED = process.env.RUN_PATIENT_PACKAGE_STAFF_INSERT_DB === '1';
 const DATABASE = process.env.PATIENT_PACKAGE_STAFF_INSERT_PROOF_DB ?? 'bcb_webapp_dev';
@@ -74,10 +73,38 @@ for (const relation of CHAIN_RELATIONS) {
     candidateChainPrivileges,
     new RegExp(`GRANT INSERT \\([^)]*\\) ON TABLE "public"\\."${table}" TO "app_staff"`, 'u'),
   );
-  assert.ok(
-    (DRIZZLE_INSERT_SURFACE[relation]?.directInsertCallsites.length ?? 0) > 0,
-    `${relation} lost its direct Drizzle .insert() callsite — this proof no longer covers the flow`,
+}
+
+/** Schema export for each chain relation — all three live in the same booking-memberships module. */
+const RELATION_SCHEMA = {
+  'public.be_patient_packages': 'bePatientPackages',
+  'public.be_patient_package_items': 'bePatientPackageItems',
+  'public.be_package_history_events': 'bePackageHistoryEvents',
+};
+const RELATION_SCHEMA_MODULE = './db/schema/bookingMemberships.ts';
+
+/**
+ * The columns Drizzle itself names for an empty `.values({})` INSERT on this relation — asked of live
+ * metadata, not a committed scan artifact, so this cannot drift from what production Drizzle actually
+ * emits (same technique as `staff-drizzle-insert-grant-coverage.test.mjs`).
+ */
+const liveInsertColumnsCache = new Map();
+function liveInsertColumns(relation) {
+  if (liveInsertColumnsCache.has(relation)) return liveInsertColumnsCache.get(relation);
+  const schemaExport = RELATION_SCHEMA[relation];
+  const expression = [
+    "import { drizzle } from 'drizzle-orm/pg-proxy'",
+    `import { ${schemaExport} } from '${RELATION_SCHEMA_MODULE}'`,
+    'const db = drizzle(async () => ({ rows: [] }))',
+    `const { sql: text } = db.insert(${schemaExport}).values({}).toSQL()`,
+    'const named = text.slice(text.indexOf("(") + 1, text.indexOf(") values"))',
+    'process.stdout.write(JSON.stringify(named.split(",").map((c) => c.trim().replaceAll(String.fromCharCode(34), "")).sort()))',
+  ].join(';');
+  const columns = JSON.parse(
+    execFileSync('node_modules/.bin/tsx', ['-e', expression], { cwd: WEBAPP_ROOT, encoding: 'utf8' }),
   );
+  liveInsertColumnsCache.set(relation, columns);
+  return columns;
 }
 
 /**
@@ -200,7 +227,7 @@ const CHAIN_VALUES = {
 };
 
 function insertStatement(relation, fixtureRow, event) {
-  const columns = DRIZZLE_INSERT_SURFACE[relation].insertColumns;
+  const columns = liveInsertColumns(relation);
   const values = columns.map((column) => {
     const build = CHAIN_VALUES[relation][column];
     if (!build) {
@@ -486,7 +513,7 @@ test(
     const f = fixture();
     for (const relation of CHAIN_RELATIONS) {
       const table = relation.slice('public.'.length);
-      for (const column of DRIZZLE_INSERT_SURFACE[relation].insertColumns) {
+      for (const column of liveInsertColumns(relation)) {
         const error = failure(
           chainTransaction(f, `REVOKE INSERT (${column}) ON TABLE ${relation} FROM app_staff;`),
         );

@@ -44,6 +44,19 @@ const COMMERCIAL_ERROR_RULES: ApiErrorLiteralRules = {
   tariff_name_required: { code: 'tariff_name_required', status: 400 },
   tariff_not_found: { code: 'tariff_not_found', status: 400 },
   tariff_price_invalid: { code: 'tariff_price_invalid', status: 400 },
+  // #1069 owner decision 2026-09-05 (period grid) — `assertCompleteTariffPeriodPriceMatrix`
+  // (modules/saas-billing/billingPeriodCatalog.ts) and `setBillingPeriodSelectable`
+  // (modules/org-entitlements/service.ts).
+  saas_tariff_period_price_duplicate: { code: 'saas_tariff_period_price_duplicate', status: 400 },
+  saas_tariff_period_price_unknown_period: { code: 'saas_tariff_period_price_unknown_period', status: 400 },
+  saas_tariff_period_price_invalid: { code: 'saas_tariff_period_price_invalid', status: 400 },
+  saas_tariff_period_price_discount_invalid: { code: 'saas_tariff_period_price_discount_invalid', status: 400 },
+  saas_tariff_period_price_missing: { code: 'saas_tariff_period_price_missing', status: 400 },
+  billing_period_not_found: { code: 'billing_period_not_found', status: 400 },
+  saas_billing_period_activation_incomplete: {
+    code: 'saas_billing_period_activation_incomplete',
+    status: 400,
+  },
   tariff_quota_limit_invalid: { code: 'tariff_quota_limit_invalid', status: 400 },
   tariff_quota_mechanic_invalid: { code: 'tariff_quota_mechanic_invalid', status: 400 },
   tariff_quota_unit_invalid: { code: 'tariff_quota_unit_invalid', status: 400 },
@@ -109,12 +122,20 @@ const accessPolicySchema = z.object({
 // constructor no longer renders or submits this field; omission preserves the stored policy.
 const downgradePolicySchema = z.enum(['block', 'freeze_growth', 'disable_immediately', 'read_only']);
 
+// #1069 owner decision 2026-09-05 (period grid) — a tariff's money is the COMPLETE per-period
+// matrix, never a single price/period pair. `priceMinor`/`billingPeriod` are gone from the input:
+// the port type (`Omit<Tariff, ... | 'priceMinor' | 'billingPeriod'>`) already refuses them.
+const tariffPeriodPriceSchema = z.object({
+  billingPeriodCode: z.string().trim().min(1),
+  priceMinor: z.number().int().nonnegative(),
+  discountedPriceMinor: z.number().int().nonnegative().nullable(),
+});
+
 const tariffInputSchema = z.object({
   name: z.string().trim().min(1),
   description: z.string(),
-  priceMinor: z.number().int().nonnegative().nullable(),
   currency: z.string().trim().min(1).nullable(),
-  billingPeriod: z.string().trim().min(1),
+  periodPrices: z.array(tariffPeriodPriceSchema),
   mechanics: z.record(z.string(), z.boolean()),
   quotas: z
     .object({
@@ -219,10 +240,21 @@ const operationSchema = z.discriminatedUnion('action', [
     period: billingPeriodUpsertSchema,
     reason: reasonSchema,
   }),
+  // #1069 owner decision 2026-09-05 (period grid) — the ONE door that turns a period selectable
+  // or retires it (see `setBillingPeriodSelectable` in org-entitlements/service.ts).
+  z.object({
+    action: z.literal('set_billing_period_selectable'),
+    code: z.string().trim().min(1),
+    isSelectable: z.boolean(),
+    reason: reasonSchema,
+  }),
   z.object({ action: z.literal('start_trial'), organizationId: uuidSchema, reason: reasonSchema }),
 ]);
 
-type TariffInput = Omit<Tariff, 'id' | 'createdAt' | 'updatedAt' | 'downgradePolicies'> & {
+type TariffInput = Omit<
+  Tariff,
+  'id' | 'createdAt' | 'updatedAt' | 'downgradePolicies' | 'priceMinor' | 'billingPeriod'
+> & {
   downgradePolicies?: DowngradePolicyMap;
 };
 
@@ -312,6 +344,13 @@ export async function POST(request: Request) {
         break;
       case 'upsert_billing_period':
         result = await service.upsertBillingPeriod(operation.period, audit);
+        break;
+      case 'set_billing_period_selectable':
+        result = await service.setBillingPeriodSelectable(
+          operation.code,
+          operation.isSelectable,
+          audit,
+        );
         break;
       case 'start_trial':
         result = await service.startTrial(operation.organizationId, audit);
