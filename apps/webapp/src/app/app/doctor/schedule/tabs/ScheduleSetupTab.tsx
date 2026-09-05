@@ -915,7 +915,10 @@ export function ScheduleSetupTab({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pt-3 pb-3 md:pt-0" data-testid="schedule-setup-tab">
+    <div
+      className="-mx-3 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pt-3 pb-3 md:mx-0 md:px-0 md:pt-0"
+      data-testid="schedule-setup-tab"
+    >
       <DoctorShellMobileSubsectionTabsRegistration content={mobileSubsectionTabs} />
       {/* Sub-navigation */}
       <nav

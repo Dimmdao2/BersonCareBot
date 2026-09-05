@@ -1621,7 +1621,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         </Button>
       </DoctorCatalogStickyToolbar>
 
-      <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
+      <div className="-mx-3 min-h-0 flex-1 overflow-y-auto px-3 md:mx-0 md:px-0 [scrollbar-width:thin]">
         <div className="flex flex-col gap-3 py-3">
           {/* Errors / feedback */}
           {loadError ? (
