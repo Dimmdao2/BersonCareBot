@@ -44,6 +44,7 @@ export default async function DoctorTasksPage() {
       <DoctorTasksPageClient
         initialTasks={data.tasks}
         initialPatientNames={data.patientNames}
+        initialPatientOnSupport={data.patientOnSupport}
         displayIana={displayIana}
         todayIso={todayIso}
         canMutate={mutation.available}

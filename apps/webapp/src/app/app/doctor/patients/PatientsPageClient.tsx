@@ -35,7 +35,10 @@ import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
-import { DoctorSupportStar } from '@/shared/ui/doctor/DoctorSupportStar';
+import {
+  DoctorPatientName,
+  DoctorSupportStar,
+} from '@/shared/ui/doctor/DoctorSupportStar';
 import { TooltipProvider } from '@/shared/ui/doctor/primitives/tooltip';
 import {
   doctorDnaFlatListClass,
@@ -748,10 +751,12 @@ function PatientsContent({
                         )}
                       >
                         <div className="flex min-w-0 flex-1 items-center">
-                          <span className={cn('truncate', doctorDnaFlatListPrimaryClass)}>
+                          <DoctorPatientName
+                            isOnSupport={c.isOnSupport === true}
+                            className={cn('truncate', doctorDnaFlatListPrimaryClass)}
+                          >
                             {clientPrimaryName(c)}
-                            {c.isOnSupport === true ? <DoctorSupportStar /> : null}
-                          </span>
+                          </DoctorPatientName>
                         </div>
                         <IconSlot
                           visible={futureAppointmentCount > 0}

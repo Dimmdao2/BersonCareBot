@@ -25,7 +25,7 @@ type Props = {
 
 export function PatientTabProgram({
   userId,
-  header: _header,
+  header,
   active,
   initialProgramInstances,
 }: Props) {
@@ -98,7 +98,12 @@ export function PatientTabProgram({
   ]);
 
   if (activeEditorBootstrap) {
-    return <TreatmentProgramInstanceDetailClient {...activeEditorBootstrap} />;
+    return (
+      <TreatmentProgramInstanceDetailClient
+        {...activeEditorBootstrap}
+        patientOnSupport={header?.support.isOnSupport === true}
+      />
+    );
   }
 
   const programLoadError =

@@ -8,6 +8,7 @@ type DoctorConversationChatModalProps = {
   conversationId: string | null;
   displayName: string;
   patientUserId?: string | null;
+  patientOnSupport?: boolean;
   onClose: () => void;
   onReadStateChanged?: () => void | Promise<void>;
   onSent?: () => void | Promise<void>;
@@ -18,6 +19,7 @@ export function DoctorConversationChatModal({
   conversationId,
   displayName,
   patientUserId,
+  patientOnSupport = false,
   onClose,
   onReadStateChanged,
   onSent,
@@ -31,6 +33,7 @@ export function DoctorConversationChatModal({
           label="Сообщение"
           patientName={displayName || '—'}
           patientHref={patientUserId ? patientCardHref(patientUserId) : null}
+          patientOnSupport={patientOnSupport}
         />
       }
       size="content"

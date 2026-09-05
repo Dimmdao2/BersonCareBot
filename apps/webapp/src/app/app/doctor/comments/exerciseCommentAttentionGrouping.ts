@@ -3,6 +3,7 @@ import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCom
 export type ExerciseCommentAttentionPatientGroup = {
   patientUserId: string;
   patientDisplayName: string;
+  patientOnSupport: boolean;
   items: TodayExerciseCommentAttentionItem[];
 };
 
@@ -19,6 +20,7 @@ export function groupExerciseCommentAttentionByPatient(
       groups.set(row.patientUserId, {
         patientUserId: row.patientUserId,
         patientDisplayName: row.patientDisplayName,
+        patientOnSupport: row.patientOnSupport === true,
         items: [row],
       });
     }

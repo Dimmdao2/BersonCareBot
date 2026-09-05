@@ -32,6 +32,7 @@ type Props = {
   whenLabel: string;
   patientLabel: string;
   patientHref?: string | null;
+  patientOnSupport?: boolean;
   draft: AppointmentCancelDraft;
   onDraftChange: (patch: Partial<AppointmentCancelDraft>) => void;
   pending: boolean;
@@ -48,6 +49,7 @@ export function DoctorAppointmentCancelModal({
   whenLabel,
   patientLabel,
   patientHref,
+  patientOnSupport = false,
   draft,
   onDraftChange,
   pending,
@@ -63,6 +65,7 @@ export function DoctorAppointmentCancelModal({
           label="Отмена записи"
           patientName={patientLabel}
           patientHref={patientHref}
+          patientOnSupport={patientOnSupport}
         />
       }
       size="sm"

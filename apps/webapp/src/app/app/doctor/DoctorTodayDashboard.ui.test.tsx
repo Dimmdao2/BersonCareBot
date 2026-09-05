@@ -59,6 +59,7 @@ const emptyDashboardData: TodayDashboardData = {
   onSupportPeopleListTruncated: false,
   globalOpenTasks: [],
   globalTaskPatientNames: {},
+  globalTaskPatientOnSupport: {},
   globalOpenTasksTotal: 0,
   pendingProgramTests: [],
   pendingProgramTestsTotal: 0,

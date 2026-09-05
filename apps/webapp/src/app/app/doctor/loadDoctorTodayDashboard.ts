@@ -156,6 +156,7 @@ export type TodayNextAppointmentItem = {
   isCurrent: boolean;
   clientLabel: string;
   clientUserId: string | null;
+  patientOnSupport: boolean;
   comment: string | null;
   wasRescheduled: boolean;
 };
@@ -173,6 +174,7 @@ export type TodayUnreadConversationItem = {
   lastSenderRole: string | null;
   lastMessagePreview: string | null;
   unreadFromUserCount: number;
+  onSupport: boolean;
   href: string;
 };
 
@@ -187,6 +189,7 @@ export type TodayPeopleItem = {
   exerciseDoneTodayCount: number;
   newExerciseCommentsCount: number;
   lastAppointmentAt: string | null;
+  isOnSupport: boolean;
 };
 
 export type TodayWeeklyTimelinePoint = {
@@ -218,6 +221,7 @@ export type TodayDashboardData = {
   globalOpenTasks: SpecialistTaskRow[];
   /** Patient FIO for task rows, resolved through the scoped doctor-clients read path. */
   globalTaskPatientNames: Record<string, string>;
+  globalTaskPatientOnSupport: Record<string, boolean>;
   /** Общее количество открытых задач (§1.3). */
   globalOpenTasksTotal: number;
   pendingProgramTests: TodayPendingProgramTestItem[];
@@ -419,6 +423,7 @@ function mapNextAppointment(
     isCurrent,
     clientLabel: event.patientName?.trim() || event.patientPhone?.trim() || 'Клиент не указан',
     clientUserId: event.platformUserId,
+    patientOnSupport: event.patientOnSupport === true,
     comment: comment?.trim() || fallbackComment || null,
     wasRescheduled: event.rescheduleCount > 0,
   };
@@ -510,12 +515,14 @@ export function mapClientToTodayItem(row: ClientListItem): TodayPeopleItem {
     exerciseDoneTodayCount: 0,
     newExerciseCommentsCount: row.unreadExerciseCommentsCount ?? 0,
     lastAppointmentAt: row.lastAppointmentAt ?? null,
+    isOnSupport: row.isOnSupport === true,
   };
 }
 
 export function mapConversationToTodayItem(
   row: TodayConversationSourceRow,
   timeZone?: string,
+  onSupport = false,
 ): TodayUnreadConversationItem {
   return {
     conversationId: row.conversationId,
@@ -530,6 +537,7 @@ export function mapConversationToTodayItem(
     lastSenderRole: row.lastSenderRole,
     lastMessagePreview: truncateText(row.lastMessageText),
     unreadFromUserCount: row.unreadFromUserCount,
+    onSupport,
     // #812: deep-link to the exact dialog (not just the chats tab) — Today KPI
     // «открыть переписку» must select this conversation, not land on an empty list.
     href: communicationsChatHref(row.conversationId),
@@ -749,6 +757,7 @@ export async function loadDoctorTodayDashboard(
   );
   const onSupportPreviewRaw = onSupportSorted.slice(0, DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT);
   const onSupportPeople = onSupportPreviewRaw.map(mapClientToTodayItem);
+  const onSupportPatientUserIds = new Set(onSupportListRaw.map((row) => row.userId));
   const onSupportPeopleCount = onSupportSorted.length;
   const onSupportPeopleListTruncated = onSupportPeopleCount > onSupportPeople.length;
 
@@ -809,6 +818,7 @@ export async function loadDoctorTodayDashboard(
 
   const globalOpenTasks = openTasksData.tasks;
   const globalTaskPatientNames = openTasksData.patientNames;
+  const globalTaskPatientOnSupport = openTasksData.patientOnSupport;
 
   const [pendingProgramTestsTotal, pendingRows] = pendingTestsResult;
   const appDisplayTimeZone = await getAppDisplayTimeZone();
@@ -823,7 +833,11 @@ export async function loadDoctorTodayDashboard(
     weekAppointments: weekRaw.map(mapAppointmentToTodayItem),
     monthAppointments: monthRaw.map(mapAppointmentToTodayItem),
     unreadConversations: unreadConversations.map((row) =>
-      mapConversationToTodayItem(row, appDisplayTimeZone),
+      mapConversationToTodayItem(
+        row,
+        appDisplayTimeZone,
+        row.platformUserId ? onSupportPatientUserIds.has(row.platformUserId) : false,
+      ),
     ),
     unreadTotal,
     upcomingAppointments: getUpcomingAppointments(activeTodayRaw, weekRaw, 5),
@@ -836,6 +850,7 @@ export async function loadDoctorTodayDashboard(
     onSupportPeopleListTruncated,
     globalOpenTasks,
     globalTaskPatientNames,
+    globalTaskPatientOnSupport,
     globalOpenTasksTotal: globalOpenTasks.length,
     pendingProgramTests,
     pendingProgramTestsTotal,

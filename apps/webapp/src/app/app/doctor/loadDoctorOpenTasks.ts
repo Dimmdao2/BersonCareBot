@@ -25,6 +25,7 @@ type Input = {
 export type DoctorOpenTasksData = {
   tasks: SpecialistTaskRow[];
   patientNames: Record<string, string>;
+  patientOnSupport: Record<string, boolean>;
 };
 
 /** One scoped, batch-loaded source for Today and the standalone Tasks page. */
@@ -69,6 +70,9 @@ export async function loadDoctorOpenTasks(input: Input): Promise<DoctorOpenTasks
           patient.displayName.trim() || '—',
         ),
       ]),
+    ),
+    patientOnSupport: Object.fromEntries(
+      patients.map((patient) => [patient.userId, patient.isOnSupport === true]),
     ),
   };
 }

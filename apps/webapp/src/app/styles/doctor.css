@@ -173,7 +173,11 @@ body:has(#app-shell-doctor),
  */
 .doctor-fullscreen-media-close {
   top: max(0.75rem, env(safe-area-inset-top, 0px));
-  right: max(0.75rem, env(safe-area-inset-right, 0px));
+  right: calc(max(0.75rem, env(safe-area-inset-right, 0px)) + 3.25rem);
+}
+
+.doctor-fullscreen-media-drawer > [aria-hidden='true'] {
+  background-color: rgb(255 255 255 / 38%);
 }
 
 @media (orientation: landscape) and (hover: none) and (pointer: coarse) {
@@ -184,10 +188,6 @@ body:has(#app-shell-doctor),
     left: max(1rem, env(safe-area-inset-left, 0px));
     width: auto;
     height: auto;
-  }
-
-  .doctor-fullscreen-media-close {
-    right: calc(max(1rem, env(safe-area-inset-right, 0px)) + 3.25rem);
   }
 }
 

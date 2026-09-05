@@ -30,6 +30,7 @@ import { beAppointmentStaffComments } from '../../../db/schema/bookingClientProf
 import { bePaymentIntents } from '../../../db/schema/bookingPayments';
 import { bePackageUsages, bePatientPackages } from '../../../db/schema/bookingMemberships';
 import { patientBookings, platformUsers, userIdentity } from '../../../db/schema/schema';
+import { doctorPatientSupport } from '../../../db/schema/doctorPatientSupport';
 import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 import type { BookingCalendarPort } from '@/modules/booking-calendar/ports';
@@ -233,6 +234,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           patientLastName: drizzleFioCols.lastName,
           patientPatronymic: drizzleFioCols.patronymic,
           patientPhone: drizzlePrimaryPhoneCol,
+          patientOnSupport: doctorPatientSupport.onSupport,
         })
         .from(beAppointments)
         .leftJoin(beSpecialists, eq(beSpecialists.id, beAppointments.specialistId))
@@ -241,6 +243,13 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
         .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
         .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
         .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
+        .leftJoin(
+          doctorPatientSupport,
+          and(
+            eq(doctorPatientSupport.patientUserId, beAppointments.platformUserId),
+            eq(doctorPatientSupport.organizationId, filters.organizationId),
+          ),
+        )
         .where(and(...conds))
         .orderBy(asc(beAppointments.startAt));
 
@@ -394,6 +403,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           serviceTitle: row.serviceTitle ?? null,
           platformUserId: row.platformUserId,
           patientName: linkedName ?? attrName,
+          patientOnSupport: row.patientOnSupport === true,
           patientPhone: row.patientPhone ?? row.phoneNormalized ?? null,
           bookingStatus: bookingStatusByAppt.get(row.id) ?? null,
           paymentStatus,

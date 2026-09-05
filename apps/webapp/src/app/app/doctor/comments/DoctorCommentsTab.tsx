@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
-import { DoctorSupportStar } from '@/shared/ui/doctor/DoctorSupportStar';
+import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
 import type { DoctorExerciseCommentCursor } from '@/modules/program-item-discussion/types';
 import type { CommentPatientRow } from './loadDoctorCommentPatients';
@@ -83,7 +83,8 @@ function PatientRow({
         <div className="min-w-0 flex-1 overflow-hidden">
           <div className="flex items-baseline justify-between gap-1.5">
             {/* Имя: жирное если есть непрочитанные, обычное если всё прочитано */}
-            <span
+            <DoctorPatientName
+              isOnSupport={patient.isOnSupport}
               className={cn(
                 'min-w-0 truncate',
                 doctorDnaFlatListPrimaryClass,
@@ -92,9 +93,7 @@ function PatientRow({
               )}
             >
               {patient.displayName}
-              {/* ★ = на сопровождении (визуальный маркер, НЕ фильтр) */}
-              {patient.isOnSupport && <DoctorSupportStar />}
-            </span>
+            </DoctorPatientName>
             <DoctorAttentionBadge count={patient.unreadCount} className="shrink-0" />
           </div>
         </div>
@@ -361,6 +360,7 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
         onClose={() => setSelectedPatient(null)}
         patientUserId={selectedPatient?.patientUserId ?? null}
         patientName={selectedPatient?.displayName ?? ''}
+        patientOnSupport={selectedPatient?.isOnSupport === true}
         onUnreadCleared={({ unreadCount }) => {
           if (!selectedPatient) return;
           applyPatientUnreadCleared(selectedPatient.patientUserId, unreadCount);

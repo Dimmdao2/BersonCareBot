@@ -2,7 +2,7 @@
 
 import type { ComponentProps, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
-import { DoctorSupportStar } from '@/shared/ui/doctor/DoctorSupportStar';
+import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import {
@@ -45,7 +45,8 @@ export function ExerciseCommentPreviewItemContent({
       <ExerciseListCatalogThumb media={thumbToExerciseMedia(item.thumb)} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-baseline gap-2">
-          <span
+          <DoctorPatientName
+            isOnSupport={isOnSupport}
             className={cn(
               'min-w-0 flex-1 truncate',
               doctorDnaFlatListPrimaryClass,
@@ -53,8 +54,7 @@ export function ExerciseCommentPreviewItemContent({
             )}
           >
             {item.patientDisplayName}
-            {isOnSupport ? <DoctorSupportStar /> : null}
-          </span>
+          </DoctorPatientName>
           <span className={cn('ml-auto shrink-0', doctorDnaFlatListMetaClass)}>
             {item.latestMessageAtLabel}
           </span>

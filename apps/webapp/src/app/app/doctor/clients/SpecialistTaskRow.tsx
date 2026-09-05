@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
 import {
@@ -15,6 +14,7 @@ import type { SpecialistTaskRow as Task } from '@/modules/specialist-tasks/types
 import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
+import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
 
 export function formatSpecialistTaskWhen(
   iso: string | null,
@@ -39,6 +39,7 @@ type Props = {
   displayIana?: string;
   canMutate?: boolean;
   patientDisplayName?: string;
+  patientOnSupport?: boolean;
   dueToday?: boolean;
   onOpen?: (task: Task) => void;
   as?: 'li' | 'div';
@@ -54,20 +55,21 @@ export function SpecialistTaskRow({
   displayIana,
   canMutate = true,
   patientDisplayName,
+  patientOnSupport = false,
   dueToday = false,
   onOpen,
   as = 'li',
   active = false,
   mobileFlat = false,
 }: Props) {
-  const overdue = isSpecialistTaskOverdue(task);
+  const overdue = !dueToday && isSpecialistTaskOverdue(task);
   const completed = Boolean(task.completedAt);
   const dueLabel = formatSpecialistTaskWhen(task.dueAt, displayIana, task.dueHasTime !== false);
   const Container = as;
 
   if (onOpen) {
     return (
-      <Container className={cn(mobileFlat && overdue && '!border-t-destructive/25')}>
+      <Container className={cn(mobileFlat && overdue && '!border-y !border-destructive/15')}>
         <button
           type="button"
           className={cn(
@@ -85,20 +87,21 @@ export function SpecialistTaskRow({
         >
           <span className="flex min-w-0 flex-col gap-0.5">
             {task.patientUserId ? (
-              <span className="truncate text-sm leading-5 font-medium text-foreground">
-                {patientDisplayName?.trim() || 'Пациент'}
-              </span>
-            ) : null}
-            <span className="text-base font-normal text-foreground">{task.title}</span>
-            {task.description?.trim() ? (
-              <span
-                className={cn('line-clamp-2 text-muted-foreground', doctorSecondaryListTextClass)}
+              <DoctorPatientName
+                isOnSupport={patientOnSupport}
+                className="truncate text-sm leading-5 font-medium text-foreground"
               >
+                {patientDisplayName?.trim() || 'Пациент'}
+              </DoctorPatientName>
+            ) : null}
+            <span className="truncate text-base font-normal text-foreground">{task.title}</span>
+            {task.description?.trim() ? (
+              <span className={cn('truncate text-muted-foreground', doctorSecondaryListTextClass)}>
                 {task.description.trim()}
               </span>
             ) : null}
           </span>
-          {dueLabel || completed ? (
+          {dueLabel || completed || task.isImportant ? (
             <span
               className={cn(
                 'flex shrink-0 flex-col items-end gap-0.5 text-right',
@@ -125,6 +128,9 @@ export function SpecialistTaskRow({
               ) : dueToday ? (
                 <span className="font-medium text-primary">Сегодня</span>
               ) : null}
+              {task.isImportant ? (
+                <span className="font-medium text-destructive">Важно!</span>
+              ) : null}
             </span>
           ) : null}
         </button>
@@ -136,18 +142,12 @@ export function SpecialistTaskRow({
     <Container
       className={cn(
         'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between',
-        getDoctorSectionItemClass(overdue || task.isImportant ? 'urgent' : 'neutral'),
+        getDoctorSectionItemClass(overdue ? 'urgent' : 'neutral'),
       )}
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-medium text-foreground">{task.title}</p>
-          {task.isImportant ? (
-            <span className="inline-flex items-center gap-0.5 text-xs font-medium text-destructive">
-              <AlertTriangle className="size-3.5" aria-hidden />
-              Важное
-            </span>
-          ) : null}
           {overdue ? (
             <span className="text-xs font-medium text-destructive">Просрочено</span>
           ) : null}
@@ -170,6 +170,7 @@ export function SpecialistTaskRow({
           </p>
         ) : null}
         {dueLabel ? <p className="text-xs text-muted-foreground">Срок: {dueLabel}</p> : null}
+        {task.isImportant ? <p className="text-xs text-destructive">Важно!</p> : null}
         {task.description?.trim() ? (
           <p className="line-clamp-2 text-xs text-muted-foreground">{task.description.trim()}</p>
         ) : null}

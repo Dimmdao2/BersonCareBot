@@ -39,12 +39,14 @@ type TaskView = 'open' | 'completed';
 export function DoctorTasksPageClient({
   initialTasks,
   initialPatientNames,
+  initialPatientOnSupport,
   displayIana,
   todayIso,
   canMutate,
 }: {
   initialTasks: Task[];
   initialPatientNames: Record<string, string>;
+  initialPatientOnSupport: Record<string, boolean>;
   displayIana: string;
   todayIso: string;
   canMutate: boolean;
@@ -285,6 +287,11 @@ export function DoctorTasksPageClient({
                             patientDisplayName={
                               task.patientUserId ? patientNames[task.patientUserId] : undefined
                             }
+                            patientOnSupport={
+                              task.patientUserId
+                                ? initialPatientOnSupport[task.patientUserId] === true
+                                : false
+                            }
                             dueToday={isSpecialistTaskDueOnDate(task, todayIso, displayIana)}
                             mobileFlat
                             onOpen={(row) => setPane({ kind: 'details', taskId: row.id })}
@@ -313,6 +320,11 @@ export function DoctorTasksPageClient({
           task={selected}
           patientDisplayName={
             selected?.patientUserId ? patientNames[selected.patientUserId] : undefined
+          }
+          patientOnSupport={
+            selected?.patientUserId
+              ? initialPatientOnSupport[selected.patientUserId] === true
+              : false
           }
           displayIana={displayIana}
           canMutate={canMutate}

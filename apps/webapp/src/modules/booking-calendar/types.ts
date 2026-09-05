@@ -99,6 +99,7 @@ export type CalendarAppointmentEvent = {
   serviceTitle: string | null;
   platformUserId: string | null;
   patientName: string | null;
+  patientOnSupport?: boolean;
   patientPhone: string | null;
   bookingStatus: string | null;
   paymentStatus: string | null;

@@ -2002,6 +2002,7 @@ export function PatientTabOverview({
                         task={task}
                         displayIana={tasksDisplayIana}
                         patientDisplayName={header?.identity.displayName}
+                        patientOnSupport={header?.support.isOnSupport === true}
                         dueToday={
                           tasksTodayIso && tasksDisplayIana
                             ? isSpecialistTaskDueOnDate(task, tasksTodayIso, tasksDisplayIana)
@@ -2123,6 +2124,7 @@ export function PatientTabOverview({
               entity={displayStage?.title}
               patientName={patientHeaderName}
               patientHref={patientCardHref(userId)}
+              patientOnSupport={header?.support.isOnSupport === true}
             />
           }
           size="lg"
@@ -2154,6 +2156,7 @@ export function PatientTabOverview({
               itemLabel={selectedExerciseTarget.label}
               patientName={patientHeaderName}
               patientUserId={userId}
+              patientOnSupport={header?.support.isOnSupport === true}
               open={stageExerciseDiscussionOpen}
               onOpenChange={(nextOpen) => {
                 setStageExerciseDiscussionOpen(nextOpen);

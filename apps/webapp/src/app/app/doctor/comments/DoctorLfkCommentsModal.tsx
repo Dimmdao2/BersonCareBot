@@ -25,6 +25,7 @@ export function DoctorLfkCommentsModal({
   onClose,
   patientUserId,
   patientName,
+  patientOnSupport = false,
   stageTitle,
   onUnreadCleared,
 }: {
@@ -33,6 +34,7 @@ export function DoctorLfkCommentsModal({
   patientUserId: string | null;
   /** «Фамилия Имя» пациента — синяя правая часть шапки. */
   patientName: string;
+  patientOnSupport?: boolean;
   /** Название этапа под шапкой; без него берётся активный этап загруженной программы. */
   stageTitle?: string | null;
   /** Тред прочитан: даёт вызывающему погасить его непрочитанные в своих счётчиках. */
@@ -76,6 +78,7 @@ export function DoctorLfkCommentsModal({
           entity={stageTitle ?? activeStageTitle ?? undefined}
           patientName={patientName}
           patientHref={patientUserId ? patientCardHref(patientUserId) : null}
+          patientOnSupport={patientOnSupport}
         />
       }
       size="lg"
@@ -110,6 +113,7 @@ export function DoctorLfkCommentsModal({
           itemLabel={selectedItem.stageItemTitle}
           patientName={patientName}
           patientUserId={patientUserId}
+          patientOnSupport={patientOnSupport}
           open={discussionOpen}
           onOpenChange={setDiscussionOpen}
           onMarkedRead={() => {
