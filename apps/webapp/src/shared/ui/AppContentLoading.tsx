@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * Единственный контентный loader всех кабинетов (врач, администратор, пациент):
- * серый «Загрузка…» и один вращающийся индикатор, по центру доступной области.
+ * один серый вращающийся индикатор по центру доступной области.
  *
  * Зона-нейтральный: не импортирует `shared/ui/doctor/**` и `shared/ui/patient/**`, поэтому
  * допустим в обеих зонах (см. AGENTS.md §17). Зональные имена — только re-export отсюда.
@@ -15,12 +15,12 @@ export function AppContentLoading({ className }: { className?: string }) {
   return (
     <div
       role="status"
+      aria-label="Загрузка"
       className={cn(
-        'flex min-h-0 w-full flex-1 items-center justify-center gap-2 text-base text-muted-foreground md:text-sm',
+        'flex min-h-0 w-full flex-1 items-center justify-center text-muted-foreground',
         className,
       )}
     >
-      <span>Загрузка…</span>
       <Loader className="size-4 shrink-0 animate-spin" aria-hidden />
     </div>
   );
