@@ -85,7 +85,7 @@ export function DoctorTodayNextAppointment({ appointment, displayIana }: Props) 
               type="button"
               size="sm"
               variant="outline"
-              className="w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm"
+              className="w-full min-w-0"
               onClick={() => setDetailsOpen(true)}
             >
               Детали записи
@@ -94,14 +94,14 @@ export function DoctorTodayNextAppointment({ appointment, displayIana }: Props) 
               <Link
                 className={buttonVariants({
                   size: 'sm',
-                  className: 'w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm',
+                  className: 'w-full min-w-0',
                 })}
                 href={createVisitHref}
               >
                 Начать приём
               </Link>
             ) : (
-              <Button size="sm" className="w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm" disabled>
+              <Button size="sm" className="w-full min-w-0" disabled>
                 Начать приём
               </Button>
             )}

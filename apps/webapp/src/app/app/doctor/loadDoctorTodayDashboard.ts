@@ -326,21 +326,25 @@ export function buildTodayWeeklyTimeline(
       ];
     });
 
-  if (!points.some((point) => point.period === 'future')) {
-    const nextWeek = currentWeek.plus({ weeks: 1 });
-    const weekStart = nextWeek.toISODate();
-    if (weekStart) {
-      points.push({
-        weekStart,
-        label: formatTimelineWeekLabel(nextWeek),
-        firstAppointments: 0,
-        appointments: 0,
-        isCurrent: false,
-        period: 'future',
-      });
-      points.sort((left, right) => left.weekStart.localeCompare(right.weekStart));
-    }
+  // The chart always keeps the current week and the immediately following week in its scale,
+  // even when either has no appointments. Besides making a zero meaningful, this gives the
+  // current-week viewport a stable anchor instead of falling back to the oldest data point.
+  for (const { week, period } of [
+    { week: currentWeek, period: 'current' as const },
+    { week: currentWeek.plus({ weeks: 1 }), period: 'future' as const },
+  ]) {
+    const weekStart = week.toISODate();
+    if (!weekStart || points.some((point) => point.weekStart === weekStart)) continue;
+    points.push({
+      weekStart,
+      label: formatTimelineWeekLabel(week),
+      firstAppointments: 0,
+      appointments: 0,
+      isCurrent: period === 'current',
+      period,
+    });
   }
+  points.sort((left, right) => left.weekStart.localeCompare(right.weekStart));
 
   return points;
 }

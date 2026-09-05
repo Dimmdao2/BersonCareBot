@@ -23,6 +23,7 @@ import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DoctorShellChromeRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
+import { DoctorDnaFlatList } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { SpecialistTaskRow } from '../clients/SpecialistTaskRow';
 import {
   SpecialistTaskDetailsContent,
@@ -278,7 +279,7 @@ export function DoctorTasksPageClient({
                       value={group.tasks.length}
                     />
                     {group.tasks.length ? (
-                      <ul className="flex flex-col gap-0 [&>li+li]:border-t [&>li+li]:border-border/60 md:gap-1 md:[&>li+li]:border-t-0">
+                      <DoctorDnaFlatList className="flex flex-col gap-0 md:gap-1 md:[&>li+li]:border-t-0">
                         {group.tasks.map((task) => (
                           <SpecialistTaskRow
                             key={task.id}
@@ -298,7 +299,7 @@ export function DoctorTasksPageClient({
                             active={selected?.id === task.id}
                           />
                         ))}
-                      </ul>
+                      </DoctorDnaFlatList>
                     ) : null}
                   </section>
                 ))}

@@ -105,8 +105,8 @@ body:has(#app-shell-doctor),
 
 .doctor-day-picker [data-selected='true'] .rdp-day_button {
   border-radius: var(--doctor-control-radius, 8px);
-  background-color: var(--primary);
-  color: var(--primary-foreground);
+  background-color: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--foreground);
   font-weight: 600;
 }
 

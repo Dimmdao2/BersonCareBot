@@ -22,6 +22,16 @@ import { cn } from '@/lib/utils';
  */
 const RDP_CLASS = 'doctor-day-picker';
 
+function currentLocalTimeSlot(stepMinutes: number): string {
+  const now = DateTime.local();
+  const totalMinutes = now.hour * 60 + now.minute;
+  const roundedMinutes = Math.round(totalMinutes / stepMinutes) * stepMinutes;
+  const boundedMinutes = Math.min(23 * 60 + 59, roundedMinutes);
+  return `${String(Math.floor(boundedMinutes / 60)).padStart(2, '0')}:${String(
+    boundedMinutes % 60,
+  ).padStart(2, '0')}`;
+}
+
 /**
  * Shared canonical doctor picker (react-day-picker + brand time column).
  * value/onChange: date — "yyyy-MM-dd"; date-time — "yyyy-MM-ddTHH:mm"; time — "HH:mm".
@@ -133,7 +143,9 @@ export function DoctorDateTimePicker({
     } else if (draftDate) {
       commit(
         DateTime.fromJSDate(draftDate),
-        isDateOnly || (optionalTime && !draftTimeEnabled) ? '' : draftTime || '09:00',
+        isDateOnly || (optionalTime && !draftTimeEnabled)
+          ? ''
+          : draftTime || currentLocalTimeSlot(timeStepMinutes),
       );
     }
     setOpen(false);
@@ -143,7 +155,7 @@ export function DoctorDateTimePicker({
     exceedsMax(formatValue(DateTime.fromJSDate(date), hhmm));
   const isDraftTimeUnavailable =
     !isTimeOnly && !isDateOnly && draftDate && draftTimeEnabled
-      ? isTimeUnavailable(draftDate, draftTime || '09:00')
+      ? isTimeUnavailable(draftDate, draftTime || currentLocalTimeSlot(timeStepMinutes))
       : false;
 
   const triggerClassName = cn(
@@ -196,7 +208,7 @@ export function DoctorDateTimePicker({
         >
           <div className="min-h-0 flex-1 overflow-y-auto">
             {isTimeOnly ? (
-              <div className="p-3">
+              <div>
                 <DoctorTimeColumn
                   value={draftTime}
                   disabled={disabled}
@@ -221,15 +233,17 @@ export function DoctorDateTimePicker({
                   className={cn(RDP_CLASS, 'flex justify-center p-3')}
                 />
                 {!isDateOnly ? (
-                  <div className="border-t border-border p-3">
-                    <div className="mb-1 flex items-center gap-2">
+                  <div className="border-t border-border pt-3">
+                    <div className="mb-1 flex items-center gap-2 px-3">
                       <span className="text-sm text-muted-foreground">Время</span>
                       {optionalTime ? (
                         <Switch
                           checked={draftTimeEnabled}
                           onCheckedChange={(enabled) => {
                             setDraftTimeEnabled(enabled);
-                            if (enabled && !draftTime) setDraftTime('09:00');
+                            if (enabled && !draftTime) {
+                              setDraftTime(currentLocalTimeSlot(timeStepMinutes));
+                            }
                           }}
                           aria-label="Указать время"
                         />
@@ -321,7 +335,9 @@ export function DoctorDateTimePicker({
                 if (!d) return;
                 commit(
                   DateTime.fromJSDate(d),
-                  optionalTime && !desktopTimeEnabled ? '' : time || '09:00',
+                  optionalTime && !desktopTimeEnabled
+                    ? ''
+                    : time || currentLocalTimeSlot(timeStepMinutes),
                 );
               }}
               className={cn(RDP_CLASS, 'p-3')}
@@ -335,7 +351,10 @@ export function DoctorDateTimePicker({
                     onCheckedChange={(enabled) => {
                       setDesktopTimeEnabled(enabled);
                       if (selectedDate) {
-                        commit(DateTime.fromJSDate(selectedDate), enabled ? time || '09:00' : '');
+                        commit(
+                          DateTime.fromJSDate(selectedDate),
+                          enabled ? time || currentLocalTimeSlot(timeStepMinutes) : '',
+                        );
                       }
                     }}
                     aria-label="Указать время"
