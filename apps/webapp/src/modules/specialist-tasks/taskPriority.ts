@@ -30,6 +30,18 @@ export function isSpecialistTaskOverdue(task: SpecialistTaskRow, nowMs = Date.no
   return isOverdue(task, nowMs);
 }
 
+export type SpecialistTaskAttentionTone = 'danger' | 'primary' | null;
+
+/** Просрочка всегда важнее обычного рабочего внимания к задачам на сегодня. */
+export function resolveSpecialistTaskAttentionTone(
+  overdueCount: number,
+  todayCount: number,
+): SpecialistTaskAttentionTone {
+  if (overdueCount > 0) return 'danger';
+  if (todayCount > 0) return 'primary';
+  return null;
+}
+
 /** Calendar-day match in the doctor's configured display timezone. */
 export function isSpecialistTaskDueOnDate(
   task: SpecialistTaskRow,
@@ -52,8 +64,7 @@ export function selectSpecialistTasksDueTodayOrOverdue(
   return tasks
     .filter(
       (task) =>
-        isSpecialistTaskOverdue(task) ||
-        isSpecialistTaskDueOnDate(task, todayIso, displayIana),
+        isSpecialistTaskOverdue(task) || isSpecialistTaskDueOnDate(task, todayIso, displayIana),
     )
     .sort((a, b) => (a.dueAt ?? '').localeCompare(b.dueAt ?? ''));
 }

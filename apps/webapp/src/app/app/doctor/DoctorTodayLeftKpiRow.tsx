@@ -25,7 +25,9 @@ import type { TodayPendingProgramTestItem } from './mapPendingProgramTestsForTod
 import { routePaths } from '@/app-layer/routes/paths';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import {
+  isSpecialistTaskOverdue,
   isSpecialistTaskDueOnDate,
+  resolveSpecialistTaskAttentionTone,
   selectSpecialistTasksDueTodayOrOverdue,
 } from '@/modules/specialist-tasks/taskPriority';
 import { SpecialistTaskRow as TaskRow } from './clients/SpecialistTaskRow';
@@ -181,6 +183,19 @@ export function DoctorTodayLeftKpiRow({
     ? shellBadges.unreadExerciseComments
     : localExerciseCommentTotal;
   const attentionTasks = selectSpecialistTasksDueTodayOrOverdue(tasks, todayIso, displayIana);
+  const localOverdueTaskCount = attentionTasks.filter((task) =>
+    isSpecialistTaskOverdue(task),
+  ).length;
+  const localTodayTaskCount = attentionTasks.length - localOverdueTaskCount;
+  const overdueTaskCount = shellBadges.overdueTasksReady
+    ? shellBadges.overdueTasks
+    : localOverdueTaskCount;
+  const todayTaskCount = shellBadges.overdueTasksReady
+    ? shellBadges.todayTasks
+    : localTodayTaskCount;
+  const taskAttentionCount = overdueTaskCount + todayTaskCount;
+  const taskAttentionTone = resolveSpecialistTaskAttentionTone(overdueTaskCount, todayTaskCount);
+  const hasOverdueTasks = taskAttentionTone === 'danger';
   const selectedTask = selectedTaskId
     ? (tasks.find((task) => task.id === selectedTaskId) ?? null)
     : null;
@@ -229,13 +244,13 @@ export function DoctorTodayLeftKpiRow({
           <DoctorStatCard
             id="doctor-today-left-kpi-tasks"
             title="Задачи"
-            value={attentionTasks.length > 0 ? attentionTasks.length : tasksTotal}
-            secondaryValue={attentionTasks.length > 0 ? tasksTotal : undefined}
+            value={taskAttentionCount > 0 ? taskAttentionCount : tasksTotal}
+            secondaryValue={taskAttentionCount > 0 ? tasksTotal : undefined}
             tooltip="Открытые задачи."
-            tone={attentionTasks.length > 0 ? 'warning' : 'neutral'}
-            className={attentionTasks.length > 0 ? attentionKpiBackgroundClass : undefined}
+            tone={hasOverdueTasks ? 'warning' : 'neutral'}
+            className={hasOverdueTasks ? attentionKpiBackgroundClass : undefined}
             onClick={
-              (attentionTasks.length > 0 ? attentionTasks.length : tasksTotal) > 0
+              (taskAttentionCount > 0 ? taskAttentionCount : tasksTotal) > 0
                 ? () => {
                     if (isDesktopViewport) {
                       router.push(routePaths.doctorTasks);
@@ -245,7 +260,7 @@ export function DoctorTodayLeftKpiRow({
                   }
                 : undefined
             }
-            valueClassName={attentionTasks.length > 0 ? attentionKpiValueClass : undefined}
+            valueClassName={hasOverdueTasks ? attentionKpiValueClass : undefined}
           />
         ) : null}
       </DoctorMetricList>
