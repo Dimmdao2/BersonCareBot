@@ -42,7 +42,6 @@ import {
   saasBillingSubscriptions,
 } from '../../../db/schema/saasBilling';
 import {
-  saasBillingPeriods,
   saasOrganizationTrials,
   saasTariffPeriodPrices,
   saasTariffs,
@@ -468,37 +467,57 @@ async function promotePaidInvoice(
   return true;
 }
 
+/**
+ * TEST-POLICY-AUDIT F-1 (2026-09-05, #1069 closing audit) — `app_clinic_billing` has no relation
+ * grant on `saas_billing_periods` (`relation-access.test.mjs` "billing relations use the clinic,
+ * platform, and webhook worker roles" pins this: the role reads the catalog only through the fixed
+ * `app.list_saas_billing_period_catalog()` seam, never a direct SELECT). Every read of the period
+ * catalog — regardless of which of the two roles is asking — goes through this one helper instead of
+ * joining `saasBillingPeriods` in SQL, so a tenant caller never depends on a grant it does not hold.
+ */
+type BillingPeriodCatalogEntry = {
+  code: string;
+  label: string;
+  months: number;
+  isSelectable: boolean;
+  sortOrder: number;
+};
+
+async function fetchBillingPeriodCatalog(): Promise<BillingPeriodCatalogEntry[]> {
+  const platformRead = getCurrentDbPrincipal()?.kind === 'platform';
+  type BillingPeriodCatalogRow = {
+    code: string;
+    label: string;
+    months: number;
+    is_selectable: boolean;
+    sort_order: number;
+  };
+  const result = platformRead
+    ? await runWebappNamedRoot<BillingPeriodCatalogRow>(
+        getWebappSqlDb(),
+        'app.list_saas_billing_period_catalog_platform()',
+        [],
+        sql`SELECT * FROM app.list_saas_billing_period_catalog_platform()`,
+      )
+    : await runWebappNamedRoot<BillingPeriodCatalogRow>(
+        getWebappSqlDb(),
+        'app.list_saas_billing_period_catalog()',
+        [],
+        sql`SELECT * FROM app.list_saas_billing_period_catalog()`,
+      );
+  return result.rows.map((row) => ({
+    code: row.code,
+    label: row.label,
+    months: row.months,
+    isSelectable: row.is_selectable,
+    sortOrder: row.sort_order,
+  }));
+}
+
 export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
   return {
     async listBillingPeriods() {
-      const platformRead = getCurrentDbPrincipal()?.kind === 'platform';
-      type BillingPeriodCatalogRow = {
-        code: string;
-        label: string;
-        months: number;
-        is_selectable: boolean;
-        sort_order: number;
-      };
-      const result = platformRead
-        ? await runWebappNamedRoot<BillingPeriodCatalogRow>(
-            getWebappSqlDb(),
-            'app.list_saas_billing_period_catalog_platform()',
-            [],
-            sql`SELECT * FROM app.list_saas_billing_period_catalog_platform()`,
-          )
-        : await runWebappNamedRoot<BillingPeriodCatalogRow>(
-            getWebappSqlDb(),
-            'app.list_saas_billing_period_catalog()',
-            [],
-            sql`SELECT * FROM app.list_saas_billing_period_catalog()`,
-          );
-      return result.rows.map((row) => ({
-        code: row.code,
-        label: row.label,
-        months: row.months,
-        isSelectable: row.is_selectable,
-        sortOrder: row.sort_order,
-      }));
+      return fetchBillingPeriodCatalog();
     },
     async getSaasBillingAccountBillingEmail(organizationId) {
       const [account] = await getDrizzle()
@@ -604,22 +623,25 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
     // `requireActiveTariff` fallback lives DB-side and already filters `isSelectable`): a retired
     // period's price row exists for history, but must never surface here as something purchasable.
     async listActiveTariffChoices() {
-      const rows = await getDrizzle()
-        .select({
-          id: saasTariffs.id,
-          name: saasTariffs.name,
-          billingPeriodCode: saasTariffPeriodPrices.billingPeriodCode,
-          priceMinor: saasTariffPeriodPrices.priceMinor,
-          isSelectable: saasBillingPeriods.isSelectable,
-        })
-        .from(saasTariffs)
-        .leftJoin(saasTariffPeriodPrices, eq(saasTariffPeriodPrices.tariffId, saasTariffs.id))
-        .leftJoin(
-          saasBillingPeriods,
-          eq(saasBillingPeriods.code, saasTariffPeriodPrices.billingPeriodCode),
-        )
-        .where(eq(saasTariffs.isActive, true))
-        .orderBy(saasTariffs.name);
+      const [rows, catalog] = await Promise.all([
+        getDrizzle()
+          .select({
+            id: saasTariffs.id,
+            name: saasTariffs.name,
+            billingPeriodCode: saasTariffPeriodPrices.billingPeriodCode,
+            priceMinor: saasTariffPeriodPrices.priceMinor,
+          })
+          .from(saasTariffs)
+          .leftJoin(saasTariffPeriodPrices, eq(saasTariffPeriodPrices.tariffId, saasTariffs.id))
+          .where(eq(saasTariffs.isActive, true))
+          .orderBy(saasTariffs.name),
+        // Selectability comes from the fixed catalog seam, not a join on `saasBillingPeriods` —
+        // TEST-POLICY-AUDIT F-1 above.
+        fetchBillingPeriodCatalog(),
+      ]);
+      const selectableCodes = new Set(
+        catalog.filter((period) => period.isSelectable).map((period) => period.code),
+      );
       const byTariff = new Map<string, { id: string; name: string; periodPrices: Array<{ billingPeriodCode: string; priceMinor: number }> }>();
       for (const row of rows) {
         let choice = byTariff.get(row.id);
@@ -627,7 +649,11 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           choice = { id: row.id, name: row.name, periodPrices: [] };
           byTariff.set(row.id, choice);
         }
-        if (row.billingPeriodCode !== null && row.priceMinor !== null && row.isSelectable === true) {
+        if (
+          row.billingPeriodCode !== null &&
+          row.priceMinor !== null &&
+          selectableCodes.has(row.billingPeriodCode)
+        ) {
           choice.periodPrices.push({ billingPeriodCode: row.billingPeriodCode, priceMinor: row.priceMinor });
         }
       }
@@ -927,6 +953,12 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           // #1069 owner decision 2026-09-05 (period grid) — admin-path fallback only (no period
           // picker in this stage): the cheapest-sort-order selectable period this tariff actually
           // prices. Always exists — price-matrix completeness is enforced at tariff save.
+          //
+          // TEST-POLICY-AUDIT F-1 (2026-09-05) — this runs inside `runManualAssignmentTransaction`,
+          // reached from BOTH the platform admin path (`pgPlatformEntitlements.ts`) and the clinic's
+          // own `scheduleOwnTariffChange`/`cancelOwnTariffChange` (`app_clinic_billing`). Selectability
+          // comes from the fixed catalog seam (`fetchBillingPeriodCatalog`), never a join on
+          // `saasBillingPeriods`, so this stays correct under either role.
           async requireActiveTariff(tariffId) {
             const [tariff] = await tx
               .select({ id: saasTariffs.id })
@@ -934,21 +966,17 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               .where(and(eq(saasTariffs.id, tariffId), eq(saasTariffs.isActive, true)))
               .limit(1);
             if (!tariff) throw new Error('active_tariff_not_found');
-            const [cheapestPeriod] = await tx
-              .select({ code: saasBillingPeriods.code })
+            const pricedPeriods = await tx
+              .select({ code: saasTariffPeriodPrices.billingPeriodCode })
               .from(saasTariffPeriodPrices)
-              .innerJoin(
-                saasBillingPeriods,
-                eq(saasBillingPeriods.code, saasTariffPeriodPrices.billingPeriodCode),
-              )
-              .where(
-                and(
-                  eq(saasTariffPeriodPrices.tariffId, tariffId),
-                  eq(saasBillingPeriods.isSelectable, true),
-                ),
-              )
-              .orderBy(saasBillingPeriods.sortOrder)
-              .limit(1);
+              .where(eq(saasTariffPeriodPrices.tariffId, tariffId));
+            const catalog = await fetchBillingPeriodCatalog();
+            const sortOrderByCode = new Map(
+              catalog.filter((period) => period.isSelectable).map((period) => [period.code, period.sortOrder]),
+            );
+            const cheapestPeriod = pricedPeriods
+              .filter((row) => sortOrderByCode.has(row.code))
+              .sort((a, b) => sortOrderByCode.get(a.code)! - sortOrderByCode.get(b.code)!)[0];
             if (!cheapestPeriod) throw new Error('saas_tariff_has_no_selectable_priced_period');
             return { billingPeriod: cheapestPeriod.code };
           },
@@ -1823,21 +1851,21 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         // selectable period this tariff prices, same rule `requireActiveTariff` uses admin-side.
         // A row that already exists keeps its own `billingPeriodCode` untouched (the
         // `onConflictDoUpdate` below never writes this column).
-        const [cheapestPeriod] = await tx
-          .select({ code: saasBillingPeriods.code })
+        //
+        // TEST-POLICY-AUDIT F-1 (2026-09-05) — this runs under `app_clinic_billing` (the clinic's own
+        // billing pages), which has no relation grant on `saasBillingPeriods`; selectability comes
+        // from the fixed catalog seam (`fetchBillingPeriodCatalog`) instead of a join on it.
+        const tariffPricedPeriods = await tx
+          .select({ code: saasTariffPeriodPrices.billingPeriodCode })
           .from(saasTariffPeriodPrices)
-          .innerJoin(
-            saasBillingPeriods,
-            eq(saasBillingPeriods.code, saasTariffPeriodPrices.billingPeriodCode),
-          )
-          .where(
-            and(
-              eq(saasTariffPeriodPrices.tariffId, tariff.id),
-              eq(saasBillingPeriods.isSelectable, true),
-            ),
-          )
-          .orderBy(saasBillingPeriods.sortOrder)
-          .limit(1);
+          .where(eq(saasTariffPeriodPrices.tariffId, tariff.id));
+        const catalog = await fetchBillingPeriodCatalog();
+        const sortOrderByCode = new Map(
+          catalog.filter((period) => period.isSelectable).map((period) => [period.code, period.sortOrder]),
+        );
+        const cheapestPeriod = tariffPricedPeriods
+          .filter((row) => sortOrderByCode.has(row.code))
+          .sort((a, b) => sortOrderByCode.get(a.code)! - sortOrderByCode.get(b.code)!)[0];
         if (!cheapestPeriod) throw new Error('saas_tariff_has_no_selectable_priced_period');
 
         const account = await upsertSaasBillingAccount(tx, organizationId);

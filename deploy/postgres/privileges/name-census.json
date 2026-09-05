@@ -274,8 +274,6 @@
     "app.redeem_patient_invite_email(text) -> public.org_enrollments",
     "app.redeem_patient_invite_email(text) -> public.patient_invites",
     "app.redeem_patient_invite_email(text) -> public.user_contacts",
-    "app.resolve_payment_webhook_organization(text,text,text) -> public.be_payment_intents",
-    "app.resolve_payment_webhook_organization(text,text,text) -> public.be_payment_provider_events",
     "app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text) -> public.be_organizations",
     "app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text) -> public.patient_invites",
     "app.verify_patient_invite_email_proof(text,text,text,text,bigint,text) -> public.be_organizations",

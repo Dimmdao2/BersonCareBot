@@ -58,8 +58,6 @@
  */
 
 import { WALL_TEMPLATES, expandTables } from './types.ts';
-import { DRIZZLE_INSERT_SURFACE } from './drizzle-insert-surface.ts';
-import { DRIZZLE_UPDATE_SURFACE } from './drizzle-update-surface.ts';
 // The canonical locked descriptor module is executable ESM; its public shape is narrowed below
 // so this declaration remains strict without a second source-of-truth .d.ts file.
 // @ts-expect-error no declaration file exists for the canonical executable descriptor module.
@@ -12309,10 +12307,13 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "branch_id",
           "config",
+          "created_at",
+          "id",
           "is_active",
           "organization_id",
           "rule_type",
-          "specialist_id"
+          "specialist_id",
+          "updated_at"
         ]
       },
       {
@@ -12406,7 +12407,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "appointment_id",
+          "created_at",
           "field_id",
+          "id",
           "organization_id",
           "value_text"
         ]
@@ -12509,6 +12512,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "charge_package_session_on_late",
           "created_at",
           "free_cancel_hours_before",
+          "id",
           "is_active",
           "late_cancellation_behavior",
           "notify_patient",
@@ -12812,6 +12816,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "event_type",
+          "id",
           "occurred_at",
           "organization_id",
           "patient_package_id",
@@ -12841,6 +12846,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "created_at",
+          "id",
           "package_id",
           "quantity",
           "service_id",
@@ -12902,6 +12908,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "comment",
           "created_at",
           "created_by_platform_user_id",
+          "id",
           "occurred_at",
           "organization_id",
           "patient_package_id",
@@ -12960,6 +12967,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "booking_blocked",
+          "id",
           "is_problematic",
           "no_show_count",
           "organization_id",
@@ -13051,6 +13059,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "created_at",
+          "id",
           "patient_package_id",
           "quantity_initial",
           "service_id",
@@ -13280,6 +13289,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "comment",
           "currency",
           "event_type",
+          "id",
+          "occurred_at",
           "organization_id",
           "payload_json",
           "payment_id",
@@ -13328,6 +13339,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "checkout_url",
           "created_at",
           "currency",
+          "id",
           "idempotency_key",
           "metadata_json",
           "organization_id",
@@ -13381,11 +13393,14 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "event_type",
+          "id",
           "idempotency_key",
           "intent_ref",
           "organization_id",
           "payload_json",
+          "processed_at",
           "provider_id"
         ]
       },
@@ -13426,6 +13441,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "captured_at",
           "created_at",
           "currency",
+          "id",
           "organization_id",
           "payment_intent_id",
           "platform_user_id",
@@ -13477,6 +13493,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "amount_minor",
           "created_at",
           "currency",
+          "id",
           "is_active",
           "mode",
           "online_category",
@@ -13524,7 +13541,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "amount_minor",
           "appointment_id",
+          "created_at",
           "currency",
+          "id",
           "organization_id",
           "payment_id",
           "provider_refund_ref",
@@ -13559,6 +13578,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "allow_different_service",
           "allow_different_specialist",
           "created_at",
+          "id",
           "is_active",
           "limit_exceeded_behavior",
           "max_self_reschedules",
@@ -13978,6 +13998,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "currency",
           "deduction_mode",
           "description",
+          "id",
           "is_active",
           "organization_id",
           "price_minor",
@@ -14854,9 +14875,12 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "author_id",
           "body",
           "comment_type",
+          "created_at",
+          "id",
           "organization_id",
           "target_id",
-          "target_type"
+          "target_type",
+          "updated_at"
         ]
       },
       {
@@ -15132,6 +15156,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "changed_by_user_id",
+          "created_at",
+          "id",
           "new_slug",
           "old_slug",
           "organization_id"
@@ -16343,7 +16369,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "first_resolved_at",
           "media_id",
+          "organization_id",
           "user_id"
         ]
       },
@@ -16542,9 +16570,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "channel",
+          "created_at",
           "endpoint_hash",
           "error_message",
           "event_id",
+          "id",
           "intent_type",
           "metadata",
           "occurrence_id",
@@ -16856,11 +16886,17 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "accepted_at",
+          "accepted_by_platform_user_id",
+          "accepted_membership_id",
+          "created_at",
           "created_by_platform_user_id",
           "expires_at",
+          "id",
           "invited_email",
           "invited_role",
           "organization_id",
+          "status",
           "token_hash"
         ]
       },
@@ -17086,9 +17122,12 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "created_by",
+          "id",
           "organization_id",
           "patient_user_id",
+          "removed_at",
           "since",
           "status",
           "text"
@@ -17512,14 +17551,18 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "badge_label",
           "block_code",
+          "created_at",
+          "id",
           "image_url_override",
           "is_visible",
+          "organization_id",
           "show_title",
           "sort_order",
           "subtitle_override",
           "target_ref",
           "target_type",
-          "title_override"
+          "title_override",
+          "updated_at"
         ]
       },
       {
@@ -17779,9 +17822,13 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "anchor_user_id",
           "candidate_user_id",
+          "created_at",
+          "id",
           "organization_id",
           "payload",
           "reason",
+          "resolved_at",
+          "resolved_by",
           "status",
           "trigger_appointment_id"
         ]
@@ -18373,6 +18420,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "client_session_id",
           "entry_channel",
           "event_type",
+          "id",
           "metadata",
           "occurred_at",
           "organization_id",
@@ -18649,6 +18697,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "action_type",
+          "created_at",
+          "id",
           "instance_id",
           "instance_stage_item_id",
           "note",
@@ -19413,6 +19463,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "service_period_ends_at",
           "service_period_starts_at",
           "status",
+          "superseded_by_invoice_id",
           "tariff_billing_period",
           "tariff_id",
           "tariff_name",
@@ -19481,22 +19532,29 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "additional_seat_quantity",
           "amount_minor",
           "carried_debt_minor",
+          "created_at",
           "currency",
           "description",
           "expires_at",
+          "id",
           "invoice_kind",
           "organization_id",
+          "paid_at",
+          "provider_checkout_url",
           "provider_id",
           "provider_idempotency_key",
+          "provider_invoice_ref",
           "saas_billing_account_id",
           "saas_billing_subscription_id",
           "service_period_ends_at",
           "service_period_starts_at",
           "status",
+          "superseded_by_invoice_id",
           "tariff_billing_period",
           "tariff_id",
           "tariff_name",
-          "tariff_snapshot"
+          "tariff_snapshot",
+          "updated_at"
         ]
       },
       {
@@ -19558,8 +19616,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "event_type",
+          "id",
           "organization_id",
+          "processed_at",
           "provider_event_id",
           "provider_id",
           "raw_payload",
@@ -19588,8 +19649,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "event_type",
+          "id",
           "organization_id",
+          "processed_at",
           "provider_event_id",
           "provider_id",
           "raw_payload",
@@ -19902,10 +19966,12 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "additional_seat_price_minor",
           "billing_period",
+          "created_at",
           "currency",
           "description",
           "discounted_price_minor",
           "downgrade_policies",
+          "id",
           "included_seats",
           "is_active",
           "mailing_templates",
@@ -19914,7 +19980,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "name",
           "price_minor",
           "quotas",
-          "system_access_policy"
+          "system_access_policy",
+          "updated_at"
         ]
       },
       {
@@ -19976,7 +20043,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       {
         "role": "app_staff",
         "operations": [
-          "INSERT",
           "UPDATE"
         ],
         "columns": [
@@ -19985,6 +20051,23 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "mechanic",
           "organization_id",
           "quota",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "enabled",
+          "expires_at",
+          "id",
+          "mechanic",
+          "organization_id",
+          "quota",
+          "seat_limit_override",
           "updated_at"
         ]
       },
@@ -20027,14 +20110,18 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "created_by",
           "discount_ends_at",
           "ends_at",
+          "id",
           "organization_id",
           "post_trial_behavior",
           "post_trial_tariff_id",
           "started_at",
-          "tariff_id"
+          "status",
+          "tariff_id",
+          "updated_at"
         ]
       },
       {
@@ -20420,6 +20507,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "created_at",
+          "id",
           "integrator_question_message_id",
           "organization_id",
           "question_id",
@@ -20493,9 +20581,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "answered_at",
           "conversation_id",
           "created_at",
+          "id",
           "integrator_question_id",
           "organization_id",
-          "status"
+          "status",
+          "updated_at"
         ]
       },
       {
@@ -20797,9 +20887,14 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "accepted_at",
+          "accepted_by",
+          "id",
           "instance_stage_item_id",
           "organization_id",
-          "patient_user_id"
+          "patient_user_id",
+          "started_at",
+          "submitted_at"
         ]
       }
     ]
@@ -20827,7 +20922,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "attempt_id",
+          "created_at",
           "decided_by",
+          "id",
           "normalized_decision",
           "organization_id",
           "raw_value",
@@ -20873,6 +20970,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "comment",
+          "id",
           "organization_id",
           "sort_order",
           "test_id",
@@ -21635,6 +21733,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "description",
+          "id",
           "organization_id",
           "schedule_text",
           "sort_order",
@@ -21686,6 +21785,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "comment",
           "group_id",
+          "id",
           "item_ref_id",
           "item_type",
           "organization_id",
@@ -23752,8 +23852,12 @@ const TABLE_ROWS: TableRow[] = [
     defect: ['D4-role-escalation'] },
   { t: 'public.saas_billing_invoices', cls: 'C', org: true, why: 'счета — оплата подписки', defect: ['D4-role-escalation'] },
   { t: 'public.saas_billing_periods', cls: 'R', why: 'справочник периодов оплаты — выбор «месяц/год» при оплате',
-    pol: 'I9: сегодня закрыто ГРАНТОМ (только app_platform_settings), а не политикой; у saas_tariffs — RLS+FORCE и '
-    + 'четыре read-политики. Без read-политики экран выбора периода даст тихий ноль',
+    pol: 'I9: сегодня закрыто ГРАНТОМ (app_staff read, app_platform_settings SELECT/INSERT/UPDATE) плюс '
+    + 'фиксированным definer-швом app.list_saas_billing_period_catalog() для app_clinic_billing (прямой '
+    + 'грант этой роли намеренно не заводится — см. relation-access.test.mjs), а не политикой; у saas_tariffs '
+    + '— RLS+FORCE и четыре read-политики. Без read-политики экран выбора периода даст тихий ноль. '
+    + 'TEST-POLICY-AUDIT F-1 (05.09): requireOwnTariffBillingSubscription теперь читает через этот шов, не '
+    + 'джойном на голую таблицу',
     defect: ['D4-role-escalation', 'I9-grant-instead-of-policy'] },
   { t: 'public.saas_tariff_period_prices', cls: 'R', why: '#1069 owner decision 2026-09-05 (period grid) — '
     + 'денежная матрица «цена тарифа за период»; без неё ни выбор клиники, ни admin-конструктор тарифов '
@@ -24624,10 +24728,10 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.user_contacts': 'почта человека приглашения — её подтверждение и есть смысл двери',
   },
 
-  'app.resolve_payment_webhook_organization(text,text,text)': {
-    'public.be_payment_provider_events': 'дверь НАХОДИТ клинику по ключу идемпотентности вебхука провайдера — организация здесь ответ, а не условие',
-    'public.be_payment_intents': 'тот же поиск клиники по ключу идемпотентности намерения оплаты — организация ответ, а не условие',
-  },
+  // app.resolve_payment_webhook_organization — пометка снята #215 (2026-09-05, TEST-POLICY-AUDIT F-1):
+  // дверь переехала на pre-session класс (execute: app_pre_session), ни одна арендная роль её больше
+  // не зовёт, поэтому вопрос «почему тут нет организационного предиката для арендатора» больше не
+  // встаёт — пометка объясняла отсутствие предиката ИМЕННО арендному вызывающему, которого не стало.
 
   'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)': {
     'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; подтверждение почты идёт до вступления в клинику',
@@ -30542,7 +30646,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
   },
   'public.saas_billing_periods': {
-    kind: 'direct', purpose: 'staff reads the billing-period catalog; platform operations alone maintain it',
+    kind: 'direct', purpose: 'staff reads the billing-period catalog directly; clinic billing reads it only through the fixed app.list_saas_billing_period_catalog() seam (relation-access.test.mjs "billing relations use the clinic, platform, and webhook worker roles" pins this — no direct app_clinic_billing grant); platform operations alone maintain it',
     codePaths: ['apps/webapp/src/infra/repos/pgSaasBilling.ts', 'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts'],
     grants: [
       { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
@@ -30648,124 +30752,24 @@ function revision10RelationSeams(tableKey: string, dbName: string): NamedSeamAcc
 }
 
 /**
- * Roles a webapp relational (Drizzle) statement can actually run as: the target role of every
- * webapp port capability with `purpose: 'relation'`. Declared, not guessed — and deliberately
- * narrower than "every role with a column INSERT grant": `app_tenant_service`, the `app_seam_*`
- * owners and the integrator roles have no webapp relational capability, so ORM metadata proves
- * nothing about what they must be able to insert.
+ * Column-level `INSERT` and `UPDATE` grants are hand-declared data (owner decision, #1069
+ * correction, 2026-09-05): a mechanical scan of `.insert()`/`.update()` callsites in
+ * `apps/webapp/src` never decides whether a role SHOULD hold a privilege — that is a human
+ * judgement about the door, not a fact about the code that happens to call it today — and a
+ * widening function driven by such a scan can silently broaden a grant the moment a new callsite
+ * appears. `REV10_CLINICAL_ACCESS` / `REV10_SYSTEM_DIRECT_ACCESS` above therefore name every
+ * INSERT/UPDATE column a role needs directly, including the Drizzle-forced NAMED columns
+ * (`defaultRandom()` primary keys, `DEFAULT`-keyword columns Postgres still requires INSERT
+ * privilege on) — there is no separate machine-owned surface file merged in at generation time.
+ * `staff-drizzle-insert-grant-coverage.test.mjs` proves specific money-path doors against live
+ * Drizzle metadata directly; it is a proof, not an authority this module reads from.
  */
-const REV10_WEBAPP_RELATION_ROLES: ReadonlySet<string> = new Set(
-  Object.values(REV10_CONTEXT.capabilities)
-    .filter((capability) => capability.port === 'webapp' && capability.purpose === 'relation')
-    .map((capability) => capability.targetRole),
-);
-
-/**
- * Column-level `INSERT` is derived, not hand-written (S1).
- *
- * Drizzle's pg insert builder always enumerates EVERY schema column in the emitted
- * `INSERT INTO t (...) VALUES (...)` — a key absent from `.values({...})` still appears in the
- * column list with `DEFAULT` as its value — and Postgres demands column-level INSERT privilege on
- * every NAMED column, `DEFAULT` ones included. A grant hand-written from "business columns" therefore
- * fails the WHOLE statement with `42501 permission denied for table X`: the live failure of the
- * "продать абонемент" chain on `be_patient_package_items.id`.
- *
- * So the emitted INSERT column list is the declared list UNION the columns Drizzle names, taken
- * from the machine-owned artifact `drizzle-insert-surface.ts`. Three boundaries hold it in place:
- *
- *   - only relations with a proven direct `.insert()` callsite in `apps/webapp/src` are widened;
- *     a column grant with no such callsite serves raw SQL or a SECURITY DEFINER body that names its
- *     own columns, and widening it from ORM metadata would be an unproven privilege broadening;
- *   - only roles that can execute a webapp relational statement are widened;
- *   - only `INSERT` changes. A grant row that carries INSERT together with another operation is
- *     split, so `SELECT`/`UPDATE`/`DELETE` keep exactly the columns they were declared with.
- *
- * Nothing is ever removed. Relations with no Drizzle model at all (`public.broadcast_drafts`,
- * `public.system_settings_audit`) keep their hand-written lists untouched, and a declared column the
- * ORM does not know — `public.platform_users.session_epoch`, which the model lags behind — is kept
- * where it was declared instead of being erased by a mechanical replacement.
- */
-function withDrizzleInsertColumns(
-  tableKey: string,
-  grants: Extract<RelationAccess, { kind: 'direct' }>['grants'],
-): Extract<RelationAccess, { kind: 'direct' }>['grants'] {
-  const surface = DRIZZLE_INSERT_SURFACE[tableKey];
-  if (!surface || surface.directInsertCallsites.length === 0) return grants;
-  return grants.flatMap((grant) => {
-    if (grant.columns === 'table') return [grant];
-    if (!grant.operations.includes('INSERT')) return [grant];
-    if (!REV10_WEBAPP_RELATION_ROLES.has(grant.role)) return [grant];
-    const declared = grant.columns;
-    const absent = surface.insertColumns.filter((column) => !declared.includes(column));
-    if (absent.length === 0) return [grant];
-    const insert = { ...grant, operations: ['INSERT' as Privilege], columns: [...declared, ...absent].sort() };
-    const others = grant.operations.filter((operation) => operation !== 'INSERT');
-    return others.length > 0 ? [{ ...grant, operations: others }, insert] : [insert];
-  });
-}
-
-/**
- * UPDATE column grants are deliberately NOT auto-widened the way `withDrizzleInsertColumns` widens
- * INSERT above — Postgres forces every schema column to be NAMED in an INSERT statement, but only
- * the columns a callsite actually sets are named in an UPDATE, so there is no equivalent "DEFAULT
- * column" fact to encode, and — unlike INSERT, where any Drizzle caller on a table needs the full
- * named-column set regardless of which role runs it — different roles legitimately touch disjoint
- * UPDATE column subsets of the SAME table (`public.be_organizations`: `app_staff` writes
- * `title`/`is_active`/`sort_order`, `app_platform_settings` writes only `tariff_id`). The
- * declaration has no per-grant callsite attribution to know which role owns which observed column,
- * so this check is RELATION-WIDE, not per-role: it only proves that every column
- * `deploy/postgres/privileges/drizzle-update-surface.ts` shows apps/webapp/src writing is named by
- * AT LEAST ONE declared column-level (or table-level) UPDATE grant on that relation — never that
- * every role's own grant is individually complete. A column missing from every grant throws
- * immediately at module load, naming the exact gap; a column present on the "wrong" role's grant
- * is outside what this check can see and stays a human review question, not a false alarm here.
- *
- * This is the #1069 correction (docs/_TODO/runs/saas-period-grid-20260905/AUDIT.md F-1): the SaaS
- * billing-period ship added `saas_billing_subscriptions.billing_period_code` and
- * `.pending_billing_period_code`; the INSERT grant self-healed once the insert-surface artifact was
- * regenerated (`withDrizzleInsertColumns` above), but the UPDATE grant lived only in a second
- * hand-maintained file (former `relation-access.ts`, now merged above) and nobody updated it — a
- * live `42501` on every purchase, and no gate caught it because none compared the two. This check
- * never widens a grant — a human still decides which role's grant should carry the column — it
- * only refuses to let the declaration and the observed write surface silently disagree.
- */
-function assertDeclaredUpdateColumnsCoverObservedSurface(
-  tableKey: string,
-  grants: Extract<RelationAccess, { kind: 'direct' }>['grants'],
-): void {
-  const surface = DRIZZLE_UPDATE_SURFACE[tableKey];
-  if (!surface || surface.updateColumns.length === 0) return;
-  const relevant = grants.filter(
-    (grant) => grant.operations.includes('UPDATE') && REV10_WEBAPP_RELATION_ROLES.has(grant.role),
-  );
-  // No webapp-relational role can UPDATE this table at all: a different gap class (a missing role
-  // entirely, or the write runs through a SECURITY DEFINER seam this function never sees), not the
-  // "declared narrower than observed" class this check closes. Silence here, not a manufactured grant.
-  if (relevant.length === 0) return;
-  if (relevant.some((grant) => grant.columns === 'table')) return; // table-level UPDATE covers every column
-  const declaredUnion = new Set(relevant.flatMap((grant) => grant.columns as string[]));
-  const missing = surface.updateColumns.filter((column) => !declaredUnion.has(column));
-  if (missing.length > 0) {
-    throw new Error(
-      `${tableKey}: apps/webapp/src writes [${missing.join(', ')}] via Drizzle .update().set(...) `
-        + '(deploy/postgres/privileges/drizzle-update-surface.ts) but no declared column-level UPDATE '
-        + 'grant on this relation names them. Add the column(s) to whichever role\'s grant actually '
-        + 'runs that code path — this check only proves the gap, it never picks the role or widens a '
-        + 'grant for you.',
-    );
-  }
-}
-
 function revision10RelationAccess(tableKey: string, dbName: string): RelationAccess {
   const seams = revision10RelationSeams(tableKey, dbName);
   const clinical = REV10_CLINICAL_ACCESS[tableKey];
   const systemDirect = REV10_SYSTEM_DIRECT_ACCESS[tableKey];
   const finalizeDirect = (seed: DirectAccessSeed): RelationAccess => {
-    const grants = withDrizzleInsertColumns(
-      tableKey,
-      withoutConvertedPatientWrites(tableKey, seed.grants),
-    );
-    assertDeclaredUpdateColumnsCoverObservedSurface(tableKey, grants);
+    const grants = withoutConvertedPatientWrites(tableKey, seed.grants);
     if (grants.length > 0) return { ...seed, grants, seams };
     if (seams.length > 0) return {
       kind: 'named-seams', seams, purpose: `exact declared function surfaces for ${tableKey}`,

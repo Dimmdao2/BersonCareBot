@@ -31,59 +31,28 @@
 PROD не входит в текущий объект декларации. Его переход из старого снимка A в B0 — отдельная атомарная миграция
 с rollback после явного разрешения владельца; DEV/TEST-конфигурацию нельзя молча выдать за PROD target.
 
-## Колоночный `INSERT` выводится из схемы Drizzle, а не пишется руками
+## Колоночные `INSERT`/`UPDATE` — ручное решение, не вывод из скана продукта
 
-Drizzle перечисляет в `INSERT INTO t (...)` **каждую** колонку схемы: ключ, отсутствующий в `.values({...})`,
-всё равно попадает в список со значением `DEFAULT`. Postgres требует колоночного `INSERT`-права на каждую
-НАЗВАННУЮ колонку, включая `DEFAULT`, поэтому грант, написанный по «бизнес-колонкам», роняет весь стейтмент
-через `42501` — так и ломалась продажа абонемента на `be_patient_package_items.id`.
+До #1069-коррекции (2026-09-05) колоночный `INSERT` домысливался механически: закоммиченный артефакт
+`drizzle-insert-surface.ts`, сгенерированный AST-сканом `.insert()`-callsites в `apps/webapp/src` плюс живых
+метаданных Drizzle, объединялся с объявленным грантом во время генерации (`withDrizzleInsertColumns`), а второй
+такой же артефакт для `UPDATE` только гейтил расхождение. Владелец снял это решение: скан продуктового кода
+(«эта роль зовёт `.insert()`/`.update()` на эту таблицу») отвечает на вопрос «что код делает сегодня», а не на
+вопрос «должна ли эта роль иметь это право» — и провоцирует незаметное авторасширение гранта при появлении
+нового callsite, которое никто не решал явно.
 
-Генератор при этом обязан остаться чистым Node-модулем: `drizzle-orm` не разрешается из корня репозитория, а
-`apps/webapp/db/schema/*.ts` резолвится только бандлером. Поэтому метаданные приходят машинным закоммиченным
-артефактом [`drizzle-insert-surface.ts`](./drizzle-insert-surface.ts) — «отношение → колонки, которые ORM
-называет в `INSERT`» плюс каждый прямой `.insert()`-callsite в `apps/webapp/src`. Артефакт производит
-workspace webapp:
+Оба артефакта, их генераторы (`apps/webapp/scripts/generate-drizzle-{insert,update}-surface.ts`) и побайтные
+гейты (`check:drizzle-insert-surface`, `check:drizzle-update-surface`) удалены. Каждый грант в
+`REV10_CLINICAL_ACCESS`/`REV10_SYSTEM_DIRECT_ACCESS` называет теперь колонки INSERT/UPDATE напрямую и полностью,
+включая колонки, которые Postgres требует НАЗВАННЫМИ в `INSERT` даже со значением `DEFAULT`
+(`defaultRandom()`-первичные ключи и подобные) — это по-прежнему тот же факт про Drizzle (`pg-core/dialect.js`,
+`buildInsertQuery`), но теперь он один раз материализован как объявленное решение, а не выводится заново при
+каждой генерации.
 
-```bash
-pnpm --dir apps/webapp exec tsx scripts/generate-drizzle-insert-surface.ts          # перегенерировать
-pnpm run check:drizzle-insert-surface                                              # побайтный гейт
-```
-
-Побайтный гейт идёт первым шагом `pnpm run test:db-privileges`, поэтому правка схемы, не перегенерировавшая
-артефакт, краснеет раньше любого privilege-теста.
-
-`declaration.ts` читает артефакт как данные и расширяет **только** колоночный `INSERT` и **только** там, где
-есть и прямой `.insert()`-callsite, и роль с webapp-возможностью `purpose: 'relation'`. Объявленные колонки
-никогда не удаляются: отношения без Drizzle-модели (`public.broadcast_drafts`, `public.system_settings_audit`)
-и `public.platform_users.session_epoch`, которой модель не знает, остаются как объявлены.
-
-Приёмочный гейт [`drizzle-insert-grant-completeness.test.mjs`](./drizzle-insert-grant-completeness.test.mjs)
-выводит обе стороны независимо — сам зовёт печать метаданных и сам разбирает callsites по AST — и сверяет их с
-грантами, которые генератор реально пишет.
-
-## Колоночный `UPDATE` сверяется с наблюдаемой Drizzle-поверхностью, а не выводится
-
-В отличие от `INSERT`, Postgres не требует называть в `UPDATE` каждую колонку схемы — только те, что реально
-пишет `.set({...})` — поэтому здесь нет аналога «DEFAULT-колонки», которую можно домыслить. Вместо
-авто-расширения (как для `INSERT`) `declaration.ts` только **отказывает при загрузке**, если наблюдаемая запись
-не покрыта НИКАКИМ объявленным грантом (#1069, класс дефекта F-1: `saas_billing_subscriptions.billing_period_code`
-писался через `.update()`, но не был объявлен ни в одном гранте `UPDATE`, и ничего не покраснело). Проверка
-целиком по отношению, не по роли: у разных ролей на одной таблице законно разные подмножества колонок
-(`public.be_organizations`: `app_staff` пишет `title`/`is_active`/`sort_order`, `app_platform_settings` —
-только `tariff_id`), а per-grant привязки колонки к ролевому callsite в декларации нет — поэтому гейт доказывает
-только «эту колонку объявляет ХОТЬ КТО-ТО», не «каждая роль объявляет ровно то, что пишет её код». Он никогда не
-добавляет колонку в грант — только называет отношение и колонку и останавливает генерацию.
-
-Машинный артефакт [`drizzle-update-surface.ts`](./drizzle-update-surface.ts) — лексическая НИЖНЯЯ граница:
-только `.update(<table>).set({...})` с object-literal без spread/computed-ключей резолвится в SQL-колонки;
-остальное честно попадает в `DRIZZLE_UPDATE_UNRESOLVED_CALLSITES`, не отбрасывается молча. Регенерация:
-
-```bash
-pnpm --dir apps/webapp exec tsx scripts/generate-drizzle-update-surface.ts          # перегенерировать
-pnpm run check:drizzle-update-surface                                             # побайтный гейт
-```
-
-`pnpm run test:db-privileges` гоняет оба побайтных гейта (`insert` и `update`) перед privilege-тестами.
+Точечный приёмочный гейт [`staff-drizzle-insert-grant-coverage.test.mjs`](./staff-drizzle-insert-grant-coverage.test.mjs)
+остаётся: он сам, без какого-либо артефакта, спрашивает у живых метаданных Drizzle колонки двух денежных
+INSERT-путей (`patient_payment`, `be_patient_packages`) и сверяет их с объявленным грантом — доказательство
+конкретной двери, а не механизм, определяющий права по всей схеме.
 
 ## Проверки
 
