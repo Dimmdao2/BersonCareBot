@@ -6,6 +6,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## Booking acquiring webhook MONEY-13 — 05.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Tenant-scoped settlement generic webhook | product `154a18f61`, behavior tests `a0ab149ff`, independent audit `e400b96f2`, queue registration `3ecf1db0c` (`wt/webhookfix`) | **INDEPENDENT AUDIT PASS, FOR LAND.** Opus подтвердил устранение наблюдавшегося на TEST HTTP 400: bootstrap-резолвер клиники использует объявленный pre-session named root, а проведение оплаты выполняется атомарным tenant-scoped root без аргумента организации и без широкой relation-capability для `tenant_service`. Артефакт `docs/audit/code-audit-money-13-booking-webhook.md`, слепой kill-set `docs/audit/blind-killset-booking-webhook-215.md`; fault injection поймал 4 класса поломок, непойманных блокирующих 0. Targeted tests: 2 файла / 9 тестов PASS; typecheck, privilege generators и migration gates PASS. Живой TEST webhook остаётся интеграционной проверкой после landing/deploy. |
+
 ## SaaS period pricing grid — 05.09
 
 | слой | коммит | вердикт |
