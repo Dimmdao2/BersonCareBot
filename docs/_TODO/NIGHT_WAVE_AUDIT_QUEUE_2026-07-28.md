@@ -6,6 +6,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## SaaS period pricing grid — 05.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Промежуточный checkpoint после системного обрыва первого worker-run | `649d898ae` (`wt/saas-period-grid`) | **WIP — CONTINUATION ONLY, NOT FOR LAND.** Первый Sonnet-worker завершён портом как `blocked_system` (`claude returned invalid JSON`) до миграции, API/UI, документации, проверок и итогового коммита. Checkpoint сохраняет только уже сделанную часть модели/репозиториев и декларации прав; отдельным результатом не является. Continuation обязана закрыть owner scope и найденную слепую зону инвентаря `PLATFORM_ROLE_SCOPE.mayTouch`, затем пройти независимый audit-live. |
+
 ## Canonical HLS delivery cleanup — 05.09
 
 | слой | коммит | вердикт |
