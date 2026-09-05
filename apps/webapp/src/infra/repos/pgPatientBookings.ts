@@ -415,6 +415,26 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     return row ? mapRow(row) : null;
   },
 
+  async updateStaffProjection(input) {
+    const result = await runWebappSql<Row>(
+      getWebappSqlDb(),
+      sql`UPDATE patient_bookings
+       SET slot_start = ${input.slotStart}::timestamptz,
+           slot_end = ${input.slotEnd}::timestamptz,
+           city = ${input.city},
+           city_code_snapshot = ${input.cityCodeSnapshot},
+           branch_title_snapshot = ${input.branchTitleSnapshot},
+           service_title_snapshot = ${input.serviceTitleSnapshot},
+           duration_minutes_snapshot = ${input.durationMinutesSnapshot},
+           price_minor_snapshot = COALESCE(${input.priceMinorSnapshot ?? null}::integer, price_minor_snapshot),
+           updated_at = now()
+       WHERE id = ${input.bookingId}
+       RETURNING *`,
+    );
+    const row = result.rows[0];
+    return row ? mapRow(row) : null;
+  },
+
   async getByIdForUser(bookingId, userId) {
     if (isCurrentPatientPrincipal()) {
       void userId;

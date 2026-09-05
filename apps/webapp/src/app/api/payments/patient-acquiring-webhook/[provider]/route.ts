@@ -18,6 +18,7 @@ import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { getPaymentProviderAdapter } from '@/infra/payments/paymentProviderRegistry';
+import { resolvePaymentProviderWebhookSecret } from '@/modules/payments/providerPort';
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 import {
   jsonError,
@@ -61,8 +62,10 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonOk({ ignored: true });
   }
 
-  const organizationId =
-    await deps.patientPayments.resolveAcquiringWebhookOrganization(providerPaymentId, providerId);
+  const organizationId = await deps.patientPayments.resolveAcquiringWebhookOrganization(
+    providerPaymentId,
+    providerId,
+  );
   if (!organizationId) {
     return jsonOk({ ignored: true });
   }
@@ -100,11 +103,9 @@ export async function POST(request: Request, context: RouteContext) {
     );
     if (!providerCfg) return { ok: false as const, reason: 'payment_provider_unavailable' };
 
-    const secret = providerCfg.webhookSecret?.trim();
-    if (!secret) return { ok: false as const, reason: 'webhook_secret_missing' };
-
     let verified;
     try {
+      const secret = resolvePaymentProviderWebhookSecret(adapter, providerCfg);
       verified = await adapter.verifyWebhook({
         headers: request.headers,
         bodyText,

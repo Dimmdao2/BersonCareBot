@@ -175,8 +175,7 @@ export async function POST(request: Request) {
                     source: 'admin_manual',
                     status: 'confirmed',
                     actorId: ctx.session.user.userId,
-                    appointmentReminderAllowedPresetIds:
-                      reminderSettings?.allowedPresetIds ?? [],
+                    appointmentReminderAllowedPresetIds: reminderSettings?.allowedPresetIds ?? [],
                     appointmentReminderPresetId: reminderSettings?.defaultPresetId ?? null,
                   },
                 },
@@ -199,10 +198,19 @@ export async function POST(request: Request) {
         > = null;
         try {
           bookingRow = deps.patientBooking
-            ? await deps.patientBooking.getBookingByCanonicalAppointment(created.appointment.id)
+            ? await deps.patientBooking.ensureStaffBookingProjection({
+                appointment: created.appointment,
+                contactName: created.patient.displayName,
+                contactPhone: created.patient.phoneNormalized ?? '+70000000000',
+                contactEmail: parsed.data.email ?? null,
+              })
             : null;
         } catch {
-          // The identity/relationship/appointment transaction already committed. Enrichment is optional.
+          // The identity/relationship/appointment transaction already committed. Do not turn a
+          // projection failure into a duplicate-producing retry of the whole command.
+          console.error('[manual-patient-appointment] booking projection failed', {
+            appointmentId: created.appointment.id,
+          });
         }
         const contactPhone = bookingRow?.contactPhone ?? created.patient.phoneNormalized;
         if (!created.replayed && contactPhone) {
@@ -274,7 +282,8 @@ export async function POST(request: Request) {
     const visitTimeRefusal = mapApiError(error, MANUAL_CREATE_ERROR_RULES, MANUAL_CREATE_UNMAPPED);
     if (
       visitTimeRefusal !== MANUAL_CREATE_UNMAPPED &&
-      (visitTimeRefusal.code === 'visit_in_future' || visitTimeRefusal.code === 'invalid_visit_time')
+      (visitTimeRefusal.code === 'visit_in_future' ||
+        visitTimeRefusal.code === 'invalid_visit_time')
     ) {
       return jsonError(visitTimeRefusal.code, {}, { status: visitTimeRefusal.status });
     }
@@ -295,6 +304,9 @@ export async function POST(request: Request) {
       errorClass: error instanceof Error ? error.name : 'unknown',
       code: pg.code || 'unknown',
     });
-    return NextResponse.json({ ok: false, error: 'appointment_create_unavailable' }, { status: 503 });
+    return NextResponse.json(
+      { ok: false, error: 'appointment_create_unavailable' },
+      { status: 503 },
+    );
   }
 }

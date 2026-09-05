@@ -74,6 +74,7 @@ function inspectAlfabankWebhook(headers: Headers, bodyText: string) {
 
 export function createAlfabankPaymentProvider(): PaymentProviderPort {
   return {
+    requiresWebhookSecret: true,
     async createIntent({
       amountMinor,
       currency,

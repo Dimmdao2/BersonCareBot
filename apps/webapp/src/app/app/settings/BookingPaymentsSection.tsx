@@ -109,11 +109,11 @@ export function BookingPaymentsSection({
         enabled: true,
         defaultProviderId,
         fiscalVatCode: fiscalVatCode === EMPTY_FISCAL_CODE ? null : fiscalVatCode,
-        fiscalTaxSystemCode:
-          fiscalTaxSystemCode === EMPTY_FISCAL_CODE ? null : fiscalTaxSystemCode,
+        fiscalTaxSystemCode: fiscalTaxSystemCode === EMPTY_FISCAL_CODE ? null : fiscalTaxSystemCode,
         providers: providers.map((p) => ({
           ...p,
-          webhookSecret: webhookSecrets[p.id]?.trim() || p.webhookSecret || '',
+          webhookSecret:
+            p.id === 'yookassa' ? undefined : webhookSecrets[p.id]?.trim() || p.webhookSecret || '',
           shopId: shopIds[p.id]?.trim() || p.shopId || '',
           apiKey: apiKeys[p.id]?.trim() || p.apiKey || '',
           terminalKey: terminalKeys[p.id]?.trim() || p.terminalKey || '',
@@ -202,11 +202,7 @@ export function BookingPaymentsSection({
               >
                 <SelectTrigger
                   className="w-full"
-                  displayLabel={optionLabel(
-                    TAX_SYSTEM_OPTIONS,
-                    fiscalTaxSystemCode,
-                    'Не задана',
-                  )}
+                  displayLabel={optionLabel(TAX_SYSTEM_OPTIONS, fiscalTaxSystemCode, 'Не задана')}
                 >
                   <SelectValue />
                 </SelectTrigger>
@@ -237,18 +233,6 @@ export function BookingPaymentsSection({
               {/* yookassa */}
               {p.id === 'yookassa' ? (
                 <>
-                  <div className="space-y-1">
-                    <Label>Webhook Secret</Label>
-                    <Input
-                      type="password"
-                      autoComplete="off"
-                      placeholder="Webhook secret"
-                      value={webhookSecrets[p.id] ?? ''}
-                      onChange={(e) =>
-                        setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))
-                      }
-                    />
-                  </div>
                   <div className="space-y-1">
                     <Label>Shop ID</Label>
                     <Input

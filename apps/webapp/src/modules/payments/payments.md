@@ -5,8 +5,11 @@
 ## Конфигурация
 
 - `system_settings.booking_payment_enabled` (boolean)
-- `system_settings.booking_payment_providers` — JSON: `defaultProviderId`, `providers[]` (`id`, `label`, `enabled`, `webhookSecret`, …)
+- `system_settings.booking_payment_providers` — JSON: `defaultProviderId`, `providers[]` (`id`, `label`, `enabled`, provider credentials, …)
 - Секреты **не** в ENV; merge/redaction в `bookingPaymentSettings.ts` + admin Settings / `BookingPaymentsSection`
+- YooKassa не использует придуманный приложением shared webhook secret: отправитель ограничен
+  официальными IP в ingress, а событие подтверждается повторным чтением платежа через YooKassa API.
+  `webhookSecret` остаётся только у адаптеров, которые действительно проверяют подпись этим секретом.
 
 ## Поток
 
@@ -47,10 +50,10 @@ settles only the server-authorized remainder, while `POST { action: 'link' }` re
 (`/api/doctor/patients/[userId]/payment-timeline`) и KPI «Наличные»/«Итого» на вкладке финансов. Писать в неё
 можно только через `patientPayments.addCashPayment`, и у этой записи два субъекта, а не две реализации:
 
-| Субъект | Кто вызывает | Ключ идемпотентности | Граница в БД |
-| ------- | ------------ | -------------------- | ------------ |
-| Запись | `app-layer/booking/staffAppointmentPayments` | `staff-appointment-cash:{appointmentId}:{remainder}` | `uq_patient_payment_appointment_idempotency` |
-| Абонемент | `app-layer/booking/staffMembershipSale` | `staff-package-cash:{patientPackageId}` | `uq_patient_payment_package_idempotency` |
+| Субъект   | Кто вызывает                                 | Ключ идемпотентности                                 | Граница в БД                                 |
+| --------- | -------------------------------------------- | ---------------------------------------------------- | -------------------------------------------- |
+| Запись    | `app-layer/booking/staffAppointmentPayments` | `staff-appointment-cash:{appointmentId}:{remainder}` | `uq_patient_payment_appointment_idempotency` |
+| Абонемент | `app-layer/booking/staffMembershipSale`      | `staff-package-cash:{patientPackageId}`              | `uq_patient_payment_package_idempotency`     |
 
 Оба индекса partial и держат только свой субъект: у продажи абонемента `appointment_id` = NULL, а NULL в
 unique index не сравниваются, поэтому appointment-индекс её не ограничивает — отсюда второй. `ON CONFLICT` в

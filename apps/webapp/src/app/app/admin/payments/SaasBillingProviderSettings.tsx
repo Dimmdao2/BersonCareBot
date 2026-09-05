@@ -69,7 +69,6 @@ export function SaasBillingProviderSettings() {
   const [settings, setSettings] = useState<SaasBillingPaymentProviderSettings | null>(null);
   const [shopId, setShopId] = useState('');
   const [newApiKey, setNewApiKey] = useState('');
-  const [newWebhookSecret, setNewWebhookSecret] = useState('');
   const [vatCode, setVatCode] = useState(EMPTY_VALUE);
   /**
    * Владелец, 18.08: срок жизни счёта — ОДНА настройка на все счета (и ручные, и автоматические при
@@ -89,7 +88,6 @@ export function SaasBillingProviderSettings() {
     [settings],
   );
   const hasStoredApiKey = provider?.apiKey === '[REDACTED]';
-  const hasStoredWebhookSecret = provider?.webhookSecret === '[REDACTED]';
 
   const applySetting = useCallback((valueJson: unknown) => {
     const parsed = parseSaasBillingPaymentProviderSettings(valueJson);
@@ -99,7 +97,6 @@ export function SaasBillingProviderSettings() {
     setSettings(parsed);
     setShopId(yookassa?.shopId ?? '');
     setNewApiKey('');
-    setNewWebhookSecret('');
     setVatCode(parsed.payeeRequisites.vatCode ?? EMPTY_VALUE);
     setTaxSystemCode(parsed.payeeRequisites.taxSystemCode ?? EMPTY_VALUE);
     setInvoiceValidityDays(String(parsed.lifecyclePolicy.invoiceValidityDays));
@@ -142,7 +139,7 @@ export function SaasBillingProviderSettings() {
       }),
       shopId: shopId.trim() || undefined,
       apiKey: newApiKey.trim() || provider?.apiKey,
-      webhookSecret: newWebhookSecret.trim() || provider?.webhookSecret,
+      webhookSecret: undefined,
     };
     const providers = provider
       ? settings.providers.map((item) => (item.id === nextProvider.id ? nextProvider : item))
@@ -211,16 +208,6 @@ export function SaasBillingProviderSettings() {
                   value={newApiKey}
                   onChange={(event) => setNewApiKey(event.target.value)}
                   placeholder={hasStoredApiKey ? 'Ключ сохранён' : ''}
-                  autoComplete="new-password"
-                />
-              </DoctorField>
-              <DoctorField label="Секрет вебхука" htmlFor="saas-yookassa-webhook-secret">
-                <Input
-                  id="saas-yookassa-webhook-secret"
-                  type="password"
-                  value={newWebhookSecret}
-                  onChange={(event) => setNewWebhookSecret(event.target.value)}
-                  placeholder={hasStoredWebhookSecret ? 'Секрет сохранён' : ''}
                   autoComplete="new-password"
                 />
               </DoctorField>

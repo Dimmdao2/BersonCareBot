@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { applyStaffRescheduleSideEffects } from '@/app-layer/booking/staffAppointmentLifecycleEffects';
+import { staffBookingContactNameFromAppointment } from '@/app-layer/booking/staffBookingIntegratorEvent';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
@@ -58,7 +59,7 @@ export async function POST(request: Request, context: RouteContext) {
   }
   const actorType = gate.ctx.session.user.role === 'admin' ? 'admin' : 'specialist';
   const syncPort = createBookingSyncPort();
-  const bookingRow = deps.patientBooking
+  let bookingRow = deps.patientBooking
     ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
     : null;
   const patientChanged =
@@ -111,6 +112,22 @@ export async function POST(request: Request, context: RouteContext) {
   if (!result.ok) {
     const status = result.error === 'not_found' ? 404 : 400;
     return NextResponse.json({ ok: false, error: result.error }, { status });
+  }
+  if (deps.patientBooking && result.appointment.platformUserId) {
+    try {
+      bookingRow = await deps.patientBooking.ensureStaffBookingProjection({
+        appointment: result.appointment,
+        contactName:
+          bookingRow?.contactName ?? staffBookingContactNameFromAppointment(result.appointment),
+        contactPhone:
+          bookingRow?.contactPhone ?? result.appointment.phoneNormalized ?? '+70000000000',
+        contactEmail: bookingRow?.contactEmail ?? null,
+      });
+    } catch {
+      console.error('[manual-reschedule] booking projection sync failed', {
+        appointmentId: result.appointment.id,
+      });
+    }
   }
   const { loadBookingLifecycleNotificationsFromSystemSettings } =
     await import('@/modules/booking-notifications/settings');

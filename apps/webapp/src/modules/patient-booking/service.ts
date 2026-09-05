@@ -270,6 +270,74 @@ export function createPatientBookingService(input: {
       return input.bookingsPort.listByCanonicalAppointmentIds(canonicalAppointmentIds);
     },
 
+    async ensureStaffBookingProjection(projectionInput) {
+      const { appointment } = projectionInput;
+      const existing = await input.bookingsPort.getByCanonicalAppointmentId(appointment.id);
+      if (
+        !input.bookingEngine ||
+        !appointment.platformUserId ||
+        !appointment.branchId ||
+        !appointment.serviceId
+      ) {
+        return null;
+      }
+
+      const [branch, service] = await Promise.all([
+        input.bookingEngine.catalog.getBranch(appointment.branchId),
+        input.bookingEngine.services.getService(appointment.serviceId),
+      ]);
+      if (
+        !branch ||
+        !service ||
+        branch.organizationId !== appointment.organizationId ||
+        service.organizationId !== appointment.organizationId
+      ) {
+        throw new Error('branch_service_not_found');
+      }
+
+      if (existing) {
+        const updated = await input.bookingsPort.updateStaffProjection({
+          bookingId: existing.id,
+          slotStart: appointment.startAt,
+          slotEnd: appointment.endAt,
+          city: branch.cityCode,
+          cityCodeSnapshot: branch.cityCode,
+          branchTitleSnapshot: branch.title,
+          serviceTitleSnapshot: service.title,
+          durationMinutesSnapshot: appointment.durationMinutes,
+          ...(appointment.paymentRef ? {} : { priceMinorSnapshot: service.priceMinor }),
+        });
+        if (!updated) throw new Error('booking_projection_update_failed');
+        return updated;
+      }
+
+      const pending = await input.bookingsPort.createPending({
+        organizationId: appointment.organizationId,
+        userId: appointment.platformUserId,
+        bookingType: 'in_person',
+        city: branch.cityCode,
+        category: 'general',
+        slotStart: appointment.startAt,
+        slotEnd: appointment.endAt,
+        contactName: projectionInput.contactName,
+        contactPhone: projectionInput.contactPhone,
+        contactEmail: projectionInput.contactEmail ?? null,
+        branchId: null,
+        serviceId: null,
+        branchServiceId: null,
+        cityCodeSnapshot: branch.cityCode,
+        branchTitleSnapshot: branch.title,
+        serviceTitleSnapshot: service.title,
+        durationMinutesSnapshot: appointment.durationMinutes,
+        priceMinorSnapshot: service.priceMinor,
+      });
+      const confirmed = await input.bookingsPort.markConfirmed(pending.id, {
+        canonicalAppointmentId: appointment.id,
+      });
+      if (!confirmed) throw new Error('booking_projection_confirm_failed');
+      return confirmed;
+    },
+
     async syncLinkedPatientBookingCancelled(syncInput: {
       canonicalAppointmentId: string;
       reason?: string;

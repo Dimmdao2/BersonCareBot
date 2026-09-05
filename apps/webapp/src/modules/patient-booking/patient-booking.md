@@ -78,7 +78,11 @@ API остаётся fail-closed. Существующие authenticated intake-
 
 ## Staff and clinic management
 
-- `POST /api/doctor/booking-engine/appointments/manual` — ручная бронь в server-resolved doctor/clinic scope.
+- `POST /api/doctor/booking-engine/appointments/manual` и `manual-patient-visit` — ручная бронь в
+  server-resolved doctor/clinic scope. После канонической записи они создают связанную
+  `patient_bookings`-проекцию и фиксируют в ней цену выбранной услуги; без этой проекции нельзя
+  выставить корректный счёт за ручную запись. Редактирование записи обновляет время и снимки
+  филиала/услуги; цену обновляет только до фиксации оплаты (`payment_ref`).
 - Рабочий график редактируется через doctor schedule API; старые admin schedule-block mirrors удалены.
 - `GET`/`POST /api/admin/booking-engine/policies` — политики отмены/переноса (org-level в UI).
 - `GET`/`PUT /api/admin/booking-engine/prepayment-policies` — предоплата по услуге или онлайн-категории.
