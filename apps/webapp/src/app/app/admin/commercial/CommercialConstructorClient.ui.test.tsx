@@ -151,6 +151,9 @@ describe('commercial constructor access ladder', () => {
       priceMinor: null,
       currency: null,
       billingPeriod: 'month',
+      periodPrices: [
+        { billingPeriodCode: 'month', priceMinor: 100_000, discountedPriceMinor: null },
+      ],
       mechanics: {},
       quotas: {},
       systemAccessPolicy: {
@@ -244,6 +247,9 @@ describe('commercial constructor access ladder', () => {
       priceMinor: null,
       currency: null,
       billingPeriod: 'month',
+      periodPrices: [
+        { billingPeriodCode: 'month', priceMinor: 100_000, discountedPriceMinor: null },
+      ],
       mechanics: {},
       quotas: {},
       systemAccessPolicy: {
@@ -316,6 +322,9 @@ describe('commercial constructor access ladder', () => {
       priceMinor: null,
       currency: null,
       billingPeriod: 'month',
+      periodPrices: [
+        { billingPeriodCode: 'month', priceMinor: 100_000, discountedPriceMinor: null },
+      ],
       mechanics: {},
       quotas: {},
       systemAccessPolicy: null,

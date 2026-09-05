@@ -46,6 +46,7 @@ INFRA|public.reference_catalog_baselines
 INFRA|public.reference_catalog_snapshot_receipts
 INFRA|public.saas_tariffs
 INFRA|public.saas_billing_periods
+INFRA|public.saas_tariff_period_prices
 INFRA|public.saas_trial_policy
 INFRA|public.saas_registration_tariff_policy
 INFRA|public.saas_paid_period_policy

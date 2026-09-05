@@ -194,6 +194,7 @@ VALUES
   ('public', 'reference_items'),
   ('public', 'reminder_occurrence_history'),
   ('public', 'reminder_rules'),
+  ('public', 'saas_tariff_period_prices'),
   ('public', 'specialist_tasks'),
   ('public', 'support_conversation_messages'),
   ('public', 'support_conversations'),

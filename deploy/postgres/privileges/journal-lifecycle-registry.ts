@@ -1740,6 +1740,11 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
     userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'not-org-scoped' },
   },
+  'public.saas_tariff_period_prices': {
+    reason: 'global tariff price matrix by supported billing period',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
   'public.saas_trial_policy': {
     reason: 'single-row platform policy: trial duration and aftermath',
     userPurge: { kind: 'staff-authored', column: 'updated_by', basis: 'single-row platform policy edited by platform staff; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
