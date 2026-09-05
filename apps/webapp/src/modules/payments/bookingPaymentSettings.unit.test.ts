@@ -100,6 +100,53 @@ describe('booking payment fiscal settings', () => {
     }
   });
 
+  /**
+   * The other half of the retain contract, and the one no test held: a secret the admin DID retype
+   * must reach the stored value. The break is «провайдер сменил ключ, админ вписал новый, форма
+   * ответила «Сохранён», а сервер оставил мёртвый старый» — the acquiring account stops taking
+   * money and nothing anywhere says so, because retain is exactly the code path that hides it.
+   */
+  it('stores a retyped acquiring secret instead of retaining the previous one', async () => {
+    const merged = await mergeBookingPaymentProvidersSecretsRetain(
+      async () => ({
+        value: {
+          providers: [
+            { id: 'yookassa', label: 'ЮKassa', enabled: true, apiKey: 'rotated-away-key' },
+            {
+              id: 'tinkoff',
+              label: 'Тинькофф Касса',
+              enabled: true,
+              apiKey: 'old-tinkoff-key',
+              webhookSecret: 'old-tinkoff-hook',
+            },
+          ],
+        },
+      }),
+      {
+        value: {
+          defaultProviderId: 'yookassa',
+          providers: [
+            { id: 'yookassa', label: 'ЮKassa', enabled: true, apiKey: 'fresh-yookassa-key' },
+            {
+              id: 'tinkoff',
+              label: 'Тинькофф Касса',
+              enabled: true,
+              apiKey: 'fresh-tinkoff-key',
+              webhookSecret: 'fresh-tinkoff-hook',
+            },
+          ],
+        },
+      },
+    );
+
+    const providers = (merged.value as { providers: Array<Record<string, unknown>> }).providers;
+    expect(providers[0]).toMatchObject({ apiKey: 'fresh-yookassa-key' });
+    expect(providers[1]).toMatchObject({
+      apiKey: 'fresh-tinkoff-key',
+      webhookSecret: 'fresh-tinkoff-hook',
+    });
+  });
+
   it('retains fiscal settings while preserving redacted provider secrets', async () => {
     const merged = await mergeBookingPaymentProvidersSecretsRetain(
       async () => ({
