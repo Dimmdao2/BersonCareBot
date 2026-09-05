@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSpecialistTaskDueOnDate } from './taskPriority';
+import { isSpecialistTaskDueOnDate, resolveSpecialistTaskAttentionTone } from './taskPriority';
 import type { SpecialistTaskRow } from './types';
 
 function task(dueAt: string): SpecialistTaskRow {
@@ -31,5 +31,13 @@ describe('isSpecialistTaskDueOnDate', () => {
     const endOfDay = task('2026-09-05 20:59:59.999+00');
 
     expect(isSpecialistTaskDueOnDate(endOfDay, '2026-09-05', 'Europe/Moscow')).toBe(true);
+  });
+});
+
+describe('resolveSpecialistTaskAttentionTone', () => {
+  it('uses primary attention for today and gives overdue danger precedence', () => {
+    expect(resolveSpecialistTaskAttentionTone(0, 2)).toBe('primary');
+    expect(resolveSpecialistTaskAttentionTone(1, 2)).toBe('danger');
+    expect(resolveSpecialistTaskAttentionTone(0, 0)).toBeNull();
   });
 });

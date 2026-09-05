@@ -13,6 +13,7 @@ import {
 import { getDoctorMenuIcon } from '@/shared/ui/doctor/doctorNavIcons';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
+import { resolveSpecialistTaskAttentionTone } from '@/modules/specialist-tasks/taskPriority';
 
 const items = [
   { id: 'today', label: 'Сегодня', href: routePaths.doctor },
@@ -35,7 +36,8 @@ export function DoctorBottomNav({
   patientLabel?: string;
 }) {
   const pathname = usePathname() ?? routePaths.doctor;
-  const { messagesUnread, unreadExerciseComments, overdueTasks } = useOptionalDoctorShellBadgeCounts();
+  const { messagesUnread, unreadExerciseComments, overdueTasks, todayTasks } =
+    useOptionalDoctorShellBadgeCounts();
   const visibleHrefs = new Set(
     getDoctorMenuItems(menuAccess, patientLabel).flatMap((item) => (item.href ? [item.href] : [])),
   );
@@ -60,8 +62,10 @@ export function DoctorBottomNav({
             item.id === 'communications'
               ? messagesUnread + unreadExerciseComments > 0
               : item.id === 'tasks'
-                ? overdueTasks > 0
+                ? overdueTasks > 0 || todayTasks > 0
                 : false;
+          const taskAttentionTone =
+            resolveSpecialistTaskAttentionTone(overdueTasks, todayTasks) ?? 'primary';
           return (
             <Link
               key={item.href}
@@ -70,7 +74,9 @@ export function DoctorBottomNav({
               aria-label={
                 hasAttention
                   ? item.id === 'tasks'
-                    ? `${item.label}. Есть просроченные задачи.`
+                    ? overdueTasks > 0
+                      ? `${item.label}. Есть просроченные задачи.`
+                      : `${item.label}. Есть задачи на сегодня.`
                     : `${item.label}. Есть непрочитанные.`
                   : item.label
               }
@@ -83,7 +89,11 @@ export function DoctorBottomNav({
             >
               <span className="relative inline-flex">
                 <Icon className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-                <DoctorAttentionBadge count={hasAttention ? 1 : 0} dot />
+                <DoctorAttentionBadge
+                  count={hasAttention ? 1 : 0}
+                  dot
+                  tone={item.id === 'tasks' ? taskAttentionTone : 'danger'}
+                />
               </span>
             </Link>
           );

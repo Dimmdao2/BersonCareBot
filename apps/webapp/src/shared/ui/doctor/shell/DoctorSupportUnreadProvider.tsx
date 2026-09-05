@@ -13,6 +13,7 @@ type DoctorShellBadgeCounts = {
   messagesUnread: number;
   unreadExerciseComments: number;
   overdueTasks: number;
+  todayTasks: number;
   pendingProgramTests: number;
   registrationSystemFailures: number;
   messagesUnreadReady: boolean;
@@ -40,6 +41,7 @@ export function DoctorSupportUnreadProvider({
   const [navigationAttention, setNavigationAttention] = useState({
     unreadExerciseComments: 0,
     overdueTasks: 0,
+    todayTasks: 0,
     unreadExerciseCommentsReady: false,
     overdueTasksReady: false,
   });
@@ -86,7 +88,9 @@ export function DoctorSupportUnreadProvider({
         ? payload.tasks
         : [];
     const now = Date.now();
+    const today = new Date(now);
     let nearestFutureDueAt: number | null = null;
+    let todayTasks = 0;
     const overdueTasks = tasks.reduce((count, task) => {
       if (task === null || typeof task !== 'object') return count;
       const dueAt = 'dueAt' in task && typeof task.dueAt === 'string' ? task.dueAt : null;
@@ -95,6 +99,14 @@ export function DoctorSupportUnreadProvider({
       const dueMs = Date.parse(dueAt);
       if (Number.isNaN(dueMs)) return count;
       if (dueMs < now) return count + 1;
+      const dueDate = new Date(dueMs);
+      if (
+        dueDate.getFullYear() === today.getFullYear() &&
+        dueDate.getMonth() === today.getMonth() &&
+        dueDate.getDate() === today.getDate()
+      ) {
+        todayTasks += 1;
+      }
       if (nearestFutureDueAt === null || dueMs < nearestFutureDueAt) nearestFutureDueAt = dueMs;
       return count;
     }, 0);
@@ -102,6 +114,7 @@ export function DoctorSupportUnreadProvider({
     setNavigationAttention((current) => ({
       ...current,
       overdueTasks,
+      todayTasks,
       overdueTasksReady: true,
     }));
   }, []);
@@ -156,11 +169,11 @@ export function DoctorSupportUnreadProvider({
         messagesUnread: enabled ? messages.count : 0,
         unreadExerciseComments: enabled ? navigationAttention.unreadExerciseComments : 0,
         overdueTasks: enabled ? navigationAttention.overdueTasks : 0,
+        todayTasks: enabled ? navigationAttention.todayTasks : 0,
         pendingProgramTests,
         registrationSystemFailures,
         messagesUnreadReady: messages.ready,
-        unreadExerciseCommentsReady:
-          enabled && navigationAttention.unreadExerciseCommentsReady,
+        unreadExerciseCommentsReady: enabled && navigationAttention.unreadExerciseCommentsReady,
         overdueTasksReady: enabled && navigationAttention.overdueTasksReady,
       }}
     >
@@ -183,6 +196,7 @@ export function useOptionalDoctorShellBadgeCounts(): DoctorShellBadgeCounts {
       messagesUnread: 0,
       unreadExerciseComments: 0,
       overdueTasks: 0,
+      todayTasks: 0,
       pendingProgramTests: 0,
       registrationSystemFailures: 0,
       messagesUnreadReady: false,
