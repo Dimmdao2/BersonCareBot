@@ -39,7 +39,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/shared/ui/doctor/primitives/dropdown-menu';
-import { formatDoctorFio } from '@/shared/lib/fio';
+import { formatDoctorFio, formatDoctorFioShort } from '@/shared/lib/fio';
 import type { DoctorPatientExerciseCalendarSnapshot } from '../loadDoctorPatientExerciseCalendar';
 import type { DoctorPatientMessagesSnapshot } from '../loadDoctorPatientMessagesSnapshot';
 import type {
@@ -61,9 +61,10 @@ import {
   doctorClientDisplayNameClass,
   doctorClientPrimaryOutlineActionClass,
 } from '@/app/app/doctor/clients/doctorClientCardChrome';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorClientMembershipsPanel } from '@/app/app/doctor/clients/DoctorClientMembershipsPanel';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 
 function formatSupportStartedAt(value: string): string {
   const date = new Date(value);
@@ -853,7 +854,14 @@ function PatientCardTabPanels({
       <DoctorModal
         open={membershipConfigurationOpen}
         onClose={() => setMembershipConfigurationOpen(false)}
-        title="Добавить абонемент"
+        title={
+          <DoctorModalStackedTitle
+            label="Добавить абонемент"
+            patientName={formatDoctorFioShort(identity, identity.displayName)}
+            patientHref={patientCardHref(identity.userId)}
+            patientOnSupport={header.support.isOnSupport === true}
+          />
+        }
         size="lg"
         desktopPresentation="right-sheet"
       >

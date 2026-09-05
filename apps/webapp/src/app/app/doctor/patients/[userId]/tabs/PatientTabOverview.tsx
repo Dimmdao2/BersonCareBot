@@ -1645,7 +1645,14 @@ export function PatientTabOverview({
     <DoctorModal
       open={noteFormOpen}
       onClose={() => setNoteFormOpen(false)}
-      title="Новая заметка"
+      title={
+        <DoctorModalStackedTitle
+          label="Новая заметка"
+          patientName={patientHeaderName}
+          patientHref={patientCardHref(userId)}
+          patientOnSupport={header?.support.isOnSupport === true}
+        />
+      }
       size="sm"
       footer={
         <>
@@ -1682,6 +1689,7 @@ export function PatientTabOverview({
       patientUserId={userId}
       editing={editingTask}
       patientDisplayName={patientHeaderName ?? undefined}
+      patientOnSupport={header?.support.isOnSupport === true}
       onSaved={handleTaskSaved}
       onDeleted={handleTaskDeleted}
     />
@@ -1896,7 +1904,14 @@ export function PatientTabOverview({
           <DoctorModal
             open={notesModalOpen}
             onClose={() => setNotesModalOpen(false)}
-            title="Заметки"
+            title={
+              <DoctorModalStackedTitle
+                label="Заметки"
+                patientName={patientHeaderName}
+                patientHref={patientCardHref(userId)}
+                patientOnSupport={header?.support.isOnSupport === true}
+              />
+            }
             size="lg"
             bodyVariant="list"
             desktopPresentation="right-sheet"
@@ -1970,7 +1985,14 @@ export function PatientTabOverview({
             <DoctorModal
               open={tasksModalOpen}
               onClose={() => setTasksModalOpen(false)}
-              title="Задачи"
+              title={
+                <DoctorModalStackedTitle
+                  label="Задачи"
+                  patientName={patientHeaderName}
+                  patientHref={patientCardHref(userId)}
+                  patientOnSupport={header?.support.isOnSupport === true}
+                />
+              }
               size="lg"
               bodyVariant="list"
               desktopPresentation="right-sheet"
@@ -2003,9 +2025,9 @@ export function PatientTabOverview({
                 <DoctorPanelLoading className="px-4 py-4" />
               ) : data?.tasksStatus === 'error' ? (
                 <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить задачи.</p>
-              ) : attentionTasks.length ? (
+              ) : data?.tasks.length ? (
                 <DoctorDnaFlatList>
-                  {attentionTasks.map((task) => (
+                  {data.tasks.map((task) => (
                     <li key={task.id}>
                       <TaskRow
                         as="div"
@@ -2029,7 +2051,7 @@ export function PatientTabOverview({
                   ))}
                 </DoctorDnaFlatList>
               ) : (
-                <DoctorEmptyState>Нет задач на сегодня или просроченных</DoctorEmptyState>
+                <DoctorEmptyState>Задач нет</DoctorEmptyState>
               )}
               {tasksModalOpen ? taskFormDialog : null}
             </DoctorModal>
