@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { notFound } from 'next/navigation';
+import { TypedApiResponseError } from '@/shared/http/apiResponse';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolveCabinetAccess, resolveMechanicAccess } from '@/modules/org-entitlements/service';
 import {
@@ -61,6 +62,24 @@ export function quotaLimitReachedRefusalMessage(mechanic: OrgMechanic, action: s
     `Невозможно ${action}: в тарифе клиники исчерпан лимит «${MECHANIC_REGISTRY[mechanic].label}». ` +
     'Чтобы продолжить, увеличьте лимит в тарифе клиники.'
   );
+}
+
+/**
+ * The throw transport of the same refusal. A server action has no `NextResponse`, so a guard that
+ * refuses deep inside the call chain aborts with this instead. It is a `TypedApiResponseError`, so
+ * the shared error door (`resolveApiFailure`) recognises an outcome this module authored and keeps
+ * it distinct, while a plain `Error` carrying similar text still collapses into the caller's fixed
+ * fallback. The sentence itself is still decided in exactly one place —
+ * `entitlementMutationRefusalMessage` above — this only says how it travels.
+ */
+export function entitlementMutationRefusalError(
+  action: string,
+  reason: EntitlementDenialReason = 'entitlement_required',
+): TypedApiResponseError {
+  return new TypedApiResponseError({
+    code: entitlementMutationRefusalMessage(action, reason),
+    status: 403,
+  });
 }
 
 export function entitlementMutationRefusalResponse(

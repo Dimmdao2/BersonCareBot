@@ -17,12 +17,15 @@ export type InPersonBookingResolveDeps = {
 };
 
 export class InPersonBookingResolveError extends Error {
+  /** Stable authored code safe to return from public booking routes. */
+  readonly code: string;
   /** Private diagnostic only; public routes must continue to return the neutral `code`. */
   readonly reason?: string;
 
   constructor(code: string, reason?: string) {
     super(code);
     this.name = 'InPersonBookingResolveError';
+    this.code = code;
     this.reason = reason;
   }
 }

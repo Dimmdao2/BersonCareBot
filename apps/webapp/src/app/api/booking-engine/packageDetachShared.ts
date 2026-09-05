@@ -6,14 +6,6 @@ import { withDefaultCancellationPolicy } from '@/modules/booking-policies/servic
 import type { PackageDetachOutcome } from '@/modules/memberships/service';
 import { membershipErrorResponse } from './patientPackagesRouteShared';
 
-const DETACH_ERROR_STATUS: Record<string, number> = {
-  appointment_not_found: 404,
-  appointment_not_linked_to_package: 400,
-  appointment_has_consumed_package_session: 400,
-  past_unlink_not_allowed: 403,
-  past_detach_confirmation_required: 400,
-  late_detach_choice_required: 409,
-};
 
 export async function runPackageDetach(params: {
   organizationId: string;
@@ -77,11 +69,9 @@ export async function runPackageDetach(params: {
     }
     return NextResponse.json({ ok: true, result });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'detach_failed';
-    const status = DETACH_ERROR_STATUS[msg] ?? 400;
-    if (status === 400 && msg !== 'detach_failed') {
-      return NextResponse.json({ ok: false, error: msg }, { status });
-    }
+    // Detach codes are a subset of the membership allowlist, so the shared door already keeps each
+    // of them distinct with its declared status; the local duplicate map only re-stated four of
+    // them and passed everything else — including raw PostgreSQL text — through the same helper.
     return membershipErrorResponse(e);
   }
 }

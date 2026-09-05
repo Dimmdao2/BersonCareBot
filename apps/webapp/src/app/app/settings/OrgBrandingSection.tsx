@@ -10,6 +10,8 @@ import {
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
+import type { ActionFailureFields } from '@/shared/http/apiResponse';
+import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
 import { OrgBrandLogoControl, type OrgBrandLogoChange } from './OrgBrandLogoControl';
 import { saveOrgBranding } from './brandingActions';
 import {
@@ -51,7 +53,7 @@ export function OrgBrandingSection({
   const [name, setName] = useState(publishedDisplayName ?? coreDisplayName);
   const [logoMediaId, setLogoMediaId] = useState<string | null>(publishedLogoMediaId);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ActionFailureFields | null>(null);
   const [justSaved, setJustSaved] = useState(false);
 
   const baselineName = (publishedDisplayName ?? coreDisplayName).trim();
@@ -74,7 +76,12 @@ export function OrgBrandingSection({
         trimmedName === '' || trimmedName === coreDisplayName.trim() ? null : trimmedName;
       const result = await saveOrgBranding({ displayName, logoMediaId });
       if (!result.ok) {
-        setError(SAVE_ERROR_MESSAGES[result.error] ?? 'Не удалось сохранить.');
+        // The known codes keep their own sentence; the support reference travels with whatever the
+        // door could not name, so an unmapped save failure is still traceable from this screen.
+        setError({
+          ...result,
+          error: SAVE_ERROR_MESSAGES[result.error] ?? 'Не удалось сохранить.',
+        });
         return;
       }
       setJustSaved(true);
@@ -121,7 +128,7 @@ export function OrgBrandingSection({
           />
         </div>
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ActionFailureText failure={error} />
         {justSaved && !dirty ? <p className="text-sm text-muted-foreground">Сохранено.</p> : null}
 
         <div>

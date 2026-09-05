@@ -6,6 +6,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { savePatientHomePracticeTargetAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { actionFailureLine } from '@/shared/ui/doctor/ActionFailureText';
 
 export function PatientHomePracticeTargetPanel(props: { initialTarget: number }) {
   const [value, setValue] = useState(String(props.initialTarget));
@@ -24,7 +25,7 @@ export function PatientHomePracticeTargetPanel(props: { initialTarget: number })
     try {
       const res = await savePatientHomePracticeTargetAction(n);
       if (!res.ok) {
-        toast.error(res.error);
+        toast.error(actionFailureLine(res));
         return;
       }
       toast.success('Сохранено');

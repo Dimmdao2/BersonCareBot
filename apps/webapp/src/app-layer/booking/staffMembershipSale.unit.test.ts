@@ -35,7 +35,7 @@ function buildPackageStore() {
   const rows = new Map<string, PatientPackageRecord>();
   let seq = 0;
 
-  function insert(row: Omit<PatientPackageRecord, 'id'> & { saleIdempotencyKey?: string | null }) {
+  function add(row: Omit<PatientPackageRecord, 'id'> & { saleIdempotencyKey?: string | null }) {
     const key = row.saleIdempotencyKey ?? null;
     if (key) {
       for (const existing of rows.values()) {
@@ -53,7 +53,7 @@ function buildPackageStore() {
   }
 
   const keys = new Map<string, string>();
-  return { rows, keys, insert, count: () => rows.size };
+  return { rows, keys, add, count: () => rows.size };
 }
 
 function buildDeps(options?: { catalogPriceMinor?: number }) {
@@ -92,7 +92,7 @@ function buildDeps(options?: { catalogPriceMinor?: number }) {
       return null;
     },
     createManualPatientPackage: async (input: Record<string, unknown>) =>
-      store.insert({
+      store.add({
         organizationId: input.organizationId as string,
         platformUserId: input.platformUserId as string,
         subscriptionPackageId: null,
@@ -115,7 +115,7 @@ function buildDeps(options?: { catalogPriceMinor?: number }) {
       } as never),
     offerCatalogPackageToPatient: async (input: Record<string, unknown>) => {
       const catalog = catalogFor(input.subscriptionPackageId as string);
-      return store.insert({
+      return store.add({
         organizationId: input.organizationId as string,
         platformUserId: input.platformUserId as string,
         subscriptionPackageId: catalog.id,

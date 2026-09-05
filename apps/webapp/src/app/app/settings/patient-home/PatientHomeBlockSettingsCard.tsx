@@ -14,6 +14,8 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/ui/doctor/primitives/dropdown-menu';
 import { getPatientHomeBlockEditorMetadata } from '@/modules/patient-home/blockEditorMetadata';
+import type { ActionFailureFields } from '@/shared/http/apiResponse';
+import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
 import {
   canManageItemsForBlock,
   supportsConfigurablePatientHomeBlockIcon,
@@ -57,7 +59,7 @@ export function PatientHomeBlockSettingsCard({
   const [createSectionOpen, setCreateSectionOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [repairOpen, setRepairOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ActionFailureFields | null>(null);
   const canManageItems = canManageItemsForBlock(block.code);
   const unresolved = useMemo(
     () => listUnresolvedPatientHomeBlockItems(block, knownRefs),
@@ -78,7 +80,7 @@ export function PatientHomeBlockSettingsCard({
     startTransition(async () => {
       const res = await togglePatientHomeBlockVisibility(block.code, !block.isVisible);
       if (!res.ok) {
-        setError(res.error);
+        setError(res);
         return;
       }
       onChanged();
@@ -90,7 +92,7 @@ export function PatientHomeBlockSettingsCard({
     startTransition(async () => {
       const res = await setPatientHomeBlockIcon(block.code, next);
       if (!res.ok) {
-        setError(res.error);
+        setError(res);
         return;
       }
       onChanged();
@@ -230,7 +232,7 @@ export function PatientHomeBlockSettingsCard({
           </Button>
         </div>
       ) : null}
-      {error ? <div className="mt-2 text-sm text-destructive">{error}</div> : null}
+      <ActionFailureText failure={error} className="mt-2" />
       {addOpen ? (
         <PatientHomeAddItemDialog
           open={addOpen}

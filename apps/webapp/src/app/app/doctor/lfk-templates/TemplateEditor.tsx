@@ -30,6 +30,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { actionFailureLine } from '@/shared/ui/doctor/ActionFailureText';
 import {
   LFK_EXERCISE_SIDE_SELECT_OPTIONS,
   parseLfkExerciseSide,
@@ -497,7 +498,7 @@ export function TemplateEditor({
           description: description.trim() || null,
           exercises: linesToPayload(lines),
         });
-        if (!res.ok) toast.error(res.error);
+        if (!res.ok) toast.error(actionFailureLine(res));
         else {
           toast.success('Черновик сохранён');
           onCreated?.(res.id);
@@ -511,7 +512,7 @@ export function TemplateEditor({
         description: description.trim() || null,
         exercises: linesToPayload(lines),
       });
-      if (!res.ok) toast.error(res.error);
+      if (!res.ok) toast.error(actionFailureLine(res));
       else {
         toast.success(
           template.status === 'published' ? 'Изменения сохранены' : 'Черновик сохранён',
@@ -531,11 +532,11 @@ export function TemplateEditor({
         exercises: linesToPayload(lines),
       });
       if (!saveFirst.ok) {
-        toast.error(saveFirst.error);
+        toast.error(actionFailureLine(saveFirst));
         return;
       }
       const res = await publishLfkTemplateAction(template.id);
-      if (!res.ok) toast.error(res.error);
+      if (!res.ok) toast.error(actionFailureLine(res));
       else {
         toast.success('Шаблон опубликован');
         router.refresh();

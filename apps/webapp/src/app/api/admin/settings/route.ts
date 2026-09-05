@@ -25,6 +25,7 @@ import { systemSettingsOrgContextErrorResponse } from '@/app-layer/guards/system
 import { getCurrentSession } from '@/modules/auth/service';
 import { ALLOWED_KEYS, type SystemSetting } from '@/modules/system-settings/types';
 import { isPerOrgSettingKey } from '@/modules/system-settings/orgScopedKeys';
+import { OperatorHealthProbeConfigInvalidError } from '@/modules/system-settings/operatorHealthProbeConfig';
 import { normalizeNotificationsTopicsForAdminPatch } from '@/modules/patient-notifications/notificationsTopics';
 import {
   normalizeModesFormBatchItems,
@@ -926,7 +927,9 @@ export async function PATCH(request: Request) {
   } catch (error) {
     const errResponse = systemSettingsOrgContextErrorResponse(error);
     if (errResponse) return errResponse;
-    if (parsed.data.key === 'operator_health_probe_config' && error instanceof Error)
+    // Only this module's own authored refusal may be named to the admin; a PostgreSQL failure or a
+    // runtime bug keeps re-throwing to `onRequestError` instead of describing itself in the body.
+    if (error instanceof OperatorHealthProbeConfigInvalidError)
       return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
     throw error;
   }

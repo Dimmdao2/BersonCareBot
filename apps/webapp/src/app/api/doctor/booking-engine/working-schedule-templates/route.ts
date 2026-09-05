@@ -1,11 +1,21 @@
 import { NextResponse } from 'next/server';
+import { jsonError, type ApiErrorLiteralRules } from '@/shared/http/apiResponse';
+
+/** Closed allowlist of the scheduling-template refusals this route may name. */
+const SCHEDULE_TEMPLATE_ERROR_RULES: ApiErrorLiteralRules = {
+  dates_required: { code: 'dates_required', status: 400 },
+  invalid_template_range: { code: 'invalid_template_range', status: 400 },
+  template_name_required: { code: 'template_name_required', status: 400 },
+  organization_id_required: { code: 'organization_id_required', status: 400 },
+  template_not_found: { code: 'template_not_found', status: 404 },
+};
+
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 import { resolveDoctorOwnSpecialistId } from '../_resolveDoctorSpecialistId';
-import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 // Doctor workspace schedule templates. Templates are org-level named presets (no specialist
 // column), so list/create/
@@ -94,9 +104,11 @@ export async function POST(request: Request) {
       );
       return NextResponse.json({ ok: true });
     } catch (err) {
-      return respondWithSafeApiError('api/doctor/booking-engine/working-schedule-templates', err, {
-        fallbackCode: 'apply_failed',
-        fallbackStatus: 500,
+      return jsonError({
+        error: err,
+        literalRules: SCHEDULE_TEMPLATE_ERROR_RULES,
+        fallback: { code: 'apply_failed', status: 400 },
+        logEvent: 'doctor_schedule_template_apply_failed',
       });
     }
   }
@@ -123,9 +135,11 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, row });
   } catch (err) {
-    return respondWithSafeApiError('api/doctor/booking-engine/working-schedule-templates', err, {
-      fallbackCode: 'create_failed',
-      fallbackStatus: 500,
+    return jsonError({
+      error: err,
+      literalRules: SCHEDULE_TEMPLATE_ERROR_RULES,
+      fallback: { code: 'create_failed', status: 400 },
+      logEvent: 'doctor_schedule_template_create_failed',
     });
   }
 }

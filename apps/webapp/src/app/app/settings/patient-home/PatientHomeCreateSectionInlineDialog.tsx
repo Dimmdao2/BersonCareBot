@@ -17,6 +17,8 @@ import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { MediaLibraryPickerDialog } from '@/app/app/doctor/content/MediaLibraryPickerDialog';
 import { getPatientHomeBlockEditorMetadata } from '@/modules/patient-home/blockEditorMetadata';
 import type { PatientHomeBlockCode } from '@/modules/patient-home/ports';
+import type { ActionFailureFields } from '@/shared/http/apiResponse';
+import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
 import { fallbackSlug, slugFromTitle } from '@/shared/lib/slugify';
 import { createContentSectionForPatientHomeBlock } from './actions';
 
@@ -41,7 +43,7 @@ export function PatientHomeCreateSectionInlineDialog({
   const [requiresAuth, setRequiresAuth] = useState(false);
   const [iconImageUrl, setIconImageUrl] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ActionFailureFields | null>(null);
   const [pending, startTransition] = useTransition();
 
   const submit = () => {
@@ -60,7 +62,7 @@ export function PatientHomeCreateSectionInlineDialog({
         coverImageUrl: coverImageUrl.trim() || undefined,
       });
       if (!res.ok) {
-        setError(res.error);
+        setError(res);
         return;
       }
       onSaved();
@@ -83,15 +85,7 @@ export function PatientHomeCreateSectionInlineDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-1">
-          {error ? (
-            <p
-              role="alert"
-              className="text-sm text-destructive"
-              data-testid="ph-inline-section-error"
-            >
-              {error}
-            </p>
-          ) : null}
+          <ActionFailureText failure={error} data-testid="ph-inline-section-error" />
           <div className="space-y-1">
             <Label htmlFor="ph-inline-sec-title">Заголовок</Label>
             <Input

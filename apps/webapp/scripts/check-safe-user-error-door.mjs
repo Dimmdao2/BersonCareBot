@@ -238,12 +238,63 @@ function narrowedToLiterals(value, catchClause, tainted) {
   return false;
 }
 
+/**
+ * Track D's shared transport door. The strict object shape matters: the older
+ * `jsonError('failed', { message: raw })` response builder remains a checked response surface.
+ */
+function isCanonicalJsonErrorDoor(call, tainted) {
+  if (callName(call.expression) !== 'jsonError' || call.arguments.length !== 1) return false;
+  const [argument] = call.arguments;
+  if (!ts.isObjectLiteralExpression(argument)) return false;
+
+  const properties = new Map();
+  for (const property of argument.properties) {
+    if (ts.isShorthandPropertyAssignment(property)) {
+      properties.set(property.name.text, property.name);
+      continue;
+    }
+    if (!ts.isPropertyAssignment(property)) continue;
+    const key = propertyKey(property);
+    if (key) properties.set(key, property.initializer);
+  }
+  const error = properties.get('error');
+  const fallback = properties.get('fallback');
+  const logEvent = properties.get('logEvent');
+  if (
+    !error ||
+    !ts.isIdentifier(error) ||
+    !tainted.has(error.text) ||
+    !fallback ||
+    !ts.isObjectLiteralExpression(fallback) ||
+    !logEvent ||
+    !ts.isStringLiteral(logEvent)
+  ) {
+    return false;
+  }
+
+  const fallbackFields = new Map();
+  for (const property of fallback.properties) {
+    if (!ts.isPropertyAssignment(property)) continue;
+    const key = propertyKey(property);
+    if (key) fallbackFields.set(key, property.initializer);
+  }
+  const fallbackCode = fallbackFields.get('code');
+  const fallbackStatus = fallbackFields.get('status');
+  return Boolean(
+    fallbackCode &&
+    ts.isStringLiteral(fallbackCode) &&
+    fallbackStatus &&
+    ts.isNumericLiteral(fallbackStatus),
+  );
+}
+
 /** Response body literals built anywhere inside the catch block. */
-function responseBodyLiterals(catchClause) {
+function responseBodyLiterals(catchClause, tainted) {
   const bodies = [];
   const visit = (node) => {
     if (ts.isCallExpression(node)) {
       const name = callName(node.expression);
+      if (isCanonicalJsonErrorDoor(node, tainted)) return;
       if (name && RESPONSE_BUILDERS.has(name)) {
         for (const argument of node.arguments) {
           if (ts.isObjectLiteralExpression(argument)) bodies.push(argument);
@@ -264,7 +315,7 @@ export function checkSource(relativePath, source) {
     if (ts.isCatchClause(node)) {
       const tainted = taintedIdentifiers(node);
       if (tainted.size > 0) {
-        for (const body of responseBodyLiterals(node)) {
+        for (const body of responseBodyLiterals(node, tainted)) {
           for (const property of body.properties) {
             if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property)) {
               continue;
@@ -360,6 +411,11 @@ function selfTest() {
   }
 
   const safe = [
+    [
+      'Track D jsonError door',
+      'doctor/x/route.ts',
+      "export async function POST() { try { await run(); } catch (e) { return jsonError({ error: e, fallback: { code: 'failed', status: 500 }, logEvent: 'doctor_x_failed' }); } }",
+    ],
     [
       'door',
       'doctor/x/route.ts',

@@ -5,27 +5,41 @@ import { NextResponse } from 'next/server';
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
-vi.mock('@/app-layer/guards/requireEntitlement', () => ({
-  getMechanicMutationAvailability: vi.fn(),
-  requireEntitlementForRead: vi.fn(),
-  requireEntitlementForMutation: vi.fn(),
-  requireEntitlementForMutationAction: vi.fn(),
-  requireEntitlementForReadAction: vi.fn(),
-  entitlementMutationRefusalMessage: (action: string) =>
+vi.mock('@/app-layer/guards/requireEntitlement', async () => {
+  // The refusal a server action throws is a real `TypedApiResponseError`, not a stand-in: that is
+  // exactly what makes the shared error door keep it distinct instead of collapsing it, so the
+  // double has to carry the real class rather than describe it.
+  const { TypedApiResponseError } = await vi.importActual<
+    typeof import('@/shared/http/apiResponse')
+  >('@/shared/http/apiResponse');
+  const entitlementMutationRefusalMessage = (action: string) =>
     'Невозможно ' +
     action +
-    ': этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
-  entitlementMutationRefusalResponse: (mechanic: string, action: string) =>
-    new Response(
-      JSON.stringify({
-        ok: false,
-        error: 'entitlement_required',
-        mechanic,
-        message: `Невозможно ${action}: этот раздел не входит в ваш тариф.`,
+    ': этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.';
+  return {
+    getMechanicMutationAvailability: vi.fn(),
+    requireEntitlementForRead: vi.fn(),
+    requireEntitlementForMutation: vi.fn(),
+    requireEntitlementForMutationAction: vi.fn(),
+    requireEntitlementForReadAction: vi.fn(),
+    entitlementMutationRefusalMessage,
+    entitlementMutationRefusalError: (action: string) =>
+      new TypedApiResponseError({
+        code: entitlementMutationRefusalMessage(action),
+        status: 403,
       }),
-      { status: 403, headers: { 'content-type': 'application/json' } },
-    ),
-}));
+    entitlementMutationRefusalResponse: (mechanic: string, action: string) =>
+      new Response(
+        JSON.stringify({
+          ok: false,
+          error: 'entitlement_required',
+          mechanic,
+          message: `Невозможно ${action}: этот раздел не входит в ваш тариф.`,
+        }),
+        { status: 403, headers: { 'content-type': 'application/json' } },
+      ),
+  };
+});
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireClinicManagementApiContext: vi.fn(),
   requireDoctorWorkspaceApiContext: vi.fn(),

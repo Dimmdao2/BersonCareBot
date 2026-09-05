@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { savePatientHomeRepeatCooldownsAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
+import { actionFailureLine } from '@/shared/ui/doctor/ActionFailureText';
 import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
@@ -65,7 +66,7 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
         planItemRepeatMinutes: p,
       });
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(actionFailureLine(result));
         return;
       }
       toast.success('Сохранено');

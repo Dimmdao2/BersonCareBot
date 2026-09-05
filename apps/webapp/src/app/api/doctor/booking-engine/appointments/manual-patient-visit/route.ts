@@ -1,4 +1,27 @@
 import { NextResponse } from 'next/server';
+import { jsonError, mapApiError, type ApiErrorLiteralRules } from '@/shared/http/apiResponse';
+
+/**
+ * Closed allowlist of the booking-catalog refusals these manual-create routes may name. Codes are
+ * echoed through the shared mapper instead of through the caught error's own text, so a rejected
+ * statement can no longer take the same exit.
+ */
+const MANUAL_CREATE_ERROR_RULES: ApiErrorLiteralRules = {
+  visit_in_future: { code: 'visit_in_future', status: 400 },
+  invalid_visit_time: { code: 'invalid_visit_time', status: 400 },
+  branch_not_found: { code: 'branch_not_found', status: 404 },
+  service_not_found: { code: 'service_not_found', status: 404 },
+  specialist_not_found: { code: 'specialist_not_found', status: 404 },
+  service_not_available_for_specialist: {
+    code: 'service_not_available_for_specialist',
+    status: 409,
+  },
+  room_branch_mismatch: { code: 'room_branch_mismatch', status: 409 },
+};
+
+/** Distinct object identity: `mapApiError` returns this exact value when nothing matched. */
+const MANUAL_CREATE_UNMAPPED = { code: 'appointment_create_unavailable', status: 503 } as const;
+
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
@@ -248,8 +271,12 @@ export async function POST(request: Request) {
     if (message === 'idempotency_conflict') {
       return NextResponse.json({ ok: false, error: 'idempotency_conflict' }, { status: 409 });
     }
-    if (message === 'visit_in_future' || message === 'invalid_visit_time') {
-      return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    const visitTimeRefusal = mapApiError(error, MANUAL_CREATE_ERROR_RULES, MANUAL_CREATE_UNMAPPED);
+    if (
+      visitTimeRefusal !== MANUAL_CREATE_UNMAPPED &&
+      (visitTimeRefusal.code === 'visit_in_future' || visitTimeRefusal.code === 'invalid_visit_time')
+    ) {
+      return jsonError(visitTimeRefusal.code, {}, { status: visitTimeRefusal.status });
     }
     if (
       message === 'email_conflict' ||
@@ -260,15 +287,9 @@ export async function POST(request: Request) {
     if (message === 'identity_conflict' || message === 'patient_not_available') {
       return NextResponse.json({ ok: false, error: 'patient_not_available' }, { status: 409 });
     }
-    if (
-      message === 'branch_not_found' ||
-      message === 'service_not_found' ||
-      message === 'specialist_not_found'
-    ) {
-      return NextResponse.json({ ok: false, error: message }, { status: 404 });
-    }
-    if (message === 'service_not_available_for_specialist' || message === 'room_branch_mismatch') {
-      return NextResponse.json({ ok: false, error: message }, { status: 409 });
+    const catalogRefusal = mapApiError(error, MANUAL_CREATE_ERROR_RULES, MANUAL_CREATE_UNMAPPED);
+    if (catalogRefusal !== MANUAL_CREATE_UNMAPPED) {
+      return jsonError(catalogRefusal.code, {}, { status: catalogRefusal.status });
     }
     console.error('[manual-patient-appointment] create failed', {
       errorClass: error instanceof Error ? error.name : 'unknown',

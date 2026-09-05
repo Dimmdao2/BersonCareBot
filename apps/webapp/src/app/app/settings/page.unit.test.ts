@@ -21,6 +21,8 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('@bersoncare/db-principal', () => ({
   runWithDbClinicBillingPrincipal: vi.fn(),
+  ensureCorrelationId: () => 'test-correlation-id',
+  getCurrentObservabilityContext: () => ({}),
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({

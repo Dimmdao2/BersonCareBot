@@ -6,6 +6,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import { savePatientHomeWarmupRotationAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
+import { actionFailureLine } from '@/shared/ui/doctor/ActionFailureText';
 import {
   DEFAULT_PATIENT_HOME_DAILY_WARMUP_ROTATION_TIMES,
   MAX_DAILY_WARMUP_ROTATION_TIMES,
@@ -61,7 +62,7 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
         times: [...times].map((t) => t.trim()),
       });
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(actionFailureLine(result));
         return;
       }
       toast.success('Сохранено');

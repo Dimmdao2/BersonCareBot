@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { jsonError } from '@/shared/http/apiResponse';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolveDoctorCalendarIana } from '@/app-layer/booking/resolveDoctorCalendarIana';
@@ -8,7 +9,6 @@ import {
   parseDoctorScheduleScopeQuery,
   resolveDoctorScheduleScope,
 } from '../../_resolveDoctorScheduleScope';
-import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const FeedQuerySchema = z.object({
   from: z.string().datetime({ offset: true }).optional(),
@@ -71,10 +71,10 @@ export async function GET(request: Request) {
     });
     return NextResponse.json({ ok: true, timeZone, ...page });
   } catch (error) {
-    return respondWithSafeApiError('api/doctor/booking-engine/appointments/feed', error, {
-      fallbackCode: 'appointments_feed_failed',
-      fallbackStatus: 500,
-      domainStatus: 500,
+    return jsonError({
+      error,
+      fallback: { code: 'appointment_feed_load_failed', status: 500 },
+      logEvent: 'doctor_appointment_feed_failed',
     });
   }
 }

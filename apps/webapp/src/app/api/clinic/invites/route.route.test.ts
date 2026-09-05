@@ -21,6 +21,10 @@ vi.mock('@/modules/auth/emailAuth', async (importOriginal) => {
 });
 vi.mock('@bersoncare/db-principal', () => ({
   runWithDbClinicBillingPrincipal: <T>(_principal: unknown, callback: () => T): T => callback(),
+  // The shared error door resolves this request's correlation id and the root logger stamps it on
+  // every line, so both live on the module graph of any route that answers with `jsonError`.
+  ensureCorrelationId: () => 'test-correlation-id',
+  getCurrentObservabilityContext: () => ({}),
 }));
 vi.mock('@/infra/integrations/email/integratorEmailAdapter', () => ({
   sendEmailSetupLinkViaIntegrator: vi.fn().mockResolvedValue({ ok: true }),

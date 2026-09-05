@@ -1,4 +1,14 @@
 import { NextResponse } from 'next/server';
+import { jsonError, type ApiErrorLiteralRules } from '@/shared/http/apiResponse';
+
+/** Closed allowlist of the payment refusals the doctor screen may be told about. */
+const PAYMENT_ERROR_RULES: ApiErrorLiteralRules = {
+  payments_disabled: { code: 'payments_disabled', status: 422 },
+  payments_unavailable: { code: 'payments_unavailable', status: 503 },
+  payment_provider_unavailable: { code: 'payment_provider_unavailable', status: 503 },
+  appointment_not_found: { code: 'appointment_not_found', status: 404 },
+  package_not_found: { code: 'package_not_found', status: 404 },
+};
 import { z } from 'zod';
 import {
   createStaffAppointmentPaymentsService,
@@ -11,7 +21,6 @@ import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
 import { resolveDoctorAppointmentAccess } from '../../../_resolveDoctorAppointmentAccess';
-import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -102,10 +111,11 @@ export async function POST(request: Request, context: RouteContext) {
     if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 409 });
     return NextResponse.json(result);
   } catch (error) {
-    return respondWithSafeApiError('api/doctor/booking-engine/appointments/[id]/payment', error, {
-      fallbackCode: 'appointments_payment_failed',
-      fallbackStatus: 500,
-      domainStatus: 503,
+    return jsonError({
+      error,
+      literalRules: PAYMENT_ERROR_RULES,
+      fallback: { code: 'payment_provider_unavailable', status: 503 },
+      logEvent: 'doctor_appointment_payment_failed',
     });
   }
 }

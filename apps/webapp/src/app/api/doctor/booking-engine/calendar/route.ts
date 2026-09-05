@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { jsonError } from '@/shared/http/apiResponse';
 import { parseCalendarQuery } from '@/app-layer/booking/parseCalendarQuery';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolveDoctorCalendarIana } from '@/app-layer/booking/resolveDoctorCalendarIana';
@@ -10,7 +11,6 @@ import {
   resolveDoctorScheduleScope,
   type ResolvedDoctorScheduleScope,
 } from '../_resolveDoctorScheduleScope';
-import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 function scopeCalendarFilterMeta(
   filters: CalendarFilterMeta,
@@ -81,9 +81,10 @@ export async function GET(request: Request) {
       resolvedScope: scheduleScope.value,
     });
   } catch (err) {
-    return respondWithSafeApiError('api/doctor/booking-engine/calendar', err, {
-      fallbackCode: 'calendar_load_failed',
-      fallbackStatus: 500,
+    return jsonError({
+      error: err,
+      fallback: { code: 'calendar_load_failed', status: 500 },
+      logEvent: 'doctor_calendar_load_failed',
     });
   }
 }

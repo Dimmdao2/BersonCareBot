@@ -1,8 +1,19 @@
 import { NextResponse } from 'next/server';
+import { jsonError, mapApiError, type ApiErrorLiteralRules } from '@/shared/http/apiResponse';
 import { z } from 'zod';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
+
+const AVAILABILITY_ERROR_RULES: ApiErrorLiteralRules = {
+  service_not_found: { code: 'service_not_found', status: 404 },
+  branch_not_found: { code: 'branch_not_found', status: 404 },
+  specialist_not_found: { code: 'specialist_not_found', status: 404 },
+};
+
+/** Distinct object identity: `mapApiError` returns this exact value when nothing matched. */
+const AVAILABILITY_UNKNOWN = { code: 'availability_write_failed', status: 500 } as const;
+
 
 const SpecialistSchema = z.object({
   kind: z.literal('specialist_service'),
@@ -88,15 +99,11 @@ export async function POST(request: Request) {
       );
       return NextResponse.json({ ok: true, ...result });
     } catch (error) {
-      const code = error instanceof Error ? error.message : '';
-      if (
-        code === 'service_not_found' ||
-        code === 'branch_not_found' ||
-        code === 'specialist_not_found'
-      ) {
-        return NextResponse.json({ ok: false, error: code }, { status: 404 });
-      }
-      throw error;
+      // Known codes stay distinct through the shared mapper; anything else keeps re-throwing, so
+      // an unknown failure reaches `onRequestError` instead of describing itself to the browser.
+      const mapped = mapApiError(error, AVAILABILITY_ERROR_RULES, AVAILABILITY_UNKNOWN);
+      if (mapped === AVAILABILITY_UNKNOWN) throw error;
+      return jsonError(mapped.code, {}, { status: mapped.status });
     }
   }
   const service = await gate.ctx.service.services.getService(parsed.data.serviceId);

@@ -1,5 +1,6 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
+import { jsonError } from '@/shared/http/apiResponse';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logger } from '@/app-layer/logging/logger';
@@ -10,7 +11,6 @@ import {
   resolveSlugBoundPublicInPersonBookingOrganization,
 } from '@/modules/patient-booking/inPersonBookingResolve';
 import { inPersonSlotsQuerySchema } from '@/modules/patient-booking/inPersonApiSchemas';
-import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const onlineQuery = z.object({
   type: z.literal('online'),
@@ -85,15 +85,13 @@ export async function GET(request: Request) {
         '[booking/public/slots] in-person booking resolution refused',
       );
     }
-    return respondWithSafeApiError('api/booking/public/slots', err, {
-      fallbackCode: 'slots_unavailable',
-      fallbackStatus: 503,
-      domainStatus: (code) => {
-        if (!(err instanceof InPersonBookingResolveError)) {
-          return code === 'branch_service_not_found' ? 404 : 503;
-        }
-        return code === 'branch_service_mapping_missing' ? 404 : 400;
+    return jsonError({
+      error: err,
+      literalRules: {
+        branch_service_not_found: { code: 'branch_service_not_found', status: 404 },
       },
+      fallback: { code: 'slots_unavailable', status: 503 },
+      logEvent: 'public_booking_slots_failed',
     });
   }
 }

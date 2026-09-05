@@ -49,6 +49,10 @@ vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
 }));
 vi.mock('@bersoncare/db-principal', () => ({
   runWithDbOrganizationPrincipal: <T>(_organizationId: string, callback: () => T): T => callback(),
+  // The shared error door resolves this request's correlation id and the root logger stamps it on
+  // every line, so both live on the module graph of any route that answers with `jsonError`.
+  ensureCorrelationId: () => 'test-correlation-id',
+  getCurrentObservabilityContext: () => ({}),
 }));
 vi.mock('@/infra/payments/paymentProviderRegistry', () => ({
   getPaymentProviderAdapter: fakes.getPaymentProviderAdapter,

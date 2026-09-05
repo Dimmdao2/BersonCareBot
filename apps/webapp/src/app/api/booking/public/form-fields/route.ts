@@ -1,5 +1,6 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
+import { jsonError } from '@/shared/http/apiResponse';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logger } from '@/app-layer/logging/logger';
@@ -8,7 +9,6 @@ import {
   InPersonBookingResolveError,
   resolveSlugBoundPublicInPersonBookingOrganization,
 } from '@/modules/patient-booking/inPersonBookingResolve';
-import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
 const querySchema = z.object({
   orgSlug: z.string().trim().min(1).max(120),
@@ -55,10 +55,10 @@ export async function GET(request: Request) {
         '[booking/public/form-fields] in-person booking resolution refused',
       );
     }
-    return respondWithSafeApiError('api/booking/public/form-fields', error, {
-      fallbackCode: 'ambiguous_booking_tenant',
-      fallbackStatus: 500,
-      domainStatus: (code) => (code === 'branch_service_mapping_missing' ? 404 : 400),
+    return jsonError({
+      error,
+      fallback: { code: 'ambiguous_booking_tenant', status: 400 },
+      logEvent: 'public_booking_form_fields_failed',
     });
   }
 }

@@ -6,7 +6,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
-  entitlementMutationRefusalMessage,
+  entitlementMutationRefusalError,
   requireEntitlementForMutationAction,
 } from '@/app-layer/guards/requireEntitlement';
 import {
@@ -17,6 +17,11 @@ import {
   isValidPatientHomeDailyWarmupRotationTimesPayload,
   normalizeDailyWarmupRotationTime,
 } from '@/modules/patient-home/patientHomeDailyWarmupRotationSettings';
+import {
+  safeActionFailure,
+  TypedApiResponseError,
+  type ActionFailureFields,
+} from '@/shared/http/apiResponse';
 
 function revalidatePatientHomePages(): void {
   revalidatePath('/app/doctor/patient-home');
@@ -45,7 +50,7 @@ async function requirePatientHomeOwnerOrThrow(): Promise<{
 }> {
   const workspace = await requireDoctorWorkspaceContext();
   if (workspace.membershipRole !== 'owner') {
-    throw new Error('forbidden');
+    throw new TypedApiResponseError({ code: 'forbidden', status: 403 });
   }
   await requirePatientHomeTodayEntitlementOrThrow(workspace.organizationId);
   return { userId: workspace.session.user.userId, organizationId: workspace.organizationId };
@@ -57,22 +62,20 @@ async function requirePatientHomeTodayEntitlementOrThrow(organizationId: string)
     'patient_home_today',
   );
   if (!entitlement.ok) {
-    throw new Error(
-      entitlementMutationRefusalMessage('изменить настройки главной страницы пациента'),
-    );
+    throw entitlementMutationRefusalError('изменить настройки главной страницы пациента');
   }
 }
 
 async function requireWarmupsEntitlementOrThrow(organizationId: string): Promise<void> {
   const entitlement = await requireEntitlementForMutationAction({ organizationId }, 'warmups');
   if (!entitlement.ok) {
-    throw new Error(entitlementMutationRefusalMessage('изменить настройки разминок'));
+    throw entitlementMutationRefusalError('изменить настройки разминок');
   }
 }
 
 export async function savePatientHomePracticeTargetAction(
   target: number,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true } | ({ ok: false } & ActionFailureFields)> {
   try {
     const { userId, organizationId } = await requirePatientHomeOwnerOrThrow();
     if (!Number.isFinite(target) || target < 1 || target > 10) {
@@ -91,7 +94,10 @@ export async function savePatientHomePracticeTargetAction(
     revalidatePatientHomePages();
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'forbidden' };
+    return {
+      ok: false,
+      ...safeActionFailure(error, 'forbidden', 'patient_home_doctor_setting_failed'),
+    };
   }
 }
 
@@ -111,7 +117,7 @@ const patientHomeRepeatCooldownsSaveSchema = z.object({
 /** Specialist workspace setting: паузы повтора разминки / пунктов плана. */
 export async function savePatientHomeRepeatCooldownsAction(
   input: z.infer<typeof patientHomeRepeatCooldownsSaveSchema>,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true } | ({ ok: false } & ActionFailureFields)> {
   try {
     const { userId, organizationId } = await requireDoctorWorkspaceOrThrow();
     await requireWarmupsEntitlementOrThrow(organizationId);
@@ -142,14 +148,17 @@ export async function savePatientHomeRepeatCooldownsAction(
     revalidatePatientHomePages();
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'forbidden' };
+    return {
+      ok: false,
+      ...safeActionFailure(error, 'forbidden', 'patient_home_doctor_setting_failed'),
+    };
   }
 }
 
 export async function savePatientHomeWarmupRotationAction(input: {
   enabled: boolean;
   times: string[];
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<{ ok: true } | ({ ok: false } & ActionFailureFields)> {
   try {
     const { userId, organizationId } = await requirePatientHomeOwnerOrThrow();
     await requireWarmupsEntitlementOrThrow(organizationId);
@@ -185,6 +194,9 @@ export async function savePatientHomeWarmupRotationAction(input: {
     revalidatePatientHomePages();
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'forbidden' };
+    return {
+      ok: false,
+      ...safeActionFailure(error, 'forbidden', 'patient_home_doctor_setting_failed'),
+    };
   }
 }
