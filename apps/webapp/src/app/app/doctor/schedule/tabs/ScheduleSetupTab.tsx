@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { BookingPublicAttributionSection } from '@/app/app/settings/BookingPublicAttributionSection';
 import { BookingPublicWidgetSection } from '@/app/app/settings/BookingPublicWidgetSection';
 import { BookingPrepaymentSection } from '@/app/app/settings/BookingPrepaymentSection';
-import { BookingPaymentsSection } from '@/app/app/settings/BookingPaymentsSection';
 import { BookingSoloAvailabilitySection } from '@/app/app/settings/BookingSoloAvailabilitySection';
 import { BookingSoloFormFieldsSection } from '@/app/app/settings/BookingSoloFormFieldsSection';
 import { BookingSoloLocationsSection } from '@/app/app/settings/BookingSoloLocationsSection';
@@ -12,7 +11,6 @@ import { BookingSoloServicesSection } from '@/app/app/settings/BookingSoloServic
 import { BookingSoloSpecialistsSection } from '@/app/app/settings/BookingSoloSpecialistsSection';
 import { BookingRulesPageClient } from '@/app/app/doctor/admin/booking/BookingRulesPageClient';
 import { ScheduleNotificationsSection } from './notifications/ScheduleNotificationsSection';
-import { parseBookingPaymentSettingsValue } from '@/modules/payments/bookingPaymentSettings';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -94,73 +92,6 @@ function resolveSectionId(
     return raw as SetupSectionId;
   }
   return DEFAULT_SECTION;
-}
-
-// ---------------------------------------------------------------------------
-// Client-fetching wrapper for BookingPaymentsSection
-// Payments page uses SSR props; we fetch them lazily from GET /api/admin/settings.
-// ---------------------------------------------------------------------------
-
-type PaymentSettingsState =
-  | { phase: 'loading' }
-  | { phase: 'error'; message: string }
-  | {
-      phase: 'ready';
-      paymentEnabled: boolean;
-      providersJson: ReturnType<typeof parseBookingPaymentSettingsValue>;
-    };
-
-function BookingPaymentsSectionLoader({ readOnly }: { readOnly: boolean }) {
-  const [state, setState] = useState<PaymentSettingsState>({ phase: 'loading' });
-  const [, startTransition] = useTransition();
-
-  const load = useCallback(() => {
-    startTransition(async () => {
-      const res = await fetch('/api/admin/settings');
-      const json = (await res.json().catch(() => null)) as {
-        ok?: boolean;
-        settings?: Array<{ key: string; valueJson: unknown }>;
-      } | null;
-      if (!res.ok || !json?.ok) {
-        setState({ phase: 'error', message: 'Не удалось загрузить настройки оплаты' });
-        return;
-      }
-      const enabledRow = json.settings?.find((s) => s.key === 'booking_payment_enabled');
-      const providersRow = json.settings?.find((s) => s.key === 'booking_payment_providers');
-      const paymentEnabled =
-        enabledRow != null &&
-        enabledRow.valueJson !== null &&
-        typeof enabledRow.valueJson === 'object' &&
-        (enabledRow.valueJson as Record<string, unknown>).value === true;
-      const providersJson = parseBookingPaymentSettingsValue(providersRow?.valueJson ?? null);
-      setState({ phase: 'ready', paymentEnabled, providersJson });
-    });
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  if (state.phase === 'loading') {
-    return <DoctorPanelLoading className="py-6" />;
-  }
-  if (state.phase === 'error') {
-    return (
-      <div className="flex items-center gap-2">
-        <p className="text-sm text-destructive">{state.message}</p>
-        <Button type="button" size="sm" variant="outline" onClick={load}>
-          Повторить
-        </Button>
-      </div>
-    );
-  }
-  return (
-    <BookingPaymentsSection
-      paymentEnabled={state.paymentEnabled}
-      providersJson={state.providersJson}
-      readOnly={readOnly}
-    />
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -835,10 +766,15 @@ function SectionForm({
   );
 }
 
-function SectionPayments({ readOnly }: { readOnly: boolean }) {
+/**
+ * PAY-APPT-23: booking settings own the booking rules about money — services, their price and
+ * prepayment policy. The acquiring provider and its credentials belong to the clinic that owns the
+ * merchant account and now live in `Настройки клиники → Платёжные настройки`; there is no second
+ * copy of those fields here.
+ */
+function SectionPayments() {
   return (
     <div className={BOOKING_CARD_GRID_CLASS}>
-      <BookingPaymentsSectionLoader readOnly={readOnly} />
       <BookingPrepaymentSection />
     </div>
   );
@@ -867,7 +803,6 @@ export function ScheduleSetupTab({
   isActive,
   doctorStatisticsEnabled,
   paymentsVisible = true,
-  paymentsReadOnly = false,
   notificationTemplatesVisible = true,
   packagesVisible = true,
   packagesReadOnly = false,
@@ -949,9 +884,7 @@ export function ScheduleSetupTab({
         {activeSection === 'form' && (
           <SectionForm doctorStatisticsEnabled={doctorStatisticsEnabled} />
         )}
-        {activeSection === 'payments' && paymentsVisible && (
-          <SectionPayments readOnly={paymentsReadOnly} />
-        )}
+        {activeSection === 'payments' && paymentsVisible && <SectionPayments />}
         {activeSection === 'rules' && <SectionRules />}
         {activeSection === 'notifications' && notificationTemplatesVisible && (
           <SectionNotifications />

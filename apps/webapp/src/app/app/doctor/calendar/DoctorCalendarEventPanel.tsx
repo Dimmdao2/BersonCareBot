@@ -14,6 +14,7 @@ import {
   DoctorModalStackedTitle,
 } from '@/shared/ui/doctor/DoctorModal';
 import {
+  doctorAppointmentStatusTextClass,
   doctorBodyTextClass,
   doctorInlineMetricValueClass,
   doctorSecondaryListTextClass,
@@ -163,7 +164,14 @@ function appointmentStatusToneClass(status: string): string {
   if (status === 'rescheduled') {
     return 'border-purple-500/40 bg-purple-500/10 text-purple-800 dark:text-purple-200';
   }
-  if (['awaiting_payment', 'manual_review_required'].includes(status)) {
+  // PAY-APPT-17: ожидание оплаты — общая semantic-роль, а не локальный оттенок этого экрана.
+  if (status === 'awaiting_payment') {
+    return cn(
+      'border-[color:var(--doctor-status-payment-pending)]/40 bg-[color:var(--doctor-status-payment-pending)]/10',
+      doctorAppointmentStatusTextClass('payment-pending'),
+    );
+  }
+  if (status === 'manual_review_required') {
     return 'border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100';
   }
   return 'border-primary/30 bg-primary/10 text-primary';

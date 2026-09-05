@@ -60,6 +60,17 @@ export function redactWebPushVapidSettingForClient(row: SystemSetting): SystemSe
   };
 }
 
+/**
+ * PAY-APPT-22: an acquiring secret is stored server-side and never comes back to the UI — not even
+ * as a `[REDACTED]` placeholder. A placeholder is still a secret-shaped field: it round-trips
+ * through the form, has to be special-cased on the write path, and reads as "there is a value here"
+ * to anything that only checks for a non-empty string.
+ *
+ * The projection follows the `web_push_vapid` pattern above — drop the secret, state the fact —
+ * so the admin can still tell a configured provider from an unconfigured one: non-secret merchant
+ * identifiers (shop id, terminal key, public id, merchant login, gateway url) stay visible,
+ * `apiKey`/`webhookSecret` are replaced by `hasApiKey`/`hasWebhookSecret`.
+ */
 function redactBookingPaymentProvidersSettingForClient(row: SystemSetting): SystemSetting {
   if (row.key !== 'booking_payment_providers') return row;
   const vj = row.valueJson;
@@ -69,17 +80,19 @@ function redactBookingPaymentProvidersSettingForClient(row: SystemSetting): Syst
   if (inner === null || typeof inner !== 'object' || Array.isArray(inner)) return row;
   const o = inner as Record<string, unknown>;
   const providers = Array.isArray(o.providers) ? o.providers : [];
-  const redacted = providers.map((item) => {
+  const projected = providers.map((item) => {
     if (item === null || typeof item !== 'object') return item;
     const p = { ...(item as Record<string, unknown>) };
-    if (typeof p.webhookSecret === 'string' && p.webhookSecret.trim())
-      p.webhookSecret = '[REDACTED]';
-    if (typeof p.apiKey === 'string' && p.apiKey.trim()) p.apiKey = '[REDACTED]';
-    return p;
+    const hasApiKey = typeof p.apiKey === 'string' && p.apiKey.trim().length > 0;
+    const hasWebhookSecret =
+      typeof p.webhookSecret === 'string' && p.webhookSecret.trim().length > 0;
+    delete p.apiKey;
+    delete p.webhookSecret;
+    return { ...p, hasApiKey, hasWebhookSecret };
   });
   return {
     ...row,
-    valueJson: { value: { ...o, providers: redacted } },
+    valueJson: { value: { ...o, providers: projected } },
   };
 }
 

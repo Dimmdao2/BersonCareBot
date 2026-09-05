@@ -15,13 +15,16 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { patchAdminSetting } from './patchAdminSetting';
 
+/**
+ * PAY-APPT-22: the row this form receives is the safe projection — non-secret merchant identifiers
+ * plus `hasApiKey`/`hasWebhookSecret` facts. No secret and no secret-shaped placeholder ever
+ * reaches the browser, so the stored value is not representable here at all.
+ */
 type ProviderRow = {
   id: string;
   label: string;
   enabled: boolean;
-  webhookSecret?: string;
   shopId?: string;
-  apiKey?: string;
   // Tinkoff
   terminalKey?: string;
   // Alfa-Bank
@@ -29,6 +32,8 @@ type ProviderRow = {
   gatewayUrl?: string;
   // CloudPayments
   publicId?: string;
+  hasApiKey?: boolean;
+  hasWebhookSecret?: boolean;
 };
 
 const EMPTY_FISCAL_CODE = '__unset__';
@@ -61,6 +66,40 @@ function optionLabel(
   emptyLabel: string,
 ): string {
   return options.find((option) => option.value === value)?.label ?? emptyLabel;
+}
+
+/**
+ * The one place this form renders an acquiring secret. It is write-only by construction: the value
+ * is never populated from props (PAY-APPT-22 means there is nothing to populate it with), and the
+ * stored state is communicated as a fact — «Сохранён» / «Не задан» — instead of a fake value.
+ */
+function ProviderSecretField({
+  label,
+  configured,
+  value,
+  onChange,
+}: {
+  label: string;
+  configured: boolean;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label>{label}</Label>
+      <Input
+        type="password"
+        autoComplete="new-password"
+        spellCheck={false}
+        placeholder={configured ? 'Сохранён — введите новый для замены' : label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <p className="text-xs text-muted-foreground">
+        {configured ? 'Сохранён на сервере' : 'Не задан'}
+      </p>
+    </div>
+  );
 }
 
 type Props = {
@@ -110,17 +149,21 @@ export function BookingPaymentsSection({
         defaultProviderId,
         fiscalVatCode: fiscalVatCode === EMPTY_FISCAL_CODE ? null : fiscalVatCode,
         fiscalTaxSystemCode: fiscalTaxSystemCode === EMPTY_FISCAL_CODE ? null : fiscalTaxSystemCode,
-        providers: providers.map((p) => ({
-          ...p,
-          webhookSecret:
-            p.id === 'yookassa' ? undefined : webhookSecrets[p.id]?.trim() || p.webhookSecret || '',
-          shopId: shopIds[p.id]?.trim() || p.shopId || '',
-          apiKey: apiKeys[p.id]?.trim() || p.apiKey || '',
-          terminalKey: terminalKeys[p.id]?.trim() || p.terminalKey || '',
-          merchantLogin: merchantLogins[p.id]?.trim() || p.merchantLogin || '',
-          gatewayUrl: gatewayUrls[p.id]?.trim() || p.gatewayUrl || '',
-          publicId: publicIds[p.id]?.trim() || p.publicId || '',
-        })),
+        providers: providers.map(
+          ({ hasApiKey: _hasApiKey, hasWebhookSecret: _hasWebhookSecret, ...p }) => ({
+            ...p,
+            // An untouched secret goes back as '' — the server keeps the stored one
+            // (`mergeBookingPaymentProvidersSecretsRetain`). The form has nothing else to send: it
+            // never received the value.
+            webhookSecret: p.id === 'yookassa' ? undefined : webhookSecrets[p.id]?.trim() || '',
+            shopId: shopIds[p.id]?.trim() || p.shopId || '',
+            apiKey: apiKeys[p.id]?.trim() || '',
+            terminalKey: terminalKeys[p.id]?.trim() || p.terminalKey || '',
+            merchantLogin: merchantLogins[p.id]?.trim() || p.merchantLogin || '',
+            gatewayUrl: gatewayUrls[p.id]?.trim() || p.gatewayUrl || '',
+            publicId: publicIds[p.id]?.trim() || p.publicId || '',
+          }),
+        ),
       });
       if (!okEnabled || !okProviders) setError('Не удалось сохранить');
     });
@@ -129,9 +172,13 @@ export function BookingPaymentsSection({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Платежи записи</CardTitle>
+        <CardTitle className="text-base">Платёжные настройки</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Эквайринговый счёт клиники: провайдер приёма оплат и его реквизиты. Услуги, их стоимость и
+          условия предоплаты настраиваются в «Расписание → Настройки записи».
+        </p>
         {readOnly ? (
           <p className="text-sm text-muted-foreground">
             Настройки приёма оплат доступны только для просмотра по текущему тарифу.
@@ -241,16 +288,12 @@ export function BookingPaymentsSection({
                       onChange={(e) => setShopIds((prev) => ({ ...prev, [p.id]: e.target.value }))}
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label>Секретный ключ API</Label>
-                    <Input
-                      type="password"
-                      autoComplete="off"
-                      placeholder="Секретный ключ API"
-                      value={apiKeys[p.id] ?? ''}
-                      onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                    />
-                  </div>
+                  <ProviderSecretField
+                    label="Секретный ключ API"
+                    configured={p.hasApiKey === true}
+                    value={apiKeys[p.id] ?? ''}
+                    onChange={(next) => setApiKeys((prev) => ({ ...prev, [p.id]: next }))}
+                  />
                 </>
               ) : null}
 
@@ -267,28 +310,18 @@ export function BookingPaymentsSection({
                       }
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label>Секретный пароль</Label>
-                    <Input
-                      type="password"
-                      autoComplete="off"
-                      placeholder="Секретный пароль"
-                      value={apiKeys[p.id] ?? ''}
-                      onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Webhook Secret</Label>
-                    <Input
-                      type="password"
-                      autoComplete="off"
-                      placeholder="Webhook secret"
-                      value={webhookSecrets[p.id] ?? ''}
-                      onChange={(e) =>
-                        setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))
-                      }
-                    />
-                  </div>
+                  <ProviderSecretField
+                    label="Секретный пароль"
+                    configured={p.hasApiKey === true}
+                    value={apiKeys[p.id] ?? ''}
+                    onChange={(next) => setApiKeys((prev) => ({ ...prev, [p.id]: next }))}
+                  />
+                  <ProviderSecretField
+                    label="Webhook Secret"
+                    configured={p.hasWebhookSecret === true}
+                    value={webhookSecrets[p.id] ?? ''}
+                    onChange={(next) => setWebhookSecrets((prev) => ({ ...prev, [p.id]: next }))}
+                  />
                 </>
               ) : null}
 
@@ -313,28 +346,18 @@ export function BookingPaymentsSection({
                       onChange={(e) => setShopIds((prev) => ({ ...prev, [p.id]: e.target.value }))}
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label>Пароль мерчанта</Label>
-                    <Input
-                      type="password"
-                      autoComplete="off"
-                      placeholder="Пароль мерчанта"
-                      value={apiKeys[p.id] ?? ''}
-                      onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Webhook Secret</Label>
-                    <Input
-                      type="password"
-                      autoComplete="off"
-                      placeholder="Webhook secret"
-                      value={webhookSecrets[p.id] ?? ''}
-                      onChange={(e) =>
-                        setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))
-                      }
-                    />
-                  </div>
+                  <ProviderSecretField
+                    label="Пароль мерчанта"
+                    configured={p.hasApiKey === true}
+                    value={apiKeys[p.id] ?? ''}
+                    onChange={(next) => setApiKeys((prev) => ({ ...prev, [p.id]: next }))}
+                  />
+                  <ProviderSecretField
+                    label="Webhook Secret"
+                    configured={p.hasWebhookSecret === true}
+                    value={webhookSecrets[p.id] ?? ''}
+                    onChange={(next) => setWebhookSecrets((prev) => ({ ...prev, [p.id]: next }))}
+                  />
                   <div className="space-y-1">
                     <Label>URL шлюза (необязательно)</Label>
                     <Input
@@ -361,28 +384,18 @@ export function BookingPaymentsSection({
                       }
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label>API Secret</Label>
-                    <Input
-                      type="password"
-                      autoComplete="off"
-                      placeholder="API Secret"
-                      value={apiKeys[p.id] ?? ''}
-                      onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Webhook Secret</Label>
-                    <Input
-                      type="password"
-                      autoComplete="off"
-                      placeholder="Webhook secret"
-                      value={webhookSecrets[p.id] ?? ''}
-                      onChange={(e) =>
-                        setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))
-                      }
-                    />
-                  </div>
+                  <ProviderSecretField
+                    label="API Secret"
+                    configured={p.hasApiKey === true}
+                    value={apiKeys[p.id] ?? ''}
+                    onChange={(next) => setApiKeys((prev) => ({ ...prev, [p.id]: next }))}
+                  />
+                  <ProviderSecretField
+                    label="Webhook Secret"
+                    configured={p.hasWebhookSecret === true}
+                    value={webhookSecrets[p.id] ?? ''}
+                    onChange={(next) => setWebhookSecrets((prev) => ({ ...prev, [p.id]: next }))}
+                  />
                 </>
               ) : null}
             </div>

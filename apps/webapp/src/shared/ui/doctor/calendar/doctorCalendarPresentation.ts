@@ -1,4 +1,10 @@
 import { DateTime } from 'luxon';
+import { cn } from '@/lib/utils';
+import {
+  isCancelledAppointmentStatus,
+  isPaymentPendingAppointment,
+} from '@/modules/booking-calendar/appointmentStatusLabels';
+import { DOCTOR_APPOINTMENT_PAYMENT_PENDING_EVENT_CLASS } from '../doctorVisual';
 
 export const doctorCalendarNonWorkingClassNames = ['doctor-calendar-nonworking'] as const;
 
@@ -85,4 +91,102 @@ export function buildDoctorCalendarNonWorkingRanges(
 
 export function formatDoctorCalendarHour(hour: number): string {
   return String(hour).padStart(2, '0');
+}
+
+/**
+ * The appointment fields every doctor calendar view needs to colour an event. Structural on
+ * purpose: `CalendarAppointmentEvent` satisfies it, and this module stays free of the booking
+ * feed's full shape.
+ */
+export type DoctorCalendarAppointmentAppearance = {
+  status: string;
+  prepaymentPending?: boolean;
+  branchColor?: string | null;
+  packageUsageRef?: string | null;
+  packageTitle?: string | null;
+};
+
+/**
+ * Surface (background + text) and border are kept apart so the payment-pending status can repaint
+ * the border WITHOUT fighting the surface. Tailwind's `!border-*` utilities live in
+ * `@layer utilities`; a `!important` declaration in unlayered `doctor.css` ranks BELOW a layered
+ * one, so emitting both and hoping the CSS class wins would silently lose. Instead the border
+ * utility is simply not emitted when the status owns the border.
+ */
+const APPOINTMENT_SURFACES = {
+  package: { surface: '!bg-violet-500/15 text-violet-900', border: '!border-violet-500/40' },
+  branch: { surface: 'text-foreground', border: '' },
+  // R10 «чуть темнее для всего»; прошлые дополнительно приглушаются через .fc-event-past.
+  default: { surface: '!bg-primary/15 text-foreground', border: '!border-primary/35' },
+} as const;
+
+/**
+ * Appointment event classes shared by every doctor calendar view (schedule day/week/month and the
+ * «Сегодня» mini calendar). Both used to keep their own copy of this ladder, which is how the
+ * amber payment tint ended up living in two places.
+ *
+ * §3.7: background/border are `!`-important — in timeGrid FullCalendar paints the event with an
+ * inline style (its default blue) that beats a plain Tailwind utility; an important author rule
+ * wins the cascade. Text/dash/line-through stay ordinary utilities.
+ *
+ * PAY-APPT-14: an appointment awaiting payment keeps whatever surface colour it already had
+ * (branch, package or default) and only adds the shared status treatment on top.
+ */
+export function doctorCalendarAppointmentClassName(
+  appointment: DoctorCalendarAppointmentAppearance,
+): string {
+  if (isCancelledAppointmentStatus(appointment.status))
+    return '!bg-destructive/15 text-destructive/80 !border-destructive/20 line-through';
+  const { surface, border } =
+    appointment.packageUsageRef || appointment.packageTitle
+      ? APPOINTMENT_SURFACES.package
+      : appointment.branchColor
+        ? APPOINTMENT_SURFACES.branch
+        : APPOINTMENT_SURFACES.default;
+  return isPaymentPendingAppointment(appointment)
+    ? cn(surface, DOCTOR_APPOINTMENT_PAYMENT_PENDING_EVENT_CLASS)
+    : cn(surface, border);
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return null;
+  return {
+    r: Number.parseInt(hex.slice(1, 3), 16),
+    g: Number.parseInt(hex.slice(3, 5), 16),
+    b: Number.parseInt(hex.slice(5, 7), 16),
+  };
+}
+
+/** Branch hex → translucent `rgba(...)`; `null` for anything that is not a `#rrggbb` value. */
+export function doctorCalendarBranchColorRgba(hex: string, alpha: number): string | null {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return null;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
+/**
+ * Inline branch tint FullCalendar applies to an event. Cancelled and package appointments carry
+ * their own surface, so they opt out; an appointment awaiting payment does NOT — PAY-APPT-14 keeps
+ * the branch colour and lets the shared status class repaint only the border.
+ */
+export function doctorCalendarAppointmentBranchColors(
+  appointment: DoctorCalendarAppointmentAppearance,
+): { backgroundColor?: string; borderColor?: string } {
+  if (
+    !appointment.branchColor ||
+    isCancelledAppointmentStatus(appointment.status) ||
+    appointment.packageUsageRef ||
+    appointment.packageTitle
+  ) {
+    return {};
+  }
+  const backgroundColor = doctorCalendarBranchColorRgba(appointment.branchColor, 0.16);
+  const borderColor = doctorCalendarBranchColorRgba(appointment.branchColor, 0.42);
+  if (!backgroundColor || !borderColor) return {};
+  // FullCalendar writes `borderColor` as an inline style, which an `!important` author rule still
+  // beats — but the branch border is dropped anyway when the status owns it, so the intent is
+  // readable from the data instead of resting on one cascade rule.
+  return isPaymentPendingAppointment(appointment)
+    ? { backgroundColor }
+    : { backgroundColor, borderColor };
 }

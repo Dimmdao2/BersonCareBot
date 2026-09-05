@@ -110,9 +110,8 @@ export type DoctorScheduleShellProps = {
   initialTimeZone?: string;
   /** Trusted organization-management capability resolved by the server page. */
   canManageOrganization: boolean;
-  /** Tariff-backed visibility and mutability for payment-acceptance controls. */
+  /** Tariff-backed visibility of the booking money section (prepayment policy). */
   paymentsVisible: boolean;
-  paymentsReadOnly: boolean;
   /** Tariff-backed visibility of notification templates. */
   notificationTemplatesVisible: boolean;
   /** Tariff-backed visibility and mutability of membership packages. */
@@ -144,7 +143,6 @@ export function DoctorScheduleShell({
   initialTimeZone,
   canManageOrganization,
   paymentsVisible,
-  paymentsReadOnly,
   notificationTemplatesVisible,
   packagesVisible,
   packagesReadOnly,
@@ -329,7 +327,6 @@ export function DoctorScheduleShell({
               isActive={tabId === activeTab}
               initialTimeZone={initialTimeZone}
               paymentsVisible={paymentsVisible}
-              paymentsReadOnly={paymentsReadOnly}
               notificationTemplatesVisible={notificationTemplatesVisible}
               packagesVisible={packagesVisible}
               packagesReadOnly={packagesReadOnly}
