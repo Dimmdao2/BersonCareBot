@@ -141,6 +141,23 @@ describe('booking payment provider webhook capture', () => {
     expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(1);
   });
 
+  it('does not re-notify on a retry that still names the settled payment', async () => {
+    // The outcome, not the presence of a payment id, decides whether anything new happened: a door
+    // that reports the already-settled payment back must not turn every provider retry into another
+    // «оплата подтверждена» to the patient.
+    const { service, onAppointmentPaymentConfirmed } = buildService([
+      {
+        ...alreadyProcessed,
+        paymentId: PAYMENT_ID,
+        platformUserId: PATIENT_ID,
+        confirmedAppointmentIds: [APPOINTMENT_ID],
+      },
+    ]);
+
+    await expect(deliver(service)).resolves.toEqual({ ok: true, duplicate: true });
+    expect(onAppointmentPaymentConfirmed).not.toHaveBeenCalled();
+  });
+
   it('notifies nobody when the door captured nothing', async () => {
     const { service, onAppointmentPaymentConfirmed } = buildService([
       { ...alreadyProcessed, outcome: 'intent_not_found', duplicate: false },
