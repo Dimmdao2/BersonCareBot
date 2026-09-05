@@ -6,6 +6,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## Canonical HLS delivery cleanup — 05.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Канонический HLS-маршрут без удалённого MP4 fallback | product `fabf99e60`, integration `77abd6e77`, independent audit `d29ef3ec8` (`wt/hls-cleanup-20260904`) | **PASS — READY FOR LAND.** Независимый Opus-аудит: kill-set 31/31, два поведенческих теста подтверждены fault injection, owner-aware rollback-only DEV preflight прошёл; права миграции и все зависимости удаляемых колонок разобраны. Полный артефакт: `docs/_TODO/runs/media-hls-cleanup/AUDIT.md`. |
+
 ## Acquiring webhook settlement principal — 05.09
 
 | слой | коммит | вердикт |
