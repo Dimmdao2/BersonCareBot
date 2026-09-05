@@ -13,6 +13,8 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatDoctorFioShortLabel } from '@/shared/lib/fio';
+import { DoctorPatientName } from './DoctorSupportStar';
 import { Button } from './primitives/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './primitives/dialog';
 import {
@@ -146,43 +148,50 @@ export function DoctorModalStackedTitle({
   entity,
   patientName,
   patientHref,
+  patientOnSupport = false,
   entityClassName,
 }: {
   label: ReactNode;
   entity?: ReactNode;
-  patientName?: ReactNode;
+  patientName?: string | null;
   patientHref?: string | null;
+  patientOnSupport?: boolean;
   entityClassName?: string;
 }) {
   const patientClassName = cn(
     doctorModalTitleClass,
-    'min-w-0 truncate text-right text-sm text-primary',
+    'min-w-0 truncate text-right text-[15px] text-primary',
   );
+  const patientLabel = patientName ? formatDoctorFioShortLabel(patientName) : null;
 
   return (
     <span className="flex w-full min-w-0 flex-col items-start gap-1 text-left">
       <span className="flex w-full min-w-0 items-baseline justify-between gap-3">
         <span>{label}</span>
-        {patientName ? (
-          patientHref ? (
-            <Link
-              href={patientHref}
-              className={cn(patientClassName, 'underline decoration-1 underline-offset-2')}
-              style={{ maxWidth: '55%' }}
-              onClick={(event) => {
-                const target = new URL(patientHref, window.location.href);
-                if (target.pathname !== window.location.pathname) return;
-                event.preventDefault();
-                window.location.assign(target.href);
-              }}
-            >
-              {patientName}
-            </Link>
-          ) : (
-            <span className={patientClassName} style={{ maxWidth: '55%' }}>
-              {patientName}
-            </span>
-          )
+        {patientLabel ? (
+          <DoctorPatientName
+            isOnSupport={patientOnSupport}
+            className={patientClassName}
+            style={{ maxWidth: '55%' }}
+            nameClassName="block"
+          >
+            {patientHref ? (
+              <Link
+                href={patientHref}
+                className="block truncate underline decoration-1 underline-offset-2"
+                onClick={(event) => {
+                  const target = new URL(patientHref, window.location.href);
+                  if (target.pathname !== window.location.pathname) return;
+                  event.preventDefault();
+                  window.location.assign(target.href);
+                }}
+              >
+                {patientLabel}
+              </Link>
+            ) : (
+              patientLabel
+            )}
+          </DoctorPatientName>
         ) : null}
       </span>
       {entity ? (
@@ -331,18 +340,20 @@ export function DoctorModal({
   if (presentation === 'fullscreen-media') {
     const fullscreenBody = (
       <div className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-black text-white">
-        <div className="doctor-fullscreen-media-close pointer-events-none absolute z-10">
-          <Button
-            type="button"
-            size="icon"
-            variant="secondary"
-            className="pointer-events-auto size-10 rounded-full border-white/20 bg-black/55 text-white hover:bg-black/70 hover:text-white"
-            onClick={onClose}
-            aria-label="Закрыть видео"
-          >
-            <X className="size-5" aria-hidden />
-          </Button>
-        </div>
+        {!isMobile ? (
+          <div className="doctor-fullscreen-media-close pointer-events-none absolute z-10">
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              className="pointer-events-auto size-10 rounded-full border-white/20 bg-black/55 text-white hover:bg-black/70 hover:text-white"
+              onClick={onClose}
+              aria-label="Закрыть видео"
+            >
+              <X className="size-5" aria-hidden />
+            </Button>
+          </div>
+        ) : null}
         <div className="sr-only">{title}</div>
         {children}
       </div>
@@ -354,9 +365,9 @@ export function DoctorModal({
           <Drawer open={open} onOpenChange={handleOpenChange}>
             <DrawerContent
               showCloseButton={false}
-              showHandle={false}
+              showHandle
               showOverlay={showOverlay}
-              className="!h-dvh !max-h-dvh gap-0 rounded-none border-0 bg-black p-0 shadow-none"
+              className="doctor-fullscreen-media-drawer !h-dvh !max-h-dvh gap-0 rounded-none border-0 bg-black p-0 shadow-none"
             >
               <DrawerTitle className="sr-only">{title}</DrawerTitle>
               {fullscreenBody}

@@ -15,6 +15,7 @@ import {
   doctorDnaFlatListUnreadTextClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
+import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -127,11 +128,13 @@ function DoctorTodayPeopleSection({
                     }
                     className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} justify-between gap-2${index === 0 ? ' border-t-0' : ''}`}
                   >
-                    <span
+                    <DoctorPatientName
+                      isOnSupport={client.isOnSupport}
                       className={`${doctorDnaFlatListPrimaryClass} min-w-0 truncate ${attentionCount > 0 ? doctorDnaFlatListUnreadTextClass : ''}`}
+                      nameClassName="block"
                     >
-                      <span className="block truncate">{name}</span>
-                    </span>
+                      {name}
+                    </DoctorPatientName>
                     <DoctorAttentionBadge count={attentionCount} className="shrink-0" />
                   </Link>
                 </li>
@@ -303,6 +306,7 @@ export function DoctorTodayDashboard({
             exerciseCommentAttentionTruncated={data.exerciseCommentAttentionTruncated}
             tasks={tasks}
             taskPatientNames={taskPatientNames}
+            taskPatientOnSupport={data.globalTaskPatientOnSupport}
             tasksTotal={tasks.length}
             todayIso={calendarSnapshot.todayIso}
             displayIana={displayIana}

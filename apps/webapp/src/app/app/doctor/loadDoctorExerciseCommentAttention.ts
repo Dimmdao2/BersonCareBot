@@ -43,6 +43,7 @@ export type TodayExerciseCommentAttentionItem = {
   patientDisplayName: string;
   patientFirstName?: string | null;
   patientLastName?: string | null;
+  patientOnSupport?: boolean;
   instanceId: string;
   stageItemId: string;
   stageItemTitle: string;
@@ -88,7 +89,12 @@ export async function loadDoctorExerciseCommentAttention(
 
   const patientNameById = new Map<
     string,
-    { displayName: string; firstName: string | null; lastName: string | null }
+    {
+      displayName: string;
+      firstName: string | null;
+      lastName: string | null;
+      onSupport: boolean;
+    }
   >();
   for (const row of visibleClients) {
     const uid = row.userId.trim();
@@ -102,6 +108,7 @@ export async function loadDoctorExerciseCommentAttention(
       ),
       firstName,
       lastName,
+      onSupport: row.isOnSupport === true,
     });
   }
 
@@ -152,6 +159,7 @@ export async function loadDoctorExerciseCommentAttention(
       patientDisplayName: patient.displayName,
       patientFirstName: patient.firstName,
       patientLastName: patient.lastName,
+      patientOnSupport: patient.onSupport,
       instanceId: row.instanceId,
       stageItemId: row.stageItemId,
       stageItemTitle: row.stageItemTitle || 'Упражнение',

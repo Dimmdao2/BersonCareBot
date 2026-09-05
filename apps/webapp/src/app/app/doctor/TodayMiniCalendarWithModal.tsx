@@ -255,6 +255,7 @@ export function TodayMiniCalendarWithModal({
             label="Запись на приём"
             patientName={selected?.patientName ?? undefined}
             patientHref={selected?.platformUserId ? patientCardHref(selected.platformUserId) : null}
+            patientOnSupport={selected?.patientOnSupport === true}
           />
         }
         size="lg"

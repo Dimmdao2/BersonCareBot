@@ -7,9 +7,16 @@ import { useEffect, useState } from 'react';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { cn } from '@/lib/utils';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
-import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority';
+import {
+  isSpecialistTaskDueOnDate,
+  isSpecialistTaskOverdue,
+} from '@/modules/specialist-tasks/taskPriority';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
-import { DoctorModal, type DoctorModalDesktopPresentation } from '@/shared/ui/doctor/DoctorModal';
+import {
+  DoctorModal,
+  DoctorModalStackedTitle,
+  type DoctorModalDesktopPresentation,
+} from '@/shared/ui/doctor/DoctorModal';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   doctorBodyTextClass,
@@ -25,6 +32,7 @@ type Props = {
   onClose: () => void;
   task: SpecialistTaskRow | null;
   patientDisplayName?: string;
+  patientOnSupport?: boolean;
   displayIana?: string;
   canMutate: boolean;
   busy?: boolean;
@@ -36,6 +44,7 @@ type Props = {
 export type SpecialistTaskDetailsContentProps = {
   task: SpecialistTaskRow;
   patientDisplayName?: string;
+  showPatient?: boolean;
   displayIana?: string;
   error?: string | null;
 };
@@ -64,26 +73,25 @@ function getOverdueDays(dueAt: string | null, nowMs: number, displayIana?: strin
 export function SpecialistTaskDetailsContent({
   task,
   patientDisplayName,
+  showPatient = true,
   displayIana,
   error,
 }: SpecialistTaskDetailsContentProps) {
   const [nowMs] = useState(() => Date.now());
-  const overdue = isSpecialistTaskOverdue(task, nowMs);
-  const completed = Boolean(task.completedAt);
+  const zone = displayIana ?? DEFAULT_APP_DISPLAY_TIMEZONE;
+  const todayIso = DateTime.fromMillis(nowMs).setZone(zone).toISODate();
+  const dueToday = todayIso ? isSpecialistTaskDueOnDate(task, todayIso, zone) : false;
+  const overdue = !dueToday && isSpecialistTaskOverdue(task, nowMs);
   const dueLabel = formatSpecialistTaskWhen(task.dueAt, displayIana, task.dueHasTime !== false);
   const reminderLabel = formatSpecialistTaskWhen(task.remindAt, displayIana);
   const reminderAtMs = task.remindAt ? Date.parse(task.remindAt) : Number.NaN;
   const reminderPassed = !Number.isNaN(reminderAtMs) && reminderAtMs < nowMs;
   const overdueDays = overdue ? getOverdueDays(task.dueAt, nowMs, displayIana) : null;
-  const statusLabel = completed
-    ? 'Выполнена'
-    : overdue
-      ? `Просрочено${overdueDays == null ? '' : ` ${formatDaysRu(overdueDays)}`}`
-      : 'Открыта';
+  const overdueLabel = `Просрочено${overdueDays == null ? '' : ` ${formatDaysRu(overdueDays)}`}`;
 
   return (
     <div className="flex flex-col gap-3">
-      {task.patientUserId ? (
+      {showPatient && task.patientUserId ? (
         <div>
           <p className={doctorSecondaryListTextClass}>Пациент</p>
           <Link
@@ -106,18 +114,36 @@ export function SpecialistTaskDetailsContent({
           </p>
         </div>
       ) : null}
-      <div className="grid grid-cols-2 gap-3">
-        {dueLabel ? (
-          <div>
-            <p className={doctorSecondaryListTextClass}>Срок</p>
-            <p className={cn(doctorBodyTextClass, overdue && 'text-destructive')}>{dueLabel}</p>
+      {dueLabel ? (
+        <div>
+          <p className={doctorSecondaryListTextClass}>Срок</p>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <p
+              className={cn(
+                doctorBodyTextClass,
+                overdue && 'text-destructive',
+                dueToday && 'text-primary',
+              )}
+            >
+              {dueLabel}
+            </p>
+            {overdue ? (
+              <p className={cn(doctorBodyTextClass, 'font-medium text-destructive')}>
+                {overdueLabel}
+              </p>
+            ) : dueToday ? (
+              <p className={cn(doctorBodyTextClass, 'font-medium text-primary')}>Сегодня</p>
+            ) : null}
           </div>
-        ) : null}
-        <div className={cn(!dueLabel && 'col-start-2')}>
-          <p className={doctorSecondaryListTextClass}>Статус</p>
-          <p className={cn(doctorBodyTextClass, overdue && 'text-destructive')}>{statusLabel}</p>
+          {task.isImportant ? (
+            <p className={cn(doctorBodyTextClass, 'mt-0.5 font-medium text-destructive')}>
+              Важно!
+            </p>
+          ) : null}
         </div>
-      </div>
+      ) : task.isImportant ? (
+        <p className={cn(doctorBodyTextClass, 'font-medium text-destructive')}>Важно!</p>
+      ) : null}
       {reminderLabel ? (
         <div className={cn(reminderPassed ? 'text-muted-foreground' : 'text-foreground')}>
           <div className="flex items-center gap-1">
@@ -137,6 +163,7 @@ export function SpecialistTaskDetailsDialog({
   onClose,
   task,
   patientDisplayName,
+  patientOnSupport = false,
   displayIana,
   canMutate,
   busy = false,
@@ -169,7 +196,14 @@ export function SpecialistTaskDetailsDialog({
     <DoctorModal
       open={open && task != null}
       onClose={onClose}
-      title="Задача"
+      title={
+        <DoctorModalStackedTitle
+          label="Задача"
+          patientName={task?.patientUserId ? patientDisplayName?.trim() || 'Пациент' : undefined}
+          patientHref={task?.patientUserId ? patientCardHref(task.patientUserId) : null}
+          patientOnSupport={patientOnSupport}
+        />
+      }
       size="sm"
       desktopPresentation={desktopPresentation}
       footer={
@@ -195,7 +229,7 @@ export function SpecialistTaskDetailsDialog({
       {task ? (
         <SpecialistTaskDetailsContent
           task={task}
-          patientDisplayName={patientDisplayName}
+          showPatient={false}
           displayIana={displayIana}
           error={error}
         />

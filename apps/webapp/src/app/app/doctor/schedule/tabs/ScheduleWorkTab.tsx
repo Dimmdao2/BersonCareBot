@@ -930,6 +930,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   // WORK-08: редактирование сохранённого недельного шаблона открывается прямо из его плашки.
   const [weekdayModalOpen, setWeekdayModalOpen] = useState(false);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const monthPickerActiveRef = useRef<HTMLButtonElement>(null);
   const [branchPickerOpen, setBranchPickerOpen] = useState(false);
   const [tplName, setTplName] = useState('');
   const [tplStart, setTplStart] = useState(DEFAULT_PANEL_START);
@@ -948,6 +949,15 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       return { year, month, value: formatMonth(year, month) };
     });
   }, []);
+  const currentMonthValue = DateTime.now().toFormat('yyyy-MM');
+
+  useEffect(() => {
+    if (!monthPickerOpen) return;
+    const frame = window.requestAnimationFrame(() => {
+      monthPickerActiveRef.current?.scrollIntoView({ block: 'center' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [monthPickerOpen, viewMonth, viewYear]);
 
   // ── Deep-link sync ────────────────────────────────────────────────────────
 
@@ -2036,13 +2046,16 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         <div className="py-1" role="listbox">
           {monthChoices.map((choice) => {
             const active = choice.year === viewYear && choice.month === viewMonth;
+            const isPast = choice.value < currentMonthValue;
             return (
               <Button
                 key={choice.value}
+                ref={active ? monthPickerActiveRef : undefined}
                 type="button"
                 variant="ghost"
                 className={cn(
                   'h-10 w-full justify-between rounded-none px-4 text-sm font-normal',
+                  isPast && !active && 'text-muted-foreground/60',
                   active && 'bg-primary/10 font-medium text-primary',
                 )}
                 onClick={() => selectMonth(choice.year, choice.month)}

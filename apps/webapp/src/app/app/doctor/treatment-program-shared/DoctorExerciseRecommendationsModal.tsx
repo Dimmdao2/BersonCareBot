@@ -80,6 +80,7 @@ export function DoctorExerciseRecommendationsModal(props: {
   /** «Фамилия Имя» пациента справа в первой строке шапки. */
   patientName?: string | null;
   patientUserId?: string | null;
+  patientOnSupport?: boolean;
   initialValue: DoctorExerciseRecommendationsValue;
   onSaved: (result: DoctorExerciseRecommendationsSaveResult) => void;
 }) {
@@ -91,6 +92,7 @@ export function DoctorExerciseRecommendationsModal(props: {
     exerciseTitle,
     patientName,
     patientUserId,
+    patientOnSupport = false,
     initialValue,
     onSaved,
   } = props;
@@ -177,6 +179,7 @@ export function DoctorExerciseRecommendationsModal(props: {
           entity={exerciseTitle}
           patientName={patientName}
           patientHref={patientUserId ? patientCardHref(patientUserId) : null}
+          patientOnSupport={patientOnSupport}
         />
       }
       size="lg"

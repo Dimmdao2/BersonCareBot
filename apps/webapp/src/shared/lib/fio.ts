@@ -348,12 +348,23 @@ export function formatDoctorFio(value: StructuredFio | null | undefined, fallbac
  * «Фамилия Имя» — короткая каноническая подпись человека для заголовков (без отчества).
  * Отличается от {@link formatDoctorFio} только отсутствием отчества: одна и та же нормализация частей.
  */
-export function formatDoctorFioShort(value: StructuredFio | null | undefined, fallback = ''): string {
-  const label = [value?.lastName, value?.firstName]
-    .map(normalizeFioPart)
-    .filter(Boolean)
-    .join(' ');
+export function formatDoctorFioShort(
+  value: StructuredFio | null | undefined,
+  fallback = '',
+): string {
+  const label = [value?.lastName, value?.firstName].map(normalizeFioPart).filter(Boolean).join(' ');
   return label || fallback;
+}
+
+/** Compact doctor-zone label for legacy/full display-name strings: «Фамилия Имя». */
+export function formatDoctorFioShortLabel(value: string | null | undefined, fallback = ''): string {
+  const label = compactWhitespace(value ?? '');
+  if (!label) return fallback;
+  if (/^(?:пациент|клиент)(?:\s+не\s+указан)?$/iu.test(label)) return label;
+  if (/^[+\d]/u.test(label)) return label;
+
+  const [lastName, firstName] = label.split(' ');
+  return firstName ? `${lastName} ${firstName}` : label;
 }
 
 export function formatPatientGreetingName(

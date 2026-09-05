@@ -712,6 +712,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
   initial: TreatmentProgramInstanceDetail;
   /** «Фамилия Имя» пациента для второй строки шапки модалки упражнения. */
   patientName?: string | null;
+  patientOnSupport?: boolean;
   initialTestResults: TreatmentProgramTestResultDetailRow[];
   /** attemptId → врач может принять эту попытку (актуальный хвост, ещё не принята). */
   initialAttemptAcceptMap: Record<string, boolean>;
@@ -756,6 +757,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
 function TreatmentProgramInstanceDetailClientBody(props: {
   initial: TreatmentProgramInstanceDetail;
   patientName?: string | null;
+  patientOnSupport?: boolean;
   initialTestResults: TreatmentProgramTestResultDetailRow[];
   initialAttemptAcceptMap: Record<string, boolean>;
   appDisplayTimeZone: string;
@@ -768,6 +770,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
 }) {
   const {
     patientName,
+    patientOnSupport = false,
     initialOpenDiscussionItemId,
     initialFocusTestResultId,
     initialTestResults,
@@ -993,6 +996,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         onClose={() => setInstanceDiscussionOpen(false)}
         patientUserId={detail.patientUserId}
         patientName={patientName ?? ''}
+        patientOnSupport={patientOnSupport}
         stageTitle={currentStage?.title ?? null}
         onUnreadCleared={({ stageItemId }) => handleDiscussionRead([stageItemId])}
       />
@@ -1187,6 +1191,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
           itemLabel={discussionTarget.label}
           patientName={patientName}
           patientUserId={detail.patientUserId}
+          patientOnSupport={patientOnSupport}
           open
           onOpenChange={(open) => {
             if (!open) setDiscussionTarget(null);

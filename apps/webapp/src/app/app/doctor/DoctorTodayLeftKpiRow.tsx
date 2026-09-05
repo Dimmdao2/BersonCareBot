@@ -52,6 +52,7 @@ type Props = Pick<
   exerciseCommentsTotalOverride?: number;
   tasks: SpecialistTaskRow[];
   taskPatientNames: Record<string, string>;
+  taskPatientOnSupport: Record<string, boolean>;
   tasksTotal: number;
   todayIso: string;
   displayIana: string;
@@ -85,6 +86,7 @@ function UnreadConversationModalItem({
         lastMessageText: item.lastMessageText,
         lastSenderRole: item.lastSenderRole,
         unreadFromUserCount: item.unreadFromUserCount,
+        onSupport: item.onSupport,
       }}
       onClick={onOpen}
       variant="unread-preview"
@@ -118,6 +120,7 @@ export function DoctorTodayLeftKpiRow({
   exerciseCommentsTotalOverride,
   tasks,
   taskPatientNames,
+  taskPatientOnSupport,
   tasksTotal,
   todayIso,
   displayIana,
@@ -273,6 +276,7 @@ export function DoctorTodayLeftKpiRow({
                 : ''
             }
             patientUserId={selectedConversation?.patientUserId ?? null}
+            patientOnSupport={selectedConversation?.onSupport === true}
             onClose={() => setSelectedConversation(null)}
             onReadStateChanged={() => {
               if (!selectedConversation) return;
@@ -346,6 +350,11 @@ export function DoctorTodayLeftKpiRow({
                   ? taskPatientNames[selectedTask.patientUserId]
                   : undefined
               }
+              patientOnSupport={
+                selectedTask?.patientUserId
+                  ? taskPatientOnSupport[selectedTask.patientUserId] === true
+                  : false
+              }
               displayIana={displayIana}
               canMutate={tasksAvailable}
               busy={taskMutationPending}
@@ -384,6 +393,9 @@ export function DoctorTodayLeftKpiRow({
               displayIana={displayIana}
               patientDisplayName={
                 task.patientUserId ? taskPatientNames[task.patientUserId] : undefined
+              }
+              patientOnSupport={
+                task.patientUserId ? taskPatientOnSupport[task.patientUserId] === true : false
               }
               dueToday={isSpecialistTaskDueOnDate(task, todayIso, displayIana)}
               canMutate={tasksAvailable}

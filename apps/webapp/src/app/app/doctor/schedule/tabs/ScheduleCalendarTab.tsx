@@ -2570,6 +2570,7 @@ export function ScheduleCalendarTab({
       label="Запись на приём"
       patientName={selected.patientName ?? 'Пациент'}
       patientHref={selected.platformUserId ? patientCardHref(selected.platformUserId) : null}
+      patientOnSupport={selected.patientOnSupport === true}
     />
   ) : (
     'Новая запись'

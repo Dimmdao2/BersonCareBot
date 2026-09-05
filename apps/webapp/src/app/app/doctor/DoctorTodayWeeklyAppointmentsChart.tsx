@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Bar, CartesianGrid, ComposedChart, Line, ReferenceDot, XAxis, YAxis } from 'recharts';
 import type { TodayWeeklyTimelinePoint } from './loadDoctorTodayDashboard';
 import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
@@ -53,9 +53,11 @@ export function DoctorTodayWeeklyAppointmentsChart({
   const currentIsVisible =
     currentIndex >= 0 && currentIndex >= visibleRange.start && currentIndex < visibleRange.end;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scrollArea = scrollAreaRef.current;
     if (!scrollArea) return;
+    let initialPositionApplied = false;
+    let animationFrame = 0;
 
     const updateVisibleRange = () => {
       setScrollOffset(scrollArea.scrollLeft);
@@ -69,18 +71,47 @@ export function DoctorTodayWeeklyAppointmentsChart({
       );
     };
 
-    const currentCenter = (anchorIndex + 0.5) * WEEK_WIDTH;
-    scrollArea.scrollLeft = Math.max(0, currentCenter - scrollArea.clientWidth / 2);
-    updateVisibleRange();
+    const positionCurrentWeek = () => {
+      if (!scrollArea.clientWidth) return;
+      const currentCenter = (anchorIndex + 0.5) * WEEK_WIDTH;
+      const maxScrollLeft = Math.max(0, scrollArea.scrollWidth - scrollArea.clientWidth);
+      scrollArea.scrollLeft = Math.min(
+        maxScrollLeft,
+        Math.max(0, currentCenter - scrollArea.clientWidth / 2),
+      );
+      const currentTick = scrollArea.querySelector('[data-current-week="true"]');
+      if (currentTick) {
+        const viewportRect = scrollArea.getBoundingClientRect();
+        const tickRect = currentTick.getBoundingClientRect();
+        const centerDelta =
+          tickRect.left + tickRect.width / 2 - (viewportRect.left + viewportRect.width / 2);
+        scrollArea.scrollLeft = Math.min(
+          maxScrollLeft,
+          Math.max(0, scrollArea.scrollLeft + centerDelta),
+        );
+      }
+      initialPositionApplied =
+        scrollArea.scrollWidth >= Math.max(scrollArea.clientWidth, chartWidth - 1) &&
+        Boolean(currentTick);
+      updateVisibleRange();
+    };
+
+    animationFrame = window.requestAnimationFrame(positionCurrentWeek);
     scrollArea.addEventListener('scroll', updateVisibleRange, { passive: true });
     const resizeObserver =
-      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateVisibleRange);
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => {
+            if (!initialPositionApplied) positionCurrentWeek();
+            else updateVisibleRange();
+          });
     resizeObserver?.observe(scrollArea);
     return () => {
+      window.cancelAnimationFrame(animationFrame);
       scrollArea.removeEventListener('scroll', updateVisibleRange);
       resizeObserver?.disconnect();
     };
-  }, [anchorIndex, points.length]);
+  }, [anchorIndex, chartWidth, points.length]);
 
   return (
     <Card className="flex h-full min-h-0 min-w-0 flex-col gap-1 pt-3 pb-2">
@@ -114,6 +145,7 @@ export function DoctorTodayWeeklyAppointmentsChart({
                   dataKey="label"
                   tick={({ x, y, payload }) => (
                     <text
+                      data-current-week={chartPoints[payload.index]?.isCurrent || undefined}
                       x={x}
                       y={y}
                       dy="0.5em"

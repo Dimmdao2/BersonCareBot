@@ -117,6 +117,7 @@ export function TodayAppointmentFullModal({
           label="Запись на приём"
           patientName={event?.patientName ?? undefined}
           patientHref={event?.platformUserId ? patientCardHref(event.platformUserId) : null}
+          patientOnSupport={event?.patientOnSupport === true}
         />
       }
       size="lg"

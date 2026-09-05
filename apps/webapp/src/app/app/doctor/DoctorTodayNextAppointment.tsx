@@ -12,6 +12,8 @@ import {
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { formatDoctorFioShortLabel } from '@/shared/lib/fio';
+import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
 
 type Props = {
   appointment: TodayNextAppointmentItem | null;
@@ -31,6 +33,9 @@ export function DoctorTodayNextAppointment({ appointment, displayIana }: Props) 
       })
     : null;
   const appointmentComment = appointment?.comment?.trim() || null;
+  const patientLabel = appointment
+    ? formatDoctorFioShortLabel(appointment.clientLabel, appointment.clientLabel)
+    : null;
 
   return (
     <DoctorSection id="doctor-today-next-appointment">
@@ -41,18 +46,21 @@ export function DoctorTodayNextAppointment({ appointment, displayIana }: Props) 
               <DoctorSectionTitle>
                 {appointment.isCurrent ? 'Сейчас на приеме' : 'Следующий прием'}
               </DoctorSectionTitle>
-              {patientHref ? (
-                <Link
-                  href={patientHref}
-                  className="min-w-0 truncate text-right text-sm font-medium text-primary underline decoration-1 underline-offset-2"
-                >
-                  {appointment.clientLabel}
-                </Link>
-              ) : (
-                <p className="min-w-0 truncate text-right text-sm font-medium text-primary">
-                  {appointment.clientLabel}
-                </p>
-              )}
+              <DoctorPatientName
+                isOnSupport={appointment.patientOnSupport}
+                className="min-w-0 truncate text-right text-[15px] font-medium text-primary"
+              >
+                {patientHref ? (
+                  <Link
+                    href={patientHref}
+                    className="block truncate underline decoration-1 underline-offset-2"
+                  >
+                    {patientLabel}
+                  </Link>
+                ) : (
+                  patientLabel
+                )}
+              </DoctorPatientName>
             </div>
 
             <div className="mt-1.5 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 text-sm">
@@ -72,52 +80,31 @@ export function DoctorTodayNextAppointment({ appointment, displayIana }: Props) 
             ) : null}
           </div>
 
-          <div className="grid w-full min-w-0 grid-cols-3 items-center gap-1.5">
-            {createVisitHref ? (
-              <Link
-                className={buttonVariants({
-                  size: 'sm',
-                  className: 'w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm',
-                })}
-                href={createVisitHref}
-              >
-                Создать визит
-              </Link>
-            ) : (
-              <Button size="sm" className="w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm" disabled>
-                Создать визит
-              </Button>
-            )}
-            {patientHref ? (
-              <Link
-                className={buttonVariants({
-                  variant: 'outline',
-                  size: 'sm',
-                  className: 'w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm',
-                })}
-                href={patientHref}
-              >
-                Карточка
-              </Link>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm"
-                disabled
-              >
-                Карточка
-              </Button>
-            )}
+          <div className="grid w-full min-w-0 grid-cols-2 items-center gap-1.5">
             <Button
               type="button"
               size="sm"
               variant="outline"
-              className="w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm"
+              className="w-full min-w-0"
               onClick={() => setDetailsOpen(true)}
             >
-              Детали
+              Детали записи
             </Button>
+            {createVisitHref ? (
+              <Link
+                className={buttonVariants({
+                  size: 'sm',
+                  className: 'w-full min-w-0',
+                })}
+                href={createVisitHref}
+              >
+                Начать приём
+              </Link>
+            ) : (
+              <Button size="sm" className="w-full min-w-0" disabled>
+                Начать приём
+              </Button>
+            )}
           </div>
         </div>
       ) : (

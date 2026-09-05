@@ -79,6 +79,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
   /** «Фамилия Имя» пациента для второй строки шапки; без него вторая строка не рисуется. */
   patientName?: string | null;
   patientUserId?: string | null;
+  patientOnSupport?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onMarkedRead?: () => void;
@@ -88,6 +89,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
     itemId,
     itemLabel,
     patientName,
+    patientOnSupport = false,
     patientUserId: initialPatientUserId,
     open,
     onOpenChange,
@@ -229,6 +231,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
           entity={itemLabel}
           patientName={patientName}
           patientHref={patientUserId ? patientCardHref(patientUserId) : null}
+          patientOnSupport={patientOnSupport}
         />
       }
       size="content"
@@ -305,6 +308,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
           exerciseTitle={itemLabel ?? 'Упражнение'}
           patientName={patientName}
           patientUserId={patientUserId}
+          patientOnSupport={patientOnSupport}
           initialValue={assignment}
           onSaved={({ value }) => {
             setAssignment((current) => (current ? { ...current, ...value } : current));
@@ -317,6 +321,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
           onClose={() => setStatisticsOpen(false)}
           patientUserId={patientUserId}
           patientName={patientName}
+          patientOnSupport={patientOnSupport}
           exerciseTitle={itemLabel ?? 'Упражнение'}
           instanceId={instanceId}
           itemId={itemId}

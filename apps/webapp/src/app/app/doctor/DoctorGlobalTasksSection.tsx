@@ -46,6 +46,7 @@ function sortTasksForDisplay(tasks: SpecialistTaskRow[]): SpecialistTaskRow[] {
 export function DoctorGlobalTasksSection({
   tasks,
   taskPatientNames,
+  taskPatientOnSupport,
   todayIso,
   displayIana,
   className,
@@ -57,6 +58,7 @@ export function DoctorGlobalTasksSection({
 }: {
   tasks: SpecialistTaskRow[];
   taskPatientNames: Record<string, string>;
+  taskPatientOnSupport: Record<string, boolean>;
   /** Дата сегодня в формате YYYY-MM-DD (из сервера) — используется только для quick-filter «Сегодня» в модалке. */
   todayIso: string;
   /** IANA timezone for display — threads from parent instead of hardcoding Europe/Moscow. */
@@ -112,6 +114,9 @@ export function DoctorGlobalTasksSection({
                 patientDisplayName={
                   task.patientUserId ? taskPatientNames[task.patientUserId] : undefined
                 }
+                patientOnSupport={
+                  task.patientUserId ? taskPatientOnSupport[task.patientUserId] === true : false
+                }
                 dueToday={
                   displayIana ? isSpecialistTaskDueOnDate(task, todayIso, displayIana) : false
                 }
@@ -151,6 +156,9 @@ export function DoctorGlobalTasksSection({
               displayIana={displayIana}
               patientDisplayName={
                 task.patientUserId ? taskPatientNames[task.patientUserId] : undefined
+              }
+              patientOnSupport={
+                task.patientUserId ? taskPatientOnSupport[task.patientUserId] === true : false
               }
               dueToday={displayIana ? isSpecialistTaskDueOnDate(task, todayIso, displayIana) : false}
               canMutate={available}
@@ -200,6 +208,11 @@ export function DoctorGlobalTasksSection({
         task={selectedTask}
         patientDisplayName={
           selectedTask?.patientUserId ? taskPatientNames[selectedTask.patientUserId] : undefined
+        }
+        patientOnSupport={
+          selectedTask?.patientUserId
+            ? taskPatientOnSupport[selectedTask.patientUserId] === true
+            : false
         }
         displayIana={displayIana}
         canMutate={available}

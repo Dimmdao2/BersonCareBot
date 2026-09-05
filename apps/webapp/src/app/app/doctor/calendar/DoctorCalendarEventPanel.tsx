@@ -945,6 +945,7 @@ function DoctorCalendarEventPanelInner({
         whenLabel={formatEventAtWords(selected.startAt, timeZone)}
         patientLabel={patientName}
         patientHref={selected.platformUserId ? patientCardHref(selected.platformUserId) : null}
+        patientOnSupport={selected.patientOnSupport === true}
         draft={cancelDraft}
         onDraftChange={(patch) => setCancelDraft((current) => ({ ...current, ...patch }))}
         pending={pending}
@@ -959,6 +960,7 @@ function DoctorCalendarEventPanelInner({
             label="Изменить запись"
             patientName={patientName}
             patientHref={selected.platformUserId ? patientCardHref(selected.platformUserId) : null}
+            patientOnSupport={selected.patientOnSupport === true}
           />
         }
         size="lg"

@@ -6,8 +6,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * Scrollable column of selectable time slots — brand-styled twin of the
- * react-day-picker day grid. Selected slot mirrors the DayPicker selected day:
- * background var(--primary), text var(--primary-foreground), rounded.
+ * react-day-picker day grid. The selected slot uses the shared light-blue selection fill.
  *
  * `value` / `onChange` — строка "HH:mm" (24h). Пустое значение = ничего не выбрано.
  */
@@ -39,6 +38,14 @@ function buildSlots(startHour: number, endHour: number, stepMinutes: number): st
   return slots;
 }
 
+function timeToMinutes(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const hours = Number.parseInt(match[1] ?? '', 10);
+  const minutes = Number.parseInt(match[2] ?? '', 10);
+  return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : null;
+}
+
 export function DoctorTimeColumn({
   value,
   onChange,
@@ -52,20 +59,42 @@ export function DoctorTimeColumn({
     () => buildSlots(startHour, endHour, stepMinutes),
     [startHour, endHour, stepMinutes],
   );
-  const selectedRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const scrollAnchorRef = useRef<HTMLButtonElement>(null);
+  const scrollAnchor = useMemo(() => {
+    const now = new Date();
+    const targetMinutes = timeToMinutes(value) ?? now.getHours() * 60 + now.getMinutes();
+    return slots.reduce((closest, slot) => {
+      const closestDistance = Math.abs((timeToMinutes(closest) ?? 0) - targetMinutes);
+      const slotDistance = Math.abs((timeToMinutes(slot) ?? 0) - targetMinutes);
+      return slotDistance < closestDistance ? slot : closest;
+    }, slots[0] ?? '');
+  }, [slots, value]);
 
-  // Auto-scroll the selected slot into view when mounted (popover opens).
+  // Keep an explicit selection in view; without one, open around the user's current local time.
   useEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: 'center' });
-  }, []);
+    const list = listRef.current;
+    const anchor = scrollAnchorRef.current;
+    if (!list || !anchor) return;
+    const frame = window.requestAnimationFrame(() => {
+      const anchorTop =
+        anchor.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+      list.scrollTop = Math.max(
+        0,
+        anchorTop - (list.clientHeight - anchor.offsetHeight) / 2,
+      );
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [scrollAnchor]);
 
   return (
     <div
+      ref={listRef}
       role="listbox"
       aria-label="Время"
       aria-disabled={disabled || undefined}
       className={cn(
-        'flex max-h-[16rem] flex-col gap-0.5 overflow-y-auto pr-1 sm:max-h-[18.5rem]',
+        'flex max-h-[16rem] flex-col gap-0 overflow-y-auto sm:max-h-[18.5rem]',
         disabled && 'pointer-events-none opacity-50',
       )}
     >
@@ -75,7 +104,7 @@ export function DoctorTimeColumn({
         return (
           <Button
             key={slot}
-            ref={isSelected ? selectedRef : undefined}
+            ref={slot === scrollAnchor ? scrollAnchorRef : undefined}
             type="button"
             variant="ghost"
             role="option"
@@ -87,7 +116,7 @@ export function DoctorTimeColumn({
               'focus-visible:ring-2 focus-visible:ring-ring/50',
               'disabled:pointer-events-none disabled:opacity-50',
               isSelected
-                ? 'bg-primary font-medium text-primary-foreground hover:bg-primary/90'
+                ? 'rounded-none bg-primary/10 font-medium text-foreground hover:bg-primary/15'
                 : 'text-foreground hover:bg-accent',
             )}
           >

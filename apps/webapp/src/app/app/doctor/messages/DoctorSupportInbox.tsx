@@ -412,6 +412,7 @@ export function DoctorSupportInbox({
         conversationId={!hasSplitChat ? selectedId : null}
         displayName={selectedConvDisplayName}
         patientUserId={selectedConv?.patientUserId ?? null}
+        patientOnSupport={selectedConv?.onSupport === true}
         onClose={() => selectConversation(null)}
         onReadStateChanged={loadList}
         onSent={loadList}

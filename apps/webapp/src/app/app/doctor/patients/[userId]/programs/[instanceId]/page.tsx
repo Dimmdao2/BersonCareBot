@@ -75,6 +75,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
   const embeddedEditor = (
     <TreatmentProgramInstanceDetailClient
       {...editorBootstrap}
+      patientOnSupport={shellMeta.cardHeader?.support.isOnSupport === true}
       initialOpenDiscussionItemId={initialOpenDiscussionItemId}
       initialFocusTestResultId={initialFocusTestResultId}
     />

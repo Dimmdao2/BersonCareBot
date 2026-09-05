@@ -23,6 +23,7 @@ import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DoctorShellChromeRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
+import { DoctorDnaFlatList } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { SpecialistTaskRow } from '../clients/SpecialistTaskRow';
 import {
   SpecialistTaskDetailsContent,
@@ -39,12 +40,14 @@ type TaskView = 'open' | 'completed';
 export function DoctorTasksPageClient({
   initialTasks,
   initialPatientNames,
+  initialPatientOnSupport,
   displayIana,
   todayIso,
   canMutate,
 }: {
   initialTasks: Task[];
   initialPatientNames: Record<string, string>;
+  initialPatientOnSupport: Record<string, boolean>;
   displayIana: string;
   todayIso: string;
   canMutate: boolean;
@@ -276,7 +279,7 @@ export function DoctorTasksPageClient({
                       value={group.tasks.length}
                     />
                     {group.tasks.length ? (
-                      <ul className="flex flex-col gap-0 [&>li+li]:border-t [&>li+li]:border-border/60 md:gap-1 md:[&>li+li]:border-t-0">
+                      <DoctorDnaFlatList className="flex flex-col gap-0 md:gap-1 md:[&>li+li]:border-t-0">
                         {group.tasks.map((task) => (
                           <SpecialistTaskRow
                             key={task.id}
@@ -285,13 +288,18 @@ export function DoctorTasksPageClient({
                             patientDisplayName={
                               task.patientUserId ? patientNames[task.patientUserId] : undefined
                             }
+                            patientOnSupport={
+                              task.patientUserId
+                                ? initialPatientOnSupport[task.patientUserId] === true
+                                : false
+                            }
                             dueToday={isSpecialistTaskDueOnDate(task, todayIso, displayIana)}
                             mobileFlat
                             onOpen={(row) => setPane({ kind: 'details', taskId: row.id })}
                             active={selected?.id === task.id}
                           />
                         ))}
-                      </ul>
+                      </DoctorDnaFlatList>
                     ) : null}
                   </section>
                 ))}
@@ -313,6 +321,11 @@ export function DoctorTasksPageClient({
           task={selected}
           patientDisplayName={
             selected?.patientUserId ? patientNames[selected.patientUserId] : undefined
+          }
+          patientOnSupport={
+            selected?.patientUserId
+              ? initialPatientOnSupport[selected.patientUserId] === true
+              : false
           }
           displayIana={displayIana}
           canMutate={canMutate}

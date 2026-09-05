@@ -59,6 +59,7 @@ export function DoctorExerciseStatisticsModal({
   onClose,
   patientUserId,
   patientName,
+  patientOnSupport = false,
   exerciseTitle,
   instanceId,
   itemId,
@@ -68,6 +69,7 @@ export function DoctorExerciseStatisticsModal({
   patientUserId: string;
   /** «Фамилия Имя» пациента справа в первой строке шапки. */
   patientName?: string | null;
+  patientOnSupport?: boolean;
   exerciseTitle: string;
   instanceId: string;
   itemId: string;
@@ -198,6 +200,7 @@ export function DoctorExerciseStatisticsModal({
           entity={exerciseTitle}
           patientName={patientName}
           patientHref={patientCardHref(patientUserId)}
+          patientOnSupport={patientOnSupport}
         />
       }
       size="lg"

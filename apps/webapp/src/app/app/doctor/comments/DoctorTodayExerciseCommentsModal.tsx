@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorDnaFlatList } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
+import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
 import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorProgramItemDiscussionDialog } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramItemDiscussionDialog';
@@ -53,12 +54,13 @@ function PatientCommentGroup({
           aria-controls={`today-comments-list-${group.patientUserId}`}
           onClick={() => setExpanded((current) => !current)}
         >
-          <span
+          <DoctorPatientName
             id={`today-comments-${group.patientUserId}`}
+            isOnSupport={group.patientOnSupport}
             className={cn(doctorSectionTitleClass, 'min-w-0 flex-1 truncate')}
           >
             {group.patientDisplayName}
-          </span>
+          </DoctorPatientName>
           <span className="ml-auto flex shrink-0 items-center gap-2">
             <DoctorAttentionBadge count={unreadCount} />
             <ChevronDown
@@ -140,6 +142,7 @@ export function DoctorTodayExerciseCommentsModal({
           itemLabel={selectedItem.stageItemTitle}
           patientName={patientHeaderName(selectedItem)}
           patientUserId={selectedItem.patientUserId}
+          patientOnSupport={selectedItem.patientOnSupport === true}
           open={discussionOpen}
           onOpenChange={(nextOpen) => {
             setDiscussionOpen(nextOpen);
