@@ -138,7 +138,7 @@ export async function POST(request: Request) {
     return jsonError({
       error: err,
       literalRules: SCHEDULE_TEMPLATE_ERROR_RULES,
-      fallback: { code: 'create_failed', status: 400 },
+      fallback: { code: 'create_failed', status: 500 },
       logEvent: 'doctor_schedule_template_create_failed',
     });
   }
