@@ -50,13 +50,12 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
     ],
     directInsertCallsites: [
       'apps/webapp/src/infra/repos/pgOrganizationProvisioning.ts:262',
-      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:130',
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:1025',
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:1522',
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:1879',
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:2238',
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:425',
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:895',
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:147',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:1072',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:1447',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:1769',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:449',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:913',
     ],
   },
   'public.auth_rate_limit_events': {
@@ -2633,8 +2632,8 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
       'updated_at',
     ],
     directInsertCallsites: [
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:361',
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:525',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:379',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:513',
     ],
   },
   'public.saas_billing_invoices': {
@@ -2667,8 +2666,8 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
       'updated_at',
     ],
     directInsertCallsites: [
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:124',
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:2077',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:141',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:2016',
     ],
   },
   'public.saas_billing_periods': {
@@ -2682,7 +2681,7 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
       'updated_at',
     ],
     directInsertCallsites: [
-      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:492',
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:574',
     ],
   },
   'public.saas_billing_provider_events': {
@@ -2698,8 +2697,8 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
       'saas_billing_invoice_id',
     ],
     directInsertCallsites: [
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:1434',
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:1454',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:1359',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:1379',
     ],
   },
   'public.saas_billing_refunds': {
@@ -2717,15 +2716,14 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
       'status',
       'updated_at',
     ],
-    directInsertCallsites: [
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:2221',
-    ],
+    directInsertCallsites: [],
   },
   'public.saas_billing_subscriptions': {
     insertColumns: [
       'autopay_consent_text',
       'autopay_consented_at',
       'autopay_revoked_at',
+      'billing_period_code',
       'cancelled_at',
       'created_at',
       'current_period_ends_at',
@@ -2735,6 +2733,7 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
       'lifecycle_state',
       'organization_id',
       'paid_additional_seats',
+      'pending_billing_period_code',
       'pending_tariff_id',
       'provider_id',
       'read_only_ends_at',
@@ -2747,8 +2746,8 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
       'updated_at',
     ],
     directInsertCallsites: [
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:1936',
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:970',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:1011',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:1844',
     ],
   },
   'public.saas_isolation_coverage_runs': {
@@ -2801,7 +2800,7 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
       'updated_at',
     ],
     directInsertCallsites: [
-      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:675',
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:802',
     ],
   },
   'public.saas_organization_trials': {
@@ -2820,8 +2819,8 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
       'updated_at',
     ],
     directInsertCallsites: [
-      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:268',
-      'apps/webapp/src/infra/repos/pgSaasBilling.ts:872',
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:338',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts:890',
     ],
   },
   'public.saas_paid_period_policy': {
@@ -2835,7 +2834,7 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
       'updated_by',
     ],
     directInsertCallsites: [
-      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:782',
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:909',
     ],
   },
   'public.saas_registration_tariff_policy': {
@@ -2847,7 +2846,20 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
       'updated_by',
     ],
     directInsertCallsites: [
-      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:818',
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:945',
+    ],
+  },
+  'public.saas_tariff_period_prices': {
+    insertColumns: [
+      'billing_period_code',
+      'created_at',
+      'discounted_price_minor',
+      'price_minor',
+      'tariff_id',
+      'updated_at',
+    ],
+    directInsertCallsites: [
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:249',
     ],
   },
   'public.saas_tariffs': {
@@ -2872,7 +2884,7 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
       'updated_at',
     ],
     directInsertCallsites: [
-      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:557',
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:686',
     ],
   },
   'public.saas_trial_policy': {
@@ -2889,7 +2901,7 @@ export const DRIZZLE_INSERT_SURFACE: Readonly<Record<string, DrizzleInsertRelati
       'updated_by',
     ],
     directInsertCallsites: [
-      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:740',
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:867',
     ],
   },
   'public.specialist_signup_intents': {

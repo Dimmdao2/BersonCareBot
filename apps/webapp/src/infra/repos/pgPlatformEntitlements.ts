@@ -231,23 +231,40 @@ async function lockSelectablePeriodCodes(tx: Transaction): Promise<string[]> {
   return rows.map((row) => row.code);
 }
 
-/** Full-replace write for one tariff's period price matrix — always the complete set, never a diff. */
+/**
+ * F-4 (independent audit-live, 2026-09-05) — atomic upsert, never a delete-all/full-replace: the
+ * old full-replace collided with the composite FK subscriptions hold on `(tariff_id,
+ * billing_period_code)` the moment any tariff with a paying clinic was saved again (`RESTRICT`).
+ * A period omitted from `periodPrices` (always a currently non-selectable one —
+ * `assertCompleteTariffPeriodPriceMatrix` already refuses to omit a SELECTABLE period) is simply
+ * left in place: retirement is global and non-destructive (owner decision 2), so a stale price row
+ * for a retired period is harmless history, never something this write path deletes.
+ */
 async function writeTariffPeriodPrices(
   tx: Transaction,
   tariffId: string,
   periodPrices: readonly TariffPeriodPrice[],
 ): Promise<void> {
-  await tx.delete(saasTariffPeriodPrices).where(eq(saasTariffPeriodPrices.tariffId, tariffId));
   if (periodPrices.length === 0) return;
-  await tx.insert(saasTariffPeriodPrices).values(
-    periodPrices.map((row) => ({
-      tariffId,
-      billingPeriodCode: row.billingPeriodCode,
-      priceMinor: row.priceMinor,
-      discountedPriceMinor: row.discountedPriceMinor,
-      updatedAt: new Date().toISOString(),
-    })),
-  );
+  await tx
+    .insert(saasTariffPeriodPrices)
+    .values(
+      periodPrices.map((row) => ({
+        tariffId,
+        billingPeriodCode: row.billingPeriodCode,
+        priceMinor: row.priceMinor,
+        discountedPriceMinor: row.discountedPriceMinor,
+        updatedAt: new Date().toISOString(),
+      })),
+    )
+    .onConflictDoUpdate({
+      target: [saasTariffPeriodPrices.tariffId, saasTariffPeriodPrices.billingPeriodCode],
+      set: {
+        priceMinor: sql`excluded.price_minor`,
+        discountedPriceMinor: sql`excluded.discounted_price_minor`,
+        updatedAt: sql`excluded.updated_at`,
+      },
+    });
 }
 
 function assertPlatformOperationsPrincipal(): void {

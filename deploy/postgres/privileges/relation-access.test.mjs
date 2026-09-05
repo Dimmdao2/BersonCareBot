@@ -259,7 +259,7 @@ test('patient reminder cancellation reaches the canonical occurrence only throug
 
 test('ON CONFLICT seams grant SELECT only on their exact arbiter columns', () => {
   const expected = [
-    ['app.choose_organization_first_tariff(uuid,uuid)', 'public.saas_organization_trials', ['organization_id']],
+    ['app.choose_organization_first_tariff(uuid,uuid,text)', 'public.saas_organization_trials', ['organization_id']],
     ['app.claim_unbound_patient_invite_email(text,text,text,bigint,text)', 'public.patient_merge_candidates',
       ['organization_id', 'anchor_user_id', 'candidate_user_id', 'status']],
     ['app.ensure_staff_security_profile()', 'public.staff_security_profiles', ['user_id']],
@@ -289,7 +289,7 @@ test('ON CONFLICT seams grant SELECT only on their exact arbiter columns', () =>
 
 test('clinic billing can execute first tariff choice without inheriting staff privileges', () => {
   const root = declaration.portContext.functions[
-    'app.choose_organization_first_tariff(uuid,uuid)'
+    'app.choose_organization_first_tariff(uuid,uuid,text)'
   ];
   assert.deepEqual(root.execute, ['app_staff', 'app_clinic_billing']);
 });
@@ -856,11 +856,12 @@ test('billing relations use the clinic, platform, and webhook worker roles witho
     'organization_id', 'registration_reason_code', 'tax_identifier', 'updated_at',
   ];
   const billingSubscriptionInsertColumns = [
-    'autopay_consent_text', 'autopay_consented_at', 'autopay_revoked_at', 'cancelled_at',
-    'created_at', 'current_period_ends_at', 'current_period_starts_at', 'grace_ends_at', 'id',
-    'lifecycle_state', 'organization_id', 'paid_additional_seats', 'pending_tariff_id',
-    'provider_id', 'read_only_ends_at', 'saas_billing_account_id', 'saved_payment_method_id',
-    'source', 'status', 'tariff_id', 'tariff_snapshot', 'updated_at',
+    'autopay_consent_text', 'autopay_consented_at', 'autopay_revoked_at', 'billing_period_code',
+    'cancelled_at', 'created_at', 'current_period_ends_at', 'current_period_starts_at',
+    'grace_ends_at', 'id', 'lifecycle_state', 'organization_id', 'paid_additional_seats',
+    'pending_billing_period_code', 'pending_tariff_id', 'provider_id', 'read_only_ends_at',
+    'saas_billing_account_id', 'saved_payment_method_id', 'source', 'status', 'tariff_id',
+    'tariff_snapshot', 'updated_at',
   ];
   for (const role of ['app_clinic_billing', 'app_platform_settings']) {
     exactColumns('public.saas_billing_accounts', role, 'INSERT', billingAccountInsertColumns);

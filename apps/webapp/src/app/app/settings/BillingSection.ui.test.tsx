@@ -19,6 +19,8 @@ const tariffChange = {
   currentTariffId: null,
   pendingTariffId: null,
   pendingEffectiveAt: null,
+  currentBillingPeriodCode: null,
+  pendingBillingPeriodCode: null,
   awaitingFirstPayment: false,
   payable: true,
 };
@@ -37,10 +39,25 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
         quotaUsage={[]}
         billing={emptyBilling}
         tariffChange={{
-          choices: [{ id: 'current', name: 'Стандарт' }, { id: 'small', name: 'Базовый' }],
+          choices: [
+            {
+              id: 'current',
+              name: 'Стандарт',
+              periodPrices: [{ billingPeriodCode: 'monthly', priceMinor: 500000 }],
+            },
+            {
+              id: 'small',
+              name: 'Базовый',
+              periodPrices: [{ billingPeriodCode: 'monthly', priceMinor: 200000 }],
+            },
+          ],
           currentTariffId: 'current',
           pendingTariffId: 'small',
           pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
+          // #1069 owner decision 2026-09-05 (period grid) — the pending change also carries the
+          // period it was scheduled for; the request must send both, never the tariff alone.
+          currentBillingPeriodCode: 'monthly',
+          pendingBillingPeriodCode: 'monthly',
           awaitingFirstPayment: false,
           payable: true,
         }}
@@ -49,7 +66,7 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
 
     fireEvent.click(screen.getByRole('button', { name: 'Перейти на тариф' }));
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/clinic/billing', expect.objectContaining({
-      method: 'PATCH', body: JSON.stringify({ tariffId: 'small' }),
+      method: 'PATCH', body: JSON.stringify({ tariffId: 'small', billingPeriodCode: 'monthly' }),
     })));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Отменить' })).not.toBeDisabled());
 
@@ -74,10 +91,23 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
         quotaUsage={[]}
         billing={{ ...emptyBilling, billingEmail: 'clinic@example.test' }}
         tariffChange={{
-          choices: [{ id: 'chosen', name: 'Базовый' }, { id: 'other', name: 'Стандарт' }],
+          choices: [
+            {
+              id: 'chosen',
+              name: 'Базовый',
+              periodPrices: [{ billingPeriodCode: 'monthly', priceMinor: 100000 }],
+            },
+            {
+              id: 'other',
+              name: 'Стандарт',
+              periodPrices: [{ billingPeriodCode: 'monthly', priceMinor: 300000 }],
+            },
+          ],
           currentTariffId: 'chosen',
           pendingTariffId: null,
           pendingEffectiveAt: null,
+          currentBillingPeriodCode: null,
+          pendingBillingPeriodCode: null,
           awaitingFirstPayment: true,
           payable: true,
         }}
@@ -104,10 +134,18 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
         quotaUsage={[]}
         billing={emptyBilling}
         tariffChange={{
-          choices: [{ id: 'first', name: 'Базовый' }],
+          choices: [
+            {
+              id: 'first',
+              name: 'Базовый',
+              periodPrices: [{ billingPeriodCode: 'monthly', priceMinor: 100000 }],
+            },
+          ],
           currentTariffId: null,
           pendingTariffId: null,
           pendingEffectiveAt: null,
+          currentBillingPeriodCode: null,
+          pendingBillingPeriodCode: null,
           awaitingFirstPayment: false,
           payable: true,
         }}

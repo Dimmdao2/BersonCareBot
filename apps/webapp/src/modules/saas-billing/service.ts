@@ -922,11 +922,14 @@ export function createSaasBillingService(dependencies: {
         }
         // §5a item 7.0 arithmetic: the new period starts exactly where the paid one ended, never
         // "now" — a late tick must not hand the clinic extra free days.
+        // F-3 (independent audit-live, 2026-09-05) — `billingPeriodMonths` comes trusted off the
+        // due-list row itself, so this loop never calls the clinic-only period catalog under the
+        // worker principal (see `SaasBillingSubscriptionDueForRenewal`).
         const servicePeriodStartsAt = subscription.currentPeriodEndsAt;
-        const servicePeriodEndsAt = await paidPeriodEndsAtForBillingCode(
-          dependencies.repository,
+        const servicePeriodEndsAt = paidPeriodEndsAtForCode(
           servicePeriodStartsAt,
           subscription.billingPeriod,
+          new Map([[subscription.billingPeriod, subscription.billingPeriodMonths]]),
         );
         // К6 — the money-safety gate: BOTH an active, unrevoked consent AND a saved method must
         // hold. A revoked consent must win even if `savedPaymentMethodId` is still on the row (we
@@ -961,6 +964,7 @@ export function createSaasBillingService(dependencies: {
               servicePeriodEndsAt,
               expiresAt: saasBillingInvoiceExpiresAt(now(), provider.invoiceValidityDays),
               asOf,
+              tariffPriceMinor: subscription.billingPeriodPriceMinor,
             });
           if (!wasCreated) {
             alreadyInvoiced += 1;
@@ -1137,7 +1141,21 @@ export function createSaasBillingService(dependencies: {
       }
       if (!dependencies.getTariffTransition) throw new Error('saas_billing_tariff_change_unavailable');
       const transition = await dependencies.getTariffTransition(input.organizationId, input.tariffId);
-      if (transition.currentTariffId === null) {
+      // #1069 F-5 (independent audit-live, 2026-09-05) — `listActiveTariffChoices` is ALSO the
+      // canonical selectability door (it already drops non-selectable periods), but this function
+      // must not depend on every repository implementation getting that filter right: a stale
+      // price row for a period the owner has since retired stays in the matrix by design (§T14
+      // "снятие — не разрушает историю"), so a repository that forgot to join selectability would
+      // silently let a retired period through here. Cross-check `listBillingPeriods()` directly for
+      // any pair the org does not already hold — reverting to the pair it is already paying for
+      // (scheduling cancellation) is exempt: retirement never evicts an existing holder mid-period.
+      const isFirstChoice = transition.currentTariffId === null;
+      if (isFirstChoice) {
+        const billingPeriods = await dependencies.repository.listBillingPeriods();
+        const targetPeriod = billingPeriods.find((period) => period.code === input.billingPeriodCode);
+        if (!targetPeriod?.isSelectable) throw new Error('saas_billing_period_not_selectable');
+      }
+      if (isFirstChoice) {
         const chosen = await dependencies.repository.chooseOrganizationFirstTariff({
           organizationId: input.organizationId,
           tariffId: input.tariffId,
@@ -1158,10 +1176,15 @@ export function createSaasBillingService(dependencies: {
       const currentSubscription = await dependencies.repository.requireOwnTariffBillingSubscription(
         input.organizationId,
       );
-      if (
+      const isCurrentPair =
         transition.currentTariffId === input.tariffId &&
-        currentSubscription.currentBillingPeriodCode === input.billingPeriodCode
-      ) {
+        currentSubscription.currentBillingPeriodCode === input.billingPeriodCode;
+      if (!isCurrentPair) {
+        const billingPeriods = await dependencies.repository.listBillingPeriods();
+        const targetPeriod = billingPeriods.find((period) => period.code === input.billingPeriodCode);
+        if (!targetPeriod?.isSelectable) throw new Error('saas_billing_period_not_selectable');
+      }
+      if (isCurrentPair) {
         await this.assignManualTariff({
           organizationId: input.organizationId,
           tariffId: input.tariffId,

@@ -1243,8 +1243,8 @@ const TABLE_ROWS: TableRow[] = [
     + 'денежная матрица «цена тарифа за период»; без неё ни выбор клиники, ни admin-конструктор тарифов '
     + 'не знают сумму к оплате',
     pol: 'та же форма, что у соседнего saas_billing_periods выше: закрыто ГРАНТОМ (app_staff/app_clinic_billing '
-    + 'read, app_platform_settings полный CRUD), а не RLS-политикой — тот же класс риска I9, если RLS когда-либо '
-    + 'включат на этой таблице',
+    + 'read, app_platform_settings SELECT/INSERT/UPDATE — DELETE снят 05.09, запись только upsert), а не '
+    + 'RLS-политикой — тот же класс риска I9, если RLS когда-либо включат на этой таблице',
     defect: ['D4-role-escalation', 'I9-grant-instead-of-policy'] },
   { t: 'public.saas_billing_provider_events', cls: 'C', org: true, why: 'вебхуки провайдера — идемпотентность оплаты',
     defect: ['D4-role-escalation'] },
@@ -4085,8 +4085,11 @@ const REV10_CONTEXT = {
               'additional_seat_quantity', 'tariff_snapshot', 'updated_at'],
           },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // F-1 gap closed 2026-09-05: the body now also reads/validates the PAIR (not just the
+        // tariff), so it needs both period columns too.
         { relation: 'public.saas_billing_subscriptions',
-          columns: ['id', 'organization_id', 'tariff_id', 'pending_tariff_id', 'paid_additional_seats'],
+          columns: ['id', 'organization_id', 'tariff_id', 'billing_period_code', 'pending_tariff_id',
+            'pending_billing_period_code', 'paid_additional_seats'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         // цена больше не берётся из `saas_tariffs.price_minor`/`billing_period` — она приходит из
         // денежной матрицы по паре (tariff_id, p_billing_period_code).
@@ -5288,6 +5291,14 @@ const REV10_CONTEXT = {
           columns: ['id', 'organization_id', 'tariff_id', 'pending_tariff_id', 'billing_period_code',
             'pending_billing_period_code', 'source', 'status', 'current_period_ends_at', 'cancelled_at',
             'saved_payment_method_id', 'autopay_consented_at', 'autopay_revoked_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // F-2/F-3 (independent audit-live, 2026-09-05) — this root now ALSO resolves the purchased
+        // pair's month count and price, trusted, so `app_worker` never needs a broad SELECT on
+        // either table to run the renewal tick (see the port doc on
+        // `SaasBillingSubscriptionDueForRenewal`).
+        { relation: 'public.saas_billing_periods', columns: ['code', 'months'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.saas_tariff_period_prices', columns: ['tariff_id', 'billing_period_code', 'price_minor'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -7941,7 +7952,9 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgSaasBilling.ts', 'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts'],
     grants: [
       { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_platform_settings', operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], columns: 'table' },
+      // F-4/F-5 (independent audit-live, 2026-09-05) — DELETE removed: no write path ever deletes a
+      // period row (retirement is `setBillingPeriodSelectable`, an UPDATE); it was a pure overgrant.
+      { role: 'app_platform_settings', operations: ['SELECT', 'INSERT', 'UPDATE'], columns: 'table' },
     ],
   },
   // #1069 owner decision 2026-09-05 (period grid) — the money-authority row per (tariff, period);
@@ -7957,7 +7970,10 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [
       { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
       { role: 'app_clinic_billing', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_platform_settings', operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], columns: 'table' },
+      // F-4 (independent audit-live, 2026-09-05) — DELETE removed: `writeTariffPeriodPrices` is now
+      // a pure upsert (never a delete-all/full-replace), so the write path no longer uses it and the
+      // grant was an overgrant against "retirement is non-destructive" (owner decision 2).
+      { role: 'app_platform_settings', operations: ['SELECT', 'INSERT', 'UPDATE'], columns: 'table' },
     ],
   },
   'public.saas_paid_period_policy': {

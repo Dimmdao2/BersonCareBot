@@ -74,12 +74,27 @@ function parseSaasBillingSubscriptionsDueForRenewal(
     const currentPeriodEndsAt = nullableToIsoStringSafe(
       typeof row.currentPeriodEndsAt === 'string' ? row.currentPeriodEndsAt : null,
     );
+    // F-2/F-3 (independent audit-live, 2026-09-05) — a due row with no priced period is dropped,
+    // not defaulted: billing a guessed amount/length is worse than skipping this tick's renewal.
+    const billingPeriodMonths =
+      typeof row.billingPeriodMonths === 'number' && Number.isInteger(row.billingPeriodMonths) &&
+      row.billingPeriodMonths > 0
+        ? row.billingPeriodMonths
+        : null;
+    const billingPeriodPriceMinor =
+      typeof row.billingPeriodPriceMinor === 'number' &&
+      Number.isInteger(row.billingPeriodPriceMinor) &&
+      row.billingPeriodPriceMinor >= 0
+        ? row.billingPeriodPriceMinor
+        : null;
     if (
       !saasBillingSubscriptionId ||
       !organizationId ||
       !tariffId ||
       !billingPeriod ||
-      !currentPeriodEndsAt
+      !currentPeriodEndsAt ||
+      billingPeriodMonths === null ||
+      billingPeriodPriceMinor === null
     ) {
       return [];
     }
@@ -90,6 +105,8 @@ function parseSaasBillingSubscriptionsDueForRenewal(
         tariffId,
         pendingTariffId: text(row.pendingTariffId),
         billingPeriod,
+        billingPeriodMonths,
+        billingPeriodPriceMinor,
         currentPeriodEndsAt,
         savedPaymentMethodId: text(row.savedPaymentMethodId),
         autopayConsentedAt: nullableToIsoStringSafe(text(row.autopayConsentedAt)),
@@ -582,6 +599,10 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
     // #1069 owner decision 2026-09-05 (period grid) — a tariff no longer has one price; the
     // picker resolves the amount for whichever period it is quoting from this whole matrix.
+    // F-5 (independent audit-live, 2026-09-05) — this is the ONE canonical eligibility door every
+    // clinic/admin payment path reads through (`scheduleOwnTariffChange`, `assignManualTariff`'s
+    // `requireActiveTariff` fallback lives DB-side and already filters `isSelectable`): a retired
+    // period's price row exists for history, but must never surface here as something purchasable.
     async listActiveTariffChoices() {
       const rows = await getDrizzle()
         .select({
@@ -589,9 +610,14 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           name: saasTariffs.name,
           billingPeriodCode: saasTariffPeriodPrices.billingPeriodCode,
           priceMinor: saasTariffPeriodPrices.priceMinor,
+          isSelectable: saasBillingPeriods.isSelectable,
         })
         .from(saasTariffs)
         .leftJoin(saasTariffPeriodPrices, eq(saasTariffPeriodPrices.tariffId, saasTariffs.id))
+        .leftJoin(
+          saasBillingPeriods,
+          eq(saasBillingPeriods.code, saasTariffPeriodPrices.billingPeriodCode),
+        )
         .where(eq(saasTariffs.isActive, true))
         .orderBy(saasTariffs.name);
       const byTariff = new Map<string, { id: string; name: string; periodPrices: Array<{ billingPeriodCode: string; priceMinor: number }> }>();
@@ -601,7 +627,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           choice = { id: row.id, name: row.name, periodPrices: [] };
           byTariff.set(row.id, choice);
         }
-        if (row.billingPeriodCode !== null && row.priceMinor !== null) {
+        if (row.billingPeriodCode !== null && row.priceMinor !== null && row.isSelectable === true) {
           choice.periodPrices.push({ billingPeriodCode: row.billingPeriodCode, priceMinor: row.priceMinor });
         }
       }
@@ -1947,21 +1973,14 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         if (!tariffRow || tariffRow.currency === null) {
           throw new Error('saas_billing_tariff_not_billable');
         }
-        const [periodPrice] = await tx
-          .select({ priceMinor: saasTariffPeriodPrices.priceMinor })
-          .from(saasTariffPeriodPrices)
-          .where(
-            and(
-              eq(saasTariffPeriodPrices.tariffId, purchasedPair.tariffId),
-              eq(saasTariffPeriodPrices.billingPeriodCode, purchasedPair.billingPeriodCode),
-            ),
-          )
-          .limit(1);
-        if (!periodPrice) throw new Error('saas_billing_tariff_not_billable');
+        // F-2 (independent audit-live, 2026-09-05) — the price comes from the caller
+        // (`runDueSaasBillingRenewals`), which read it off the SAME elevated due-list root that
+        // named this pair in the first place; `app_worker` (the only role that reaches this call)
+        // has no SELECT on `saas_tariff_period_prices` and must not gain one for this alone.
         const authority = {
           tariffId: tariffRow.tariffId,
           tariffName: tariffRow.tariffName,
-          amountMinor: periodPrice.priceMinor,
+          amountMinor: input.tariffPriceMinor,
           additionalSeatPriceMinor: tariffRow.additionalSeatPriceMinor,
           currency: tariffRow.currency,
           tariffBillingPeriod: purchasedPair.billingPeriodCode,

@@ -228,7 +228,7 @@ export function PayTariffButton({
           }
         }}
       >
-        <SelectTrigger className="w-full">
+        <SelectTrigger className="w-full" aria-label="Тариф">
           <SelectValue placeholder="Выберите тариф" />
         </SelectTrigger>
         <SelectContent>
@@ -245,7 +245,7 @@ export function PayTariffButton({
         value={selectedBillingPeriodCode}
         onValueChange={(value) => setSelectedBillingPeriodCode(value ?? '')}
       >
-        <SelectTrigger className="w-full">
+        <SelectTrigger className="w-full" aria-label="Период оплаты">
           <SelectValue placeholder="Выберите период оплаты" />
         </SelectTrigger>
         <SelectContent>

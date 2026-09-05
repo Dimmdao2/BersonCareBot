@@ -18,7 +18,7 @@ import {
 } from '@/modules/saas-billing/invoiceOperations';
 import { saasBillingInvoiceExpiresAt } from '@/modules/saas-billing/invoiceValidity';
 import { isSaasBillingSeatDebtForPeriod } from '@/modules/saas-billing/seatDebt';
-import type { BillingPeriodOption } from '@/modules/saas-billing/billingPeriodCatalog';
+import type { BillingPeriodOption, TariffPeriodPrice } from '@/modules/saas-billing/billingPeriodCatalog';
 
 const DEFAULT_BILLING_PERIODS: BillingPeriodOption[] = [
   { code: 'month', label: 'Месяц', months: 1, isSelectable: true, sortOrder: 10 },
@@ -35,16 +35,70 @@ function subscriptionKey(
   return `${organizationId}::${source}`;
 }
 
+/**
+ * #1069 owner decision 2026-09-05 (period grid) — a fixture tariff carries a REAL price matrix
+ * (`periodPrices`, one row per priced period), the same shape as `saas_tariff_period_prices`.
+ * `TariffFixtureInput` also accepts the legacy single-period shorthand (`priceMinor` +
+ * `billingPeriod`) that every pre-existing test call site already uses — normalized below into a
+ * one-row matrix so most tests that don't care about multi-period pricing need no change at all.
+ */
+type TariffFixtureInput = {
+  id: string;
+  name: string;
+  currency: string;
+  additionalSeatPriceMinor?: number | null;
+} & (
+  | {
+      periodPrices: Array<{
+        billingPeriodCode: string;
+        priceMinor: number;
+        discountedPriceMinor?: number | null;
+      }>;
+    }
+  | { priceMinor: number; billingPeriod: string }
+);
+
+type TariffFixture = {
+  id: string;
+  name: string;
+  currency: string;
+  additionalSeatPriceMinor: number | null;
+  periodPrices: TariffPeriodPrice[];
+};
+
+function normalizeTariffFixture(input: TariffFixtureInput): TariffFixture {
+  const periodPrices: TariffPeriodPrice[] =
+    'periodPrices' in input
+      ? input.periodPrices.map((row) => ({
+          billingPeriodCode: row.billingPeriodCode,
+          priceMinor: row.priceMinor,
+          discountedPriceMinor: row.discountedPriceMinor ?? null,
+        }))
+      : [
+          {
+            billingPeriodCode: input.billingPeriod,
+            priceMinor: input.priceMinor,
+            discountedPriceMinor: null,
+          },
+        ];
+  return {
+    id: input.id,
+    name: input.name,
+    currency: input.currency,
+    additionalSeatPriceMinor: input.additionalSeatPriceMinor ?? null,
+    periodPrices,
+  };
+}
+
 export function createInMemorySaasBillingRepository(
   input: {
-    tariffs?: Array<{
-      id: string;
-      name: string;
-      priceMinor: number;
-      currency: string;
-      billingPeriod: string;
-      additionalSeatPriceMinor?: number | null;
-    }>;
+    tariffs?: TariffFixtureInput[];
+    /**
+     * #1069 owner decision 2026-09-05 (period grid) — per-test override of the GLOBAL grid (which
+     * periods exist, which are selectable, how many months each is); defaults to three always-
+     * selectable periods when a test does not care about the grid itself.
+     */
+    billingPeriods?: BillingPeriodOption[];
     trialPolicy?: {
       durationDays: number;
       discountWindowDays: number;
@@ -60,6 +114,11 @@ export function createInMemorySaasBillingRepository(
   } = {},
 ): SaasBillingRepositoryPort {
   const now = input.now ?? (() => new Date());
+  const billingPeriods = input.billingPeriods ?? DEFAULT_BILLING_PERIODS;
+  const selectableBillingPeriodCodesBySortOrder = [...billingPeriods]
+    .filter((period) => period.isSelectable)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((period) => period.code);
   const rows = new Map<string, SaasBillingSubscription>();
   const organizationTariffs = new Map<string, string | null>();
   const organizationTrials = new Map<
@@ -71,15 +130,42 @@ export function createInMemorySaasBillingRepository(
   const events = new Map<string, SaasBillingProviderEventReadRow>();
   const refunds = new Map<string, SaasBillingRefund>();
   const billingEmails = new Map<string, string>();
-  const tariffs = new Map((input.tariffs ?? []).map((tariff) => [tariff.id, tariff]));
-  // #1069 owner decision 2026-09-05 (period grid) — this fixture keeps its legacy `priceMinor` /
-  // `billingPeriod` shape (existing test call sites all construct it this way), so a "tariff" here
-  // has exactly ONE priced period: its own `billingPeriod`. `periodPriceFor` is the ONE place that
-  // reads it, mirroring `saas_tariff_period_prices` for callers that need the (tariff, period) pair.
+  const tariffs = new Map(
+    (input.tariffs ?? []).map((tariff) => [tariff.id, normalizeTariffFixture(tariff)]),
+  );
+  /** #1069 owner decision 2026-09-05 (period grid) — the (tariff, period) PAIR's own price, looked
+   *  up in that tariff's matrix; mirrors `saas_tariff_period_prices` for every caller that needs it. */
   function periodPriceFor(tariffId: string, billingPeriodCode: string): number | null {
     const tariff = tariffs.get(tariffId);
-    if (!tariff || tariff.billingPeriod !== billingPeriodCode) return null;
-    return tariff.priceMinor;
+    if (!tariff) return null;
+    const row = tariff.periodPrices.find((candidate) => candidate.billingPeriodCode === billingPeriodCode);
+    return row ? row.priceMinor : null;
+  }
+  /** Cheapest-sort-order GLOBALLY SELECTABLE period this tariff actually prices — the same
+   *  admin-path fallback rule `requireActiveTariff`/`requireOwnTariffBillingSubscription` use in
+   *  the pg repository (`saas_tariff_period_prices` joined to `saas_billing_periods`, ordered by
+   *  `sort_order`, `isSelectable = true`). `null` when the tariff prices no selectable period. */
+  function cheapestSelectablePeriodFor(tariffId: string): string | null {
+    for (const code of selectableBillingPeriodCodesBySortOrder) {
+      if (periodPriceFor(tariffId, code) !== null) return code;
+    }
+    return null;
+  }
+  /** §2.12 mirror — the pg repository freezes the WHOLE live tariff row via `to_jsonb`; this fake
+   *  freezes the (tariff, period) pair's own id/currency/price/period instead of a fixed field list,
+   *  which is all any test asserts against (`toMatchObject({ tariffSnapshot: { id: ... } })`). */
+  function tariffSnapshotFor(
+    tariffId: string,
+    billingPeriodCode: string,
+  ): Record<string, unknown> | null {
+    const tariff = tariffs.get(tariffId);
+    if (!tariff) return null;
+    return {
+      id: tariff.id,
+      currency: tariff.currency,
+      billing_period: billingPeriodCode,
+      price_minor: periodPriceFor(tariffId, billingPeriodCode),
+    };
   }
   // #1069 owner decision 2026-09-05 (period grid) — cancel-at-period-end. `SaasBillingSubscription`
   // (the type `rows` stores) carries no `cancelledAt`; the real column is exposed only through
@@ -168,7 +254,7 @@ export function createInMemorySaasBillingRepository(
 
   return {
     async listBillingPeriods() {
-      return DEFAULT_BILLING_PERIODS;
+      return billingPeriods;
     },
     async getSaasBillingAccountBillingEmail(organizationId) {
       return billingEmails.get(organizationId) ?? null;
@@ -263,7 +349,13 @@ export function createInMemorySaasBillingRepository(
       return { outcome: 'trial_started', endsAt };
     },
 
+    // #1069 owner decision 2026-09-05 (period grid) — mirrors `pgSaasBilling.ts::listActiveTariffChoices`:
+    // a period only surfaces here when it is GLOBALLY selectable, even if the tariff still carries a
+    // (historical) price row for a period the owner has since retired (F-5, independent audit-live).
     async listActiveTariffChoices() {
+      const selectableCodes = new Set(
+        billingPeriods.filter((period) => period.isSelectable).map((period) => period.code),
+      );
       return [
         ...new Set([
           ...tariffs.keys(),
@@ -276,12 +368,9 @@ export function createInMemorySaasBillingRepository(
           return {
             id,
             name: tariff?.name ?? 'In-memory tariff',
-            // #1069 owner decision 2026-09-05 (period grid) — this fixture's tariff has exactly
-            // ONE priced period (its own `billingPeriod`); an id with no matching fixture (e.g. an
-            // organization assigned a tariff id never registered here) has none.
-            periodPrices: tariff
-              ? [{ billingPeriodCode: tariff.billingPeriod, priceMinor: tariff.priceMinor }]
-              : [],
+            periodPrices: (tariff?.periodPrices ?? [])
+              .filter((row) => selectableCodes.has(row.billingPeriodCode))
+              .map((row) => ({ billingPeriodCode: row.billingPeriodCode, priceMinor: row.priceMinor })),
           };
         });
     },
@@ -451,13 +540,14 @@ export function createInMemorySaasBillingRepository(
           void audit;
           return { created: true, endsAt };
         },
-        // #1069 owner decision 2026-09-05 (period grid) — admin-path fallback only: this fixture's
-        // tariff has exactly one priced period (its own `billingPeriod`), which is always its
-        // cheapest (and only) selectable one.
+        // #1069 owner decision 2026-09-05 (period grid) — admin-path fallback only: the cheapest-
+        // sort-order GLOBALLY SELECTABLE period this tariff actually prices, same rule the pg
+        // repository uses (`saas_tariff_period_prices` joined to `saas_billing_periods`).
         async requireActiveTariff(tariffId) {
-          const tariff = tariffs.get(tariffId);
-          if (!tariff) throw new Error('active_tariff_not_found');
-          return { billingPeriod: tariff.billingPeriod };
+          if (!tariffs.has(tariffId)) throw new Error('active_tariff_not_found');
+          const cheapest = cheapestSelectablePeriodFor(tariffId);
+          if (!cheapest) throw new Error('saas_tariff_has_no_selectable_priced_period');
+          return { billingPeriod: cheapest };
         },
         async setManualSaasBillingSubscription({
           organizationId,
@@ -486,7 +576,6 @@ export function createInMemorySaasBillingRepository(
             return;
           }
           const current = rows.get(key);
-          const tariff = tariffs.get(tariffId);
           rows.set(key, {
             id: current?.id ?? crypto.randomUUID(),
             organizationId,
@@ -507,14 +596,8 @@ export function createInMemorySaasBillingRepository(
             currentPeriodEndsAt: period?.endsAt ?? null,
             graceEndsAt: null,
             readOnlyEndsAt: null,
-            tariffSnapshot: period && tariff
-              ? {
-                  id: tariff.id,
-                  price_minor: tariff.priceMinor,
-                  currency: tariff.currency,
-                  billing_period: tariff.billingPeriod,
-                }
-              : null,
+            tariffSnapshot:
+              period && billingPeriodCode ? tariffSnapshotFor(tariffId, billingPeriodCode) : null,
             paidAdditionalSeats: 0,
           });
           cancelledAtBySubscriptionId.delete(current?.id ?? '');
@@ -553,15 +636,16 @@ export function createInMemorySaasBillingRepository(
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
+      // Owner ruling 18.08.2026 / #1069 owner decision 2026-09-05 (period grid) — mirrors
+      // `pgSaasBilling.ts::createSaasBillingInvoice`: a subscription that has never named a
+      // (tariff, period) pair has nothing to bill, same refusal the real repository throws.
       const purchasedPair = purchasedTariffPeriodPair(authority);
-      const tariff = tariffs.get(purchasedTariffId(authority));
+      if (!purchasedPair) throw new Error('saas_billing_subscription_not_found');
+      const tariff = tariffs.get(purchasedPair.tariffId);
       // #1069 owner decision 2026-09-05 (period grid) — the amount comes from the (tariff, period)
-      // PAIR, never the tariff's own `priceMinor` alone; this fixture's tariff has exactly one
-      // priced period (its own `billingPeriod`), so `periodPriceFor` is the ONE place reading it.
-      const periodPriceMinor = purchasedPair
-        ? periodPriceFor(purchasedPair.tariffId, purchasedPair.billingPeriodCode)
-        : null;
-      const tariffBillingPeriod = purchasedPair?.billingPeriodCode ?? tariff?.billingPeriod ?? 'month';
+      // PAIR's own row in the price matrix, never a single tariff-level price.
+      const periodPriceMinor = periodPriceFor(purchasedPair.tariffId, purchasedPair.billingPeriodCode);
+      const tariffBillingPeriod = purchasedPair.billingPeriodCode;
       if (existingRenewal) {
         // Same refresh rule as the pg repository: an unclaimed draft for this period that names a
         // tariff or period the clinic is no longer buying is rewritten, never handed back as is.
@@ -584,14 +668,7 @@ export function createInMemorySaasBillingRepository(
           currency: tariff?.currency ?? 'RUB',
           tariffBillingPeriod,
           additionalSeatQuantity: authority.paidAdditionalSeats,
-          tariffSnapshot: tariff
-            ? {
-                id: tariff.id,
-                price_minor: tariff.priceMinor,
-                currency: tariff.currency,
-                billing_period: tariff.billingPeriod,
-              }
-            : null,
+          tariffSnapshot: tariffSnapshotFor(purchasedPair.tariffId, purchasedPair.billingPeriodCode),
         };
         invoices.set(refreshed.id, refreshed);
         return { invoice: refreshed, created: false };
@@ -620,14 +697,7 @@ export function createInMemorySaasBillingRepository(
         supersededByInvoiceId: null,
         currency: tariff?.currency ?? 'RUB',
         tariffBillingPeriod,
-        tariffSnapshot: tariff
-          ? {
-              id: tariff.id,
-              price_minor: tariff.priceMinor,
-              currency: tariff.currency,
-              billing_period: tariff.billingPeriod,
-            }
-          : null,
+        tariffSnapshot: tariffSnapshotFor(purchasedPair.tariffId, purchasedPair.billingPeriodCode),
         servicePeriodStartsAt: input.servicePeriodStartsAt,
         servicePeriodEndsAt: input.servicePeriodEndsAt,
         expiresAt: input.expiresAt,
@@ -934,10 +1004,9 @@ export function createInMemorySaasBillingRepository(
       const tariffId = organizationTariffs.get(organizationId) ?? current?.tariffId ?? null;
       if (!tariffId) throw new Error('saas_billing_no_tariff_assigned');
       // #1069 owner decision 2026-09-05 (period grid) — a brand-new row here has no clinic-picked
-      // period either; fall back to this tariff's own (only) period, same admin-path fallback
-      // `requireActiveTariff` uses.
-      const billingPeriodCode =
-        current?.billingPeriodCode ?? tariffs.get(tariffId)?.billingPeriod ?? null;
+      // period either; fall back to the cheapest-sort-order selectable period this tariff prices,
+      // same admin-path fallback `requireActiveTariff` uses in the pg repository.
+      const billingPeriodCode = current?.billingPeriodCode ?? cheapestSelectablePeriodFor(tariffId);
       if (!billingPeriodCode) throw new Error('saas_tariff_has_no_selectable_priced_period');
       const row: SaasBillingSubscription = {
         id: current?.id ?? crypto.randomUUID(),
@@ -987,7 +1056,12 @@ export function createInMemorySaasBillingRepository(
       };
     },
 
+    // #1069 owner decision 2026-09-05 (period grid) / F-2, F-3 (independent audit-live) — mirrors
+    // `pgSaasBilling.ts::parseSaasBillingSubscriptionsDueForRenewal`: a due row whose (tariff,
+    // period) pair has no priced period in the CURRENT grid (missing months and/or price) is
+    // DROPPED, not defaulted — billing a guessed amount/length is worse than skipping this tick.
     async listSaasBillingSubscriptionsDueForRenewal({ asOf, limit }) {
+      const monthsByCode = new Map(billingPeriods.map((period) => [period.code, period.months]));
       return [...rows.values()]
         .filter(
           (row) =>
@@ -1000,19 +1074,30 @@ export function createInMemorySaasBillingRepository(
             !cancelledAtBySubscriptionId.has(row.id),
         )
         .slice(0, limit)
-        .map((row) => {
+        .flatMap((row) => {
           const purchasedPair = purchasedTariffPeriodPair(row);
-          return {
-            saasBillingSubscriptionId: row.id,
-            organizationId: row.organizationId,
-            tariffId: purchasedTariffId(row),
-            pendingTariffId: row.pendingTariffId,
-            billingPeriod: purchasedPair?.billingPeriodCode ?? row.billingPeriodCode ?? 'month',
-            currentPeriodEndsAt: row.currentPeriodEndsAt as string,
-            savedPaymentMethodId: row.savedPaymentMethodId,
-            autopayConsentedAt: row.autopayConsentedAt,
-            autopayRevokedAt: row.autopayRevokedAt,
-          };
+          if (!purchasedPair) return [];
+          const billingPeriodMonths = monthsByCode.get(purchasedPair.billingPeriodCode);
+          const billingPeriodPriceMinor = periodPriceFor(
+            purchasedPair.tariffId,
+            purchasedPair.billingPeriodCode,
+          );
+          if (billingPeriodMonths === undefined || billingPeriodPriceMinor === null) return [];
+          return [
+            {
+              saasBillingSubscriptionId: row.id,
+              organizationId: row.organizationId,
+              tariffId: purchasedTariffId(row),
+              pendingTariffId: row.pendingTariffId,
+              billingPeriod: purchasedPair.billingPeriodCode,
+              billingPeriodMonths,
+              billingPeriodPriceMinor,
+              currentPeriodEndsAt: row.currentPeriodEndsAt as string,
+              savedPaymentMethodId: row.savedPaymentMethodId,
+              autopayConsentedAt: row.autopayConsentedAt,
+              autopayRevokedAt: row.autopayRevokedAt,
+            },
+          ];
         });
     },
 
@@ -1030,12 +1115,17 @@ export function createInMemorySaasBillingRepository(
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
+      // #1069 owner decision 2026-09-05 (period grid) — mirrors `pgSaasBilling.ts`: a subscription
+      // with no (tariff, period) pair has nothing to renew.
       const purchasedPair = purchasedTariffPeriodPair(authority);
-      const tariff = tariffs.get(purchasedTariffId(authority));
-      const periodPriceMinor = purchasedPair
-        ? periodPriceFor(purchasedPair.tariffId, purchasedPair.billingPeriodCode)
-        : null;
-      const tariffBillingPeriod = purchasedPair?.billingPeriodCode ?? tariff?.billingPeriod ?? 'month';
+      if (!purchasedPair) throw new Error('saas_billing_subscription_period_missing');
+      const tariff = tariffs.get(purchasedPair.tariffId);
+      // F-2 (independent audit-live, 2026-09-05) — the price is the CALLER's own trusted price
+      // (read off the due-list row it enumerated), never re-derived here via `periodPriceFor`:
+      // `app_worker` has no grant on `saas_tariff_period_prices` in the real repository, and this
+      // fake must not quietly reintroduce that read.
+      const periodPriceMinor = input.tariffPriceMinor;
+      const tariffBillingPeriod = purchasedPair.billingPeriodCode;
       const seatDebt = readSeatDebtForPeriod({
         organizationId: authority.organizationId,
         saasBillingSubscriptionId: authority.id,
@@ -1053,19 +1143,12 @@ export function createInMemorySaasBillingRepository(
         invoiceKind: 'tariff_period',
         additionalSeatQuantity: authority.paidAdditionalSeats,
         description: null,
-        amountMinor: (periodPriceMinor ?? 0) + seatDebt.totalMinor,
+        amountMinor: periodPriceMinor + seatDebt.totalMinor,
         carriedDebtMinor: seatDebt.totalMinor,
         supersededByInvoiceId: null,
         currency: tariff?.currency ?? 'RUB',
         tariffBillingPeriod,
-        tariffSnapshot: tariff
-          ? {
-              id: tariff.id,
-              price_minor: tariff.priceMinor,
-              currency: tariff.currency,
-              billing_period: tariff.billingPeriod,
-            }
-          : null,
+        tariffSnapshot: tariffSnapshotFor(purchasedPair.tariffId, purchasedPair.billingPeriodCode),
         servicePeriodStartsAt: input.servicePeriodStartsAt,
         servicePeriodEndsAt: input.servicePeriodEndsAt,
         expiresAt: input.expiresAt,

@@ -264,6 +264,16 @@ export type SaasBillingSubscriptionDueForRenewal = {
   tariffId: string;
   pendingTariffId: string | null;
   billingPeriod: TariffBillingPeriodCode;
+  /**
+   * F-2/F-3 (independent audit-live, 2026-09-05) — trusted month count and price for
+   * `billingPeriod`, resolved by the SAME elevated due-list root that already names the pair,
+   * instead of `app_worker` opening the clinic-only period catalog or reading the price matrix
+   * table directly. Rows missing either are dropped by the parser (see
+   * `parseSaasBillingSubscriptionsDueForRenewal`) — a due subscription with no priced period is
+   * a data problem, not something to bill a guessed amount for.
+   */
+  billingPeriodMonths: number;
+  billingPeriodPriceMinor: number;
   /** The end of the period just paid — the new period's `servicePeriodStartsAt`, never `now()`. */
   currentPeriodEndsAt: string;
   /** К6 — off-session charge target; `null` until a `payment.succeeded` webhook reports one. */
@@ -644,6 +654,14 @@ export type SaasBillingRepositoryPort = {
     /** Момент выставления. Решает, просрочен ли уже счёт за место с прошлого периода, — а значит,
      *  едет ли его сумма строкой в этот счёт (решение владельца 19.08). */
     asOf: string;
+    /**
+     * F-2 (independent audit-live, 2026-09-05) — trusted price for the (tariff, period) pair being
+     * renewed, sourced by the caller from {@link SaasBillingSubscriptionDueForRenewal}'s own
+     * elevated read. The implementation must NOT re-derive this via a table SELECT on
+     * `saas_tariff_period_prices` — `app_worker`, the only role that ever reaches this call, has no
+     * grant there by design.
+     */
+    tariffPriceMinor: number;
   }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
 
   /**

@@ -25,22 +25,34 @@ describe('PayTariffButton', () => {
       <PayTariffButton
         billingEmail={null}
         tariffChange={{
-          choices: [{ id: 'tariff-1', name: 'Базовый' }],
+          choices: [
+            {
+              id: 'tariff-1',
+              name: 'Базовый',
+              periodPrices: [{ billingPeriodCode: 'monthly', priceMinor: 100000 }],
+            },
+          ],
           currentTariffId: null,
           pendingTariffId: null,
           pendingEffectiveAt: null,
+          currentBillingPeriodCode: null,
+          pendingBillingPeriodCode: null,
           awaitingFirstPayment: false,
           payable: true,
         }}
       />,
     );
 
-    const tariffSelector = screen.getByRole('combobox');
+    // Два одноролевых select'а (тариф + период, #1069) различаем по accessible name, а не по
+    // позиции/счёту — владелец прямо запретил такие UI-shape запросы для этого компонента.
+    const tariffSelector = screen.getByRole('combobox', { name: 'Тариф' });
     expect(tariffSelector).toHaveTextContent('Выберите тариф');
     expect(screen.getByRole('button', { name: 'Перейти на тариф' })).toBeDisabled();
 
     fireEvent.click(tariffSelector);
     fireEvent.click(screen.getByRole('option', { name: 'Базовый' }));
+    // Выбор единственного тарифа сам подставляет его единственный период (см. `PayTariffButton`
+    // `onValueChange`), поэтому кнопка включается без отдельного клика по периоду.
     expect(screen.getByRole('button', { name: 'Перейти на тариф' })).not.toBeDisabled();
   });
 
@@ -53,10 +65,18 @@ describe('PayTariffButton', () => {
       <PayTariffButton
         billingEmail={null}
         tariffChange={{
-          choices: [{ id: 'tariff-1', name: 'Базовый' }],
+          choices: [
+            {
+              id: 'tariff-1',
+              name: 'Базовый',
+              periodPrices: [{ billingPeriodCode: 'monthly', priceMinor: 100000 }],
+            },
+          ],
           currentTariffId: 'tariff-1',
           pendingTariffId: null,
           pendingEffectiveAt: null,
+          currentBillingPeriodCode: 'monthly',
+          pendingBillingPeriodCode: null,
           awaitingFirstPayment: false,
           payable: true,
         }}
@@ -101,10 +121,18 @@ describe('PayTariffButton', () => {
       <PayTariffButton
         billingEmail="clinic@example.test"
         tariffChange={{
-          choices: [{ id: 'tariff-1', name: 'Базовый' }],
+          choices: [
+            {
+              id: 'tariff-1',
+              name: 'Базовый',
+              periodPrices: [{ billingPeriodCode: 'monthly', priceMinor: 100000 }],
+            },
+          ],
           currentTariffId: 'tariff-1',
           pendingTariffId: null,
           pendingEffectiveAt: null,
+          currentBillingPeriodCode: 'monthly',
+          pendingBillingPeriodCode: null,
           awaitingFirstPayment: false,
           payable: true,
         }}
@@ -130,10 +158,18 @@ describe('PayTariffButton', () => {
       <PayTariffButton
         billingEmail="clinic@example.test"
         tariffChange={{
-          choices: [{ id: 'tariff-free', name: 'Бесплатный' }],
+          choices: [
+            {
+              id: 'tariff-free',
+              name: 'Бесплатный',
+              periodPrices: [{ billingPeriodCode: 'monthly', priceMinor: 0 }],
+            },
+          ],
           currentTariffId: 'tariff-free',
           pendingTariffId: null,
           pendingEffectiveAt: null,
+          currentBillingPeriodCode: 'monthly',
+          pendingBillingPeriodCode: null,
           awaitingFirstPayment: false,
           payable: false,
         }}

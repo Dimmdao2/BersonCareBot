@@ -99,7 +99,9 @@ describe('scheduleOwnTariffChange — снятый период не прода�
   }
 
   it('отказывает в переходе на СНЯТЫЙ период, хотя его строка цены сохранилась', async () => {
-    const setManualSaasBillingSubscription = vi.fn(async () => {});
+    const setManualSaasBillingSubscription = vi.fn(
+      async (_input: { pendingBillingPeriodCode?: string | null }) => {},
+    );
     const service = buildService(setManualSaasBillingSubscription);
 
     await expect(
@@ -115,7 +117,7 @@ describe('scheduleOwnTariffChange — снятый период не прода�
     // Проверяем сам наблюдаемый side effect, а не только тип отказа: планирование снятого периода —
     // это именно то, что потом оплатится и будет продлеваться.
     const scheduledPeriods = setManualSaasBillingSubscription.mock.calls.map(
-      (call) => (call[0] as { pendingBillingPeriodCode?: string | null }).pendingBillingPeriodCode,
+      (call) => call[0].pendingBillingPeriodCode,
     );
     expect(scheduledPeriods).not.toContain('year');
   });
