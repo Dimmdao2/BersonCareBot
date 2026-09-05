@@ -228,10 +228,30 @@ function fmtBirthDate(iso: string | null | undefined): string {
   return `${day}.${month}.${year}`;
 }
 
-
 function phoneHref(phone: string): string {
   const normalized = phone.replace(/[^\d+]/g, '');
   return `tel:${normalized || phone}`;
+}
+
+function publicMessengerHandle(value: string | null | undefined): string | null {
+  const normalized = value?.trim().replace(/^@/, '') ?? '';
+  return /^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(normalized) ? normalized : null;
+}
+
+function telegramChatHref(identity: PatientCardHeader['identity']): string | null {
+  const username = publicMessengerHandle(identity.telegramUsername);
+  if (username) return `https://t.me/${username}`;
+  const phone = identity.phone?.replace(/\D/g, '') ?? '';
+  return phone ? `https://t.me/+${phone}` : null;
+}
+
+function maxChatHref(identity: PatientCardHeader['identity']): string | null {
+  const username = publicMessengerHandle(identity.maxUsername);
+  return username ? `https://max.ru/${username}` : null;
+}
+
+function openExternalMessenger(href: string): void {
+  window.open(href, '_blank', 'noopener,noreferrer');
 }
 
 function PatientContactActions({
@@ -242,6 +262,7 @@ function PatientContactActions({
   chatButtonHighlighted,
   chatUnreadCount,
   onChatUnreadChange,
+  patientOnSupport,
   className,
 }: {
   identity: PatientCardHeader['identity'];
@@ -251,9 +272,12 @@ function PatientContactActions({
   chatButtonHighlighted: boolean;
   chatUnreadCount: number;
   onChatUnreadChange: (count: number) => void;
+  patientOnSupport: boolean;
   className?: string;
 }) {
   const actionClass = 'h-[34px] w-[34px] rounded-md border text-xs md:h-6 md:w-6';
+  const telegramHref = hasTelegram ? telegramChatHref(identity) : null;
+  const maxHref = hasMax ? maxChatHref(identity) : null;
 
   return (
     <div className={cn('flex flex-wrap items-center gap-2', className)}>
@@ -295,6 +319,7 @@ function PatientContactActions({
       <DoctorOpenChatButton
         patientUserId={identity.userId}
         patientName={identity.displayName ?? undefined}
+        patientOnSupport={patientOnSupport}
         variant="ghost"
         size="icon"
         title={chatUnreadCount > 0 ? `Открыть чат · ${chatUnreadCount}` : 'Открыть чат'}
@@ -313,37 +338,44 @@ function PatientContactActions({
           <DoctorAttentionBadge count={chatUnreadCount} dot />
         </span>
       </DoctorOpenChatButton>
-      <DoctorOpenChatButton
-        patientUserId={identity.userId}
-        patientName={identity.displayName ?? undefined}
+      <Button
+        type="button"
         variant="ghost"
         size="icon"
-        title={hasTelegram ? 'Открыть коммуникации: Telegram' : 'Telegram не привязан'}
-        disabled={!hasTelegram}
+        title={telegramHref ? 'Открыть чат в Telegram' : 'Ссылка Telegram недоступна'}
+        disabled={!telegramHref}
+        onClick={() => {
+          if (telegramHref) openExternalMessenger(telegramHref);
+        }}
         className={cn(
           actionClass,
-          hasTelegram
+          telegramHref
             ? doctorClientPrimaryOutlineActionClass
             : 'border-transparent bg-muted/30 text-muted-foreground/40',
         )}
       >
         <Send className="h-3.5 w-3.5" />
-      </DoctorOpenChatButton>
+      </Button>
       {hasMax ? (
-        <DoctorOpenChatButton
-          patientUserId={identity.userId}
-          patientName={identity.displayName ?? undefined}
+        <Button
+          type="button"
           variant="ghost"
           size="icon"
-          title="Открыть коммуникации: MAX"
+          title={maxHref ? 'Открыть чат в MAX' : 'Ссылка MAX недоступна'}
+          disabled={!maxHref}
+          onClick={() => {
+            if (maxHref) openExternalMessenger(maxHref);
+          }}
           className={cn(
             actionClass,
-            doctorClientPrimaryOutlineActionClass,
+            maxHref
+              ? doctorClientPrimaryOutlineActionClass
+              : 'border-transparent bg-muted/30 text-muted-foreground/40',
             'font-semibold',
           )}
         >
           M
-        </DoctorOpenChatButton>
+        </Button>
       ) : null}
       <Button
         variant="ghost"
@@ -437,12 +469,7 @@ export function PatientCardClient({
     })
       .then(async (response) => {
         const payload = (await response.json()) as { ok?: boolean; unreadCount?: number };
-        if (
-          !cancelled &&
-          response.ok &&
-          payload.ok &&
-          typeof payload.unreadCount === 'number'
-        ) {
+        if (!cancelled && response.ok && payload.ok && typeof payload.unreadCount === 'number') {
           setChatUnreadCount(payload.unreadCount);
         }
       })
@@ -576,7 +603,9 @@ export function PatientCardClient({
               </div>
 
               {/* Дата рождения — read-only; edit via pencil */}
-              <div className={cn(doctorMetaTextClass, 'mt-2.5 flex flex-wrap items-center gap-1.5')}>
+              <div
+                className={cn(doctorMetaTextClass, 'mt-2.5 flex flex-wrap items-center gap-1.5')}
+              >
                 <span>
                   Дата рождения: {resolvedBirthDate ? fmtBirthDate(resolvedBirthDate) : '—'}
                 </span>
@@ -620,6 +649,7 @@ export function PatientCardClient({
               chatButtonHighlighted={chatButtonHighlighted}
               chatUnreadCount={chatUnreadCount}
               onChatUnreadChange={setChatUnreadCount}
+              patientOnSupport={support.isOnSupport}
             />
           </div>
         ) : null}

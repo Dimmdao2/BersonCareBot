@@ -36,6 +36,7 @@ const patientHeader = {
     email: null,
     emailVerifiedAt: null,
     telegramUsername: null,
+    maxUsername: null,
     bindings: {},
     hasConversation: false,
     isArchived: false,
@@ -345,5 +346,4 @@ describe('patient records tab — a refused load is not a visit history', () => 
     expect(screen.getByText('19.08.2026 · 13:00')).toBeInTheDocument();
     expect(screen.getByText('Консультация · 60 мин')).toBeInTheDocument();
   });
-
 });
