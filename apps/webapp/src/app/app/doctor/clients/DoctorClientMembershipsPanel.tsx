@@ -688,7 +688,7 @@ export function DoctorClientMembershipsPanel({
                     <SelectContent>
                       <SelectItem value="">—</SelectItem>
                       {services
-                        .filter((s) => s.isActive && s.usableInPackages)
+                        .filter((s) => s.isActive)
                         .map((s) => (
                           <SelectItem key={s.id} value={s.id}>
                             {s.title}

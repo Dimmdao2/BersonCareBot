@@ -1,10 +1,26 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useId, useState, useTransition } from 'react';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import {
   DoctorSection,
@@ -15,9 +31,9 @@ import {
   DoctorDnaFlatList,
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
-  doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
-import { Flag } from 'lucide-react';
+import { DoctorSortableSettingsRow } from '@/shared/ui/doctor/DoctorSortableSettingsRow';
+import { cn } from '@/lib/utils';
 import {
   SOLO_BOOKING_UNAVAILABLE_MESSAGE,
   apiJson,
@@ -31,24 +47,99 @@ import {
 } from '@/app/app/settings/bookingSoloAdminApi';
 
 const BASE = '/api/admin/booking-engine';
+const PREPAYMENT_API = `${BASE}/prepayment-policies`;
 
 type ServiceRow = SoloOverview['services'][0];
+type PrepaymentMode = 'disabled' | 'fixed_minor' | 'percent' | 'full_price';
+type PrepaymentUnit = 'rubles' | 'percent';
+type PrepaymentPolicy = {
+  serviceId: string | null;
+  mode: PrepaymentMode;
+  amountMinor: number | null;
+  percentBps: number | null;
+  isActive?: boolean;
+};
+type PrepaymentAvailability = {
+  available: boolean;
+  reason: string | null;
+};
+type PrepaymentDraft = {
+  enabled: boolean;
+  unit: PrepaymentUnit;
+  value: string;
+};
+
+const EMPTY_PREPAYMENT: PrepaymentDraft = { enabled: false, unit: 'rubles', value: '' };
 
 function formatPrice(priceMinor: number) {
   return `${(priceMinor / 100).toLocaleString('ru-RU')} ₽`;
 }
 
-function ServiceFlag({ label, enabled }: { label: string; enabled: boolean }) {
-  return (
-    <span className="inline-flex items-center gap-1 whitespace-nowrap">
-      <span>{label}</span>
-      <span aria-label={`${label}: ${enabled ? 'да' : 'нет'}`}>{enabled ? '✓' : '—'}</span>
-    </span>
-  );
+function policyToDraft(policy: PrepaymentPolicy | undefined): PrepaymentDraft {
+  if (!policy || policy.mode === 'disabled' || policy.isActive === false) return EMPTY_PREPAYMENT;
+  if (policy.mode === 'fixed_minor') {
+    return {
+      enabled: true,
+      unit: 'rubles',
+      value: policy.amountMinor == null ? '' : minorToRublesInput(policy.amountMinor),
+    };
+  }
+  return {
+    enabled: true,
+    unit: 'percent',
+    value: policy.mode === 'full_price' ? '100' : String((policy.percentBps ?? 0) / 100),
+  };
+}
+
+function prepaymentBody(serviceId: string, draft: PrepaymentDraft) {
+  if (!draft.enabled) {
+    return {
+      scope: 'service' as const,
+      serviceId,
+      mode: 'disabled' as const,
+      amountMinor: null,
+      percentBps: null,
+      isActive: false,
+    };
+  }
+  if (draft.unit === 'rubles') {
+    return {
+      scope: 'service' as const,
+      serviceId,
+      mode: 'fixed_minor' as const,
+      amountMinor: rublesToMinor(parseRublesInput(draft.value)),
+      percentBps: null,
+      isActive: true,
+    };
+  }
+  const percent = Number(draft.value.replace(',', '.'));
+  if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+    throw new Error('invalid_prepayment_percent');
+  }
+  return {
+    scope: 'service' as const,
+    serviceId,
+    mode: 'percent' as const,
+    amountMinor: null,
+    percentBps: Math.round(percent * 100),
+    isActive: true,
+  };
+}
+
+function formatPrepayment(policy: PrepaymentPolicy | undefined): string {
+  if (!policy || policy.mode === 'disabled' || policy.isActive === false) return '—';
+  if (policy.mode === 'fixed_minor') {
+    return policy.amountMinor == null ? '—' : formatPrice(policy.amountMinor);
+  }
+  if (policy.mode === 'full_price') return '100%';
+  return policy.percentBps == null ? '—' : `${policy.percentBps / 100}%`;
 }
 
 export function BookingSoloServicesSection() {
   const [services, setServices] = useState<ServiceRow[]>([]);
+  const [prepaymentPolicies, setPrepaymentPolicies] = useState<PrepaymentPolicy[]>([]);
+  const [prepaymentAvailability, setPrepaymentAvailability] =
+    useState<PrepaymentAvailability | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
@@ -60,9 +151,7 @@ export function BookingSoloServicesSection() {
   const [duration, setDuration] = useState('60');
   const [bufferAfter, setBufferAfter] = useState('0');
   const [priceRub, setPriceRub] = useState('5000');
-  const [serviceEnabled, setServiceEnabled] = useState(true);
-  const [usableInPackages, setUsableInPackages] = useState(true);
-  const [prepaymentApplicable, setPrepaymentApplicable] = useState(false);
+  const [prepayment, setPrepayment] = useState<PrepaymentDraft>(EMPTY_PREPAYMENT);
   const [onlinePaymentApplicable, setOnlinePaymentApplicable] = useState(false);
   const [createAsDefault, setCreateAsDefault] = useState(false);
   const [editedService, setEditedService] = useState<ServiceRow | null>(null);
@@ -71,26 +160,43 @@ export function BookingSoloServicesSection() {
   const [editDuration, setEditDuration] = useState('');
   const [editBufferAfter, setEditBufferAfter] = useState('');
   const [editPriceRub, setEditPriceRub] = useState('');
-  const [editEnabled, setEditEnabled] = useState(true);
-  const [editUsableInPackages, setEditUsableInPackages] = useState(true);
-  const [editPrepaymentApplicable, setEditPrepaymentApplicable] = useState(false);
+  const [editPrepayment, setEditPrepayment] = useState<PrepaymentDraft>(EMPTY_PREPAYMENT);
   const [editOnlinePaymentApplicable, setEditOnlinePaymentApplicable] = useState(false);
   const [editAsDefault, setEditAsDefault] = useState(false);
+  const dndContextId = useId();
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const canEditPrepayment = prepaymentAvailability?.available ?? false;
 
   const load = useCallback(async () => {
     setLoadError(null);
     setUnavailable(false);
     try {
-      const [data, currentDefaultServiceId] = await Promise.all([
+      const [data, currentDefaultServiceId, prepaymentJson] = await Promise.all([
         fetchSoloOverview(),
         fetchBookingDefaultId('service'),
+        apiJson<{
+          ok?: boolean;
+          policies?: PrepaymentPolicy[];
+          availability?: PrepaymentAvailability;
+          visible?: boolean;
+        }>(PREPAYMENT_API).catch(() => null),
       ]);
       if (!data) {
         setUnavailable(true);
         return;
       }
-      setServices(data.services);
+      setServices(
+        [...data.services].sort(
+          (left, right) =>
+            left.sortOrder - right.sortOrder || left.title.localeCompare(right.title, 'ru'),
+        ),
+      );
       setDefaultServiceId(currentDefaultServiceId);
+      setPrepaymentPolicies(prepaymentJson?.visible === false ? [] : (prepaymentJson?.policies ?? []));
+      setPrepaymentAvailability(prepaymentJson?.availability ?? null);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'load_failed');
     }
@@ -121,9 +227,7 @@ export function BookingSoloServicesSection() {
     setDuration('60');
     setBufferAfter('0');
     setPriceRub('5000');
-    setServiceEnabled(true);
-    setUsableInPackages(true);
-    setPrepaymentApplicable(false);
+    setPrepayment(EMPTY_PREPAYMENT);
     setOnlinePaymentApplicable(false);
     setCreateAsDefault(false);
   }
@@ -148,16 +252,23 @@ export function BookingSoloServicesSection() {
               durationMinutes: Number(duration),
               bufferAfterMinutes: Number(bufferAfter),
               priceMinor: rublesToMinor(rub),
-              isActive: serviceEnabled,
-              publicWidgetVisible: serviceEnabled,
-              adminManualOnly: !serviceEnabled,
-              usableInPackages,
-              prepaymentApplicable,
+              isActive: true,
+              publicWidgetVisible: true,
+              adminManualOnly: false,
+              usableInPackages: true,
+              prepaymentApplicable: prepayment.enabled,
               onlinePaymentApplicable,
               sortOrder: maxOrder + 10,
             }),
           },
         );
+        if (prepayment.enabled) {
+          await apiJson(PREPAYMENT_API, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(prepaymentBody(created.service.id, prepayment)),
+          });
+        }
         if (createAsDefault) await setBookingDefaultId('service', created.service.id);
       },
       () => {
@@ -175,9 +286,9 @@ export function BookingSoloServicesSection() {
     setEditDuration(String(service.durationMinutes));
     setEditBufferAfter(String(service.bufferAfterMinutes));
     setEditPriceRub(minorToRublesInput(service.priceMinor));
-    setEditEnabled(service.isActive);
-    setEditUsableInPackages(service.usableInPackages);
-    setEditPrepaymentApplicable(service.prepaymentApplicable);
+    setEditPrepayment(
+      policyToDraft(prepaymentPolicies.find((policy) => policy.serviceId === service.id)),
+    );
     setEditOnlinePaymentApplicable(service.onlinePaymentApplicable);
     setEditAsDefault(service.id === defaultServiceId);
   }
@@ -196,14 +307,20 @@ export function BookingSoloServicesSection() {
             durationMinutes: Number(editDuration),
             bufferAfterMinutes: Number(editBufferAfter),
             priceMinor: rublesToMinor(rub),
-            isActive: editEnabled,
-            publicWidgetVisible: editEnabled,
-            adminManualOnly: !editEnabled,
-            usableInPackages: editUsableInPackages,
-            prepaymentApplicable: editPrepaymentApplicable,
+            usableInPackages: true,
+            prepaymentApplicable: canEditPrepayment
+              ? editPrepayment.enabled
+              : editedService.prepaymentApplicable,
             onlinePaymentApplicable: editOnlinePaymentApplicable,
           }),
         });
+        if (canEditPrepayment) {
+          await apiJson(PREPAYMENT_API, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(prepaymentBody(editedService.id, editPrepayment)),
+          });
+        }
         if (editAsDefault) {
           await setBookingDefaultId('service', editedService.id);
         } else if (editedService.id === defaultServiceId) {
@@ -227,6 +344,38 @@ export function BookingSoloServicesSection() {
       });
       if (!enabled && service.id === defaultServiceId) {
         await setBookingDefaultId('service', null);
+      }
+    });
+  }
+
+  function reorderServices(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = services.findIndex((service) => service.id === active.id);
+    const newIndex = services.findIndex((service) => service.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const reordered = arrayMove(services, oldIndex, newIndex).map((service, index) => ({
+      ...service,
+      sortOrder: (index + 1) * 10,
+    }));
+    setServices(reordered);
+    setActionError(null);
+    startTransition(async () => {
+      try {
+        await Promise.all(
+          reordered.map((service) =>
+            apiJson(`${BASE}/services/${service.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sortOrder: service.sortOrder }),
+            }),
+          ),
+        );
+        await load();
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : 'action_failed');
+        await load();
       }
     });
   }
@@ -258,55 +407,56 @@ export function BookingSoloServicesSection() {
           <p className="text-sm text-destructive">{actionError}</p>
         ) : null}
 
-        <DoctorDnaFlatList aria-label="Услуги">
-          {services.map((service) => (
-            <li
-              key={service.id}
-              className={`${doctorDnaFlatListRowClass} transition-colors hover:bg-muted focus-within:bg-muted`}
-            >
-              <button
-                type="button"
-                className="flex min-w-0 flex-1 cursor-pointer flex-col self-stretch justify-center gap-0.5 text-left focus-visible:outline-none"
-                onClick={() => openService(service)}
-              >
-                <span className="flex min-w-0 items-baseline justify-between gap-4">
-                  <span
-                    className={`${doctorDnaFlatListPrimaryClass} block truncate ${!service.isActive ? 'text-muted-foreground line-through' : ''}`}
+        <DndContext
+          id={dndContextId}
+          sensors={dndSensors}
+          collisionDetection={closestCenter}
+          onDragEnd={reorderServices}
+        >
+          <SortableContext
+            items={services.map((service) => service.id)}
+            strategy={verticalListSortingStrategy}
+            disabled={pending}
+          >
+            <DoctorDnaFlatList aria-label="Услуги">
+              {services.map((service) => {
+                const policy = prepaymentPolicies.find(
+                  (candidate) => candidate.serviceId === service.id,
+                );
+                return (
+                  <DoctorSortableSettingsRow
+                    key={service.id}
+                    id={service.id}
+                    label={service.title}
+                    disabled={pending}
+                    active={service.isActive}
+                    isDefault={service.id === defaultServiceId}
+                    trailing={
+                      <span className="text-sm text-foreground">
+                        {formatPrice(service.priceMinor)}
+                      </span>
+                    }
+                    onOpen={() => openService(service)}
+                    onActiveChange={(checked) => setServiceActive(service, checked)}
                   >
-                    {service.title}
-                  </span>
-                  <span className="shrink-0 text-sm text-foreground">
-                    {formatPrice(service.priceMinor)}
-                  </span>
-                </span>
-                <span
-                  className={`${doctorDnaFlatListMetaClass} flex flex-wrap items-center gap-x-3 gap-y-0.5`}
-                >
-                  <span className="whitespace-nowrap">
-                    Длительность {service.durationMinutes} мин, перерыв {service.bufferAfterMinutes}{' '}
-                    мин
-                  </span>
-                  <ServiceFlag label="Абонемент" enabled={service.usableInPackages} />
-                  <ServiceFlag label="Предоплата" enabled={service.prepaymentApplicable} />
-                  <ServiceFlag label="Онлайн" enabled={service.onlinePaymentApplicable} />
-                </span>
-              </button>
-              {service.id === defaultServiceId ? (
-                <Flag
-                  className="size-4 shrink-0 fill-primary text-primary"
-                  aria-label="По умолчанию"
-                />
-              ) : null}
-              <Switch
-                className="shrink-0"
-                checked={service.isActive}
-                disabled={pending}
-                aria-label={`${service.title} — включена`}
-                onCheckedChange={(checked) => setServiceActive(service, checked)}
-              />
-            </li>
-          ))}
-        </DoctorDnaFlatList>
+                    <span
+                      className={`${doctorDnaFlatListPrimaryClass} block truncate ${!service.isActive ? 'text-muted-foreground line-through' : ''}`}
+                    >
+                      {service.title}
+                    </span>
+                    <span className={`${doctorDnaFlatListMetaClass} block truncate`}>
+                      {service.durationMinutes} мин, перерыв {service.bufferAfterMinutes} мин
+                    </span>
+                    <span className={`${doctorDnaFlatListMetaClass} block truncate`}>
+                      Онлайн {service.onlinePaymentApplicable ? '✓' : '—'} · Предоплата{' '}
+                      {formatPrepayment(policy)}
+                    </span>
+                  </DoctorSortableSettingsRow>
+                );
+              })}
+            </DoctorDnaFlatList>
+          </SortableContext>
+        </DndContext>
         {services.length === 0 ? (
           <p className="text-sm text-muted-foreground">Услуг пока нет.</p>
         ) : null}
@@ -321,9 +471,9 @@ export function BookingSoloServicesSection() {
         duration={duration}
         bufferAfter={bufferAfter}
         priceRub={priceRub}
-        enabled={serviceEnabled}
-        usableInPackages={usableInPackages}
-        prepaymentApplicable={prepaymentApplicable}
+        prepayment={prepayment}
+        canEditPrepayment={canEditPrepayment}
+        canSetDefault
         onlinePaymentApplicable={onlinePaymentApplicable}
         asDefault={createAsDefault}
         error={actionError}
@@ -332,9 +482,7 @@ export function BookingSoloServicesSection() {
         onDurationChange={setDuration}
         onBufferAfterChange={setBufferAfter}
         onPriceChange={setPriceRub}
-        onEnabledChange={setServiceEnabled}
-        onUsableInPackagesChange={setUsableInPackages}
-        onPrepaymentApplicableChange={setPrepaymentApplicable}
+        onPrepaymentChange={setPrepayment}
         onOnlinePaymentApplicableChange={setOnlinePaymentApplicable}
         onDefaultChange={setCreateAsDefault}
         onClose={() => setCreateOpen(false)}
@@ -350,9 +498,9 @@ export function BookingSoloServicesSection() {
         duration={editDuration}
         bufferAfter={editBufferAfter}
         priceRub={editPriceRub}
-        enabled={editEnabled}
-        usableInPackages={editUsableInPackages}
-        prepaymentApplicable={editPrepaymentApplicable}
+        prepayment={editPrepayment}
+        canEditPrepayment={canEditPrepayment}
+        canSetDefault={editedService?.isActive ?? false}
         onlinePaymentApplicable={editOnlinePaymentApplicable}
         asDefault={editAsDefault}
         error={actionError}
@@ -361,9 +509,7 @@ export function BookingSoloServicesSection() {
         onDurationChange={setEditDuration}
         onBufferAfterChange={setEditBufferAfter}
         onPriceChange={setEditPriceRub}
-        onEnabledChange={setEditEnabled}
-        onUsableInPackagesChange={setEditUsableInPackages}
-        onPrepaymentApplicableChange={setEditPrepaymentApplicable}
+        onPrepaymentChange={setEditPrepayment}
         onOnlinePaymentApplicableChange={setEditOnlinePaymentApplicable}
         onDefaultChange={setEditAsDefault}
         onClose={() => setEditedService(null)}
@@ -382,9 +528,9 @@ type ServiceModalProps = {
   duration: string;
   bufferAfter: string;
   priceRub: string;
-  enabled: boolean;
-  usableInPackages: boolean;
-  prepaymentApplicable: boolean;
+  prepayment: PrepaymentDraft;
+  canEditPrepayment: boolean;
+  canSetDefault: boolean;
   onlinePaymentApplicable: boolean;
   asDefault: boolean;
   error: string | null;
@@ -393,9 +539,7 @@ type ServiceModalProps = {
   onDurationChange: (value: string) => void;
   onBufferAfterChange: (value: string) => void;
   onPriceChange: (value: string) => void;
-  onEnabledChange: (value: boolean) => void;
-  onUsableInPackagesChange: (value: boolean) => void;
-  onPrepaymentApplicableChange: (value: boolean) => void;
+  onPrepaymentChange: (value: PrepaymentDraft) => void;
   onOnlinePaymentApplicableChange: (value: boolean) => void;
   onDefaultChange: (value: boolean) => void;
   onClose: () => void;
@@ -411,9 +555,9 @@ function ServiceModal({
   duration,
   bufferAfter,
   priceRub,
-  enabled,
-  usableInPackages,
-  prepaymentApplicable,
+  prepayment,
+  canEditPrepayment,
+  canSetDefault,
   onlinePaymentApplicable,
   asDefault,
   error,
@@ -422,9 +566,7 @@ function ServiceModal({
   onDurationChange,
   onBufferAfterChange,
   onPriceChange,
-  onEnabledChange,
-  onUsableInPackagesChange,
-  onPrepaymentApplicableChange,
+  onPrepaymentChange,
   onOnlinePaymentApplicableChange,
   onDefaultChange,
   onClose,
@@ -438,17 +580,12 @@ function ServiceModal({
       title={mode === 'create' ? 'Новая услуга' : 'Редактировать услугу'}
       size="md"
       footer={
-        <>
-          <Button type="button" size="sm" variant="outline" onClick={onClose}>
-            Отмена
-          </Button>
-          <Button type="button" size="sm" disabled={pending || !title.trim()} onClick={onSubmit}>
-            {mode === 'create' ? 'Создать' : 'Сохранить'}
-          </Button>
-        </>
+        <Button type="button" size="sm" disabled={pending || !title.trim()} onClick={onSubmit}>
+          {mode === 'create' ? 'Создать' : 'Сохранить'}
+        </Button>
       }
     >
-      <div className="flex flex-col gap-3">
+      <div className="flex min-h-0 flex-col gap-3">
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <div className="flex flex-col gap-1">
           <Label htmlFor={`${prefix}-title`}>Название</Label>
@@ -456,14 +593,6 @@ function ServiceModal({
             id={`${prefix}-title`}
             value={title}
             onChange={(event) => onTitleChange(event.target.value)}
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor={`${prefix}-description`}>Описание для пациента</Label>
-          <Input
-            id={`${prefix}-description`}
-            value={description}
-            onChange={(event) => onDescriptionChange(event.target.value)}
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -503,22 +632,6 @@ function ServiceModal({
         <div className="flex flex-col gap-3 pt-1">
           <label className="flex items-center gap-3 text-sm">
             <Switch
-              checked={usableInPackages}
-              disabled={pending}
-              onCheckedChange={onUsableInPackagesChange}
-            />
-            Доступна для абонементов
-          </label>
-          <label className="flex items-center gap-3 text-sm">
-            <Switch
-              checked={prepaymentApplicable}
-              disabled={pending}
-              onCheckedChange={onPrepaymentApplicableChange}
-            />
-            Предоплата
-          </label>
-          <label className="flex items-center gap-3 text-sm">
-            <Switch
               checked={onlinePaymentApplicable}
               disabled={pending}
               onCheckedChange={onOnlinePaymentApplicableChange}
@@ -526,19 +639,99 @@ function ServiceModal({
             Онлайн-оплата
           </label>
           <label className="flex items-center gap-3 text-sm">
-            <Switch checked={enabled} disabled={pending} onCheckedChange={onEnabledChange} />
-            Услуга включена
-          </label>
-          <label className="flex items-center gap-3 text-sm">
             <Switch
               checked={asDefault}
-              disabled={pending || (!enabled && !asDefault)}
+              disabled={pending || (!canSetDefault && !asDefault)}
               onCheckedChange={onDefaultChange}
             />
             Услуга по умолчанию
           </label>
+          <PrepaymentControl
+            value={prepayment}
+            disabled={pending || !canEditPrepayment}
+            onChange={onPrepaymentChange}
+          />
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-1">
+          <Label htmlFor={`${prefix}-description`}>Описание для пациента</Label>
+          <Textarea
+            id={`${prefix}-description`}
+            rows={4}
+            className="min-h-24 flex-1 resize-y"
+            value={description}
+            onChange={(event) => onDescriptionChange(event.target.value)}
+          />
         </div>
       </div>
     </DoctorModal>
+  );
+}
+
+function PrepaymentControl({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: PrepaymentDraft;
+  disabled: boolean;
+  onChange: (value: PrepaymentDraft) => void;
+}) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-3">
+      <label className="flex shrink-0 items-center gap-3 text-sm">
+        <Switch
+          checked={value.enabled}
+          disabled={disabled}
+          onCheckedChange={(enabled) => onChange({ ...value, enabled })}
+        />
+        Предоплата
+      </label>
+      {value.enabled ? (
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            max={value.unit === 'percent' ? 100 : undefined}
+            step={value.unit === 'percent' ? 1 : '0.01'}
+            className="w-24"
+            aria-label="Размер предоплаты"
+            value={value.value}
+            disabled={disabled}
+            onChange={(event) => onChange({ ...value, value: event.target.value })}
+          />
+          <div className="flex shrink-0 gap-1" role="group" aria-label="Единица предоплаты">
+            <button
+              type="button"
+              className={cn(
+                'h-8 min-w-8 rounded-[8px] border px-2 text-sm transition-colors',
+                value.unit === 'rubles'
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-white text-foreground',
+              )}
+              disabled={disabled}
+              aria-pressed={value.unit === 'rubles'}
+              onClick={() => onChange({ ...value, unit: 'rubles' })}
+            >
+              ₽
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'h-8 min-w-8 rounded-[8px] border px-2 text-sm transition-colors',
+                value.unit === 'percent'
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-white text-foreground',
+              )}
+              disabled={disabled}
+              aria-pressed={value.unit === 'percent'}
+              onClick={() => onChange({ ...value, unit: 'percent' })}
+            >
+              %
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
