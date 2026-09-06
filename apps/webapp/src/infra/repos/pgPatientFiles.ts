@@ -138,6 +138,8 @@ export function createPgPatientFilesPort(): PatientFilesPort {
               folderId: params.folderId,
               status: 'pending',
               previewStatus: 'pending',
+              // Файл пациента живёт в шифрованном хранилище (owner ruling 06.09.2026).
+              storageTarget: 'patient',
             })
             .returning({ id: mediaFiles.id });
           mediaFileId = mf?.id ?? null;
@@ -155,6 +157,7 @@ export function createPgPatientFilesPort(): PatientFilesPort {
             sizeBytes: params.sizeBytes,
             uploadedByUserId: params.uploadedByUserId,
             mediaFileId,
+            storageTarget: 'patient',
           })
           .returning();
       });
