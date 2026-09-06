@@ -26,6 +26,8 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { emitPackageLinkedCalendarSync } from '@/app-layer/booking/emitPackageCalendarSync';
+import { getMechanicMutationAvailability } from '@/app-layer/guards/requireEntitlement';
+import { runWithMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
 import {
   staffBookingContactNameFromAppointment,
   staffBookingServiceTitleFromAppointment,
@@ -60,6 +62,16 @@ const bodySchema = z.object({
   /** Минорные единицы (копейки). Дробных денег контракт не принимает вовсе. */
   priceMinor: z.number().int().min(0).nullable().optional(),
   prepayment: prepaymentOverrideSchema.nullable().optional(),
+  /**
+   * ENCOUNTER-APPOINTMENT-05: явное согласие специалиста на наложение ИМЕННО этого слота.
+   *
+   * Обычный запрос поля не несёт и остаётся fail-closed: занятое время отбивается `slot_overlap`
+   * до всякой записи. Форма показывает подтверждение и повторяет ТОТ ЖЕ запрос с `true` — второй
+   * двери, упрощённого appointment или локальной вставки для этого не заводится. Всё остальное
+   * (арендатор, пациент, специалист, филиал/услуга, цена и предоплата) проверяется ровно так же:
+   * согласие снимает один запрет пересечения, а не валидацию.
+   */
+  allowOverlap: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -93,15 +105,26 @@ export async function POST(request: Request) {
           organizationId: ctx.organizationId,
           specialistId: resolvedSpecialistId,
         });
+        // ENCOUNTER-APPOINTMENT-05: `allowOverlap` — не общий bypass, а retry ПОСЛЕ реально
+        // найденного конфликта. На свободном слоте он оставляет обычную запись без долгоживущего
+        // маркера; другой отказ scheduling не превращается в согласие.
+        let overlapConfirmed = false;
         if (deps.bookingScheduling) {
-          await deps.bookingScheduling.assertSlotAvailable({
-            organizationId: ctx.organizationId,
-            specialistId: resolvedSpecialistId,
-            roomId: parsed.data.roomId ?? null,
-            slotStart: parsed.data.startAt,
-            slotEnd: parsed.data.endAt,
-            durationMinutes: parsed.data.durationMinutes,
-          });
+          try {
+            await deps.bookingScheduling.assertSlotAvailable({
+              organizationId: ctx.organizationId,
+              specialistId: resolvedSpecialistId,
+              roomId: parsed.data.roomId ?? null,
+              slotStart: parsed.data.startAt,
+              slotEnd: parsed.data.endAt,
+              durationMinutes: parsed.data.durationMinutes,
+            });
+          } catch (err) {
+            if (!parsed.data.allowOverlap || !(err instanceof Error && err.message === 'slot_overlap')) {
+              throw err;
+            }
+            overlapConfirmed = true;
+          }
         }
         // PAY-APPT-01/03/07: снимок считается ДО вставки, потому что от него зависит и стартовый
         // статус записи, и занятость слота. Абонемент проверяется здесь же (чтение), чтобы
@@ -156,25 +179,52 @@ export async function POST(request: Request) {
             initialStatus === 'awaiting_payment' ? financials.prepaymentRequiredMinor : 0,
           paymentDeadlineAt:
             initialStatus === 'awaiting_payment' ? financials.paymentDeadlineAt : null,
+          // Признак появляется только после фактического `slot_overlap`, а не от одного флага
+          // клиента. Перенос делает пару отличной от нового времени и вновь включает обычный
+          // exclusion guard; DB trigger отдельно не даёт новому обычному write пройти поверх
+          // записи, оставленной этим подтверждением на исходном слоте.
+          overlapConfirmedStartAt: overlapConfirmed ? parsed.data.startAt : null,
+          overlapConfirmedEndAt: overlapConfirmed ? parsed.data.endAt : null,
         });
         try {
           if (parsed.data.platformUserId && parsed.data.serviceId && deps.memberships) {
             const picked = coveringPackage;
             if (picked) {
-              await deps.memberships.reserveForAppointment({
-                organizationId: ctx.organizationId,
-                patientPackageId: picked.id,
-                serviceId: parsed.data.serviceId,
-                appointmentId: created.id,
-                platformUserId: parsed.data.platformUserId,
-              });
-              const fresh = await ctx.service.getAppointment(created.id);
-              if (fresh) created = fresh;
-              await emitPackageLinkedCalendarSync(syncPort, created);
+              // Списание сеанса — запись механики `subscriptions`, и она физически отказывает без
+              // решения тарифа в этом же запросе. Отдельного решения здесь не было вовсе, поэтому
+              // привязка падала на замке и молча гасилась `catch` ниже. Решение берётся тем же
+              // резолвером, что и `payments` в снимке, а запись выполняется в его явной области.
+              const subscriptions = await getMechanicMutationAvailability(
+                { organizationId: ctx.organizationId },
+                'subscriptions',
+              );
+              if (subscriptions.available) {
+                const memberships = deps.memberships;
+                const platformUserId = parsed.data.platformUserId;
+                const serviceId = parsed.data.serviceId;
+                await runWithMechanicWriteClearance('subscriptions', () =>
+                  memberships.reserveForAppointment({
+                    organizationId: ctx.organizationId,
+                    patientPackageId: picked.id,
+                    serviceId,
+                    appointmentId: created.id,
+                    platformUserId,
+                  }),
+                );
+                const fresh = await ctx.service.getAppointment(created.id);
+                if (fresh) created = fresh;
+                await emitPackageLinkedCalendarSync(syncPort, created);
+              }
             }
           }
-        } catch {
-          // The appointment is already committed; optional package enrichment cannot reverse the API result.
+        } catch (err) {
+          // The appointment is already committed; optional package enrichment cannot reverse the
+          // API result. It is logged, though: a silent catch is exactly what kept the auto-link
+          // broken — the refusal existed on every create and nothing ever said so.
+          console.error('[manual-appointment] package auto-link failed', {
+            appointmentId: created.id,
+            errorClass: err instanceof Error ? err.name : 'unknown',
+          });
         }
         let bookingRow: Awaited<
           ReturnType<NonNullable<typeof deps.patientBooking>['getBookingByCanonicalAppointment']>

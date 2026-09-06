@@ -177,6 +177,14 @@ export type CreateAppointmentInput = {
   appointmentReminderAllowedPresetIds?: AppointmentReminderPresetId[];
   appointmentReminderPresetId?: AppointmentReminderPresetId | null;
   appointmentReminderSelectionSource?: 'specialist_default' | 'patient';
+  /**
+   * ENCOUNTER-APPOINTMENT-05: слот, наложение на который специалист подтвердил ЯВНО. Пара
+   * совпадает с `startAt`/`endAt` этой же записи и только в этом случае выводит строку из-под
+   * `be_appointments_specialist_no_overlap`; любой последующий перенос перевзводит защиту сам.
+   * Ставит её ровно один вызывающий — авторизованная ручная дверь врача после подтверждения.
+   */
+  overlapConfirmedStartAt?: string | null;
+  overlapConfirmedEndAt?: string | null;
 } & AppointmentFinancialFields;
 
 type CreateManualPatientIdentityInput = {
