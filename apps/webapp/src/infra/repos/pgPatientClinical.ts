@@ -8,6 +8,8 @@ import { and, asc, desc, eq, ilike, inArray, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { displayZonePartsFromUtcInstant } from '@/shared/datetime/displayTimeZoneFormat';
 import type {
   ActiveComplaint,
   ActiveDiagnosis,
@@ -70,25 +72,23 @@ const RU_MONTHS = [
   'декабря',
 ];
 
-function fmtVisitDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getUTCDate()} ${RU_MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+function fmtVisitDate(iso: string, timeZone: string): string {
+  const { day, month, year } = displayZonePartsFromUtcInstant(iso, timeZone);
+  return `${Number(day)} ${RU_MONTHS[Number(month) - 1]} ${year}`;
 }
 
-function fmtVisitTime(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+function fmtVisitTime(iso: string, timeZone: string): string {
+  const { hour, minute } = displayZonePartsFromUtcInstant(iso, timeZone);
+  return `${hour}:${minute}`;
 }
 
-function fmtDayMonth(iso: string): string {
-  const d = new Date(iso);
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  return `${dd}.${mm}`;
+function fmtDayMonth(iso: string, timeZone: string): string {
+  const { day, month } = displayZonePartsFromUtcInstant(iso, timeZone);
+  return `${day}.${month}`;
 }
 
-function fmtSince(iso: string): string {
-  return `с ${fmtDayMonth(iso)}`;
+function fmtSince(iso: string, timeZone: string): string {
+  return `с ${fmtDayMonth(iso, timeZone)}`;
 }
 
 /**
@@ -143,6 +143,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     async getClinicalState(patientUserId: string): Promise<ClinicalState> {
       const db = getDrizzle();
       const organizationId = principalOrganizationId();
+      const displayTimeZone = await getAppDisplayTimeZone();
 
       const complaintRows = await db
         .select()
@@ -219,6 +220,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           trend,
           since: fmtSince(
             (c.sourceVisitId ? visitDateById.get(c.sourceVisitId) : null) ?? c.createdAt,
+            displayTimeZone,
           ),
           createdAt: c.createdAt,
           resolvedAt: c.resolvedAt ?? null,
@@ -242,8 +244,8 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           (d.sourceVisitId ? visitDateById.get(d.sourceVisitId) : null) ?? d.createdAt;
         const meta =
           d.status === 'refined' && refinedDate
-            ? `уточнён ${fmtDayMonth(refinedDate)}`
-            : `поставлен ${fmtDayMonth(placedDate)}`;
+            ? `уточнён ${fmtDayMonth(refinedDate, displayTimeZone)}`
+            : `поставлен ${fmtDayMonth(placedDate, displayTimeZone)}`;
         return {
           id: d.id,
           text: d.text,
@@ -273,6 +275,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     async listVisits(patientUserId: string): Promise<Visit[]> {
       const db = getDrizzle();
       const organizationId = principalOrganizationId();
+      const displayTimeZone = await getAppDisplayTimeZone();
 
       const visitRows = await db
         .select()
@@ -414,8 +417,8 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         return {
           id: v.id,
           canonicalAppointmentId: v.canonicalAppointmentId,
-          date: fmtVisitDate(v.visitedAt),
-          time: fmtVisitTime(v.visitedAt),
+          date: fmtVisitDate(v.visitedAt, displayTimeZone),
+          time: fmtVisitTime(v.visitedAt, displayTimeZone),
           type: v.visitType as 'first' | 'repeat',
           location: v.location ?? '',
           duration: v.duration ?? '',
@@ -425,6 +428,14 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           sections: sections.length > 0 ? sections : undefined,
           files: files.length > 0 ? files : undefined,
           package: pkg,
+          raw: {
+            visitedAtIso: new Date(v.visitedAt).toISOString(),
+            service: v.service ?? null,
+            exam: v.exam ?? null,
+            manipulations: v.manipulations ?? null,
+            trialResults: v.trialResults ?? null,
+            recommendations: v.recommendations ?? null,
+          },
         };
       });
     },

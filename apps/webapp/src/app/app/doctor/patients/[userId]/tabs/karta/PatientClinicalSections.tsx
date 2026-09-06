@@ -55,6 +55,8 @@ type Props = {
   anamnesisLoading: boolean;
   anamnesisError: boolean;
   onAnamnesisRefresh: () => void;
+  /** Typed composition slot: encounter summary belongs after disease, before life anamnesis. */
+  betweenDiseaseAndLife?: ReactNode;
   initialComorbidities?: PatientClinicalComorbidity[];
 };
 
@@ -379,6 +381,7 @@ export function PatientClinicalSections({
   anamnesisLoading,
   anamnesisError,
   onAnamnesisRefresh,
+  betweenDiseaseAndLife,
   initialComorbidities,
 }: Props) {
   const [showComplaintHistory, setShowComplaintHistory] = useState(false);
@@ -436,26 +439,6 @@ export function PatientClinicalSections({
     }
   };
 
-  const createComplaint = async () => {
-    const text = complaintDraft.text.trim();
-    const severity = Number(complaintDraft.severity);
-    if (!text || !Number.isInteger(severity) || severity < 0 || severity > 10) {
-      setSaveError(true);
-      return;
-    }
-    const ok = await request(`/api/doctor/patients/${userId}/complaints`, 'POST', {
-      text,
-      description: complaintDraft.description.trim() || null,
-      priority: complaintDraft.priority,
-      severity,
-    });
-    if (!ok) return;
-    setComplaintAddOpen(false);
-    setComplaintDraft(EMPTY_COMPLAINT);
-    toast.success('Симптом добавлен');
-    onClinicalRefresh();
-  };
-
   const saveComplaint = async () => {
     if (!selectedComplaint || !complaintDraft.text.trim()) {
       setSaveError(true);
@@ -493,24 +476,6 @@ export function PatientClinicalSections({
     toast.success(resolved ? 'Симптом закрыт' : 'Значение добавлено');
     onClinicalRefresh();
     if (resolved) setSelectedComplaint(null);
-  };
-
-  const createDiagnosis = async () => {
-    const text = diagnosisDraft.text.trim();
-    if (!text) {
-      setSaveError(true);
-      return;
-    }
-    const ok = await request(`/api/doctor/patients/${userId}/diagnoses`, 'POST', {
-      text,
-      priority: diagnosisDraft.priority,
-      comment: diagnosisDraft.comment.trim() || null,
-    });
-    if (!ok) return;
-    setDiagnosisAddOpen(false);
-    setDiagnosisDraft(EMPTY_DIAGNOSIS);
-    toast.success('Диагноз добавлен');
-    onClinicalRefresh();
   };
 
   const saveDiagnosis = async () => {
@@ -665,6 +630,8 @@ export function PatientClinicalSections({
         onRefresh={onAnamnesisRefresh}
       />
 
+      {betweenDiseaseAndLife}
+
       <LifeAnamnesisSection
         userId={userId}
         patientName={patientName}
@@ -676,17 +643,14 @@ export function PatientClinicalSections({
         initialComorbidities={initialComorbidities}
       />
 
-      <ComplaintFormModal
+      <PatientClinicalCreateModal
+        kind="complaint"
         open={complaintAddOpen}
-        nested={false}
-        patientTitle={patientTitle('Новый симптом', patientName, patientOnSupport)}
-        draft={complaintDraft}
-        onDraft={setComplaintDraft}
-        saving={saving}
-        error={saveError}
+        userId={userId}
+        patientName={patientName}
+        patientOnSupport={patientOnSupport}
         onClose={() => setComplaintAddOpen(false)}
-        onSave={() => void createComplaint()}
-        showSeverity
+        onSaved={onClinicalRefresh}
       />
 
       <DoctorModal
@@ -785,16 +749,14 @@ export function PatientClinicalSections({
         onSave={() => void saveComplaint()}
       />
 
-      <DiagnosisFormModal
+      <PatientClinicalCreateModal
+        kind="diagnosis"
         open={diagnosisAddOpen}
-        nested={false}
-        patientTitle={patientTitle('Новый диагноз', patientName, patientOnSupport)}
-        draft={diagnosisDraft}
-        onDraft={setDiagnosisDraft}
-        saving={saving}
-        error={saveError}
+        userId={userId}
+        patientName={patientName}
+        patientOnSupport={patientOnSupport}
         onClose={() => setDiagnosisAddOpen(false)}
-        onSave={() => void createDiagnosis()}
+        onSaved={onClinicalRefresh}
       />
 
       <DoctorModal
@@ -853,6 +815,121 @@ export function PatientClinicalSections({
         onSave={() => void saveDiagnosis()}
       />
     </>
+  );
+}
+
+/**
+ * One patient-scoped create form for the card and encounter page. It owns the accepted
+ * DoctorModal chrome and the established complaints/diagnoses contracts, so a new encounter
+ * never gains a second simplified clinical form.
+ */
+export function PatientClinicalCreateModal({
+  kind,
+  open,
+  userId,
+  patientName,
+  patientOnSupport,
+  onClose,
+  onSaved,
+}: {
+  kind: 'complaint' | 'diagnosis';
+  open: boolean;
+  userId: string;
+  patientName: string | null;
+  patientOnSupport: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [complaintDraft, setComplaintDraft] = useState<ComplaintDraft>(EMPTY_COMPLAINT);
+  const [diagnosisDraft, setDiagnosisDraft] = useState<DiagnosisDraft>(EMPTY_DIAGNOSIS);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setComplaintDraft(EMPTY_COMPLAINT);
+    setDiagnosisDraft(EMPTY_DIAGNOSIS);
+    setSaveError(false);
+  }, [kind, open]);
+
+  const save = async () => {
+    const complaint = kind === 'complaint';
+    const text = (complaint ? complaintDraft.text : diagnosisDraft.text).trim();
+    const severity = Number(complaintDraft.severity);
+    if (
+      !text ||
+      (complaint && (!Number.isInteger(severity) || severity < 0 || severity > 10))
+    ) {
+      setSaveError(true);
+      return;
+    }
+
+    setSaving(true);
+    setSaveError(false);
+    try {
+      const response = await fetch(
+        `/api/doctor/patients/${userId}/${complaint ? 'complaints' : 'diagnoses'}`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(
+            complaint
+              ? {
+                  text,
+                  description: complaintDraft.description.trim() || null,
+                  priority: complaintDraft.priority,
+                  severity,
+                }
+              : {
+                  text,
+                  priority: diagnosisDraft.priority,
+                  comment: diagnosisDraft.comment.trim() || null,
+                },
+          ),
+        },
+      );
+      if (!response.ok) throw new Error(`status ${response.status}`);
+      toast.success(complaint ? 'Симптом добавлен' : 'Диагноз добавлен');
+      onSaved();
+      onClose();
+    } catch {
+      setSaveError(true);
+      toast.error('Не удалось сохранить');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (kind === 'complaint') {
+    return (
+      <ComplaintFormModal
+        open={open}
+        nested={false}
+        patientTitle={patientTitle('Новый симптом', patientName, patientOnSupport)}
+        draft={complaintDraft}
+        onDraft={setComplaintDraft}
+        saving={saving}
+        error={saveError}
+        onClose={onClose}
+        onSave={() => void save()}
+        showSeverity
+      />
+    );
+  }
+
+  return (
+    <DiagnosisFormModal
+      open={open}
+      nested={false}
+      patientTitle={patientTitle('Новый диагноз', patientName, patientOnSupport)}
+      draft={diagnosisDraft}
+      onDraft={setDiagnosisDraft}
+      saving={saving}
+      error={saveError}
+      onClose={onClose}
+      onSave={() => void save()}
+    />
   );
 }
 

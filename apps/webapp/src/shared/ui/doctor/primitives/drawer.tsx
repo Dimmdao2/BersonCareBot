@@ -31,12 +31,14 @@ function DrawerContent({
 }) {
   return (
     <DrawerPrimitive.Portal>
-      {showOverlay ? (
-        <DrawerPrimitive.Backdrop
-          data-slot="drawer-overlay"
-          className="fixed inset-0 z-50 bg-black/25 transition-opacity duration-300 ease-out [opacity:calc(1-var(--drawer-swipe-progress))] data-ending-style:opacity-0 data-starting-style:opacity-0 data-swiping:duration-0 supports-backdrop-filter:backdrop-blur-[2px]"
-        />
-      ) : null}
+      <DrawerPrimitive.Backdrop
+        data-slot="drawer-overlay"
+        forceRender={!showOverlay}
+        className={cn(
+          'fixed inset-0 z-50 transition-opacity duration-300 ease-out [opacity:calc(1-var(--drawer-swipe-progress))] data-ending-style:opacity-0 data-starting-style:opacity-0 data-swiping:duration-0',
+          showOverlay ? 'bg-black/25 supports-backdrop-filter:backdrop-blur-[2px]' : 'bg-transparent',
+        )}
+      />
       <DrawerPrimitive.Viewport className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center">
         <DrawerPrimitive.Popup
           data-slot="drawer-content"

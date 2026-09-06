@@ -4,7 +4,7 @@
  * Returns the patient's canonical appointments that do NOT yet have a linked
  * clinical visit (clinical_visit.canonical_appointment_id IS NULL for this record).
  *
- * Used in the «Создать из записи» flow in NewVisitPanel.
+ * Used by the full encounter page when the doctor chooses an existing appointment.
  *
  * Response: { appointments: PatientAppointmentItem[] }
  * Each item includes `internalId` (canonical appointment uuid) needed to set the
