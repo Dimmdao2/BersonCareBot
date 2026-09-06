@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { buttonVariants } from '@/shared/ui/patient/primitives/button-variants';
 import { cn } from '@/lib/utils';
 import { routePaths } from '@/app-layer/routes/paths';
@@ -24,15 +24,32 @@ type ApiOk = {
   offset: number;
 };
 
-export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOption[] }) {
+export function SymptomChart({
+  trackings,
+  initialPeriod = 'week',
+  scrollable = false,
+  showJournalLink = true,
+}: {
+  trackings: SymptomChartTrackingOption[];
+  initialPeriod?: DiaryStatsPeriod;
+  scrollable?: boolean;
+  showJournalLink?: boolean;
+}) {
   const [trackingId, setTrackingId] = useState(trackings[0]?.id ?? '');
-  const [period, setPeriod] = useState<DiaryStatsPeriod>('week');
+  const [period, setPeriod] = useState<DiaryStatsPeriod>(initialPeriod);
   const [offset, setOffset] = useState(0);
   const [points, setPoints] = useState<
     { date: string; instant: number | null; daily: number | null }[]
   >([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const chartScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollToNewest = useCallback(() => {
+    const container = chartScrollRef.current;
+    if (!scrollable || !container || points.length === 0) return;
+    container.scrollLeft = container.scrollWidth;
+  }, [points, scrollable]);
 
   useEffect(() => {
     if (trackings.length === 0) {
@@ -54,6 +71,7 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
         period,
         offset: String(offset),
       });
+      if (scrollable) qs.set('fillDays', '1');
       const res = await fetch(`/api/patient/diary/symptom-stats?${qs.toString()}`, {
         credentials: 'include',
       });
@@ -86,11 +104,15 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
     } finally {
       setLoading(false);
     }
-  }, [trackingId, period, offset]);
+  }, [trackingId, period, offset, scrollable]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useLayoutEffect(() => {
+    scrollToNewest();
+  }, [scrollToNewest]);
 
   useEffect(() => {
     const onEntrySaved = () => {
@@ -146,19 +168,33 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
 
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
       {showInitialSkeleton ? <AppContentLoading className="min-h-[260px]" /> : null}
-      {!showInitialSkeleton && points.length === 0 && !error ? (
+      {!showInitialSkeleton &&
+      !points.some((point) => point.instant !== null || point.daily !== null) &&
+      !error ? (
         <p className="text-muted-foreground text-sm">Нет записей за выбранный период.</p>
       ) : null}
-      {!showInitialSkeleton && points.length > 0 && !error ? (
+      {!showInitialSkeleton &&
+      points.some((point) => point.instant !== null || point.daily !== null) &&
+      !error ? (
         <div
-          className={`mt-6 ${chartRefreshing ? 'opacity-60 transition-opacity' : ''}`}
+          ref={chartScrollRef}
+          className={cn(
+            'mt-6',
+            scrollable && 'overflow-x-auto',
+            chartRefreshing && 'opacity-60 transition-opacity',
+          )}
           aria-busy={chartRefreshing}
         >
-          <RechartsSymptom points={points} period={period} />
+          <RechartsSymptom
+            points={points}
+            period={period}
+            scrollable={scrollable}
+            onScrollableMount={scrollToNewest}
+          />
         </div>
       ) : null}
 
-      {trackingId ? (
+      {trackingId && showJournalLink ? (
         <div className="mt-6">
           <Link
             href={`${routePaths.diarySymptomsJournal}?trackingId=${encodeURIComponent(trackingId)}&period=${period}&offset=${offset}`}

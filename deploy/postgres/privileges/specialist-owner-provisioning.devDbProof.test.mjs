@@ -25,9 +25,13 @@
  *
  * Что тест приносит в транзакцию ИЗ РЕПОЗИТОРИЯ, а не выдумывает:
  *   — гранты шва из `deploy/postgres/generated/privileges.<база>.sql` (то, что кладёт reconcile);
+ *   — две seam-политики `system_settings` оттуда же под probe-only именами;
  *   — выражения аттестованных гейтов оттуда же, наложенные ровно как их накладывает reconcile;
+ *   — кандидатное тело `app.provision_specialist_owner(uuid)` из forward-миграции;
  *   — тело `app.start_provisioned_organization_trial()` из
  *     `deploy/postgres/c5a-platform-operations-runtime.sql` (runtime-overlay, его кладёт rehydrate).
+ *   — канонический baseline справочников, без которого триггер новой организации не может создать
+ *     обязательный снимок (`deploy/postgres/reference-catalog-baselines.sql`).
  * Смысл: DEV сводится другой веткой и отстаёт; доказывать надо, что ОБЪЯВЛЕННОГО набора хватает,
  * а не то, в каком состоянии кластер оказался сегодня. Ни одна из этих строк не сочиняется здесь.
  *
@@ -56,6 +60,14 @@ if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(DATABASE)) {
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
 const ARTIFACT = path.join(REPO_ROOT, `deploy/postgres/generated/privileges.${DATABASE}.sql`);
 const RUNTIME_OVERLAY = path.join(REPO_ROOT, 'deploy/postgres/c5a-platform-operations-runtime.sql');
+const REFERENCE_CATALOG_BASELINES = path.join(
+  REPO_ROOT,
+  'deploy/postgres/reference-catalog-baselines.sql',
+);
+const HORIZON_MIGRATION = path.join(
+  REPO_ROOT,
+  'apps/webapp/db/drizzle-migrations/20260906T030953_add_booking_availability_horizon.sql',
+);
 const SEAM_OWNER = 'app_seam_specialist_provision_owner';
 
 /** Функции, чей аттестованный гейт обязан принимать контекст пациента, чтобы выдача дошла до конца. */
@@ -80,6 +92,34 @@ function seamGrantsFromArtifact() {
     .filter((line) => line.startsWith('GRANT ') && line.endsWith(`TO "${SEAM_OWNER}";`));
   if (grants.length === 0) throw new Error(`no seam grants for ${SEAM_OWNER} in ${ARTIFACT}`);
   return `${grants.join('\n')}\n`;
+}
+
+/** Candidate seam RLS policies from the artifact, added under probe-only names inside rollback. */
+function systemSettingsSeamPoliciesFromArtifact() {
+  const policyNames = ['rev10_named_root_owner_gate_193', 'rev10_seam_business_193'];
+  const lines = readFileSync(ARTIFACT, 'utf8').split('\n');
+  return policyNames.map((policyName) => {
+    const prefix = `CREATE POLICY "${policyName}" ON "public"."system_settings"`;
+    const line = lines.find((candidate) => candidate.startsWith(prefix));
+    if (!line || !line.includes(`"${SEAM_OWNER}"`)) {
+      throw new Error(`${policyName} does not include ${SEAM_OWNER} in ${ARTIFACT}`);
+    }
+    return line.replace(
+      `CREATE POLICY "${policyName}"`,
+      `CREATE POLICY "bcb_probe_${policyName}"`,
+    );
+  }).join('\n');
+}
+
+/** Candidate definition from the forward migration, not the possibly stale body installed on DEV. */
+function candidateProvisionFunction() {
+  const source = readFileSync(HORIZON_MIGRATION, 'utf8');
+  const signature = 'app.provision_specialist_owner(p_challenge_id uuid)';
+  const at = source.indexOf(`CREATE OR REPLACE FUNCTION ${signature}`);
+  if (at === -1) throw new Error(`${signature} not found in ${HORIZON_MIGRATION}`);
+  const end = source.indexOf('$function$;', at);
+  if (end === -1) throw new Error(`${signature} body is not terminated in ${HORIZON_MIGRATION}`);
+  return `${source.slice(at, end + '$function$;'.length)}\n`;
 }
 
 /** Выражение аттестованного гейта — из той же строки артефакта, что применяет reconcile. */
@@ -163,7 +203,11 @@ CREATE TEMP TABLE probe_out(ord serial PRIMARY KEY, k text NOT NULL, v text NOT 
  * (порт, роль, класс, назначение) берётся из объявленной строки, поэтому связь с декларацией цела.
  */
 const ACCEPT_HELPER = `
-CREATE OR REPLACE FUNCTION pg_temp.accept_relation_context(p_target_role text, p_subject uuid)
+CREATE OR REPLACE FUNCTION pg_temp.accept_relation_context(
+  p_target_role text,
+  p_actor uuid,
+  p_subject uuid
+)
 RETURNS void LANGUAGE plpgsql AS $accept$
 BEGIN
   DELETE FROM app_ext.accepted_port_contexts
@@ -184,10 +228,10 @@ BEGIN
   END IF;
   INSERT INTO app_ext.accepted_port_contexts (
     database_oid, backend_pid, transaction_id, capability_id, session_login, port, target_role,
-    context_class, purpose, function_identity, typed_args_hash, subject_ref)
+    context_class, purpose, function_identity, typed_args_hash, actor_ref, subject_ref)
   SELECT d.oid, pg_backend_pid(), pg_current_xact_id(), c.capability_id, c.session_login, c.port,
          c.target_role, c.context_class, c.purpose, c.function_identity,
-         app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), p_subject
+         app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), p_actor, p_subject
     FROM pg_database d, app_ext.port_context_capabilities c
    WHERE d.datname = current_database()
      AND c.capability_id = '00000000-0000-4000-8000-0000000000fb'::uuid;
@@ -198,16 +242,27 @@ END $accept$;
 function probe(body) {
   const raw = psql(`BEGIN;
 ${seamGrantsFromArtifact()}
+${systemSettingsSeamPoliciesFromArtifact()}
+${candidateProvisionFunction()}
 ${runtimeOverlayFunction('app.start_provisioned_organization_trial()')}
 ${gateRewrite()}
+${readFileSync(REFERENCE_CATALOG_BASELINES, 'utf8')}
 ${FIXTURE}
 ${ACCEPT_HELPER}
 DO $probe$
-DECLARE u uuid; ch uuid; opaque uuid; r record; s text; provisioned boolean := false;
+DECLARE u uuid; ch uuid; actor_opaque uuid; subject_opaque uuid; r record; s text;
+        failure_context text;
+        provisioned boolean := false;
 BEGIN
   SELECT v INTO u FROM ids WHERE k = 'u';
   SELECT v INTO ch FROM ids WHERE k = 'ch';
-  opaque := app_ext.resolve_variant_a_identity(u, 'actor');
+  actor_opaque := app_ext.resolve_variant_a_identity(u, 'actor');
+  -- Identity-link creation has its own pre-session capability and audit proof. This fixture needs
+  -- an already-linked patient, so the local administrator seeds that prerequisite directly; the
+  -- behavior under test starts at the accepted patient relation context below.
+  INSERT INTO app_ext.variant_a_identity_refs(physical_user_id, opaque_ref, ref_kind)
+  VALUES (u, gen_random_uuid(), 'subject')
+  RETURNING opaque_ref INTO subject_opaque;
 ${body}
 END $probe$;
 SELECT k || '=' || v FROM probe_out ORDER BY ord;
@@ -226,12 +281,14 @@ test('регистрация клиники доходит до конца: ор
     // почты: принципал — identity-self пациента (`enterStaffSecuritySelfPrincipal`), обращение к базе
     // РЕЛЯЦИОННОЕ, поэтому контекст — объявленная способность `relation` роли `app_patient`.
     const out = probe(`
-  PERFORM pg_temp.accept_relation_context('app_patient', opaque);
+  PERFORM pg_temp.accept_relation_context('app_patient', actor_opaque, subject_opaque);
   BEGIN
     SELECT * INTO r FROM app.provision_specialist_owner(ch);
     s := r.ok::text || '/' || COALESCE(r.code, '<null>');
     provisioned := r.ok;
-  EXCEPTION WHEN OTHERS THEN s := SQLSTATE || ' ' || SQLERRM;
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS failure_context = PG_EXCEPTION_CONTEXT;
+    s := SQLSTATE || ' ' || SQLERRM || ' <- ' || replace(failure_context, E'\n', ' <- ');
   END;
   INSERT INTO probe_out(k, v) VALUES ('outcome', s);
   -- Отказ двери — сам по себе провал теста; дальше идти не на чем, запись r не заполнена.
@@ -264,7 +321,12 @@ test('регистрация клиники доходит до конца: ор
     FROM public.specialist_signup_intents AS i WHERE i.challenge_id = ch;
   -- Каталог-снимок клиники заводится в той же транзакции: без него новый кабинет пуст.
   INSERT INTO probe_out(k, v) SELECT 'catalog_receipt', count(*)::text
-    FROM public.reference_catalog_snapshot_receipts AS rc WHERE rc.organization_id = r.organization_id;`);
+    FROM public.reference_catalog_snapshot_receipts AS rc WHERE rc.organization_id = r.organization_id;
+  INSERT INTO probe_out(k, v) SELECT 'availability_horizon', setting.value_json->>'value'
+    FROM public.system_settings AS setting
+   WHERE setting.organization_id = r.organization_id
+     AND setting.scope = 'admin'
+     AND setting.key = 'booking_availability_horizon_days';`);
 
     assert.equal(out.outcome, 'true/<null>', `выдача специалиста не дошла до конца: ${out.outcome}`);
     assert.equal(out.membership, 'true/owner/active/true',
@@ -275,6 +337,8 @@ test('регистрация клиники доходит до конца: ор
     assert.equal(out.user_role, 'doctor', `регистрирующийся не стал доктором: ${out.user_role}`);
     assert.equal(out.intent, 'provisioned/true/true', `намерение не отмечено исполненным: ${out.intent}`);
     assert.equal(out.catalog_receipt, '1', `снимок справочников клиники не заведён: ${out.catalog_receipt}`);
+    assert.equal(out.availability_horizon, '30',
+      `новая клиника не получила горизонт записи 30 дней: ${out.availability_horizon}`);
   });
 
 test('без принятого контекста дверь выдачи по-прежнему отказывает 42501, а не заводит клинику',

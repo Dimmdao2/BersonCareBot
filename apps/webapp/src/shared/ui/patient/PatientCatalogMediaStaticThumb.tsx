@@ -4,10 +4,13 @@ import { ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { RecommendationMediaItem } from '@/modules/recommendations/types';
 import { MediaThumb } from '@/shared/ui/patient/media/MediaThumb';
-import { recommendationMediaItemToPreviewUi } from '@/shared/ui/patient/media/mediaPreviewUiModel';
+import {
+  recommendationMediaItemToPreviewUi,
+  type MediaPreviewUiModel,
+} from '@/shared/ui/patient/media/mediaPreviewUiModel';
 
 export type PatientCatalogMediaStaticThumbProps = {
-  media: RecommendationMediaItem | null;
+  media: RecommendationMediaItem | MediaPreviewUiModel | null;
   /** Размер, рамка и фон коробки (`overflow-hidden` добавляется здесь). */
   frameClassName: string;
   sizes: string;
@@ -32,7 +35,7 @@ export function PatientCatalogMediaStaticThumb(props: PatientCatalogMediaStaticT
       </div>
     );
   }
-  const ui = recommendationMediaItemToPreviewUi(media);
+  const ui = 'kind' in media ? media : recommendationMediaItemToPreviewUi(media);
   return (
     <div className={shell}>
       <MediaThumb

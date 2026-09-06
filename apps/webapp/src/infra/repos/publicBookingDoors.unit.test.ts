@@ -126,6 +126,7 @@ function slotSnapshotPayload() {
     bufferMinutes: 0,
     minNoticeHours: 0,
     maxConsecutiveSlotHours: 4,
+    availabilityHorizonDays: 30,
   };
 }
 
