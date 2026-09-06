@@ -1,0 +1,38 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+
+const bodySchema = z.object({
+  text: z.string().min(1).max(2000),
+  description: z.string().max(5000).nullable().optional(),
+  priority: z.boolean().default(false),
+  severity: z.number().int().min(0).max(10),
+});
+
+export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { userId } = await params;
+  if (!z.string().uuid().safeParse(userId).success) {
+    return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
+  }
+  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+  }
+  const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+    gate.ctx,
+  );
+  if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  const id = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    'doctor.patients.clinical.complaint.create',
+    () => deps.patientClinical.createComplaint({ patientUserId: identity.userId, ...parsed.data }),
+  );
+  return NextResponse.json({ ok: true, id }, { status: 201 });
+}

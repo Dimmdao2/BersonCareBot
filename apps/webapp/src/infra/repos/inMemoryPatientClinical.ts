@@ -15,7 +15,10 @@ import type {
   AppendAnamnesisIllnessInput,
   AppendAnamnesisLifestyleInput,
   AppendAnamnesisTraumaInput,
+  AppendComplaintUpdateInput,
   ClinicalState,
+  CreateComplaintInput,
+  CreateDiagnosisInput,
   CreateDiagnosisCatalogParams,
   CreateVisitInput,
   DiagnosisCatalogSuggestion,
@@ -24,6 +27,7 @@ import type {
   PatientClinicalPort,
   SetDiagnosisClinicalStatusInput,
   UpdateComplaintFieldsInput,
+  UpdateAnamnesisEntryInput,
   UpdateDiagnosisFieldsInput,
   UpdateVisitFieldsInput,
   Visit,
@@ -54,7 +58,7 @@ type ComplaintRow = {
   description: string | null;
   priority: boolean;
   status: 'active' | 'resolved';
-  sourceVisitId: string;
+  sourceVisitId: string | null;
   resolvedAt: string | null;
   createdAt: string;
 };
@@ -62,7 +66,7 @@ type ComplaintRow = {
 type ComplaintUpdateRow = {
   id: string;
   complaintId: string;
-  visitId: string;
+  visitId: string | null;
   note: string | null;
   severity: number;
   resolved: boolean;
@@ -80,7 +84,7 @@ type DiagnosisRow = {
   comment: string | null;
   status: 'active' | 'refined' | 'resolved';
   clinicalStatus: DiagnosisClinicalStatus;
-  sourceVisitId: string;
+  sourceVisitId: string | null;
   resolvedAt: string | null;
   createdAt: string;
 };
@@ -218,8 +222,8 @@ function fmtDayMonth(iso: string): string {
 
 export const inMemoryPatientClinicalPort: PatientClinicalPort = {
   async getClinicalState(patientUserId: string): Promise<ClinicalState> {
-    const activeComplaints: ActiveComplaint[] = complaints
-      .filter((c) => c.patientUserId === patientUserId && c.status === 'active')
+    const projectedComplaints: ActiveComplaint[] = complaints
+      .filter((c) => c.patientUserId === patientUserId)
       .map((c) => {
         const updates = complaintUpdates
           .filter((u) => u.complaintId === c.id)
@@ -235,12 +239,22 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
           currentSeverity,
           trend,
           since: fmtSince(sourceVisit?.visitedAt ?? c.createdAt),
+          createdAt: c.createdAt,
+          resolvedAt: c.resolvedAt,
+          history: updates.map((update) => ({
+            id: update.id,
+            severity: update.severity,
+            note: update.note,
+            recordedAt:
+              visits.find((visit) => visit.id === update.visitId)?.visitedAt ?? update.createdAt,
+            resolved: update.resolved,
+          })),
         };
       })
       .sort((a, b) => Number(b.priority) - Number(a.priority));
 
-    const activeDiagnoses: ActiveDiagnosis[] = diagnoses
-      .filter((d) => d.patientUserId === patientUserId && d.status !== 'resolved')
+    const projectedDiagnoses: ActiveDiagnosis[] = diagnoses
+      .filter((d) => d.patientUserId === patientUserId)
       .map((d): ActiveDiagnosis => {
         const updates = diagnosisUpdates
           .filter((u) => u.diagnosisId === d.id)
@@ -256,15 +270,26 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
           id: d.id,
           text: d.text,
           priority: d.priority,
-          status: d.status === 'refined' ? 'refined' : 'active',
+          status: d.status,
           clinicalStatus: d.clinicalStatus ?? 'предварительный',
           meta,
           comment: d.comment,
+          createdAt: d.createdAt,
+          resolvedAt: d.resolvedAt,
         };
       })
       .sort((a, b) => Number(b.priority) - Number(a.priority));
 
-    return { complaints: activeComplaints, diagnoses: activeDiagnoses };
+    return {
+      complaints: projectedComplaints.filter((item) => !item.resolvedAt),
+      complaintHistory: projectedComplaints.filter((item) => Boolean(item.resolvedAt)),
+      diagnoses: projectedDiagnoses.filter(
+        (item) => item.clinicalStatus !== 'закрытый' && item.status !== 'resolved',
+      ),
+      diagnosisHistory: projectedDiagnoses.filter(
+        (item) => item.clinicalStatus === 'закрытый' || item.status === 'resolved',
+      ),
+    };
   },
 
   async listVisits(patientUserId: string): Promise<Visit[]> {
@@ -445,6 +470,73 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
     return visitId;
   },
 
+  async createComplaint(input: CreateComplaintInput): Promise<string> {
+    const now = new Date().toISOString();
+    const complaintId = randomUUID();
+    complaints.push({
+      id: complaintId,
+      patientUserId: input.patientUserId,
+      text: input.text,
+      description: input.description ?? null,
+      priority: input.priority,
+      status: 'active',
+      sourceVisitId: null,
+      resolvedAt: null,
+      createdAt: now,
+    });
+    complaintUpdates.push({
+      id: randomUUID(),
+      complaintId,
+      visitId: null,
+      note: null,
+      severity: input.severity,
+      resolved: false,
+      createdAt: now,
+      seq: seqCounter++,
+    });
+    return complaintId;
+  },
+
+  async appendComplaintUpdate(input: AppendComplaintUpdateInput): Promise<boolean> {
+    const row = complaints.find(
+      (complaint) =>
+        complaint.id === input.complaintId && complaint.patientUserId === input.patientUserId,
+    );
+    if (!row) return false;
+    const now = new Date().toISOString();
+    complaintUpdates.push({
+      id: randomUUID(),
+      complaintId: input.complaintId,
+      visitId: null,
+      note: input.note ?? null,
+      severity: input.severity,
+      resolved: input.resolved,
+      createdAt: now,
+      seq: seqCounter++,
+    });
+    row.status = input.resolved ? 'resolved' : 'active';
+    row.resolvedAt = input.resolved ? now : null;
+    return true;
+  },
+
+  async createDiagnosis(input: CreateDiagnosisInput): Promise<string> {
+    const id = randomUUID();
+    diagnoses.push({
+      id,
+      patientUserId: input.patientUserId,
+      catalogId: null,
+      text: input.text,
+      priority: input.priority,
+      comment: input.comment ?? null,
+      status: 'active',
+      clinicalStatus: 'предварительный',
+      sourceVisitId: null,
+      resolvedAt: null,
+      createdAt: new Date().toISOString(),
+    });
+    return id;
+  },
+
   // -- Инлайн-правка полей ------------------------------------------------------
 
   async updateComplaintFields(input: UpdateComplaintFieldsInput): Promise<boolean> {
@@ -453,6 +545,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
     );
     if (!row) return false;
     if (input.text !== undefined) row.text = input.text;
+    if (input.description !== undefined) row.description = input.description;
     if (input.priority !== undefined) row.priority = input.priority;
     return true;
   },
@@ -556,6 +649,37 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
     };
     anamnesisLifestyle.push(row);
     return { id: row.id, date: fmtDisplayDateInMemory(row.recordDate), text: row.text };
+  },
+
+  async updateAnamnesisEntry(input: UpdateAnamnesisEntryInput): Promise<boolean> {
+    if (input.section === 'trauma') {
+      const row = anamnesisTrauma.find(
+        (item) => item.id === input.entryId && item.patientUserId === input.patientUserId,
+      );
+      if (!row) return false;
+      row.year = input.year;
+      row.what = input.what;
+      row.type = input.type;
+      row.immobilization = input.immobilization;
+      return true;
+    }
+    if (input.section === 'illness') {
+      const row = anamnesisIllness.find(
+        (item) => item.id === input.entryId && item.patientUserId === input.patientUserId,
+      );
+      if (!row) return false;
+      row.period = input.period;
+      row.what = input.what;
+      row.comment = input.comment;
+      return true;
+    }
+    const row = anamnesisLifestyle.find(
+      (item) => item.id === input.entryId && item.patientUserId === input.patientUserId,
+    );
+    if (!row) return false;
+    row.recordDate = input.recordDate;
+    row.text = input.text;
+    return true;
   },
 
   // -- Клинический статус диагноза ------------------------------------------

@@ -1799,7 +1799,7 @@ export function PatientTabOverview({
                     key={c.id}
                     className="flex flex-wrap items-center gap-2 border border-[#ecd9d5] bg-[#fbf5f4] rounded-lg px-3 py-2"
                   >
-                    <span className="text-base flex-none">⚑</span>
+                    <span className="flex-none text-base font-bold text-destructive">!</span>
                     <span className="text-sm font-semibold text-foreground flex-1 min-w-0">
                       {c.text}
                     </span>
