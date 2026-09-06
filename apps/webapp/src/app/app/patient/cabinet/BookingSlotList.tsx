@@ -4,6 +4,8 @@ import { Badge } from '@/shared/ui/patient/primitives/badge';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import type { BookingSlot } from '@/modules/patient-booking/types';
 import { formatBookingTimeShortRu } from '@/shared/lib/formatBusinessDateTime';
+import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
+import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 type Props = {
@@ -13,6 +15,8 @@ type Props = {
   disabledSlotStarts?: ReadonlySet<string>;
   /** IANA-таймзона отображения (`system_settings.app_display_timezone`). */
   appDisplayTimeZone: string;
+  /** Канонический IANA-пояс филиала; `null`/не передан — слоты остаются в `appDisplayTimeZone`. */
+  branchTimeZone?: string | null;
 };
 
 export function BookingSlotList({
@@ -20,8 +24,10 @@ export function BookingSlotList({
   selectedSlot,
   onSelectSlot,
   appDisplayTimeZone,
+  branchTimeZone,
   disabledSlotStarts,
 }: Props) {
+  const displayTimeZone = resolveAppointmentTimeZone(branchTimeZone, appDisplayTimeZone);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
@@ -44,8 +50,9 @@ export function BookingSlotList({
                 disabled={disabledSlotStarts?.has(slot.startAt)}
                 onClick={() => onSelectSlot(slot)}
               >
-                {formatBookingTimeShortRu(slot.startAt, appDisplayTimeZone)} -{' '}
-                {formatBookingTimeShortRu(slot.endAt, appDisplayTimeZone)}
+                {formatBookingTimeShortRu(slot.startAt, displayTimeZone)} -{' '}
+                {formatBookingTimeShortRu(slot.endAt, displayTimeZone)}
+                <AppointmentZoneOffsetWarning iso={slot.startAt} branchTimeZone={branchTimeZone} />
               </Button>
             );
           })}

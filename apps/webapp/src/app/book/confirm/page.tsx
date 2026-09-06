@@ -89,6 +89,7 @@ export default async function PublicBookConfirmPage({ searchParams }: Props) {
           slotCount={slotCount}
           priceMinor={context.priceMinor}
           appDisplayTimeZone={context.appDisplayTimeZone}
+          branchTimeZone={context.branchTimeZone}
         />
       </PublicBookingShell>
     );

@@ -187,6 +187,12 @@ export type PatientBookingService = {
   getBookingByCanonicalAppointment(
     canonicalAppointmentId: string,
   ): Promise<PatientBookingRecord | null>;
+  /**
+   * Same eligibility scope as `getBookingPaymentStatus`/`cancelBooking` (`bookingId` + owning
+   * `userId`), but returns the full record for display-only reads (e.g. the booking-success screen
+   * resolving `canonicalInPersonContext.timezone`) that don't need the payment/lifecycle wrapping.
+   */
+  getBookingForUser(bookingId: string, userId: string): Promise<PatientBookingRecord | null>;
   listBookingsByCanonicalAppointments(
     canonicalAppointmentIds: string[],
   ): Promise<PatientBookingRecord[]>;

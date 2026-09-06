@@ -3530,8 +3530,13 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.read_current_patient_booking_reschedules(uuid)', 'public.be_appointment_reschedules', ARRAY['id', 'organization_id', 'appointment_id', 'from_start_at', 'from_end_at', 'to_start_at', 'to_end_at', 'actor_type', 'actor_id', 'was_in_free_reschedule_window', 'free_cancellation_available_at_reschedule', 'free_cancellation_available_after', 'applied_policy_id', 'applied_policy_snapshot', 'reason', 'staff_comment', 'notifications_sent', 'manual_override', 'created_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_booking_row(uuid,text)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_booking_row(uuid,text)', 'public.patient_bookings', ARRAY['id', 'organization_id', 'platform_user_id', 'booking_type', 'city', 'category', 'slot_start', 'slot_end', 'status', 'cancelled_at', 'cancel_reason', 'gcal_event_id', 'contact_phone', 'contact_email', 'contact_name', 'reminder_24h_sent', 'reminder_2h_sent', 'created_at', 'updated_at', 'branch_id', 'service_id', 'branch_service_id', 'city_code_snapshot', 'branch_title_snapshot', 'service_title_snapshot', 'duration_minutes_snapshot', 'price_minor_snapshot', 'provenance_created_by', 'provenance_updated_by', 'canonical_appointment_id']::text[], ARRAY['SELECT']::text[]),
+  ('app.read_current_patient_booking_row(uuid,text)', 'public.be_appointments', ARRAY['id', 'organization_id', 'branch_id', 'service_id', 'specialist_id', 'duration_minutes']::text[], ARRAY['SELECT']::text[]),
+  ('app.read_current_patient_booking_row(uuid,text)', 'public.be_branches', ARRAY['id', 'organization_id', 'title', 'city_code', 'timezone', 'is_active']::text[], ARRAY['SELECT']::text[]),
+  ('app.read_current_patient_booking_row(uuid,text)', 'public.be_clinic_services', ARRAY['id', 'organization_id', 'title', 'price_minor', 'is_active', 'public_widget_visible', 'admin_manual_only']::text[], ARRAY['SELECT']::text[]),
+  ('app.read_current_patient_booking_row(uuid,text)', 'public.be_specialist_service_availability', ARRAY['organization_id', 'specialist_id', 'branch_id', 'service_id', 'is_active']::text[], ARRAY['SELECT']::text[]),
+  ('app.read_current_patient_booking_row(uuid,text)', 'public.be_specialists', ARRAY['id', 'organization_id', 'is_active']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_booking_rows(text,timestamp with time zone)', 'public.be_appointments', ARRAY['id', 'organization_id', 'branch_id', 'specialist_id', 'service_id', 'platform_user_id', 'duration_minutes', 'source', 'status', 'created_at', 'updated_at', 'deleted_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.read_current_patient_booking_rows(text,timestamp with time zone)', 'public.be_branches', ARRAY['id', 'organization_id', 'title', 'city_code', 'is_active', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.read_current_patient_booking_rows(text,timestamp with time zone)', 'public.be_branches', ARRAY['id', 'organization_id', 'title', 'city_code', 'timezone', 'is_active', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_booking_rows(text,timestamp with time zone)', 'public.be_clinic_services', ARRAY['id', 'organization_id', 'title', 'duration_minutes', 'price_minor', 'is_active', 'public_widget_visible', 'admin_manual_only', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_booking_rows(text,timestamp with time zone)', 'public.be_specialist_service_availability', ARRAY['id', 'organization_id', 'specialist_id', 'service_id', 'branch_id', 'city_code', 'is_active', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_booking_rows(text,timestamp with time zone)', 'public.be_specialists', ARRAY['id', 'organization_id', 'is_active', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
@@ -4071,7 +4076,7 @@ BEGIN
   END LOOP;
   SELECT pg_catalog.string_agg(message, E'\n' ORDER BY message) INTO gap_list FROM bcb_function_surface_gaps;
   IF gap_list IS NOT NULL THEN RAISE EXCEPTION 'function body surface gaps (%):\n%', (SELECT count(*) FROM bcb_function_surface_gaps), gap_list; END IF;
-  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=427 rows=996 special_contracts=8 trigger_sources=1';
+  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=427 rows=1001 special_contracts=8 trigger_sources=1';
 END
 $bcb$;
 
@@ -10978,6 +10983,7 @@ GRANT SELECT ("deleted_at", "id", "organization_id", "platform_user_id") ON TABL
 GRANT SELECT ("id", "organization_id", "platform_user_id") ON TABLE "public"."be_appointments" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("branch_id", "deleted_at", "end_at", "id", "organization_id", "platform_user_id", "room_id", "service_id", "specialist_id", "start_at", "status") ON TABLE "public"."be_appointments" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("deleted_at", "end_at", "id", "organization_id", "service_id", "specialist_id", "start_at", "status") ON TABLE "public"."be_appointments" TO "app_seam_patient_booking_owner";
+GRANT SELECT ("branch_id", "duration_minutes", "id", "organization_id", "service_id", "specialist_id") ON TABLE "public"."be_appointments" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("branch_id", "created_at", "deleted_at", "duration_minutes", "id", "organization_id", "platform_user_id", "service_id", "source", "specialist_id", "status", "updated_at") ON TABLE "public"."be_appointments" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("deleted_at", "end_at", "organization_id", "service_id", "specialist_id", "start_at", "status") ON TABLE "public"."be_appointments" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("deleted_at", "id", "organization_id", "package_usage_ref", "platform_user_id", "service_id", "updated_at") ON TABLE "public"."be_appointments" TO "app_seam_patient_booking_owner";
@@ -11179,7 +11185,8 @@ GRANT SELECT ("id", "is_active", "organization_id") ON TABLE "public"."be_branch
 GRANT SELECT ("id", "organization_id", "title") ON TABLE "public"."be_branches" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("city_code", "id", "is_active", "organization_id", "sort_order", "title") ON TABLE "public"."be_branches" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("address", "city_code", "color", "id", "is_active", "organization_id", "short_title", "sort_order", "title") ON TABLE "public"."be_branches" TO "app_seam_patient_booking_owner";
-GRANT SELECT ("city_code", "created_at", "id", "is_active", "organization_id", "title", "updated_at") ON TABLE "public"."be_branches" TO "app_seam_patient_booking_owner";
+GRANT SELECT ("city_code", "id", "is_active", "organization_id", "timezone", "title") ON TABLE "public"."be_branches" TO "app_seam_patient_booking_owner";
+GRANT SELECT ("city_code", "created_at", "id", "is_active", "organization_id", "timezone", "title", "updated_at") ON TABLE "public"."be_branches" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("id", "is_active", "organization_id", "timezone") ON TABLE "public"."be_branches" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("address", "city_code", "color", "id", "is_active", "organization_id", "short_title", "sort_order", "timezone", "title") ON TABLE "public"."be_branches" TO "app_seam_public_booking_owner";
 GRANT SELECT ("id", "is_active", "organization_id", "timezone") ON TABLE "public"."be_branches" TO "app_seam_public_booking_owner";
@@ -11273,6 +11280,7 @@ GRANT SELECT ("buffer_after_minutes", "id", "organization_id") ON TABLE "public"
 GRANT SELECT ("admin_manual_only", "description", "duration_minutes", "id", "is_active", "organization_id", "price_minor", "public_widget_visible", "sort_order", "title") ON TABLE "public"."be_clinic_services" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("admin_manual_only", "description", "id", "is_active", "online_payment_applicable", "organization_id", "prepayment_applicable", "price_minor", "public_widget_visible", "sort_order", "title", "usable_in_packages") ON TABLE "public"."be_clinic_services" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("id", "is_active", "organization_id", "title") ON TABLE "public"."be_clinic_services" TO "app_seam_patient_booking_owner";
+GRANT SELECT ("admin_manual_only", "id", "is_active", "organization_id", "price_minor", "public_widget_visible", "title") ON TABLE "public"."be_clinic_services" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("admin_manual_only", "created_at", "duration_minutes", "id", "is_active", "organization_id", "price_minor", "public_widget_visible", "title", "updated_at") ON TABLE "public"."be_clinic_services" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("admin_manual_only", "buffer_after_minutes", "duration_minutes", "id", "is_active", "organization_id", "public_widget_visible") ON TABLE "public"."be_clinic_services" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("admin_manual_only", "buffer_after_minutes", "description", "duration_minutes", "id", "is_active", "online_payment_applicable", "organization_id", "prepayment_applicable", "price_minor", "public_widget_visible", "sort_order", "title", "usable_in_packages") ON TABLE "public"."be_clinic_services" TO "app_seam_public_booking_owner";

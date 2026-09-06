@@ -22,6 +22,8 @@ type InPersonProps = {
   /** Org-scoped scheduling setting, resolved by the server page. */
   maxConsecutiveSlotHours?: number;
   appDisplayTimeZone: string;
+  /** Canonical IANA timezone of the branch (`be_branches.timezone`); `null` — not resolvable. */
+  branchTimeZone?: string | null;
   branchId?: string;
   serviceId?: string;
   orgSlug?: string;
@@ -192,6 +194,7 @@ export function SlotStepClient(props: Props) {
               : undefined
           }
           appDisplayTimeZone={props.appDisplayTimeZone}
+          branchTimeZone={props.type === 'in_person' ? props.branchTimeZone : null}
         />
       ) : null}
 

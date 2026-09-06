@@ -21,6 +21,8 @@ import {
   formatBookingDateLongRu,
   formatBookingTimeShortRu,
 } from '@/shared/lib/formatBusinessDateTime';
+import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
+import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
 
 export type BookingDoneParams = {
   /** ISO начала (UTC или с offset). */
@@ -37,6 +39,8 @@ export type BookingDoneParams = {
   backToHubHref: string;
   /** IANA-таймзона для отображения. */
   appDisplayTimeZone: string;
+  /** Канонический IANA-пояс филиала (`be_branches.timezone`); `null` — филиал неизвестен. */
+  branchTimeZone?: string | null;
   /** Server-resolved public origin from deployment `APP_BASE_URL`. */
   appBaseUrl: string;
 };
@@ -55,6 +59,7 @@ export function BookingDoneClient({
   bookingId,
   backToHubHref,
   appDisplayTimeZone,
+  branchTimeZone,
   appBaseUrl,
 }: BookingDoneParams) {
   const surfaceName = useSurfaceName();
@@ -84,9 +89,10 @@ export function BookingDoneClient({
     URL.revokeObjectURL(url);
   }, [calendarParams, appBaseUrl, bookingId, surfaceName]);
 
-  const dateLabel = formatBookingDateLongRu(slotStart, appDisplayTimeZone);
-  const timeStart = formatBookingTimeShortRu(slotStart, appDisplayTimeZone);
-  const timeEnd = formatBookingTimeShortRu(slotEnd, appDisplayTimeZone);
+  const displayTimeZone = resolveAppointmentTimeZone(branchTimeZone, appDisplayTimeZone);
+  const dateLabel = formatBookingDateLongRu(slotStart, displayTimeZone);
+  const timeStart = formatBookingTimeShortRu(slotStart, displayTimeZone);
+  const timeEnd = formatBookingTimeShortRu(slotEnd, displayTimeZone);
 
   return (
     <div className="flex flex-col gap-4">
@@ -97,7 +103,8 @@ export function BookingDoneClient({
         <ul className={cn(patientMutedTextClass, 'mt-1 list-none text-center')}>
           <li className="font-medium">{serviceTitle}</li>
           <li>
-            {dateLabel} · {timeStart} — {timeEnd}
+            {dateLabel} · {timeStart} — {timeEnd}{' '}
+            <AppointmentZoneOffsetWarning iso={slotStart} branchTimeZone={branchTimeZone} />
           </li>
           {locationLabel ? <li>{locationLabel}</li> : null}
         </ul>

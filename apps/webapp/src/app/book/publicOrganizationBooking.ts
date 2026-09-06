@@ -39,6 +39,8 @@ export type LoadPublicInPersonSlotContextResult =
       priceMinor: number;
       maxConsecutiveSlotHours: number;
       appDisplayTimeZone: string;
+      /** Canonical IANA timezone of the branch (`be_branches.timezone`); `null` — not resolvable. */
+      branchTimeZone: string | null;
     }
   | { ok: false };
 
@@ -235,6 +237,7 @@ export async function loadPublicInPersonSlotContextForSlugRsc(input: {
           priceMinor: service.priceMinor,
           maxConsecutiveSlotHours,
           appDisplayTimeZone,
+          branchTimeZone: context.branchTimezone,
         } as const;
       },
     );

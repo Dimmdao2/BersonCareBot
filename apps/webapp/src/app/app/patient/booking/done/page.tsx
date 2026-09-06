@@ -1,11 +1,14 @@
 import { redirect } from 'next/navigation';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { getOptionalPatientSession } from '@/app-layer/guards/requireRole';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
 import { env } from '@/config/env';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { BookingWizardShell } from '../BookingWizardShell';
 import { BookingDoneClient } from './BookingDoneClient';
 import { bookingNewHref } from '../bookingNewHref';
+import { resolvePatientOrganizationIdForRsc } from '../bookingCatalogRsc';
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -39,6 +42,28 @@ export default async function BookingNewDonePage({ searchParams }: Props) {
   const backToHubHref = bookingNewHref(cityCode);
   const appDisplayTimeZone = await getAppDisplayTimeZone();
 
+  // Never trust `locationLabel`/`cityCode` query params for the branch's own timezone: resolve the
+  // canonical `be_branches.timezone` from the just-confirmed booking's own read path instead
+  // (`canonicalInPersonContext`, same field the cabinet booking lists already carry).
+  const deps = buildAppDeps();
+  const organizationId = await resolvePatientOrganizationIdForRsc(deps, session.user.userId);
+  const branchTimeZone = organizationId
+    ? await withPatientOrganizationPrincipal(
+        {
+          organizationId,
+          platformUserId: session.user.userId,
+          source: 'app/patient/booking:load-done-branch-timezone',
+        },
+        async () => {
+          const booking = await deps.patientBooking.getBookingForUser(
+            bookingId,
+            session.user.userId,
+          );
+          return booking?.canonicalInPersonContext?.timezone ?? null;
+        },
+      ).catch(() => null)
+    : null;
+
   return (
     <BookingWizardShell
       title="Запись подтверждена"
@@ -55,6 +80,7 @@ export default async function BookingNewDonePage({ searchParams }: Props) {
         bookingId={bookingId}
         backToHubHref={backToHubHref}
         appDisplayTimeZone={appDisplayTimeZone}
+        branchTimeZone={branchTimeZone}
         appBaseUrl={env.APP_BASE_URL}
       />
     </BookingWizardShell>

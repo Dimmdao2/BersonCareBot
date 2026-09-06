@@ -75,6 +75,7 @@ export default async function PublicBookSlotPage({ searchParams }: Props) {
         priceMinor={context.priceMinor}
         maxConsecutiveSlotHours={context.maxConsecutiveSlotHours}
         appDisplayTimeZone={context.appDisplayTimeZone}
+        branchTimeZone={context.branchTimeZone}
         confirmBasePath={publicBookPaths.newConfirm}
         slotsApiPath="/api/booking/public/slots"
       />

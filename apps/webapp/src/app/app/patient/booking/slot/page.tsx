@@ -73,6 +73,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
           priceMinor={slotContext.priceMinor}
           maxConsecutiveSlotHours={slotContext.maxConsecutiveSlotHours}
           appDisplayTimeZone={slotContext.appDisplayTimeZone}
+          branchTimeZone={slotContext.branchTimeZone}
           rescheduleBookingId={rescheduleBookingId}
         />
       </BookingWizardShell>

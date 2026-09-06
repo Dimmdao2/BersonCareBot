@@ -20,6 +20,8 @@ export type CanonicalInPersonBookingContext = {
   serviceTitle: string;
   durationMinutes: number;
   priceMinor: number;
+  /** Canonical IANA timezone of the branch (`be_branches.timezone`) at read time. */
+  timezone: string;
 };
 
 export type PatientBookingStatus =

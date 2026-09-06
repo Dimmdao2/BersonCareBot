@@ -6,6 +6,7 @@ import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimez
 import { parseFioCandidate, type StructuredFio } from '@/shared/lib/fio';
 import type { SessionUser } from '@/shared/types/session';
 import { bookingNewHref } from '../bookingNewHref';
+import { loadInPersonSlotContextForPatientRsc } from '../bookingCatalogRsc';
 import { BOOKING_WIZARD_TOTAL_STEPS } from '../constants';
 import { BookingWizardShell } from '../BookingWizardShell';
 import { ConfirmStepClient } from './ConfirmStepClient';
@@ -116,12 +117,22 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
     redirect(`${routePaths.bookingNewSlot}?${buildSlotBackQuery(raw)}`);
   }
 
+  let branchTimeZone: string | null = null;
   if (type === 'in_person') {
     const branchId = first(raw.branchId)?.trim();
     const serviceId = first(raw.serviceId)?.trim();
     if (!branchId || !serviceId) {
       redirect(routePaths.bookingNew);
     }
+    // Same validated canonical read the slot page already uses (`bookingCatalogRsc`); the
+    // confirm summary never trusts the query-string branch/service labels for the branch's own
+    // timezone — only this server-resolved value.
+    const slotContext = await loadInPersonSlotContextForPatientRsc({
+      platformUserId: session.user.userId,
+      branchId,
+      serviceId,
+    });
+    branchTimeZone = slotContext.ok ? slotContext.branchTimeZone : null;
   } else {
     if (!first(raw.category)?.trim()) {
       redirect(routePaths.bookingNew);
@@ -163,6 +174,7 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
         defaultPhone={session.user.phone ?? ''}
         defaultEmail={profileEmail.email ?? ''}
         appDisplayTimeZone={appDisplayTimeZone}
+        branchTimeZone={branchTimeZone}
         rescheduleBookingId={rescheduleBookingId}
       />
     </BookingWizardShell>

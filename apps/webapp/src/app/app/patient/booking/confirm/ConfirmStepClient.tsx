@@ -22,6 +22,8 @@ import {
   formatBookingDateLongRu,
   formatBookingTimeShortRu,
 } from '@/shared/lib/formatBusinessDateTime';
+import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
+import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
 import { formatDoctorFio, type StructuredFio } from '@/shared/lib/fio';
 import { isBuiltInOnlineLocationCityCode } from '@/modules/booking-engine/onlineLocation';
 import toast from 'react-hot-toast';
@@ -110,6 +112,8 @@ type Props = ConfirmStepOptions & {
   defaultPhone: string;
   defaultEmail: string;
   appDisplayTimeZone: string;
+  /** Canonical IANA timezone of the branch (`be_branches.timezone`); `null`/absent — no branch known. */
+  branchTimeZone?: string | null;
 };
 
 export function ConfirmStepClient({
@@ -129,6 +133,7 @@ export function ConfirmStepClient({
   defaultPhone,
   defaultEmail,
   appDisplayTimeZone,
+  branchTimeZone,
   formFieldsApiPath = '/api/booking/form-fields',
   loadMemberships = true,
   successRedirectPath = routePaths.bookingNew,
@@ -245,6 +250,7 @@ export function ConfirmStepClient({
     [slotStart, slotEnd],
   );
 
+  const displayTimeZone = resolveAppointmentTimeZone(branchTimeZone, appDisplayTimeZone);
   const isOnlineLocation = type === 'in_person' && isBuiltInOnlineLocationCityCode(cityCode);
   const formatLabel =
     type === 'in_person'
@@ -301,6 +307,11 @@ export function ConfirmStepClient({
       (type === 'online' || isOnlineLocation ? 'Онлайн' : (cityTitle ?? ''));
     if (loc) doneQ.set('locationLabel', loc);
     if (cityCode) doneQ.set('cityCode', cityCode);
+    if (type === 'in_person' && orgSlug && branchId && serviceId) {
+      doneQ.set('orgSlug', orgSlug);
+      doneQ.set('branchId', branchId);
+      doneQ.set('serviceId', serviceId);
+    }
     router.push(`${doneRedirectPath}?${doneQ.toString()}`);
   }
 
@@ -360,9 +371,10 @@ export function ConfirmStepClient({
         <ul className={cn(patientMutedTextClass, 'mt-2 list-inside list-disc')}>
           <li>{formatLabel}</li>
           <li>
-            Дата и время: {formatBookingDateLongRu(slotStart, appDisplayTimeZone)} ·{' '}
-            {formatBookingTimeShortRu(slotStart, appDisplayTimeZone)} —{' '}
-            {formatBookingTimeShortRu(slotEnd, appDisplayTimeZone)}
+            Дата и время: {formatBookingDateLongRu(slotStart, displayTimeZone)} ·{' '}
+            {formatBookingTimeShortRu(slotStart, displayTimeZone)} —{' '}
+            {formatBookingTimeShortRu(slotEnd, displayTimeZone)}{' '}
+            <AppointmentZoneOffsetWarning iso={slotStart} branchTimeZone={branchTimeZone} />
           </li>
           {slotCount > 1 ? <li>Последовательных слотов: {slotCount}</li> : null}
           <li>

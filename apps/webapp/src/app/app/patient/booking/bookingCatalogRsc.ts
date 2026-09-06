@@ -50,6 +50,8 @@ export type LoadInPersonSlotContextResult =
       priceMinor: number;
       maxConsecutiveSlotHours: number;
       appDisplayTimeZone: string;
+      /** Canonical IANA timezone of the branch (`be_branches.timezone`); `null` — not resolvable. */
+      branchTimeZone: string | null;
     }
   | { ok: false; error: 'catalog_unavailable' | 'invalid_selection' };
 
@@ -191,9 +193,12 @@ export async function loadInPersonSlotContextForPatientRsc(input: {
           return { ok: false, error: 'invalid_selection' } as const;
         }
 
-        const [maxConsecutiveSlotHours, appDisplayTimeZone] = await Promise.all([
+        const [maxConsecutiveSlotHours, appDisplayTimeZone, canonicalContext] = await Promise.all([
           bookingScheduling.getMaxConsecutiveSlotHours(organizationId),
           getAppDisplayTimeZone(),
+          // Same canonical scheduling read the create/slots API routes already use to resolve the
+          // branch — this only borrows its `branchTimezone` for display, not a new lookup.
+          bookingScheduling.resolveCanonicalInPersonContext({ organizationId, branchId, serviceId }),
         ]);
 
         return {
@@ -208,6 +213,7 @@ export async function loadInPersonSlotContextForPatientRsc(input: {
           priceMinor: selected.priceMinor,
           maxConsecutiveSlotHours,
           appDisplayTimeZone,
+          branchTimeZone: canonicalContext?.branchTimezone ?? null,
         } as const;
       },
     );
