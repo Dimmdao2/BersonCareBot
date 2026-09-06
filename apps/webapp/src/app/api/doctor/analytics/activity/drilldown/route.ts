@@ -96,16 +96,16 @@ export async function GET(req: Request) {
       nextOffset: result.hasMore ? offset + limit : null,
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'error';
-    if (
-      msg === 'custom_range_required' ||
-      msg === 'range_inverted' ||
-      msg === 'range_too_long' ||
-      msg === 'range_too_short' ||
-      msg === 'invalid_date'
-    ) {
-      return NextResponse.json({ ok: false, error: msg }, { status: 400 });
-    }
+    if (e instanceof Error && e.message === 'custom_range_required')
+      return NextResponse.json({ ok: false, error: 'custom_range_required' }, { status: 400 });
+    if (e instanceof Error && e.message === 'range_inverted')
+      return NextResponse.json({ ok: false, error: 'range_inverted' }, { status: 400 });
+    if (e instanceof Error && e.message === 'range_too_long')
+      return NextResponse.json({ ok: false, error: 'range_too_long' }, { status: 400 });
+    if (e instanceof Error && e.message === 'range_too_short')
+      return NextResponse.json({ ok: false, error: 'range_too_short' }, { status: 400 });
+    if (e instanceof Error && e.message === 'invalid_date')
+      return NextResponse.json({ ok: false, error: 'invalid_date' }, { status: 400 });
     throw e;
   }
 }
