@@ -46,15 +46,16 @@ export function ProgramItemDiscussionMessageBody(props: {
       previewMdUrl: playback?.preview.mdUrl ?? null,
       standardRendition: playback?.preview.standardRendition === true,
     };
-    const videoThumbMedia:
-      import('@/modules/recommendations/types').RecommendationMediaItem | null =
+    const videoThumbMedia: MediaPreviewUiModel | null =
       isVideo && playback?.posterUrl
         ? {
-            mediaType: 'video',
-            mediaUrl: playback.posterUrl,
+            id: mediaId,
+            kind: 'video',
+            url: playback.posterUrl,
+            previewStatus: null,
             previewSmUrl: playback.posterUrl,
             previewMdUrl: playback.posterUrl,
-            sortOrder: 0,
+            standardRendition: null,
           }
         : null;
 

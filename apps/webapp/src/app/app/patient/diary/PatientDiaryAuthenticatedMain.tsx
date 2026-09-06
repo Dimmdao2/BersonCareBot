@@ -17,6 +17,8 @@ import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimez
 import { PatientDiaryWeekNavStrip } from './PatientDiaryWeekNavStrip';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { isGeneralWellbeingTracking } from '@/modules/patient-mood/wellbeingConstants';
+import { SymptomsTrackingSectionClient } from './symptoms/SymptomsTrackingSectionClient';
 
 const EMPTY_STATS =
   'За эту неделю пока нет отметок общего самочувствия. Отметки можно добавить на главной «Сегодня».';
@@ -87,6 +89,11 @@ async function renderPatientDiaryAuthenticatedMain({
     },
   );
 
+  const symptomTrackings = (await deps.diaries.listSymptomTrackings(userId)).filter(
+    (tracking) =>
+      !isGeneralWellbeingTracking(tracking.symptomKey) && tracking.symptomKey !== 'warmup_feeling',
+  );
+
   const weekDayLabels = Array.from({ length: 7 }, (_, i) =>
     DateTime.fromMillis(wellbeing.chart.weekStartMs, { zone: wellbeing.iana })
       .plus({ days: i })
@@ -118,6 +125,12 @@ async function renderPatientDiaryAuthenticatedMain({
     <>
       <PatientDiaryWeekNavStrip nav={wellbeing.weekNav} />
       {wellbeingMvpSingle}
+      <SymptomsTrackingSectionClient
+        trackings={symptomTrackings.map((tracking) => ({
+          id: tracking.id,
+          symptomTitle: tracking.symptomTitle,
+        }))}
+      />
       <PatientDiaryWarmupWeekBars weekDayLabels={weekDayLabels} days={activity.warmupDays} />
       <PatientDiaryPlanWeekStripes weekDayLabels={weekDayLabels} days={activity.planDays} />
     </>

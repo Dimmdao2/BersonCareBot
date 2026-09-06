@@ -1,11 +1,8 @@
 /**
  * Дневник пациента (MVP): недельный график самочувствия (ComposedChart).
  *
- * TODO(diary-mvp-restore): вернуть вкладки «Симптомы» / «ЛФК», QuickAddPopup и загрузку связанных данных:
- * - `./symptoms/SymptomsTrackingSectionClient`, `@/modules/diaries/components/SymptomChart`
- * - `./lfk/LfkSessionForm`, `./lfk/LfkDiarySectionClient`, `@/modules/diaries/components/LfkStatsTable`
- * - `./QuickAddPopup`
- * Подробности — `diary/diary.md`.
+ * Недельный dashboard остаётся основной композицией. Ниже него показываются только назначенные
+ * симптомы: одна модалка записи текущей интенсивности и истории. Вкладки ЛФК и QuickAdd не восстановлены.
  */
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
