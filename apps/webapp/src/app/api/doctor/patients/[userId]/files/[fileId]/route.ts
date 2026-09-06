@@ -60,7 +60,7 @@ export async function GET(
   let previewUrl: string | null = null;
   if (isS3MediaEnabled(env)) {
     try {
-      previewUrl = await presignGetUrl(file.s3Key, FILE_PRESIGN_GET_TTL, {
+      previewUrl = await presignGetUrl(file.s3Key, FILE_PRESIGN_GET_TTL, file.storageTarget, {
         mimeType: file.mimeType,
         filename: file.fileName,
       });

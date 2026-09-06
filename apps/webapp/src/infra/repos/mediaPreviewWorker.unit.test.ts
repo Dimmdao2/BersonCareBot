@@ -105,8 +105,7 @@ vi.mock('@/infra/logging/logger', () => ({
 }));
 vi.mock('@/infra/db/client', () => ({ getPool: () => ({}) }));
 vi.mock('@/infra/db/withClient', () => ({
-  withPoolTransaction: async (_pool: unknown, fn: (client: unknown) => Promise<unknown>) =>
-    fn({}),
+  withPoolTransaction: async (_pool: unknown, fn: (client: unknown) => Promise<unknown>) => fn({}),
 }));
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlFromPgClient: () => {
@@ -130,6 +129,7 @@ vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappSql: (...args: unknown[]) => runWebappSql(...(args as [])),
 }));
 vi.mock('@/infra/s3/client', () => ({
+  parseStorageTarget: (value: unknown) => (value === 'patient' ? 'patient' : 'library'),
   presignGetUrl: vi.fn(async () => 'https://example.invalid/presigned'),
   s3DeleteObject: vi.fn(async () => {}),
   s3GetObjectBody: vi.fn(async () => Buffer.from('source-bytes')),
@@ -207,7 +207,6 @@ describe('processMediaPreviewBatch standard rendition fact', () => {
     expect(statements.some((text) => text.includes("preview_status = 'skipped'"))).toBe(true);
     expect(statements.some((text) => text.includes('standard_rendition_at'))).toBe(false);
   });
-
 });
 
 /**
@@ -238,7 +237,10 @@ describe('processMediaPreviewBatch: обложка ролика по ссылк�
   });
 
   it('ролика больше нет — строка получает terminal «превью не создаётся», а не повтор', async () => {
-    resolveHostedVideoThumbnail.mockResolvedValue({ kind: 'terminal', reason: 'provider_status_400' });
+    resolveHostedVideoThumbnail.mockResolvedValue({
+      kind: 'terminal',
+      reason: 'provider_status_400',
+    });
     claimThen(hostedRow);
 
     const result = await processMediaPreviewBatch(1);
@@ -286,7 +288,6 @@ describe('processMediaPreviewBatch: обложка ролика по ссылк�
     expect(claim.params).toContain('hosted_video_preview');
   });
 });
-
 
 /**
  * Ролик и HEIC — единственные ветки, которые действительно запускают системный FFmpeg. После

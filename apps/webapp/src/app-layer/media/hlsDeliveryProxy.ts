@@ -194,7 +194,7 @@ async function runHlsDeliveryProxy(input: {
       });
     }
 
-    const bufResult = await s3GetPrivateObjectBuffer(objectKey);
+    const bufResult = await s3GetPrivateObjectBuffer(objectKey, row.storage_target);
     if (!bufResult.ok) {
       const reason = mapS3FailureToReason(bufResult.reason, 'playlist');
       return finishError({ mediaId, userId, reason, artifactKind, objectKey });
@@ -249,7 +249,11 @@ async function runHlsDeliveryProxy(input: {
     }
   }
 
-  const streamed = await s3GetObjectStream({ key: objectKey, range: awsRange });
+  const streamed = await s3GetObjectStream({
+    key: objectKey,
+    range: awsRange,
+    target: row.storage_target,
+  });
   if (!streamed.ok) {
     const reason = mapS3FailureToReason(streamed.reason, 'segment');
     return finishError({ mediaId, userId, reason, artifactKind, objectKey });

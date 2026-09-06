@@ -36,7 +36,9 @@ import {
   s3ObjectKey,
   s3PublicUrl,
   s3PutObjectBody,
+  parseStorageTarget,
 } from '@/infra/s3/client';
+import type { StorageTarget } from '@/infra/s3/client';
 import type { MediaStoragePort } from '@/modules/media/ports';
 import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
 import { MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
@@ -238,10 +240,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         poster_s3_key: string | null;
         video_duration_seconds: number | null;
         available_qualities_json: unknown;
-      }>(
-        getWebappSqlDb(),
-        query,
-      );
+      }>(getWebappSqlDb(), query);
       const row = res.rows[0];
       if (!row) return null;
       const previewStatus = (row.preview_status ?? 'pending') as MediaPreviewStatus;
@@ -623,6 +622,8 @@ export async function insertPendingMediaFileTx(
     sizeBytes: number;
     userId: string;
     folderId?: string | null;
+    /** Обязателен: строка обязана назвать хранилище в тот же момент, что и дверь загрузки. */
+    storageTarget: StorageTarget;
   },
 ): Promise<void> {
   const organizationId = currentPrincipalOrganizationId();
@@ -638,19 +639,18 @@ export async function insertPendingMediaFileTx(
     uploadedBy: params.userId,
     folderId: params.folderId ?? null,
     organizationId,
+    storageTarget: params.storageTarget,
   });
 }
 
 /** Exact patient-context root: ensure the patient folder and insert one pending submission. */
-export async function createPendingProgramSubmissionMediaFile(
-  params: {
-    id: string;
-    filename: string;
-    key: string;
-    mimeType: string;
-    sizeBytes: number;
-  },
-): Promise<boolean> {
+export async function createPendingProgramSubmissionMediaFile(params: {
+  id: string;
+  filename: string;
+  key: string;
+  mimeType: string;
+  sizeBytes: number;
+}): Promise<boolean> {
   const args = [params.id, params.filename, params.key, params.mimeType, params.sizeBytes] as const;
   const result = await runWebappNamedRoot<{ created: boolean }>(
     getWebappSqlDb(),
@@ -676,6 +676,7 @@ export async function insertPendingMediaFile(params: {
   sizeBytes: number;
   userId: string;
   folderId?: string | null;
+  storageTarget: StorageTarget;
 }): Promise<void> {
   const organizationId = currentPrincipalOrganizationId();
   await getWebappSqlDb()
@@ -691,6 +692,7 @@ export async function insertPendingMediaFile(params: {
       uploadedBy: params.userId,
       folderId: params.folderId ?? null,
       organizationId,
+      storageTarget: params.storageTarget,
     });
 }
 
@@ -705,6 +707,7 @@ export async function getMediaRowForConfirm(
   original_name: string;
   usage_purpose: string | null;
   size_bytes: number | null;
+  storage_target: StorageTarget;
 } | null> {
   const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql<{
@@ -714,9 +717,11 @@ export async function getMediaRowForConfirm(
     original_name: string;
     usage_purpose: string | null;
     size_bytes: string | null;
+    storage_target: string | null;
   }>(
     getWebappSqlDb(),
-    sql`SELECT s3_key, status, mime_type, original_name, usage_purpose, size_bytes::text
+    sql`SELECT s3_key, status, mime_type, original_name, usage_purpose, size_bytes::text,
+            storage_target
      FROM media_files
      WHERE id = ${mediaId}::uuid
        AND organization_id = ${organizationId}::uuid
@@ -732,6 +737,7 @@ export async function getMediaRowForConfirm(
     original_name: row.original_name,
     usage_purpose: row.usage_purpose,
     size_bytes: sizeRaw != null && Number.isFinite(sizeRaw) ? sizeRaw : null,
+    storage_target: parseStorageTarget(row.storage_target),
   };
 }
 
@@ -976,6 +982,7 @@ type MediaPendingDeleteStepResult = {
     hlsArtifactPrefix: string | null;
     posterS3Key: string | null;
     hlsMasterPlaylistS3Key: string | null;
+    storageTarget: StorageTarget;
     deleteAttempts: number;
     claimToken: string;
     claimUntil: string;
@@ -1003,6 +1010,7 @@ function isMediaPendingDeleteClaim(value: unknown): boolean {
     isNullableString(value.hlsArtifactPrefix) &&
     isNullableString(value.posterS3Key) &&
     isNullableString(value.hlsMasterPlaylistS3Key) &&
+    (value.storageTarget === 'library' || value.storageTarget === 'patient') &&
     Number.isInteger(value.deleteAttempts) &&
     typeof value.claimToken === 'string' &&
     typeof value.claimUntil === 'string' &&
@@ -1023,8 +1031,10 @@ function isMediaPendingDeleteStepResult(
     case 'stage':
       return Number.isInteger(value.stagedCount) && Number.isInteger(value.removedEmpty);
     case 'claim':
-      return Object.hasOwn(value, 'claim') &&
-        (value.claim === null || isMediaPendingDeleteClaim(value.claim));
+      return (
+        Object.hasOwn(value, 'claim') &&
+        (value.claim === null || isMediaPendingDeleteClaim(value.claim))
+      );
     case 'retry':
       return typeof value.retryScheduled === 'boolean';
     case 'complete':
@@ -1105,6 +1115,8 @@ export type MediaPlaybackRow = {
   available_qualities_json: unknown;
   usage_purpose: string | null;
   uploaded_by: string;
+  /** Хранилище, в котором лежат объекты этой строки, — источник для всех S3-чтений ниже. */
+  storage_target: StorageTarget;
 };
 
 export async function getMediaRowForPlayback(
@@ -1121,13 +1133,14 @@ export async function getMediaRowForPlayback(
             video_processing_status, hls_master_playlist_s3_key, poster_s3_key,
             preview_sm_key, preview_md_key, preview_status, standard_rendition_at,
             video_duration_seconds, available_qualities_json,
-            usage_purpose, uploaded_by::text
+            usage_purpose, uploaded_by::text, storage_target
      FROM media_files
      WHERE id = ${id}::uuid AND ${storagePredicate}
        AND owner_kind = 'organization' AND organization_id = ${organizationId}::uuid
        AND ${mediaReadableStatusPredicate}`,
   );
-  if (res.rows[0]) return res.rows[0];
+  if (res.rows[0])
+    return { ...res.rows[0], storage_target: parseStorageTarget(res.rows[0].storage_target) };
   if (options.allowPlatformBase !== true) return null;
   const platformRow = await readPlatformMediaRow(id);
   if (!platformRow) return null;
@@ -1153,26 +1166,35 @@ export async function getMediaRowForPlayback(
     available_qualities_json: platformRow.available_qualities_json,
     usage_purpose: platformRow.usage_purpose,
     uploaded_by: platformRow.uploaded_by,
+    /* Платформенная библиотека упражнений — это контент, не данные пациента. */
+    storage_target: 'library',
   };
 }
+
+/**
+ * Ключ объекта ВМЕСТЕ с его хранилищем: подписывать ссылку в чужом бакете бессмысленно, поэтому
+ * дверь получает и то и другое одним ответом и не может подставить хранилище по умолчанию.
+ */
+export type MediaObjectLocation = { key: string; target: StorageTarget };
 
 /** For GET /api/media/[id]: S3 key when row may be redirected (presigned GET to private bucket). */
 export async function getMediaS3KeyForRedirect(
   id: string,
   options: { allowPlatformBase?: boolean } = {},
-): Promise<string | null> {
+): Promise<MediaObjectLocation | null> {
   const organizationId = currentPrincipalOrganizationId();
-  const res = await runWebappSql<{ s3_key: string | null }>(
+  const res = await runWebappSql<{ s3_key: string | null; storage_target: string | null }>(
     getWebappSqlDb(),
-    sql`SELECT s3_key FROM media_files
+    sql`SELECT s3_key, storage_target FROM media_files
          WHERE id = ${id}::uuid AND s3_key IS NOT NULL
            AND owner_kind = 'organization' AND organization_id = ${organizationId}::uuid
            AND ${mediaReadableStatusPredicate}`,
   );
-  if (res.rows[0]?.s3_key) return res.rows[0].s3_key;
+  const row = res.rows[0];
+  if (row?.s3_key) return { key: row.s3_key, target: parseStorageTarget(row.storage_target) };
   if (options.allowPlatformBase !== true) return null;
   const platformRow = await readPlatformMediaRow(id);
-  return platformRow?.s3_key ?? null;
+  return platformRow?.s3_key ? { key: platformRow.s3_key, target: 'library' } : null;
 }
 
 /** Presigned-GET target for generated preview JPEG (sm/md). */
@@ -1180,25 +1202,28 @@ export async function getMediaPreviewS3KeyForRedirect(
   id: string,
   size: 'sm' | 'md',
   options: { allowPlatformBase?: boolean } = {},
-): Promise<string | null> {
+): Promise<MediaObjectLocation | null> {
   const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql<{
     preview_sm_key: string | null;
     preview_md_key: string | null;
     preview_status: string | null;
+    storage_target: string | null;
   }>(
     getWebappSqlDb(),
-    sql`SELECT preview_sm_key, preview_md_key, preview_status
+    sql`SELECT preview_sm_key, preview_md_key, preview_status, storage_target
      FROM media_files
      WHERE id = ${id}::uuid
        AND owner_kind = 'organization' AND organization_id = ${organizationId}::uuid
        AND ${mediaReadableStatusPredicate}`,
   );
-  const row =
-    res.rows[0] ?? (options.allowPlatformBase === true ? await readPlatformMediaRow(id) : null);
+  const own = res.rows[0];
+  /* Превью лежит рядом с исходником — в том же хранилище, что и сама строка. */
+  const row = own ?? (options.allowPlatformBase === true ? await readPlatformMediaRow(id) : null);
   if (!row || row.preview_status !== 'ready') return null;
   const key = size === 'sm' ? row.preview_sm_key : row.preview_md_key;
-  return key?.trim() ? key : null;
+  if (!key?.trim()) return null;
+  return { key, target: own ? parseStorageTarget(own.storage_target) : 'library' };
 }
 
 export type PurgePendingMediaDeleteBatchResult = {
@@ -1252,15 +1277,18 @@ function isNoSuchMultipartUpload(err: unknown): boolean {
  * Resolves all S3 object keys to delete for a media row in `pending_delete` / `deleting`:
  * preview JPEGs, entire HLS prefix (variants + master + legacy segments), poster prefix/object, source MP4.
  */
-export async function collectS3KeysForMediaPurge(row: {
-  id: string;
-  s3_key: string;
-  preview_sm_key: string | null;
-  preview_md_key: string | null;
-  hls_artifact_prefix: string | null;
-  poster_s3_key: string | null;
-  hls_master_playlist_s3_key: string | null;
-}): Promise<string[]> {
+export async function collectS3KeysForMediaPurge(
+  row: {
+    id: string;
+    s3_key: string;
+    preview_sm_key: string | null;
+    preview_md_key: string | null;
+    hls_artifact_prefix: string | null;
+    poster_s3_key: string | null;
+    hls_master_playlist_s3_key: string | null;
+  },
+  target: StorageTarget = 'library',
+): Promise<string[]> {
   const keysToDeleteSet = new Set<string>();
   for (const k of [row.preview_sm_key, row.preview_md_key]) {
     if (k?.trim()) keysToDeleteSet.add(k.trim());
@@ -1272,7 +1300,7 @@ export async function collectS3KeysForMediaPurge(row: {
     hlsArtifactPrefix: row.hls_artifact_prefix,
   });
   if (hlsListPrefix) {
-    const hlsKeys = await s3ListObjectKeysUnderPrefix(hlsListPrefix);
+    const hlsKeys = await s3ListObjectKeysUnderPrefix(hlsListPrefix, target);
     for (const k of hlsKeys) keysToDeleteSet.add(k);
   } else if (row.hls_master_playlist_s3_key?.trim()) {
     const mk = row.hls_master_playlist_s3_key.trim();
@@ -1297,14 +1325,14 @@ export async function collectS3KeysForMediaPurge(row: {
       );
       const posterListPrefix = resolvePosterPurgeListPrefix(row.id, row.s3_key);
       if (posterListPrefix) {
-        const posterKeys = await s3ListObjectKeysUnderPrefix(posterListPrefix);
+        const posterKeys = await s3ListObjectKeysUnderPrefix(posterListPrefix, target);
         for (const k of posterKeys) keysToDeleteSet.add(k);
       }
     }
   } else {
     const posterListPrefix = resolvePosterPurgeListPrefix(row.id, row.s3_key);
     if (posterListPrefix) {
-      const posterKeys = await s3ListObjectKeysUnderPrefix(posterListPrefix);
+      const posterKeys = await s3ListObjectKeysUnderPrefix(posterListPrefix, target);
       for (const k of posterKeys) keysToDeleteSet.add(k);
     }
   }
@@ -1341,7 +1369,7 @@ export async function purgePendingMediaDeleteBatch(
 
     let keysToDelete: string[];
     try {
-      keysToDelete = await collectS3KeysForMediaPurge(row);
+      keysToDelete = await collectS3KeysForMediaPurge(row, claim.storageTarget);
     } catch (e) {
       logger.error(
         { err: e, mediaId: row.id },
@@ -1357,7 +1385,7 @@ export async function purgePendingMediaDeleteBatch(
     let abortFailed = false;
     for (const session of claim.pendingAborts) {
       try {
-        await s3AbortMultipartUpload(session.s3Key, session.uploadId);
+        await s3AbortMultipartUpload(session.s3Key, session.uploadId, claim.storageTarget);
       } catch (e) {
         if (isNoSuchMultipartUpload(e)) {
           logger.info(
@@ -1382,7 +1410,7 @@ export async function purgePendingMediaDeleteBatch(
 
     try {
       for (const key of keysToDelete) {
-        await s3DeleteObject(key);
+        await s3DeleteObject(key, claim.storageTarget);
       }
     } catch (e) {
       await runMediaPendingDeleteStep('retry', row.id, null, claim.claimToken);

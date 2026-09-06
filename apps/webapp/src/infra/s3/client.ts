@@ -13,6 +13,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'node:stream';
 import { env } from '@/config/env';
+import type { StorageTarget } from '@/shared/types/storageTarget';
 
 const PRESIGN_PUT_EXPIRES_SEC = 900;
 const PRESIGN_PART_EXPIRES_SEC = 900;
@@ -21,15 +22,10 @@ const PRESIGN_GET_DEFAULT_SEC = 3600;
 const S3_KEY_PREFIX = 'media';
 
 /**
- * Куда физически ложится объект (решение владельца 06.09.2026).
- *
- * `library` — библиотека упражнений и медиа CMS: основной объём и трафик, дешёвое хранилище.
- * `patient` — файлы и видео пациентов: хранилище с серверным шифрованием, отдельный доступ.
- *
- * Это один и тот же chokepoint с параметром, а не второй S3-модуль: все функции ниже
- * принимают цель и решают её через {@link storageConfigFor}.
+ * Хранилище объекта. Это один и тот же chokepoint с параметром, а не второй S3-модуль: все
+ * функции ниже принимают цель и решают её через {@link storageConfigFor}.
  */
-export type StorageTarget = 'library' | 'patient';
+export type { StorageTarget };
 
 const DEFAULT_TARGET: StorageTarget = 'library';
 
@@ -76,6 +72,18 @@ export function storageBucketFor(target: StorageTarget = DEFAULT_TARGET): string
 /** Отдельно ли живут данные пациентов в этом окружении. */
 export function isPatientStorageSeparate(): boolean {
   return Boolean(env.PATIENT_S3_BUCKET);
+}
+
+/**
+ * Хранилище строки БД. Колонка `storage_target` объявлена NOT NULL DEFAULT 'library', но приходит
+ * сюда как обычная строка из драйвера, а на платформенных строках её нет вовсе — поэтому всё,
+ * что не названо явно, читается как библиотека: это ровно то поведение, что было до разделения.
+ *
+ * Обратное направление (считать неизвестное данными пациента) владелец отклонил 06.09.2026:
+ * тогда любая старая строка библиотеки начала бы искаться в пустом шифрованном бакете.
+ */
+export function parseStorageTarget(value: unknown): StorageTarget {
+  return value === 'patient' ? 'patient' : DEFAULT_TARGET;
 }
 
 const clientCache = new Map<StorageTarget, S3Client>();
@@ -201,8 +209,8 @@ function contentDispositionFor(mimeType: string | undefined, filename: string | 
 export async function presignGetUrl(
   key: string,
   expiresSec: number = PRESIGN_GET_DEFAULT_SEC,
-  serve?: { mimeType?: string; filename?: string },
   target: StorageTarget = DEFAULT_TARGET,
+  serve?: { mimeType?: string; filename?: string },
 ): Promise<string> {
   const client = getS3Client(target);
   const cmd = new GetObjectCommand({
@@ -531,8 +539,7 @@ export async function s3ListObjectKeysUnderPrefix(
 }
 
 export type S3PerKeyDeleteResult =
-  | { key: string; ok: true }
-  | { key: string; ok: false; error: string };
+  { key: string; ok: true } | { key: string; ok: false; error: string };
 
 /**
  * Deletes each key independently; does not short-circuit on first failure (strict purge post-commit).

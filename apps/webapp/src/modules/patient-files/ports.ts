@@ -1,4 +1,5 @@
 import type { ReceivedUpload } from '@/modules/media/uploadValidation';
+import type { StorageTarget } from '@/shared/types/storageTarget';
 
 /**
  * Patient Files module — ports (interfaces only; no DB/infra imports).
@@ -22,6 +23,8 @@ export type PatientFileRecord = {
   fileName: string;
   s3Key: string;
   s3Bucket: string;
+  /** Хранилище, в котором лежит объект; строки старше разделения остаются в библиотеке. */
+  storageTarget: StorageTarget;
   mimeType: string;
   sizeBytes: number;
   /** Null until explicitly linked via linkFileToVisit. */

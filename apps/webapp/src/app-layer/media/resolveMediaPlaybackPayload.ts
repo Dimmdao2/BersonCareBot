@@ -150,7 +150,7 @@ export async function resolveMediaPlaybackPayload(input: {
   const rawPoster = row.poster_s3_key?.trim() ?? '';
   if (rawPoster && isTrustedPosterS3Key(id, rawPoster)) {
     try {
-      posterUrl = await presignGetUrl(rawPoster, presignExpiresSec);
+      posterUrl = await presignGetUrl(rawPoster, presignExpiresSec, row.storage_target);
     } catch (e) {
       logger.error(
         { err: serializePresignFailureForLog(e), mediaId: id, presignTarget: 'poster' },

@@ -16,6 +16,7 @@ export {
   s3CreateMultipartUpload,
   storageBucketFor,
   isPatientStorageSeparate,
+  parseStorageTarget,
 } from '@/infra/s3/client';
 export type {
   S3GetObjectStreamFailureReason,

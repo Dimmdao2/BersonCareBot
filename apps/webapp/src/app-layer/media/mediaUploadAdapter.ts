@@ -140,9 +140,15 @@ export function abortPreparedMultipartUpload(
   return s3AbortMultipartUpload(key, uploadId, target);
 }
 
-/** HEAD plus a tiny range read: never downloads the whole object to validate a signature. */
+/**
+ * HEAD plus a tiny range read: never downloads the whole object to validate a signature.
+ *
+ * `target` обязателен ровно по той же причине, что и у двери загрузки: дверь приёмки ищет
+ * объект в конкретном бакете, и «не указали — значит библиотека» превратило бы принятое видео
+ * пациента в `file_not_found_in_s3`.
+ */
 export async function validateReceivedMediaObject(
-  upload: Pick<PreparedMediaUpload, 'key' | 'intent'> & { target?: StorageTarget },
+  upload: Pick<PreparedMediaUpload, 'key' | 'intent' | 'target'>,
 ): Promise<UploadValidationResult<ReceivedUpload>> {
   const head = await s3HeadObjectDetails(upload.key, upload.target);
   if (!head) return { ok: false, error: 'file_not_found_in_s3' };
@@ -157,7 +163,7 @@ export async function validateReceivedMediaObject(
 }
 
 /** Multipart completion additionally verifies the metadata written at CreateMultipartUpload. */
-export function inspectReceivedMediaObject(key: string, target?: StorageTarget) {
+export function inspectReceivedMediaObject(key: string, target: StorageTarget) {
   return s3HeadObjectDetails(key, target);
 }
 

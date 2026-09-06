@@ -48,6 +48,7 @@ export const inMemoryPatientFilesPort: PatientFilesPort = {
       fileName: params.fileName,
       s3Key: params.s3Key,
       s3Bucket: params.s3Bucket,
+      storageTarget: 'patient',
       mimeType: params.mimeType,
       sizeBytes: params.sizeBytes,
       visitId: null,

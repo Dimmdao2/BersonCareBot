@@ -218,6 +218,7 @@ describe('pending upload abort lifecycle', () => {
               hlsArtifactPrefix: null,
               posterS3Key: null,
               hlsMasterPlaylistS3Key: null,
+              storageTarget: 'library',
               deleteAttempts,
               claimToken: CLAIM_TOKEN,
               claimUntil: '2026-08-28T01:30:00.000Z',
@@ -242,7 +243,7 @@ describe('pending upload abort lifecycle', () => {
 
     await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 0, errors: 1 });
 
-    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY);
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library');
     expect(fakes.runNamedRoot).toHaveBeenNthCalledWith(
       3,
       expect.anything(),
@@ -272,7 +273,7 @@ describe('pending upload abort lifecycle', () => {
 
     await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 0, errors: 1 });
 
-    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1');
+    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1', 'library');
     // The row (and with it the surviving session that holds the retry identity) is NOT deleted, and
     // no object delete was attempted on an upload that was never aborted.
     expect(fakes.s3DeleteObject).not.toHaveBeenCalled();
@@ -293,8 +294,8 @@ describe('pending upload abort lifecycle', () => {
 
     const result = await purgePendingMediaDeleteBatch(1);
 
-    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1');
-    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY);
+    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1', 'library');
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library');
     expect(result).toEqual({ removed: 1, errors: 0 });
     expect(fakes.runNamedRoot).toHaveBeenNthCalledWith(
       3,
@@ -365,7 +366,7 @@ describe('pending upload abort lifecycle', () => {
       });
 
     await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 0, errors: 1 });
-    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1');
+    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1', 'library');
 
     // ── tick 2: the session still says 'expired', so the same upload is aborted a second time. S3
     // has already forgotten it: NoSuchUpload. The retry must still finish the cleanup. ──
@@ -390,7 +391,7 @@ describe('pending upload abort lifecycle', () => {
     // An upload S3 no longer holds IS an aborted upload. The retry must treat it as done and
     // complete the cleanup exactly once, instead of parking the row on the backoff forever.
     expect(retry).toEqual({ removed: 1, errors: 0 });
-    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY);
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library');
   });
 
   /**
@@ -491,7 +492,7 @@ describe('pending upload abort lifecycle', () => {
     await expect(purgePendingMediaDeleteBatch(1)).rejects.toThrow(
       'invalid_media_pending_delete_step_result',
     );
-    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY);
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library');
   });
 });
 
@@ -521,7 +522,10 @@ describe('collectS3KeysForMediaPurge trust boundary (shared hlsStorageLayout)', 
       hls_master_playlist_s3_key: null,
     });
 
-    expect(fakes.s3ListObjectKeysUnderPrefix).toHaveBeenCalledWith(`media/${MEDIA_ID}/hls`);
+    expect(fakes.s3ListObjectKeysUnderPrefix).toHaveBeenCalledWith(
+      `media/${MEDIA_ID}/hls`,
+      'library',
+    );
   });
 
   it('ignores a stored hls_artifact_prefix that escapes the canonical media root and lists the canonical prefix instead', async () => {
@@ -535,7 +539,10 @@ describe('collectS3KeysForMediaPurge trust boundary (shared hlsStorageLayout)', 
       hls_master_playlist_s3_key: null,
     });
 
-    expect(fakes.s3ListObjectKeysUnderPrefix).toHaveBeenCalledWith(`media/${MEDIA_ID}/hls`);
+    expect(fakes.s3ListObjectKeysUnderPrefix).toHaveBeenCalledWith(
+      `media/${MEDIA_ID}/hls`,
+      'library',
+    );
   });
 
   it('drops an explicit hls_master_playlist_s3_key pointing at another media id instead of deleting it', async () => {

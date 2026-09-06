@@ -73,6 +73,7 @@ export async function POST(request: Request, context: { params: Promise<{ instan
             sizeBytes: upload.intent.sizeBytes,
             userId: gate.ctx.session.user.userId,
             folderId: folder.id,
+            storageTarget: upload.target,
           });
         },
       );

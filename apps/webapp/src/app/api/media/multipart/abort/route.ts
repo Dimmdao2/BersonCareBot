@@ -57,9 +57,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true as const, alreadyFinal: true });
   }
 
-  await s3AbortMultipartUpload(dbResult.s3Key, dbResult.uploadId).catch((e) => {
-    logger.warn({ err: e, sessionId }, '[media/multipart/abort] s3_abort_best_effort');
-  });
+  await s3AbortMultipartUpload(dbResult.s3Key, dbResult.uploadId, dbResult.storageTarget).catch(
+    (e) => {
+      logger.warn({ err: e, sessionId }, '[media/multipart/abort] s3_abort_best_effort');
+    },
+  );
 
   return NextResponse.json({ ok: true as const });
 }
