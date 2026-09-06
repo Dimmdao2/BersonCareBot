@@ -28,13 +28,19 @@ function mockRows(queryText: string): { rows: unknown[] } {
     return { rows: [] };
   }
   if (queryText.includes('FROM media_files')) {
-    return { rows: [{ id: 'existing-media-id', s3_key: 'media/existing.mp4' }] };
+    return {
+      rows: [{ id: 'existing-media-id', s3_key: 'media/existing.mp4', storage_target: 'library' }],
+    };
   }
   if (queryText.includes('FROM patient_files')) {
     return {
       rows: [
-        { s3_key: 'patient-files/a/result.pdf', media_file_id: null },
-        { s3_key: 'patient-files/b/scan.webp', media_file_id: 'linked-media-id' },
+        { s3_key: 'patient-files/a/result.pdf', media_file_id: null, storage_target: 'patient' },
+        {
+          s3_key: 'patient-files/b/scan.webp',
+          media_file_id: 'linked-media-id',
+          storage_target: 'patient',
+        },
       ],
     };
   }
@@ -49,19 +55,21 @@ describe('collectPurgeArtifactKeys — patient_files', () => {
 
     const artifact = await collectPurgeArtifactKeys(fakeClient, USER_ID);
 
-    expect(artifact.patientFileS3Keys).toEqual([
-      'patient-files/a/result.pdf',
-      'patient-files/b/scan.webp',
+    expect(artifact.patientFiles).toEqual([
+      { s3Key: 'patient-files/a/result.pdf', storageTarget: 'patient' },
+      { s3Key: 'patient-files/b/scan.webp', storageTarget: 'patient' },
     ]);
     // The row already present from the plain media_files/uploaded_by query is kept once...
     expect(artifact.mediaFiles).toContainEqual({
       id: 'existing-media-id',
       s3Key: 'media/existing.mp4',
+      storageTarget: 'library',
     });
     // ...and the patient-file-linked row (owned by the uploader, not the patient) is folded in too.
     expect(artifact.mediaFiles).toContainEqual({
       id: 'linked-media-id',
       s3Key: 'patient-files/b/scan.webp',
+      storageTarget: 'patient',
     });
     expect(artifact.mediaFiles).toHaveLength(2);
   });
@@ -71,11 +79,21 @@ describe('collectPurgeArtifactKeys — patient_files', () => {
       const queryText = drizzleSqlFragmentToPgQuery(fragment).sql;
       if (queryText.includes('online_intake_attachments')) return Promise.resolve({ rows: [] });
       if (queryText.includes('FROM media_files')) {
-        return Promise.resolve({ rows: [{ id: 'shared-id', s3_key: 'patient-files/x/f.pdf' }] });
+        return Promise.resolve({
+          rows: [
+            { id: 'shared-id', s3_key: 'patient-files/x/f.pdf', storage_target: 'patient' },
+          ],
+        });
       }
       if (queryText.includes('FROM patient_files')) {
         return Promise.resolve({
-          rows: [{ s3_key: 'patient-files/x/f.pdf', media_file_id: 'shared-id' }],
+          rows: [
+            {
+              s3_key: 'patient-files/x/f.pdf',
+              media_file_id: 'shared-id',
+              storage_target: 'patient',
+            },
+          ],
         });
       }
       throw new Error(`unexpected query: ${queryText}`);
@@ -83,7 +101,11 @@ describe('collectPurgeArtifactKeys — patient_files', () => {
 
     const artifact = await collectPurgeArtifactKeys(fakeClient, USER_ID);
 
-    expect(artifact.mediaFiles).toEqual([{ id: 'shared-id', s3Key: 'patient-files/x/f.pdf' }]);
-    expect(artifact.patientFileS3Keys).toEqual(['patient-files/x/f.pdf']);
+    expect(artifact.mediaFiles).toEqual([
+      { id: 'shared-id', s3Key: 'patient-files/x/f.pdf', storageTarget: 'patient' },
+    ]);
+    expect(artifact.patientFiles).toEqual([
+      { s3Key: 'patient-files/x/f.pdf', storageTarget: 'patient' },
+    ]);
   });
 });

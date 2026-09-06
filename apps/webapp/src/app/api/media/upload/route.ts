@@ -3,7 +3,10 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { pgValidateUserAssignableMediaFolder } from '@/app-layer/media/clientMediaFolders';
 import { logger } from '@/app-layer/logging/logger';
 import { uploadValidationResponse, validateUploadIntent } from '@/modules/media/uploadValidation';
-import { validateBufferedMediaUpload } from '@/app-layer/media/mediaUploadAdapter';
+import {
+  storageTargetFor,
+  validateBufferedMediaUpload,
+} from '@/app-layer/media/mediaUploadAdapter';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
@@ -165,6 +168,7 @@ export async function POST(request: Request) {
           filename: candidate.filename,
           mimeType: candidate.mime,
           received: candidate.received,
+          storageTarget: storageTargetFor({ policyId: 'proxy' }),
           userId: session.user.userId,
           ...(folderRes.folderId !== undefined ? { folderId: folderRes.folderId } : {}),
         }),

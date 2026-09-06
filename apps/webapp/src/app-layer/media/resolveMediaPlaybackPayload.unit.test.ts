@@ -66,6 +66,7 @@ describe('resolveMediaPlaybackPayload', () => {
       available_qualities_json: [],
       usage_purpose: null,
       uploaded_by: 'patient-1',
+      storage_target: 'patient',
     });
   });
 
@@ -137,6 +138,28 @@ describe('resolveMediaPlaybackPayload', () => {
       data: { delivery: 'mp4', hls: null, progressive: { url: `/api/media/${mediaId}` } },
     });
     expect(mocks.presign).not.toHaveBeenCalled();
+  });
+
+  it('presigns a poster from the patient store named by the row', async () => {
+    mocks.getRow.mockResolvedValue({
+      ...(await mocks.getRow()),
+      hls_master_playlist_s3_key: `media/${mediaId}/hls/master.m3u8`,
+      poster_s3_key: `media/${mediaId}/poster/poster.jpg`,
+      storage_target: 'patient',
+    });
+    mocks.presign.mockResolvedValue('https://storage.example/patient-poster');
+
+    const result = await resolveMediaPlaybackPayload({ id: mediaId, session });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: { posterUrl: 'https://storage.example/patient-poster' },
+    });
+    expect(mocks.presign).toHaveBeenCalledWith(
+      `media/${mediaId}/poster/poster.jpg`,
+      900,
+      'patient',
+    );
   });
 
   it('serves the progressive route for a patient submission, whose transcode leaves no HLS master', async () => {

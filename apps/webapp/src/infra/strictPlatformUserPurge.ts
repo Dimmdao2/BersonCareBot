@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import type { StorageTarget } from '@/shared/types/storageTarget';
 import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
 import { env } from '@/config/env';
@@ -113,7 +114,7 @@ async function runPostCommitArtifactCleanup(
   const details: PostCommitDetails = {
     intakeS3KeyCount: artifact.intakeS3Keys.length,
     mediaFileCount: artifact.mediaFiles.length,
-    patientFileS3KeyCount: artifact.patientFileS3Keys.length,
+    patientFileS3KeyCount: artifact.patientFiles.length,
     s3KeysAttempted: 0,
     s3Failures: [],
     mediaRowsDeleted: 0,
@@ -123,19 +124,26 @@ async function runPostCommitArtifactCleanup(
 
   const runS3AndMedia = async (): Promise<void> => {
     const intakeKeys = [...new Set(artifact.intakeS3Keys)];
-    const mediaKeys = [
-      ...new Set(
-        artifact.mediaFiles.map((m) => m.s3Key).filter((key): key is string => Boolean(key)),
-      ),
-    ];
-    const patientFileKeys = [...new Set(artifact.patientFileS3Keys)];
-    const allKeys = [...new Set([...intakeKeys, ...mediaKeys, ...patientFileKeys])];
-    details.s3KeysAttempted = allKeys.length;
+    /*
+     * Ключ несёт своё хранилище. Раньше все ключи сливались в один список и удалялись из
+     * библиотечного бакета: удаление отсутствующего ключа S3 считает успехом, поэтому строка
+     * пациента исчезала из базы, а сам зашифрованный объект оставался лежать в Яндексе навсегда.
+     *
+     * Вложения онлайн-анкеты в разделении не участвуют — их таблица колонки хранилища не имеет,
+     * и это названо здесь буквально, а не подразумевается.
+     */
+    const byKey = new Map<string, StorageTarget>();
+    for (const key of intakeKeys) byKey.set(key, 'library');
+    for (const media of artifact.mediaFiles) {
+      if (media.s3Key) byKey.set(media.s3Key, media.storageTarget);
+    }
+    for (const file of artifact.patientFiles) byKey.set(file.s3Key, file.storageTarget);
+    details.s3KeysAttempted = byKey.size;
 
     if (!s3Enabled) {
       details.intakeS3ObjectsNotDeletedBucketDisabled =
         artifact.intakeS3Keys.length > 0 ||
-        artifact.patientFileS3Keys.length > 0 ||
+        artifact.patientFiles.length > 0 ||
         artifact.mediaFiles.some((m) => Boolean(m.s3Key));
       for (const m of artifact.mediaFiles) {
         try {
@@ -149,7 +157,12 @@ async function runPostCommitArtifactCleanup(
       return;
     }
 
-    const s3Results: S3PerKeyDeleteResult[] = await deleteS3ObjectsWithPerKeyResults(allKeys);
+    const s3Results: S3PerKeyDeleteResult[] = [];
+    for (const target of ['library', 'patient'] as const) {
+      const keys = [...byKey].filter(([, t]) => t === target).map(([key]) => key);
+      if (keys.length === 0) continue;
+      s3Results.push(...(await deleteS3ObjectsWithPerKeyResults(keys, target)));
+    }
     const keyOk = new Map<string, boolean>();
     for (const r of s3Results) {
       if (r.ok) {
@@ -235,7 +248,7 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
   }
 
   const userSnapshot: PurgePlatformUserRow = { ...userBefore };
-  let artifact: PurgeArtifactKeys = { intakeS3Keys: [], mediaFiles: [], patientFileS3Keys: [] };
+  let artifact: PurgeArtifactKeys = { intakeS3Keys: [], mediaFiles: [], patientFiles: [] };
   const tx = await startPoolTransaction(pool);
   const client = tx.client;
   try {

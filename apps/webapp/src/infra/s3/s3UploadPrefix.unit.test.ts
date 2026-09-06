@@ -33,7 +33,7 @@ beforeEach(() => {
 
 describe('received-object S3 prefix read', () => {
   it('uses one bounded 512-byte range instead of downloading the object', async () => {
-    await expect(s3GetObjectPrefix('uploads/object')).resolves.toEqual(
+    await expect(s3GetObjectPrefix('uploads/object', 'library')).resolves.toEqual(
       Buffer.from([0xff, 0xd8, 0xff]),
     );
 

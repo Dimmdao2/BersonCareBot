@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ClaimedJob, ControlledMedia, MediaWorkerControlPort } from './control.js';
 import { processTranscodeJob, type TranscodeContext } from './processTranscodeJob.js';
 import type { StorageBinding } from './s3.js';
+import { parseStorageTarget } from './storageTarget.js';
 
 /**
  * Наряд называет хранилище — воркер обязан взять именно его.
@@ -18,6 +19,20 @@ const JOB: ClaimedJob = {
   organizationId: '33333333-3333-4333-8333-333333333333',
   attempts: 1,
 };
+
+describe('storage target from the webapp control boundary', () => {
+  /**
+   * WHAT BREAKS: an older or malformed control response omits/corrupts `storageTarget`, and the
+   * worker silently processes that job in the library bucket.
+   * CONSEQUENCE: patient bytes are read/written/deleted in the wrong store instead of the rollout
+   * failing loudly.
+   * ORACLE: owner ruling 06.09.2026: forgetting to name the store must be impossible or loud,
+   * never silently `library`.
+   */
+  it.each([undefined, null, '', 'unknown'])('refuses an unnamed/unknown store: %j', (value) => {
+    expect(() => parseStorageTarget(value)).toThrow(/storage_target_missing_on_row/u);
+  });
+});
 
 function contextFor(media: ControlledMedia | null) {
   const bindings: Record<string, StorageBinding> = {

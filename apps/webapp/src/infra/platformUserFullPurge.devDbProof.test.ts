@@ -1076,7 +1076,7 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
         let artifact: PurgeArtifactKeys = {
           intakeS3Keys: [],
           mediaFiles: [],
-          patientFileS3Keys: [],
+          patientFiles: [],
         };
         let artifactExpected = { mediaFileIds: [] as string[], patientFileKeys: 0, intakeKeys: 0 };
         let artifactBefore: ArtifactCounts = {
@@ -1373,7 +1373,7 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
       expect(report.artifact.mediaFiles.map((m) => m.id).sort()).toEqual(
         report.artifactExpected.mediaFileIds,
       );
-      expect(report.artifact.patientFileS3Keys.length).toBe(
+      expect(report.artifact.patientFiles.length).toBe(
         report.artifactExpected.patientFileKeys,
       );
       expect(report.artifact.intakeS3Keys.length).toBe(report.artifactExpected.intakeKeys);

@@ -11,6 +11,7 @@ import type {
   MediaUsageSummary,
 } from './types';
 import type { ReceivedUpload } from './uploadValidation';
+import type { StorageTarget } from '@/shared/types/storageTarget';
 
 export type UploadMediaParams = {
   /** File content. */
@@ -21,6 +22,8 @@ export type UploadMediaParams = {
   mimeType: string;
   /** Branded result of the received-object door; raw request metadata cannot mark media ready. */
   received: ReceivedUpload;
+  /** Хранилище объекта: называет дверь, порт его не выбирает. */
+  storageTarget: StorageTarget;
   /** Optional owner for access control. */
   userId?: string | null;
   /** Library folder (`null` = root). Omit for legacy behavior (root). */

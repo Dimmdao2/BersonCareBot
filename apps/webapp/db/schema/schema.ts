@@ -1912,8 +1912,11 @@ export const mediaFiles = pgTable(
       .defaultNow()
       .notNull(),
     s3Key: text('s3_key'),
-    /** Физическое хранилище объекта: 'library' (медиа CMS) или 'patient' (шифрованное). */
-    storageTarget: text('storage_target').default('library').notNull(),
+    /**
+     * Физическое хранилище объекта: 'library' (медиа CMS и библиотека) или 'patient'
+     * (шифрованное). Без `.default()` намеренно — см. `patientFiles.storageTarget`.
+     */
+    storageTarget: text('storage_target').notNull(),
     status: text().default('ready').notNull(),
     deleteAttempts: integer('delete_attempts').default(0).notNull(),
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true, mode: 'string' }),

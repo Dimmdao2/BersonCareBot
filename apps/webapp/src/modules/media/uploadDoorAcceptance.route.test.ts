@@ -401,6 +401,33 @@ describe('Ч1 intent policy at the six public intake routes', () => {
       }),
     );
     expect(fakes.presignPutUrl).toHaveBeenCalledOnce();
+    expect(fakes.presignPutUrl).toHaveBeenCalledWith(
+      expect.stringMatching(/^media\/[0-9a-f-]{36}\/photo\.jpg$/u),
+      'image/jpeg',
+      'patient',
+    );
+  });
+
+  it('patient-file presign records and uploads against the patient store', async () => {
+    const response = await patientFilePresign(
+      jsonRequest({
+        category: 'прочее',
+        fileName: 'photo.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 3,
+      }),
+      { params: Promise.resolve({ userId: ids.patient }) },
+    );
+
+    expect(response.status).toBe(201);
+    expect(fakes.createPatientFile).toHaveBeenCalledWith(
+      expect.objectContaining({ s3Bucket: 'patient-bucket' }),
+    );
+    expect(fakes.presignPutUrl).toHaveBeenCalledWith(
+      expect.stringMatching(/^patient-files\/[0-9a-f-]{36}\/photo\.jpg$/u),
+      'image/jpeg',
+      'patient',
+    );
   });
 
   it('rejects a patient video shorter than ten seconds before creating an upload', async () => {
@@ -455,6 +482,7 @@ describe('Ч1 intent policy at the six public intake routes', () => {
         mime_type: 'video/mp4',
         size_bytes: 12,
         usage_purpose: 'program_item_submission',
+        storage_target: 'patient',
       }),
     );
     fakes.s3HeadObjectDetails.mockResolvedValue(
@@ -471,6 +499,8 @@ describe('Ч1 intent policy at the six public intake routes', () => {
       expect.objectContaining({ ok: true, mediaId: ids.media, processing: true }),
     );
     expect(fakes.confirmProgramSubmissionMediaFileReady).toHaveBeenCalledOnce();
+    expect(fakes.s3HeadObjectDetails).toHaveBeenCalledWith('uploads/object', 'patient');
+    expect(fakes.s3GetObjectPrefix).toHaveBeenCalledWith('uploads/object', 'patient');
   });
 
   it('does not replace an empty proxy filename with a valid synthetic filename', async () => {
@@ -553,7 +583,7 @@ describe('Ч1 received object at real confirm handlers', () => {
 
     expect(response.status).toBe(200);
     expect(fakes.s3HeadObjectDetails).toHaveBeenCalledWith('uploads/object', 'library');
-    expect(fakes.s3GetObjectPrefix).toHaveBeenCalledWith('uploads/object', undefined, 'library');
+    expect(fakes.s3GetObjectPrefix).toHaveBeenCalledWith('uploads/object', 'library');
     expect(fakes.confirmMediaFileReady).toHaveBeenCalledOnce();
     expect(fakes.confirmMediaFileReady.mock.calls[0]?.[1]).toMatchObject({
       intent: { mimeType: 'image/jpeg', sizeBytes: 3 },

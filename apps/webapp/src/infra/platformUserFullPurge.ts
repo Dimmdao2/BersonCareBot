@@ -8,6 +8,8 @@ import { sql } from 'drizzle-orm';
 import type { Pool, PoolClient } from 'pg';
 import { getPool } from '@/infra/db/client';
 import { runPurgeClientSql, runPurgePoolSql } from '@/infra/platformUserPurgeSql';
+import { parseStorageTarget } from '@/infra/s3/client';
+import type { StorageTarget } from '@/shared/types/storageTarget';
 import { CONTACTS, USER_CONTACTS_PRIMARY_PHONE_LATERAL } from '@/infra/repos/userContactsSql';
 
 /** Только цифры; для сопоставления записей по номеру. */
@@ -324,14 +326,19 @@ async function deleteContentTablesForUser(client: PoolClient, userId: string): P
 }
 
 export type PurgeArtifactKeys = {
+  /**
+   * Вложения онлайн-анкеты. Своей колонки хранилища у них нет: таблица не участвует в разделении
+   * 06.09.2026, её объекты лежат в библиотечном бакете. Оставлено как есть намеренно и помечено —
+   * это отдельный вопрос владельцу, а не молчаливое умолчание.
+   */
   intakeS3Keys: string[];
   /** media_files rows that need post-commit cleanup; `s3Key = null` means DB-only row delete. */
-  mediaFiles: { id: string; s3Key: string | null }[];
+  mediaFiles: { id: string; s3Key: string | null; storageTarget: StorageTarget }[];
   /**
    * `patient_files` rows for this user (as patient). The row cascade-deletes with `platform_users`,
    * so its object must be captured here before the webapp DELETE — same treatment as `intakeS3Keys`.
    */
-  patientFileS3Keys: string[];
+  patientFiles: { s3Key: string; storageTarget: StorageTarget }[];
 };
 
 /**
@@ -355,26 +362,35 @@ export async function collectPurgeArtifactKeys(
     .map((r) => r.s3_key)
     .filter((k): k is string => typeof k === 'string' && k.length > 0);
 
-  const mediaRes = await runPurgeClientSql<{ id: string; s3_key: string | null }>(
+  const mediaRes = await runPurgeClientSql<{
+    id: string;
+    s3_key: string | null;
+    storage_target: string | null;
+  }>(
     client,
-    sql`SELECT id::text AS id, s3_key
+    sql`SELECT id::text AS id, s3_key, storage_target
        FROM media_files
       WHERE uploaded_by = ${userId}::uuid`,
   );
-  const mediaFiles = mediaRes.rows.map((r) => ({ id: r.id, s3Key: r.s3_key ?? null }));
+  const mediaFiles = mediaRes.rows.map((r) => ({
+    id: r.id,
+    s3Key: r.s3_key ?? null,
+    storageTarget: parseStorageTarget(r.storage_target),
+  }));
 
   const patientFilesRes = await runPurgeClientSql<{
     s3_key: string;
     media_file_id: string | null;
+    storage_target: string | null;
   }>(
     client,
-    sql`SELECT s3_key, media_file_id::text AS media_file_id
+    sql`SELECT s3_key, media_file_id::text AS media_file_id, storage_target
        FROM patient_files
       WHERE patient_user_id = ${userId}::uuid`,
   );
-  const patientFileS3Keys = patientFilesRes.rows
-    .map((r) => r.s3_key)
-    .filter((k): k is string => typeof k === 'string' && k.length > 0);
+  const patientFiles = patientFilesRes.rows
+    .filter((r) => typeof r.s3_key === 'string' && r.s3_key.length > 0)
+    .map((r) => ({ s3Key: r.s3_key, storageTarget: parseStorageTarget(r.storage_target) }));
 
   // A patient-file upload co-created via a media-library folder gets its own `media_files` row,
   // owned by the *uploader* (doctor), not the patient -- so the `uploaded_by` query above misses it.
@@ -383,12 +399,16 @@ export async function collectPurgeArtifactKeys(
   const existingMediaIds = new Set(mediaFiles.map((m) => m.id));
   for (const row of patientFilesRes.rows) {
     if (row.media_file_id && !existingMediaIds.has(row.media_file_id)) {
-      mediaFiles.push({ id: row.media_file_id, s3Key: row.s3_key });
+      mediaFiles.push({
+        id: row.media_file_id,
+        s3Key: row.s3_key,
+        storageTarget: parseStorageTarget(row.storage_target),
+      });
       existingMediaIds.add(row.media_file_id);
     }
   }
 
-  return { intakeS3Keys, mediaFiles, patientFileS3Keys };
+  return { intakeS3Keys, mediaFiles, patientFiles };
 }
 
 export type PurgePlatformUserRow = {

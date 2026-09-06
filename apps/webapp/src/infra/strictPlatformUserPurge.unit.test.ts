@@ -76,8 +76,8 @@ describe('strict account purge external cleanup contract', () => {
     });
     fakes.collectArtifactKeys.mockResolvedValue({
       intakeS3Keys: [INTAKE_KEY],
-      mediaFiles: [{ id: MEDIA_ID, s3Key: MEDIA_KEY }],
-      patientFileS3Keys: [PATIENT_FILE_KEY],
+      mediaFiles: [{ id: MEDIA_ID, s3Key: MEDIA_KEY, storageTarget: 'library' }],
+      patientFiles: [{ s3Key: PATIENT_FILE_KEY, storageTarget: 'library' }],
     });
     fakes.deleteS3Objects.mockResolvedValue([
       { ok: true, key: INTAKE_KEY },
@@ -135,17 +135,52 @@ describe('strict account purge external cleanup contract', () => {
     });
 
     expect(result).toMatchObject({ ok: true, outcome: 'completed' });
-    expect(fakes.deleteS3Objects).toHaveBeenCalledWith([
-      INTAKE_KEY,
-      MEDIA_KEY,
-      PATIENT_FILE_KEY,
-    ]);
+    expect(fakes.deleteS3Objects).toHaveBeenCalledWith(
+      [INTAKE_KEY, MEDIA_KEY, PATIENT_FILE_KEY],
+      'library',
+    );
     const mediaDelete = fakes.runPgPoolSql.mock.calls
       .map((call) => drizzleSqlFragmentToPgQuery(call[1]))
       .find((query) => query.sql.includes('DELETE FROM media_files'));
     expect(mediaDelete).toBeDefined();
     expect(mediaDelete!.values).toEqual([MEDIA_ID]);
     expect(auditPayload()).toMatchObject({ status: 'ok', details: { failureClasses: [] } });
+  });
+
+  it('deletes a patient media row from the patient store named by that row', async () => {
+    fakes.s3Enabled = true;
+    fakes.collectArtifactKeys.mockResolvedValue({
+      intakeS3Keys: [],
+      mediaFiles: [{ id: MEDIA_ID, s3Key: MEDIA_KEY, storageTarget: 'patient' }],
+      patientFiles: [],
+    });
+    fakes.deleteS3Objects.mockResolvedValue([{ ok: true, key: MEDIA_KEY }]);
+
+    await runStrictPurgePlatformUser({
+      targetId: USER_ID,
+      actorId: ACTOR_ID,
+      audit: { enabled: true },
+    });
+
+    expect(fakes.deleteS3Objects).toHaveBeenCalledWith([MEDIA_KEY], 'patient');
+  });
+
+  it('deletes a patient-file object from the patient store named by that row', async () => {
+    fakes.s3Enabled = true;
+    fakes.collectArtifactKeys.mockResolvedValue({
+      intakeS3Keys: [],
+      mediaFiles: [],
+      patientFiles: [{ s3Key: PATIENT_FILE_KEY, storageTarget: 'patient' }],
+    });
+    fakes.deleteS3Objects.mockResolvedValue([{ ok: true, key: PATIENT_FILE_KEY }]);
+
+    await runStrictPurgePlatformUser({
+      targetId: USER_ID,
+      actorId: ACTOR_ID,
+      audit: { enabled: true },
+    });
+
+    expect(fakes.deleteS3Objects).toHaveBeenCalledWith([PATIENT_FILE_KEY], 'patient');
   });
 
   it('reduces provider cleanup failures to a class and count in the audit record', async () => {
