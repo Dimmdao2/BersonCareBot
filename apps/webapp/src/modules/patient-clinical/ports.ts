@@ -188,6 +188,12 @@ export type AnamnesisState = {
   trauma: AnamnesisTraumaEntry[];
   illness: AnamnesisIllnessEntry[];
   lifestyle: AnamnesisLifestyleEntry[];
+  /**
+   * «Анамнез заболевания» — единый patient-scoped текст (не append-log, в отличие от секций
+   * выше), '' если не заполнен. Optional keeps older call sites that build an `AnamnesisState`
+   * literal without this field compiling; readers treat a missing field as ''.
+   */
+  disease?: string;
 };
 
 // -- Входы добавления и исправления анамнеза ---------------------------------
@@ -213,6 +219,13 @@ export type AppendAnamnesisLifestyleInput = {
   patientUserId: string;
   /** ISO date string of the record date, e.g. "2026-01-18". */
   recordDate: string;
+  text: string;
+  createdBy: string;
+};
+
+/** Заменить единый текст «Анамнез заболевания» целиком (upsert, не append). */
+export type SetAnamnesisDiseaseInput = {
+  patientUserId: string;
   text: string;
   createdBy: string;
 };
@@ -413,6 +426,8 @@ export interface PatientClinicalPort {
   appendAnamnesisLifestyle(input: AppendAnamnesisLifestyleInput): Promise<AnamnesisLifestyleEntry>;
   /** Исправить существующую биографическую запись; записи анамнеза не удаляются. */
   updateAnamnesisEntry(input: UpdateAnamnesisEntryInput): Promise<boolean>;
+  /** Заменить единый текст «Анамнез заболевания» целиком. Возвращает сохранённый текст. */
+  setAnamnesisDisease(input: SetAnamnesisDiseaseInput): Promise<string>;
 
   /**
    * Список канонических appointment id, уже привязанных к визитам пациента.

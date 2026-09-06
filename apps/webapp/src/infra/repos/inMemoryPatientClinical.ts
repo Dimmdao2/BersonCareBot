@@ -25,6 +25,7 @@ import type {
   DiagnosisClinicalStatus,
   DiagnosisStatusHistoryEntry,
   PatientClinicalPort,
+  SetAnamnesisDiseaseInput,
   SetDiagnosisClinicalStatusInput,
   UpdateComplaintFieldsInput,
   UpdateAnamnesisEntryInput,
@@ -147,6 +148,14 @@ type AnamnesisLifestyleRow = {
   createdAt: string;
 };
 
+/** «Анамнез заболевания» — один изменяемый текст на пациента, не append-log. */
+type DiseaseAnamnesisRow = {
+  patientUserId: string;
+  text: string;
+  createdBy: string;
+  createdAt: string;
+};
+
 const visits: VisitRow[] = [];
 const complaints: ComplaintRow[] = [];
 const complaintUpdates: ComplaintUpdateRow[] = [];
@@ -157,6 +166,7 @@ const catalog: CatalogRow[] = [];
 const anamnesisTrauma: AnamnesisTraumaRow[] = [];
 const anamnesisIllness: AnamnesisIllnessRow[] = [];
 const anamnesisLifestyle: AnamnesisLifestyleRow[] = [];
+const anamnesisDisease: DiseaseAnamnesisRow[] = [];
 let seqCounter = 0;
 
 /** @internal Vitest: reset between tests. */
@@ -170,6 +180,7 @@ export function __resetInMemoryPatientClinicalForTest() {
   anamnesisTrauma.length = 0;
   anamnesisIllness.length = 0;
   anamnesisLifestyle.length = 0;
+  anamnesisDisease.length = 0;
   seqCounter = 0;
 }
 
@@ -598,6 +609,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
         .filter((r) => r.patientUserId === patientUserId)
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
         .map((r) => ({ id: r.id, date: fmtDisplayDateInMemory(r.recordDate), text: r.text })),
+      disease: anamnesisDisease.find((r) => r.patientUserId === patientUserId)?.text ?? '',
     };
   },
 
@@ -680,6 +692,22 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
     row.recordDate = input.recordDate;
     row.text = input.text;
     return true;
+  },
+
+  async setAnamnesisDisease(input: SetAnamnesisDiseaseInput): Promise<string> {
+    const existing = anamnesisDisease.find((r) => r.patientUserId === input.patientUserId);
+    if (existing) {
+      existing.text = input.text;
+      return existing.text;
+    }
+    const row: DiseaseAnamnesisRow = {
+      patientUserId: input.patientUserId,
+      text: input.text,
+      createdBy: input.createdBy,
+      createdAt: new Date().toISOString(),
+    };
+    anamnesisDisease.push(row);
+    return row.text;
   },
 
   // -- Клинический статус диагноза ------------------------------------------

@@ -30,6 +30,7 @@ const fakes = vi.hoisted(() => ({
   createVisit: vi.fn(),
   updateVisitFields: vi.fn(),
   appendAnamnesisTrauma: vi.fn(),
+  setAnamnesisDisease: vi.fn(),
   updateComplaintFields: vi.fn(),
   updateDiagnosisFields: vi.fn(),
   setDiagnosisClinicalStatus: vi.fn(),
@@ -123,6 +124,7 @@ const fakeDeps = {
     createVisit: fakes.createVisit,
     updateVisitFields: fakes.updateVisitFields,
     appendAnamnesisTrauma: fakes.appendAnamnesisTrauma,
+    setAnamnesisDisease: fakes.setAnamnesisDisease,
     updateComplaintFields: fakes.updateComplaintFields,
     updateDiagnosisFields: fakes.updateDiagnosisFields,
     setDiagnosisClinicalStatus: fakes.setDiagnosisClinicalStatus,
@@ -152,6 +154,7 @@ beforeEach(() => {
   fakes.createVisit.mockResolvedValue(VISIT_ID);
   fakes.updateVisitFields.mockResolvedValue(true);
   fakes.appendAnamnesisTrauma.mockResolvedValue(undefined);
+  fakes.setAnamnesisDisease.mockResolvedValue('Анамнез заболевания текст');
   fakes.updateComplaintFields.mockResolvedValue(true);
   fakes.updateDiagnosisFields.mockResolvedValue(true);
   fakes.setDiagnosisClinicalStatus.mockResolvedValue(true);
