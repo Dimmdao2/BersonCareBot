@@ -2086,7 +2086,7 @@ export function PatientTabOverview({
                 type="button"
                 variant="ghost"
                 onClick={() => onTabSwitch?.('program')}
-                className="h-auto w-full justify-start p-0 text-left text-base font-normal text-doctor-calendar-today hover:bg-transparent hover:text-doctor-calendar-today"
+                className="h-auto w-full justify-start p-0 text-left text-base font-medium text-primary hover:bg-transparent hover:text-primary"
               >
                 {data.programTitle}
               </Button>
