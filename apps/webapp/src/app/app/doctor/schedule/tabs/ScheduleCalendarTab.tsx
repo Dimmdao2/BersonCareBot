@@ -22,8 +22,14 @@ import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStic
 import {
   DOCTOR_CALENDAR_TODAY_MARKER_CLASS,
   buildDoctorCalendarNonWorkingRanges,
+  doctorAppointmentStatusView,
+  doctorCalendarAppointmentBranchColors,
+  doctorCalendarAppointmentClassName,
+  doctorCalendarAppointmentDisplay,
+  doctorCalendarBranchColorRgba,
   doctorCalendarNonWorkingClassNames,
   formatDoctorCalendarHour,
+  type DoctorAppointmentStatusView,
 } from '@/shared/ui/doctor/calendar/doctorCalendarPresentation';
 import {
   DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
@@ -72,7 +78,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/shared/ui/doctor/primitives/dropdown-menu';
-import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import {
+  doctorAppointmentStatusMarkerClass,
+  doctorAppointmentStatusTextClass,
+  doctorSectionCardClass,
+  doctorSectionTitleClass,
+} from '@/shared/ui/doctor/doctorVisual';
 import { routePaths } from '@/app-layer/routes/paths';
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from '../scheduleCalendarEvents';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
@@ -434,52 +445,8 @@ function eventClassName(event: CalendarEvent): string {
   // working: не рендерим (п.3), фон остаётся белым
   if (event.kind === 'working') return '';
   if (event.kind === 'break') return '!bg-slate-500/10 !border-transparent';
-  // appointment
-  if (isCancelledAppointmentStatus(event.status))
-    return '!bg-destructive/15 text-destructive/80 !border-destructive/20 line-through';
-  if (event.status === 'awaiting_payment' || event.prepaymentPending)
-    return '!bg-amber-500/15 text-amber-900 !border-amber-500/40';
-  if (event.packageUsageRef || event.packageTitle)
-    return '!bg-violet-500/15 text-violet-900 !border-violet-500/40';
-  if (event.branchColor) return 'text-foreground';
-  // дефолтная запись чуть насыщеннее (R10 «чуть темнее для всего»); прошлые
-  // дополнительно приглушаются через .fc-event-past opacity в <style>.
-  return '!bg-primary/15 text-foreground !border-primary/35';
-}
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return null;
-  return {
-    r: Number.parseInt(hex.slice(1, 3), 16),
-    g: Number.parseInt(hex.slice(3, 5), 16),
-    b: Number.parseInt(hex.slice(5, 7), 16),
-  };
-}
-
-function rgba(hex: string, alpha: number): string | null {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return null;
-  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
-}
-
-function appointmentBranchColors(event: CalendarAppointmentEvent): {
-  backgroundColor?: string;
-  borderColor?: string;
-} {
-  if (
-    !event.branchColor ||
-    isCancelledAppointmentStatus(event.status) ||
-    event.status === 'awaiting_payment' ||
-    event.prepaymentPending ||
-    event.packageUsageRef ||
-    event.packageTitle
-  ) {
-    return {};
-  }
-  const backgroundColor = rgba(event.branchColor, 0.16);
-  const borderColor = rgba(event.branchColor, 0.42);
-  if (!backgroundColor || !borderColor) return {};
-  return { backgroundColor, borderColor };
+  // appointment: статусная палитра общая с мини-календарём «Сегодня».
+  return doctorCalendarAppointmentClassName(event);
 }
 
 function eventTitle(event: CalendarEvent): string {
@@ -571,16 +538,17 @@ type ListDayCardProps = {
 };
 
 /**
- * APPT-LIST-04: в строке показывается только реально произошедшее с записью —
- * перенос и виды отмены. Обычные «создана/подтверждена» не дублируют саму строку.
+ * APPT-LIST-04: в строке показывается только реально произошедшее с записью — перенос, виды отмены
+ * и (PAY-APPT-13) ожидание оплаты. Обычные «создана/подтверждена» не дублируют саму строку.
+ *
+ * Сама лесенка статусов и их роли в палитре — общая (`doctorAppointmentStatusView`), чтобы список,
+ * сетка и панель деталей не могли разойтись; здесь остаётся только правило списка «показываем то,
+ * что произошло».
  */
-const LIST_FACTUAL_STATUSES = new Set<string>([
-  'rescheduled',
-  'late_cancellation',
-  'cancelled_by_patient',
-  'cancelled_by_specialist',
-  'no_show',
-]);
+function listRowStatus(appt: CalendarAppointmentEvent): DoctorAppointmentStatusView | null {
+  const statusView = doctorAppointmentStatusView(appt);
+  return statusView.notable ? statusView : null;
+}
 
 // R29: фон строки списка повторяет статусную палитру календаря (eventClassName);
 // прошедшие приглушаются, отменённые — destructive + line-through.
@@ -596,8 +564,8 @@ function listRowClass(appt: CalendarAppointmentEvent, timeZone: string): string 
 
 function listRowStyle(appt: CalendarAppointmentEvent): CSSProperties | undefined {
   if (!appt.branchColor || isCancelledAppointmentStatus(appt.status)) return undefined;
-  const background = rgba(appt.branchColor, 0.16);
-  const border = rgba(appt.branchColor, 0.42);
+  const background = doctorCalendarBranchColorRgba(appt.branchColor, 0.16);
+  const border = doctorCalendarBranchColorRgba(appt.branchColor, 0.42);
   if (!background || !border) return undefined;
   return {
     '--list-branch-bg': background,
@@ -629,9 +597,7 @@ function ListDayCard({
           const end = parseFeedInstant(appt.endAt, timeZone).toFormat('HH:mm');
           const cancelled = isCancelledAppointmentStatus(appt.status);
           const isNext = appt.id === nextApptId;
-          const factualStatusLabel = LIST_FACTUAL_STATUSES.has(appt.status)
-            ? appointmentStatusLabel(appt.status)
-            : null;
+          const statusView = listRowStatus(appt);
           const branchLabel = appt.branchId
             ? (branchShortLabels.get(appt.branchId) ?? appt.branchTitle)
             : appt.branchTitle;
@@ -683,10 +649,24 @@ function ListDayCard({
                       {formatPatientPackageShortLabel(appt.packageDisplayNumber)}
                     </span>
                   ) : null}
-                  {factualStatusLabel ? (
+                  {statusView ? (
                     // APPT-LIST-04: справа — фактический статус записи, не выдуманная отметка.
-                    <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                      {factualStatusLabel}
+                    <span
+                      className={cn(
+                        'ml-auto flex shrink-0 items-center gap-1.5 text-xs',
+                        statusView.role
+                          ? doctorAppointmentStatusTextClass(statusView.role)
+                          : 'text-muted-foreground',
+                      )}
+                      data-testid={`list-appt-status-${appt.id}`}
+                    >
+                      {statusView.role ? (
+                        <span
+                          className={doctorAppointmentStatusMarkerClass(statusView.role)}
+                          aria-hidden
+                        />
+                      ) : null}
+                      {statusView.label}
                     </span>
                   ) : null}
                 </span>
@@ -2258,6 +2238,18 @@ export function ScheduleCalendarTab({
     [],
   );
 
+  // ─── FullCalendar view mapping ─────────────────────────────────────────────
+  // Объявлено до `calendarEvents`: оформление записи (PAY-APPT-14) выводится из типа FC-вида, а
+  // не из отдельной копии условия «это месяц».
+  const fcView =
+    view === 'day'
+      ? 'timeGridDay'
+      : view === 'weekgrid'
+        ? 'timeGridWeek'
+        : view === 'month'
+          ? 'dayGridMonth'
+          : 'timeGridDay'; // 3days handled as custom range — use timeGridDay with visibleRange
+
   const calendarEvents = useMemo<EventInput[]>(() => {
     if (!data) return [];
     const isTimeGrid = view !== 'month';
@@ -2347,14 +2339,15 @@ export function ScheduleCalendarTab({
           start: toFcDate(event.startAt, currentTimeZone),
           end: toFcDate(event.endAt, currentTimeZone),
           title: eventTitle(event),
-          // Timed events in dayGrid default to the compact "dot" presentation. Month appointments
-          // are real cards: this keeps branch/status colors and enough room for their metadata.
-          display: view === 'month' ? ('block' as const) : ('auto' as const),
+          // PAY-APPT-14: в dayGrid событие со временем по умолчанию сжимается до «точки» без
+          // рамки и поверхности — общий payment-pending border и цвет филиала тогда пропадают
+          // молча. Режим отрисовки выводит общая функция из типа вида, а не локальное условие.
+          display: doctorCalendarAppointmentDisplay(fcView),
           editable: !isCancelledAppointmentStatus(event.status),
           durationEditable: !isCancelledAppointmentStatus(event.status),
           startEditable: !isCancelledAppointmentStatus(event.status),
           classNames: [eventClassName(event)],
-          ...appointmentBranchColors(event),
+          ...doctorCalendarAppointmentBranchColors(event),
           extendedProps: {
             kind: event.kind,
             appointment: event,
@@ -2380,6 +2373,7 @@ export function ScheduleCalendarTab({
     data,
     displayableCalendarEvents,
     view,
+    fcView,
     calendarFeedRange,
     currentTimeZone,
     loMinute,
@@ -2534,17 +2528,6 @@ export function ScheduleCalendarTab({
     },
     [createFormDirty, onDeepLinkChange, showCreatePanel],
   );
-
-  // ─── FullCalendar view mapping ─────────────────────────────────────────────
-
-  const fcView =
-    view === 'day'
-      ? 'timeGridDay'
-      : view === 'weekgrid'
-        ? 'timeGridWeek'
-        : view === 'month'
-          ? 'dayGridMonth'
-          : 'timeGridDay'; // 3days handled as custom range — use timeGridDay with visibleRange
 
   // For 3days, use timeGrid with 3 days duration
   const fcInitialView = useMemo(() => {

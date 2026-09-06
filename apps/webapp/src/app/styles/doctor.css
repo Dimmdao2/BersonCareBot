@@ -20,6 +20,14 @@ body:has(#app-shell-doctor),
   --doctor-flat-list-divider: #f0efeb;
   --doctor-section-tab-hover: color-mix(in srgb, var(--muted-foreground) 18%, #ffffff);
 
+  /*
+   * Semantic appointment-status palette (PAY-APPT-17). One role per meaning, declared once for the
+   * whole doctor zone: list rows, calendar grids and the event panel read these instead of picking
+   * a local shade. Cancellation keeps the existing `destructive` role and is deliberately absent
+   * here — it already has a zone-wide token.
+   */
+  --doctor-status-payment-pending: #6d28d9;
+
   background-color: var(--doctor-page-gap-background);
 
   /* Doctor visual identity tokens (depth via borders/soft surfaces). */
@@ -44,6 +52,32 @@ body:has(#app-shell-doctor),
  */
 .doctor-page-content:not(:has([data-doctor-page-header])) {
   padding-top: 0.75rem;
+}
+
+/*
+ * PAY-APPT-14: an appointment awaiting payment keeps its branch colour and gains ONE shared
+ * treatment — the semantic status border plus a round marker at the right edge — so every doctor
+ * calendar view (schedule day/week/month, «Сегодня» mini calendar) reads identically. The border
+ * is `!important` because FullCalendar writes its own `border-color` inline on every event.
+ * FullCalendar positions both `.fc-timegrid-event` and `.fc-daygrid-event`, so the marker anchors
+ * to the event box without this rule touching `position` (overriding it would break FC layout).
+ */
+.doctor-appt-payment-pending {
+  border-color: var(--doctor-status-payment-pending) !important;
+  border-width: 2px !important;
+}
+
+.doctor-appt-payment-pending::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  transform: translateY(-50%);
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background-color: var(--doctor-status-payment-pending);
+  pointer-events: none;
 }
 
 .doctor-calendar-nonworking {

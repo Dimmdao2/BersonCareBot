@@ -14,10 +14,12 @@ import {
   DoctorModalStackedTitle,
 } from '@/shared/ui/doctor/DoctorModal';
 import {
+  doctorAppointmentStatusTextClass,
   doctorBodyTextClass,
   doctorInlineMetricValueClass,
   doctorSecondaryListTextClass,
 } from '@/shared/ui/doctor/doctorVisual';
+import { doctorAppointmentStatusView } from '@/shared/ui/doctor/calendar/doctorCalendarPresentation';
 import { doctorClientOverviewPrimaryCardClass } from '../clients/doctorClientCardChrome';
 import type {
   CalendarAppointmentEvent,
@@ -149,23 +151,36 @@ function eventDurationMinutes(event: CalendarAppointmentEvent, timeZone: string)
   return minutes > 0 ? minutes : null;
 }
 
-function appointmentStatusToneClass(status: string): string {
+/**
+ * PAY-APPT-17: у статусов с ролью в общей палитре тон берётся из неё, а не подбирается здесь;
+ * роль приходит из той же лесенки, что красит сетку и список, поэтому «Ожидает оплаты» на панели
+ * не может разойтись с ними. Локальные оттенки остаются только у статусов без своей роли.
+ */
+function appointmentStatusToneClass(appointment: {
+  status: string;
+  prepaymentPending?: boolean;
+}): string {
+  const { role } = doctorAppointmentStatusView(appointment);
+  if (role === 'cancelled') {
+    return 'border-destructive/30 bg-destructive/15 text-destructive';
+  }
+  if (role === 'payment-pending') {
+    return cn(
+      'border-[color:var(--doctor-status-payment-pending)]/40 bg-[color:var(--doctor-status-payment-pending)]/10',
+      doctorAppointmentStatusTextClass('payment-pending'),
+    );
+  }
   if (
-    ['confirmed', 'paid', 'completed', 'visit_confirmed', 'charged_to_package'].includes(status)
+    ['confirmed', 'paid', 'completed', 'visit_confirmed', 'charged_to_package'].includes(
+      appointment.status,
+    )
   ) {
     return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100';
   }
-  if (
-    ['cancelled_by_patient', 'cancelled_by_specialist', 'late_cancellation', 'no_show'].includes(
-      status,
-    )
-  ) {
-    return 'border-destructive/30 bg-destructive/15 text-destructive';
-  }
-  if (status === 'rescheduled') {
+  if (appointment.status === 'rescheduled') {
     return 'border-purple-500/40 bg-purple-500/10 text-purple-800 dark:text-purple-200';
   }
-  if (['awaiting_payment', 'manual_review_required'].includes(status)) {
+  if (appointment.status === 'manual_review_required') {
     return 'border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100';
   }
   return 'border-primary/30 bg-primary/10 text-primary';
@@ -529,7 +544,7 @@ function DoctorCalendarEventPanelInner({
     );
   }
 
-  const statusLabel = appointmentStatusLabel(selected.status);
+  const statusView = doctorAppointmentStatusView(selected);
   const cancelled = isCancelledAppointmentStatus(selected.status);
   const durationMinutes = eventDurationMinutes(selected, timeZone);
   const specialistOption: CalendarFilterOption | null = selected.specialistId
@@ -555,10 +570,14 @@ function DoctorCalendarEventPanelInner({
     const current = filterMeta.services.find((service) => service.id === selected.serviceId);
     return current ? [current, ...options] : options;
   })();
+  // Селектор редактирования правит сам `status`, поэтому его опция подписана хранимым статусом —
+  // денежная надстройка «Ожидает оплаты» из общей лесенки сюда не подставляется: значение опции
+  // осталось бы `confirmed`, а подпись обещала бы другое.
+  const storedStatusLabel = appointmentStatusLabel(selected.status);
   const statusOptions: AppointmentStatusOption[] = cancelled
-    ? [{ value: selected.status, label: statusLabel }]
+    ? [{ value: selected.status, label: storedStatusLabel }]
     : [
-        { value: selected.status, label: statusLabel },
+        { value: selected.status, label: storedStatusLabel },
         { value: 'no_show', label: appointmentStatusLabel('no_show') },
       ];
 
@@ -791,10 +810,10 @@ function DoctorCalendarEventPanelInner({
           variant="outline"
           className={cn(
             'h-5 shrink-0 rounded-full px-2 text-xs font-medium',
-            appointmentStatusToneClass(selected.status),
+            appointmentStatusToneClass(selected),
           )}
         >
-          {statusLabel}
+          {statusView.label}
         </Badge>
       </div>
       {hasRealOriginalStart && selected.originalStartAt ? (
@@ -841,7 +860,11 @@ function DoctorCalendarEventPanelInner({
             </div>
           ))}
         </dl>
-        {selected.prepaymentPending ? <Badge variant="secondary">Ожидает предоплаты</Badge> : null}
+        {/*
+          Ожидание предоплаты больше не пишется отдельным нейтральным бейджем: тот же факт уже
+          стоит статусом записи в шапке панели — в общей payment-pending роли, той же, что в сетке
+          и списке. Денежная подробность остаётся ниже в «Оплата: …».
+        */}
         {selected.packageUsageRef || selected.packageTitle ? (
           <Badge
             variant="secondary"

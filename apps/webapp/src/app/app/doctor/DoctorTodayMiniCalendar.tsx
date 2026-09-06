@@ -19,56 +19,11 @@ import { cn } from '@/lib/utils';
 import { deriveCalendarInitialScrollTime } from '@/modules/booking-calendar/visibleTimeWindow';
 import {
   buildDoctorCalendarNonWorkingRanges,
+  doctorCalendarAppointmentBranchColors,
+  doctorCalendarAppointmentClassName,
   doctorCalendarNonWorkingClassNames,
   formatDoctorCalendarHour,
 } from '@/shared/ui/doctor/calendar/doctorCalendarPresentation';
-
-/** Maps a canonical CalendarAppointmentEvent to a display class matching the schedule calendar. */
-function canonicalEventClass(appt: CalendarAppointmentEvent): string {
-  if (isCancelledAppointmentStatus(appt.status))
-    return '!bg-destructive/15 text-destructive/80 !border-destructive/20 line-through';
-  if (appt.status === 'awaiting_payment' || appt.prepaymentPending)
-    return '!bg-amber-500/15 text-amber-900 !border-amber-500/40';
-  if (appt.packageUsageRef || appt.packageTitle)
-    return '!bg-violet-500/15 text-violet-900 !border-violet-500/40';
-  if (appt.branchColor) return 'text-foreground';
-  return '!bg-primary/15 text-foreground !border-primary/35';
-}
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return null;
-  return {
-    r: Number.parseInt(hex.slice(1, 3), 16),
-    g: Number.parseInt(hex.slice(3, 5), 16),
-    b: Number.parseInt(hex.slice(5, 7), 16),
-  };
-}
-
-function rgba(hex: string, alpha: number): string | null {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return null;
-  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
-}
-
-function canonicalBranchColors(appt: CalendarAppointmentEvent): {
-  backgroundColor?: string;
-  borderColor?: string;
-} {
-  if (
-    !appt.branchColor ||
-    isCancelledAppointmentStatus(appt.status) ||
-    appt.status === 'awaiting_payment' ||
-    appt.prepaymentPending ||
-    appt.packageUsageRef ||
-    appt.packageTitle
-  ) {
-    return {};
-  }
-  const backgroundColor = rgba(appt.branchColor, 0.16);
-  const borderColor = rgba(appt.branchColor, 0.42);
-  if (!backgroundColor || !borderColor) return {};
-  return { backgroundColor, borderColor };
-}
 
 function canonicalEventTitle(appt: CalendarAppointmentEvent): string {
   const prefix =
@@ -177,8 +132,8 @@ export function DoctorTodayMiniCalendar({
           title: canonicalEventTitle(appt),
           start: appt.startAt,
           end: appt.endAt,
-          classNames: [canonicalEventClass(appt)],
-          ...canonicalBranchColors(appt),
+          classNames: [doctorCalendarAppointmentClassName(appt)],
+          ...doctorCalendarAppointmentBranchColors(appt),
           extendedProps: { canonicalAppt: appt },
         }));
     }

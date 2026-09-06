@@ -35,7 +35,6 @@ const scheduleScopeBootstrap = {
 function shellProps() {
   return {
     paymentsVisible: true,
-    paymentsReadOnly: false,
     notificationTemplatesVisible: true,
     packagesVisible: true,
     packagesReadOnly: false,

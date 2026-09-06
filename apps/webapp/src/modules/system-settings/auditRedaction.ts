@@ -26,7 +26,7 @@ import { SYSTEM_SETTING_REGISTRY, type SystemSettingSecretAuditPolicy } from './
 import { redactSaasBillingPaymentProviderValue } from '@/modules/saas-billing/settings';
 import {
   parseBookingPaymentSettingsValue,
-  redactBookingPaymentProvidersForClient,
+  redactBookingPaymentProvidersForAudit,
 } from '@/modules/payments/bookingPaymentSettings';
 
 type RegistryLookup = Record<
@@ -94,7 +94,7 @@ function redactDomain(
   if (value === null || value === undefined) return value;
   if (!isCompositeEnvelope(value)) return '[REDACTED]';
   if (id === 'saas_billing_payment_provider') return redactSaasBillingPaymentProviderValue(value);
-  return { value: redactBookingPaymentProvidersForClient(parseBookingPaymentSettingsValue(value)) };
+  return { value: redactBookingPaymentProvidersForAudit(parseBookingPaymentSettingsValue(value)) };
 }
 
 /**

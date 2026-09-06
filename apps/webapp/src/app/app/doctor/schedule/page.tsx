@@ -47,7 +47,6 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
 
   const [
     paymentsVisibility,
-    paymentsMutation,
     appDisplayTimeZone,
     doctorStatisticsVisibility,
     notificationTemplatesVisibility,
@@ -55,7 +54,6 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     packagesMutation,
   ] = await Promise.all([
     getMechanicSurfaceVisibility(workspace, 'payments'),
-    getMechanicMutationAvailability(workspace, 'payments'),
     getAppDisplayTimeZone(),
     getMechanicSurfaceVisibility(workspace, 'doctor_statistics'),
     getMechanicSurfaceVisibility(workspace, 'branding'),
@@ -116,7 +114,6 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
       initialTimeZone={initialTimeZone}
       canManageOrganization={workspace.canManageOrganization}
       paymentsVisible={paymentsVisibility.specialistNavigation}
-      paymentsReadOnly={!paymentsMutation.available}
       notificationTemplatesVisible={notificationTemplatesVisibility.specialistNavigation}
       packagesVisible={packagesVisibility.specialistNavigation}
       packagesReadOnly={!packagesMutation.available}

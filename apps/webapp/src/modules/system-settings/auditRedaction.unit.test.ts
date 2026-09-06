@@ -48,6 +48,54 @@ describe('integration credential audit redaction', () => {
     });
   });
 
+  /**
+   * PAY-APPT-22: the acquiring secret is stored server-side and never comes back to the UI — not
+   * even as `[REDACTED]`. A placeholder is still a secret-shaped field: it round-trips through the
+   * settings form and reads as "a value lives here" to anything that only checks for a non-empty
+   * string. This asserts against the RAW secret AND against the field itself, so a regression that
+   * reintroduces a placeholder fails here rather than shipping a fake credential to the browser.
+   */
+  it('never returns an acquiring secret or a secret-shaped placeholder for booking_payment_providers', () => {
+    const apiKey = 'live_yookassa_secret_key_9f21';
+    const webhookSecret = 'tinkoff_webhook_secret_4b70';
+    const row: SystemSetting = {
+      key: 'booking_payment_providers',
+      scope: 'admin',
+      organizationId: null,
+      valueJson: {
+        value: {
+          defaultProviderId: 'yookassa',
+          providers: [
+            { id: 'yookassa', label: 'ЮKassa', enabled: true, shopId: 'shop-42', apiKey },
+            { id: 'tinkoff', label: 'Тинькофф Касса', enabled: false, webhookSecret },
+          ],
+        },
+      },
+      updatedAt: '2026-09-04T00:00:00.000Z',
+      updatedBy: null,
+    };
+
+    const projected = redactAdminSettingsForClient([row])[0]!;
+    const serialized = JSON.stringify(projected);
+    expect(serialized).not.toContain(apiKey);
+    expect(serialized).not.toContain(webhookSecret);
+    expect(serialized).not.toContain('[REDACTED]');
+
+    const providers = (
+      projected.valueJson as { value: { providers: Array<Record<string, unknown>> } }
+    ).value.providers;
+    expect(providers[0]).not.toHaveProperty('apiKey');
+    expect(providers[1]).not.toHaveProperty('webhookSecret');
+    // The admin still needs to tell a configured provider from an unconfigured one, and the
+    // non-secret merchant identifier stays inspectable.
+    expect(providers[0]).toMatchObject({
+      shopId: 'shop-42',
+      hasApiKey: true,
+      hasWebhookSecret: false,
+    });
+    expect(providers[1]).toMatchObject({ hasApiKey: false, hasWebhookSecret: true });
+  });
+
   // #1071: independent audit (2026-09-02) found these three keys carry live secret material into
   // `system_settings_audit` verbatim — neither hand-maintained denylist in the old `auditRedaction.ts`
   // knew about them. Each case below asserts against the RAW secret substring (not just "is there a

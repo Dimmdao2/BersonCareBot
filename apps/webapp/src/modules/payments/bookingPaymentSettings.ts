@@ -31,6 +31,9 @@ function parseProviders(raw: unknown): PaymentProviderConfig[] {
       publicId: typeof o.publicId === 'string' ? o.publicId : undefined,
       merchantLogin: typeof o.merchantLogin === 'string' ? o.merchantLogin : undefined,
       gatewayUrl: typeof o.gatewayUrl === 'string' ? o.gatewayUrl : undefined,
+      // PAY-APPT-22: only the browser-facing projection carries these; see `PaymentProviderConfig`.
+      ...(o.hasApiKey === true ? { hasApiKey: true as const } : {}),
+      ...(o.hasWebhookSecret === true ? { hasWebhookSecret: true as const } : {}),
     });
   }
   return out;
@@ -69,7 +72,13 @@ export function parseBookingPaymentSettingsValue(envelope: unknown): BookingPaym
   };
 }
 
-export function redactBookingPaymentProvidersForClient(
+/**
+ * Audit-ledger redaction for `booking_payment_providers` (`system_settings_audit` + the log line).
+ * The audit trail deliberately keeps a `[REDACTED]` marker so a reader can see that the field was
+ * written; the BROWSER-facing projection is a different contract and must not return a
+ * secret-shaped value at all — see `redactAdminSettingsForClient` (PAY-APPT-22).
+ */
+export function redactBookingPaymentProvidersForAudit(
   settings: BookingPaymentSettings,
 ): BookingPaymentSettings {
   return {
@@ -109,6 +118,19 @@ export function projectBookingPaymentPublicConfig(settings: BookingPaymentSettin
   };
 }
 
+/**
+ * A secret the admin did not retype keeps its stored value. Since PAY-APPT-22 the form no longer
+ * receives the secret at all, so "untouched" arrives as an empty string or as an absent field —
+ * both must retain, or opening the payment settings and pressing «Сохранить» would silently wipe
+ * the acquiring credentials. `[REDACTED]` is still accepted for payloads written before that
+ * projection change.
+ */
+function retainedSecret(incoming: string | undefined, previous: string | undefined): string {
+  if (incoming === undefined || incoming.trim() === '' || incoming === '[REDACTED]')
+    return previous ?? '';
+  return incoming;
+}
+
 export async function mergeBookingPaymentProvidersSecretsRetain(
   getPrevious: () => Promise<unknown>,
   incoming: unknown,
@@ -124,22 +146,22 @@ export async function mergeBookingPaymentProvidersSecretsRetain(
   const next = parseBookingPaymentSettingsValue({ value: inner });
   const mergedProviders = next.providers.map((p) => {
     const prevP = prev.providers.find((x) => x.id === p.id);
+    // PAY-APPT-22: `hasApiKey`/`hasWebhookSecret` are browser-facing facts, not stored state. The
+    // form echoes back whatever the projection gave it, so strip them here — this merge is the one
+    // chokepoint every admin write of this key passes through (`system-settings/service.ts`).
+    const stored = { ...p };
+    delete stored.hasApiKey;
+    delete stored.hasWebhookSecret;
     if (p.id === 'yookassa') {
-      const withoutWebhookSecret = { ...p };
+      const withoutWebhookSecret = { ...stored };
       delete withoutWebhookSecret.webhookSecret;
-      return {
-        ...withoutWebhookSecret,
-        apiKey:
-          p.apiKey?.trim() === '' || p.apiKey === '[REDACTED]' ? (prevP?.apiKey ?? '') : p.apiKey,
-      };
+      return { ...withoutWebhookSecret, apiKey: retainedSecret(p.apiKey, prevP?.apiKey) };
     }
-    const webhookSecret =
-      p.webhookSecret?.trim() === '' || p.webhookSecret === '[REDACTED]'
-        ? (prevP?.webhookSecret ?? '')
-        : p.webhookSecret;
-    const apiKey =
-      p.apiKey?.trim() === '' || p.apiKey === '[REDACTED]' ? (prevP?.apiKey ?? '') : p.apiKey;
-    return { ...p, webhookSecret, apiKey };
+    return {
+      ...stored,
+      webhookSecret: retainedSecret(p.webhookSecret, prevP?.webhookSecret),
+      apiKey: retainedSecret(p.apiKey, prevP?.apiKey),
+    };
   });
   return {
     value: {
