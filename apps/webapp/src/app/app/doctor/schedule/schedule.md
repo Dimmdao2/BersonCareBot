@@ -149,9 +149,9 @@ Admin-only (обеспечено на уровне nav и шелла). Под-н
 | `specialists`        | `BookingSoloSpecialistsSection` — canonical booking-engine specialists (owner/себя + сотрудники); отдельно от личных «Настроек специалиста» аккаунта |
 | `form`               | `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + `BookingPublicAttributionSection`                                                    |
 | `payments`           | `BookingPaymentsSectionLoader` + `BookingPrepaymentSection`                                                                                          |
-| `rules`              | `BookingRulesLoader` (→ `BookingRulesPageClient`)                                                                                                    |
+| `rules`              | `BookingRulesLoader` (→ `BookingRulesPageClient`): горизонт календаря записи клиники (1–92 дня), правила отмены/переноса и уведомления               |
 | `notifications`      | `ScheduleNotificationsSection`                                                                                                                       |
-| `packages`           | Шаблоны абонементов (`SectionPackages` через `/api/doctor/booking-engine/packages`); прямой URL: `/app/doctor/schedule?tab=setup&section=packages` |
+| `packages`           | Шаблоны абонементов (`SectionPackages` через `/api/doctor/booking-engine/packages`); прямой URL: `/app/doctor/schedule?tab=setup&section=packages`   |
 
 В секции `locations` строка **«Онлайн»** — встроенная локация организации поверх существующей
 `be_branches`, а не отдельный тип записи. Её нельзя переименовать, удалить или создать повторно.

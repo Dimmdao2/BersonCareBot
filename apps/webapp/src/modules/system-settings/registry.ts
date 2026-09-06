@@ -389,6 +389,7 @@ export const SYSTEM_SETTING_REGISTRY = {
     'false',
   ),
   booking_min_notice_hours: runtime('admin', 'per_org', 'server', 'integer', '0'),
+  booking_availability_horizon_days: runtime('admin', 'per_org', 'server', 'integer', '30'),
   booking_max_consecutive_slot_hours: runtime('admin', 'per_org', 'server', 'integer', '3'),
   /**
    * PAY-APPT-08: срок ожидания предоплаты в минутах. Умолчание новой клиники — 20 минут;

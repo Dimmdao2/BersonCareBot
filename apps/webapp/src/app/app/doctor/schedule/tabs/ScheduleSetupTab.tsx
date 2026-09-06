@@ -100,7 +100,9 @@ function resolveSectionId(
 // ---------------------------------------------------------------------------
 
 type RulesSettingsState =
-  { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; allowPastUnlink: boolean };
+  | { phase: 'loading' }
+  | { phase: 'error' }
+  | { phase: 'ready'; allowPastUnlink: boolean; availabilityHorizonDays: number };
 
 function BookingRulesLoader() {
   const [state, setState] = useState<RulesSettingsState>({ phase: 'loading' });
@@ -125,7 +127,23 @@ function BookingRulesLoader() {
         row.valueJson !== null &&
         typeof row.valueJson === 'object' &&
         (row.valueJson as Record<string, unknown>).value === true;
-      setState({ phase: 'ready', allowPastUnlink });
+      const horizonRow = json.settings?.find((s) => s.key === 'booking_availability_horizon_days');
+      const horizonValue =
+        horizonRow?.valueJson !== null &&
+        typeof horizonRow?.valueJson === 'object' &&
+        'value' in horizonRow.valueJson
+          ? horizonRow.valueJson.value
+          : null;
+      if (
+        typeof horizonValue !== 'number' ||
+        !Number.isInteger(horizonValue) ||
+        horizonValue < 1 ||
+        horizonValue > 92
+      ) {
+        setState({ phase: 'error' });
+        return;
+      }
+      setState({ phase: 'ready', allowPastUnlink, availabilityHorizonDays: horizonValue });
     });
   }, []);
 
@@ -146,7 +164,12 @@ function BookingRulesLoader() {
       </div>
     );
   }
-  return <BookingRulesPageClient allowPastUnlinkPastPackageSessions={state.allowPastUnlink} />;
+  return (
+    <BookingRulesPageClient
+      allowPastUnlinkPastPackageSessions={state.allowPastUnlink}
+      availabilityHorizonDays={state.availabilityHorizonDays}
+    />
+  );
 }
 
 type CalendarSettingsRow = {

@@ -55,10 +55,7 @@ export type RuntimeBooleanSetting = keyof typeof RUNTIME_BOOLEAN_SETTING_DEFINIT
 export type RuntimeIntegerSetting = keyof typeof RUNTIME_INTEGER_SETTING_DEFINITIONS;
 export type RuntimeConfigAudience = 'public' | 'authenticated_client' | 'server';
 export type RuntimeConfigOperationFamily =
-  | 'public_auth_config'
-  | 'auth_role_config'
-  | 'patient_runtime_config'
-  | 'public_booking_config';
+  'public_auth_config' | 'auth_role_config' | 'patient_runtime_config' | 'public_booking_config';
 
 export type RuntimeConfigContext = {
   patientUserId: string;
@@ -136,9 +133,7 @@ export const AUTHENTICATED_RUNTIME_STRING_KEYS = [
   'patient_booking_url',
 ] as const;
 
-export const SERVER_RUNTIME_BOOLEAN_KEYS = [
-  'material_ratings_enabled',
-] as const;
+export const SERVER_RUNTIME_BOOLEAN_KEYS = ['material_ratings_enabled'] as const;
 
 export const SERVER_RUNTIME_TOKEN_LIST_KEYS = [
   'admin_telegram_ids',
@@ -159,6 +154,10 @@ export const SERVER_RUNTIME_INTEGER_DEFINITIONS = {
   booking_min_notice_hours: {
     minValue: 0,
     maxValue: 168,
+  },
+  booking_availability_horizon_days: {
+    minValue: 1,
+    maxValue: 92,
   },
   booking_max_consecutive_slot_hours: {
     minValue: 1,
