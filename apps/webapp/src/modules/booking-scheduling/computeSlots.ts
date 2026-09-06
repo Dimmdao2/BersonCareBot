@@ -6,6 +6,13 @@ export type WorkingHoursRow = {
   weekday: number;
   startMinute: number;
   endMinute: number;
+  /**
+   * Weekday schedules are append-only versions. An inactive row remains effective from
+   * `createdAt` up to (but not including) the local date of `updatedAt`.
+   */
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 /** Per-date override row from be_working_days. When provided, takes priority over weekday schedule. */
@@ -111,6 +118,22 @@ export function pickWorkingHours(rows: WorkingHoursRow[]): WorkingHoursRow[] {
   return rows;
 }
 
+/** Whether a persisted weekday-schedule version applies to one local calendar date. */
+export function isWorkingHoursRowEffectiveOn(
+  row: WorkingHoursRow,
+  dateKey: string,
+  timeZone: string,
+): boolean {
+  // In-memory callers and old fixtures without version metadata keep their former behaviour.
+  if (!row.createdAt) return row.isActive !== false;
+  const effectiveFrom = localDateKey(row.createdAt, timeZone);
+  if (dateKey < effectiveFrom) return false;
+  if (row.isActive !== false) return true;
+  if (!row.updatedAt) return false;
+  const effectiveUntil = localDateKey(row.updatedAt, timeZone);
+  return dateKey < effectiveUntil;
+}
+
 /** Local calendar date YYYY-MM-DD in IANA timezone. */
 export function localDateKey(isoUtc: string, timeZone: string): string {
   const d = new Date(isoUtc);
@@ -187,7 +210,9 @@ export function workingIntervalsForDate(
     return splitByBreak(perDayRow, dateKey, timeZone, bufferMinutes);
   }
   const wd = localWeekday(dateKey, timeZone);
-  const rows = working.filter((w) => w.weekday === wd);
+  const rows = working.filter(
+    (w) => w.weekday === wd && isWorkingHoursRowEffectiveOn(w, dateKey, timeZone),
+  );
   const out: TimeInterval[] = [];
   for (const row of rows) {
     const startIso = wallClockToUtcIso(

@@ -532,7 +532,7 @@ export function createPgBookingSchedulingPort(
       });
     },
 
-    async listWorkingHours({ organizationId, specialistId, branchId, roomId }) {
+    async listWorkingHours({ organizationId, specialistId, branchId, roomId, includeHistory }) {
       const db = getDrizzle();
       // undefined = no scope filter (return rows for all specialists/branches);
       // null     = global-only (IS NULL);
@@ -563,12 +563,15 @@ export function createPgBookingSchedulingPort(
           weekday: beWh.weekday,
           startMinute: beWh.startMinute,
           endMinute: beWh.endMinute,
+          isActive: beWh.isActive,
+          createdAt: beWh.createdAt,
+          updatedAt: beWh.updatedAt,
         })
         .from(beWh)
         .where(
           and(
             eq(beWh.organizationId, organizationId),
-            eq(beWh.isActive, true),
+            includeHistory ? undefined : eq(beWh.isActive, true),
             specialistCond,
             branchCond,
             roomCond,
@@ -580,12 +583,15 @@ export function createPgBookingSchedulingPort(
           weekday: beWh.weekday,
           startMinute: beWh.startMinute,
           endMinute: beWh.endMinute,
+          isActive: beWh.isActive,
+          createdAt: beWh.createdAt,
+          updatedAt: beWh.updatedAt,
         })
         .from(beWh)
         .where(
           and(
             eq(beWh.organizationId, organizationId),
-            eq(beWh.isActive, true),
+            includeHistory ? undefined : eq(beWh.isActive, true),
             isNull(beWh.specialistId),
             isNull(beWh.branchId),
             isNull(beWh.roomId),
@@ -804,6 +810,8 @@ export function createPgBookingSchedulingPort(
         startMinute: row.startMinute,
         endMinute: row.endMinute,
         isActive: row.isActive,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
       }));
     },
 
@@ -853,6 +861,8 @@ export function createPgBookingSchedulingPort(
         startMinute: row.startMinute,
         endMinute: row.endMinute,
         isActive: row.isActive,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
       };
     },
 
@@ -882,6 +892,8 @@ export function createPgBookingSchedulingPort(
         startMinute: row.startMinute,
         endMinute: row.endMinute,
         isActive: row.isActive,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
       };
     },
 

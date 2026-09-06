@@ -166,6 +166,7 @@ async function listWorkingAndBreakEvents(
       specialistId: filters.specialistId ?? undefined,
       branchId: filters.branchId ?? undefined,
       roomId: filters.roomId ?? undefined,
+      includeHistory: true,
     }),
     // §3.13: per-date be_working_days override the weekday schedule for that date.
     // Absent date → undefined → weekday fallback (backward-compatible).

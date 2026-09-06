@@ -501,6 +501,7 @@ async function computeSlotsInternal(
       specialistId: context.specialistId,
       branchId: context.branchId,
       roomId: context.roomId,
+      includeHistory: true,
     }),
     port.getBufferMinutes(context.organizationId, context.specialistId),
     port.getMinNoticeHours(context.organizationId),

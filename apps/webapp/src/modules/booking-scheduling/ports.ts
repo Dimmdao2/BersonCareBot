@@ -162,7 +162,18 @@ export type BookingSchedulingPort = {
     /** undefined = no filter (return all branches); null = global-only (IS NULL) */
     branchId?: string | null;
     roomId?: string | null;
-  }): Promise<{ weekday: number; startMinute: number; endMinute: number }[]>;
+    /** Include inactive historical versions; date-aware callers filter them per calendar day. */
+    includeHistory?: boolean;
+  }): Promise<
+    {
+      weekday: number;
+      startMinute: number;
+      endMinute: number;
+      isActive: boolean;
+      createdAt: string;
+      updatedAt: string;
+    }[]
+  >;
   getBufferMinutes(organizationId: string, specialistId: string | null): Promise<number>;
   upsertBufferMinutes(input: {
     organizationId: string;
@@ -251,6 +262,8 @@ export type WorkingHoursRecord = {
   startMinute: number;
   endMinute: number;
   isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type CreateWorkingHoursInput = {
