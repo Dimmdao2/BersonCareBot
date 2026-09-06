@@ -68,6 +68,11 @@ function storageConfigFor(target: StorageTarget): StorageConfig {
   };
 }
 
+/** Бакет цели — для мест, которым нужно назвать хранилище (например, ответ двери загрузки). */
+export function storageBucketFor(target: StorageTarget = DEFAULT_TARGET): string {
+  return storageConfigFor(target).bucket;
+}
+
 /** Отдельно ли живут данные пациентов в этом окружении. */
 export function isPatientStorageSeparate(): boolean {
   return Boolean(env.PATIENT_S3_BUCKET);

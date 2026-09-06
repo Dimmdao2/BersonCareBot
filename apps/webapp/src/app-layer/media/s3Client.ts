@@ -14,5 +14,11 @@ export {
   s3HeadObjectDetails,
   s3ObjectKey,
   s3CreateMultipartUpload,
+  storageBucketFor,
+  isPatientStorageSeparate,
 } from '@/infra/s3/client';
-export type { S3GetObjectStreamFailureReason, S3GetObjectStreamResult } from '@/infra/s3/client';
+export type {
+  S3GetObjectStreamFailureReason,
+  S3GetObjectStreamResult,
+  StorageTarget,
+} from '@/infra/s3/client';
