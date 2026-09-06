@@ -1,5 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
+import { parseStorageTarget } from '@/infra/s3/client';
+import type { StorageTarget } from '@/shared/types/storageTarget';
 
 export type MediaWorkerClaim = {
   id: string;
@@ -15,6 +17,8 @@ export type MediaWorkerLoadedMedia = {
   videoProcessingStatus: string | null;
   videoDurationSeconds: number | null;
   usagePurpose: string | null;
+  /** Хранилище строки: воркер скачивает, пишет и удаляет объекты именно в нём. */
+  storageTarget: StorageTarget;
 };
 type JobRef = Pick<MediaWorkerClaim, 'id' | 'mediaId'>;
 
@@ -122,10 +126,10 @@ export async function loadMediaWorkerControlMedia(
     s3Key: text(row.s3Key),
     hlsMasterPlaylistS3Key: text(row.hlsMasterPlaylistS3Key),
     videoProcessingStatus: text(row.videoProcessingStatus),
-    videoDurationSeconds: typeof row.videoDurationSeconds === 'number'
-      ? row.videoDurationSeconds
-      : null,
+    videoDurationSeconds:
+      typeof row.videoDurationSeconds === 'number' ? row.videoDurationSeconds : null,
     usagePurpose: text(row.usagePurpose),
+    storageTarget: parseStorageTarget(row.storageTarget),
   };
 }
 

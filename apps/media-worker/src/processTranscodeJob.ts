@@ -2,7 +2,6 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import type { Dirent } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, posix } from 'node:path';
-import type { S3Client } from '@aws-sdk/client-s3';
 import { buildHlsSingleVariantArgs } from './ffmpeg/hlsArgs.js';
 import { extractPosterWithFallback } from './ffmpeg/extractPosterWithFallback.js';
 import {
@@ -14,6 +13,7 @@ import { runFfmpeg } from './ffmpeg/runFfmpeg.js';
 import { backoffMsAfterFailure } from './jobs/backoff.js';
 import type { ClaimedJob, MediaWorkerControlPort } from './control.js';
 import type { Logger } from './logger.js';
+import { parseStorageTarget, type StorageTarget } from './storageTarget.js';
 import { buildVodMasterPlaylistBody } from './hlsMasterPlaylist.js';
 import {
   hlsTreePrefixFromMediaRoot,
@@ -28,6 +28,7 @@ import {
   downloadObjectToFile,
   headObjectExists,
   putObjectWithRetry,
+  type StorageBinding,
 } from './s3.js';
 import { resolveWatermarkFontPath } from './watermarkFont.js';
 import { processProgramSubmissionTranscodeJob } from './processProgramSubmissionTranscode.js';
@@ -49,14 +50,20 @@ function compactTranscodeLogErrorCode(message: string): string {
 
 export type TranscodeContext = {
   control: MediaWorkerControlPort;
-  s3Client: S3Client;
-  bucket: string;
+  /**
+   * Хранилища, а не одно: наряд называет своё, и всё, что делается по этому наряду — скачивание
+   * исходника, выкладка HLS и постера, удаление исходного MP4 — происходит внутри него.
+   */
+  storageFor: (target: StorageTarget) => StorageBinding;
   ffmpegBin: string;
   ffmpegTimeoutMs: number;
   maxAttempts: number;
   log: Logger;
   lockId: string;
 };
+
+/** Контекст одного наряда: хранилище уже выбрано и дальше по коду не выбирается заново. */
+export type TranscodeJobContext = TranscodeContext & StorageBinding;
 
 async function permanentFail(
   ctx: TranscodeContext,
@@ -104,7 +111,7 @@ async function retryableFail(
 }
 
 async function uploadDirRecursive(
-  ctx: TranscodeContext,
+  ctx: TranscodeJobContext,
   localDir: string,
   s3KeyPrefix: string,
 ): Promise<void> {
@@ -116,7 +123,7 @@ async function uploadDirRecursive(
     } else if (ent.isFile()) {
       const key = posix.join(s3KeyPrefix, ent.name);
       const buf = await readFile(localPath);
-      await putObjectWithRetry(ctx.s3Client, ctx.bucket, key, buf, contentTypeForKey(key), ctx.log);
+      await putObjectWithRetry(ctx.client, ctx.bucket, key, buf, contentTypeForKey(key), ctx.log);
     }
   }
 }
@@ -129,8 +136,13 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
   return processTranscodeJobInner(ctx, job);
 }
 
-async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
-  const loaded = await ctx.control.load(job, ctx.lockId);
+async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob): Promise<void> {
+  const loaded = await outer.control.load(job, outer.lockId);
+  /* Пока наряд не прочитан, хранилище неизвестно; отказы до этого места в S3 не ходят. */
+  const ctx: TranscodeJobContext = {
+    ...outer,
+    ...outer.storageFor(parseStorageTarget(loaded?.storageTarget)),
+  };
   const media = loaded && {
     id: loaded.id,
     mime_type: loaded.mimeType,
@@ -160,7 +172,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
 
   const masterKeyExisting = media.hls_master_playlist_s3_key?.trim();
   if (masterKeyExisting && media.video_processing_status === 'ready') {
-    const exists = await headObjectExists(ctx.s3Client, ctx.bucket, masterKeyExisting);
+    const exists = await headObjectExists(ctx.client, ctx.bucket, masterKeyExisting);
     if (exists) {
       if (
         (media.video_duration_seconds == null || media.video_duration_seconds <= 0) &&
@@ -169,8 +181,12 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
         const tmpRoot = await mkdtemp(join(tmpdir(), 'mw-dur-'));
         const src = join(tmpRoot, 'source.bin');
         try {
-          await downloadObjectToFile(ctx.s3Client, ctx.bucket, media.s3_key.trim(), src);
-          const durationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, src, Math.min(ctx.ffmpegTimeoutMs, 120_000));
+          await downloadObjectToFile(ctx.client, ctx.bucket, media.s3_key.trim(), src);
+          const durationSeconds = await probeVideoDurationSeconds(
+            ctx.ffmpegBin,
+            src,
+            Math.min(ctx.ffmpegTimeoutMs, 120_000),
+          );
           if (durationSeconds != null) {
             await ctx.control.doneHls(job, ctx.lockId, {
               durationSeconds: roundVideoDurationSecondsForStorage(durationSeconds),
@@ -194,11 +210,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
 
   const mediaRoot = mediaRootFromSourceS3Key(media.s3_key);
   if (!isCanonicalMediaRootForId(mediaRoot, job.mediaId)) {
-    await permanentFail(
-      ctx,
-      job,
-      'non_canonical_s3_key_layout_expected_media_mediaId_file',
-    );
+    await permanentFail(ctx, job, 'non_canonical_s3_key_layout_expected_media_mediaId_file');
     return;
   }
 
@@ -240,7 +252,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
     await mkdir(dir480, { recursive: true });
     await mkdir(dir360, { recursive: true });
     await mkdir(posterDir, { recursive: true });
-    await downloadObjectToFile(ctx.s3Client, ctx.bucket, media.s3_key, src);
+    await downloadObjectToFile(ctx.client, ctx.bucket, media.s3_key, src);
     const videoDurationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, src, 60_000);
 
     let wmDrawtext: WatermarkDrawtextParams | null = null;
@@ -364,7 +376,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
     await uploadDirRecursive(ctx, hlsDir, hlsBaseKeyPrefix);
     const posterBuf = await readFile(posterLocal);
     await putObjectWithRetry(
-      ctx.s3Client,
+      ctx.client,
       ctx.bucket,
       posterKey,
       posterBuf,
@@ -372,14 +384,9 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
       ctx.log,
     );
 
-    const masterOk = await headObjectExists(ctx.s3Client, ctx.bucket, masterKey);
+    const masterOk = await headObjectExists(ctx.client, ctx.bucket, masterKey);
     if (!masterOk) {
-      await retryableFail(
-        ctx,
-        job,
-        ctx.maxAttempts,
-        'master_head_missing_after_upload',
-      );
+      await retryableFail(ctx, job, ctx.maxAttempts, 'master_head_missing_after_upload');
       return;
     }
 
@@ -409,7 +416,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
     // Best-effort: delete the original uploaded source file now that HLS renditions are live.
     const sourceKey = media.s3_key;
     try {
-      await ctx.s3Client.send(
+      await ctx.client.send(
         new DeleteObjectCommand({
           Bucket: ctx.bucket,
           Key: sourceKey,

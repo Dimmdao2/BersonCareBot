@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, posix } from 'node:path';
 import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 import type { ClaimedJob } from './control.js';
-import type { TranscodeContext } from './processTranscodeJob.js';
+import type { TranscodeJobContext } from './processTranscodeJob.js';
 import { runFfmpeg } from './ffmpeg/runFfmpeg.js';
 import { extractPosterWithFallback } from './ffmpeg/extractPosterWithFallback.js';
 import {
@@ -34,7 +34,7 @@ function submission480pKeyFromMediaRoot(mediaRoot: string): string {
  * Program-item submission: single 480p progressive MP4, delete original source after success.
  */
 export async function processProgramSubmissionTranscodeJob(
-  ctx: TranscodeContext,
+  ctx: TranscodeJobContext,
   job: ClaimedJob,
   media: { id: string; mime_type: string; s3_key: string },
 ): Promise<void> {
@@ -56,7 +56,7 @@ export async function processProgramSubmissionTranscodeJob(
   try {
     await ctx.control.processing(job, ctx.lockId);
 
-    await downloadObjectToFile(ctx.s3Client, ctx.bucket, sourceKey, src);
+    await downloadObjectToFile(ctx.client, ctx.bucket, sourceKey, src);
     const sourceDurationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, src, 60_000);
     if (
       sourceDurationSeconds === null ||
@@ -98,7 +98,7 @@ export async function processProgramSubmissionTranscodeJob(
     }
 
     const mp4Buf = await readFile(outMp4);
-    await putObjectWithRetry(ctx.s3Client, ctx.bucket, outputKey, mp4Buf, 'video/mp4', ctx.log);
+    await putObjectWithRetry(ctx.client, ctx.bucket, outputKey, mp4Buf, 'video/mp4', ctx.log);
     const videoDurationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, outMp4, 60_000);
 
     await mkdir(posterDir, { recursive: true });
@@ -111,7 +111,7 @@ export async function processProgramSubmissionTranscodeJob(
     });
     const posterBuf = await readFile(posterLocal);
     await putObjectWithRetry(
-      ctx.s3Client,
+      ctx.client,
       ctx.bucket,
       posterKey,
       posterBuf,
@@ -119,14 +119,14 @@ export async function processProgramSubmissionTranscodeJob(
       ctx.log,
     );
 
-    const headOk = await headObjectExists(ctx.s3Client, ctx.bucket, outputKey);
+    const headOk = await headObjectExists(ctx.client, ctx.bucket, outputKey);
     if (!headOk) {
       throw new Error('submission_480p_head_missing_after_upload');
     }
 
     if (sourceKey !== outputKey) {
       try {
-        await ctx.s3Client.send(
+        await ctx.client.send(
           new DeleteObjectCommand({
             Bucket: ctx.bucket,
             Key: sourceKey,
