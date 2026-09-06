@@ -109,6 +109,7 @@ const shellMeta: DoctorPatientCardShellMeta = {
       email: null,
       emailVerifiedAt: null,
       telegramUsername: null,
+      maxUsername: null,
       bindings: {},
       hasConversation: false,
       isArchived: false,
@@ -189,5 +190,4 @@ describe('patient card — final tabs live in DoctorPageHeader', () => {
     // Program is still in the DOM, just hidden — its internal state was not thrown away.
     expect(screen.getByTestId('panel-program').closest('.hidden')).not.toBeNull();
   });
-
 });

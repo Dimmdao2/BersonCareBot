@@ -88,6 +88,8 @@ type Props = {
   createInitialSpecialistId?: string | null;
   /** Patient already known by the host (for example, from the patient card). */
   createInitialPatient?: CalendarPatientOption | null;
+  /** Patient is fixed by the host context and must not be replaceable in the create form. */
+  hideCreatePatient?: boolean;
   onCreateDirtyChange?: (dirty: boolean) => void;
   /** Host already owns the border and padding (for example the schedule details drawer). */
   flushChrome?: boolean;
@@ -239,6 +241,7 @@ function DoctorCalendarEventPanelInner({
   createInitialServiceId = null,
   createInitialSpecialistId = null,
   createInitialPatient = null,
+  hideCreatePatient = false,
   onCreateDirtyChange,
   flushChrome = false,
 }: Props) {
@@ -512,6 +515,7 @@ function DoctorCalendarEventPanelInner({
           serviceOptions={draftServiceOptions}
           activeFilters={activeFilters}
           hideSpecialist={hideSpecialist}
+          hidePatient={hideCreatePatient}
           statusOptions={[]}
           pending={pending}
           message={message}

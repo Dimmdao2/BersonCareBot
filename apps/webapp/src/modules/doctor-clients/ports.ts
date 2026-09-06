@@ -151,6 +151,8 @@ export type PatientCardHeader = {
     emailVerifiedAt: string | null;
     /** Публичный Telegram username пациента (без `@`), если известен; для deep-link/отображения врачу — не технический ID. */
     telegramUsername: string | null;
+    /** Публичный MAX username пациента, если webhook передал его в display_handle. */
+    maxUsername: string | null;
     bindings: import('@/shared/types/session').ChannelBindings;
     /** Есть ли у пациента переписка (хотя бы одно сообщение в support_conversations),
      * независимо от привязанного канала — чтобы открыть чат даже без Telegram/MAX. */

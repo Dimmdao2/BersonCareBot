@@ -3,12 +3,11 @@
 import dynamic from 'next/dynamic';
 import { type ComponentProps, type ReactNode, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 
-const DoctorClientEmbeddedChat = dynamic(
+const DoctorPatientConversationChatModal = dynamic(
   () =>
-    import('@/app/app/doctor/clients/DoctorClientEmbeddedChat').then(
-      (mod) => mod.DoctorClientEmbeddedChat,
+    import('@/app/app/doctor/clients/DoctorPatientConversationChatModal').then(
+      (mod) => mod.DoctorPatientConversationChatModal,
     ),
   { ssr: false },
 );
@@ -21,17 +20,14 @@ type Props = {
   className?: string;
   disabled?: boolean;
   title?: string;
+  patientOnSupport?: boolean;
   onUnreadChange?: (count: number) => void;
   /** Optional button label/content override (default: «Открыть чат»). */
   children?: ReactNode;
 };
 
 /**
- * Универсальная кнопка «Открыть чат» + модалка с чистой перепиской клиента.
- *
- * Открывает переписку в модалке БЕЗ ухода со страницы — годится для Заявок и карточки
- * пациента. `DoctorClientEmbeddedChat` — отдельный `next/dynamic` chunk, грузится только
- * после открытия модалки (статический import тянул ChatView в parser bundle родительских страниц).
+ * Универсальная кнопка «Открыть чат» + каноническая модалка переписки из «Коммуникаций».
  */
 export function DoctorOpenChatButton({
   patientUserId,
@@ -41,6 +37,7 @@ export function DoctorOpenChatButton({
   className,
   disabled,
   title,
+  patientOnSupport = false,
   onUnreadChange,
   children,
 }: Props) {
@@ -58,19 +55,15 @@ export function DoctorOpenChatButton({
       >
         {children ?? 'Открыть чат'}
       </Button>
-      <DoctorModal
-        open={open}
-        onClose={() => setOpen(false)}
-        title={patientName ? `Переписка · ${patientName}` : 'Переписка'}
-        size="content"
-      >
-        {open ? (
-          <DoctorClientEmbeddedChat
-            patientUserId={patientUserId}
-            onUnreadChange={onUnreadChange}
-          />
-        ) : null}
-      </DoctorModal>
+      {open ? (
+        <DoctorPatientConversationChatModal
+          patientUserId={patientUserId}
+          patientName={patientName || '—'}
+          patientOnSupport={patientOnSupport}
+          onUnreadChange={onUnreadChange}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
     </>
   );
 }

@@ -4,7 +4,7 @@
  * latest update per complaint, trend oldest→newest) mirrors inMemoryPatientClinical.
  */
 
-import { and, asc, desc, eq, ilike, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
@@ -18,7 +18,10 @@ import type {
   AppendAnamnesisIllnessInput,
   AppendAnamnesisLifestyleInput,
   AppendAnamnesisTraumaInput,
+  AppendComplaintUpdateInput,
   ClinicalState,
+  CreateComplaintInput,
+  CreateDiagnosisInput,
   CreateDiagnosisCatalogParams,
   CreateVisitInput,
   DiagnosisCatalogSuggestion,
@@ -27,6 +30,7 @@ import type {
   PatientClinicalPort,
   SetDiagnosisClinicalStatusInput,
   UpdateComplaintFieldsInput,
+  UpdateAnamnesisEntryInput,
   UpdateDiagnosisFieldsInput,
   UpdateVisitFieldsInput,
   Visit,
@@ -144,7 +148,6 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         .where(
           and(
             eq(clinicalComplaint.patientUserId, patientUserId),
-            eq(clinicalComplaint.status, 'active'),
             principalOrganizationId()
               ? eq(clinicalComplaint.organizationId, principalOrganizationId()!)
               : undefined,
@@ -168,7 +171,6 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         .where(
           and(
             eq(clinicalDiagnosis.patientUserId, patientUserId),
-            ne(clinicalDiagnosis.status, 'resolved'),
             principalOrganizationId()
               ? eq(clinicalDiagnosis.organizationId, principalOrganizationId()!)
               : undefined,
@@ -190,8 +192,8 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       // created_at (which is wall-clock at write time, not the clinical visit date).
       const relevantVisitIds = Array.from(
         new Set<string>([
-          ...complaintRows.map((c) => c.sourceVisitId),
-          ...diagnosisRows.map((d) => d.sourceVisitId),
+          ...complaintRows.map((c) => c.sourceVisitId).filter((id): id is string => Boolean(id)),
+          ...diagnosisRows.map((d) => d.sourceVisitId).filter((id): id is string => Boolean(id)),
           ...diagUpdateRows.map((u) => u.visitId),
         ]),
       );
@@ -213,7 +215,20 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           priority: c.priority,
           currentSeverity: trend.length > 0 ? trend[trend.length - 1] : 0,
           trend,
-          since: fmtSince(visitDateById.get(c.sourceVisitId) ?? c.createdAt),
+          since: fmtSince(
+            (c.sourceVisitId ? visitDateById.get(c.sourceVisitId) : null) ?? c.createdAt,
+          ),
+          createdAt: c.createdAt,
+          resolvedAt: c.resolvedAt ?? null,
+          history: updateRows
+            .filter((u) => u.complaintId === c.id)
+            .map((u) => ({
+              id: u.id,
+              severity: u.severity,
+              note: u.note ?? null,
+              recordedAt: (u.visitId ? visitDateById.get(u.visitId) : null) ?? u.createdAt,
+              resolved: u.resolved,
+            })),
         };
       });
 
@@ -221,7 +236,8 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         const updates = diagUpdateRows.filter((u) => u.diagnosisId === d.id);
         const last = updates[updates.length - 1];
         const refinedDate = last ? (visitDateById.get(last.visitId) ?? last.createdAt) : null;
-        const placedDate = visitDateById.get(d.sourceVisitId) ?? d.createdAt;
+        const placedDate =
+          (d.sourceVisitId ? visitDateById.get(d.sourceVisitId) : null) ?? d.createdAt;
         const meta =
           d.status === 'refined' && refinedDate
             ? `уточнён ${fmtDayMonth(refinedDate)}`
@@ -230,14 +246,26 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           id: d.id,
           text: d.text,
           priority: d.priority,
-          status: d.status === 'refined' ? 'refined' : 'active',
+          status:
+            d.status === 'resolved' ? 'resolved' : d.status === 'refined' ? 'refined' : 'active',
           clinicalStatus: (d.clinicalStatus ?? 'предварительный') as DiagnosisClinicalStatus,
           meta,
           comment: d.comment ?? null,
+          createdAt: d.createdAt,
+          resolvedAt: d.resolvedAt ?? null,
         };
       });
 
-      return { complaints, diagnoses };
+      return {
+        complaints: complaints.filter((item) => !item.resolvedAt),
+        complaintHistory: complaints.filter((item) => Boolean(item.resolvedAt)),
+        diagnoses: diagnoses.filter(
+          (item) => item.clinicalStatus !== 'закрытый' && item.status !== 'resolved',
+        ),
+        diagnosisHistory: diagnoses.filter(
+          (item) => item.clinicalStatus === 'закрытый' || item.status === 'resolved',
+        ),
+      };
     },
 
     async listVisits(patientUserId: string): Promise<Visit[]> {
@@ -602,11 +630,99 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       });
     },
 
+    async createComplaint(input: CreateComplaintInput): Promise<string> {
+      return runDrizzleMutationTransaction(async (tx) => {
+        const organizationId = requiredPrincipalOrganizationId();
+        const rows = await tx
+          .insert(clinicalComplaint)
+          .values({
+            organizationId,
+            patientUserId: input.patientUserId,
+            text: input.text,
+            description: input.description ?? null,
+            priority: input.priority,
+            status: 'active',
+            sourceVisitId: null,
+          })
+          .returning({ id: clinicalComplaint.id });
+        const complaintId = rows[0]?.id;
+        if (!complaintId) throw new Error('clinical_complaint_insert_failed');
+        await tx.insert(clinicalComplaintUpdate).values({
+          organizationId,
+          complaintId,
+          visitId: null,
+          severity: input.severity,
+          note: null,
+          resolved: false,
+        });
+        return complaintId;
+      });
+    },
+
+    async appendComplaintUpdate(input: AppendComplaintUpdateInput): Promise<boolean> {
+      return runDrizzleMutationTransaction(async (tx) => {
+        const principalOrganizationId = requiredPrincipalOrganizationId();
+        const existing = await tx
+          .select({ organizationId: clinicalComplaint.organizationId })
+          .from(clinicalComplaint)
+          .where(
+            and(
+              eq(clinicalComplaint.id, input.complaintId),
+              eq(clinicalComplaint.patientUserId, input.patientUserId),
+              eq(clinicalComplaint.organizationId, principalOrganizationId),
+            ),
+          )
+          .limit(1);
+        if (!existing[0]) return false;
+        const organizationId = currentWriteOrganizationId(existing[0].organizationId);
+        await tx.insert(clinicalComplaintUpdate).values({
+          organizationId,
+          complaintId: input.complaintId,
+          visitId: null,
+          severity: input.severity,
+          note: input.note ?? null,
+          resolved: input.resolved,
+        });
+        await tx
+          .update(clinicalComplaint)
+          .set({
+            organizationId,
+            status: input.resolved ? 'resolved' : 'active',
+            resolvedAt: input.resolved ? new Date().toISOString() : null,
+          })
+          .where(eq(clinicalComplaint.id, input.complaintId));
+        return true;
+      });
+    },
+
+    async createDiagnosis(input: CreateDiagnosisInput): Promise<string> {
+      return runDrizzleMutationTransaction(async (tx) => {
+        const organizationId = requiredPrincipalOrganizationId();
+        const rows = await tx
+          .insert(clinicalDiagnosis)
+          .values({
+            organizationId,
+            patientUserId: input.patientUserId,
+            text: input.text,
+            priority: input.priority,
+            comment: input.comment ?? null,
+            status: 'active',
+            clinicalStatus: 'предварительный',
+            sourceVisitId: null,
+          })
+          .returning({ id: clinicalDiagnosis.id });
+        const diagnosisId = rows[0]?.id;
+        if (!diagnosisId) throw new Error('clinical_diagnosis_insert_failed');
+        return diagnosisId;
+      });
+    },
+
     // -- Инлайн-правка полей ------------------------------------------------------
 
     async updateComplaintFields(input: UpdateComplaintFieldsInput): Promise<boolean> {
-      const set: Partial<{ text: string; priority: boolean }> = {};
+      const set: Partial<{ text: string; description: string | null; priority: boolean }> = {};
       if (input.text !== undefined) set.text = input.text;
+      if (input.description !== undefined) set.description = input.description;
       if (input.priority !== undefined) set.priority = input.priority;
       if (Object.keys(set).length === 0) return false;
       return runDrizzleMutationTransaction(async (tx) => {
@@ -928,6 +1044,61 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       const row = rows[0];
       if (!row) throw new Error('clinical_anamnesis_lifestyle insert failed');
       return { id: row.id, date: fmtDisplayDate(row.recordDate), text: row.text };
+    },
+
+    async updateAnamnesisEntry(input: UpdateAnamnesisEntryInput): Promise<boolean> {
+      const organizationId = requiredPrincipalOrganizationId();
+      if (input.section === 'trauma') {
+        const rows = await runDrizzleMutationTransaction((tx) =>
+          tx
+            .update(clinicalAnamnesisTrauma)
+            .set({
+              year: input.year,
+              what: input.what,
+              type: input.type,
+              immobilization: input.immobilization,
+            })
+            .where(
+              and(
+                eq(clinicalAnamnesisTrauma.id, input.entryId),
+                eq(clinicalAnamnesisTrauma.patientUserId, input.patientUserId),
+                eq(clinicalAnamnesisTrauma.organizationId, organizationId),
+              ),
+            )
+            .returning({ id: clinicalAnamnesisTrauma.id }),
+        );
+        return rows.length > 0;
+      }
+      if (input.section === 'illness') {
+        const rows = await runDrizzleMutationTransaction((tx) =>
+          tx
+            .update(clinicalAnamnesisIllness)
+            .set({ period: input.period, what: input.what, comment: input.comment })
+            .where(
+              and(
+                eq(clinicalAnamnesisIllness.id, input.entryId),
+                eq(clinicalAnamnesisIllness.patientUserId, input.patientUserId),
+                eq(clinicalAnamnesisIllness.organizationId, organizationId),
+              ),
+            )
+            .returning({ id: clinicalAnamnesisIllness.id }),
+        );
+        return rows.length > 0;
+      }
+      const rows = await runDrizzleMutationTransaction((tx) =>
+        tx
+          .update(clinicalAnamnesisLifestyle)
+          .set({ recordDate: input.recordDate, text: input.text })
+          .where(
+            and(
+              eq(clinicalAnamnesisLifestyle.id, input.entryId),
+              eq(clinicalAnamnesisLifestyle.patientUserId, input.patientUserId),
+              eq(clinicalAnamnesisLifestyle.organizationId, organizationId),
+            ),
+          )
+          .returning({ id: clinicalAnamnesisLifestyle.id }),
+      );
+      return rows.length > 0;
     },
 
     async listLinkedAppointmentIds(patientUserId: string): Promise<string[]> {

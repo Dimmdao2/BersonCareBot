@@ -44,6 +44,12 @@ const appendAnamnesisBodySchema = z.discriminatedUnion('section', [
   appendLifestyleSchema,
 ]);
 
+const updateAnamnesisBodySchema = z.discriminatedUnion('section', [
+  appendTraumaSchema.extend({ entryId: z.string().uuid() }),
+  appendIllnessSchema.extend({ entryId: z.string().uuid() }),
+  appendLifestyleSchema.extend({ entryId: z.string().uuid() }),
+]);
+
 // -- Handlers ----------------------------------------------------------------
 
 export async function GET(_request: Request, { params }: { params: Promise<{ userId: string }> }) {
@@ -155,4 +161,49 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
       }),
   );
   return NextResponse.json({ ok: true, entry }, { status: 201 });
+}
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ userId: string }> }) {
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+
+  const { userId } = await params;
+  if (!z.string().uuid().safeParse(userId).success) {
+    return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
+  }
+
+  let json: unknown;
+  try {
+    json = await request.json();
+  } catch {
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
+  }
+  const parsed = updateAnamnesisBodySchema.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+  }
+
+  const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+    gate.ctx,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+
+  const updated = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    'doctor.patients.clinical.anamnesis.update',
+    () =>
+      deps.patientClinical.updateAnamnesisEntry({
+        ...parsed.data,
+        patientUserId: identity.userId,
+      }),
+  );
+  if (!updated) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
 }

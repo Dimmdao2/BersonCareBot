@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
   listSpecialists: vi.fn(),
   nearestFreeWindow: vi.fn(),
   requireDoctorBookingEngine: vi.fn(),
+  requireEntitlementForRead: vi.fn(),
+  requireEntitlementForMutation: vi.fn(),
+  upsertWorkingDays: vi.fn(),
 }));
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
@@ -24,9 +27,18 @@ vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
   getAppDisplayTimeZone: vi.fn().mockResolvedValue('Europe/Moscow'),
 }));
 vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
-  withDoctorWorkspacePrincipal: vi.fn(
-    <T>(_ctx: unknown, _source: string, callback: () => T): T => callback(),
+  withDoctorWorkspacePrincipal: vi.fn(<T>(_ctx: unknown, _source: string, callback: () => T): T =>
+    callback(),
   ),
+}));
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
+  withDoctorWorkspacePrincipal: vi.fn(<T>(_ctx: unknown, _source: string, callback: () => T): T =>
+    callback(),
+  ),
+}));
+vi.mock('@/app-layer/guards/requireEntitlement', () => ({
+  requireEntitlementForRead: mocks.requireEntitlementForRead,
+  requireEntitlementForMutation: mocks.requireEntitlementForMutation,
 }));
 vi.mock('@/infra/logging/logger', () => ({
   logger: { error: vi.fn() },
@@ -39,6 +51,7 @@ vi.mock('@/app/api/doctor/booking-engine/_requireDoctorBookingEngine', () => ({
 import { GET as getCalendar } from './calendar/route';
 import { GET as getScheduleKpis } from '../schedule-kpis/route';
 import { GET as getNearestFreeWindow } from '../schedule/nearest-free-window/route';
+import { PUT as putWorkingDays } from './working-days/route';
 
 const ORGANIZATION_ID = '20000000-0000-4000-8000-000000000001';
 const OWN_ID = '10000000-0000-4000-8000-000000000001';
@@ -108,10 +121,16 @@ beforeEach(() => {
   });
   mocks.getScheduleKpis.mockResolvedValue({ total: 0 });
   mocks.nearestFreeWindow.mockResolvedValue(null);
+  mocks.requireEntitlementForMutation.mockResolvedValue({ ok: true });
+  mocks.requireEntitlementForRead.mockResolvedValue({ ok: true });
+  mocks.upsertWorkingDays.mockResolvedValue([]);
   mocks.buildAppDeps.mockReturnValue({
     bookingCalendar: { getCalendar: mocks.getCalendar },
     doctorAppointments: { getScheduleKpis: mocks.getScheduleKpis },
-    bookingScheduling: { nearestFreeWindow: mocks.nearestFreeWindow },
+    bookingScheduling: {
+      nearestFreeWindow: mocks.nearestFreeWindow,
+      upsertWorkingDays: mocks.upsertWorkingDays,
+    },
     orgEntitlements: {
       resolveMechanicAccess: vi.fn().mockResolvedValue({ state: 'full_access', warning: null }),
     },
@@ -137,10 +156,25 @@ describe('doctor schedule route scope', () => {
         `https://app.example.test/api/doctor/schedule/nearest-free-window?${hostileScope}`,
       ),
     );
+    const workingDaysResponse = await putWorkingDays(
+      new Request('https://app.example.test/api/doctor/booking-engine/working-days', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'upsert',
+          specialistId: OTHER_ID,
+          branchId: BRANCH_ID,
+          dates: ['2026-07-30'],
+          startMinute: 600,
+          endMinute: 660,
+        }),
+      }),
+    );
 
     expect(calendarResponse.status).toBe(200);
     expect(kpiResponse.status).toBe(200);
     expect(nearestResponse.status).toBe(200);
+    expect(workingDaysResponse.status).toBe(200);
 
     expect(mocks.getCalendar).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: ORGANIZATION_ID, specialistId: OWN_ID }),
@@ -150,6 +184,9 @@ describe('doctor schedule route scope', () => {
       expect.objectContaining({ organizationId: ORGANIZATION_ID }),
     );
     expect(mocks.nearestFreeWindow).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORGANIZATION_ID, specialistId: OWN_ID }),
+    );
+    expect(mocks.upsertWorkingDays).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: ORGANIZATION_ID, specialistId: OWN_ID }),
     );
 
@@ -189,6 +226,20 @@ describe('doctor schedule route scope', () => {
         `https://app.example.test/api/doctor/schedule/nearest-free-window?${selectedScope}`,
       ),
     );
+    const workingDaysResponse = await putWorkingDays(
+      new Request('https://app.example.test/api/doctor/booking-engine/working-days', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'upsert',
+          specialistId: OTHER_ID,
+          branchId: BRANCH_ID,
+          dates: ['2026-07-30'],
+          startMinute: 600,
+          endMinute: 660,
+        }),
+      }),
+    );
 
     expect(mocks.getCalendar).toHaveBeenCalledWith(
       expect.objectContaining({ specialistId: OTHER_ID }),
@@ -199,6 +250,13 @@ describe('doctor schedule route scope', () => {
     );
     expect(mocks.nearestFreeWindow).toHaveBeenCalledWith(
       expect.objectContaining({ specialistId: OTHER_ID }),
+    );
+    expect(workingDaysResponse.status).toBe(200);
+    expect(mocks.upsertWorkingDays).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: ORGANIZATION_ID,
+        specialistId: OWN_ID,
+      }),
     );
 
     const calendarBody = (await calendarResponse.json()) as {

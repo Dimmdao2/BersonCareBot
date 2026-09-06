@@ -1,8 +1,8 @@
 /**
  * PATCH /api/doctor/patients/[userId]/diagnoses/[diagnosisId] → { ok }
  *
- * Инлайн-правка атрибутов диагноза (исправление текста / переключение приоритета).
- * НЕ меняет клинический статус — уточнение/снятие выполняются только через визит.
+ * Правка текста, комментария и приоритета диагноза вне визита.
+ * Клинический статус меняется отдельным status-route.
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -14,7 +14,7 @@ const bodySchema = z
   .object({
     text: z.string().min(1).max(2000).optional(),
     priority: z.boolean().optional(),
-    comment: z.string().max(500).nullable().optional(),
+    comment: z.string().max(5000).nullable().optional(),
   })
   .refine((b) => b.text !== undefined || b.priority !== undefined || b.comment !== undefined, {
     message: 'nothing_to_update',

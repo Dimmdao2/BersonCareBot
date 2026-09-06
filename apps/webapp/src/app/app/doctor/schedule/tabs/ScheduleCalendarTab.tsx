@@ -55,12 +55,22 @@ import type { ScheduleKpis } from '@/modules/doctor-appointments/ports';
 import type { ScheduleTabProps } from '../scheduleTabRegistry';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
-import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
+import {
+  DoctorModal,
+  DoctorModalFooter,
+  DoctorModalStackedTitle,
+} from '@/shared/ui/doctor/DoctorModal';
 import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/shared/ui/doctor/primitives/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -307,6 +317,10 @@ type CalendarSelectionKind = 'working' | 'break' | 'mixed' | 'outside';
 
 /** Actions the doctor contextual menu can offer for a grid selection. */
 type CalendarSelectionAction = 'create' | 'add-break' | 'open-for-booking';
+
+type OpenWorkingHoursDialogState = {
+  branchId: string | null;
+};
 
 const CALENDAR_SELECTION_ACTION_LABELS: Record<CalendarSelectionAction, string> = {
   create: 'Новая запись',
@@ -787,8 +801,7 @@ function ListView({
     ) {
       return;
     }
-    const isExplicitTodayRequest =
-      scrollToTodayRequest > positionedTodayRequestRef.current;
+    const isExplicitTodayRequest = scrollToTodayRequest > positionedTodayRequestRef.current;
     const frame = window.requestAnimationFrame(() => {
       scrollNode.scrollTo({
         top: Math.max(0, markerNode.offsetTop - 8),
@@ -1028,6 +1041,8 @@ export function ScheduleCalendarTab({
   const [selectionMenuOpen, setSelectionMenuOpen] = useState(false);
   const [selectionActionError, setSelectionActionError] = useState<string | null>(null);
   const [selectionActionPending, setSelectionActionPending] = useState(false);
+  const [openWorkingHoursDialog, setOpenWorkingHoursDialog] =
+    useState<OpenWorkingHoursDialogState | null>(null);
   const selectionAnchorRectRef = useRef<{
     x: number;
     y: number;
@@ -1996,15 +2011,12 @@ export function ScheduleCalendarTab({
     };
   }, [currentTimeZone, displayableCalendarEvents, gridSelection]);
 
-  /**
-   * `/working-days` always writes the doctor's own specialist, so schedule actions are only
-   * offered while the calendar shows that same specialist.
-   */
   const canEditSelectionSchedule =
     scopeBootstrap.ownSpecialistId !== null &&
     (scheduleScope.scope === 'mine' ||
       (scheduleScope.scope === 'specialist' &&
         scheduleScope.specialistId === scopeBootstrap.ownSpecialistId));
+  const canOpenWorkingHours = filters.branches.length > 0 && canEditSelectionSchedule;
 
   const selectionMenuActions = useMemo((): CalendarSelectionAction[] => {
     if (!selectionContext) return [];
@@ -2019,10 +2031,12 @@ export function ScheduleCalendarTab({
     // `'break'`/`'outside'` here — none of them is currently bookable, so both offer the same
     // "reopen" action; `applySelectionScheduleChange` picks the right mutation per kind.
     if (selectionContext.kind === 'break' || selectionContext.kind === 'outside') {
-      return canEditSchedule ? ['open-for-booking', 'create'] : ['create'];
+      return canEditSchedule || (selectionContext.kind === 'outside' && canOpenWorkingHours)
+        ? ['open-for-booking', 'create']
+        : ['create'];
     }
     return ['create'];
-  }, [canEditSelectionSchedule, selectionContext]);
+  }, [canEditSelectionSchedule, canOpenWorkingHours, selectionContext]);
 
   /**
    * Anchors the contextual menu to the live FullCalendar highlight so it tracks the selection
@@ -2076,7 +2090,7 @@ export function ScheduleCalendarTab({
    * `working-days` contract — one upsert of the effective day with the recomputed break list.
    */
   const applySelectionScheduleChange = useCallback(
-    async (mode: 'add-break' | 'open-for-booking') => {
+    async (mode: 'add-break' | 'open-for-booking', target?: { branchId: string }) => {
       if (!gridSelection || !selectionContext) return;
       if (!canEditSelectionSchedule) {
         setSelectionActionError(SELECTION_MUTATION_ERRORS.foreign_specialist ?? null);
@@ -2131,7 +2145,7 @@ export function ScheduleCalendarTab({
             startMinute: nextDayStartMinute,
             endMinute: nextDayEndMinute,
             breaks: result.breaks,
-            ...(selectionContext.branchIds[0] ? { branchId: selectionContext.branchIds[0] } : {}),
+            branchId: target?.branchId ?? selectionContext.branchIds[0],
           }),
         });
         const json: unknown = await res.json().catch(() => null);
@@ -2140,6 +2154,7 @@ export function ScheduleCalendarTab({
           setSelectionActionError('Не удалось обновить график.');
           return;
         }
+        setOpenWorkingHoursDialog(null);
         clearGridSelection();
         // The schedule changed under the visible range — bypass the duplicate-load window.
         recentLoadRef.current = null;
@@ -2153,6 +2168,45 @@ export function ScheduleCalendarTab({
     [canEditSelectionSchedule, clearGridSelection, gridSelection, load, selectionContext],
   );
 
+  const beginOpenWorkingHours = useCallback(() => {
+    if (!gridSelection || !selectionContext) return;
+    if (selectionContext.kind !== 'outside') {
+      void applySelectionScheduleChange('open-for-booking');
+      return;
+    }
+    const branchOptions = filters.branches;
+    const activeBranchId =
+      branchId && branchOptions.some((branch) => branch.id === branchId) ? branchId : null;
+    const defaultBranchId =
+      activeBranchId ??
+      (calendarSettings.defaultBranchId &&
+      branchOptions.some((branch) => branch.id === calendarSettings.defaultBranchId)
+        ? calendarSettings.defaultBranchId
+        : branchOptions.length === 1
+          ? (branchOptions[0]?.id ?? null)
+          : null);
+
+    if ((activeBranchId || branchOptions.length === 1) && defaultBranchId) {
+      void applySelectionScheduleChange('open-for-booking', {
+        branchId: defaultBranchId,
+      });
+      return;
+    }
+
+    setSelectionMenuOpen(false);
+    setSelectionActionError(null);
+    setOpenWorkingHoursDialog({
+      branchId: defaultBranchId,
+    });
+  }, [
+    applySelectionScheduleChange,
+    branchId,
+    calendarSettings.defaultBranchId,
+    filters.branches,
+    gridSelection,
+    selectionContext,
+  ]);
+
   const runSelectionAction = useCallback(
     (action: CalendarSelectionAction) => {
       if (action === 'create') {
@@ -2163,9 +2217,13 @@ export function ScheduleCalendarTab({
         if (selection) openCreateDraft(selection.startAt, selection.endAt);
         return;
       }
+      if (action === 'open-for-booking') {
+        beginOpenWorkingHours();
+        return;
+      }
       void applySelectionScheduleChange(action);
     },
-    [applySelectionScheduleChange, gridSelection, openCreateDraft],
+    [applySelectionScheduleChange, beginOpenWorkingHours, gridSelection, openCreateDraft],
   );
 
   useEffect(() => {
@@ -3386,7 +3444,16 @@ export function ScheduleCalendarTab({
                   {gridSelection ? (
                     <DropdownMenu
                       open={selectionMenuOpen}
-                      onOpenChange={(open) => {
+                      onOpenChange={(open, eventDetails) => {
+                        if (
+                          !open &&
+                          (eventDetails.reason === 'outside-press' ||
+                            eventDetails.reason === 'escape-key')
+                        ) {
+                          suppressCalendarDateClickUntilRef.current = Date.now() + 500;
+                          clearGridSelection();
+                          return;
+                        }
                         // CAL-ACTION-10: Base UI auto-closes the menu on the same click that runs
                         // a rejected mutation, so this fires in the same tick as
                         // `setSelectionActionError(...)` in `applySelectionScheduleChange`. Do NOT
@@ -3435,6 +3502,78 @@ export function ScheduleCalendarTab({
           ) : null}
         </aside>
       </div>
+
+      <DoctorModal
+        open={openWorkingHoursDialog !== null}
+        onClose={() => {
+          setOpenWorkingHoursDialog(null);
+          clearGridSelection();
+        }}
+        title="Добавить рабочие часы"
+        size="sm"
+      >
+        {openWorkingHoursDialog ? (
+          <div className="space-y-4 p-4">
+            <label className="block space-y-2 text-base md:text-sm">
+              <span>Филиал</span>
+              <Select
+                value={openWorkingHoursDialog.branchId ?? undefined}
+                onValueChange={(value) =>
+                  setOpenWorkingHoursDialog((current) =>
+                    current ? { ...current, branchId: value ?? null } : current,
+                  )
+                }
+              >
+                <SelectTrigger
+                  className="w-full"
+                  displayLabel={
+                    filters.branches.find((branch) => branch.id === openWorkingHoursDialog.branchId)
+                      ?.label ?? 'Выберите филиал'
+                  }
+                />
+                <SelectContent>
+                  {filters.branches.map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id} label={branch.label}>
+                      {branch.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+
+            {selectionActionError ? (
+              <p className="text-sm text-destructive">{selectionActionError}</p>
+            ) : null}
+
+            <DoctorModalFooter>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setOpenWorkingHoursDialog(null);
+                  clearGridSelection();
+                }}
+              >
+                Отмена
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={selectionActionPending || !openWorkingHoursDialog.branchId}
+                onClick={() => {
+                  if (!openWorkingHoursDialog.branchId) return;
+                  void applySelectionScheduleChange('open-for-booking', {
+                    branchId: openWorkingHoursDialog.branchId,
+                  });
+                }}
+              >
+                Сохранить
+              </Button>
+            </DoctorModalFooter>
+          </div>
+        ) : null}
+      </DoctorModal>
 
       <DoctorModal
         open={datePickerOpen}

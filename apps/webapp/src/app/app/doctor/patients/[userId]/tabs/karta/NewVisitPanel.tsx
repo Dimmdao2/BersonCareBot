@@ -155,11 +155,11 @@ function PriorityFlag({ on, onToggle }: { on: boolean; onToggle: () => void }) {
       variant="ghost"
       size="icon-xs"
       className={cn(
-        'flex-none text-sm leading-none',
-        on ? 'text-primary' : 'text-muted-foreground',
+        'flex-none text-base font-bold leading-none',
+        on ? 'text-destructive' : 'text-muted-foreground',
       )}
     >
-      ⚑
+      !
     </Button>
   );
 }
@@ -274,7 +274,7 @@ function DiagnosisAutocomplete({
   return (
     <div>
       <div className="flex items-center gap-2">
-        <span className="flex-none text-sm text-muted-foreground">⚑</span>
+        <span className="flex-none text-base font-bold text-destructive">!</span>
         <Input
           type="search"
           value={draft}
@@ -1246,7 +1246,7 @@ export function NewVisitPanel({
                   </div>
                 ))}
               </div>
-              <p className={hintClass}>⚑ — приоритет · 0–10 — выраженность</p>
+              <p className={hintClass}>! — ключевой · 0–10 — выраженность</p>
             </div>
 
             <FormTextarea
@@ -1362,7 +1362,7 @@ export function NewVisitPanel({
                   return (
                     <div key={c.id} className="rounded-lg border border-border bg-muted/15 p-2.5">
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        {c.priority ? <span className="text-primary">⚑</span> : null}
+                        {c.priority ? <span className="font-bold text-destructive">!</span> : null}
                         <span>{c.text}</span>
                         <span className="ml-auto">{c.since}</span>
                       </div>
@@ -1430,7 +1430,7 @@ export function NewVisitPanel({
                   return (
                     <div key={d.id} className="rounded-lg border border-border bg-muted/15 p-2.5">
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        {d.priority ? <span className="text-primary">⚑</span> : null}
+                        {d.priority ? <span className="font-bold text-destructive">!</span> : null}
                         <span>{d.text}</span>
                         <span className="ml-auto text-[11px]">{d.meta}</span>
                       </div>

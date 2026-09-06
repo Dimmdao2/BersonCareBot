@@ -417,6 +417,13 @@ export function SpecialistTaskFormDialog({
             patientHref={editing.patientUserId ? patientCardHref(editing.patientUserId) : null}
             patientOnSupport={patientOnSupport}
           />
+        ) : patientUserId && resolvedPatientDisplayName ? (
+          <DoctorModalStackedTitle
+            label="Новая задача"
+            patientName={resolvedPatientDisplayName}
+            patientHref={patientCardHref(patientUserId)}
+            patientOnSupport={patientOnSupport}
+          />
         ) : (
           'Новая задача'
         )
