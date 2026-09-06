@@ -73,8 +73,16 @@ vi.mock('@/app/app/doctor/clients/DoctorClientMembershipsPanel', () => ({
   DoctorClientMembershipsPanel: () => <div data-testid="membership-configuration">config</div>,
 }));
 vi.mock('./PatientEncounterStartModal', () => ({
-  PatientEncounterStartModal: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="encounter-start-modal">start</div> : null,
+  PatientEncounterStartModal: ({
+    open,
+    initialAppointmentId,
+  }: {
+    open: boolean;
+    initialAppointmentId: string | null;
+  }) =>
+    open ? (
+      <div data-testid="encounter-start-modal">{initialAppointmentId ?? 'no-prebound'}</div>
+    ) : null,
 }));
 
 const { PatientCardClient } = await import('./PatientCardClient');
@@ -193,5 +201,57 @@ describe('patient card — final tabs live in DoctorPageHeader', () => {
     });
     // Program is still in the DOM, just hidden — its internal state was not thrown away.
     expect(screen.getByTestId('panel-program').closest('.hidden')).not.toBeNull();
+  });
+});
+
+/**
+ * `ENCOUNTER-START-01` — «Любое действие `Начать приём` сначала открывает общую doctor-модалку, а не
+ * сразу переводит на страницу приёма» (owner checklist §P4.6).
+ */
+describe('patient card — every encounter start goes through the common modal', () => {
+  /**
+   * Failure caught: the header action navigates straight to `/visits/new` (or does nothing), so the
+   * doctor never gets to choose how the encounter links to a calendar record and every encounter is
+   * created unlinked. Oracle: owner `ENCOUNTER-START-01` and `ENCOUNTERS-ACTION-03/04`.
+   */
+  it('opens the start modal from the identity header instead of navigating, on a non-overview tab', async () => {
+    render(
+      <PatientCardClient
+        shellMeta={shellMeta}
+        tabPromise={fulfilledThenable(tabBootstrap)}
+        initialTab="program"
+        patientListHref={patientListHref}
+      />,
+    );
+
+    await screen.findByTestId('panel-program');
+    expect(screen.queryByTestId('encounter-start-modal')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Начать приём' }));
+
+    expect(await screen.findByTestId('encounter-start-modal')).toHaveTextContent('no-prebound');
+  });
+
+  /**
+   * Failure caught: entering from appointment details («Начать приём» in the calendar/next-record
+   * panel) lands on the patient card with nothing open — the click reads as a no-op — or opens the
+   * modal without the trusted appointment, so the encounter is linked to the wrong record.
+   * Oracle: owner `ENCOUNTER-LINK-01` («эта запись передана в модалку как доверенный
+   * prebound-контекст и выбрана заранее»).
+   */
+  it('opens the start modal prebound with the appointment the doctor came from', async () => {
+    render(
+      <PatientCardClient
+        shellMeta={shellMeta}
+        tabPromise={fulfilledThenable(tabBootstrap)}
+        initialTab="karta"
+        createVisitFrom="dddddddd-0000-4000-8000-000000000004"
+        patientListHref={patientListHref}
+      />,
+    );
+
+    expect(await screen.findByTestId('encounter-start-modal')).toHaveTextContent(
+      'dddddddd-0000-4000-8000-000000000004',
+    );
   });
 });

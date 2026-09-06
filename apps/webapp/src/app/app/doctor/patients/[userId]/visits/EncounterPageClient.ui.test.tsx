@@ -130,4 +130,24 @@ describe('EncounterPageClient — linkage selected before the encounter page', (
     expect(manualCalls()).toEqual([]);
     expect(visitCalls()[0]!.body?.canonicalAppointmentId).toBe(APPOINTMENT);
   });
+
+  /**
+   * ACCEPTANCE (currently failing on `63e3860c9` — handoff oracle, not a fix).
+   *
+   * Failure caught: the doctor picks «Без записи на приём» in the start modal and lands on the new
+   * encounter page, where the «Пациент» block says nothing at all about the calendar link. The
+   * doctor cannot tell an intentionally unlinked encounter from one whose linked record is still
+   * loading or was silently dropped, and saves without noticing. The edit page already states it;
+   * only the create page is silent.
+   *
+   * Oracle: owner `ENCOUNTER-PAGE-09` («При отсутствии связи явно написано, что приём не связан с
+   * записью») and `ENCOUNTER-PAGE-LINK-02` («при режиме без записи явно показано `Без связи с
+   * записью`») — `docs/_TODO/DOCTOR_MOBILE_UI_OWNER_ACCEPTANCE_2026-09-04.md` §P4.5/§P4.6.
+   */
+  it('states the encounter is not linked when the start modal chose the without-appointment mode', async () => {
+    renderPage(null);
+
+    await screen.findByRole('button', { name: 'Сохранить приём' });
+    expect(screen.getByText('Без связи с записью')).toBeTruthy();
+  });
 });
