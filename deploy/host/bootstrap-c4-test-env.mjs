@@ -65,6 +65,17 @@ const MEDIA_COPY_KEYS = [
   'S3_PRIVATE_BUCKET',
   'S3_REGION',
   'S3_FORCE_PATH_STYLE',
+  /*
+   * Хранилище данных пациентов. Копируется тем же правилом «есть у api — есть у воркера»:
+   * воркер пересобирает и видео, записанные пациентом, и без этих ключей молча работал бы с
+   * ними в библиотечном бакете. Ключи необязательны — окружение без разделения их не имеет.
+   */
+  'PATIENT_S3_ENDPOINT',
+  'PATIENT_S3_ACCESS_KEY',
+  'PATIENT_S3_SECRET_KEY',
+  'PATIENT_S3_BUCKET',
+  'PATIENT_S3_REGION',
+  'PATIENT_S3_FORCE_PATH_STYLE',
 ];
 const MEDIA_REQUIRED_KEYS = [
   'MEDIA_WORKER_CONTROL_URL',
@@ -593,6 +604,17 @@ function bootstrap({
   }
   if (parsedMedia.get('INTERNAL_JOB_SECRET') !== webapp.get('INTERNAL_JOB_SECRET')) {
     fail('media-worker.test must use the webapp internal control secret');
+  }
+  /*
+   * Расхождение по хранилищу пациентов ломает воспроизведение молча: webapp ищет HLS в
+   * шифрованном бакете, а воркер, не знающий о нём, кладёт артефакты в библиотечный. Поэтому
+   * либо оба знают одно и то же имя бакета, либо оба не знают никакого.
+   */
+  if (webapp.get('PATIENT_S3_BUCKET') !== parsedMedia.get('PATIENT_S3_BUCKET')) {
+    fail(
+      'PATIENT_S3_BUCKET must match in webapp.test and media-worker.test ' +
+        '(media-worker.test is generated from api.test, so set the PATIENT_S3_* keys there too)',
+    );
   }
 
   if (write) {
