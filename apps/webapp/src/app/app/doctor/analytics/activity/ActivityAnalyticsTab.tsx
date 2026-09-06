@@ -18,6 +18,7 @@ import { MetricAccountsDialog } from '@/shared/ui/doctor/analytics/MetricAccount
 import { AnalyticsPeriodToolbar } from '../clients/AnalyticsPeriodToolbar';
 import { DoctorStatCard } from '../clients/DoctorStatCard';
 import {
+  analyticsApiErrorMessage,
   buildAdminStatsQuery,
   resolveAnalyticsPeriodLabel,
   validateCustomAnalyticsPeriod,
@@ -128,7 +129,7 @@ export function ActivityAnalyticsTab({
       if (!res.ok || !json.ok || !json.kpis) {
         setKpis(null);
         setDaySeries([]);
-        setError(json.error ?? `HTTP ${res.status}`);
+        setError(analyticsApiErrorMessage(json.error, res.status));
         return;
       }
       setKpis(json.kpis);
@@ -136,7 +137,7 @@ export function ActivityAnalyticsTab({
     } catch {
       setKpis(null);
       setDaySeries([]);
-      setError('network');
+      setError('Не удалось загрузить аналитику.');
     } finally {
       setLoading(false);
     }

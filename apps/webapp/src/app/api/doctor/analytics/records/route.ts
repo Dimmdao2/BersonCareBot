@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   if (!gate.ctx.canManageAllSpecialists && !gate.ctx.specialistId) {
     return NextResponse.json({ ok: false, error: 'specialist_not_configured' }, { status: 409 });
   }
-  const specialistId = gate.ctx.specialistId ?? null;
+  const specialistId = gate.ctx.canManageAllSpecialists ? null : gate.ctx.specialistId;
 
   const url = new URL(req.url);
   const preset = parseAdminStatsTimePreset(url.searchParams.get('preset'));

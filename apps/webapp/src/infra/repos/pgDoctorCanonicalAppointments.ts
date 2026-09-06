@@ -737,9 +737,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
 
       const startAtDay = localCalendarDateSql(beAppointments.startAt, iana);
       const createdAtDay = localCalendarDateSql(beAppointments.createdAt, iana);
-      const cancellationCreatedAtDay = localCalendarDateSql(beAppointmentCancellations.createdAt, iana);
-
-      const [pastRows, createdRows, cancelActionRows] = await Promise.all([
+      const [pastRows, createdRows, cancelledRows] = await Promise.all([
         db
           .select({ day: sql<string>`${startAtDay}::text`, c: count() })
           .from(beAppointments)
@@ -769,17 +767,16 @@ export function createPgDoctorCanonicalAppointmentsPort(
           )
           .groupBy(sql`1`),
         db
-          .select({ day: sql<string>`${cancellationCreatedAtDay}::text`, c: count() })
-          .from(beAppointmentCancellations)
-          .innerJoin(beAppointments, eq(beAppointments.id, beAppointmentCancellations.appointmentId))
+          .select({ day: sql<string>`${startAtDay}::text`, c: count() })
+          .from(beAppointments)
           .where(
             and(
-              eq(beAppointmentCancellations.organizationId, organizationId),
+              orgCond,
               isNull(beAppointments.deletedAt),
-              gte(beAppointmentCancellations.createdAt, from),
-              lt(beAppointmentCancellations.createdAt, toExclusive),
-              userAudience,
-              specialistAudience,
+              gte(beAppointments.startAt, from),
+              lt(beAppointments.startAt, toExclusive),
+              inArray(beAppointments.status, [...CANCELLED_STATUSES]),
+              BE_APPOINTMENTS_NOT_PURGED,
             ),
           )
           .groupBy(sql`1`),
@@ -787,14 +784,14 @@ export function createPgDoctorCanonicalAppointmentsPort(
 
       const pastByDay = new Map(pastRows.map((r) => [r.day, r.c]));
       const createdByDay = new Map(createdRows.map((r) => [r.day, r.c]));
-      const cancelActionsByDay = new Map(cancelActionRows.map((r) => [r.day, r.c]));
+      const cancelledByDay = new Map(cancelledRows.map((r) => [r.day, r.c]));
 
       const dayKeys = enumerateLocalDayKeysInclusive(iana, fromDay, toDay);
       const daySeries: AppointmentDayPoint[] = dayKeys.map((day) => ({
         day,
         pastVisits: pastByDay.get(day) ?? 0,
         bookingsCreated: createdByDay.get(day) ?? 0,
-        cancellationActions: cancelActionsByDay.get(day) ?? 0,
+        cancellationActions: cancelledByDay.get(day) ?? 0,
       }));
 
       const rangeCond = and(

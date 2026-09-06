@@ -1,4 +1,4 @@
-import { and, countDistinct, count, desc, eq, gte, lt, sql, type Column } from 'drizzle-orm';
+import { and, countDistinct, count, desc, eq, exists, gte, lt, sql, type Column } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { programActionLog } from '../../../db/schema/programActionLog';
 import { treatmentProgramInstances } from '../../../db/schema/treatmentProgramInstances';
@@ -39,6 +39,24 @@ function doneInPeriodCond(period: DoctorProgramActivityPeriod, audience: DoctorP
   );
 }
 
+function activeProgramExistsCond(
+  db: ReturnType<typeof getDrizzle>,
+  audience: DoctorProgramActivityAudience,
+) {
+  return exists(
+    db
+      .select({ one: sql`1` })
+      .from(treatmentProgramInstances)
+      .where(
+        and(
+          eq(treatmentProgramInstances.organizationId, audience.organizationId),
+          eq(treatmentProgramInstances.patientUserId, programActionLog.patientUserId),
+          eq(treatmentProgramInstances.status, 'active'),
+        ),
+      ),
+  );
+}
+
 export function createPgDoctorProgramActivityPort(): DoctorProgramActivityPort {
   return {
     async getActivityKpis(
@@ -70,7 +88,7 @@ export function createPgDoctorProgramActivityPort(): DoctorProgramActivityPort {
             days: sql<number>`count(distinct ${localDay})::int`.mapWith(Number),
           })
           .from(programActionLog)
-          .where(doneInPeriodCond(period, audience)),
+          .where(and(doneInPeriodCond(period, audience), activeProgramExistsCond(db, audience))),
       ]);
 
       const patientsWithActiveProgram = activeProgramRow[0]?.c ?? 0;
@@ -100,7 +118,7 @@ export function createPgDoctorProgramActivityPort(): DoctorProgramActivityPort {
           activePatientsCount: countDistinct(programActionLog.patientUserId),
         })
         .from(programActionLog)
-        .where(doneInPeriodCond(period, audience))
+        .where(and(doneInPeriodCond(period, audience), activeProgramExistsCond(db, audience)))
         .groupBy(sql`1`);
 
       const byDay = new Map(rows.map((r) => [r.day, r]));
@@ -133,7 +151,7 @@ export function createPgDoctorProgramActivityPort(): DoctorProgramActivityPort {
         .from(programActionLog)
         .leftJoin(platformUsers, eq(platformUsers.id, programActionLog.patientUserId))
         .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
-        .where(doneInPeriodCond(period, audience))
+        .where(and(doneInPeriodCond(period, audience), activeProgramExistsCond(db, audience)))
         .groupBy(
           programActionLog.patientUserId,
           drizzleFioCols.displayName,

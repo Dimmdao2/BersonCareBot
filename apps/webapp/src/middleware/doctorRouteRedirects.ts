@@ -82,9 +82,9 @@ export function doctorRouteRedirectResponse(request: NextRequest): NextResponse 
     '/app/doctor/appointments': '/app/doctor/schedule?tab=cal',
     // Analytics legacy subpages → aggregate page-shell. Tabs align with analyticsTabFromQuery.
     // (material-ratings остаётся отдельным маршрутом — подробная таблица оценок, ссылка из вкладки «Контент».)
-    '/app/doctor/analytics/clients': '/app/doctor/analytics?tab=clients',
-    '/app/doctor/usage': '/app/doctor/analytics?tab=app',
-    '/app/doctor/analytics/notifications': '/app/doctor/analytics?tab=notifications',
+    '/app/doctor/analytics/clients': '/app/admin/analytics',
+    '/app/doctor/usage': '/app/admin/analytics',
+    '/app/doctor/analytics/notifications': '/app/admin/analytics',
   };
 
   const redirectTarget = legacyRedirects[pathname];

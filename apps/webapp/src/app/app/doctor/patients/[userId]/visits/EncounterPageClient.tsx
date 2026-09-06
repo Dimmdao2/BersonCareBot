@@ -510,9 +510,11 @@ export function EncounterPageClient({
             </div>
           </dl>
         ) : null}
-        {mode === 'create' && boundAppointmentId ? (
+        {mode === 'create' ? (
           <div className="text-sm text-foreground">
-            {appointmentsLoading ? (
+            {!boundAppointmentId ? (
+              'Без связи с записью'
+            ) : appointmentsLoading ? (
               <DoctorPanelLoading className="py-1" />
             ) : boundAppointment ? (
               `Связан с записью: ${appointmentSummaryLine(boundAppointment)}`

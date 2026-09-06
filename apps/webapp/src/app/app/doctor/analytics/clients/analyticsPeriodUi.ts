@@ -10,6 +10,8 @@ export type AnalyticsPeriodValue = {
   customTo: string;
 };
 
+const MAX_ANALYTICS_CUSTOM_INCLUSIVE_DAYS = 400;
+
 export function ymdMinusDays(ymd: string, days: number): string {
   const [y, m, d] = ymd.split('-').map((x) => Number.parseInt(x, 10));
   const dt = new Date(y!, m! - 1, d!);
@@ -57,10 +59,24 @@ export function validateCustomAnalyticsPeriod(period: AnalyticsPeriodValue): str
   const from = period.customFrom.trim();
   const to = period.customTo.trim();
   if (!from || !to) return 'Укажите даты периода.';
-  if (inclusiveCalendarDays(from, to) < MIN_REGISTRATION_STATS_INCLUSIVE_DAYS) {
+  const inclusiveDays = inclusiveCalendarDays(from, to);
+  if (inclusiveDays < 1) return 'Дата начала должна быть не позже даты окончания.';
+  if (inclusiveDays < MIN_REGISTRATION_STATS_INCLUSIVE_DAYS) {
     return 'Период не короче 7 дней.';
   }
+  if (inclusiveDays > MAX_ANALYTICS_CUSTOM_INCLUSIVE_DAYS) {
+    return 'Период не длиннее 400 дней.';
+  }
   return null;
+}
+
+export function analyticsApiErrorMessage(error: string | undefined, status: number): string {
+  if (error === 'range_too_long') return 'Период не длиннее 400 дней.';
+  if (error === 'range_too_short') return 'Период не короче 7 дней.';
+  if (error === 'range_inverted') return 'Дата начала должна быть не позже даты окончания.';
+  if (error === 'custom_range_required' || error === 'invalid_date') return 'Укажите корректный период.';
+  if (status === 403) return 'Нет доступа к аналитике.';
+  return `Не удалось загрузить аналитику (HTTP ${status}).`;
 }
 
 export function buildAdminStatsQuery(period: AnalyticsPeriodValue): string {

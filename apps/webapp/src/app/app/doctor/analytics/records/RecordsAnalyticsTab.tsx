@@ -15,6 +15,7 @@ import { AnalyticsPeriodToolbar } from '../clients/AnalyticsPeriodToolbar';
 import { DoctorStatCard } from '../clients/DoctorStatCard';
 import { AppointmentsDynamicsChart } from '../clients/AppointmentsDynamicsChart';
 import {
+  analyticsApiErrorMessage,
   buildAdminStatsQuery,
   resolveAnalyticsPeriodLabel,
   validateCustomAnalyticsPeriod,
@@ -124,7 +125,7 @@ export function RecordsAnalyticsTab({
         setKpis(null);
         setDaySeries([]);
         setBranchSeries([]);
-        setError(json.error ?? `HTTP ${res.status}`);
+        setError(analyticsApiErrorMessage(json.error, res.status));
         return;
       }
       setKpis(json.kpis);
@@ -134,7 +135,7 @@ export function RecordsAnalyticsTab({
       setKpis(null);
       setDaySeries([]);
       setBranchSeries([]);
-      setError('network');
+      setError('Не удалось загрузить аналитику.');
     } finally {
       setLoading(false);
     }
