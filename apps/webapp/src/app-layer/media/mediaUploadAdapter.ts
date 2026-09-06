@@ -63,7 +63,7 @@ const PATIENT_UPLOAD_POLICIES: ReadonlySet<UploadPolicyId> = new Set<UploadPolic
   'patient-file',
 ]);
 
-function storageTargetFor(input: {
+export function storageTargetFor(input: {
   policyId: UploadPolicyId;
   namespace?: 'media' | 'patient-files';
 }): StorageTarget {
@@ -118,7 +118,7 @@ export function presignPreparedUploadPart(session: {
   key: string;
   uploadId: string;
   partNumber: number;
-  target?: StorageTarget;
+  target: StorageTarget;
 }): Promise<string> {
   return presignUploadPartUrl(session.key, session.uploadId, session.partNumber, session.target);
 }
@@ -127,7 +127,7 @@ export function completePreparedMultipartUpload(
   key: string,
   uploadId: string,
   parts: { PartNumber: number; ETag: string }[],
-  target?: StorageTarget,
+  target: StorageTarget,
 ): Promise<void> {
   return s3CompleteMultipartUpload(key, uploadId, parts, target);
 }
@@ -135,7 +135,7 @@ export function completePreparedMultipartUpload(
 export function abortPreparedMultipartUpload(
   key: string,
   uploadId: string,
-  target?: StorageTarget,
+  target: StorageTarget,
 ): Promise<void> {
   return s3AbortMultipartUpload(key, uploadId, target);
 }
@@ -152,7 +152,7 @@ export async function validateReceivedMediaObject(
 ): Promise<UploadValidationResult<ReceivedUpload>> {
   const head = await s3HeadObjectDetails(upload.key, upload.target);
   if (!head) return { ok: false, error: 'file_not_found_in_s3' };
-  const firstBytes = await s3GetObjectPrefix(upload.key, undefined, upload.target);
+  const firstBytes = await s3GetObjectPrefix(upload.key, upload.target);
   if (!firstBytes) return { ok: false, error: 'file_not_found_in_s3' };
   return validateReceivedUpload({
     intent: upload.intent,

@@ -2,12 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 
 /**
  * WHAT BREAKS: an environment which has not enabled the patient store silently creates a second
- * S3 client for patient-target operations, or sends an old/unknown row to the patient bucket.
- * CONSEQUENCE: the supposedly dormant rollout changes connection pooling/calls, or old library
- * objects become unreadable because the application looks for them in the new encrypted bucket.
- * ORACLE: owner rulings in the patient-media-storage audit brief: an absent target is `library`,
- * and an unset `PATIENT_S3_BUCKET` must preserve the same bucket, client, and calls.
- * This public S3 boundary is the cheapest layer which observes both compatibility guarantees.
+ * S3 client for patient-target operations, or a query which forgot to select `storage_target`
+ * gets a bucket substituted for it instead of an error.
+ * CONSEQUENCE: the supposedly dormant rollout changes connection pooling, or — the case the owner
+ * ruled out on 06.09.2026 — patient bytes land in the exercise library because one code path
+ * forgot to name the store: «если для файлов пациентов мы забудем подставить назначение в
+ * каком-то куске кода, они загрузятся в библиотеку. А это неправильно».
+ * ORACLE: that owner ruling, plus the dormancy guarantee that an unset `PATIENT_S3_BUCKET`
+ * preserves the same bucket, client, and calls.
+ * This public S3 boundary is the cheapest layer which observes both guarantees.
  */
 vi.mock('@/config/env', () => ({
   env: {
@@ -34,10 +37,14 @@ describe('storage split compatibility while the patient store is dormant', () =>
     expect(getS3Client('patient')).toBe(getS3Client('library'));
   });
 
-  it.each([undefined, null, '', 'unknown', 'library'])(
-    'keeps a legacy/unknown row in the library store: %j',
+  it.each([undefined, null, '', 'unknown'])(
+    'refuses to guess a store when the row does not name one: %j',
     (storedTarget) => {
-      expect(parseStorageTarget(storedTarget)).toBe('library');
+      expect(() => parseStorageTarget(storedTarget)).toThrow(/storage_target_missing_on_row/u);
     },
   );
+
+  it.each(['library', 'patient'] as const)('accepts the stored store verbatim: %s', (stored) => {
+    expect(parseStorageTarget(stored)).toBe(stored);
+  });
 });

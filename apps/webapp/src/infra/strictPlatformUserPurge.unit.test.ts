@@ -76,8 +76,8 @@ describe('strict account purge external cleanup contract', () => {
     });
     fakes.collectArtifactKeys.mockResolvedValue({
       intakeS3Keys: [INTAKE_KEY],
-      mediaFiles: [{ id: MEDIA_ID, s3Key: MEDIA_KEY }],
-      patientFileS3Keys: [PATIENT_FILE_KEY],
+      mediaFiles: [{ id: MEDIA_ID, s3Key: MEDIA_KEY, storageTarget: 'library' }],
+      patientFiles: [{ s3Key: PATIENT_FILE_KEY, storageTarget: 'library' }],
     });
     fakes.deleteS3Objects.mockResolvedValue([
       { ok: true, key: INTAKE_KEY },
@@ -135,11 +135,10 @@ describe('strict account purge external cleanup contract', () => {
     });
 
     expect(result).toMatchObject({ ok: true, outcome: 'completed' });
-    expect(fakes.deleteS3Objects).toHaveBeenCalledWith([
-      INTAKE_KEY,
-      MEDIA_KEY,
-      PATIENT_FILE_KEY,
-    ]);
+    expect(fakes.deleteS3Objects).toHaveBeenCalledWith(
+      [INTAKE_KEY, MEDIA_KEY, PATIENT_FILE_KEY],
+      'library',
+    );
     const mediaDelete = fakes.runPgPoolSql.mock.calls
       .map((call) => drizzleSqlFragmentToPgQuery(call[1]))
       .find((query) => query.sql.includes('DELETE FROM media_files'));
@@ -153,7 +152,7 @@ describe('strict account purge external cleanup contract', () => {
     fakes.collectArtifactKeys.mockResolvedValue({
       intakeS3Keys: [],
       mediaFiles: [{ id: MEDIA_ID, s3Key: MEDIA_KEY, storageTarget: 'patient' }],
-      patientFileS3Keys: [],
+      patientFiles: [],
     });
     fakes.deleteS3Objects.mockResolvedValue([{ ok: true, key: MEDIA_KEY }]);
 

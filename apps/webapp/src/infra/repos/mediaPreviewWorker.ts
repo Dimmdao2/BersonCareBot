@@ -85,10 +85,13 @@ type MediaPreviewIterationOutcome = 'empty' | 'processed' | 'error';
 
 type MediaPreviewIterationResult = {
   outcome: MediaPreviewIterationOutcome;
-  /** Raw upload superseded by a standard rendition; deleted only after the transaction commits. */
-  supersededOriginalKey?: string | null;
-  /** Хранилище того самого объекта: удалять его надо там, где он лежит. */
-  supersededOriginalTarget?: StorageTarget;
+  /**
+   * Raw upload superseded by a standard rendition; deleted only after the transaction commits.
+   * Ключ и хранилище — одним объектом: ключ без хранилища удалять некуда, и разнести их в две
+   * необязательные величины значит разрешить именно такой вызов.
+   */
+  supersededOriginal?: { key: string; target: StorageTarget } | null;
+
 };
 
 function backoffMinutesAfterFailure(attemptsAfterIncrement: number): number {
@@ -580,25 +583,26 @@ export async function processMediaPreviewBatch(
 
       return {
         outcome: 'processed',
-        supersededOriginalKey,
-        supersededOriginalTarget: storageTarget,
+        supersededOriginal: supersededOriginalKey
+          ? { key: supersededOriginalKey, target: storageTarget }
+          : null,
       };
     });
 
-    const { outcome, supersededOriginalKey, supersededOriginalTarget } = result;
+    const { outcome, supersededOriginal } = result;
 
     // Only now is the rendition durable AND the row committed to point at it, so the raw upload
     // is no longer the only copy. Best-effort: a failure here leaks bytes, never a patient photo.
-    if (supersededOriginalKey) {
+    if (supersededOriginal) {
       try {
-        await s3DeleteObject(supersededOriginalKey, supersededOriginalTarget);
+        await s3DeleteObject(supersededOriginal.key, supersededOriginal.target);
         logger.info(
-          { sourceKey: supersededOriginalKey },
+          { sourceKey: supersededOriginal.key },
           '[mediaPreviewWorker] original deleted after standard rendition',
         );
       } catch (e) {
         logger.warn(
-          { err: e, sourceKey: supersededOriginalKey },
+          { err: e, sourceKey: supersededOriginal.key },
           '[mediaPreviewWorker] original delete failed, non-fatal',
         );
       }

@@ -37,7 +37,8 @@ export async function GET(
 
   if (media.s3Key) {
     try {
-      const signed = await presignGetUrl(media.s3Key, PRESIGN_TTL_SECONDS);
+      /* Карточка клиники — публичный контент организации, не данные пациента. */
+      const signed = await presignGetUrl(media.s3Key, PRESIGN_TTL_SECONDS, 'library');
       const response = NextResponse.redirect(signed, 307);
       response.headers.set('Cache-Control', PUBLIC_CACHE_CONTROL);
       return response;

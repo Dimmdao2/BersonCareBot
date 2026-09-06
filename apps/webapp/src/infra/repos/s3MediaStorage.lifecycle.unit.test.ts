@@ -125,6 +125,7 @@ describe('proxy S3-to-DB lifecycle', () => {
         filename: 'photo.jpg',
         mimeType: 'image/jpeg',
         received: receivedJpeg(),
+        storageTarget: 'library',
       }),
     ).rejects.toThrow('media_upload_commit_failed');
 
@@ -146,6 +147,7 @@ describe('proxy S3-to-DB lifecycle', () => {
         filename: 'photo.jpg',
         mimeType: 'image/jpeg',
         received: receivedJpeg(),
+        storageTarget: 'library',
       }),
     ).rejects.toThrow('pending_insert_failed');
 

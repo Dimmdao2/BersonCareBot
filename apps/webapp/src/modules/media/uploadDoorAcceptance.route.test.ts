@@ -500,7 +500,7 @@ describe('Ч1 intent policy at the six public intake routes', () => {
     );
     expect(fakes.confirmProgramSubmissionMediaFileReady).toHaveBeenCalledOnce();
     expect(fakes.s3HeadObjectDetails).toHaveBeenCalledWith('uploads/object', 'patient');
-    expect(fakes.s3GetObjectPrefix).toHaveBeenCalledWith('uploads/object', undefined, 'patient');
+    expect(fakes.s3GetObjectPrefix).toHaveBeenCalledWith('uploads/object', 'patient');
   });
 
   it('does not replace an empty proxy filename with a valid synthetic filename', async () => {
@@ -583,7 +583,7 @@ describe('Ч1 received object at real confirm handlers', () => {
 
     expect(response.status).toBe(200);
     expect(fakes.s3HeadObjectDetails).toHaveBeenCalledWith('uploads/object', 'library');
-    expect(fakes.s3GetObjectPrefix).toHaveBeenCalledWith('uploads/object', undefined, 'library');
+    expect(fakes.s3GetObjectPrefix).toHaveBeenCalledWith('uploads/object', 'library');
     expect(fakes.confirmMediaFileReady).toHaveBeenCalledOnce();
     expect(fakes.confirmMediaFileReady.mock.calls[0]?.[1]).toMatchObject({
       intent: { mimeType: 'image/jpeg', sizeBytes: 3 },

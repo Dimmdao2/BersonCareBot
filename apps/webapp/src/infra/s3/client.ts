@@ -27,8 +27,6 @@ const S3_KEY_PREFIX = 'media';
  */
 export type { StorageTarget };
 
-const DEFAULT_TARGET: StorageTarget = 'library';
-
 type StorageConfig = {
   endpoint: string;
   region: string;
@@ -65,7 +63,7 @@ function storageConfigFor(target: StorageTarget): StorageConfig {
 }
 
 /** Бакет цели — для мест, которым нужно назвать хранилище (например, ответ двери загрузки). */
-export function storageBucketFor(target: StorageTarget = DEFAULT_TARGET): string {
+export function storageBucketFor(target: StorageTarget): string {
   return storageConfigFor(target).bucket;
 }
 
@@ -75,27 +73,43 @@ export function isPatientStorageSeparate(): boolean {
 }
 
 /**
- * Хранилище строки БД. Колонка `storage_target` объявлена NOT NULL DEFAULT 'library', но приходит
- * сюда как обычная строка из драйвера, а на платформенных строках её нет вовсе — поэтому всё,
- * что не названо явно, читается как библиотека: это ровно то поведение, что было до разделения.
+ * Хранилище строки БД. Колонка `storage_target` объявлена NOT NULL DEFAULT 'library', поэтому у
+ * ЛЮБОЙ живой строки значение есть. Если сюда пришло что-то другое — значит, читающий запрос не
+ * выбрал колонку, и молча подставить бакет было бы ровно тем, что владелец запретил 06.09.2026:
+ * «если для файлов пациентов мы забудем подставить назначение в каком-то куске кода, они
+ * загрузятся в библиотеку. А это неправильно».
  *
- * Обратное направление (считать неизвестное данными пациента) владелец отклонил 06.09.2026:
- * тогда любая старая строка библиотеки начала бы искаться в пустом шифрованном бакете.
+ * Поэтому здесь отказ, а не подстановка. Место, где хранилища действительно нет как факта, —
+ * платформенная библиотека упражнений: её шов такой колонки не отдаёт, и там `'library'`
+ * написано буквально, с объяснением.
  */
 export function parseStorageTarget(value: unknown): StorageTarget {
-  return value === 'patient' ? 'patient' : DEFAULT_TARGET;
+  if (value === 'patient' || value === 'library') return value;
+  throw new Error(`storage_target_missing_on_row: ${JSON.stringify(value)}`);
 }
 
-const clientCache = new Map<StorageTarget, S3Client>();
+/**
+ * Ключ кэша — сама конфигурация, а НЕ цель. Пока `PATIENT_S3_BUCKET` не задан, обе цели решаются в
+ * одну и ту же конфигурацию и получают ОДИН клиент: окружение без разделения работает буквально
+ * так же, как до его появления, а не «почти так же».
+ */
+function storageConfigIdentity(cfg: StorageConfig): string {
+  return [cfg.endpoint, cfg.region, cfg.accessKey, cfg.bucket, String(cfg.forcePathStyle)].join(
+    '\u0000',
+  );
+}
+
+const clientCache = new Map<string, S3Client>();
 
 /**
  * Shared SDK client for media buckets. Uses AWS SDK default HTTP timeouts/request handlers unless
  * overridden upstream; classify failures via {@link classifyS3GetObjectFailure} (`upstream_timeout`, etc.).
  */
-export function getS3Client(target: StorageTarget = DEFAULT_TARGET): S3Client {
-  const cached = clientCache.get(target);
-  if (cached) return cached;
+export function getS3Client(target: StorageTarget): S3Client {
   const cfg = storageConfigFor(target);
+  const identity = storageConfigIdentity(cfg);
+  const cached = clientCache.get(identity);
+  if (cached) return cached;
   const client = new S3Client({
     endpoint: cfg.endpoint,
     region: cfg.region,
@@ -105,11 +119,11 @@ export function getS3Client(target: StorageTarget = DEFAULT_TARGET): S3Client {
     },
     forcePathStyle: cfg.forcePathStyle,
   });
-  clientCache.set(target, client);
+  clientCache.set(identity, client);
   return client;
 }
 
-function privateBucket(target: StorageTarget = DEFAULT_TARGET): string {
+function privateBucket(target: StorageTarget): string {
   return storageConfigFor(target).bucket;
 }
 
@@ -153,7 +167,7 @@ export function s3PublicUrl(key: string): string {
 export async function presignPutUrl(
   key: string,
   mimeType: string,
-  target: StorageTarget = DEFAULT_TARGET,
+  target: StorageTarget,
 ): Promise<string> {
   const client = getS3Client(target);
   const cmd = new PutObjectCommand({
@@ -209,7 +223,7 @@ function contentDispositionFor(mimeType: string | undefined, filename: string | 
 export async function presignGetUrl(
   key: string,
   expiresSec: number = PRESIGN_GET_DEFAULT_SEC,
-  target: StorageTarget = DEFAULT_TARGET,
+  target: StorageTarget,
   serve?: { mimeType?: string; filename?: string },
 ): Promise<string> {
   const client = getS3Client(target);
@@ -226,7 +240,7 @@ export async function presignGetUrl(
 
 export async function s3HeadObject(
   key: string,
-  target: StorageTarget = DEFAULT_TARGET,
+  target: StorageTarget,
 ): Promise<boolean> {
   const d = await s3HeadObjectDetails(key, target);
   return d !== null;
@@ -244,7 +258,7 @@ export type S3HeadObjectDetails = {
 
 export async function s3HeadObjectDetails(
   key: string,
-  target: StorageTarget = DEFAULT_TARGET,
+  target: StorageTarget,
 ): Promise<S3HeadObjectDetails | null> {
   const client = getS3Client(target);
   try {
@@ -275,9 +289,9 @@ export async function s3CreateMultipartUpload(params: {
   key: string;
   contentType: string;
   metadata: Record<string, string>;
-  target?: StorageTarget;
+  target: StorageTarget;
 }): Promise<{ uploadId: string }> {
-  const target = params.target ?? DEFAULT_TARGET;
+  const { target } = params;
   const client = getS3Client(target);
   const out = await client.send(
     new CreateMultipartUploadCommand({
@@ -297,7 +311,7 @@ export async function presignUploadPartUrl(
   key: string,
   uploadId: string,
   partNumber: number,
-  target: StorageTarget = DEFAULT_TARGET,
+  target: StorageTarget,
 ): Promise<string> {
   const client = getS3Client(target);
   const cmd = new UploadPartCommand({
@@ -313,7 +327,7 @@ export async function s3CompleteMultipartUpload(
   key: string,
   uploadId: string,
   parts: { PartNumber: number; ETag: string }[],
-  target: StorageTarget = DEFAULT_TARGET,
+  target: StorageTarget,
 ): Promise<void> {
   const client = getS3Client(target);
   const sorted = [...parts].sort((a, b) => a.PartNumber - b.PartNumber);
@@ -336,7 +350,7 @@ export async function s3CompleteMultipartUpload(
 export async function s3AbortMultipartUpload(
   key: string,
   uploadId: string,
-  target: StorageTarget = DEFAULT_TARGET,
+  target: StorageTarget,
 ): Promise<void> {
   const client = getS3Client(target);
   await client.send(
@@ -352,7 +366,7 @@ export async function s3PutObjectBody(
   key: string,
   body: Buffer,
   mimeType: string,
-  target: StorageTarget = DEFAULT_TARGET,
+  target: StorageTarget,
 ): Promise<void> {
   const client = getS3Client(target);
   await client.send(
@@ -368,7 +382,7 @@ export async function s3PutObjectBody(
 /** Buffer read with typed failure reasons (small objects such as HLS playlists). */
 export async function s3GetPrivateObjectBuffer(
   key: string,
-  target: StorageTarget = DEFAULT_TARGET,
+  target: StorageTarget,
 ): Promise<{ ok: true; buf: Buffer } | { ok: false; reason: S3GetObjectStreamFailureReason }> {
   const client = getS3Client(target);
   try {
@@ -392,7 +406,7 @@ export async function s3GetPrivateObjectBuffer(
 /** Full object bytes from private bucket (e.g. preview worker reading originals). */
 export async function s3GetObjectBody(
   key: string,
-  target: StorageTarget = DEFAULT_TARGET,
+  target: StorageTarget,
 ): Promise<Buffer | null> {
   const got = await s3GetPrivateObjectBuffer(key, target);
   return got.ok ? got.buf : null;
@@ -401,8 +415,8 @@ export async function s3GetObjectBody(
 /** Read only the leading bytes needed to validate an uploaded object's file signature. */
 export async function s3GetObjectPrefix(
   key: string,
+  target: StorageTarget,
   maxBytes: number = 512,
-  target: StorageTarget = DEFAULT_TARGET,
 ): Promise<Buffer | null> {
   const client = getS3Client(target);
   try {
@@ -460,9 +474,9 @@ export type S3GetObjectStreamResult =
 export async function s3GetObjectStream(params: {
   key: string;
   range?: string | null;
-  target?: StorageTarget;
+  target: StorageTarget;
 }): Promise<S3GetObjectStreamResult> {
-  const target = params.target ?? DEFAULT_TARGET;
+  const { target } = params;
   const client = getS3Client(target);
   try {
     const out = await client.send(
@@ -496,7 +510,7 @@ export async function s3GetObjectStream(params: {
 
 export async function s3DeleteObject(
   key: string,
-  target: StorageTarget = DEFAULT_TARGET,
+  target: StorageTarget,
 ): Promise<void> {
   const client = getS3Client(target);
   await client.send(
@@ -513,7 +527,7 @@ export async function s3DeleteObject(
  */
 export async function s3ListObjectKeysUnderPrefix(
   prefix: string,
-  target: StorageTarget = DEFAULT_TARGET,
+  target: StorageTarget,
 ): Promise<string[]> {
   const client = getS3Client(target);
   const p = prefix.replace(/\/+$/, '');
@@ -546,7 +560,7 @@ export type S3PerKeyDeleteResult =
  */
 export async function deleteS3ObjectsWithPerKeyResults(
   keys: string[],
-  target: StorageTarget = DEFAULT_TARGET,
+  target: StorageTarget,
 ): Promise<S3PerKeyDeleteResult[]> {
   const out: S3PerKeyDeleteResult[] = [];
   for (const key of keys) {

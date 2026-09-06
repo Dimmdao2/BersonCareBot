@@ -150,10 +150,11 @@ export function createS3MediaStoragePort(): MediaStoragePort {
           uploadedBy: params.userId ?? null,
           folderId,
           organizationId,
+          storageTarget: params.storageTarget,
         });
 
       const buf = Buffer.from(body);
-      await s3PutObjectBody(key, buf, params.mimeType);
+      await s3PutObjectBody(key, buf, params.mimeType, params.storageTarget);
 
       const ready = await getWebappSqlDb()
         .update(mediaFiles)
