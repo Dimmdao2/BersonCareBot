@@ -176,3 +176,43 @@ pnpm lint                          → exit 0
 
 Одноразовых баз не поднималось, DEV/TEST/PROD не изменялись, вся временная поломка кода откачена
 (`git checkout --` после каждой мутации; рабочее дерево содержит только два тест-файла и этот отчёт).
+
+---
+
+## Устранение трёх MUST FIX (2026-09-06, та же ветка)
+
+Отчёт аудита выше остаётся как есть — ниже отмечено, что из него уже неверно.
+
+**MUST FIX 1 — закрыт.** FSM получил ребро `awaiting_payment → rescheduled` (и обратное
+`rescheduled → awaiting_payment`), а итоговый статус переноса перестал быть константой: его выбирает
+`appointmentStatusAfterReschedule` (`modules/payments/appointmentFinancialSnapshot.ts`) — запись,
+пришедшая в перенос ожидающей с непокрытым требованием, возвращается в ожидание, любая другая — в
+`confirmed`. То же правило повторено на SQL в пациентском корне
+`app.apply_current_patient_booking_reschedule` (миграция `20260906T101500_…sql`): он тоже завершал
+перенос жёстким `confirmed` и молча подтверждал неоплаченную запись. Ветка `!wantsAwaiting →
+confirmed` в маршруте перестала быть мёртвой.
+
+**MUST FIX 2 — закрыт.** Наличные по записи идут новым корнем
+`app.settle_appointment_cash_prepayment(text)` того же платёжного шва
+(`app_seam_payment_webhook_owner`, EXECUTE у `app_staff`, класс `staff`). Один корень пишет строку
+кассового журнала и зачисляет её на запись, выводя ту из ожидания: разложить это на два коммита
+нельзя — именованный корень не стартует внутри реляционной транзакции, и упавший второй коммит
+оставлял бы оплаченную запись под отменой по истечении срока. Идемпотентность — существующий
+уникальный ключ журнала: повтор вставляет ноль строк и зачисляет ноль. Семантика вебхука не
+тронута. `prepayment_paid_minor` у `app_staff` по-прежнему нет.
+
+**MUST FIX 3 — закрыт.** Ссылка/QR выставляются на непокрытую часть ТРЕБОВАНИЯ предоплаты из снимка
+записи (`appointmentPaymentIntentAmountMinor`), а не на полную стоимость; `getPaymentState` читает
+стоимость из снимка, а не из исторической проекции. Живой пересчёт `prepaymentQuote` удалён из
+`CalendarAppointmentPaymentView` целиком — карточка показывает то же число снимка, на которое
+создаётся намерение.
+
+**Добавленные поведенческие тесты** (каждый краснеет на возврате прежнего поведения):
+`modules/booking-engine/awaitingPaymentReschedule.unit.test.ts`,
+`infra/repos/pgBookingAppointmentLifecycle.awaitingPayment.unit.test.ts`,
+`infra/repos/pgPatientPayments.appointmentCash.unit.test.ts`,
+`app-layer/booking/staffAppointmentPaymentIntent.unit.test.ts`, два новых случая в
+`manual-reschedule/financials.route.test.ts` и два в
+`privileges/appointment-prepayment-least-privilege.test.mjs`.
+
+**Замечания ниже порога MUST FIX не трогались** — они остаются открытыми развилками/долгом.

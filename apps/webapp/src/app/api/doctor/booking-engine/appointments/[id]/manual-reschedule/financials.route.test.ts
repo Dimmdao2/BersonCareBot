@@ -149,6 +149,53 @@ describe('врачебная правка финансовых значений 
     expect(fakes.transitionAppointmentStatus.mock.calls[0][0].toStatus).toBe('awaiting_payment');
   });
 
+  it('правка записи В ОЖИДАНИИ ОПЛАТЫ проходит и обновляет снимок, а не отказывает', async () => {
+    // Ровно то состояние, ради которого работа затевалась: врач меняет цену ещё не оплаченной
+    // записи. До исправления перенос вёл её через недопустимый переход и ручка отдавала 500 —
+    // а другой двери для этой правки в системе нет.
+    const awaiting = appointment({ status: 'awaiting_payment', prepaymentMode: 'percent',
+      prepaymentPercentBps: 3000, prepaymentRequiredMinor: 75_000 });
+    fakes.resolveDoctorAppointmentAccess.mockResolvedValue(awaiting);
+    fakes.staffReschedule.mockResolvedValue({ ok: true, appointment: awaiting, reschedulePolicy: null });
+    fakes.updateAppointmentFinancialSnapshot.mockImplementation(async (input: {
+      snapshot: Record<string, unknown>;
+    }) => appointment({ ...input.snapshot, status: 'awaiting_payment' }));
+
+    const response = await POST(
+      request({ ...BASE_BODY, priceMinor: 400_000, prepayment: { mode: 'percent', percentBps: 3000 } }),
+      { params: Promise.resolve({ id: APPOINTMENT_ID }) },
+    );
+
+    expect(response.status).toBe(200);
+    const written = fakes.updateAppointmentFinancialSnapshot.mock.calls[0][0].snapshot;
+    expect(written.priceMinor).toBe(400_000);
+    expect(written.prepaymentRequiredMinor).toBe(120_000);
+    // Требование осталось — запись остаётся в ожидании, лишнего перехода нет.
+    expect(fakes.transitionAppointmentStatus).not.toHaveBeenCalled();
+  });
+
+  it('снятое условие предоплаты выводит ожидающую запись в подтверждённую', async () => {
+    const awaiting = appointment({ status: 'awaiting_payment', prepaymentMode: 'percent',
+      prepaymentPercentBps: 3000, prepaymentRequiredMinor: 75_000 });
+    fakes.resolveDoctorAppointmentAccess.mockResolvedValue(awaiting);
+    fakes.staffReschedule.mockResolvedValue({ ok: true, appointment: awaiting, reschedulePolicy: null });
+    fakes.updateAppointmentFinancialSnapshot.mockImplementation(async (input: {
+      snapshot: Record<string, unknown>;
+    }) => appointment({ ...input.snapshot, status: 'awaiting_payment' }));
+    fakes.transitionAppointmentStatus.mockResolvedValue(appointment({ status: 'confirmed' }));
+
+    const response = await POST(
+      request({ ...BASE_BODY, prepayment: { mode: 'disabled' } }),
+      { params: Promise.resolve({ id: APPOINTMENT_ID }) },
+    );
+
+    expect(response.status).toBe(200);
+    const written = fakes.updateAppointmentFinancialSnapshot.mock.calls[0][0].snapshot;
+    expect(written.prepaymentRequiredMinor).toBe(0);
+    expect(written.paymentDeadlineAt).toBeNull();
+    expect(fakes.transitionAppointmentStatus.mock.calls[0][0].toStatus).toBe('confirmed');
+  });
+
   it('ручная цена не уезжает за подорожавшим каталогом', async () => {
     fakes.resolveDoctorAppointmentAccess.mockResolvedValue(appointment());
     fakes.staffReschedule.mockResolvedValue({ ok: true, appointment: appointment(), reschedulePolicy: null });

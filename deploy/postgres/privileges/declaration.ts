@@ -25986,6 +25986,15 @@ const REV10_CONTEXT = {
       targetRole: 'app_worker', contextClass: 'service',
       purpose: 'booking-payment.prepayment.expire',
       functionIdentity: 'app.expire_due_booking_prepayments(integer)' },
+    // PAY-APPT-11/12: наличные в кассе гасят требование предоплаты. Дверь врачебная, но пишет она
+    // ФАКТИЧЕСКИ полученные деньги (`prepayment_paid_minor`), а этой колонки у `app_staff` нет и
+    // быть не должно — иначе обычная правка записи умеет подделать оплату. Отсюда корень ТОГО ЖЕ
+    // платёжного шва, исполняемый кабинетом: одна дверь, один владелец, одна проверка.
+    booking_prepayment_cash_settle: { port: 'webapp',
+      runtimeName: 'settle_appointment_cash_prepayment', sessionRole: 'app_staff',
+      targetRole: 'app_staff', contextClass: 'staff',
+      purpose: 'booking-payment.prepayment.cash-settle',
+      functionIdentity: 'app.settle_appointment_cash_prepayment(text)' },
     saas_billing_provider_preauth_read: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'billing.webhook.provider.read',
       functionIdentity: 'app.read_saas_billing_payment_provider_preauth()' },
@@ -27925,6 +27934,46 @@ const REV10_CONTEXT = {
             'linked_object_id', 'payload', 'occurred_at'],
           operations: ['INSERT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // PAY-APPT-11/12: наличные в кассе. Приём денег врачом — та же операция «деньги пришли», что и
+    // вебхук, поэтому владелец шва тот же, а исполнитель — кабинет. Журнал наличных
+    // (`patient_payment`) пишется здесь же, потому что именованный корень не стартует внутри уже
+    // открытой реляционной транзакции: разложенные на два коммита журнал и зачисление оставляли бы
+    // оплаченную запись под отменой по истечении срока. Финансовый СНИМОК (цена, режим, требуемая
+    // сумма) отсюда не пишется — его переписывает только врачебная правка через свои колонки.
+    'app.settle_appointment_cash_prepayment(text)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_staff'],
+      purpose: 'settle one cash prepayment of the accepted organization against its appointment',
+      typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: [
+          'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
+          'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
+          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
+          'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
+          'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
+          'payment_deadline_at',
+        ], operations: ['SELECT' as const, 'UPDATE' as const],
+        operationColumns: { UPDATE: ['prepayment_paid_minor', 'status', 'updated_at'] },
+        evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_payment', columns: [
+          'id', 'organization_id', 'patient_user_id', 'amount_minor', 'currency', 'kind', 'status',
+          'comment', 'service', 'visit_id', 'appointment_id', 'patient_package_id',
+          'idempotency_key', 'provider', 'provider_payment_id', 'created_by', 'created_at',
+        ], operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_history_events',
+          columns: ['organization_id', 'appointment_id', 'event_type', 'actor_id', 'payload', 'occurred_at'],
+          operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_patient_timeline_events', columns: [
+          'organization_id', 'platform_user_id', 'domain', 'event_type', 'linked_object_type',
+          'linked_object_id', 'payload', 'occurred_at',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     // PAY-APPT-11: истечение неоплаченного ожидания. Отбор — `FOR UPDATE SKIP LOCKED`, сам UPDATE

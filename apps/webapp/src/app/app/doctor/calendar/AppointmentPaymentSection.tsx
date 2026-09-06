@@ -123,7 +123,13 @@ export function AppointmentPaymentSection({
   const captured = current.payment?.status === 'succeeded' ? current.payment.amountMinor : 0;
   const paid = captured + current.manualPaidMinor;
   const totalMinor = current.totalMinor;
-  const quote = current.prepaymentQuote?.amountMinor ?? null;
+  // PAY-APPT-06: показываем ТРЕБУЕМУЮ предоплату из снимка записи — то же число, на которое
+  // выставляется счёт. Живого пересчёта из каталога здесь больше нет: он расходился со снимком
+  // после врачебного переопределения цены и после сдвига прайса услуги.
+  const prepaymentDueMinor =
+    current.prepayment && current.prepayment.requiredMinor > current.prepayment.paidMinor
+      ? current.prepayment.requiredMinor - current.prepayment.paidMinor
+      : null;
   const isSettled = totalMinor !== null && paid >= totalMinor;
   const remaining = totalMinor === null ? null : Math.max(0, totalMinor - paid);
   const canCollect = remaining !== null && remaining > 0;
@@ -135,8 +141,8 @@ export function AppointmentPaymentSection({
         : `Оплачено: ${money(paid)}`
     : paid > 0 && totalMinor !== null
       ? `Частично оплачено: ${money(paid)} из ${money(totalMinor)} · осталось ${money(remaining ?? 0)}`
-      : quote
-        ? `Не оплачено · предоплата ${money(quote, current.prepaymentQuote?.currency)}`
+      : prepaymentDueMinor
+        ? `Не оплачено · предоплата ${money(prepaymentDueMinor, current.prepayment?.currency)}`
         : 'Не оплачено';
 
   // Owner acceptance MONEY-06: the block exists only for a clinic whose tariff carries payments.
@@ -175,6 +181,15 @@ export function AppointmentPaymentSection({
           </Button>
           {current.onlinePaymentAvailable ? (
             <>
+              {/*
+                PAY-APPT-05/06: счёт выставляется на требуемую предоплату, поэтому её сумма стоит
+                рядом с кнопкой — показанное и созданное намерение обязаны совпадать.
+              */}
+              {prepaymentDueMinor !== null && prepaymentDueMinor !== remaining ? (
+                <p className="text-muted-foreground">
+                  Счёт на предоплату: {money(prepaymentDueMinor, current.prepayment?.currency)}
+                </p>
+              ) : null}
               <Button
                 type="button"
                 size="sm"

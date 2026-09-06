@@ -20,7 +20,6 @@ import type {
  */
 
 const PAID_VIEW: CalendarAppointmentPaymentView = {
-  prepaymentQuote: null,
   payment: { amountMinor: 10_000, status: 'succeeded' },
   totalMinor: 10_000,
   manualPaidMinor: 0,

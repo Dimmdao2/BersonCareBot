@@ -11,6 +11,7 @@ import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPat
 import { ensureActivePatientSpecialistLink } from '@/infra/repos/pgPatientVisibilityLinks';
 import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 import { assertValidAppointmentStatusTransition } from '@/modules/booking-engine/appointmentStatusFsm';
+import { appointmentStatusAfterReschedule } from '@/modules/payments/appointmentFinancialSnapshot';
 import type { BeAppointment } from '@/modules/booking-engine/types';
 import { normalizeAppointmentReminderSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
 import type {
@@ -388,6 +389,18 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
         if (fromStatus !== 'rescheduled') {
           assertValidAppointmentStatusTransition(fromStatus, 'rescheduled');
         }
+        // PAY-APPT-12: чем запись станет ПОСЛЕ переноса, решает доменное правило, а не константа.
+        // Ожидающая оплаты запись с непокрытым требованием возвращается в ожидание: подтвердить её
+        // здесь значило бы спрятать неоплаченную запись от тика истечения и навсегда занять слот.
+        const toStatus = appointmentStatusAfterReschedule({
+          fromStatus: fromStatus,
+          prepaymentRequiredMinor: current.prepaymentRequiredMinor ?? 0,
+          prepaymentPaidMinor: current.prepaymentPaidMinor ?? 0,
+          paymentRef: current.paymentRef ?? null,
+        });
+        if (fromStatus !== 'rescheduled') {
+          assertValidAppointmentStatusTransition('rescheduled', toStatus);
+        }
         await tx
           .update(beAppointments)
           .set({ status: 'rescheduled', updatedAt: now })
@@ -447,7 +460,7 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
               : {}),
             originalStartAt,
             rescheduleCount: current.rescheduleCount + 1,
-            status: 'confirmed',
+            status: toStatus,
             updatedAt: now,
           })
           .where(eq(beAppointments.id, input.appointmentId));
@@ -478,7 +491,7 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
 
         const payload = {
           fromStatus,
-          toStatus: 'confirmed',
+          toStatus,
           fromStartAt: current.startAt,
           toStartAt: input.newStartAt,
           manualOverride: input.manualOverride ?? false,

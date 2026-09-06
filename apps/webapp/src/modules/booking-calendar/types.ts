@@ -69,8 +69,6 @@ export type CalendarFilterMeta = {
  * поэтому блок оплаты не «доезжает» вторым запросом и не меняет вид после первого рендера.
  */
 export type CalendarAppointmentPaymentView = {
-  /** null — запись не найдена в платёжном контуре; блок показывает «не оплачено» без суммы. */
-  prepaymentQuote: { amountMinor: number; currency: string } | null;
   payment: { amountMinor: number; status: string } | null;
   totalMinor: number | null;
   manualPaidMinor: number;

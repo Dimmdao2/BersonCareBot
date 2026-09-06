@@ -93,7 +93,6 @@ beforeEach(() => {
   fakes.loadStaffAppointmentPaymentSummary.mockResolvedValue({
     appointmentId: APPOINTMENT_ID,
     appointmentStatus: 'confirmed',
-    prepaymentQuote: null,
     intent: null,
     payment: null,
     history: [],
@@ -212,7 +211,6 @@ describe('doctor appointment payment route', () => {
     fakes.loadStaffAppointmentPaymentSummary.mockResolvedValue({
       appointmentId: APPOINTMENT_ID,
       appointmentStatus: 'confirmed',
-      prepaymentQuote: null,
       intent: null,
       payment: { amountMinor: 2_500, status: 'succeeded' },
       history: [],

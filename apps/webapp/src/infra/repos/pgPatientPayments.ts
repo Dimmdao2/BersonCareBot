@@ -45,6 +45,53 @@ function rowToPayment(row: typeof patientPayment.$inferSelect): PatientPayment {
 }
 
 /**
+ * Строка журнала, вернувшаяся из именованного корня: `to_jsonb` отдаёт КОЛОНКИ базы, а не
+ * camelCase-отображение Drizzle, поэтому у неё свой разбор — общий с реляционным путём остаётся
+ * доменный тип, а не форма строки.
+ */
+type PatientPaymentJsonRow = {
+  id: string;
+  organization_id: string | null;
+  patient_user_id: string;
+  amount_minor: number;
+  currency: string | null;
+  kind: string;
+  status: string;
+  comment: string | null;
+  service: string | null;
+  visit_id: string | null;
+  appointment_id: string | null;
+  patient_package_id: string | null;
+  idempotency_key: string | null;
+  provider: string | null;
+  provider_payment_id: string | null;
+  created_by: string;
+  created_at: string;
+};
+
+function jsonRowToPayment(row: PatientPaymentJsonRow): PatientPayment {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    patientUserId: row.patient_user_id,
+    amountMinor: row.amount_minor,
+    currency: row.currency ?? 'RUB',
+    kind: row.kind as PatientPayment['kind'],
+    status: row.status as PatientPayment['status'],
+    comment: row.comment,
+    service: row.service,
+    visitId: row.visit_id,
+    appointmentId: row.appointment_id,
+    patientPackageId: row.patient_package_id,
+    idempotencyKey: row.idempotency_key,
+    provider: row.provider,
+    providerPaymentId: row.provider_payment_id,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+  };
+}
+
+/**
  * The ledger is plain relation access, and the webapp port hands the tenant-service class no
  * through-door for that: `deploy/postgres/privileges/declaration.ts` states «сквозной
  * `purpose: 'relation'` этому классу не выдают (SCHEME §3)», so the only declared relation
@@ -134,6 +181,40 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
 
     async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
       const idempotencyKey = input.idempotencyKey?.trim() || null;
+      /**
+       * PAY-APPT-11/12: наличные ПО ЗАПИСИ гасят требование предоплаты в том же коммите, что и
+       * строку журнала. Отдельным путём это быть не может: `prepayment_paid_minor` пишет только
+       * платёжный шов, а именованный корень не стартует внутри реляционной транзакции — разложи
+       * это на два коммита, и упавший второй оставит оплаченную запись под отменой по истечении
+       * срока. Прочие наличные (визит, абонемент) идут прежним реляционным путём: записи у них
+       * нет, гасить нечего.
+       */
+      if (input.appointmentId && idempotencyKey) {
+        const payload = JSON.stringify({
+          organizationId: input.organizationId,
+          appointmentId: input.appointmentId,
+          patientUserId: input.patientUserId,
+          amountMinor: input.amountMinor,
+          currency: input.currency ?? 'RUB',
+          comment: input.comment ?? null,
+          service: input.service ?? null,
+          idempotencyKey,
+          createdBy: input.createdBy,
+        });
+        const settled = await runWebappNamedRoot<{
+          settlement: { payment: PatientPaymentJsonRow | null } | null;
+        }>(
+          getWebappSqlDb(),
+          'app.settle_appointment_cash_prepayment(text)',
+          [payload],
+          sql`SELECT app.settle_appointment_cash_prepayment(
+            ${payload}::text
+          ) AS settlement`,
+        );
+        const payment = settled.rows[0]?.settlement?.payment ?? null;
+        if (!payment?.id) throw new Error('appointment_cash_settlement_failed');
+        return jsonRowToPayment(payment);
+      }
       const row = await runPatientPaymentMutation(input.organizationId, async (tx) => {
         const inserted = await tx
           .insert(patientPayment)

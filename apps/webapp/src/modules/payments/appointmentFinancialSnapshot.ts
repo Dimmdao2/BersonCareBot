@@ -167,6 +167,60 @@ export function assertAppointmentFinancialsMutable(state: AppointmentMoneyState)
 }
 
 /**
+ * PAY-APPT-12: чем становится запись ПОСЛЕ переноса.
+ *
+ * Перенос сам по себе денег не двигает, поэтому он не вправе и подтверждать неоплаченное. Запись,
+ * пришедшая в перенос ожидающей оплаты с непокрытым требованием, остаётся ожидающей: только в этом
+ * статусе её видит тик истечения, и только он освобождает слот в срок. Любая другая запись —
+ * `confirmed`, ровно как до появления предоплаты.
+ *
+ * Правило одно на оба переноса: врачебный (`applyReschedule`) и пациентский
+ * (`app.apply_current_patient_booking_reschedule`) — второй повторяет его на SQL, потому что
+ * исполняется в базе, а не в приложении.
+ */
+export function appointmentStatusAfterReschedule(state: {
+  fromStatus: string;
+  prepaymentRequiredMinor: number;
+  prepaymentPaidMinor: number;
+  paymentRef: string | null;
+}): 'awaiting_payment' | 'confirmed' {
+  const stillOwed =
+    state.paymentRef == null && state.prepaymentPaidMinor < state.prepaymentRequiredMinor;
+  return state.fromStatus === 'awaiting_payment' && stillOwed ? 'awaiting_payment' : 'confirmed';
+}
+
+/**
+ * PAY-APPT-10/12: требование предоплаты покрыто фактически полученными деньгами.
+ *
+ * Один предикат на все двери приёма денег: онлайн-платёж, наличные в кассе и замок на
+ * переписывание финансовых значений спрашивают одно и то же, а не каждый своё.
+ */
+export function isAppointmentPrepaymentSatisfied(state: {
+  prepaymentRequiredMinor: number;
+  prepaymentPaidMinor: number;
+}): boolean {
+  return state.prepaymentPaidMinor >= state.prepaymentRequiredMinor;
+}
+
+/**
+ * PAY-APPT-05/06: сколько именно выставлять счётом из деталей записи.
+ *
+ * Ссылка/QR выставляются на НЕПОКРЫТУЮ ЧАСТЬ ТРЕБОВАНИЯ предоплаты, а не на полную стоимость:
+ * иначе карточка показывает «предоплата 750 ₽», а платёжное намерение уходит на 2500 ₽. Требования
+ * предоплаты нет — счёт выставляется на остаток стоимости, как и до появления снимка.
+ */
+export function appointmentPaymentIntentAmountMinor(state: {
+  prepaymentRequiredMinor: number;
+  prepaymentPaidMinor: number;
+  remainingTotalMinor: number;
+}): number {
+  if (state.prepaymentRequiredMinor <= 0) return Math.max(0, state.remainingTotalMinor);
+  const outstanding = state.prepaymentRequiredMinor - state.prepaymentPaidMinor;
+  // Остаток стоимости — верхняя граница: переплатить вперёд предоплатой нельзя.
+  return Math.max(0, Math.min(outstanding, state.remainingTotalMinor));
+}
+
+/**
  * PAY-APPT-07: требование предоплаты держит слот в `awaiting_payment`; без требования запись
  * ведёт себя ровно как раньше. Один и тот же выбор для пациентской и врачебной записи.
  */

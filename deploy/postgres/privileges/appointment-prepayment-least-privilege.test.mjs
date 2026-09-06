@@ -126,19 +126,62 @@ test('a patient reschedule or cancellation reads the money but cannot rewrite it
   }
 });
 
-test('only the payment webhook seam writes the money that actually arrived', () => {
+test('only the payment seam writes the money that actually arrived', () => {
   const writers = Object.entries(declaration.portContext.functions).filter(([, declared]) => {
     const surface = (declared.relationSurfaces ?? []).find((e) => e.relation === APPOINTMENTS);
     if (!surface || !surface.operations.includes('UPDATE')) return false;
     return updatableColumns(surface).has(FACTUAL_MONEY_COLUMN);
   });
+  // Двери приёма денег ровно две — онлайн-платёж провайдера и наличные в кассе, — и обе стоят у
+  // ОДНОГО шва. Третья дверь здесь означала бы, что зачислить предоплату умеет кто-то ещё.
   assert.deepEqual(
     writers.map(([identity]) => identity).sort(),
-    ['app.settle_booking_payment_webhook_event(text,text,text,text,text)'],
-    'more than one definer root may credit an appointment prepayment',
+    [
+      'app.settle_appointment_cash_prepayment(text)',
+      'app.settle_booking_payment_webhook_event(text,text,text,text,text)',
+    ],
+    'more than the two payment-seam roots may credit an appointment prepayment',
   );
-  assert.equal(writers[0][1].owner, 'app_seam_payment_webhook_owner');
-  assert.deepEqual(writers[0][1].execute, ['app_tenant_service']);
+  for (const [, declared] of writers) {
+    assert.equal(declared.owner, 'app_seam_payment_webhook_owner');
+    assert.equal(declared.security, 'DEFINER');
+  }
+  assert.deepEqual(fn('app.settle_booking_payment_webhook_event(text,text,text,text,text)').execute, [
+    'app_tenant_service',
+  ]);
+  assert.deepEqual(fn('app.settle_appointment_cash_prepayment(text)').execute, ['app_staff']);
+});
+
+test('the cash door credits money but never rewrites the price it was measured against', () => {
+  const identity = 'app.settle_appointment_cash_prepayment(text)';
+  const surface = appointmentSurface(identity);
+  const writable = updatableColumns(surface);
+  // Наличные — факт денег. Стоимость и условие предоплаты они не переписывают: иначе касса стала бы
+  // второй дверью правки снимка, и показанное пациенту требование можно было бы подогнать под кассу.
+  assert.deepEqual(
+    SNAPSHOT_COLUMNS.filter((column) => writable.has(column)),
+    [],
+    `${identity} may rewrite the financial snapshot; only the staff edit path may`,
+  );
+  assert.ok(writable.has(FACTUAL_MONEY_COLUMN), `${identity} must credit ${FACTUAL_MONEY_COLUMN}`);
+  // Ledger и запись обязаны меняться одним корнем: разложенные на два коммита они оставляют
+  // оплаченную наличными запись под отменой по истечении срока.
+  const ledger = (fn(identity).relationSurfaces ?? []).find(
+    (entry) => entry.relation === 'public.patient_payment',
+  );
+  assert.ok(ledger, `${identity} must write the cash ledger in the same root`);
+  assert.ok(ledger.operations.includes('INSERT'), 'cash root must insert the ledger row');
+});
+
+test('the cash settlement is reached through the declared staff port capability', () => {
+  const capability = Object.values(declaration.portContext.capabilities ?? {}).find(
+    (entry) => entry.functionIdentity === 'app.settle_appointment_cash_prepayment(text)',
+  );
+  assert.ok(capability, 'no port capability declares the cash settlement root');
+  assert.equal(capability.sessionRole, 'app_staff');
+  assert.equal(capability.targetRole, 'app_staff');
+  assert.equal(capability.contextClass, 'staff');
+  assert.equal(capability.purpose, 'booking-payment.prepayment.cash-settle');
 });
 
 test('the expiry job may only release the slot, never touch money', () => {
