@@ -1,7 +1,15 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronUp, FilePlus2, HeartPlus, Plus, SquarePen } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  FilePlus2,
+  HeartPlus,
+  Plus,
+  ScrollText,
+  SquarePen,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import type {
   ActiveComplaint,
@@ -103,43 +111,155 @@ function patientTitle(
   );
 }
 
+/**
+ * CLINICAL-HEADER-05/06: показ закрытых записей переключает одна компактная icon-only кнопка
+ * `ScrollText`. Видимого текста «История» нет — подпись живёт только в `aria-label`/`title`;
+ * активное состояние берёт общий doctor-словарь фильтра (синие обводка, иконка и лёгкий фон),
+ * а не локальный hex.
+ */
+function HistoryToggleButton({
+  active,
+  label,
+  onToggle,
+}: {
+  active: boolean;
+  label: string;
+  onToggle: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-pressed={active}
+      aria-label={label}
+      title={label}
+      className={cn(active && 'border-primary bg-primary/15 text-primary hover:bg-primary/20')}
+      onClick={onToggle}
+    >
+      <ScrollText className="size-5" />
+    </Button>
+  );
+}
+
 function SectionHeader({
   title,
   history,
+  historyLabel,
   onHistoryChange,
   onAdd,
   addLabel,
   addIcon,
+  hasContent,
 }: {
   title: string;
   history: boolean;
+  historyLabel: string;
   onHistoryChange: () => void;
   onAdd: () => void;
   addLabel: string;
   addIcon: ReactNode;
+  /** Без содержимого шапка сама держит нижний внутренний отступ белого блока. */
+  hasContent: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 px-[var(--doctor-block-padding,18px)] pb-2 pt-[var(--doctor-block-padding,18px)]">
+    <div
+      className={cn(
+        'flex items-center justify-between gap-3 px-[var(--doctor-block-padding,18px)] pt-[var(--doctor-block-padding,18px)]',
+        hasContent ? 'pb-2' : 'pb-[var(--doctor-block-padding,18px)]',
+      )}
+    >
       <h3 className={doctorSectionTitleClass}>{title}</h3>
       <div className="flex items-center gap-1.5">
+        <HistoryToggleButton active={history} label={historyLabel} onToggle={onHistoryChange} />
         <Button
           type="button"
-          variant="outline"
-          size="sm"
-          aria-pressed={history}
-          className={cn(
-            'h-8 px-2.5 text-sm font-normal',
-            history && 'border-primary bg-primary/5 text-primary hover:bg-primary/10',
-          )}
-          onClick={onHistoryChange}
+          variant="ghost"
+          size="icon-sm"
+          aria-label={addLabel}
+          title={addLabel}
+          onClick={onAdd}
         >
-          История
-        </Button>
-        <Button type="button" variant="ghost" size="icon-sm" title={addLabel} onClick={onAdd}>
           {addIcon}
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * CLINICAL-HISTORY-01..03 + CLINICAL-ROW-05/06: один белый блок клинического списка. Актуальный
+ * список рендерится всегда; включённая история добавляет отдельную приглушённую секцию НАД ним
+ * внутри того же блока, а повторный тап убирает только её. Пустой список не рисует ни прочерка,
+ * ни заглушки — остаются только заголовок и действие добавления.
+ */
+function ClinicalListBlock({
+  title,
+  historyLabel,
+  addLabel,
+  addIcon,
+  onAdd,
+  history,
+  onHistoryChange,
+  loading,
+  error,
+  errorText,
+  historyRows,
+  currentRows,
+}: {
+  title: string;
+  historyLabel: string;
+  addLabel: string;
+  addIcon: ReactNode;
+  onAdd: () => void;
+  history: boolean;
+  onHistoryChange: () => void;
+  loading: boolean;
+  error: boolean;
+  errorText: string;
+  historyRows: ReactNode[];
+  currentRows: ReactNode[];
+}) {
+  const showHistorySection = history && historyRows.length > 0;
+  const hasContent = loading || error || showHistorySection || currentRows.length > 0;
+  return (
+    <section
+      className={cn(
+        doctorSectionCardClass,
+        'gap-0 overflow-hidden p-0',
+        hasContent && 'pb-[var(--doctor-block-padding,18px)]',
+      )}
+    >
+      <SectionHeader
+        title={title}
+        history={history}
+        historyLabel={historyLabel}
+        onHistoryChange={onHistoryChange}
+        onAdd={onAdd}
+        addLabel={addLabel}
+        addIcon={addIcon}
+        hasContent={hasContent}
+      />
+      {loading ? <DoctorPanelLoading className="py-5" /> : null}
+      {!loading && error ? (
+        <p className="px-[var(--doctor-block-padding,18px)] text-sm text-destructive">{errorText}</p>
+      ) : null}
+      {!loading && !error ? (
+        <>
+          {showHistorySection ? <DoctorDnaFlatList>{historyRows}</DoctorDnaFlatList> : null}
+          {currentRows.length > 0 ? (
+            <DoctorDnaFlatList
+              className={cn(
+                showHistorySection &&
+                  'border-t border-t-[var(--doctor-flat-list-divider,#f0efeb)]',
+              )}
+            >
+              {currentRows}
+            </DoctorDnaFlatList>
+          ) : null}
+        </>
+      ) : null}
+    </section>
   );
 }
 
@@ -402,8 +522,17 @@ export function PatientClinicalSections({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
-  const complaintList = showComplaintHistory ? complaintHistory : complaints;
-  const diagnosisList = showDiagnosisHistory ? diagnosisHistory : diagnoses;
+  const openComplaint = (complaint: ActiveComplaint) => {
+    setSelectedComplaint(complaint);
+    setUpdateSeverity(String(complaint.currentSeverity));
+    setUpdateNote('');
+    setSaveError(false);
+  };
+
+  const openDiagnosis = (diagnosis: ActiveDiagnosis) => {
+    setSelectedDiagnosis(diagnosis);
+    setSaveError(false);
+  };
 
   useEffect(() => {
     if (!selectedComplaint) return;
@@ -539,89 +668,71 @@ export function PatientClinicalSections({
 
   return (
     <>
-      <section className={cn(doctorSectionCardClass, 'gap-0 overflow-hidden p-0')}>
-        <SectionHeader
-          title="Симптомы"
-          history={showComplaintHistory}
-          onHistoryChange={() => setShowComplaintHistory((value) => !value)}
-          onAdd={() => {
-            setComplaintDraft(EMPTY_COMPLAINT);
-            setSaveError(false);
-            setComplaintAddOpen(true);
-          }}
-          addLabel="Добавить симптом"
-          addIcon={<FilePlus2 className="size-5" />}
-        />
-        {loading ? <DoctorPanelLoading className="py-5" /> : null}
-        {!loading && fetchError ? (
-          <p className="px-[var(--doctor-block-padding,18px)] pb-4 text-sm text-destructive">
-            Не удалось загрузить симптомы.
-          </p>
-        ) : null}
-        {!loading && !fetchError && complaintList.length === 0 ? (
-          <p className="px-[var(--doctor-block-padding,18px)] pb-4 text-sm text-muted-foreground">
-            —
-          </p>
-        ) : null}
-        {!loading && !fetchError && complaintList.length > 0 ? (
-          <DoctorDnaFlatList>
-            {complaintList.map((complaint) => (
-              <ComplaintRow
-                key={complaint.id}
-                complaint={complaint}
-                historical={showComplaintHistory}
-                onOpen={() => {
-                  setSelectedComplaint(complaint);
-                  setUpdateSeverity(String(complaint.currentSeverity));
-                  setUpdateNote('');
-                  setSaveError(false);
-                }}
-              />
-            ))}
-          </DoctorDnaFlatList>
-        ) : null}
-      </section>
+      <ClinicalListBlock
+        title="Симптомы"
+        historyLabel="История симптомов"
+        addLabel="Добавить симптом"
+        addIcon={<FilePlus2 className="size-5" />}
+        onAdd={() => {
+          setComplaintDraft(EMPTY_COMPLAINT);
+          setSaveError(false);
+          setComplaintAddOpen(true);
+        }}
+        history={showComplaintHistory}
+        onHistoryChange={() => setShowComplaintHistory((value) => !value)}
+        loading={loading}
+        error={fetchError}
+        errorText="Не удалось загрузить симптомы."
+        historyRows={complaintHistory.map((complaint) => (
+          <ComplaintRow
+            key={complaint.id}
+            complaint={complaint}
+            historical
+            onOpen={() => openComplaint(complaint)}
+          />
+        ))}
+        currentRows={complaints.map((complaint) => (
+          <ComplaintRow
+            key={complaint.id}
+            complaint={complaint}
+            historical={false}
+            onOpen={() => openComplaint(complaint)}
+          />
+        ))}
+      />
 
-      <section className={cn(doctorSectionCardClass, 'gap-0 overflow-hidden p-0')}>
-        <SectionHeader
-          title="Диагнозы"
-          history={showDiagnosisHistory}
-          onHistoryChange={() => setShowDiagnosisHistory((value) => !value)}
-          onAdd={() => {
-            setDiagnosisDraft(EMPTY_DIAGNOSIS);
-            setSaveError(false);
-            setDiagnosisAddOpen(true);
-          }}
-          addLabel="Добавить диагноз"
-          addIcon={<HeartPlus className="size-5" />}
-        />
-        {loading ? <DoctorPanelLoading className="py-5" /> : null}
-        {!loading && fetchError ? (
-          <p className="px-[var(--doctor-block-padding,18px)] pb-4 text-sm text-destructive">
-            Не удалось загрузить диагнозы.
-          </p>
-        ) : null}
-        {!loading && !fetchError && diagnosisList.length === 0 ? (
-          <p className="px-[var(--doctor-block-padding,18px)] pb-4 text-sm text-muted-foreground">
-            —
-          </p>
-        ) : null}
-        {!loading && !fetchError && diagnosisList.length > 0 ? (
-          <DoctorDnaFlatList>
-            {diagnosisList.map((diagnosis) => (
-              <DiagnosisRow
-                key={diagnosis.id}
-                diagnosis={diagnosis}
-                historical={showDiagnosisHistory}
-                onOpen={() => {
-                  setSelectedDiagnosis(diagnosis);
-                  setSaveError(false);
-                }}
-              />
-            ))}
-          </DoctorDnaFlatList>
-        ) : null}
-      </section>
+      <ClinicalListBlock
+        title="Диагнозы"
+        historyLabel="История диагнозов"
+        addLabel="Добавить диагноз"
+        addIcon={<HeartPlus className="size-5" />}
+        onAdd={() => {
+          setDiagnosisDraft(EMPTY_DIAGNOSIS);
+          setSaveError(false);
+          setDiagnosisAddOpen(true);
+        }}
+        history={showDiagnosisHistory}
+        onHistoryChange={() => setShowDiagnosisHistory((value) => !value)}
+        loading={loading}
+        error={fetchError}
+        errorText="Не удалось загрузить диагнозы."
+        historyRows={diagnosisHistory.map((diagnosis) => (
+          <DiagnosisRow
+            key={diagnosis.id}
+            diagnosis={diagnosis}
+            historical
+            onOpen={() => openDiagnosis(diagnosis)}
+          />
+        ))}
+        currentRows={diagnoses.map((diagnosis) => (
+          <DiagnosisRow
+            key={diagnosis.id}
+            diagnosis={diagnosis}
+            historical={false}
+            onOpen={() => openDiagnosis(diagnosis)}
+          />
+        ))}
+      />
 
       <DiseaseAnamnesisSection
         userId={userId}
@@ -1070,6 +1181,16 @@ function DiagnosisFormModal({
   );
 }
 
+/**
+ * LIFE-SECTION-08/10: подсекция анамнеза жизни на 2px мельче заголовка блока
+ * (`doctorSectionTitleClass`: 16px mobile / 14px desktop) на обоих брейкпоинтах; значения идут
+ * тем же размером обычным начертанием. Оба класса — общая шкала doctor-зоны, не локальные px.
+ */
+const lifeSubsectionTitleClass =
+  'text-sm leading-5 font-semibold text-foreground md:text-xs md:leading-4';
+const lifeSubsectionValueClass =
+  'text-sm leading-5 font-normal text-foreground md:text-xs md:leading-4';
+
 type AnamnesisModalSection = 'comorbidity' | 'trauma' | 'illness' | 'lifestyle';
 /** «Образ жизни» is edited through its own single-value fullscreen flow, not this append form. */
 type AppendAnamnesisModalSection = Exclude<AnamnesisModalSection, 'lifestyle'>;
@@ -1268,6 +1389,7 @@ function LifeAnamnesisSection({
   const [comorbidities, setComorbidities] = useState<PatientClinicalComorbidity[] | null>(
     initialComorbidities ?? null,
   );
+  const [lifeEditorOpen, setLifeEditorOpen] = useState(false);
   const [showComorbidityHistory, setShowComorbidityHistory] = useState(false);
   const [comorbiditiesIncludeHistory, setComorbiditiesIncludeHistory] = useState(false);
   const [comorbiditiesError, setComorbiditiesError] = useState(false);
@@ -1446,71 +1568,119 @@ function LifeAnamnesisSection({
       ? comorbidities?.find((item) => item.id === editor.id)
       : null;
 
+  // LIFE-SECTION-07/09: карта показывает ТОЛЬКО фактические значения. Пустая подсекция не
+  // отдаёт ни заголовка, ни прочерка, ни зарезервированной высоты — её просто нет в списке.
+  const comorbidityValues = (comorbidities ?? [])
+    .filter((item) => item.status === 'active')
+    .map((item) => ({ id: item.id, text: joinValueParts([item.text, item.since]) }));
+  const traumaValues = state.trauma.map((item) => ({
+    id: item.id,
+    text: joinValueParts([item.what, item.year, item.type, item.immobilization]),
+  }));
+  const illnessValues = state.illness.map((item) => ({
+    id: item.id,
+    text: joinValueParts([item.what, item.period, item.comment]),
+  }));
+  const lifestyleText = latestLifestyle?.text?.trim() ? latestLifestyle.text : '';
+  const lifestyleValues = lifestyleText
+    ? [{ id: latestLifestyle?.id ?? 'lifestyle', text: lifestyleText }]
+    : [];
+
   return (
     <>
-      <section className={cn(doctorSectionCardClass, 'gap-0 overflow-hidden p-0')}>
-        <h3 className={cn(doctorSectionTitleClass, 'px-[var(--doctor-block-padding,18px)] pt-[var(--doctor-block-padding,18px)]')}>
-          Анамнез жизни
-        </h3>
+      <section className={doctorSectionCardClass}>
+        {/* LIFE-EDIT-01/01A: на основном блоке ровно одно действие — общий редактор целиком. */}
+        <div className="flex items-center justify-between gap-3">
+          <h3 className={doctorSectionTitleClass}>Анамнез жизни</h3>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Изменить анамнез жизни"
+            title="Изменить анамнез жизни"
+            onClick={() => setLifeEditorOpen(true)}
+          >
+            <SquarePen className="size-5" />
+          </Button>
+        </div>
         {loading ? <DoctorPanelLoading className="py-4" /> : null}
         {!loading && (error || comorbiditiesError) ? (
-          <p className="px-[var(--doctor-block-padding,18px)] pb-4 text-sm text-destructive">
-            Не удалось загрузить анамнез жизни.
-          </p>
+          <p className="text-sm text-destructive">Не удалось загрузить анамнез жизни.</p>
         ) : null}
         {!loading && !error ? (
-          <div className="mt-2">
-            <AnamnesisListSection
-              title="Сопутствующие заболевания"
-              onAdd={() => openEditor('comorbidity')}
-              history={showComorbidityHistory}
-              onHistoryChange={() => {
-                setShowComorbidityHistory((value) => !value);
-                if (!comorbiditiesIncludeHistory) loadComorbidities(true);
-              }}
-              items={(comorbidities ?? [])
-                .filter((item) =>
-                  showComorbidityHistory ? item.status === 'removed' : item.status === 'active',
-                )
-                .map((item) => ({
-                  id: item.id,
-                  primary: item.text,
-                  secondary: item.since,
-                }))}
-              onOpen={(id) => openEditor('comorbidity', { id })}
-            />
-            <AnamnesisListSection
-              title="Травмы и операции"
-              onAdd={() => openEditor('trauma')}
-              items={state.trauma.map((item) => ({
-                id: item.id,
-                primary: item.what,
-                secondary: [item.year, item.type, item.immobilization].filter(Boolean).join(' · '),
-              }))}
-              onOpen={(id) => openEditor('trauma', { id })}
-            />
-            <AnamnesisListSection
-              title="Болезни, стрессы"
-              onAdd={() => openEditor('illness')}
-              items={state.illness.map((item) => ({
-                id: item.id,
-                primary: item.what,
-                secondary: [item.period, item.comment].filter(Boolean).join(' · '),
-              }))}
-              onOpen={(id) => openEditor('illness', { id })}
-            />
-            <LifestyleSubsection
-              title="Образ жизни"
-              text={latestLifestyle?.text ?? ''}
-              onEdit={openLifestyleEditor}
-            />
-          </div>
+          <>
+            <LifeAnamnesisSummary title="Сопутствующие заболевания" values={comorbidityValues} />
+            <LifeAnamnesisSummary title="Травмы и операции" values={traumaValues} />
+            <LifeAnamnesisSummary title="Болезни, стрессы" values={illnessValues} />
+            <LifeAnamnesisSummary title="Образ жизни" values={lifestyleValues} />
+          </>
         ) : null}
       </section>
+
+      {/*
+        LIFE-EDIT-02/03/03A: один общий редактор — прокручиваемая по вертикали DoctorModal с
+        patient context и без выбора пациента. `bodyVariant="list"` снимает внутренние отступы,
+        поэтому содержимое идёт одной последовательной простынёй на всю доступную ширину, без
+        внешней вложенной карточки. Перечислены все четыре раздела, включая пустые.
+      */}
+      <DoctorModal
+        open={lifeEditorOpen}
+        onClose={() => setLifeEditorOpen(false)}
+        title={patientTitle('Анамнез жизни', patientName, patientOnSupport)}
+        size="md"
+        bodyVariant="list"
+      >
+        <AnamnesisListSection
+          title="Сопутствующие заболевания"
+          onAdd={() => openEditor('comorbidity')}
+          history={showComorbidityHistory}
+          historyLabel="История сопутствующих заболеваний"
+          onHistoryChange={() => {
+            setShowComorbidityHistory((value) => !value);
+            if (!comorbiditiesIncludeHistory) loadComorbidities(true);
+          }}
+          items={(comorbidities ?? [])
+            .filter((item) =>
+              showComorbidityHistory ? item.status === 'removed' : item.status === 'active',
+            )
+            .map((item) => ({
+              id: item.id,
+              primary: item.text,
+              secondary: item.since,
+            }))}
+          onOpen={(id) => openEditor('comorbidity', { id })}
+        />
+        <AnamnesisListSection
+          title="Травмы и операции"
+          onAdd={() => openEditor('trauma')}
+          items={state.trauma.map((item) => ({
+            id: item.id,
+            primary: item.what,
+            secondary: [item.year, item.type, item.immobilization].filter(Boolean).join(' · '),
+          }))}
+          onOpen={(id) => openEditor('trauma', { id })}
+        />
+        <AnamnesisListSection
+          title="Болезни, стрессы"
+          onAdd={() => openEditor('illness')}
+          items={state.illness.map((item) => ({
+            id: item.id,
+            primary: item.what,
+            secondary: [item.period, item.comment].filter(Boolean).join(' · '),
+          }))}
+          onOpen={(id) => openEditor('illness', { id })}
+        />
+        <LifestyleSubsection
+          title="Образ жизни"
+          text={lifestyleText}
+          onEdit={openLifestyleEditor}
+        />
+      </DoctorModal>
 
       {editor?.section === 'lifestyle' ? (
         <DoctorModal
           open
+          nested
           onClose={() => setEditor(null)}
           title={patientTitle('Образ жизни', patientName, patientOnSupport)}
           size="md"
@@ -1540,6 +1710,7 @@ function LifeAnamnesisSection({
       ) : (
         <DoctorModal
           open={editor !== null}
+          nested
           onClose={() => setEditor(null)}
           title={patientTitle(
             editor?.id ? 'Изменить запись' : 'Новая запись',
@@ -1583,6 +1754,37 @@ function LifeAnamnesisSection({
   );
 }
 
+/** Значения подсекции на карте — одна плоская строка на запись, без плашки и без служебных дат. */
+function joinValueParts(parts: Array<string | null | undefined>): string {
+  return parts.map((part) => part?.trim()).filter(Boolean).join(' · ');
+}
+
+/**
+ * LIFE-SECTION-08/09/10: заполненная подсекция карты — чёрный полужирный заголовок на 2px меньше
+ * заголовка блока и значения сразу под ним обычным текстом того же размера. Пустая подсекция
+ * возвращает `null`, поэтому не занимает места вообще.
+ */
+function LifeAnamnesisSummary({
+  title,
+  values,
+}: {
+  title: string;
+  values: Array<{ id: string; text: string }>;
+}) {
+  const filled = values.filter((value) => value.text.length > 0);
+  if (filled.length === 0) return null;
+  return (
+    <section className="flex flex-col gap-0.5">
+      <h4 className={lifeSubsectionTitleClass}>{title}</h4>
+      {filled.map((value) => (
+        <p key={value.id} className={cn(lifeSubsectionValueClass, 'whitespace-pre-wrap')}>
+          {value.text}
+        </p>
+      ))}
+    </section>
+  );
+}
+
 /**
  * LIFE-LIFESTYLE-01/02: «Образ жизни» — единственное текущее значение, не append-log. Заголовок и
  * геометрия строки повторяют соседние подсекции; вместо «+» — единственное действие редактирования,
@@ -1603,8 +1805,8 @@ function LifestyleSubsection({
       <div className="flex items-center justify-between px-[var(--doctor-list-inline-padding,18px)] py-2.5">
         <h4
           className={cn(
-            'text-[15px] font-semibold',
-            hasText ? 'text-foreground' : 'text-muted-foreground',
+            lifeSubsectionTitleClass,
+            !hasText && 'text-muted-foreground',
           )}
         >
           {title}
@@ -1614,14 +1816,22 @@ function LifestyleSubsection({
           variant="ghost"
           size="icon-sm"
           onClick={onEdit}
+          aria-label={`Изменить: ${title}`}
           title={`Изменить: ${title}`}
         >
           <SquarePen className="size-5" />
         </Button>
       </div>
-      <p className="whitespace-pre-wrap px-[var(--doctor-list-inline-padding,18px)] pb-3 text-sm text-foreground">
-        {hasText ? text : '—'}
-      </p>
+      {hasText ? (
+        <p
+          className={cn(
+            lifeSubsectionValueClass,
+            'whitespace-pre-wrap px-[var(--doctor-list-inline-padding,18px)] pb-3',
+          )}
+        >
+          {text}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -1632,6 +1842,7 @@ function AnamnesisListSection({
   onAdd,
   onOpen,
   history,
+  historyLabel,
   onHistoryChange,
 }: {
   title: string;
@@ -1639,6 +1850,7 @@ function AnamnesisListSection({
   onAdd: () => void;
   onOpen: (id: string) => void;
   history?: boolean;
+  historyLabel?: string;
   onHistoryChange?: () => void;
 }) {
   const hasItems = items.length > 0;
@@ -1646,46 +1858,30 @@ function AnamnesisListSection({
     <section className="border-b border-border last:border-b-0">
       <div className="flex items-center justify-between px-[var(--doctor-list-inline-padding,18px)] py-2.5">
         {/* LIFE-ANAMNESIS-02: заполненный заголовок чёрный, пустой — приглушённый серый. */}
-        <h4
-          className={cn(
-            'text-[15px] font-semibold',
-            hasItems ? 'text-foreground' : 'text-muted-foreground',
-          )}
-        >
+        <h4 className={cn(lifeSubsectionTitleClass, !hasItems && 'text-muted-foreground')}>
           {title}
         </h4>
         <div className="flex items-center gap-1.5">
-          {onHistoryChange ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-pressed={history}
-              className={cn(
-                'h-8 px-2.5 text-sm font-normal',
-                history && 'border-primary bg-primary/5 text-primary hover:bg-primary/10',
-              )}
-              onClick={onHistoryChange}
-            >
-              История
-            </Button>
+          {onHistoryChange && historyLabel ? (
+            <HistoryToggleButton
+              active={history === true}
+              label={historyLabel}
+              onToggle={onHistoryChange}
+            />
           ) : null}
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
             onClick={onAdd}
+            aria-label={`Добавить: ${title}`}
             title={`Добавить: ${title}`}
           >
             <Plus className="size-5" />
           </Button>
         </div>
       </div>
-      {!hasItems ? (
-        <p className="px-[var(--doctor-list-inline-padding,18px)] pb-3 text-sm text-muted-foreground">
-          —
-        </p>
-      ) : (
+      {!hasItems ? null : (
         <DoctorDnaFlatList>
           {items.map((item) => (
             <li key={item.id}>
@@ -1715,12 +1911,16 @@ function AnamnesisListSection({
   );
 }
 
+/**
+ * Только append-разделы. «Образ жизни» редактируется общим fullscreen-полем (LIFE-LIFESTYLE-04),
+ * поэтому датированной формы записи для него здесь нет и быть не может.
+ */
 function AnamnesisEditorFields({
   section,
   draft,
   onDraft,
 }: {
-  section: AnamnesisModalSection;
+  section: AppendAnamnesisModalSection;
   draft: Record<string, string>;
   onDraft: (draft: Record<string, string>) => void;
 }) {
@@ -1749,28 +1949,15 @@ function AnamnesisEditorFields({
         {field('immobilization', 'Иммобилизация / восстановление')}
       </div>
     );
-  if (section === 'illness')
-    return (
-      <div className="space-y-4">
-        {field('period', 'Период')}
-        {field('what', 'Болезнь или стресс')}
-        <div className="space-y-1.5">
-          <RequiredLabel>Комментарий</RequiredLabel>
-          <Textarea
-            value={draft.comment ?? ''}
-            onChange={(event) => onDraft({ ...draft, comment: event.target.value })}
-          />
-        </div>
-      </div>
-    );
   return (
     <div className="space-y-4">
-      {field('recordDate', 'Дата')}
+      {field('period', 'Период')}
+      {field('what', 'Болезнь или стресс')}
       <div className="space-y-1.5">
-        <RequiredLabel>Образ жизни</RequiredLabel>
+        <RequiredLabel>Комментарий</RequiredLabel>
         <Textarea
-          value={draft.text ?? ''}
-          onChange={(event) => onDraft({ ...draft, text: event.target.value })}
+          value={draft.comment ?? ''}
+          onChange={(event) => onDraft({ ...draft, comment: event.target.value })}
         />
       </div>
     </div>
