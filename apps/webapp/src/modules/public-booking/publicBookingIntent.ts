@@ -16,6 +16,7 @@
  */
 import { z } from 'zod';
 import type { PhoneChallengePayload } from '@/modules/auth/phoneChallengeStore';
+import { contactFioFieldSchema } from '@/modules/patient-booking/inPersonApiSchemas';
 
 /** Bumped whenever the pinned shape changes; an intent of an unknown version is discarded. */
 export const PUBLIC_BOOKING_INTENT_VERSION = 1;
@@ -39,6 +40,7 @@ export const publicBookingIntentSchema = z.object({
   slotEnd: z.string().min(1),
   slotCount: z.number().int().min(1).max(8).optional(),
   contactName: z.string().min(1),
+  contactFio: contactFioFieldSchema,
   contactPhone: z.string().min(1),
   contactEmail: z.string().optional(),
   formAnswers: z.array(formAnswerSchema).optional(),

@@ -9,13 +9,6 @@ import type {
   ReschedulePolicy,
 } from './types';
 
-const SCOPE_PRIORITY: Record<PolicyScopeLevel, number> = {
-  product: 4,
-  service: 3,
-  specialist: 2,
-  organization: 1,
-};
-
 export function pickHighestPriorityPolicy<
   T extends { scopeLevel: PolicyScopeLevel; isActive: boolean },
 >(
@@ -25,9 +18,7 @@ export function pickHighestPriorityPolicy<
 ): T | null {
   const active = policies.filter((p) => p.isActive && matches(p, ctx));
   if (active.length === 0) return null;
-  return (
-    active.sort((a, b) => SCOPE_PRIORITY[b.scopeLevel] - SCOPE_PRIORITY[a.scopeLevel])[0] ?? null
-  );
+  return active[0] ?? null;
 }
 
 export function matchesCancellationPolicy(
@@ -37,9 +28,6 @@ export function matchesCancellationPolicy(
   if (policy.scopeLevel === 'organization') {
     return policy.scopeEntityId === ctx.organizationId || policy.scopeEntityId === null;
   }
-  if (policy.scopeLevel === 'specialist') return policy.scopeEntityId === ctx.specialistId;
-  if (policy.scopeLevel === 'service') return policy.scopeEntityId === ctx.serviceId;
-  if (policy.scopeLevel === 'product') return policy.scopeEntityId === (ctx.productId ?? null);
   return false;
 }
 
@@ -50,9 +38,6 @@ export function matchesReschedulePolicy(
   if (policy.scopeLevel === 'organization') {
     return policy.scopeEntityId === ctx.organizationId || policy.scopeEntityId === null;
   }
-  if (policy.scopeLevel === 'specialist') return policy.scopeEntityId === ctx.specialistId;
-  if (policy.scopeLevel === 'service') return policy.scopeEntityId === ctx.serviceId;
-  if (policy.scopeLevel === 'product') return policy.scopeEntityId === (ctx.productId ?? null);
   return false;
 }
 
@@ -199,61 +184,6 @@ export function evaluateRescheduleEligibility(input: {
       limitExceededBehavior: null,
       remainingSelfReschedules: remaining,
     };
-  }
-
-  if (input.change && input.current) {
-    if (
-      !input.policy.allowDifferentBranch &&
-      input.change.branchId &&
-      input.change.branchId !== input.current.branchId
-    ) {
-      return {
-        allowed: false,
-        reasonCode: 'change_not_allowed',
-        requiresStaffConfirmation: false,
-        limitExceededBehavior: null,
-        remainingSelfReschedules: remaining,
-      };
-    }
-    if (
-      !input.policy.allowDifferentCity &&
-      input.change.cityCode &&
-      input.change.cityCode !== input.current.cityCode
-    ) {
-      return {
-        allowed: false,
-        reasonCode: 'change_not_allowed',
-        requiresStaffConfirmation: false,
-        limitExceededBehavior: null,
-        remainingSelfReschedules: remaining,
-      };
-    }
-    if (
-      !input.policy.allowDifferentSpecialist &&
-      input.change.specialistId &&
-      input.change.specialistId !== input.current.specialistId
-    ) {
-      return {
-        allowed: false,
-        reasonCode: 'change_not_allowed',
-        requiresStaffConfirmation: false,
-        limitExceededBehavior: null,
-        remainingSelfReschedules: remaining,
-      };
-    }
-    if (
-      !input.policy.allowDifferentService &&
-      input.change.serviceId &&
-      input.change.serviceId !== input.current.serviceId
-    ) {
-      return {
-        allowed: false,
-        reasonCode: 'change_not_allowed',
-        requiresStaffConfirmation: false,
-        limitExceededBehavior: null,
-        remainingSelfReschedules: remaining,
-      };
-    }
   }
 
   if (hours < input.policy.selfRescheduleHoursBefore) {

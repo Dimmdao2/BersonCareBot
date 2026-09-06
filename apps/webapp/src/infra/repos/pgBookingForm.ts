@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
@@ -23,6 +23,7 @@ type BookingFormFieldRow = Pick<
   | 'visibleToStaff'
   | 'sortOrder'
   | 'isActive'
+  | 'archivedAt'
 >;
 
 const publicBookingFormFieldsSchema = z.array(
@@ -38,6 +39,7 @@ const publicBookingFormFieldsSchema = z.array(
     visibleToStaff: z.boolean(),
     sortOrder: z.number().int(),
     isActive: z.boolean(),
+    archivedAt: z.string().nullable(),
   }),
 );
 
@@ -70,25 +72,26 @@ function mapField(row: BookingFormFieldRow): BookingFormFieldRecord {
     label: row.label,
     placeholder: row.placeholder ?? null,
     isRequired: row.isRequired,
-    visibleToPatient: row.visibleToPatient,
-    visibleToStaff: row.visibleToStaff,
     sortOrder: row.sortOrder,
     isActive: row.isActive,
+    archivedAt: row.archivedAt,
   };
 }
 
 export function createPgBookingFormPort(): BookingFormPort {
-  return {
-    async listActiveFields(organizationId, audience) {
-      if (isCurrentPublicBookingPrincipal() && audience === 'patient') {
-        return (await readPublicBookingFormFields(organizationId)).map(mapField);
-      }
-      if (getCurrentDbPrincipal()?.kind === 'patient' && audience === 'patient') {
-        const result = await runWebappNamedRoot<BookingFormFieldRow>(
-          getWebappSqlDb(),
-          'app.read_current_patient_booking_form_fields()',
-          [],
-          sql`SELECT
+  async function listActiveFields(
+    organizationId: string,
+    _audience: 'patient' | 'staff',
+  ): Promise<BookingFormFieldRecord[]> {
+    if (isCurrentPublicBookingPrincipal()) {
+      return (await readPublicBookingFormFields(organizationId)).map(mapField);
+    }
+    if (getCurrentDbPrincipal()?.kind === 'patient') {
+      const result = await runWebappNamedRoot<BookingFormFieldRow>(
+        getWebappSqlDb(),
+        'app.read_current_patient_booking_form_fields()',
+        [],
+        sql`SELECT
                 id,
                 organization_id AS "organizationId",
                 field_key AS "fieldKey",
@@ -99,14 +102,33 @@ export function createPgBookingFormPort(): BookingFormPort {
                 visible_to_patient AS "visibleToPatient",
                 visible_to_staff AS "visibleToStaff",
                 sort_order AS "sortOrder",
-                is_active AS "isActive"
+                is_active AS "isActive",
+                NULL::timestamptz AS "archivedAt"
               FROM app.read_current_patient_booking_form_fields()`,
-        );
-        if (result.rows.some((row) => row.organizationId !== organizationId)) {
-          throw new Error('ambiguous_booking_tenant');
-        }
-        return result.rows.map(mapField);
+      );
+      if (result.rows.some((row) => row.organizationId !== organizationId)) {
+        throw new Error('ambiguous_booking_tenant');
       }
+      return result.rows.map(mapField);
+    }
+    const db = getDrizzle();
+    const rows = await db
+      .select()
+      .from(beBookingFormFields)
+      .where(
+        and(
+          eq(beBookingFormFields.organizationId, organizationId),
+          isNull(beBookingFormFields.archivedAt),
+        ),
+      )
+      .orderBy(asc(beBookingFormFields.sortOrder), asc(beBookingFormFields.label));
+    return rows.map(mapField);
+  }
+
+  return {
+    listActiveFields,
+
+    async listAllFieldsAdmin(organizationId) {
       const db = getDrizzle();
       const rows = await db
         .select()
@@ -114,22 +136,9 @@ export function createPgBookingFormPort(): BookingFormPort {
         .where(
           and(
             eq(beBookingFormFields.organizationId, organizationId),
-            eq(beBookingFormFields.isActive, true),
-            audience === 'patient'
-              ? eq(beBookingFormFields.visibleToPatient, true)
-              : eq(beBookingFormFields.visibleToStaff, true),
+            isNull(beBookingFormFields.archivedAt),
           ),
         )
-        .orderBy(asc(beBookingFormFields.sortOrder), asc(beBookingFormFields.label));
-      return rows.map(mapField);
-    },
-
-    async listAllFieldsAdmin(organizationId) {
-      const db = getDrizzle();
-      const rows = await db
-        .select()
-        .from(beBookingFormFields)
-        .where(eq(beBookingFormFields.organizationId, organizationId))
         .orderBy(asc(beBookingFormFields.sortOrder), asc(beBookingFormFields.label));
       return rows.map(mapField);
     },
@@ -148,8 +157,8 @@ export function createPgBookingFormPort(): BookingFormPort {
               label: input.label,
               placeholder: input.placeholder ?? null,
               isRequired: input.isRequired,
-              visibleToPatient: input.visibleToPatient,
-              visibleToStaff: input.visibleToStaff,
+              visibleToPatient: input.isActive,
+              visibleToStaff: input.isActive,
               sortOrder: input.sortOrder,
               isActive: input.isActive,
               updatedAt: now,
@@ -175,17 +184,52 @@ export function createPgBookingFormPort(): BookingFormPort {
             label: input.label,
             placeholder: input.placeholder ?? null,
             isRequired: input.isRequired,
-            visibleToPatient: input.visibleToPatient,
-            visibleToStaff: input.visibleToStaff,
+            visibleToPatient: input.isActive,
+            visibleToStaff: input.isActive,
             sortOrder: input.sortOrder,
             isActive: input.isActive,
             createdAt: now,
             updatedAt: now,
           })
+          .onConflictDoUpdate({
+            target: [beBookingFormFields.organizationId, beBookingFormFields.fieldKey],
+            set: {
+              fieldType: input.fieldType,
+              label: input.label,
+              placeholder: input.placeholder ?? null,
+              isRequired: input.isRequired,
+              visibleToPatient: input.isActive,
+              visibleToStaff: input.isActive,
+              sortOrder: input.sortOrder,
+              isActive: input.isActive,
+              archivedAt: null,
+              updatedAt: now,
+            },
+          })
           .returning(),
       );
       if (!inserted[0]) throw new Error('booking_form_field_write_failed');
       return mapField(inserted[0]);
+    },
+
+    async archiveFieldAdmin(organizationId, fieldId) {
+      const db = getDrizzle();
+      const archived = await db
+        .update(beBookingFormFields)
+        .set({
+          archivedAt: new Date().toISOString(),
+          isActive: false,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(beBookingFormFields.id, fieldId),
+            eq(beBookingFormFields.organizationId, organizationId),
+            isNull(beBookingFormFields.archivedAt),
+          ),
+        )
+        .returning({ id: beBookingFormFields.id });
+      if (!archived[0]) throw new Error('booking_form_field_not_found');
     },
 
     async saveSubmissions({ organizationId, appointmentId, answers }) {

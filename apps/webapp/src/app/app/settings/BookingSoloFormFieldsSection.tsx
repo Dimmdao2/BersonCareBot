@@ -15,11 +15,13 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { apiJson } from '@/shared/lib/apiJson';
 import { slugFieldKey } from '@/app/app/settings/bookingSoloAdminApi';
+import { isSystemBookingFormField } from '@/modules/booking-form/fieldTypes';
 
 const BASE = '/api/admin/booking-engine/form-fields';
 
 const QUESTION_TYPES = [
   { value: 'first_name', label: 'Имя' },
+  { value: 'last_name', label: 'Фамилия' },
   { value: 'phone', label: 'Телефон' },
   { value: 'email', label: 'Email' },
   { value: 'comment', label: 'Комментарий' },
@@ -33,11 +35,15 @@ type Field = {
   label: string;
   placeholder: string | null;
   isRequired: boolean;
-  visibleToPatient: boolean;
-  visibleToStaff: boolean;
   sortOrder: number;
   isActive: boolean;
 };
+
+function formFieldError(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+  const message = error.message.trim();
+  return message && !/^[a-z0-9_]+$/i.test(message) ? message : fallback;
+}
 
 export function BookingSoloFormFieldsSection() {
   const [fields, setFields] = useState<Field[]>([]);
@@ -54,7 +60,7 @@ export function BookingSoloFormFieldsSection() {
       setFields(json.fields);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'load_failed');
+      setError(formFieldError(e, 'Не удалось загрузить настройки формы.'));
     }
   }, []);
 
@@ -69,14 +75,12 @@ export function BookingSoloFormFieldsSection() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id: field.id,
+        id: field.id.startsWith('system:') ? undefined : field.id,
         fieldKey: field.fieldKey,
         fieldType: field.fieldType,
         label: field.label,
         placeholder: field.placeholder ?? undefined,
         isRequired: field.isRequired,
-        visibleToPatient: field.visibleToPatient,
-        visibleToStaff: true,
         sortOrder: field.sortOrder,
         isActive: field.isActive,
       }),
@@ -90,7 +94,7 @@ export function BookingSoloFormFieldsSection() {
         await saveFieldAsync(field);
         await load();
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'save_failed');
+        setError(formFieldError(e, 'Не удалось сохранить поле.'));
       }
     });
   }
@@ -100,16 +104,22 @@ export function BookingSoloFormFieldsSection() {
     const idx = ordered.findIndex((f) => f.id === id);
     const swapIdx = idx + direction;
     if (idx < 0 || swapIdx < 0 || swapIdx >= ordered.length) return;
-    const a = ordered[idx]!;
-    const b = ordered[swapIdx]!;
+    const reordered = [...ordered];
+    const [moved] = reordered.splice(idx, 1);
+    if (!moved) return;
+    reordered.splice(swapIdx, 0, moved);
+    const normalized = reordered.map((field, index) => ({
+      ...field,
+      sortOrder: (index + 1) * 10,
+    }));
+    setFields(normalized);
     setError(null);
     startTransition(async () => {
       try {
-        await saveFieldAsync({ ...a, sortOrder: b.sortOrder });
-        await saveFieldAsync({ ...b, sortOrder: a.sortOrder });
+        for (const field of normalized) await saveFieldAsync(field);
         await load();
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'reorder_failed');
+        setError(formFieldError(e, 'Не удалось сохранить порядок полей.'));
       }
     });
   }
@@ -131,8 +141,6 @@ export function BookingSoloFormFieldsSection() {
             fieldType: newType,
             label,
             isRequired: false,
-            visibleToPatient: true,
-            visibleToStaff: true,
             sortOrder: maxOrder + 10,
             isActive: true,
           }),
@@ -140,7 +148,25 @@ export function BookingSoloFormFieldsSection() {
         setNewLabel('');
         await load();
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'create_failed');
+        setError(formFieldError(e, 'Не удалось добавить поле.'));
+      }
+    });
+  }
+
+  function deleteField(field: Field) {
+    if (isSystemBookingFormField(field.fieldKey) || field.id.startsWith('system:')) return;
+    if (!window.confirm('Удалить поле из формы?')) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await apiJson(BASE, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: field.id }),
+        });
+        await load();
+      } catch (e) {
+        setError(formFieldError(e, 'Не удалось удалить поле.'));
       }
     });
   }
@@ -148,7 +174,7 @@ export function BookingSoloFormFieldsSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Форма записи</CardTitle>
+        <CardTitle className="text-base">Настройка полей</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -158,40 +184,46 @@ export function BookingSoloFormFieldsSection() {
             <div key={f.id} className="rounded-md border border-border/60 p-3 space-y-2">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="grid flex-1 gap-2 sm:grid-cols-2">
-                  <label className="flex flex-col gap-1">
-                    <Label>Вопрос</Label>
-                    <Input
-                      value={f.label}
-                      onChange={(e) =>
-                        setFields((prev) =>
-                          prev.map((x) => (x.id === f.id ? { ...x, label: e.target.value } : x)),
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <Label>Тип ответа</Label>
-                    <Select
-                      value={f.fieldType}
-                      onValueChange={(v) => {
-                        if (!v) return;
-                        setFields((prev) =>
-                          prev.map((x) => (x.id === f.id ? { ...x, fieldType: v } : x)),
-                        );
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {QUESTION_TYPES.map((t) => (
-                          <SelectItem key={t.value} value={t.value} label={t.label}>
-                            {t.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </label>
+                  {isSystemBookingFormField(f.fieldKey) ? (
+                    <div className="sm:col-span-2 font-semibold">{f.label}</div>
+                  ) : (
+                    <label className="flex flex-col gap-1">
+                      <Label>Название поля</Label>
+                      <Input
+                        value={f.label}
+                        onChange={(e) =>
+                          setFields((prev) =>
+                            prev.map((x) => (x.id === f.id ? { ...x, label: e.target.value } : x)),
+                          )
+                        }
+                      />
+                    </label>
+                  )}
+                  {!isSystemBookingFormField(f.fieldKey) ? (
+                    <label className="flex flex-col gap-1">
+                      <Label>Тип ответа</Label>
+                      <Select
+                        value={f.fieldType}
+                        onValueChange={(v) => {
+                          if (!v) return;
+                          setFields((prev) =>
+                            prev.map((x) => (x.id === f.id ? { ...x, fieldType: v } : x)),
+                          );
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {QUESTION_TYPES.map((t) => (
+                            <SelectItem key={t.value} value={t.value} label={t.label}>
+                              {t.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </label>
+                  ) : null}
                   <label className="flex flex-col gap-1 sm:col-span-2">
                     <Label>Подсказка в поле</Label>
                     <Input
@@ -232,17 +264,6 @@ export function BookingSoloFormFieldsSection() {
               <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2 text-sm">
                   <Switch
-                    checked={f.visibleToPatient}
-                    onCheckedChange={(v) =>
-                      setFields((prev) =>
-                        prev.map((x) => (x.id === f.id ? { ...x, visibleToPatient: v } : x)),
-                      )
-                    }
-                  />
-                  Показывать пациенту
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <Switch
                     checked={f.isRequired}
                     onCheckedChange={(v) =>
                       setFields((prev) =>
@@ -263,7 +284,24 @@ export function BookingSoloFormFieldsSection() {
                   />
                   Активно
                 </label>
-                <Button type="button" size="sm" disabled={pending} onClick={() => saveField(f)}>
+                {!isSystemBookingFormField(f.fieldKey) ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    disabled={pending}
+                    onClick={() => deleteField(f)}
+                  >
+                    Удалить
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  className="ml-auto"
+                  disabled={pending}
+                  onClick={() => saveField(f)}
+                >
                   Сохранить
                 </Button>
               </div>
@@ -272,11 +310,11 @@ export function BookingSoloFormFieldsSection() {
         </div>
 
         <div className="rounded-md border border-dashed p-3 space-y-2">
-          <Label>Новый вопрос</Label>
+          <Label>Новое поле</Label>
           <div className="flex flex-wrap gap-2">
             <Input
               className="min-w-[12rem] flex-1"
-              placeholder="Текст вопроса"
+              placeholder="Название поля"
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
             />
@@ -301,20 +339,6 @@ export function BookingSoloFormFieldsSection() {
               Добавить
             </Button>
           </div>
-        </div>
-
-        <div className="rounded-md border border-border/60 p-3">
-          <p className="mb-2 text-sm font-medium">Предпросмотр (пациент)</p>
-          <ul className="space-y-1 text-sm">
-            {sorted
-              .filter((f) => f.isActive && f.visibleToPatient)
-              .map((f) => (
-                <li key={f.id}>
-                  {f.label}
-                  {f.isRequired ? <span className="text-destructive"> *</span> : null}
-                </li>
-              ))}
-          </ul>
         </div>
       </CardContent>
     </Card>

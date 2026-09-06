@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
-import { BookingPublicAttributionSection } from '@/app/app/settings/BookingPublicAttributionSection';
 import { BookingPublicWidgetSection } from '@/app/app/settings/BookingPublicWidgetSection';
 import { BookingSoloAvailabilitySection } from '@/app/app/settings/BookingSoloAvailabilitySection';
 import { BookingSoloFormFieldsSection } from '@/app/app/settings/BookingSoloFormFieldsSection';
@@ -15,7 +14,6 @@ import {
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
-import { BOOKING_CARD_GRID_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import { DoctorShellMobileSubsectionTabsRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
@@ -39,13 +37,7 @@ import { SYSTEM_SETTING_REGISTRY } from '@/modules/system-settings/registry';
 // ---------------------------------------------------------------------------
 
 type SetupSectionId =
-  | 'locations'
-  | 'services'
-  | 'specialists'
-  | 'form'
-  | 'rules'
-  | 'notifications'
-  | 'packages';
+  'locations' | 'services' | 'specialists' | 'form' | 'rules' | 'notifications' | 'packages';
 
 type SetupSectionDef = {
   id: SetupSectionId;
@@ -88,14 +80,13 @@ function resolveSectionId(
 }
 
 // ---------------------------------------------------------------------------
-// Client-fetching wrapper for BookingRulesPageClient
-// The "allowPastUnlink" flag is loaded from GET /api/admin/settings.
+// Client-fetching wrapper for BookingRulesPageClient.
 // ---------------------------------------------------------------------------
 
 type RulesSettingsState =
   | { phase: 'loading' }
   | { phase: 'error' }
-  | { phase: 'ready'; allowPastUnlink: boolean; availabilityHorizonDays: number };
+  | { phase: 'ready'; availabilityHorizonDays: number };
 
 const BOOKING_AVAILABILITY_HORIZON_DEFAULT_DAYS = Number(
   SYSTEM_SETTING_REGISTRY.booking_availability_horizon_days.defaultValue,
@@ -116,14 +107,6 @@ function BookingRulesLoader() {
         setState({ phase: 'error' });
         return;
       }
-      const row = json.settings?.find(
-        (s) => s.key === 'booking_allow_doctor_unlink_past_package_sessions',
-      );
-      const allowPastUnlink =
-        row != null &&
-        row.valueJson !== null &&
-        typeof row.valueJson === 'object' &&
-        (row.valueJson as Record<string, unknown>).value === true;
       const horizonRow = json.settings?.find((s) => s.key === 'booking_availability_horizon_days');
       // BAH-01/F2: отсутствие per-org строки — реестровый дефолт, раздел работает.
       // Строка есть, но значение сломано — phase: 'error' (громко, не маскировать).
@@ -148,7 +131,7 @@ function BookingRulesLoader() {
         }
         availabilityHorizonDays = rawValue;
       }
-      setState({ phase: 'ready', allowPastUnlink, availabilityHorizonDays });
+      setState({ phase: 'ready', availabilityHorizonDays });
     });
   }, []);
 
@@ -169,12 +152,7 @@ function BookingRulesLoader() {
       </div>
     );
   }
-  return (
-    <BookingRulesPageClient
-      allowPastUnlinkPastPackageSessions={state.allowPastUnlink}
-      availabilityHorizonDays={state.availabilityHorizonDays}
-    />
-  );
+  return <BookingRulesPageClient availabilityHorizonDays={state.availabilityHorizonDays} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -542,16 +520,11 @@ function SectionSpecialists() {
   return <BookingSoloSpecialistsSection />;
 }
 
-function SectionForm({
-  doctorStatisticsEnabled,
-}: Pick<ScheduleTabProps, 'doctorStatisticsEnabled'>) {
+function SectionForm() {
   return (
     <div className="flex flex-col gap-3">
       <BookingSoloFormFieldsSection />
-      <div className={BOOKING_CARD_GRID_CLASS}>
-        <BookingPublicWidgetSection />
-        <BookingPublicAttributionSection visible={doctorStatisticsEnabled} />
-      </div>
+      <BookingPublicWidgetSection />
     </div>
   );
 }
@@ -577,7 +550,6 @@ export function ScheduleSetupTab({
   deepLinkParams,
   onDeepLinkChange,
   isActive,
-  doctorStatisticsEnabled,
   notificationTemplatesVisible = true,
   packagesVisible = true,
   packagesReadOnly = false,
@@ -654,9 +626,7 @@ export function ScheduleSetupTab({
         {activeSection === 'locations' && <SectionLocations />}
         {activeSection === 'services' && <SectionServices />}
         {activeSection === 'specialists' && <SectionSpecialists />}
-        {activeSection === 'form' && (
-          <SectionForm doctorStatisticsEnabled={doctorStatisticsEnabled} />
-        )}
+        {activeSection === 'form' && <SectionForm />}
         {activeSection === 'rules' && <SectionRules />}
         {activeSection === 'notifications' && notificationTemplatesVisible && (
           <SectionNotifications />

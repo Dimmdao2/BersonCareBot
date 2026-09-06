@@ -89,7 +89,6 @@ export function BookingSoloLocationsSection() {
   const [editAddress, setEditAddress] = useState('');
   const [editColor, setEditColor] = useState(DEFAULT_BRANCH_COLOR);
   const [editTimezone, setEditTimezone] = useState('Europe/Moscow');
-  const [editActive, setEditActive] = useState(true);
   const dndContextId = useId();
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -175,7 +174,6 @@ export function BookingSoloLocationsSection() {
     setEditAddress(branch.address ?? '');
     setEditColor(branch.color ?? DEFAULT_BRANCH_COLOR);
     setEditTimezone(branch.timezone);
-    setEditActive(branch.isActive);
   }
 
   function saveEditedBranch() {
@@ -191,7 +189,6 @@ export function BookingSoloLocationsSection() {
             color: editColor,
             address: editAddress.trim() || null,
             timezone: editTimezone,
-            isActive: editActive,
           }),
         });
       },
@@ -476,10 +473,6 @@ export function BookingSoloLocationsSection() {
               />
               <span>Цвет</span>
             </div>
-            <label className="flex items-center gap-3 text-sm">
-              <Switch checked={editActive} disabled={pending} onCheckedChange={setEditActive} />
-              Филиал включен
-            </label>
           </div>
         </div>
       </DoctorModal>

@@ -1144,7 +1144,7 @@ export function createMembershipsService(deps: {
     async listPatientPackageSessions(
       patientPackageId: string,
       organizationId: string,
-      options: { includePast: boolean; allowPastUnlink: boolean },
+      options: { includePast: boolean },
     ) {
       const pkg = await deps.port.getPatientPackage(patientPackageId, organizationId);
       if (!pkg) throw new Error('package_not_found');
@@ -1172,13 +1172,10 @@ export function createMembershipsService(deps: {
           serviceId: src.serviceId,
           packageServiceIds,
         });
-        // Past unlink/refund guard: controlled by admin setting (allowPastUnlink).
-        const pastEditAllowed = !isPast || options.allowPastUnlink;
-        const canUnlinkReserve = pastEditAllowed && linkage === 'reserved';
-        const canRefundConsumed =
-          pastEditAllowed && (linkage === 'consumed' || linkage === 'penalty');
+        const canUnlinkReserve = linkage === 'reserved';
+        const canRefundConsumed = linkage === 'consumed' || linkage === 'penalty';
         // Manual consume of a past visit is intentional doctor action — always allowed
-        // regardless of allowPastUnlink. This is a new debit (not editing past billing).
+        // This is a new debit (not editing past billing).
         // For past appointments: only eligible if not in the explicitly-not-happened status set.
         // Future appointments are always eligible (doctor may pre-mark them).
         const eligibleForConsume =
@@ -1227,7 +1224,6 @@ export function createMembershipsService(deps: {
       createdByPlatformUserId?: string | null;
       outcome?: PackageDetachOutcome;
       confirmPastTwice?: boolean;
-      allowPastUnlink: boolean;
       freeCancelHoursBefore: number;
     }) {
       deps.assertWriteClearance?.('subscriptions');
@@ -1248,10 +1244,7 @@ export function createMembershipsService(deps: {
       const hoursUntilStart = (startMs - nowMs) / (60 * 60 * 1000);
       const isLate = hoursUntilStart < input.freeCancelHoursBefore;
 
-      if (isPast && !input.allowPastUnlink) {
-        throw new Error('past_unlink_not_allowed');
-      }
-      if (isPast && input.allowPastUnlink && !input.confirmPastTwice) {
+      if (isPast && !input.confirmPastTwice) {
         throw new Error('past_detach_confirmation_required');
       }
       if (isLate && !input.outcome) {

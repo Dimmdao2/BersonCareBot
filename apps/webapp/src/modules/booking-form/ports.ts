@@ -6,10 +6,9 @@ export type BookingFormFieldRecord = {
   label: string;
   placeholder: string | null;
   isRequired: boolean;
-  visibleToPatient: boolean;
-  visibleToStaff: boolean;
   sortOrder: number;
   isActive: boolean;
+  archivedAt: string | null;
 };
 
 export type FormAnswerInput = { fieldKey: string; value: string };
@@ -29,12 +28,14 @@ export type BookingFormPort = {
       label: string;
       placeholder?: string | null;
       isRequired: boolean;
-      visibleToPatient: boolean;
-      visibleToStaff: boolean;
+      /** Legacy inputs are accepted but visibility is derived from isActive. */
+      visibleToPatient?: boolean;
+      visibleToStaff?: boolean;
       sortOrder: number;
       isActive: boolean;
     },
   ): Promise<BookingFormFieldRecord>;
+  archiveFieldAdmin(organizationId: string, fieldId: string): Promise<void>;
   saveSubmissions(input: {
     organizationId: string;
     appointmentId: string;
@@ -60,4 +61,5 @@ export type BookingFormService = {
     organizationId: string,
     input: Parameters<BookingFormPort['upsertFieldAdmin']>[1],
   ): Promise<BookingFormFieldRecord>;
+  archiveAdminField(organizationId: string, fieldId: string): Promise<void>;
 };

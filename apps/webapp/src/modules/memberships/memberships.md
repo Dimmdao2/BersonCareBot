@@ -118,7 +118,7 @@ UI: `PatientMembershipsSection`, `/app/patient/memberships/pay`, `/app/patient/m
 | POST     | `.../appointments/[id]/package/detach` — `{ outcome?, confirmPastTwice? }` (late → `409 late_detach_choice_required`)                  |
 | POST     | `.../appointments/[id]/package/unlink` / `refund` — thin wrappers → detach                                                             |
 
-Admin setting `booking_allow_doctor_unlink_past_package_sessions` (boolean, scope `admin`) gates past detach in UI/API.
+Past appointment detach/refund is always available to staff and requires the dedicated past-action confirmation.
 
 UI: **`DoctorClientMembershipsPanel`** + `PatientPackageCard` / `PatientPackageSessionsList` on patient card tab «Записи».
 

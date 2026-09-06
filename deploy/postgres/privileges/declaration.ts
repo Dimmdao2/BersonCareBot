@@ -12446,6 +12446,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "archived_at",
           "created_at",
           "field_key",
           "field_type",
@@ -12467,6 +12468,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
+          "archived_at",
           "field_key",
           "field_type",
           "is_active",
@@ -27775,17 +27777,17 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    // Публичный близнец `app.read_current_patient_booking_form_fields()`: только поля, помеченные
-    // видимыми пациенту, потому что заполняет их посетитель, а не персонал.
+    // Публичный близнец `app.read_current_patient_booking_form_fields()` возвращает
+    // конфигурацию полей; единый флаг `is_active` определяет видимость в форме.
     'app.list_public_booking_form_fields()': rev10Function({
       owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_tenant_service'],
-      purpose: 'return only patient-visible booking form fields of the published accepted organization',
+      purpose: 'return booking form field configuration of the published accepted organization',
       typedArgs: [], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.be_booking_form_fields', columns: ['id', 'organization_id', 'field_key',
           'field_type', 'label', 'placeholder', 'is_required', 'visible_to_patient', 'visible_to_staff',
-          'sort_order', 'is_active'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+          'sort_order', 'is_active', 'archived_at'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
@@ -28783,27 +28785,27 @@ const REV10_CONTEXT = {
     }),
     'app.read_current_patient_booking_form_fields()': rev10Function({
       owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_patient'],
-      purpose: 'return only active patient-visible booking form fields for the current enrolled organization',
+      purpose: 'return booking form field configuration for the current enrolled organization',
       typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_booking_form_fields',
           columns: ['id', 'organization_id', 'field_key', 'field_type', 'label', 'placeholder', 'is_required',
-            'visible_to_patient', 'visible_to_staff', 'sort_order', 'is_active'],
+            'visible_to_patient', 'visible_to_staff', 'sort_order', 'is_active', 'archived_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.save_current_patient_booking_form_answers(uuid,text)': rev10Function({
       owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_patient'],
-      purpose: 'upsert only patient-visible form answers on the current patient own appointment',
+      purpose: 'upsert answers for active form fields on the current patient own appointment',
       typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.be_appointments',
           columns: ['id', 'organization_id', 'platform_user_id', 'deleted_at'], operations: ['SELECT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_booking_form_fields',
-          columns: ['id', 'organization_id', 'field_key', 'is_active', 'visible_to_patient'],
+          columns: ['id', 'organization_id', 'field_key', 'is_active', 'archived_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_booking_form_submissions',
           columns: ['organization_id', 'appointment_id', 'field_id', 'value_text'],

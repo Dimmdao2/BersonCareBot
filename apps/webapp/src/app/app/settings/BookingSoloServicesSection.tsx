@@ -186,7 +186,9 @@ export function BookingSoloServicesSection() {
             left.sortOrder - right.sortOrder || left.title.localeCompare(right.title, 'ru'),
         ),
       );
-      setPrepaymentPolicies(prepaymentJson?.visible === false ? [] : (prepaymentJson?.policies ?? []));
+      setPrepaymentPolicies(
+        prepaymentJson?.visible === false ? [] : (prepaymentJson?.policies ?? []),
+      );
       setPrepaymentAvailability(prepaymentJson?.availability ?? null);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'load_failed');
@@ -552,9 +554,14 @@ function ServiceModal({
       title={mode === 'create' ? 'Новая услуга' : 'Редактировать услугу'}
       size="md"
       footer={
-        <Button type="button" size="sm" disabled={pending || !title.trim()} onClick={onSubmit}>
-          {mode === 'create' ? 'Создать' : 'Сохранить'}
-        </Button>
+        <>
+          <Button type="button" size="sm" variant="outline" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button type="button" size="sm" disabled={pending || !title.trim()} onClick={onSubmit}>
+            {mode === 'create' ? 'Создать' : 'Сохранить'}
+          </Button>
+        </>
       }
     >
       <div className="flex min-h-0 flex-col gap-3">
@@ -695,7 +702,9 @@ function PrepaymentControl({
         ) : null}
       </div>
       {disabledHint ? (
-        <p className="text-xs leading-tight text-muted-foreground">{disabledHint}</p>
+        <p className="ml-[calc(var(--switch-width,36px)+0.75rem)] text-xs leading-tight text-muted-foreground">
+          {disabledHint}
+        </p>
       ) : null}
     </div>
   );

@@ -381,13 +381,6 @@ export const SYSTEM_SETTING_REGISTRY = {
     auditDomainRedactor('saas_billing_payment_provider'),
   ),
   booking_lifecycle_notifications: runtime('admin', 'per_org', 'server', 'boolean', 'false'),
-  booking_allow_doctor_unlink_past_package_sessions: runtime(
-    'admin',
-    'per_org',
-    'server',
-    'boolean',
-    'false',
-  ),
   booking_min_notice_hours: runtime('admin', 'per_org', 'server', 'integer', '0'),
   booking_availability_horizon_days: runtime('admin', 'per_org', 'server', 'integer', '30'),
   booking_max_consecutive_slot_hours: runtime('admin', 'per_org', 'server', 'integer', '3'),

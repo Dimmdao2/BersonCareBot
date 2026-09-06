@@ -312,9 +312,14 @@ function SpecialistModal({
       title={mode === 'create' ? 'Новый специалист' : 'Редактировать специалиста'}
       size="md"
       footer={
-        <Button type="button" size="sm" disabled={pending || !fullName.trim()} onClick={onSubmit}>
-          {mode === 'create' ? 'Создать' : 'Сохранить'}
-        </Button>
+        <>
+          <Button type="button" size="sm" variant="outline" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button type="button" size="sm" disabled={pending || !fullName.trim()} onClick={onSubmit}>
+            {mode === 'create' ? 'Создать' : 'Сохранить'}
+          </Button>
+        </>
       }
     >
       <div className="flex min-h-0 flex-col gap-3">

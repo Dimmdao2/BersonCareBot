@@ -52,7 +52,6 @@ const MEMBERSHIP_ERROR_RULES: ApiErrorLiteralRules = {
     code: 'appointment_has_consumed_package_session',
     status: 400,
   },
-  past_unlink_not_allowed: { code: 'past_unlink_not_allowed', status: 403 },
   late_detach_choice_required: { code: 'late_detach_choice_required', status: 409 },
   payments_disabled: { code: 'payments_disabled', status: 422 },
   payment_provider_unavailable: { code: 'payment_provider_unavailable', status: 422 },

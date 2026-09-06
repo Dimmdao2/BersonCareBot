@@ -131,6 +131,7 @@ export async function POST(request: Request) {
       slotEnd: body.slotEnd,
       slotCount: body.slotCount,
       contactName: body.contactName,
+      contactFio: body.contactFio,
       contactPhone: body.contactPhone,
       contactEmail: body.contactEmail,
       formAnswers: body.formAnswers,

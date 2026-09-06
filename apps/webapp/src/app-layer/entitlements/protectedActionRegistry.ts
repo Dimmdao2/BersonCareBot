@@ -651,6 +651,16 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'bookingForm.upsertAdminField',
   },
   {
+    id: 'booking.form-fields.archive',
+    mechanic: 'booking',
+    file: 'src/app/api/admin/booking-engine/form-fields/route.ts',
+    exportName: 'DELETE',
+    method: 'DELETE',
+    authContext: 'requireClinicManagementBookingEngine',
+    guard: 'requireEntitlementForMutation',
+    serviceBoundary: 'bookingForm.archiveAdminField',
+  },
+  {
     id: 'mechanic-settings.patch',
     mechanic: [
       'payments',

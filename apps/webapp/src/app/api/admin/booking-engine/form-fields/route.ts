@@ -11,7 +11,7 @@ import {
 } from '@/modules/booking-form/fieldTypes';
 
 /** A rejected body reaches the screen as this sentence, never as the machine code. */
-const INVALID_BODY_MESSAGE = 'Данные вопроса заполнены неверно. Проверьте их и повторите действие.';
+const INVALID_BODY_MESSAGE = 'Данные поля заполнены неверно. Проверьте их и повторите действие.';
 
 const upsertBody = z
   .object({
@@ -26,12 +26,12 @@ const upsertBody = z
     label: z.string().trim().min(1).max(200),
     placeholder: z.string().max(500).optional(),
     isRequired: z.boolean(),
-    visibleToPatient: z.boolean(),
-    visibleToStaff: z.boolean(),
     sortOrder: z.number().int(),
     isActive: z.boolean(),
   })
   .strict();
+
+const archiveBody = z.object({ id: z.string().uuid() }).strict();
 
 function pgErrorFacts(error: unknown): { code: string; constraint: string } {
   if (typeof error !== 'object' || error === null) return { code: '', constraint: '' };
@@ -122,6 +122,39 @@ export async function POST(request: Request) {
       errorClass: error instanceof Error ? error.name : 'unknown',
       code: pg.code || 'unknown',
     });
+    return NextResponse.json({ ok: false, error: 'booking_form_write_failed' }, { status: 503 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  const gate = await requireClinicManagementBookingEngine();
+  if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
+  if (!entitlement.ok) return entitlement.response;
+  const parsed = archiveBody.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+  }
+  const deps = buildAppDeps();
+  if (!deps.bookingForm) {
+    return NextResponse.json({ ok: false, error: 'booking_engine_unavailable' }, { status: 503 });
+  }
+  try {
+    await withDoctorWorkspacePrincipal(gate.ctx, 'admin.booking-engine.form-fields.archive', () =>
+      deps.bookingForm!.archiveAdminField(gate.ctx.organizationId, parsed.data.id),
+    );
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message === 'booking_form_field_not_found') {
+      return NextResponse.json({ ok: false, error: 'field_not_found' }, { status: 404 });
+    }
+    if (message === 'booking_form_system_field_cannot_be_archived') {
+      return NextResponse.json(
+        { ok: false, error: 'system_field_cannot_be_deleted' },
+        { status: 409 },
+      );
+    }
     return NextResponse.json({ ok: false, error: 'booking_form_write_failed' }, { status: 503 });
   }
 }

@@ -39,6 +39,7 @@ export const beBookingFormFields = pgTable(
     visibleToStaff: boolean('visible_to_staff').default(true).notNull(),
     sortOrder: integer('sort_order').default(0).notNull(),
     isActive: boolean('is_active').default(true).notNull(),
+    archivedAt: timestamp('archived_at', { withTimezone: true, mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),

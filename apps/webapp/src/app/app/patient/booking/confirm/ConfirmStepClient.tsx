@@ -26,6 +26,7 @@ import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
 import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
 import { formatDoctorFio, type StructuredFio } from '@/shared/lib/fio';
 import { isBuiltInOnlineLocationCityCode } from '@/modules/booking-engine/onlineLocation';
+import { canonicalBookingFormFieldKey } from '@/modules/booking-form/fieldTypes';
 import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import {
@@ -44,28 +45,19 @@ type FormField = {
   isRequired: boolean;
 };
 
-const CONTACT_FIELD_KEYS = new Set([
-  'contact_name',
-  'first_name',
-  'last_name',
-  'patronymic',
-  'contact_phone',
-  'phone',
-  'contact_email',
-  'email',
-]);
-
-function isExtraFormField(field: FormField): boolean {
-  if (CONTACT_FIELD_KEYS.has(field.fieldKey)) return false;
-  if (
+function isContactFormField(field: FormField): boolean {
+  const fieldKey = canonicalBookingFormFieldKey(field.fieldKey);
+  return (
+    fieldKey === 'first_name' ||
+    fieldKey === 'last_name' ||
+    fieldKey === 'patronymic' ||
+    fieldKey === 'phone' ||
+    fieldKey === 'email' ||
     field.fieldType === 'first_name' ||
     field.fieldType === 'last_name' ||
-    field.fieldType === 'phone'
-  ) {
-    return false;
-  }
-  if (field.fieldType === 'email') return false;
-  return true;
+    field.fieldType === 'phone' ||
+    field.fieldType === 'email'
+  );
 }
 
 type ConfirmStepOptions = {
@@ -149,8 +141,8 @@ export function ConfirmStepClient({
   const [patronymic, setPatronymic] = useState(defaultFio.patronymic ?? '');
   const [phone, setPhone] = useState(defaultPhone);
   const [email, setEmail] = useState(defaultEmail);
-  const [extraFields, setExtraFields] = useState<FormField[]>([]);
-  const [extraValues, setExtraValues] = useState<Record<string, string>>({});
+  const [formFields, setFormFields] = useState<FormField[]>([]);
+  const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [fieldsLoading, setFieldsLoading] = useState(true);
   const [packageOptions, setPackageOptions] = useState<
     Array<{
@@ -189,7 +181,7 @@ export function ConfirmStepClient({
           const res = await fetch(resolvedFormFieldsApiPath);
           const json = (await res.json()) as { ok?: boolean; fields?: FormField[] };
           if (!cancelled && json.ok && json.fields) {
-            setExtraFields(json.fields.filter(isExtraFormField));
+            setFormFields(json.fields);
           }
         } finally {
           if (!cancelled) setFieldsLoading(false);
@@ -263,8 +255,43 @@ export function ConfirmStepClient({
           ? 'Онлайн — Нутрициология'
           : 'Онлайн';
 
-  const missingRequiredExtra = extraFields.some(
-    (f) => f.isRequired && !(extraValues[f.fieldKey] ?? '').trim(),
+  function valueForField(field: FormField): string {
+    const fieldKey = canonicalBookingFormFieldKey(field.fieldKey);
+    if (fieldKey === 'last_name' || field.fieldType === 'last_name') return lastName;
+    if (fieldKey === 'first_name' || field.fieldType === 'first_name') return firstName;
+    if (fieldKey === 'patronymic') return patronymic;
+    if (fieldKey === 'phone' || field.fieldType === 'phone') return phone;
+    if (fieldKey === 'email' || field.fieldType === 'email') return email;
+    return formValues[field.fieldKey] ?? '';
+  }
+
+  function setValueForField(field: FormField, value: string): void {
+    const fieldKey = canonicalBookingFormFieldKey(field.fieldKey);
+    if (fieldKey === 'last_name' || field.fieldType === 'last_name') {
+      setLastName(value);
+      return;
+    }
+    if (fieldKey === 'first_name' || field.fieldType === 'first_name') {
+      setFirstName(value);
+      return;
+    }
+    if (fieldKey === 'patronymic') {
+      setPatronymic(value);
+      return;
+    }
+    if (fieldKey === 'phone' || field.fieldType === 'phone') {
+      setPhone(value);
+      return;
+    }
+    if (fieldKey === 'email' || field.fieldType === 'email') {
+      setEmail(value);
+      return;
+    }
+    setFormValues((previous) => ({ ...previous, [field.fieldKey]: value }));
+  }
+
+  const missingRequiredField = formFields.some(
+    (field) => field.isRequired && !valueForField(field).trim(),
   );
 
   const contactFio: StructuredFio = {
@@ -281,9 +308,7 @@ export function ConfirmStepClient({
           ...(contactFio.patronymic ? { patronymic: contactFio.patronymic } : {}),
         }
       : undefined;
-  const canSubmit = Boolean(
-    selection && contactFioInput && phone.trim() && !submitting && !missingRequiredExtra,
-  );
+  const canSubmit = Boolean(selection && !fieldsLoading && !submitting && !missingRequiredField);
 
   /** Shared by the direct create and, for the public widget, the post-code create (A-3). */
   function onBookingCreated(booking: PatientBookingRecord) {
@@ -391,11 +416,12 @@ export function ConfirmStepClient({
         onSubmit={(event) => {
           event.preventDefault();
           if (!selection) return;
-          if (!contactFioInput) return;
-          const formAnswers = extraFields.map((f) => ({
-            fieldKey: f.fieldKey,
-            value: (extraValues[f.fieldKey] ?? '').trim(),
-          }));
+          const formAnswers = formFields
+            .filter((field) => !isContactFormField(field))
+            .map((field) => ({
+              fieldKey: field.fieldKey,
+              value: valueForField(field).trim(),
+            }));
           if (isReschedule && rescheduleBookingId) {
             void rescheduleState
               .rescheduleBooking({
@@ -415,7 +441,7 @@ export function ConfirmStepClient({
               selection,
               slot,
               slotCount,
-              contactName,
+              contactName: contactName || phone.trim() || email.trim() || 'Пациент',
               contactFio: contactFioInput,
               contactPhone: phone.trim(),
               contactEmail: email.trim() || undefined,
@@ -430,28 +456,35 @@ export function ConfirmStepClient({
             });
         }}
       >
-        <h2 className={patientSectionTitleClass}>Контакты</h2>
+        <h2 className={patientSectionTitleClass}>Данные для записи</h2>
 
-        <label className="flex flex-col gap-1">
-          <span className={cn(patientMutedTextClass, 'text-xs')}>Фамилия</span>
-          <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className={cn(patientMutedTextClass, 'text-xs')}>Имя</span>
-          <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className={cn(patientMutedTextClass, 'text-xs')}>Отчество</span>
-          <Input value={patronymic} onChange={(e) => setPatronymic(e.target.value)} />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className={cn(patientMutedTextClass, 'text-xs')}>Телефон</span>
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} required />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className={cn(patientMutedTextClass, 'text-xs')}>Email</span>
-          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </label>
+        {fieldsLoading
+          ? null
+          : formFields.map((field) => (
+              <label key={field.fieldKey} className="flex flex-col gap-1">
+                <span className={cn(patientMutedTextClass, 'text-xs')}>
+                  {field.label}
+                  {field.isRequired ? ' *' : ''}
+                </span>
+                {field.fieldType === 'comment' || field.fieldType === 'problem_description' ? (
+                  <Textarea
+                    value={valueForField(field)}
+                    placeholder={field.placeholder ?? undefined}
+                    onChange={(event) => setValueForField(field, event.target.value)}
+                    required={field.isRequired}
+                  />
+                ) : (
+                  <Input
+                    type={field.fieldType === 'email' ? 'email' : 'text'}
+                    inputMode={field.fieldType === 'phone' ? 'tel' : undefined}
+                    value={valueForField(field)}
+                    placeholder={field.placeholder ?? undefined}
+                    onChange={(event) => setValueForField(field, event.target.value)}
+                    required={field.isRequired}
+                  />
+                )}
+              </label>
+            ))}
 
         {createState.proofMethod && createState.setProofMethod ? (
           <fieldset className="flex flex-col gap-2">
@@ -503,39 +536,6 @@ export function ConfirmStepClient({
               </SelectContent>
             </Select>
           </label>
-        ) : null}
-
-        {fieldsLoading ? null : extraFields.length > 0 ? (
-          <>
-            <h2 className={patientSectionTitleClass}>Дополнительно</h2>
-            {extraFields.map((field) => (
-              <label key={field.fieldKey} className="flex flex-col gap-1">
-                <span className={cn(patientMutedTextClass, 'text-xs')}>
-                  {field.label}
-                  {field.isRequired ? ' *' : ''}
-                </span>
-                {field.fieldType === 'comment' || field.fieldType === 'problem_description' ? (
-                  <Textarea
-                    value={extraValues[field.fieldKey] ?? ''}
-                    placeholder={field.placeholder ?? undefined}
-                    onChange={(e) =>
-                      setExtraValues((prev) => ({ ...prev, [field.fieldKey]: e.target.value }))
-                    }
-                    required={field.isRequired}
-                  />
-                ) : (
-                  <Input
-                    value={extraValues[field.fieldKey] ?? ''}
-                    placeholder={field.placeholder ?? undefined}
-                    onChange={(e) =>
-                      setExtraValues((prev) => ({ ...prev, [field.fieldKey]: e.target.value }))
-                    }
-                    required={field.isRequired}
-                  />
-                )}
-              </label>
-            ))}
-          </>
         ) : null}
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}

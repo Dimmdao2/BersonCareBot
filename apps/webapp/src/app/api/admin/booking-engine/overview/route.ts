@@ -25,8 +25,9 @@ export async function GET() {
     service.services.listSpecialistServiceAvailability(organizationId),
     service.services.listServiceLocationAvailability(organizationId),
     service.catalog.listSpecialistRooms(organizationId),
-    buildAppDeps().clinicDirectory?.getPublishedSlugForOrganization(organizationId) ??
-      Promise.resolve(null),
+    buildAppDeps().clinicDirectory
+      ?.getSlugManagementState(organizationId)
+      .then((state) => state.currentSlug) ?? Promise.resolve(null),
   ]);
   return NextResponse.json({
     ok: true,

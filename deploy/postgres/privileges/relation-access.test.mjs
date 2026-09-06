@@ -801,7 +801,7 @@ test('clinic-owner mutation grants include every default column emitted by Drizz
     'skip_reason', 'sort_order', 'started_at', 'status', 'title',
   ]);
   exactColumns('public.be_booking_form_fields', 'app_staff', 'INSERT', [
-    'created_at', 'field_key', 'field_type', 'id', 'is_active', 'is_required', 'label',
+    'archived_at', 'created_at', 'field_key', 'field_type', 'id', 'is_active', 'is_required', 'label',
     'organization_id', 'placeholder', 'sort_order', 'updated_at', 'visible_to_patient',
     'visible_to_staff',
   ]);

@@ -35,8 +35,6 @@ function request(overrides: Record<string, unknown> = {}) {
       fieldType: 'text',
       label: 'Жалоба',
       isRequired: true,
-      visibleToPatient: true,
-      visibleToStaff: true,
       sortOrder: 10,
       isActive: true,
       ...overrides,
@@ -107,7 +105,7 @@ describe('clinic-owner booking form field mutation', () => {
 
     expect(response.status).toBe(400);
     expect(body.message).toBe(
-      'Данные вопроса заполнены неверно. Проверьте их и повторите действие.',
+      'Данные поля заполнены неверно. Проверьте их и повторите действие.',
     );
   });
 

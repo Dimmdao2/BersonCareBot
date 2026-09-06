@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { bookingAttributionBodySchema } from './bookingAttributionBodySchema';
+import { contactFioFieldSchema } from '@/modules/patient-booking/inPersonApiSchemas';
 
 const formAnswerSchema = z.object({
   fieldKey: z.string().min(1),
@@ -8,6 +9,7 @@ const formAnswerSchema = z.object({
 
 const contactFields = {
   contactName: z.string().min(1),
+  contactFio: contactFioFieldSchema,
   contactPhone: z.string().min(1),
   contactEmail: z.string().email().optional(),
   formAnswers: z.array(formAnswerSchema).optional(),

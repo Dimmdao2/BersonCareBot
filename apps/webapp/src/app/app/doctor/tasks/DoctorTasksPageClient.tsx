@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ListTodo } from 'lucide-react';
+import { ListPlus, ListTodo } from 'lucide-react';
 import type { SpecialistTaskRow as Task } from '@/modules/specialist-tasks/types';
 import { isSpecialistTaskDueOnDate } from '@/modules/specialist-tasks/taskPriority';
 import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
@@ -33,6 +33,10 @@ import {
   SpecialistTaskFormDialog,
 } from '../clients/SpecialistTaskFormDialog';
 import { notifyDoctorTasksChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
+import {
+  DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS,
+  NAV_STRIP_ICON_STROKE,
+} from '@/shared/ui/doctor/navChrome';
 
 type Pane = { kind: 'details' | 'edit'; taskId: string } | null;
 type TaskView = 'open' | 'completed';
@@ -121,6 +125,19 @@ export function DoctorTasksPageClient({
         >
           <ListTodo className="size-4" aria-hidden />
         </Button>
+        {canMutate ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS}
+            aria-label="Новая задача"
+            title="Новая задача"
+            onClick={() => setCreateOpen(true)}
+          >
+            <ListPlus className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+          </Button>
+        ) : null}
       </div>
     </div>
   );
@@ -228,13 +245,6 @@ export function DoctorTasksPageClient({
             className="hidden md:block"
             withinRemainingHeight
             filters={taskFilters}
-            end={
-              canMutate ? (
-                <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
-                  Новая задача
-                </Button>
-              ) : undefined
-            }
           />
         }
       >

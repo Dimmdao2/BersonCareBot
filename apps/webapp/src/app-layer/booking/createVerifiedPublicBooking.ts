@@ -54,6 +54,15 @@ type CreateVerifiedPublicBookingDeps = InPersonBookingResolveDeps & {
   patientBooking: {
     createBooking: (input: CreatePatientBookingInput) => Promise<PatientBookingRecord>;
   };
+  identity: {
+    projection: {
+      updateCurrentPatientFio: (params: {
+        lastName: string;
+        firstName: string;
+        patronymic: string | null;
+      }) => Promise<unknown>;
+    };
+  };
 };
 
 export async function createVerifiedPublicBooking(
@@ -98,6 +107,13 @@ export async function createVerifiedPublicBooking(
       }
       const cityCode = ctx.cityCode?.trim().toLowerCase();
       if (!cityCode) throw new InPersonBookingResolveError('branch_not_found');
+      if (intent.contactFio) {
+        await deps.identity.projection.updateCurrentPatientFio({
+          lastName: intent.contactFio.lastName,
+          firstName: intent.contactFio.firstName,
+          patronymic: intent.contactFio.patronymic ?? null,
+        });
+      }
       const booking = await deps.patientBooking.createBooking({
         userId: platformUserId,
         organizationId: ctx.organizationId,
@@ -111,6 +127,7 @@ export async function createVerifiedPublicBooking(
         slotEnd: intent.slotEnd,
         slotCount: intent.slotCount,
         contactName: intent.contactName,
+        contactFio: intent.contactFio,
         contactPhone: intent.contactPhone,
         contactEmail: intent.contactEmail,
         formAnswers: intent.formAnswers,

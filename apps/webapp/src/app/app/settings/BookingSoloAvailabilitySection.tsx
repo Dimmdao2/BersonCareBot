@@ -106,12 +106,47 @@ export function BookingSoloAvailabilitySection() {
       {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
       {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
 
-      <div className="overflow-hidden rounded-md border">
+      <div className="overflow-hidden rounded-md border md:hidden">
+        {activeServices.map((service) => (
+          <div key={service.id} className="border-b border-border/60 px-3 py-2.5 last:border-0">
+            <p className="mb-2 break-words text-sm text-foreground">{service.title}</p>
+            <div
+              className="grid gap-x-1.5 gap-y-2"
+              style={{
+                gridTemplateColumns: `repeat(${activeBranches.length}, minmax(0, 1fr))`,
+              }}
+            >
+              {activeBranches.map((branch) => {
+                const enabled = isServiceAvailableAtLocation(overview, service.id, branch.id);
+                const compactTitle = (branch.shortTitle?.trim() || branch.title).slice(0, 10);
+                return (
+                  <div key={branch.id} className="flex min-w-0 flex-col items-center gap-1">
+                    <span
+                      className="w-full truncate text-center text-xs text-muted-foreground"
+                      title={branch.title}
+                    >
+                      {compactTitle}
+                    </span>
+                    <Switch
+                      checked={enabled}
+                      disabled={pending}
+                      aria-label={`${service.title} — ${branch.title}`}
+                      onCheckedChange={(checked) => toggle(service.id, branch.id, checked)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden overflow-hidden rounded-md border md:block">
         <table className="w-full table-fixed text-sm">
           <colgroup>
             <col />
             {activeBranches.map((branch) => (
-              <col key={branch.id} className="w-20 sm:w-24" />
+              <col key={branch.id} className="w-16 lg:w-20" />
             ))}
           </colgroup>
           <thead>
@@ -122,7 +157,7 @@ export function BookingSoloAvailabilitySection() {
                 return (
                   <th
                     key={branch.id}
-                    className="truncate px-2 py-2 text-center font-medium"
+                    className="truncate px-1 py-2 text-center font-medium"
                     title={branch.title}
                   >
                     {compactTitle}
@@ -140,7 +175,7 @@ export function BookingSoloAvailabilitySection() {
                 {activeBranches.map((branch) => {
                   const enabled = isServiceAvailableAtLocation(overview, service.id, branch.id);
                   return (
-                    <td key={branch.id} className="px-2 py-2 text-center">
+                    <td key={branch.id} className="px-1 py-2 text-center">
                       <Switch
                         checked={enabled}
                         disabled={pending}

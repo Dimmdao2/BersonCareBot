@@ -5,7 +5,7 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
 
-const scopeLevel = z.enum(['organization', 'specialist', 'service', 'product']);
+const scopeLevel = z.literal('organization');
 
 const cancelUpsert = z.object({
   kind: z.literal('cancellation'),
@@ -26,8 +26,6 @@ const cancelUpsert = z.object({
   refundPrepaymentOnLate: z.string().min(1),
   chargePackageSessionOnLate: z.boolean(),
   requiresStaffConfirmation: z.boolean(),
-  notifyPatient: z.boolean(),
-  notifyStaff: z.boolean(),
   sortOrder: z.number().int(),
 });
 
@@ -40,14 +38,8 @@ const rescheduleUpsert = z.object({
   isActive: z.boolean(),
   selfRescheduleHoursBefore: z.number().int().min(0),
   maxSelfReschedules: z.number().int().min(0),
-  allowDifferentBranch: z.boolean(),
-  allowDifferentCity: z.boolean(),
-  allowDifferentSpecialist: z.boolean(),
-  allowDifferentService: z.boolean(),
   limitExceededBehavior: z.enum(['manual_request', 'deny']),
   requiresStaffConfirmation: z.boolean(),
-  notifyPatient: z.boolean(),
-  notifyStaff: z.boolean(),
   sortOrder: z.number().int(),
 });
 
@@ -83,27 +75,7 @@ export async function POST(request: Request) {
   }
   const bookingPolicies = deps.bookingPolicies;
   const { organizationId } = gate.ctx;
-  const scopeEntityId =
-    parsed.data.scopeEntityId ??
-    (parsed.data.scopeLevel === 'organization' ? organizationId : null);
-  if (!scopeEntityId) {
-    return NextResponse.json({ ok: false, error: 'scope_entity_required' }, { status: 400 });
-  }
-  let scopeBelongsToOrganization = scopeEntityId === organizationId;
-  if (parsed.data.scopeLevel === 'specialist') {
-    const specialist = await gate.ctx.service.catalog.getSpecialist(scopeEntityId);
-    scopeBelongsToOrganization = specialist?.organizationId === organizationId;
-  } else if (parsed.data.scopeLevel === 'service') {
-    const service = await gate.ctx.service.services.getService(scopeEntityId);
-    scopeBelongsToOrganization = service?.organizationId === organizationId;
-  } else if (parsed.data.scopeLevel === 'product') {
-    // Product catalog was cut (B1.4, docs/_TODO/SAAS_FOUNDATION/SAAS_BILLING_PLAN.md) — no source
-    // left to validate a product-scoped policy against, so this scope level can never resolve.
-    scopeBelongsToOrganization = false;
-  }
-  if (!scopeBelongsToOrganization) {
-    return NextResponse.json({ ok: false, error: 'scope_entity_not_found' }, { status: 404 });
-  }
+  const scopeEntityId = organizationId;
 
   try {
     if (parsed.data.kind === 'cancellation') {
@@ -116,6 +88,8 @@ export async function POST(request: Request) {
             ...data,
             organizationId,
             scopeEntityId,
+            notifyPatient: true,
+            notifyStaff: true,
           }),
       );
       return NextResponse.json({ ok: true, policy });
@@ -130,6 +104,12 @@ export async function POST(request: Request) {
           ...data,
           organizationId,
           scopeEntityId,
+          allowDifferentBranch: false,
+          allowDifferentCity: false,
+          allowDifferentSpecialist: false,
+          allowDifferentService: false,
+          notifyPatient: true,
+          notifyStaff: true,
         }),
     );
     return NextResponse.json({ ok: true, policy });

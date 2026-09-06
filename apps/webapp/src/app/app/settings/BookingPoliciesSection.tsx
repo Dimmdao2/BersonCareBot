@@ -17,7 +17,6 @@ import {
 import type {
   CancellationPolicy,
   LateCancellationBehavior,
-  PolicyScopeLevel,
   RescheduleLimitBehavior,
   ReschedulePolicy,
 } from '@/modules/booking-policies/types';
@@ -27,12 +26,6 @@ import {
 } from '@/modules/booking-policies/types';
 
 const BASE = '/api/admin/booking-engine/policies';
-
-const SCOPE_LEVELS: { value: PolicyScopeLevel; label: string }[] = [
-  { value: 'organization', label: 'Клиника' },
-  { value: 'specialist', label: 'Специалист' },
-  { value: 'service', label: 'Услуга' },
-];
 
 const LATE_CANCEL_OPTIONS: { value: LateCancellationBehavior; label: string }[] = [
   { value: 'manual_review', label: 'Ручное решение' },
@@ -49,7 +42,6 @@ const LIMIT_OPTIONS: { value: RescheduleLimitBehavior; label: string }[] = [
 
 type PolicyKind = 'cancellation' | 'reschedule';
 
-const OVERVIEW = '/api/admin/booking-engine/overview';
 const CANCELLATION_DRAFT_ID = 'draft-cancellation-organization';
 const RESCHEDULE_DRAFT_ID = 'draft-reschedule-organization';
 
@@ -100,11 +92,7 @@ type Props = {
 export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind = false }: Props) {
   const [cancellationPolicies, setCancellationPolicies] = useState<CancellationPolicy[]>([]);
   const [reschedulePolicies, setReschedulePolicies] = useState<ReschedulePolicy[]>([]);
-  const [scopeLevel, setScopeLevel] = useState<PolicyScopeLevel>('organization');
-  const [scopeEntityId, setScopeEntityId] = useState('');
   const [kind, setKind] = useState<PolicyKind>(defaultKind);
-  const [specialists, setSpecialists] = useState<Array<{ id: string; fullName: string }>>([]);
-  const [services, setServices] = useState<Array<{ id: string; title: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -138,37 +126,11 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
     setKind(defaultKind);
   }, [defaultKind]);
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const ov = await apiJson<{
-          ok?: boolean;
-          specialists?: Array<{ id: string; fullName: string }>;
-          services?: Array<{ id: string; title: string }>;
-        }>(OVERVIEW);
-        setSpecialists(ov.specialists ?? []);
-        setServices(ov.services ?? []);
-      } catch {
-        // catalog load failure is non-critical; selects simply stay empty
-      }
-    })();
-  }, []);
-
   const cancelPolicy =
-    cancellationPolicies.find(
-      (p) =>
-        p.scopeLevel === scopeLevel &&
-        (scopeLevel === 'organization' || (p.scopeEntityId ?? '') === scopeEntityId.trim()),
-    ) ?? null;
+    cancellationPolicies.find((policy) => policy.scopeLevel === 'organization') ?? null;
 
   const reschedulePolicy =
-    reschedulePolicies.find(
-      (p) =>
-        p.scopeLevel === scopeLevel &&
-        (scopeLevel === 'organization' || (p.scopeEntityId ?? '') === scopeEntityId.trim()),
-    ) ?? null;
-
-  const activePolicy = kind === 'cancellation' ? cancelPolicy : reschedulePolicy;
+    reschedulePolicies.find((policy) => policy.scopeLevel === 'organization') ?? null;
 
   function saveCancellation(policy: CancellationPolicy) {
     startTransition(async () => {
@@ -179,8 +141,8 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
           body: JSON.stringify({
             kind: 'cancellation',
             ...(policy.id === CANCELLATION_DRAFT_ID ? {} : { id: policy.id }),
-            scopeLevel: policy.scopeLevel,
-            scopeEntityId: policy.scopeLevel === 'organization' ? null : policy.scopeEntityId,
+            scopeLevel: 'organization',
+            scopeEntityId: null,
             title: policy.title,
             isActive: policy.isActive,
             freeCancelHoursBefore: policy.freeCancelHoursBefore,
@@ -189,8 +151,6 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
             refundPrepaymentOnLate: policy.refundPrepaymentOnLate,
             chargePackageSessionOnLate: policy.chargePackageSessionOnLate,
             requiresStaffConfirmation: policy.requiresStaffConfirmation,
-            notifyPatient: policy.notifyPatient,
-            notifyStaff: policy.notifyStaff,
             sortOrder: policy.sortOrder,
           }),
         });
@@ -210,20 +170,14 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
           body: JSON.stringify({
             kind: 'reschedule',
             ...(policy.id === RESCHEDULE_DRAFT_ID ? {} : { id: policy.id }),
-            scopeLevel: policy.scopeLevel,
-            scopeEntityId: policy.scopeLevel === 'organization' ? null : policy.scopeEntityId,
+            scopeLevel: 'organization',
+            scopeEntityId: null,
             title: policy.title,
             isActive: policy.isActive,
             selfRescheduleHoursBefore: policy.selfRescheduleHoursBefore,
             maxSelfReschedules: policy.maxSelfReschedules,
-            allowDifferentBranch: policy.allowDifferentBranch,
-            allowDifferentCity: policy.allowDifferentCity,
-            allowDifferentSpecialist: policy.allowDifferentSpecialist,
-            allowDifferentService: policy.allowDifferentService,
             limitExceededBehavior: policy.limitExceededBehavior,
             requiresStaffConfirmation: policy.requiresStaffConfirmation,
-            notifyPatient: policy.notifyPatient,
-            notifyStaff: policy.notifyStaff,
             sortOrder: policy.sortOrder,
           }),
         });
@@ -237,72 +191,13 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Политики отмены и переноса</CardTitle>
+        <CardTitle className="text-base">
+          {lockKind ? (kind === 'cancellation' ? 'Отмена' : 'Перенос') : 'Отмена и перенос'}
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Уровень</Label>
-            <Select
-              value={scopeLevel}
-              onValueChange={(v) => v && setScopeLevel(v as PolicyScopeLevel)}
-            >
-              <SelectTrigger
-                className="w-full"
-                displayLabel={SCOPE_LEVELS.find((item) => item.value === scopeLevel)?.label}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SCOPE_LEVELS.map((s) => (
-                  <SelectItem key={s.value} value={s.value} label={s.label}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {scopeLevel === 'specialist' ? (
-            <div className="space-y-2">
-              <Label>Специалист</Label>
-              <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
-                <SelectTrigger
-                  className="w-full max-w-md"
-                  displayLabel={specialists.find((item) => item.id === scopeEntityId)?.fullName}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {specialists.map((s) => (
-                    <SelectItem key={s.id} value={s.id} label={s.fullName}>
-                      {s.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
-          {scopeLevel === 'service' ? (
-            <div className="space-y-2">
-              <Label>Услуга</Label>
-              <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
-                <SelectTrigger
-                  className="w-full max-w-md"
-                  displayLabel={services.find((item) => item.id === scopeEntityId)?.title}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {services.map((s) => (
-                    <SelectItem key={s.id} value={s.id} label={s.title}>
-                      {s.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
           {!lockKind ? (
             <div className="space-y-2">
               <Label>Тип политики</Label>
@@ -392,28 +287,6 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
               />
               <Label>Отмена разрешена</Label>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={cancelPolicy.notifyPatient}
-                onCheckedChange={(v) =>
-                  setCancellationPolicies((prev) =>
-                    prev.map((p) => (p.id === cancelPolicy.id ? { ...p, notifyPatient: v } : p)),
-                  )
-                }
-              />
-              <Label>Уведомлять пациента</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={cancelPolicy.notifyStaff}
-                onCheckedChange={(v) =>
-                  setCancellationPolicies((prev) =>
-                    prev.map((p) => (p.id === cancelPolicy.id ? { ...p, notifyStaff: v } : p)),
-                  )
-                }
-              />
-              <Label>Уведомлять персонал</Label>
-            </div>
             <Button type="button" disabled={pending} onClick={() => saveCancellation(cancelPolicy)}>
               Сохранить отмену
             </Button>
@@ -490,82 +363,6 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={reschedulePolicy.allowDifferentBranch}
-                onCheckedChange={(v) =>
-                  setReschedulePolicies((prev) =>
-                    prev.map((p) =>
-                      p.id === reschedulePolicy.id ? { ...p, allowDifferentBranch: v } : p,
-                    ),
-                  )
-                }
-              />
-              <Label>Другой филиал</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={reschedulePolicy.allowDifferentCity}
-                onCheckedChange={(v) =>
-                  setReschedulePolicies((prev) =>
-                    prev.map((p) =>
-                      p.id === reschedulePolicy.id ? { ...p, allowDifferentCity: v } : p,
-                    ),
-                  )
-                }
-              />
-              <Label>Другой город</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={reschedulePolicy.allowDifferentSpecialist}
-                onCheckedChange={(v) =>
-                  setReschedulePolicies((prev) =>
-                    prev.map((p) =>
-                      p.id === reschedulePolicy.id ? { ...p, allowDifferentSpecialist: v } : p,
-                    ),
-                  )
-                }
-              />
-              <Label>Другой специалист</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={reschedulePolicy.allowDifferentService}
-                onCheckedChange={(v) =>
-                  setReschedulePolicies((prev) =>
-                    prev.map((p) =>
-                      p.id === reschedulePolicy.id ? { ...p, allowDifferentService: v } : p,
-                    ),
-                  )
-                }
-              />
-              <Label>Другая услуга</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={reschedulePolicy.notifyPatient}
-                onCheckedChange={(v) =>
-                  setReschedulePolicies((prev) =>
-                    prev.map((p) =>
-                      p.id === reschedulePolicy.id ? { ...p, notifyPatient: v } : p,
-                    ),
-                  )
-                }
-              />
-              <Label>Уведомлять пациента</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={reschedulePolicy.notifyStaff}
-                onCheckedChange={(v) =>
-                  setReschedulePolicies((prev) =>
-                    prev.map((p) => (p.id === reschedulePolicy.id ? { ...p, notifyStaff: v } : p)),
-                  )
-                }
-              />
-              <Label>Уведомлять персонал</Label>
-            </div>
             <Button
               type="button"
               disabled={pending}
@@ -574,12 +371,6 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
               Сохранить перенос
             </Button>
           </div>
-        ) : null}
-
-        {!activePolicy && scopeLevel !== 'organization' ? (
-          <p className="text-sm text-muted-foreground">
-            Выберите специалиста или услугу, чтобы создать политику этого уровня.
-          </p>
         ) : null}
       </CardContent>
     </Card>

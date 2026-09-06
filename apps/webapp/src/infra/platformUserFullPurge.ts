@@ -8,8 +8,10 @@ import { sql } from 'drizzle-orm';
 import type { Pool, PoolClient } from 'pg';
 import { getPool } from '@/infra/db/client';
 import { runPurgeClientSql, runPurgePoolSql } from '@/infra/platformUserPurgeSql';
-import { parseStorageTarget } from '@/infra/s3/client';
-import type { StorageTarget } from '@/shared/types/storageTarget';
+import {
+  parseStorageTarget,
+  type StorageTarget,
+} from '@/shared/types/storageTarget';
 import { CONTACTS, USER_CONTACTS_PRIMARY_PHONE_LATERAL } from '@/infra/repos/userContactsSql';
 
 /** Только цифры; для сопоставления записей по номеру. */

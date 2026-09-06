@@ -53,7 +53,6 @@ const platformSession = {
 };
 
 const CLINIC_ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
-const CLINIC_BOOLEAN_KEY = 'booking_allow_doctor_unlink_past_package_sessions';
 const CLINIC_ROOT_SKIP_PUBLIC_CARD_KEY = 'clinic_root_skip_public_card';
 
 function patch(body: unknown) {
@@ -377,39 +376,6 @@ describe('clinic-owner atomic settings readback', () => {
         updatedBy: clinicSession.user.userId,
       }),
     );
-  });
-
-  it.each([true, false])('saves and reads back the boolean value %s', async (value) => {
-    const response = await patch({ key: CLINIC_BOOLEAN_KEY, value: { value } });
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      ok: true,
-      setting: {
-        key: CLINIC_BOOLEAN_KEY,
-        scope: 'admin',
-        valueJson: { value },
-        organizationId: CLINIC_ORGANIZATION_ID,
-      },
-    });
-    expect(fakes.updateSetting).toHaveBeenCalledWith(
-      CLINIC_BOOLEAN_KEY,
-      'admin',
-      { value },
-      clinicSession.user.userId,
-      { organizationId: CLINIC_ORGANIZATION_ID },
-    );
-  });
-
-  it('refuses a non-boolean instead of weakening validation', async () => {
-    const response = await patch({
-      key: CLINIC_BOOLEAN_KEY,
-      value: { value: 'sometimes' },
-    });
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ ok: false, error: 'invalid_value' });
-    expect(fakes.updateSetting).not.toHaveBeenCalled();
   });
 
   it('resets a saved clinic channel to pending until a new live probe succeeds', async () => {

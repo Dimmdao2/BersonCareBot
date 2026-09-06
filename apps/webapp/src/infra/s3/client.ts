@@ -14,6 +14,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'node:stream';
 import { env } from '@/config/env';
 import type { StorageTarget } from '@/shared/types/storageTarget';
+export { parseStorageTarget } from '@/shared/types/storageTarget';
 
 const PRESIGN_PUT_EXPIRES_SEC = 900;
 const PRESIGN_PART_EXPIRES_SEC = 900;
@@ -70,22 +71,6 @@ export function storageBucketFor(target: StorageTarget): string {
 /** Отдельно ли живут данные пациентов в этом окружении. */
 export function isPatientStorageSeparate(): boolean {
   return Boolean(env.PATIENT_S3_BUCKET);
-}
-
-/**
- * Хранилище строки БД. Колонка `storage_target` объявлена NOT NULL DEFAULT 'library', поэтому у
- * ЛЮБОЙ живой строки значение есть. Если сюда пришло что-то другое — значит, читающий запрос не
- * выбрал колонку, и молча подставить бакет было бы ровно тем, что владелец запретил 06.09.2026:
- * «если для файлов пациентов мы забудем подставить назначение в каком-то куске кода, они
- * загрузятся в библиотеку. А это неправильно».
- *
- * Поэтому здесь отказ, а не подстановка. Место, где хранилища действительно нет как факта, —
- * платформенная библиотека упражнений: её шов такой колонки не отдаёт, и там `'library'`
- * написано буквально, с объяснением.
- */
-export function parseStorageTarget(value: unknown): StorageTarget {
-  if (value === 'patient' || value === 'library') return value;
-  throw new Error(`storage_target_missing_on_row: ${JSON.stringify(value)}`);
 }
 
 /**

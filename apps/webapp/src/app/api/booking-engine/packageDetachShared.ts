@@ -34,17 +34,6 @@ export async function runPackageDetach(params: {
   const resolved = await deps.bookingPolicies?.resolveCancellationPolicy(policyCtx);
   const policy = withDefaultCancellationPolicy(resolved ?? null, params.organizationId);
 
-  const allowPastRow = await deps.systemSettings?.getSetting(
-    'booking_allow_doctor_unlink_past_package_sessions',
-    'admin',
-  );
-  const allowPastUnlink =
-    allowPastRow?.valueJson === true ||
-    (typeof allowPastRow?.valueJson === 'object' &&
-      allowPastRow?.valueJson !== null &&
-      'value' in (allowPastRow.valueJson as object) &&
-      (allowPastRow.valueJson as { value?: unknown }).value === true);
-
   try {
     const detach = () =>
       deps.memberships!.detachAppointmentPackage({
@@ -53,7 +42,6 @@ export async function runPackageDetach(params: {
         createdByPlatformUserId: params.createdByPlatformUserId,
         outcome: params.outcome,
         confirmPastTwice: params.confirmPastTwice,
-        allowPastUnlink,
         freeCancelHoursBefore: policy.freeCancelHoursBefore,
       });
     const result = params.runDetachMutation

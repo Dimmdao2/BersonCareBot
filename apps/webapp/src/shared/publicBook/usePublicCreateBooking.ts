@@ -44,71 +44,73 @@ export function usePublicCreateBooking() {
     input: CreateBookingInput,
     selectedProofMethod: 'sms' | 'email',
   ): Promise<PatientBookingRecord | false> {
-      const attribution: BookingAttribution = readStoredPublicBookingAttribution();
-      const body =
-        input.selection.type === 'online'
-          ? {
-              type: 'online' as const,
-              category: input.selection.category,
+    const attribution: BookingAttribution = readStoredPublicBookingAttribution();
+    const body =
+      input.selection.type === 'online'
+        ? {
+            type: 'online' as const,
+            category: input.selection.category,
+            slotStart: input.slot.startAt,
+            slotEnd: input.slot.endAt,
+            contactName: input.contactName,
+            contactFio: input.contactFio,
+            contactPhone: input.contactPhone,
+            contactEmail: input.contactEmail,
+            proofMethod: selectedProofMethod,
+            formAnswers: input.formAnswers,
+            attribution,
+          }
+        : (() => {
+            return {
+              type: 'in_person' as const,
+              branchId: input.selection.branchId,
+              serviceId: input.selection.serviceId,
+              orgSlug: input.selection.orgSlug,
+              cityCode: input.selection.cityCode,
               slotStart: input.slot.startAt,
               slotEnd: input.slot.endAt,
               contactName: input.contactName,
+              contactFio: input.contactFio,
               contactPhone: input.contactPhone,
               contactEmail: input.contactEmail,
               proofMethod: selectedProofMethod,
               formAnswers: input.formAnswers,
               attribution,
-            }
-          : (() => {
-              return {
-                type: 'in_person' as const,
-                branchId: input.selection.branchId,
-                serviceId: input.selection.serviceId,
-                orgSlug: input.selection.orgSlug,
-                cityCode: input.selection.cityCode,
-                slotStart: input.slot.startAt,
-                slotEnd: input.slot.endAt,
-                contactName: input.contactName,
-                contactPhone: input.contactPhone,
-                contactEmail: input.contactEmail,
-                proofMethod: selectedProofMethod,
-                formAnswers: input.formAnswers,
-                attribution,
-              };
-            })();
+            };
+          })();
 
-      const res = await fetch('/api/booking/public/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+    const res = await fetch('/api/booking/public/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+      retryAfterSeconds?: number;
+      booking?: PatientBookingRecord;
+      verification?: { challengeId: string; expiresInSeconds: number };
+    };
+    if (res.ok && json.ok === true && json.verification && selectedProofMethod === 'sms') {
+      setVerificationPrompt({
+        proofMethod: 'sms',
+        challengeId: json.verification.challengeId,
+        expiresInSeconds: json.verification.expiresInSeconds,
+        contact: input.contactPhone,
       });
-      const json = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        error?: string;
-        retryAfterSeconds?: number;
-        booking?: PatientBookingRecord;
-        verification?: { challengeId: string; expiresInSeconds: number };
-      };
-      if (res.ok && json.ok === true && json.verification && selectedProofMethod === 'sms') {
-        setVerificationPrompt({
-          proofMethod: 'sms',
-          challengeId: json.verification.challengeId,
-          expiresInSeconds: json.verification.expiresInSeconds,
-          contact: input.contactPhone,
-        });
-        return false;
+      return false;
+    }
+    if (!res.ok || json.ok !== true || !json.booking) {
+      if (json.error === 'rate_limited') {
+        setError('Слишком много попыток. Попробуйте позже.');
+      } else if (json.error === 'verification_unavailable') {
+        setError('Не удалось отправить код подтверждения. Попробуйте позже.');
+      } else {
+        setError(mapBookingCreateErrorCodeToRu(json.error));
       }
-      if (!res.ok || json.ok !== true || !json.booking) {
-        if (json.error === 'rate_limited') {
-          setError('Слишком много попыток. Попробуйте позже.');
-        } else if (json.error === 'verification_unavailable') {
-          setError('Не удалось отправить код подтверждения. Попробуйте позже.');
-        } else {
-          setError(mapBookingCreateErrorCodeToRu(json.error));
-        }
-        return false;
-      }
-      return json.booking;
+      return false;
+    }
+    return json.booking;
   }
 
   async function createBooking(input: CreateBookingInput): Promise<PatientBookingRecord | false> {
@@ -130,7 +132,10 @@ export function usePublicCreateBooking() {
         });
         let res = registration;
         let json = (await registration.json().catch(() => ({}))) as {
-          ok?: boolean; challengeId?: string; error?: string; message?: string;
+          ok?: boolean;
+          challengeId?: string;
+          error?: string;
+          message?: string;
         };
         if (json.error === 'duplicate_email') {
           res = await fetch('/api/auth/email-otp/start', {
@@ -148,7 +153,12 @@ export function usePublicCreateBooking() {
           );
           return false;
         }
-        setVerificationPrompt({ proofMethod: 'email', challengeId: json.challengeId, expiresInSeconds: 600, contact: email });
+        setVerificationPrompt({
+          proofMethod: 'email',
+          challengeId: json.challengeId,
+          expiresInSeconds: 600,
+          contact: email,
+        });
         return false;
       }
       return await submitCreate(input, 'sms');
@@ -171,14 +181,14 @@ export function usePublicCreateBooking() {
           ? '/api/auth/email-otp/confirm'
           : '/api/booking/public/create/confirm',
         {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          prompt.proofMethod === 'email'
-            ? { email: prompt.contact, code: code.trim() }
-            : { challengeId: prompt.challengeId, code: code.trim() },
-        ),
-      },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(
+            prompt.proofMethod === 'email'
+              ? { email: prompt.contact, code: code.trim() }
+              : { challengeId: prompt.challengeId, code: code.trim() },
+          ),
+        },
       );
       const json = (await res.json().catch(() => ({}))) as {
         ok?: boolean;

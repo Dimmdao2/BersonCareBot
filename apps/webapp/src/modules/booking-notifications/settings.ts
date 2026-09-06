@@ -101,7 +101,7 @@ export async function loadAppointmentReminderPlanFromSystemSettings(
 
 export function resolveBookingNotifyTargets(
   eventType: BookingLifecycleNotificationEventKey,
-  policy: { notifyPatient: boolean; notifyStaff: boolean },
+  _policy: { notifyPatient: boolean; notifyStaff: boolean },
   settings: BookingLifecycleNotificationsSettings | null,
 ): { notifyPatient: boolean; notifyStaff: boolean } {
   const eventSettings =
@@ -110,7 +110,7 @@ export function resolveBookingNotifyTargets(
     return { notifyPatient: false, notifyStaff: false };
   }
   return {
-    notifyPatient: policy.notifyPatient && eventSettings.notifyPatient,
-    notifyStaff: policy.notifyStaff && eventSettings.notifyStaff,
+    notifyPatient: eventSettings.notifyPatient,
+    notifyStaff: eventSettings.notifyStaff,
   };
 }

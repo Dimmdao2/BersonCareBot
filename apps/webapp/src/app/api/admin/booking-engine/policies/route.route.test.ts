@@ -9,7 +9,6 @@ const fakes = vi.hoisted(() => ({
   upsertReschedulePolicy: vi.fn(),
   listCancellationPolicies: vi.fn(),
   listReschedulePolicies: vi.fn(),
-  getService: vi.fn(),
 }));
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
@@ -33,7 +32,6 @@ beforeEach(() => {
     ok: true,
     ctx: {
       organizationId: ORGANIZATION_ID,
-      service: { catalog: {}, services: { getService: fakes.getService } },
     },
   });
   fakes.buildAppDeps.mockReturnValue({
@@ -73,8 +71,6 @@ describe('admin booking-engine policies POST — booking entitlement gate', () =
           refundPrepaymentOnLate: 'none',
           chargePackageSessionOnLate: false,
           requiresStaffConfirmation: false,
-          notifyPatient: true,
-          notifyStaff: true,
           sortOrder: 0,
         }),
       }),
@@ -118,8 +114,6 @@ describe('admin booking-engine policies POST — booking entitlement gate', () =
           refundPrepaymentOnLate: 'manual',
           chargePackageSessionOnLate: false,
           requiresStaffConfirmation: false,
-          notifyPatient: true,
-          notifyStaff: true,
           sortOrder: 0,
         }),
       }),
@@ -135,38 +129,4 @@ describe('admin booking-engine policies POST — booking entitlement gate', () =
     );
   });
 
-  it('refuses a service from another organization before the write port', async () => {
-    fakes.getService.mockResolvedValue({
-      id: '22222222-2222-4222-8222-222222222222',
-      organizationId: '33333333-3333-4333-8333-333333333333',
-    });
-
-    const response = await POST(
-      new Request('http://localhost/api/admin/booking-engine/policies', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          kind: 'reschedule',
-          scopeLevel: 'service',
-          scopeEntityId: '22222222-2222-4222-8222-222222222222',
-          title: 'Перенос',
-          isActive: true,
-          selfRescheduleHoursBefore: 48,
-          maxSelfReschedules: 1,
-          allowDifferentBranch: false,
-          allowDifferentCity: false,
-          allowDifferentSpecialist: false,
-          allowDifferentService: false,
-          limitExceededBehavior: 'manual_request',
-          requiresStaffConfirmation: false,
-          notifyPatient: true,
-          notifyStaff: true,
-          sortOrder: 0,
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(404);
-    expect(fakes.upsertReschedulePolicy).not.toHaveBeenCalled();
-  });
 });

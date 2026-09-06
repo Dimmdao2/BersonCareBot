@@ -121,7 +121,6 @@ const ERROR_LABELS: Record<string, string> = {
   load_failed: 'Не удалось загрузить абонементы.',
   late_detach_choice_required: 'Выберите исход поздней отвязки в диалоге.',
   past_detach_confirmation_required: 'Нужно двойное подтверждение для прошедшей записи.',
-  past_unlink_not_allowed: 'Отвязка прошедших записей отключена в настройках.',
 };
 
 type RecalcSummary = {
