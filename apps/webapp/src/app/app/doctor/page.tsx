@@ -27,7 +27,6 @@ import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { DoctorPageLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorTodayAdminBannersSuspense } from './DoctorTodayAdminBanners';
 import { DoctorTodayDashboard, type DoctorTodayCalendarSnapshot } from './DoctorTodayDashboard';
-import { DoctorTodayQuickActions } from './DoctorTodayQuickActions';
 import { loadDoctorTodayDashboard } from './loadDoctorTodayDashboard';
 
 function DoctorTodayDashboardFallback() {
@@ -131,22 +130,12 @@ export default async function DoctorPage() {
   }
 
   const displayIana = await getAppDisplayTimeZone();
-  const todayIso =
-    DateTime.now().setZone(displayIana).toISODate() ?? new Date().toISOString().slice(0, 10);
-
   return (
     <DoctorAppShell
       title="Сегодня"
       user={session.user}
       layout="full-height"
       mobileBottomGutter
-      mobileHeaderActions={
-        <DoctorTodayQuickActions
-          todayIso={todayIso}
-          displayIana={displayIana}
-          placement="mobile-header"
-        />
-      }
     >
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         {session.user.role === 'admin' ? <DoctorTodayAdminBannersSuspense /> : null}

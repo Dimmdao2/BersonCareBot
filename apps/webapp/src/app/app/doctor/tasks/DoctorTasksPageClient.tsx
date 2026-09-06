@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ListPlus, ListTodo } from 'lucide-react';
+import { ListTodo } from 'lucide-react';
 import type { SpecialistTaskRow as Task } from '@/modules/specialist-tasks/types';
 import { isSpecialistTaskDueOnDate } from '@/modules/specialist-tasks/taskPriority';
 import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
@@ -18,7 +18,6 @@ import {
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
-import { DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS } from '@/shared/ui/doctor/navChrome';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DoctorShellChromeRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
@@ -67,24 +66,6 @@ export function DoctorTasksPageClient({
       pane && 'taskId' in pane ? (tasks.find((task) => task.id === pane.taskId) ?? null) : null,
     [pane, tasks],
   );
-  const mobileHeaderActions = useMemo(
-    () =>
-      canMutate ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className={DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS}
-          aria-label="Новая задача"
-          title="Новая задача"
-          onClick={() => setCreateOpen(true)}
-        >
-          <ListPlus className="size-[22px]" aria-hidden />
-        </Button>
-      ) : null,
-    [canMutate],
-  );
-
   const matchingTasks = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('ru-RU');
     if (!normalizedQuery) return tasks;
@@ -237,7 +218,7 @@ export function DoctorTasksPageClient({
 
   return (
     <>
-      <DoctorShellChromeRegistration title="Задачи" mobileActions={mobileHeaderActions} />
+      <DoctorShellChromeRegistration title="Задачи" />
       <DoctorPageHeader title="Задачи" toolbar={taskFilters} toolbarClassName="md:hidden" />
       <DoctorCatalogPageLayout
         mobileEdgeToEdge

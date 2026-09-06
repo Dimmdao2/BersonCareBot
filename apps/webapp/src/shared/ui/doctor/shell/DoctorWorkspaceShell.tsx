@@ -45,6 +45,7 @@ type DoctorWorkspaceShellProps = {
    * `app/platform/layout.tsx`) pass `"platform"` explicitly.
    */
   menuKind?: 'doctor' | 'platform';
+  mobileHeaderActions?: ReactNode;
   children: ReactNode;
 };
 
@@ -71,6 +72,7 @@ export function DoctorWorkspaceShell({
   enableTenantRuntime = true,
   brand,
   menuKind = 'doctor',
+  mobileHeaderActions,
   children,
 }: DoctorWorkspaceShellProps) {
   const capabilities = Array.from(
@@ -121,6 +123,7 @@ export function DoctorWorkspaceShell({
             patientLabel,
             hideMenuOnDesktop: showDoctorDesktopNav,
             menuKind,
+            globalActions: mobileHeaderActions,
           }}
           sidebar={
             showDoctorDesktopNav ? (

@@ -37,12 +37,10 @@ import { cn } from '@/lib/utils';
 import {
   SOLO_BOOKING_UNAVAILABLE_MESSAGE,
   apiJson,
-  fetchBookingDefaultId,
   fetchSoloOverview,
   minorToRublesInput,
   parseRublesInput,
   rublesToMinor,
-  setBookingDefaultId,
   type SoloOverview,
 } from '@/app/app/settings/bookingSoloAdminApi';
 
@@ -144,7 +142,6 @@ export function BookingSoloServicesSection() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [defaultServiceId, setDefaultServiceId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -152,8 +149,6 @@ export function BookingSoloServicesSection() {
   const [bufferAfter, setBufferAfter] = useState('0');
   const [priceRub, setPriceRub] = useState('5000');
   const [prepayment, setPrepayment] = useState<PrepaymentDraft>(EMPTY_PREPAYMENT);
-  const [onlinePaymentApplicable, setOnlinePaymentApplicable] = useState(false);
-  const [createAsDefault, setCreateAsDefault] = useState(false);
   const [editedService, setEditedService] = useState<ServiceRow | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -161,8 +156,6 @@ export function BookingSoloServicesSection() {
   const [editBufferAfter, setEditBufferAfter] = useState('');
   const [editPriceRub, setEditPriceRub] = useState('');
   const [editPrepayment, setEditPrepayment] = useState<PrepaymentDraft>(EMPTY_PREPAYMENT);
-  const [editOnlinePaymentApplicable, setEditOnlinePaymentApplicable] = useState(false);
-  const [editAsDefault, setEditAsDefault] = useState(false);
   const dndContextId = useId();
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -174,9 +167,8 @@ export function BookingSoloServicesSection() {
     setLoadError(null);
     setUnavailable(false);
     try {
-      const [data, currentDefaultServiceId, prepaymentJson] = await Promise.all([
+      const [data, prepaymentJson] = await Promise.all([
         fetchSoloOverview(),
-        fetchBookingDefaultId('service'),
         apiJson<{
           ok?: boolean;
           policies?: PrepaymentPolicy[];
@@ -194,7 +186,6 @@ export function BookingSoloServicesSection() {
             left.sortOrder - right.sortOrder || left.title.localeCompare(right.title, 'ru'),
         ),
       );
-      setDefaultServiceId(currentDefaultServiceId);
       setPrepaymentPolicies(prepaymentJson?.visible === false ? [] : (prepaymentJson?.policies ?? []));
       setPrepaymentAvailability(prepaymentJson?.availability ?? null);
     } catch (error) {
@@ -228,8 +219,6 @@ export function BookingSoloServicesSection() {
     setBufferAfter('0');
     setPriceRub('5000');
     setPrepayment(EMPTY_PREPAYMENT);
-    setOnlinePaymentApplicable(false);
-    setCreateAsDefault(false);
   }
 
   function createService() {
@@ -257,7 +246,7 @@ export function BookingSoloServicesSection() {
               adminManualOnly: false,
               usableInPackages: true,
               prepaymentApplicable: prepayment.enabled,
-              onlinePaymentApplicable,
+              onlinePaymentApplicable: true,
               sortOrder: maxOrder + 10,
             }),
           },
@@ -269,7 +258,6 @@ export function BookingSoloServicesSection() {
             body: JSON.stringify(prepaymentBody(created.service.id, prepayment)),
           });
         }
-        if (createAsDefault) await setBookingDefaultId('service', created.service.id);
       },
       () => {
         resetCreateForm();
@@ -289,8 +277,6 @@ export function BookingSoloServicesSection() {
     setEditPrepayment(
       policyToDraft(prepaymentPolicies.find((policy) => policy.serviceId === service.id)),
     );
-    setEditOnlinePaymentApplicable(service.onlinePaymentApplicable);
-    setEditAsDefault(service.id === defaultServiceId);
   }
 
   function saveEditedService() {
@@ -311,7 +297,7 @@ export function BookingSoloServicesSection() {
             prepaymentApplicable: canEditPrepayment
               ? editPrepayment.enabled
               : editedService.prepaymentApplicable,
-            onlinePaymentApplicable: editOnlinePaymentApplicable,
+            onlinePaymentApplicable: true,
           }),
         });
         if (canEditPrepayment) {
@@ -320,11 +306,6 @@ export function BookingSoloServicesSection() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(prepaymentBody(editedService.id, editPrepayment)),
           });
-        }
-        if (editAsDefault) {
-          await setBookingDefaultId('service', editedService.id);
-        } else if (editedService.id === defaultServiceId) {
-          await setBookingDefaultId('service', null);
         }
       },
       () => setEditedService(null),
@@ -342,9 +323,6 @@ export function BookingSoloServicesSection() {
           adminManualOnly: !enabled,
         }),
       });
-      if (!enabled && service.id === defaultServiceId) {
-        await setBookingDefaultId('service', null);
-      }
     });
   }
 
@@ -430,7 +408,6 @@ export function BookingSoloServicesSection() {
                     label={service.title}
                     disabled={pending}
                     active={service.isActive}
-                    isDefault={service.id === defaultServiceId}
                     trailing={
                       <span className="text-sm text-foreground">
                         {formatPrice(service.priceMinor)}
@@ -447,10 +424,11 @@ export function BookingSoloServicesSection() {
                     <span className={`${doctorDnaFlatListMetaClass} block truncate`}>
                       {service.durationMinutes} мин, перерыв {service.bufferAfterMinutes} мин
                     </span>
-                    <span className={`${doctorDnaFlatListMetaClass} block truncate`}>
-                      Онлайн {service.onlinePaymentApplicable ? '✓' : '—'} · Предоплата{' '}
-                      {formatPrepayment(policy)}
-                    </span>
+                    {policy && policy.mode !== 'disabled' && policy.isActive !== false ? (
+                      <span className={`${doctorDnaFlatListMetaClass} block truncate`}>
+                        Предоплата {formatPrepayment(policy)}
+                      </span>
+                    ) : null}
                   </DoctorSortableSettingsRow>
                 );
               })}
@@ -473,9 +451,12 @@ export function BookingSoloServicesSection() {
         priceRub={priceRub}
         prepayment={prepayment}
         canEditPrepayment={canEditPrepayment}
-        canSetDefault
-        onlinePaymentApplicable={onlinePaymentApplicable}
-        asDefault={createAsDefault}
+        prepaymentDisabledHint={
+          prepaymentAvailability?.reason === 'payments_disabled' ||
+          prepaymentAvailability?.reason === 'payment_provider_unavailable'
+            ? 'Настройте онлайн-оплату в кабинете'
+            : undefined
+        }
         error={actionError}
         onTitleChange={setTitle}
         onDescriptionChange={setDescription}
@@ -483,8 +464,6 @@ export function BookingSoloServicesSection() {
         onBufferAfterChange={setBufferAfter}
         onPriceChange={setPriceRub}
         onPrepaymentChange={setPrepayment}
-        onOnlinePaymentApplicableChange={setOnlinePaymentApplicable}
-        onDefaultChange={setCreateAsDefault}
         onClose={() => setCreateOpen(false)}
         onSubmit={createService}
       />
@@ -500,9 +479,12 @@ export function BookingSoloServicesSection() {
         priceRub={editPriceRub}
         prepayment={editPrepayment}
         canEditPrepayment={canEditPrepayment}
-        canSetDefault={editedService?.isActive ?? false}
-        onlinePaymentApplicable={editOnlinePaymentApplicable}
-        asDefault={editAsDefault}
+        prepaymentDisabledHint={
+          prepaymentAvailability?.reason === 'payments_disabled' ||
+          prepaymentAvailability?.reason === 'payment_provider_unavailable'
+            ? 'Настройте онлайн-оплату в кабинете'
+            : undefined
+        }
         error={actionError}
         onTitleChange={setEditTitle}
         onDescriptionChange={setEditDescription}
@@ -510,8 +492,6 @@ export function BookingSoloServicesSection() {
         onBufferAfterChange={setEditBufferAfter}
         onPriceChange={setEditPriceRub}
         onPrepaymentChange={setEditPrepayment}
-        onOnlinePaymentApplicableChange={setEditOnlinePaymentApplicable}
-        onDefaultChange={setEditAsDefault}
         onClose={() => setEditedService(null)}
         onSubmit={saveEditedService}
       />
@@ -530,9 +510,7 @@ type ServiceModalProps = {
   priceRub: string;
   prepayment: PrepaymentDraft;
   canEditPrepayment: boolean;
-  canSetDefault: boolean;
-  onlinePaymentApplicable: boolean;
-  asDefault: boolean;
+  prepaymentDisabledHint?: string;
   error: string | null;
   onTitleChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
@@ -540,8 +518,6 @@ type ServiceModalProps = {
   onBufferAfterChange: (value: string) => void;
   onPriceChange: (value: string) => void;
   onPrepaymentChange: (value: PrepaymentDraft) => void;
-  onOnlinePaymentApplicableChange: (value: boolean) => void;
-  onDefaultChange: (value: boolean) => void;
   onClose: () => void;
   onSubmit: () => void;
 };
@@ -557,9 +533,7 @@ function ServiceModal({
   priceRub,
   prepayment,
   canEditPrepayment,
-  canSetDefault,
-  onlinePaymentApplicable,
-  asDefault,
+  prepaymentDisabledHint,
   error,
   onTitleChange,
   onDescriptionChange,
@@ -567,8 +541,6 @@ function ServiceModal({
   onBufferAfterChange,
   onPriceChange,
   onPrepaymentChange,
-  onOnlinePaymentApplicableChange,
-  onDefaultChange,
   onClose,
   onSubmit,
 }: ServiceModalProps) {
@@ -630,25 +602,10 @@ function ServiceModal({
           />
         </div>
         <div className="flex flex-col gap-3 pt-1">
-          <label className="flex items-center gap-3 text-sm">
-            <Switch
-              checked={onlinePaymentApplicable}
-              disabled={pending}
-              onCheckedChange={onOnlinePaymentApplicableChange}
-            />
-            Онлайн-оплата
-          </label>
-          <label className="flex items-center gap-3 text-sm">
-            <Switch
-              checked={asDefault}
-              disabled={pending || (!canSetDefault && !asDefault)}
-              onCheckedChange={onDefaultChange}
-            />
-            Услуга по умолчанию
-          </label>
           <PrepaymentControl
             value={prepayment}
             disabled={pending || !canEditPrepayment}
+            disabledHint={!canEditPrepayment ? prepaymentDisabledHint : undefined}
             onChange={onPrepaymentChange}
           />
         </div>
@@ -670,67 +627,75 @@ function ServiceModal({
 function PrepaymentControl({
   value,
   disabled,
+  disabledHint,
   onChange,
 }: {
   value: PrepaymentDraft;
   disabled: boolean;
+  disabledHint?: string;
   onChange: (value: PrepaymentDraft) => void;
 }) {
   return (
-    <div className="flex min-w-0 items-center justify-between gap-3">
-      <label className="flex shrink-0 items-center gap-3 text-sm">
-        <Switch
-          checked={value.enabled}
-          disabled={disabled}
-          onCheckedChange={(enabled) => onChange({ ...value, enabled })}
-        />
-        Предоплата
-      </label>
-      {value.enabled ? (
-        <div className="flex min-w-0 items-center gap-1.5">
-          <Input
-            type="number"
-            inputMode="decimal"
-            min={0}
-            max={value.unit === 'percent' ? 100 : undefined}
-            step={value.unit === 'percent' ? 1 : '0.01'}
-            className="w-24"
-            aria-label="Размер предоплаты"
-            value={value.value}
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <label className="flex shrink-0 items-center gap-3 text-sm">
+          <Switch
+            checked={value.enabled}
             disabled={disabled}
-            onChange={(event) => onChange({ ...value, value: event.target.value })}
+            aria-label="Предоплата"
+            onCheckedChange={(enabled) => onChange({ ...value, enabled })}
           />
-          <div className="flex shrink-0 gap-1" role="group" aria-label="Единица предоплаты">
-            <button
-              type="button"
-              className={cn(
-                'h-8 min-w-8 rounded-[8px] border px-2 text-sm transition-colors',
-                value.unit === 'rubles'
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border bg-white text-foreground',
-              )}
+          Предоплата
+        </label>
+        {value.enabled ? (
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={value.unit === 'percent' ? 100 : undefined}
+              step={value.unit === 'percent' ? 1 : '0.01'}
+              className="w-24"
+              aria-label="Размер предоплаты"
+              value={value.value}
               disabled={disabled}
-              aria-pressed={value.unit === 'rubles'}
-              onClick={() => onChange({ ...value, unit: 'rubles' })}
-            >
-              ₽
-            </button>
-            <button
-              type="button"
-              className={cn(
-                'h-8 min-w-8 rounded-[8px] border px-2 text-sm transition-colors',
-                value.unit === 'percent'
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border bg-white text-foreground',
-              )}
-              disabled={disabled}
-              aria-pressed={value.unit === 'percent'}
-              onClick={() => onChange({ ...value, unit: 'percent' })}
-            >
-              %
-            </button>
+              onChange={(event) => onChange({ ...value, value: event.target.value })}
+            />
+            <div className="flex shrink-0 gap-1" role="group" aria-label="Единица предоплаты">
+              <button
+                type="button"
+                className={cn(
+                  'h-8 min-w-8 rounded-[8px] border px-2 text-sm transition-colors',
+                  value.unit === 'rubles'
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-white text-foreground',
+                )}
+                disabled={disabled}
+                aria-pressed={value.unit === 'rubles'}
+                onClick={() => onChange({ ...value, unit: 'rubles' })}
+              >
+                ₽
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  'h-8 min-w-8 rounded-[8px] border px-2 text-sm transition-colors',
+                  value.unit === 'percent'
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-white text-foreground',
+                )}
+                disabled={disabled}
+                aria-pressed={value.unit === 'percent'}
+                onClick={() => onChange({ ...value, unit: 'percent' })}
+              >
+                %
+              </button>
+            </div>
           </div>
-        </div>
+        ) : null}
+      </div>
+      {disabledHint ? (
+        <p className="text-xs leading-tight text-muted-foreground">{disabledHint}</p>
       ) : null}
     </div>
   );

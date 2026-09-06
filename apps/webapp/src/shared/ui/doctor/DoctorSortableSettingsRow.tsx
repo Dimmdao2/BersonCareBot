@@ -3,7 +3,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Flag, GripVertical } from 'lucide-react';
+import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import { doctorDnaFlatListRowClass } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
@@ -13,7 +13,6 @@ type DoctorSortableSettingsRowProps = {
   label: string;
   disabled: boolean;
   active: boolean;
-  isDefault: boolean;
   children: ReactNode;
   trailing?: ReactNode;
   onOpen: () => void;
@@ -26,7 +25,6 @@ export function DoctorSortableSettingsRow({
   label,
   disabled,
   active,
-  isDefault,
   children,
   trailing,
   onOpen,
@@ -86,23 +84,13 @@ export function DoctorSortableSettingsRow({
         )}
       >
         {trailing ? <span className="shrink-0">{trailing}</span> : null}
-        <span className="flex items-center">
-          <Switch
-            className="shrink-0"
-            checked={active}
-            disabled={disabled}
-            aria-label={`${label} — включен`}
-            onCheckedChange={onActiveChange}
-          />
-          <span
-            style={{ marginInlineEnd: -14 }}
-            className="ml-0.5 flex size-3 shrink-0 items-center justify-center"
-          >
-            {isDefault ? (
-              <Flag className="size-3 fill-primary text-primary" aria-label="По умолчанию" />
-            ) : null}
-          </span>
-        </span>
+        <Switch
+          className="shrink-0"
+          checked={active}
+          disabled={disabled}
+          aria-label={`${label} — включен`}
+          onCheckedChange={onActiveChange}
+        />
       </span>
     </li>
   );

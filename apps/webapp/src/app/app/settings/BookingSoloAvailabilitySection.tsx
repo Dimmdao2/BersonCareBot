@@ -15,6 +15,7 @@ import {
   setServiceLocationAvailability,
   type SoloOverview,
 } from '@/app/app/settings/bookingSoloAdminApi';
+import { isBuiltInOnlineLocation } from '@/modules/booking-engine/onlineLocation';
 
 export function BookingSoloAvailabilitySection() {
   const [overview, setOverview] = useState<SoloOverview | null>(null);
@@ -44,12 +45,23 @@ export function BookingSoloAvailabilitySection() {
     });
   }, [load]);
 
-  const activeBranches = useMemo(
-    () => (overview?.branches ?? []).filter((b) => b.isActive),
-    [overview?.branches],
-  );
+  const activeBranches = useMemo(() => {
+    const branches = (overview?.branches ?? []).filter((branch) => branch.isActive);
+    return branches.sort((left, right) => {
+      const leftIsOnline = isBuiltInOnlineLocation(left);
+      const rightIsOnline = isBuiltInOnlineLocation(right);
+      if (leftIsOnline !== rightIsOnline) return leftIsOnline ? 1 : -1;
+      return left.sortOrder - right.sortOrder || left.title.localeCompare(right.title, 'ru');
+    });
+  }, [overview?.branches]);
   const activeServices = useMemo(
-    () => (overview?.services ?? []).filter((s) => s.isActive),
+    () =>
+      (overview?.services ?? [])
+        .filter((service) => service.isActive)
+        .sort(
+          (left, right) =>
+            left.sortOrder - right.sortOrder || left.title.localeCompare(right.title, 'ru'),
+        ),
     [overview?.services],
   );
 

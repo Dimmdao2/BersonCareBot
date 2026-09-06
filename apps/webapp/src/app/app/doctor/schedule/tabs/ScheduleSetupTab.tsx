@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { BookingPublicAttributionSection } from '@/app/app/settings/BookingPublicAttributionSection';
 import { BookingPublicWidgetSection } from '@/app/app/settings/BookingPublicWidgetSection';
-import { BookingPrepaymentSection } from '@/app/app/settings/BookingPrepaymentSection';
 import { BookingSoloAvailabilitySection } from '@/app/app/settings/BookingSoloAvailabilitySection';
 import { BookingSoloFormFieldsSection } from '@/app/app/settings/BookingSoloFormFieldsSection';
 import { BookingSoloLocationsSection } from '@/app/app/settings/BookingSoloLocationsSection';
@@ -44,7 +43,6 @@ type SetupSectionId =
   | 'services'
   | 'specialists'
   | 'form'
-  | 'payments'
   | 'rules'
   | 'notifications'
   | 'packages';
@@ -59,7 +57,6 @@ const SETUP_SECTIONS: SetupSectionDef[] = [
   { id: 'services', label: 'Услуги' },
   { id: 'specialists', label: 'Специалисты' },
   { id: 'form', label: 'Публичная форма' },
-  { id: 'payments', label: 'Оплаты' },
   { id: 'rules', label: 'Правила записи' },
   { id: 'notifications', label: 'Тексты уведомлений' },
   { id: 'packages', label: 'Абонементы' },
@@ -68,13 +65,11 @@ const SETUP_SECTIONS: SetupSectionDef[] = [
 const DEFAULT_SECTION: SetupSectionId = 'locations';
 
 type SetupSectionVisibility = Readonly<{
-  payments: boolean;
   notifications: boolean;
   packages: boolean;
 }>;
 
 function sectionIsVisible(section: SetupSectionDef, visibility: SetupSectionVisibility): boolean {
-  if (section.id === 'payments') return visibility.payments;
   if (section.id === 'notifications') return visibility.notifications;
   if (section.id === 'packages') return visibility.packages;
   return true;
@@ -561,20 +556,6 @@ function SectionForm({
   );
 }
 
-/**
- * PAY-APPT-23: booking settings own the booking rules about money — services, their price and
- * prepayment policy. The acquiring provider and its credentials belong to the clinic that owns the
- * merchant account and now live in `Настройки клиники → Платёжные настройки`; there is no second
- * copy of those fields here.
- */
-function SectionPayments() {
-  return (
-    <div className={BOOKING_CARD_GRID_CLASS}>
-      <BookingPrepaymentSection />
-    </div>
-  );
-}
-
 function SectionRules() {
   return <BookingRulesLoader />;
 }
@@ -597,18 +578,16 @@ export function ScheduleSetupTab({
   onDeepLinkChange,
   isActive,
   doctorStatisticsEnabled,
-  paymentsVisible = true,
   notificationTemplatesVisible = true,
   packagesVisible = true,
   packagesReadOnly = false,
 }: ScheduleTabProps) {
   const sectionVisibility: SetupSectionVisibility = useMemo(
     () => ({
-      payments: paymentsVisible,
       notifications: notificationTemplatesVisible,
       packages: packagesVisible,
     }),
-    [notificationTemplatesVisible, packagesVisible, paymentsVisible],
+    [notificationTemplatesVisible, packagesVisible],
   );
   const [activeSection, setActiveSectionState] = useState<SetupSectionId>(() =>
     resolveSectionId(deepLinkParams.section, sectionVisibility),
@@ -678,7 +657,6 @@ export function ScheduleSetupTab({
         {activeSection === 'form' && (
           <SectionForm doctorStatisticsEnabled={doctorStatisticsEnabled} />
         )}
-        {activeSection === 'payments' && paymentsVisible && <SectionPayments />}
         {activeSection === 'rules' && <SectionRules />}
         {activeSection === 'notifications' && notificationTemplatesVisible && (
           <SectionNotifications />

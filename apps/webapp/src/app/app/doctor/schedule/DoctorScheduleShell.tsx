@@ -1,7 +1,6 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { CalendarPlus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import { cn } from '@/lib/utils';
@@ -10,10 +9,6 @@ import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
-import {
-  DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS,
-  NAV_STRIP_ICON_STROKE,
-} from '@/shared/ui/doctor/navChrome';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import {
   DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
@@ -166,7 +161,6 @@ export function DoctorScheduleShell({
   })();
 
   const [activeTab, setActiveTab] = useState<ScheduleTabId>(resolvedInit);
-  const [createAppointmentRequestId, setCreateAppointmentRequestId] = useState(0);
   const activeTabRef = useRef(activeTab);
 
   // Mount on first visit, keep mounted while hidden (visitedTabs / keepMounted).
@@ -254,26 +248,6 @@ export function DoctorScheduleShell({
     [buildTabUrl],
   );
 
-  const mobileHeaderActions = useMemo(
-    () => (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className={DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS}
-        aria-label="Новая запись"
-        title="Новая запись"
-        onClick={() => {
-          handleTabChange('cal');
-          setCreateAppointmentRequestId((current) => current + 1);
-        }}
-      >
-        <CalendarPlus className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-      </Button>
-    ),
-    [handleTabChange],
-  );
-
   const mobileBottomTabs = useMemo(
     () => (
       <DoctorMobileSectionTabs
@@ -290,7 +264,6 @@ export function DoctorScheduleShell({
     <DoctorAppShell
       title="Расписание"
       layout="full-height"
-      mobileHeaderActions={mobileHeaderActions}
       mobileBottomTabs={mobileBottomTabs}
     >
       <DoctorPageHeader
@@ -332,9 +305,6 @@ export function DoctorScheduleShell({
               packagesReadOnly={packagesReadOnly}
               scheduleScopeBootstrap={scheduleScopeBootstrap}
               doctorStatisticsEnabled={doctorStatisticsEnabled}
-              createAppointmentRequestId={
-                tabId === 'cal' ? createAppointmentRequestId : undefined
-              }
             />
           </div>
         );

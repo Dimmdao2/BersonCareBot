@@ -37,9 +37,7 @@ import {
   SOLO_BOOKING_UNAVAILABLE_MESSAGE,
   apiJson,
   ensureDefaultSpecialist,
-  fetchBookingDefaultId,
   fetchSoloOverview,
-  setBookingDefaultId,
   setOnlineLocationEnabled,
   slugCityCode,
   type SoloOverview,
@@ -80,9 +78,7 @@ export function BookingSoloLocationsSection() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [defaultBranchId, setDefaultBranchId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [createAsDefault, setCreateAsDefault] = useState(false);
   const [title, setTitle] = useState('');
   const [shortTitle, setShortTitle] = useState('');
   const [address, setAddress] = useState('');
@@ -94,7 +90,6 @@ export function BookingSoloLocationsSection() {
   const [editColor, setEditColor] = useState(DEFAULT_BRANCH_COLOR);
   const [editTimezone, setEditTimezone] = useState('Europe/Moscow');
   const [editActive, setEditActive] = useState(true);
-  const [editAsDefault, setEditAsDefault] = useState(false);
   const dndContextId = useId();
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -105,17 +100,13 @@ export function BookingSoloLocationsSection() {
     setLoadError(null);
     setUnavailable(false);
     try {
-      const [data, currentDefaultBranchId] = await Promise.all([
-        fetchSoloOverview(),
-        fetchBookingDefaultId('branch'),
-      ]);
+      const data = await fetchSoloOverview();
       if (!data) {
         setUnavailable(true);
         return;
       }
       setBranches(data.branches);
       setOrgTitle(data.organization?.title ?? '');
-      setDefaultBranchId(currentDefaultBranchId);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'load_failed');
     }
@@ -145,7 +136,6 @@ export function BookingSoloLocationsSection() {
     setShortTitle('');
     setAddress('');
     setTimezone('Europe/Moscow');
-    setCreateAsDefault(false);
   }
 
   function createBranch() {
@@ -157,7 +147,7 @@ export function BookingSoloLocationsSection() {
           (current, branch) => Math.max(current, branch.sortOrder),
           0,
         );
-        const created = await apiJson<{ ok: boolean; branch: { id: string } }>(`${BASE}/branches`, {
+        await apiJson<{ ok: boolean; branch: { id: string } }>(`${BASE}/branches`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -169,7 +159,6 @@ export function BookingSoloLocationsSection() {
             sortOrder: maxOrder + 10,
           }),
         });
-        if (createAsDefault) await setBookingDefaultId('branch', created.branch.id);
       },
       () => {
         resetCreateForm();
@@ -187,7 +176,6 @@ export function BookingSoloLocationsSection() {
     setEditColor(branch.color ?? DEFAULT_BRANCH_COLOR);
     setEditTimezone(branch.timezone);
     setEditActive(branch.isActive);
-    setEditAsDefault(branch.id === defaultBranchId);
   }
 
   function saveEditedBranch() {
@@ -206,11 +194,6 @@ export function BookingSoloLocationsSection() {
             isActive: editActive,
           }),
         });
-        if (editAsDefault) {
-          await setBookingDefaultId('branch', editedBranch.id);
-        } else if (editedBranch.id === defaultBranchId) {
-          await setBookingDefaultId('branch', null);
-        }
       },
       () => setEditedBranch(null),
     );
@@ -223,9 +206,6 @@ export function BookingSoloLocationsSection() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive }),
       });
-      if (!isActive && branch.id === defaultBranchId) {
-        await setBookingDefaultId('branch', null);
-      }
     });
   }
 
@@ -321,7 +301,6 @@ export function BookingSoloLocationsSection() {
                   label={branch.title}
                   disabled={pending}
                   active={branch.isActive}
-                  isDefault={branch.id === defaultBranchId}
                   onOpen={() => openPhysicalBranch(branch)}
                   onActiveChange={(checked) => setBranchActive(branch, checked)}
                 >
@@ -425,14 +404,6 @@ export function BookingSoloLocationsSection() {
               disabled={pending}
             />
           </div>
-          <label className="flex items-center gap-3 pt-1 text-sm">
-            <Switch
-              checked={createAsDefault}
-              disabled={pending}
-              onCheckedChange={setCreateAsDefault}
-            />
-            Филиал по умолчанию
-          </label>
         </div>
       </DoctorModal>
 
@@ -508,14 +479,6 @@ export function BookingSoloLocationsSection() {
             <label className="flex items-center gap-3 text-sm">
               <Switch checked={editActive} disabled={pending} onCheckedChange={setEditActive} />
               Филиал включен
-            </label>
-            <label className="flex items-center gap-3 text-sm">
-              <Switch
-                checked={editAsDefault}
-                disabled={pending || (!editActive && !editAsDefault)}
-                onCheckedChange={setEditAsDefault}
-              />
-              Филиал по умолчанию
             </label>
           </div>
         </div>

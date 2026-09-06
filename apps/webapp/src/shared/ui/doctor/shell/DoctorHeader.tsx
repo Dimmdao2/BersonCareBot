@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
-import { ArrowLeft, Menu } from 'lucide-react';
+import { useCallback, useState, type ReactNode } from 'react';
+import { AlignRight, ArrowLeft } from 'lucide-react';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/shared/ui/doctor/primitives/sheet';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,7 @@ type DoctorHeaderProps = {
   hideMenuOnDesktop?: boolean;
   /** Which item source `DoctorMenuAccordion` renders. See `DoctorMenuAccordionProps.menuKind`. */
   menuKind?: 'doctor' | 'platform';
+  globalActions?: ReactNode;
 };
 
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
@@ -45,6 +46,7 @@ export function DoctorHeader({
   patientLabel,
   hideMenuOnDesktop,
   menuKind = 'doctor',
+  globalActions,
 }: DoctorHeaderProps) {
   const router = useRouter();
   const pathname = usePathname() ?? '/app/doctor';
@@ -99,7 +101,7 @@ export function DoctorHeader({
           </div>
 
           <div className="flex shrink-0 items-center">
-            {shellChrome?.mobileActions}
+            {globalActions}
             <Button
               type="button"
               id="doctor-menu-toggle"
@@ -110,7 +112,7 @@ export function DoctorHeader({
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen(true)}
             >
-              <Menu className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+              <AlignRight className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
             </Button>
           </div>
         </div>

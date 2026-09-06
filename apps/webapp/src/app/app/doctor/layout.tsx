@@ -7,6 +7,7 @@ import '../../styles/doctor.css';
 import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceShell';
 import { loadDoctorWorkspaceShell } from './loadDoctorWorkspaceShell';
 import { ClinicMaintenanceScreen } from '@/shared/ui/doctor/ClinicMaintenanceScreen';
+import { DoctorGlobalQuickActions } from './DoctorGlobalQuickActions';
 
 export default async function DoctorSectionLayout({ children }: { children: ReactNode }) {
   const shell = await loadDoctorWorkspaceShell();
@@ -41,6 +42,9 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       patientHomeTodayEnabled={shell.patientHomeTodayEnabled}
       specialistTasksEnabled={shell.specialistTasksEnabled}
       brand={shell.shellBrand}
+      mobileHeaderActions={
+        <DoctorGlobalQuickActions patientSingularLabel={shell.patientLabel} />
+      }
     >
       {shell.accessWarnings.length > 0 ? (
         <div
