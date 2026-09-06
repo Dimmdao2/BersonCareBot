@@ -38,6 +38,11 @@ x-app: &app
   read_only: true
   tmpfs:
     - /tmp
+  # Хост под именем `db.host`: PostgreSQL живёт на хосте, а адрес шлюза у синего и зелёного разный.
+  # Одно имя на оба цвета — единственный способ держать ОДИН env-файл и при этом honest-TLS: имя
+  # входит в SAN серверного сертификата, поэтому проверка идёт по verify-full, а не в обход.
+  extra_hosts:
+    - "db.host:host-gateway"
   security_opt:
     - no-new-privileges:true
   cap_drop:
