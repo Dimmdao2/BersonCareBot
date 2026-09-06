@@ -85,6 +85,16 @@ const visitB = makeVisit({
   type: 'repeat',
   sections: [{ title: 'Осмотр', body: 'Осмотр-Б-текст' }],
 });
+// ENCOUNTERS-02 allows several primary encounters. Audit fault injection showed that with
+// one primary + one repeat both counters read 1, so swapping the two derivations stayed
+// green — the asymmetric 2/1 fixture is what makes that mix-up observable.
+const visitC = makeVisit({
+  id: 'visit-c',
+  canonicalAppointmentId: null,
+  date: '20.08.2026',
+  type: 'first',
+  sections: [{ title: 'Осмотр', body: 'Осмотр-В-текст' }],
+});
 
 const emptyClinical: ClinicalState = {
   complaints: [],
@@ -100,7 +110,7 @@ function renderKarta(props: Partial<React.ComponentProps<typeof PatientTabKarta>
       userId={userId}
       header={header}
       initialClinicalState={emptyClinical}
-      initialVisits={[visitA, visitB]}
+      initialVisits={[visitA, visitB, visitC]}
       initialAnamnesis={emptyAnamnesis}
       initialComorbidities={[]}
       {...props}
@@ -116,9 +126,9 @@ afterEach(() => cleanup());
 describe('PatientTabKarta — encounter summary/history (ENCOUNTERS-01..05)', () => {
   it('summary counts real visits (not appointments) and names the previous encounter', () => {
     renderKarta();
-    expect(screen.getByText('Приёмы: 2')).toBeTruthy();
+    expect(screen.getByText('Приёмы: 3')).toBeTruthy();
     expect(
-      screen.getByText((_, node) => node?.tagName === 'SPAN' && node.textContent === 'Первичных: 1'),
+      screen.getByText((_, node) => node?.tagName === 'SPAN' && node.textContent === 'Первичных: 2'),
     ).toBeTruthy();
     expect(
       screen.getByText((_, node) => node?.tagName === 'SPAN' && node.textContent === 'Повторных: 1'),
