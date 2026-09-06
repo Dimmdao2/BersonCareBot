@@ -20,6 +20,8 @@ import type {
   CalendarAppointmentPaymentView,
   CalendarFilterMeta,
 } from '@/modules/booking-calendar/types';
+import { appointmentStatusLabel } from '@/modules/booking-calendar/appointmentStatusLabels';
+import { doctorAppointmentStatusView } from '@/shared/ui/doctor/calendar/doctorCalendarPresentation';
 import { AppointmentPaymentSection } from './AppointmentPaymentSection';
 import { DoctorCalendarEventPanel } from './DoctorCalendarEventPanel';
 
@@ -531,5 +533,68 @@ describe('appointment detail initial hydration', () => {
           'GET /api/doctor/booking-engine/appointments/44444444-4444-4444-8444-444444444444/comments',
       ),
     ).toHaveLength(0);
+  });
+});
+
+/**
+ * MONEY-13 / PAY-APPT-17. Отказ: платёж завис в `pending`, статус записи остался `confirmed` —
+ * сетка и список уже пишут «Ожидает оплаты», а панель деталей читает только `status` и показывает
+ * «Подтверждена». Врач по деталям считает деньги полученными; ни ошибки, ни пустого экрана.
+ *
+ * Проверяется не конкретная строка на экране, а согласие панели с общей лесенкой статусов: обе
+ * ожидаемые подписи берутся из неё же, поэтому смена формулировки тест не ломает.
+ */
+describe('appointment detail money status', () => {
+  const pendingPayment: CalendarAppointmentEvent = {
+    ...EDITABLE_APPOINTMENT,
+    status: 'confirmed',
+    paymentStatus: 'pending',
+    prepaymentPending: true,
+  };
+
+  it('shows the shared payment-pending status instead of a conflicting confirmed badge', () => {
+    stubEditEndpoints(() => Response.json({ ok: true }, { status: 200 }));
+
+    render(
+      <DoctorCalendarEventPanel
+        apiBase="/api/doctor/booking-engine"
+        selected={pendingPayment}
+        timeZone="Europe/Moscow"
+        filterMeta={EDIT_FILTER_META}
+        activeFilters={{ specialistId: null, branchId: null, roomId: null, serviceId: null }}
+        ownSpecialistId={SPECIALIST_ID}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+      />,
+    );
+
+    const header = screen.getByTestId('appointment-detail-header');
+    expect(header).toHaveTextContent(doctorAppointmentStatusView(pendingPayment).label);
+    expect(header).not.toHaveTextContent(appointmentStatusLabel('confirmed'));
+  });
+
+  it('keeps cancellation ahead of a pending payment on the same appointment', () => {
+    stubEditEndpoints(() => Response.json({ ok: true }, { status: 200 }));
+    const cancelled: CalendarAppointmentEvent = {
+      ...pendingPayment,
+      status: 'cancelled_by_patient',
+    };
+
+    render(
+      <DoctorCalendarEventPanel
+        apiBase="/api/doctor/booking-engine"
+        selected={cancelled}
+        timeZone="Europe/Moscow"
+        filterMeta={EDIT_FILTER_META}
+        activeFilters={{ specialistId: null, branchId: null, roomId: null, serviceId: null }}
+        ownSpecialistId={SPECIALIST_ID}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+      />,
+    );
+
+    const header = screen.getByTestId('appointment-detail-header');
+    expect(header).toHaveTextContent(appointmentStatusLabel('cancelled_by_patient'));
+    expect(header).not.toHaveTextContent(appointmentStatusLabel('awaiting_payment'));
   });
 });

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  doctorAppointmentStatusView,
   doctorCalendarAppointmentBranchColors,
   doctorCalendarAppointmentClassName,
+  doctorCalendarAppointmentDisplay,
 } from './doctorCalendarPresentation';
 import { DOCTOR_APPOINTMENT_PAYMENT_PENDING_EVENT_CLASS } from '../doctorVisual';
+import { appointmentStatusLabel } from '@/modules/booking-calendar/appointmentStatusLabels';
 
 const BRANCH_COLOR = '#2f6fed';
 
@@ -73,5 +76,64 @@ describe('doctor calendar appointment appearance', () => {
     expect(className).not.toContain(DOCTOR_APPOINTMENT_PAYMENT_PENDING_EVENT_CLASS);
     // A cancelled appointment carries its own surface, so the branch tint stays off.
     expect(doctorCalendarAppointmentBranchColors(cancelledPending)).toEqual({});
+  });
+});
+
+/**
+ * MONEY-13 / PAY-APPT-17. Отказ, который здесь ловится: платёж ЮKassa завис в `pending`, статус
+ * записи остался `confirmed` — сетка и список пишут «Ожидает оплаты», а панель деталей читает
+ * только `status` и показывает зелёную «Подтверждена». Врач по деталям записи считает деньги
+ * полученными. Отказ молчаливый: ни ошибки, ни пустого экрана, расходятся только две поверхности.
+ */
+describe('doctor appointment status view', () => {
+  it('names a confirmed appointment with a hung payment as awaiting payment, in the shared role', () => {
+    const hungPayment = doctorAppointmentStatusView({
+      status: 'confirmed',
+      prepaymentPending: true,
+    });
+
+    expect(hungPayment.role).toBe('payment-pending');
+    expect(hungPayment.label).toBe(appointmentStatusLabel('awaiting_payment'));
+    expect(hungPayment.label).not.toBe(appointmentStatusLabel('confirmed'));
+    expect(hungPayment.notable).toBe(true);
+  });
+
+  it('lets cancellation win over a pending payment instead of stacking two statuses', () => {
+    expect(
+      doctorAppointmentStatusView({ status: 'cancelled_by_patient', prepaymentPending: true }),
+    ).toEqual({
+      label: appointmentStatusLabel('cancelled_by_patient'),
+      role: 'cancelled',
+      notable: true,
+    });
+  });
+
+  it('keeps ordinary statuses out of the list while still naming them for the detail panel', () => {
+    // «Создана»/«Подтверждена» не дублируют саму строку списка (`notable: false`), но панель
+    // деталей всё равно обязана получить их подпись — иначе статус записи там просто исчезнет.
+    for (const status of ['created', 'confirmed', 'paid']) {
+      const view = doctorAppointmentStatusView({ status });
+      expect(view).toEqual({ label: appointmentStatusLabel(status), role: null, notable: false });
+    }
+    expect(doctorAppointmentStatusView({ status: 'rescheduled' })).toEqual({
+      label: appointmentStatusLabel('rescheduled'),
+      role: null,
+      notable: true,
+    });
+  });
+});
+
+/**
+ * PAY-APPT-14. Отказ: в месячной сетке запись отдаётся FullCalendar в режиме `auto`, тот рисует
+ * её как `.fc-daygrid-dot-event` — `border-style: none` и без поверхности. Общий payment-pending
+ * border и цвет филиала исчезают, хотя класс на элементе остался: ожидающая оплату запись в месяце
+ * неотличима от оплаченной. Замерено живым рендером FullCalendar 6.1.21.
+ */
+describe('doctor calendar event display mode', () => {
+  it('asks dayGrid views for a real box and leaves timeGrid on the default', () => {
+    expect(doctorCalendarAppointmentDisplay('dayGridMonth')).toBe('block');
+    expect(doctorCalendarAppointmentDisplay('dayGridWeek')).toBe('block');
+    expect(doctorCalendarAppointmentDisplay('timeGridWeek')).toBe('auto');
+    expect(doctorCalendarAppointmentDisplay('timeGridDay')).toBe('auto');
   });
 });

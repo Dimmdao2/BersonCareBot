@@ -22,11 +22,14 @@ import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStic
 import {
   DOCTOR_CALENDAR_TODAY_MARKER_CLASS,
   buildDoctorCalendarNonWorkingRanges,
+  doctorAppointmentStatusView,
   doctorCalendarAppointmentBranchColors,
   doctorCalendarAppointmentClassName,
+  doctorCalendarAppointmentDisplay,
   doctorCalendarBranchColorRgba,
   doctorCalendarNonWorkingClassNames,
   formatDoctorCalendarHour,
+  type DoctorAppointmentStatusView,
 } from '@/shared/ui/doctor/calendar/doctorCalendarPresentation';
 import {
   DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
@@ -42,7 +45,6 @@ import { resolveCalendarCreateFieldValue } from '@/modules/booking-calendar/cale
 import {
   appointmentStatusLabel,
   isCancelledAppointmentStatus,
-  isPaymentPendingAppointment,
 } from '@/modules/booking-calendar/appointmentStatusLabels';
 import type FullCalendar from '@fullcalendar/react';
 import type { CalendarOptions as FullCalendarOptions, EventInput } from '@fullcalendar/core';
@@ -81,7 +83,6 @@ import {
   doctorAppointmentStatusTextClass,
   doctorSectionCardClass,
   doctorSectionTitleClass,
-  type DoctorAppointmentStatusRole,
 } from '@/shared/ui/doctor/doctorVisual';
 import { routePaths } from '@/app-layer/routes/paths';
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from '../scheduleCalendarEvents';
@@ -536,31 +537,17 @@ type ListDayCardProps = {
   showSpecialist: boolean;
 };
 
-type ListRowStatusView = {
-  label: string;
-  /**
-   * `null` — фактический статус, у которого нет собственной роли в semantic-палитре (перенос):
-   * подпись остаётся нейтральной, отдельный цвет для него никто не назначал.
-   */
-  role: DoctorAppointmentStatusRole | null;
-};
-
 /**
  * APPT-LIST-04: в строке показывается только реально произошедшее с записью — перенос, виды отмены
  * и (PAY-APPT-13) ожидание оплаты. Обычные «создана/подтверждена» не дублируют саму строку.
  *
- * PAY-APPT-17: роль берётся из общей палитры — отмена destructive, ожидание оплаты — единый
- * payment-pending token; цвет здесь не выбирается. Отмена важнее ожидания: отменённая неоплаченная
- * запись показывает именно отмену, а не два статуса подряд.
+ * Сама лесенка статусов и их роли в палитре — общая (`doctorAppointmentStatusView`), чтобы список,
+ * сетка и панель деталей не могли разойтись; здесь остаётся только правило списка «показываем то,
+ * что произошло».
  */
-function listRowStatus(appt: CalendarAppointmentEvent): ListRowStatusView | null {
-  if (isCancelledAppointmentStatus(appt.status))
-    return { label: appointmentStatusLabel(appt.status), role: 'cancelled' };
-  if (isPaymentPendingAppointment(appt))
-    return { label: appointmentStatusLabel('awaiting_payment'), role: 'payment-pending' };
-  if (appt.status === 'rescheduled')
-    return { label: appointmentStatusLabel(appt.status), role: null };
-  return null;
+function listRowStatus(appt: CalendarAppointmentEvent): DoctorAppointmentStatusView | null {
+  const statusView = doctorAppointmentStatusView(appt);
+  return statusView.notable ? statusView : null;
 }
 
 // R29: фон строки списка повторяет статусную палитру календаря (eventClassName);
@@ -2251,6 +2238,18 @@ export function ScheduleCalendarTab({
     [],
   );
 
+  // ─── FullCalendar view mapping ─────────────────────────────────────────────
+  // Объявлено до `calendarEvents`: оформление записи (PAY-APPT-14) выводится из типа FC-вида, а
+  // не из отдельной копии условия «это месяц».
+  const fcView =
+    view === 'day'
+      ? 'timeGridDay'
+      : view === 'weekgrid'
+        ? 'timeGridWeek'
+        : view === 'month'
+          ? 'dayGridMonth'
+          : 'timeGridDay'; // 3days handled as custom range — use timeGridDay with visibleRange
+
   const calendarEvents = useMemo<EventInput[]>(() => {
     if (!data) return [];
     const isTimeGrid = view !== 'month';
@@ -2340,9 +2339,10 @@ export function ScheduleCalendarTab({
           start: toFcDate(event.startAt, currentTimeZone),
           end: toFcDate(event.endAt, currentTimeZone),
           title: eventTitle(event),
-          // Timed events in dayGrid default to the compact "dot" presentation. Month appointments
-          // are real cards: this keeps branch/status colors and enough room for their metadata.
-          display: view === 'month' ? ('block' as const) : ('auto' as const),
+          // PAY-APPT-14: в dayGrid событие со временем по умолчанию сжимается до «точки» без
+          // рамки и поверхности — общий payment-pending border и цвет филиала тогда пропадают
+          // молча. Режим отрисовки выводит общая функция из типа вида, а не локальное условие.
+          display: doctorCalendarAppointmentDisplay(fcView),
           editable: !isCancelledAppointmentStatus(event.status),
           durationEditable: !isCancelledAppointmentStatus(event.status),
           startEditable: !isCancelledAppointmentStatus(event.status),
@@ -2373,6 +2373,7 @@ export function ScheduleCalendarTab({
     data,
     displayableCalendarEvents,
     view,
+    fcView,
     calendarFeedRange,
     currentTimeZone,
     loMinute,
@@ -2527,17 +2528,6 @@ export function ScheduleCalendarTab({
     },
     [createFormDirty, onDeepLinkChange, showCreatePanel],
   );
-
-  // ─── FullCalendar view mapping ─────────────────────────────────────────────
-
-  const fcView =
-    view === 'day'
-      ? 'timeGridDay'
-      : view === 'weekgrid'
-        ? 'timeGridWeek'
-        : view === 'month'
-          ? 'dayGridMonth'
-          : 'timeGridDay'; // 3days handled as custom range — use timeGridDay with visibleRange
 
   // For 3days, use timeGrid with 3 days duration
   const fcInitialView = useMemo(() => {

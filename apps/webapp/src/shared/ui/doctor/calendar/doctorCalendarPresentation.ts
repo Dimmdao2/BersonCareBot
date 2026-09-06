@@ -1,10 +1,14 @@
 import { DateTime } from 'luxon';
 import { cn } from '@/lib/utils';
 import {
+  appointmentStatusLabel,
   isCancelledAppointmentStatus,
   isPaymentPendingAppointment,
 } from '@/modules/booking-calendar/appointmentStatusLabels';
-import { DOCTOR_APPOINTMENT_PAYMENT_PENDING_EVENT_CLASS } from '../doctorVisual';
+import {
+  DOCTOR_APPOINTMENT_PAYMENT_PENDING_EVENT_CLASS,
+  type DoctorAppointmentStatusRole,
+} from '../doctorVisual';
 
 export const doctorCalendarNonWorkingClassNames = ['doctor-calendar-nonworking'] as const;
 
@@ -146,6 +150,66 @@ export function doctorCalendarAppointmentClassName(
   return isPaymentPendingAppointment(appointment)
     ? cn(surface, DOCTOR_APPOINTMENT_PAYMENT_PENDING_EVENT_CLASS)
     : cn(surface, border);
+}
+
+export type DoctorAppointmentStatusView = {
+  /** Подпись статуса — только из общего словаря; экран её не сочиняет. */
+  label: string;
+  /**
+   * Роль в semantic status-палитре doctor-зоны. `null` — у статуса собственной роли нет
+   * (перенос и обычные «создана»/«подтверждена»); цвет тогда выбирает сама поверхность.
+   */
+  role: DoctorAppointmentStatusRole | null;
+  /**
+   * `true` — с записью реально что-то произошло: отмена, ожидание оплаты или перенос. Строка
+   * списка показывает только такие статусы, панель деталей — любой.
+   */
+  notable: boolean;
+};
+
+/**
+ * PAY-APPT-13/17: единственная лесенка «какой статус записи показать и какой он роли» для всех
+ * doctor-поверхностей — строки списка, сеток календаря и панели деталей записи.
+ *
+ * Порядок не косметический. Отмена важнее ожидания оплаты (отменённая неоплаченная запись — это
+ * отмена, а не два статуса подряд). Ожидание оплаты важнее самого `status`, потому что
+ * `prepaymentPending` приходит из фида отдельным фактом и живёт при ЛЮБОМ статусе записи: платёж
+ * завис в `pending`, а запись осталась `confirmed`. Панель деталей раньше читала только `status`
+ * и показывала зелёную «Подтверждена» там, где сетка и список уже писали «Ожидает оплаты».
+ */
+export function doctorAppointmentStatusView(appointment: {
+  status: string;
+  prepaymentPending?: boolean;
+}): DoctorAppointmentStatusView {
+  if (isCancelledAppointmentStatus(appointment.status))
+    return { label: appointmentStatusLabel(appointment.status), role: 'cancelled', notable: true };
+  if (isPaymentPendingAppointment(appointment))
+    return {
+      label: appointmentStatusLabel('awaiting_payment'),
+      role: 'payment-pending',
+      notable: true,
+    };
+  return {
+    label: appointmentStatusLabel(appointment.status),
+    role: null,
+    notable: appointment.status === 'rescheduled',
+  };
+}
+
+/**
+ * PAY-APPT-14: оформление ожидания оплаты — это РАМКА и маркер, привязанные к коробке события,
+ * поэтому коробка обязана существовать во всех видах календаря.
+ *
+ * В dayGrid (месяц) FullCalendar по умолчанию (`display: 'auto'`) рисует событие со временем как
+ * `.fc-daygrid-dot-event`: `border-style: none`, ширина рамки 0 и вообще без поверхности. Класс
+ * при этом на элементе остаётся, то есть отказ молчаливый — фиолетовая рамка и цвет филиала просто
+ * исчезают, а врач видит ожидающую оплату запись неотличимой от оплаченной. Замерено живым
+ * рендером FullCalendar 6.1.21: `display:'block'` → `fc-daygrid-block-event fc-h-event`, рамка
+ * `2px solid rgb(109,40,217)` и фон филиала; `display:'auto'` → `fc-daygrid-dot-event`, рамка
+ * `none`/`0px`, фон прозрачный.
+ */
+export function doctorCalendarAppointmentDisplay(fcViewType: string): 'block' | 'auto' {
+  return fcViewType.startsWith('dayGrid') ? 'block' : 'auto';
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
