@@ -20,8 +20,11 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@/shared/ui/doctor/primitives/select';
-import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
-import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
+import {
+  DoctorModal,
+  DoctorModalStackedTitle,
+  DoctorModalTextEditorField,
+} from '@/shared/ui/doctor/DoctorModal';
 import {
   DoctorDnaFlatList,
   doctorDnaFlatListClickableClass,
@@ -1068,6 +1071,24 @@ function DiagnosisFormModal({
 }
 
 type AnamnesisModalSection = 'comorbidity' | 'trauma' | 'illness' | 'lifestyle';
+/** «Образ жизни» is edited through its own single-value fullscreen flow, not this append form. */
+type AppendAnamnesisModalSection = Exclude<AnamnesisModalSection, 'lifestyle'>;
+
+/** LIFE-LIFESTYLE-02: список ведёт технический учёт дат записей; последняя по дате — видимое значение. */
+function getLatestLifestyleEntry(
+  entries: AnamnesisState['lifestyle'],
+): AnamnesisState['lifestyle'][number] | null {
+  if (entries.length === 0) return null;
+  return entries.reduce((latest, entry) =>
+    lifestyleDisplayDateToIso(entry.date) > lifestyleDisplayDateToIso(latest.date) ? entry : latest,
+  );
+}
+
+/** «ДД.ММ.ГГГГ» → «ГГГГ-ММ-ДД», сравнимо и пригодно как `recordDate` в существующем contract. */
+function lifestyleDisplayDateToIso(date: string): string {
+  const parts = date.split('.');
+  return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : '';
+}
 
 /**
  * DISEASE-ANAMNESIS-01..05: «Анамнез заболевания» — отдельный белый блок после диагнозов, единый
@@ -1092,7 +1113,6 @@ function DiseaseAnamnesisSection({
   error: boolean;
   onRefresh: () => void;
 }) {
-  const isMobile = useIsMobileViewport();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(text);
   const [saving, setSaving] = useState(false);
@@ -1197,47 +1217,27 @@ function DiseaseAnamnesisSection({
         onClose={() => setOpen(false)}
         title={patientTitle('Анамнез заболевания', patientName, patientOnSupport)}
         size="md"
-        bodyClassName={cn('flex flex-col gap-2 p-4', isMobile ? 'justify-end' : 'justify-start')}
+        presentation="fullscreen-text"
+        bodyClassName="flex flex-1 flex-col gap-2 p-0"
         footer={
-          <Button type="button" disabled={saving} onClick={() => void save()}>
-            Сохранить
-          </Button>
+          <>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Отмена
+            </Button>
+            <Button type="button" disabled={saving} onClick={() => void save()}>
+              Сохранить
+            </Button>
+          </>
         }
       >
         <FormError visible={saveError} />
-        <DiseaseAnamnesisEditorTextarea value={draft} onChange={setDraft} />
+        <DoctorModalTextEditorField
+          value={draft}
+          onChange={setDraft}
+          placeholder="Анамнез заболевания"
+        />
       </DoctorModal>
     </>
-  );
-}
-
-/** Безрамочное поле ввода (DISEASE-ANAMNESIS-04): без бордера/фона, высота растёт под текст. */
-function DiseaseAnamnesisEditorTextarea({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useLayoutEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [value]);
-
-  return (
-    <textarea
-      ref={textareaRef}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      placeholder="Анамнез заболевания"
-      rows={1}
-      autoFocus
-      className="w-full resize-none border-0 bg-transparent p-0 text-base text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0"
-    />
   );
 }
 
@@ -1304,7 +1304,9 @@ function LifeAnamnesisSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, comorbidities]);
 
-  const openEditor = (section: AnamnesisModalSection, item?: { id: string }) => {
+  const latestLifestyle = getLatestLifestyleEntry(state.lifestyle);
+
+  const openEditor = (section: AppendAnamnesisModalSection, item?: { id: string }) => {
     if (!item) {
       setDraft({});
       setEditor({ section });
@@ -1321,22 +1323,21 @@ function LifeAnamnesisSection({
         type: value?.type ?? '',
         immobilization: value?.immobilization ?? '',
       });
-    } else if (section === 'illness') {
+    } else {
       const value = state.illness.find((entry) => entry.id === item.id);
       setDraft({
         period: value?.period ?? '',
         what: value?.what ?? '',
         comment: value?.comment ?? '',
       });
-    } else {
-      const value = state.lifestyle.find((entry) => entry.id === item.id);
-      const parts = value?.date.split('.') ?? [];
-      setDraft({
-        recordDate: parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : '',
-        text: value?.text ?? '',
-      });
     }
     setEditor({ section, id: item.id });
+  };
+
+  /** LIFE-LIFESTYLE-01/03/04: single current value, no date ever shown to or chosen by the doctor. */
+  const openLifestyleEditor = () => {
+    setDraft({ text: latestLifestyle?.text ?? '' });
+    setEditor({ section: 'lifestyle', id: latestLifestyle?.id });
   };
 
   const saveEditor = async () => {
@@ -1355,6 +1356,27 @@ function LifeAnamnesisSection({
         });
         if (!response.ok) throw new Error();
         loadComorbidities();
+      } else if (editor.section === 'lifestyle') {
+        const text = draft.text?.trim();
+        if (!text) throw new Error();
+        // Existing value → update its stored record date in place; no value yet → append with
+        // today's date. Either way the doctor never sees or picks a date (LIFE-LIFESTYLE-02).
+        const recordDate = editor.id
+          ? lifestyleDisplayDateToIso(latestLifestyle?.date ?? '')
+          : new Date().toISOString().slice(0, 10);
+        const response = await fetch(`/api/doctor/patients/${userId}/anamnesis`, {
+          method: editor.id ? 'PATCH' : 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            section: 'lifestyle',
+            ...(editor.id ? { entryId: editor.id } : {}),
+            recordDate,
+            text,
+          }),
+        });
+        if (!response.ok) throw new Error();
+        onRefresh();
       } else {
         const payload = {
           section: editor.section,
@@ -1477,61 +1499,130 @@ function LifeAnamnesisSection({
               }))}
               onOpen={(id) => openEditor('illness', { id })}
             />
-            <AnamnesisListSection
+            <LifestyleSubsection
               title="Образ жизни"
-              onAdd={() => openEditor('lifestyle')}
-              items={state.lifestyle.map((item) => ({
-                id: item.id,
-                primary: item.text,
-                secondary: item.date,
-              }))}
-              onOpen={(id) => openEditor('lifestyle', { id })}
+              text={latestLifestyle?.text ?? ''}
+              onEdit={openLifestyleEditor}
             />
           </div>
         ) : null}
       </section>
 
-      <DoctorModal
-        open={editor !== null}
-        onClose={() => setEditor(null)}
-        title={patientTitle(
-          editor?.id ? 'Изменить запись' : 'Новая запись',
-          patientName,
-          patientOnSupport,
-        )}
-        size="md"
-        footer={
-          <>
-            {selectedComorbidity?.status === 'removed' ? (
+      {editor?.section === 'lifestyle' ? (
+        <DoctorModal
+          open
+          onClose={() => setEditor(null)}
+          title={patientTitle('Образ жизни', patientName, patientOnSupport)}
+          size="md"
+          presentation="fullscreen-text"
+          bodyClassName="flex flex-1 flex-col p-0"
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => setEditor(null)}>
+                Отмена
+              </Button>
               <Button
                 type="button"
-                variant="outline"
-                disabled={saving}
-                onClick={() => void restoreComorbidity()}
+                disabled={saving || !draft.text?.trim()}
+                onClick={() => void saveEditor()}
               >
-                Вернуть
+                Сохранить
               </Button>
-            ) : editor?.section === 'comorbidity' && editor.id ? (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={saving}
-                onClick={() => void archiveComorbidity()}
-              >
-                В историю
+            </>
+          }
+        >
+          <DoctorModalTextEditorField
+            value={draft.text ?? ''}
+            onChange={(text) => setDraft({ text })}
+            placeholder="Образ жизни"
+          />
+        </DoctorModal>
+      ) : (
+        <DoctorModal
+          open={editor !== null}
+          onClose={() => setEditor(null)}
+          title={patientTitle(
+            editor?.id ? 'Изменить запись' : 'Новая запись',
+            patientName,
+            patientOnSupport,
+          )}
+          size="md"
+          footer={
+            <>
+              {selectedComorbidity?.status === 'removed' ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={saving}
+                  onClick={() => void restoreComorbidity()}
+                >
+                  Вернуть
+                </Button>
+              ) : editor?.section === 'comorbidity' && editor.id ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={saving}
+                  onClick={() => void archiveComorbidity()}
+                >
+                  В историю
+                </Button>
+              ) : null}
+              <Button type="button" disabled={saving} onClick={() => void saveEditor()}>
+                Сохранить
               </Button>
-            ) : null}
-            <Button type="button" disabled={saving} onClick={() => void saveEditor()}>
-              Сохранить
-            </Button>
-          </>
-        }
-      >
-        {editor ? (
-          <AnamnesisEditorFields section={editor.section} draft={draft} onDraft={setDraft} />
-        ) : null}
-      </DoctorModal>
+            </>
+          }
+        >
+          {editor ? (
+            <AnamnesisEditorFields section={editor.section} draft={draft} onDraft={setDraft} />
+          ) : null}
+        </DoctorModal>
+      )}
     </>
+  );
+}
+
+/**
+ * LIFE-LIFESTYLE-01/02: «Образ жизни» — единственное текущее значение, не append-log. Заголовок и
+ * геометрия строки повторяют соседние подсекции; вместо «+» — единственное действие редактирования,
+ * рядом с текстом дата записи не показывается.
+ */
+function LifestyleSubsection({
+  title,
+  text,
+  onEdit,
+}: {
+  title: string;
+  text: string;
+  onEdit: () => void;
+}) {
+  const hasText = text.trim().length > 0;
+  return (
+    <section className="border-b border-border last:border-b-0">
+      <div className="flex items-center justify-between px-[var(--doctor-list-inline-padding,18px)] py-2.5">
+        <h4
+          className={cn(
+            'text-[15px] font-semibold',
+            hasText ? 'text-foreground' : 'text-muted-foreground',
+          )}
+        >
+          {title}
+        </h4>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onEdit}
+          title={`Изменить: ${title}`}
+        >
+          <SquarePen className="size-5" />
+        </Button>
+      </div>
+      <p className="whitespace-pre-wrap px-[var(--doctor-list-inline-padding,18px)] pb-3 text-sm text-foreground">
+        {hasText ? text : '—'}
+      </p>
+    </section>
   );
 }
 

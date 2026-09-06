@@ -2,8 +2,10 @@
 
 import {
   createContext,
+  type CSSProperties,
   type ReactNode,
   useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -77,8 +79,86 @@ export function DoctorModalFooter({ children }: { children: ReactNode }) {
 
 type DoctorModalSize = 'sm' | 'md' | 'lg' | 'content';
 type DoctorModalBodyVariant = 'default' | 'list';
-type DoctorModalPresentation = 'standard' | 'fullscreen-media';
+/**
+ * `fullscreen-text` — canonical single-field long-text editor (MODAL-TEXT-01..08): on mobile it
+ * covers the whole visible viewport with no drawer handle/top gap; on desktop it is a no-op and
+ * falls back to the standard dialog/right-sheet geometry with top-oriented text entry.
+ */
+type DoctorModalPresentation = 'standard' | 'fullscreen-media' | 'fullscreen-text';
 export type DoctorModalDesktopPresentation = 'dialog' | 'right-sheet';
+
+type FullscreenTextViewportGeometry = { top: number; height: number };
+
+/**
+ * MODAL-TEXT-05/06: geometry для мобильного fullscreen-текстового редактора. Следит за
+ * `window.visualViewport` (высота и смещение верхнего края), пока редактор открыт, и отписывается
+ * при закрытии/размонтировании. Без `visualViewport` (SSR, старый браузер) возвращает `null` —
+ * тогда caller использует безопасный `100dvh`-fallback через className.
+ */
+function useDoctorModalFullscreenTextGeometry(
+  active: boolean,
+): FullscreenTextViewportGeometry | null {
+  const [geometry, setGeometry] = useState<FullscreenTextViewportGeometry | null>(null);
+
+  useEffect(() => {
+    if (!active || typeof window === 'undefined' || !window.visualViewport) return;
+    const viewport = window.visualViewport;
+    const update = () => setGeometry({ top: viewport.offsetTop, height: viewport.height });
+    update();
+    viewport.addEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+    return () => {
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+      // Deactivation (close/unmount) drops the live reading — caller falls back to className.
+      setGeometry(null);
+    };
+  }, [active]);
+
+  return geometry;
+}
+
+/**
+ * MODAL-TEXT-04/06: единственное безрамочное поле однополевого fullscreen-редактора. Заполняет
+ * всю доступную высоту между шапкой и footer (прокручивается само поле, не модалка) и получает
+ * фокус сразу при монтировании — не дожидаясь завершения открывающей анимации слоя.
+ */
+export function DoctorModalTextEditorField({
+  value,
+  onChange,
+  placeholder,
+  className,
+  autoFocus = true,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+  /** Caller opts out only when it owns focus itself (default: focus on mount). */
+  autoFocus?: boolean;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    if (!autoFocus) return;
+    textareaRef.current?.focus();
+  }, [autoFocus]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      autoFocus={autoFocus}
+      rows={5}
+      className={cn(
+        'h-full min-h-0 w-full flex-1 resize-none overflow-y-auto border-0 bg-white p-4 text-base text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 md:h-auto md:min-h-40',
+        className,
+      )}
+    />
+  );
+}
 
 /** Десктоп: ограничение ширины по размеру. Мобила — всегда bottom-sheet во всю ширину. */
 const sizeMaxWidth: Record<DoctorModalSize, string> = {
@@ -244,6 +324,10 @@ export function DoctorModal({
   const isWideDesktop = useViewportMinWidth(1280);
   const isContent = size === 'content';
   const isListBody = bodyVariant === 'list';
+  const isFullscreenText = presentation === 'fullscreen-text';
+  const fullscreenTextGeometry = useDoctorModalFullscreenTextGeometry(
+    isFullscreenText && isMobile && open,
+  );
   const [rightSheetWidth, setRightSheetWidth] = useState<string | null>(null);
   const [footerSlotElement, setFooterSlotElement] = useState<HTMLDivElement | null>(null);
   const [hasSlottedFooter, setHasSlottedFooter] = useState(false);
@@ -295,6 +379,16 @@ export function DoctorModal({
         bodyClassName,
       )}
     >
+      <DoctorModalFooterSlotContext.Provider value={footerSlot}>
+        {children}
+      </DoctorModalFooterSlotContext.Provider>
+    </div>
+  );
+
+  // MODAL-TEXT-04: wrapper never scrolls itself — it is a plain flex column filling the space
+  // between header and footer, so the sole textarea inside is the only scroll owner.
+  const fullscreenTextBody = (
+    <div ref={bodyRef} className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', bodyClassName)}>
       <DoctorModalFooterSlotContext.Provider value={footerSlot}>
         {children}
       </DoctorModalFooterSlotContext.Provider>
@@ -394,6 +488,49 @@ export function DoctorModal({
             {fullscreenBody}
           </DialogContent>
         </Dialog>
+      </DoctorModalLayerProvider>
+    );
+  }
+
+  if (isMobile && isFullscreenText) {
+    // MODAL-TEXT-02/05: no top gap, no rounded corners, no drawer handle — the editor fills the
+    // whole visible viewport. Geometry prefers live `visualViewport` (keyboard-aware) and falls
+    // back to a safe `100dvh` when it is unavailable.
+    const geometryStyle: CSSProperties | undefined = fullscreenTextGeometry
+      ? {
+          position: 'fixed',
+          top: fullscreenTextGeometry.top,
+          height: fullscreenTextGeometry.height,
+          left: 0,
+          right: 0,
+        }
+      : undefined;
+
+    return (
+      <DoctorModalLayerProvider depth={layerDepth}>
+        <Drawer open={open} onOpenChange={handleOpenChange}>
+          <DrawerContent
+            showCloseButton={false}
+            showHandle={false}
+            showOverlay={showOverlay}
+            style={geometryStyle}
+            className="h-dvh max-h-dvh translate-y-0 gap-0 rounded-none border-0 bg-card p-0 shadow-none"
+          >
+            <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pb-3 pt-[calc(0.375rem+env(safe-area-inset-top,0px))]">
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <DrawerTitle className={doctorModalTitleClass}>{title}</DrawerTitle>
+                  {titleSubjectNode}
+                </div>
+                {headerTrailingNode}
+              </div>
+              {description && <DrawerDescription>{description}</DrawerDescription>}
+            </DrawerHeader>
+            {bodyHeaderNode}
+            {fullscreenTextBody}
+            {footerNode}
+          </DrawerContent>
+        </Drawer>
       </DoctorModalLayerProvider>
     );
   }
