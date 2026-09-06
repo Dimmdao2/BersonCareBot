@@ -16,6 +16,13 @@ networks:
     driver: bridge
     driver_opts:
       com.docker.network.bridge.name: bcb-${BCB_COLOUR}
+    ipam:
+      config:
+        # Подсеть закреплена за цветом (см. bcb-bluegreen-lib.sh): PostgreSQL слушает адрес шлюза
+        # этого моста, и правило firewall пускает 5432 только с него. Плавающая подсеть развалила бы
+        # обе привязки разом.
+        - subnet: ${BCB_NETWORK_SUBNET:?BCB_NETWORK_SUBNET is required}
+          gateway: ${BCB_NETWORK_GATEWAY:?BCB_NETWORK_GATEWAY is required}
 
 x-app: &app
   image: ${BCB_IMAGE:?BCB_IMAGE is required}
@@ -24,6 +31,9 @@ x-app: &app
   # through the mounted unix socket keeps it that way: no port opens for the sake of the containers.
   volumes:
     - /var/run/postgresql:/var/run/postgresql
+    # Клиентские сертификаты порт-контекста. Приложение открывает пул на каждую роль по TCP с mTLS,
+    # значит файлы обязаны быть видны ВНУТРИ контейнера; смонтированы только на чтение.
+    - /etc/bersoncarebot/postgres-mtls:/etc/bersoncarebot/postgres-mtls:ro
   # Nothing here writes to its own filesystem; uploads go to S3 and logs go to stdout.
   read_only: true
   tmpfs:

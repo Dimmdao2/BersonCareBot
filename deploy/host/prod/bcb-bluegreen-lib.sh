@@ -27,6 +27,16 @@ BCB_BLUE_API_PORT=3201
 BCB_GREEN_WEBAPP_PORT=6202
 BCB_GREEN_API_PORT=3202
 
+# Каждый цвет получает СВОЮ фиксированную подсеть вместо той, что docker выдаёт сам. Причина не в
+# аккуратности: приложение ходит в PostgreSQL по TCP с клиентским сертификатом (порт-контекст), то
+# есть база обязана слушать адрес шлюза этого моста, а firewall — пускать только с него. Плавающая
+# подсеть означала бы, что после пересоздания сети слушающий адрес и правило перестают совпадать, и
+# деплой падал бы на «база недоступна» без единой подсказки почему.
+BCB_BLUE_SUBNET=172.30.0.0/24
+BCB_BLUE_GATEWAY=172.30.0.1
+BCB_GREEN_SUBNET=172.31.0.0/24
+BCB_GREEN_GATEWAY=172.31.0.1
+
 say()  { printf '\033[1m==>\033[0m %s\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
 warn() { printf '\033[33m !  %s\033[0m\n' "$*" >&2; }
@@ -73,6 +83,8 @@ idle_colour()   { case "$(active_colour)" in blue) echo green;; green) echo blue
 
 colour_webapp_port() { case "$1" in blue) echo $BCB_BLUE_WEBAPP_PORT;; green) echo $BCB_GREEN_WEBAPP_PORT;; *) return 1;; esac; }
 colour_api_port()    { case "$1" in blue) echo $BCB_BLUE_API_PORT;;    green) echo $BCB_GREEN_API_PORT;;    *) return 1;; esac; }
+colour_subnet()      { case "$1" in blue) echo $BCB_BLUE_SUBNET;;     green) echo $BCB_GREEN_SUBNET;;     *) return 1;; esac; }
+colour_gateway()     { case "$1" in blue) echo $BCB_BLUE_GATEWAY;;    green) echo $BCB_GREEN_GATEWAY;;    *) return 1;; esac; }
 
 # Every compose invocation goes through here so the project name, file and variables can never drift
 # between the deploy path and the rollback path.
@@ -83,6 +95,8 @@ compose() {
   BCB_ENV_DIR="$BCB_ENV_DIR" \
   BCB_WEBAPP_PORT="$(colour_webapp_port "$colour")" \
   BCB_API_PORT="$(colour_api_port "$colour")" \
+  BCB_NETWORK_SUBNET="$(colour_subnet "$colour")" \
+  BCB_NETWORK_GATEWAY="$(colour_gateway "$colour")" \
   docker compose -p "bcb-$colour" -f "$BCB_PIPELINE/docker-compose.yml" "$@"
 }
 
