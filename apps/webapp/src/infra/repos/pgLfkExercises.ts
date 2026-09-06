@@ -223,6 +223,8 @@ async function enqueueHostedVideoCover(
         previewStatus: 'pending',
         usagePurpose: 'hosted_video_preview',
         hostedVideoSourceUrl: link.canonicalUrl,
+        // Обложка ролика из библиотеки упражнений — это контент клиники, а не файл пациента.
+        storageTarget: 'library',
       })
       .onConflictDoUpdate({
         target: [mediaFiles.organizationId, mediaFiles.hostedVideoSourceUrl],

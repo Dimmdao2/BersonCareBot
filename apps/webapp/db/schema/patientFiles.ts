@@ -27,8 +27,13 @@ export const patientFiles = pgTable(
     category: text('category').notNull(),
     fileName: text('file_name').notNull(),
     s3Key: text('s3_key').notNull(),
-    /** Физическое хранилище объекта: 'library' или 'patient' (шифрованное). */
-    storageTarget: text('storage_target').default('library').notNull(),
+    /**
+     * Физическое хранилище объекта: 'library' или 'patient' (шифрованное). Без `.default()`
+     * намеренно: умолчания здесь нет ни в типе, ни в колонке, поэтому вставка, забывшая назвать
+     * хранилище, не компилируется, а в SQL падает на NOT NULL — вместо того чтобы тихо положить
+     * файл пациента в библиотеку (решение владельца 06.09.2026).
+     */
+    storageTarget: text('storage_target').notNull(),
     s3Bucket: text('s3_bucket').notNull(),
     mimeType: text('mime_type').notNull(),
     sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),

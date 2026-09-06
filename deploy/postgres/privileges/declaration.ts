@@ -16409,6 +16409,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "source_width",
           "standard_rendition_at",
           "status",
+          "storage_target",
           "stored_path",
           "uploaded_by",
           "usage_purpose",
@@ -17670,6 +17671,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "s3_bucket",
           "s3_key",
           "size_bytes",
+          "storage_target",
           "uploaded_by_user_id",
           "visit_id"
         ]
@@ -29664,7 +29666,8 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.media_files',
           columns: ['id', 'owner_kind', 'organization_id', 'original_name', 'stored_path', 'mime_type',
-            'size_bytes', 'uploaded_by', 's3_key', 'status', 'folder_id', 'usage_purpose'],
+            'size_bytes', 'uploaded_by', 's3_key', 'status', 'folder_id', 'usage_purpose',
+            'storage_target'],
           operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -29746,7 +29749,7 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.media_files',
           columns: ['id', 'organization_id', 'mime_type', 's3_key', 'hls_master_playlist_s3_key',
-            'video_processing_status', 'video_duration_seconds', 'usage_purpose'],
+            'video_processing_status', 'video_duration_seconds', 'usage_purpose', 'storage_target'],
           operations: ['SELECT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
@@ -29785,7 +29788,7 @@ const REV10_CONTEXT = {
           columns: ['id', 'organization_id', 'usage_purpose', 'hosted_video_source_url', 'status',
             'created_at', 'next_attempt_at', 'delete_claim_token', 'delete_attempts', 's3_key',
             'preview_sm_key', 'preview_md_key', 'hls_artifact_prefix', 'poster_s3_key',
-            'hls_master_playlist_s3_key'],
+            'hls_master_playlist_s3_key', 'storage_target'],
           operations: ['SELECT' as const, 'UPDATE' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.lfk_exercise_media', columns: ['organization_id', 'media_url'],
@@ -31519,6 +31522,9 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
         'organization_id', 'original_name',
         'owner_kind', 'poster_s3_key', 'preview_md_key', 'preview_sm_key', 'preview_status', 's3_key',
         'size_bytes', 'source_height', 'source_width', 'standard_rendition_at', 'status',
+        // Кто читает `s3_key`, обязан знать и хранилище: иначе роль пойдёт искать существующий
+        // ключ не в том бакете и получит «файл не найден».
+        'storage_target',
         'stored_path', 'uploaded_by',
         'usage_purpose', 'video_duration_seconds',
         'video_processing_error', 'video_processing_status',
