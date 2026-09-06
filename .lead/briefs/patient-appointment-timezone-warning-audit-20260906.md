@@ -6,7 +6,7 @@ You are the independent auditor of candidate `b233af1d6` in branch `wt/patient-a
 
 Do not change product code. You may add/commit only genuinely missing behavioral acceptance tests and a concise audit artifact if the port requires it. Revert every fault injection. Do not push, land, deploy, use PROD, or run full CI.
 
-## Classify before checking
+## Тест или взгляд — классификация до проверки
 
 - Repeated behavior: timezone conversion, offset comparison, visibility of warning, IDOR-safe data path, every patient/public appointment surface. Use behavioral tests and a kill-set prepared before reading existing tests.
 - One-time state: migration contents, generated privilege reconciliation, relation-surface declaration, migration ordering and rollback-only/preflight applicability. Inspect files and run the documented check/preflight; do not write tests on SQL/source strings.
@@ -26,4 +26,3 @@ Do not change product code. You may add/commit only genuinely missing behavioral
 ## Required result
 
 Return binary PASS or FAIL. Each FAIL must give a reachable scenario, impact, exact violated item and evidence. Recommendations/style are not findings. Report exact commands and counts. If tests are added, commit them and name the SHA; otherwise leave the worktree clean.
-
