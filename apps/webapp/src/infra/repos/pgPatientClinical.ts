@@ -28,6 +28,7 @@ import type {
   DiagnosisClinicalStatus,
   DiagnosisStatusHistoryEntry,
   PatientClinicalPort,
+  SetAnamnesisDiseaseInput,
   SetDiagnosisClinicalStatusInput,
   UpdateComplaintFieldsInput,
   UpdateAnamnesisEntryInput,
@@ -49,6 +50,7 @@ import {
   clinicalAnamnesisTrauma,
   clinicalAnamnesisIllness,
   clinicalAnamnesisLifestyle,
+  clinicalDiseaseAnamnesis,
 } from '../../../db/schema/patientClinicalAnamnesis';
 import { patientFiles } from '../../../db/schema/patientFiles';
 import { beAppointments } from '../../../db/schema/bookingEngine';
@@ -918,7 +920,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     async getAnamnesis(patientUserId: string): Promise<AnamnesisState> {
       const db = getDrizzle();
 
-      const [traumaRows, illnessRows, lifestyleRows] = await Promise.all([
+      const [traumaRows, illnessRows, lifestyleRows, diseaseRows] = await Promise.all([
         db
           .select()
           .from(clinicalAnamnesisTrauma)
@@ -955,6 +957,18 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
             ),
           )
           .orderBy(asc(clinicalAnamnesisLifestyle.createdAt)),
+        db
+          .select({ text: clinicalDiseaseAnamnesis.text })
+          .from(clinicalDiseaseAnamnesis)
+          .where(
+            and(
+              eq(clinicalDiseaseAnamnesis.patientUserId, patientUserId),
+              principalOrganizationId()
+                ? eq(clinicalDiseaseAnamnesis.organizationId, principalOrganizationId()!)
+                : undefined,
+            ),
+          )
+          .limit(1),
       ]);
 
       return {
@@ -976,6 +990,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           date: fmtDisplayDate(r.recordDate),
           text: r.text,
         })),
+        disease: diseaseRows[0]?.text ?? '',
       };
     },
 
@@ -1099,6 +1114,28 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           .returning({ id: clinicalAnamnesisLifestyle.id }),
       );
       return rows.length > 0;
+    },
+
+    async setAnamnesisDisease(input: SetAnamnesisDiseaseInput): Promise<string> {
+      const organizationId = requiredPrincipalOrganizationId();
+      const rows = await runDrizzleMutationTransaction((tx) =>
+        tx
+          .insert(clinicalDiseaseAnamnesis)
+          .values({
+            organizationId,
+            patientUserId: input.patientUserId,
+            text: input.text,
+            createdBy: input.createdBy,
+          })
+          .onConflictDoUpdate({
+            target: [clinicalDiseaseAnamnesis.patientUserId, clinicalDiseaseAnamnesis.organizationId],
+            set: { text: input.text },
+          })
+          .returning({ text: clinicalDiseaseAnamnesis.text }),
+      );
+      const row = rows[0];
+      if (!row) throw new Error('clinical_disease_anamnesis upsert failed');
+      return row.text;
     },
 
     async listLinkedAppointmentIds(patientUserId: string): Promise<string[]> {

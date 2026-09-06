@@ -30,6 +30,7 @@ const fakes = vi.hoisted(() => ({
   createVisit: vi.fn(),
   updateVisitFields: vi.fn(),
   appendAnamnesisTrauma: vi.fn(),
+  setAnamnesisDisease: vi.fn(),
   updateComplaintFields: vi.fn(),
   updateDiagnosisFields: vi.fn(),
   setDiagnosisClinicalStatus: vi.fn(),
@@ -123,6 +124,7 @@ const fakeDeps = {
     createVisit: fakes.createVisit,
     updateVisitFields: fakes.updateVisitFields,
     appendAnamnesisTrauma: fakes.appendAnamnesisTrauma,
+    setAnamnesisDisease: fakes.setAnamnesisDisease,
     updateComplaintFields: fakes.updateComplaintFields,
     updateDiagnosisFields: fakes.updateDiagnosisFields,
     setDiagnosisClinicalStatus: fakes.setDiagnosisClinicalStatus,
@@ -152,6 +154,7 @@ beforeEach(() => {
   fakes.createVisit.mockResolvedValue(VISIT_ID);
   fakes.updateVisitFields.mockResolvedValue(true);
   fakes.appendAnamnesisTrauma.mockResolvedValue(undefined);
+  fakes.setAnamnesisDisease.mockResolvedValue('Анамнез заболевания текст');
   fakes.updateComplaintFields.mockResolvedValue(true);
   fakes.updateDiagnosisFields.mockResolvedValue(true);
   fakes.setDiagnosisClinicalStatus.mockResolvedValue(true);
@@ -204,6 +207,18 @@ describe('patient card mutations ignore commercial/tariff state (critical mechan
       { params: Promise.resolve({ userId: PATIENT_ID }) },
     );
     expect(res.status).toBe(201);
+  });
+
+  it('sets the disease anamnesis text', async () => {
+    const res = await appendAnamnesisRoute(
+      jsonRequest(`https://app.example.test/api/doctor/patients/${PATIENT_ID}/anamnesis`, 'POST', {
+        section: 'disease',
+        text: 'Анамнез заболевания текст',
+      }),
+      { params: Promise.resolve({ userId: PATIENT_ID }) },
+    );
+    expect(res.status).toBe(200);
+    expect(fakes.getSnapshot).not.toHaveBeenCalled();
   });
 
   it('updates a complaint', async () => {

@@ -1,18 +1,22 @@
-import { pgTable, uuid, text, timestamp, index, foreignKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, index, uniqueIndex, foreignKey } from 'drizzle-orm/pg-core';
 import { platformUsers } from './schema';
 import { beOrganizations } from './bookingEngine';
 
 /**
- * Анамнез пациента (раздел «Анамнез» в карте).
+ * Анамнез пациента (раздел «Анамнез» / «Анамнез жизни» в карте).
  *
- * Три секции, каждая — отдельная таблица с биографическими строками.
+ * Три биографические секции, каждая — отдельная таблица с append-log строками.
  * Записи НЕ привязаны к конкретному визиту (это биографические данные пациента,
  * а не клинические данные визита). Врач добавляет и исправляет строки; удаления нет.
  *
- * Соответствие UI (PatientTabKarta Анамнез-секция):
+ * Соответствие UI (PatientTabKarta «Анамнез жизни»):
  *   clinical_anamnesis_trauma    → «Травмы и операции» (year / what / type / immobilization)
  *   clinical_anamnesis_illness   → «Болезни, стрессы» (period / what / comment)
  *   clinical_anamnesis_lifestyle → «Образ жизни» (date + text entries)
+ *
+ * Отдельно — «Анамнез заболевания» (clinical_disease_anamnesis): один изменяемый
+ * patient×organization-scoped текст (не append-log), редактируется поверх, не смешивается
+ * с биографическими секциями анамнеза жизни выше.
  */
 
 // -- Травмы и операции -------------------------------------------------------
@@ -134,6 +138,45 @@ export const clinicalAnamnesisLifestyle = pgTable(
       columns: [table.createdBy],
       foreignColumns: [platformUsers.id],
       name: 'clinical_anamnesis_lifestyle_created_by_fkey',
+    }).onDelete('restrict'),
+  ],
+);
+
+// -- Анамнез заболевания (единый изменяемый текст, не append-log) -----------
+
+export const clinicalDiseaseAnamnesis = pgTable(
+  'clinical_disease_anamnesis',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid('organization_id'),
+    patientUserId: uuid('patient_user_id').notNull(),
+    /** Единый текст «Анамнез заболевания»; правка заменяет значение целиком. */
+    text: text('text').notNull().default(''),
+    createdBy: uuid('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_clinical_disease_anamnesis_patient_org').on(
+      table.patientUserId,
+      table.organizationId,
+    ),
+    index('idx_clinical_disease_anamnesis_organization_id').on(table.organizationId),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: 'clinical_disease_anamnesis_organization_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.patientUserId],
+      foreignColumns: [platformUsers.id],
+      name: 'clinical_disease_anamnesis_patient_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.createdBy],
+      foreignColumns: [platformUsers.id],
+      name: 'clinical_disease_anamnesis_created_by_fkey',
     }).onDelete('restrict'),
   ],
 );
