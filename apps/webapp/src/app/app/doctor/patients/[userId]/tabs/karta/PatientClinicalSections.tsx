@@ -270,7 +270,7 @@ function ComplaintRow({
             {complaint.text}
           </span>
           {anamnesisPreview ? (
-            <span className="mt-0.5 block truncate text-[13px] font-normal text-muted-foreground">
+            <span className={cn(doctorDnaFlatListMetaClass, 'mt-0.5 block truncate font-normal')}>
               {anamnesisPreview}
             </span>
           ) : null}

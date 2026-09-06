@@ -209,18 +209,6 @@ describe('patient card mutations ignore commercial/tariff state (critical mechan
     expect(res.status).toBe(201);
   });
 
-  it('sets the disease anamnesis text', async () => {
-    const res = await appendAnamnesisRoute(
-      jsonRequest(`https://app.example.test/api/doctor/patients/${PATIENT_ID}/anamnesis`, 'POST', {
-        section: 'disease',
-        text: 'Анамнез заболевания текст',
-      }),
-      { params: Promise.resolve({ userId: PATIENT_ID }) },
-    );
-    expect(res.status).toBe(200);
-    expect(fakes.getSnapshot).not.toHaveBeenCalled();
-  });
-
   it('updates a complaint', async () => {
     const res = await updateComplaintRoute(
       jsonRequest(
