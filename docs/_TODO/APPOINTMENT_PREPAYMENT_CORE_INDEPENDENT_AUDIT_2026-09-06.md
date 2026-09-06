@@ -325,3 +325,55 @@ node deploy/postgres/privileges/migrate-local.mjs --db bcb_webapp_dev \
 
 Прежний аудит гонял только выборочные наборы — оба блокера лежат вне них, поэтому и не были видны.
 Одноразовых баз не поднималось, DEV/TEST/PROD не изменялись.
+
+---
+
+## Устранение двух блокеров финальной приёмки (2026-09-06, та же ветка)
+
+Отчёт о приёмке выше остаётся как есть — ниже отмечено, что из него уже неверно. Продуктовое
+поведение не менялось ни в одном из двух мест: чинились ровно гейты.
+
+**БЛОКЕР 1 — закрыт.** Правило арендатора журнала платежей теперь сформулировано ОДИН раз
+(`assertPatientPaymentTenant` в `pgPatientPayments.ts`) и стоит перед ОБЕИМИ пишущими дверьми:
+реляционной транзакцией (`runPatientPaymentMutation` зовёт его) и именованным корнем наличных по
+записи (зовёт его до сборки payload). Атомарный корень `app.settle_appointment_cash_prepayment` и
+его SQL-защита не тронуты — снаружи от них восстановлен тот же TS-гейт, который дверь записи
+потеряла. `pgPatientPayments.principal.unit.test.ts` снова покрывает дверь, которой люди
+пользуются: принципал снимается в момент выдачи ТОЙ двери, которую взяла запись, а не только
+реляционной, и чужая клиника в аргументе теперь доказанно не выдаёт statement НИ ОДНОЙ формы
+(`expect(runWebappNamedRoot).not.toHaveBeenCalled()` рядом с прежним `withTransaction`).
+
+**БЛОКЕР 2 — закрыт.** `api/internal/booking-prepayment/expire:POST` объявлен в центральной
+декларации в `WEBAPP_WORKER_SOURCES`, то есть под уже существующей возможностью
+`webapp_worker_relation` (`sessionRole app_staff` → `targetRole app_worker`, класс `service`) — той
+же ролью и тем же классом, под которыми исполняется его собственный корень
+`app.expire_due_booking_prepayments(integer)`, и тем же списком, где живут соседние машинные тики
+(`saas-billing/renewal/tick`, `domain-health/tick`). Новой роли, новой привилегии и разрозненных
+`GRANT` не заводилось; `runtimeSources` рендерится в рантайм-окружение порта на деплое, поэтому
+generated-артефакты после перегенерации побайтно те же.
+
+**Fault injection (обе поломки внесены ПОСЛЕ коммита правок и полностью откачены):**
+
+| Поломка | Что покраснело |
+|---|---|
+| снят восстановленный TS-гейт с ветки именованного корня | `pgPatientPayments.principal.unit.test.ts` → 2 красных из 6 (обе стены арендатора) |
+| строка источника удалена из `WEBAPP_WORKER_SOURCES` | `journalRetention.contract.test.ts` → красный, `["api/internal/booking-prepayment/expire:POST"]` назван поимённо |
+
+**Гейты на итоговом коммите `39042bc9d`:**
+
+```
+(apps/webapp) npx vitest --run src/infra/repos/pgPatientPayments.principal.unit.test.ts → 6/6
+(apps/webapp) npx vitest --run src/modules/db-retention/journalRetention.contract.test.ts → 2/2
+(apps/webapp) npx vitest --run <payment/prepayment acceptance set> → 52 файла, 286 тестов, all pass
+pnpm check:db-privileges-generated → побайтно, exit 0
+pnpm test:db-privileges            → 341 tests, 184 pass, 0 fail, 157 skip
+pnpm test:db-principal             → 31 pass, 0 fail
+node deploy/host/background-jobs-cli.mjs --check → OK (24 artifacts)
+pnpm typecheck                     → Done (7 проектов)
+scoped ESLint (3 изменённых файла)  → exit 0
+```
+
+**НЕ СДЕЛАНО:** унаследованный красный `protectedActionRegistryCoverage.unit.test.ts`
+(`anamnesis/route.ts:PATCH`) — по указанию брифа не трогался, это дефект `feat/doctor-ui-rebuild`,
+приехавший слиянием; приземлению кандидата он мешает по-прежнему. Замечания ниже порога MUST FIX из
+первого аудита также не трогались.
