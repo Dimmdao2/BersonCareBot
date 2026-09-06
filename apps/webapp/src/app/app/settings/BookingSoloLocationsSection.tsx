@@ -22,7 +22,6 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
-import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import { DoctorColorPicker } from '@/shared/ui/doctor/DoctorColorPicker';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import {
@@ -457,9 +456,9 @@ export function BookingSoloLocationsSection() {
             <Label htmlFor="branch-create-short-title">Короткое название</Label>
             <Input
               id="branch-create-short-title"
-              maxLength={12}
+              maxLength={10}
               value={shortTitle}
-              onChange={(event) => setShortTitle(event.target.value.slice(0, 12))}
+              onChange={(event) => setShortTitle(event.target.value.slice(0, 10))}
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -480,9 +479,13 @@ export function BookingSoloLocationsSection() {
               disabled={pending}
             />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={createAsDefault} onCheckedChange={setCreateAsDefault} />
-            Выбрать филиалом по умолчанию
+          <label className="flex items-center gap-3 pt-1 text-sm">
+            <Switch
+              checked={createAsDefault}
+              disabled={pending}
+              onCheckedChange={setCreateAsDefault}
+            />
+            Филиал по умолчанию
           </label>
         </div>
       </DoctorModal>
@@ -522,9 +525,9 @@ export function BookingSoloLocationsSection() {
             <Label htmlFor="branch-edit-short-title">Короткое название</Label>
             <Input
               id="branch-edit-short-title"
-              maxLength={12}
+              maxLength={10}
               value={editShortTitle}
-              onChange={(event) => setEditShortTitle(event.target.value.slice(0, 12))}
+              onChange={(event) => setEditShortTitle(event.target.value.slice(0, 10))}
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -533,16 +536,6 @@ export function BookingSoloLocationsSection() {
               id="branch-edit-address"
               value={editAddress}
               onChange={(event) => setEditAddress(event.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <Label>Цвет</Label>
-            <DoctorColorPicker
-              label="Цвет филиала"
-              value={editColor}
-              disabled={pending}
-              onChange={setEditColor}
             />
           </div>
 
@@ -556,18 +549,29 @@ export function BookingSoloLocationsSection() {
               disabled={pending}
             />
           </div>
-          <label className="flex items-center justify-between gap-3 text-sm">
-            Активен
-            <Switch checked={editActive} disabled={pending} onCheckedChange={setEditActive} />
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={editAsDefault}
-              disabled={!editActive && !editAsDefault}
-              onCheckedChange={setEditAsDefault}
-            />
-            Выбрать филиалом по умолчанию
-          </label>
+          <div className="flex flex-col gap-3 pt-1">
+            <div className="flex items-center gap-3 text-sm">
+              <DoctorColorPicker
+                label="Цвет филиала"
+                value={editColor}
+                disabled={pending}
+                onChange={setEditColor}
+              />
+              <span>Цвет</span>
+            </div>
+            <label className="flex items-center gap-3 text-sm">
+              <Switch checked={editActive} disabled={pending} onCheckedChange={setEditActive} />
+              Филиал включен
+            </label>
+            <label className="flex items-center gap-3 text-sm">
+              <Switch
+                checked={editAsDefault}
+                disabled={pending || (!editActive && !editAsDefault)}
+                onCheckedChange={setEditAsDefault}
+              />
+              Филиал по умолчанию
+            </label>
+          </div>
         </div>
       </DoctorModal>
     </>

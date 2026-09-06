@@ -94,23 +94,23 @@ export function BookingSoloAvailabilitySection() {
       {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
       {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
 
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full min-w-max table-fixed text-sm">
+      <div className="overflow-hidden rounded-md border">
+        <table className="w-full table-fixed text-sm">
           <colgroup>
-            <col className="w-full min-w-52" />
+            <col />
             {activeBranches.map((branch) => (
-              <col key={branch.id} className="w-14" />
+              <col key={branch.id} className="w-20 sm:w-24" />
             ))}
           </colgroup>
           <thead>
             <tr className="border-b bg-muted/40 text-left">
               <th className="px-3 py-2 font-medium">Услуга</th>
               {activeBranches.map((branch) => {
-                const compactTitle = (branch.shortTitle?.trim() || branch.title).slice(0, 5);
+                const compactTitle = (branch.shortTitle?.trim() || branch.title).slice(0, 10);
                 return (
                   <th
                     key={branch.id}
-                    className="px-1 py-2 text-center font-medium"
+                    className="truncate px-2 py-2 text-center font-medium"
                     title={branch.title}
                   >
                     {compactTitle}
@@ -128,7 +128,7 @@ export function BookingSoloAvailabilitySection() {
                 {activeBranches.map((branch) => {
                   const enabled = isServiceAvailableAtLocation(overview, service.id, branch.id);
                   return (
-                    <td key={branch.id} className="px-1 py-2 text-center">
+                    <td key={branch.id} className="px-2 py-2 text-center">
                       <Switch
                         checked={enabled}
                         disabled={pending}
