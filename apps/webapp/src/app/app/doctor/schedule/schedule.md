@@ -146,7 +146,7 @@ Admin-only (обеспечено на уровне nav и шелла). Под-н
 
 | `?section=`           | Компоненты                                                                                                                                                    |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `locations` (default) | `BookingSoloLocationsSection`: плоский список; создание и редактирование в `DoctorModal`; выбор по умолчанию находится в деталях филиала                      |
+| `locations` (default) | `BookingSoloLocationsSection`: плоский drag-and-drop список; создание и редактирование в `DoctorModal`; выбор по умолчанию находится в деталях филиала        |
 | `services`            | `BookingSoloServicesSection` + `BookingSoloAvailabilitySection`; выбор по умолчанию находится в деталях услуги, матрица использует короткие названия филиалов |
 | `specialists`         | `BookingSoloSpecialistsSection` (owner/себя + сотрудники); выбор по умолчанию находится в деталях специалиста                                                 |
 | `form`                | `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + `BookingPublicAttributionSection`                                                             |

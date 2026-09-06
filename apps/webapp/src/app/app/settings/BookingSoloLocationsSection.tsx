@@ -1,6 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useId, useState, useTransition, type CSSProperties } from 'react';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
@@ -15,7 +32,6 @@ import {
 } from '@/shared/ui/doctor/DoctorSection';
 import {
   DoctorDnaFlatList,
-  doctorDnaFlatListClickableClass,
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
@@ -34,12 +50,98 @@ import {
 import { isBuiltInOnlineLocation } from '@/modules/booking-engine/onlineLocation';
 import { DEFAULT_BOOKING_LOCATION_PALETTE } from '@/modules/booking-engine/locationPalette';
 import { DoctorTimezoneSelect } from '@/shared/ui/doctor/DoctorTimezoneSelect';
-import { Flag } from 'lucide-react';
+import { Flag, GripVertical } from 'lucide-react';
 
 const BASE = '/api/admin/booking-engine';
 const DEFAULT_BRANCH_COLOR = '#2563eb';
 
 type BranchRow = SoloOverview['branches'][0];
+
+function BranchMeta({ branch }: { branch: BranchRow }) {
+  const color = branch.color ?? DEFAULT_BRANCH_COLOR;
+  const shortLabel = branch.shortTitle?.trim() || '—';
+  const addressLabel = branch.address?.trim() || '—';
+  return (
+    <span className={`${doctorDnaFlatListMetaClass} flex min-w-0 items-center gap-2`}>
+      <span
+        className="size-[18px] shrink-0 rounded-full border border-border"
+        style={{ backgroundColor: color }}
+        aria-hidden="true"
+      />
+      <span className="shrink-0">{shortLabel}</span>
+      <span aria-hidden="true">·</span>
+      <span className="truncate">{addressLabel}</span>
+    </span>
+  );
+}
+
+function SortableBranchRow({
+  branch,
+  disabled,
+  isDefault,
+  onOpen,
+  onActiveChange,
+}: {
+  branch: BranchRow;
+  disabled: boolean;
+  isDefault: boolean;
+  onOpen: () => void;
+  onActiveChange: (checked: boolean) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: branch.id, disabled });
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    position: 'relative',
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`${doctorDnaFlatListRowClass} items-center transition-colors hover:bg-muted focus-within:bg-muted ${isDragging ? 'bg-muted shadow-sm' : ''}`}
+    >
+      <button
+        ref={setActivatorNodeRef}
+        type="button"
+        className="-ml-1 flex size-7 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+        aria-label={`Изменить порядок: ${branch.title}`}
+        disabled={disabled}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="size-4" />
+      </button>
+      <button
+        type="button"
+        className="flex min-w-0 flex-1 cursor-pointer flex-col self-stretch justify-center text-left focus-visible:outline-none"
+        onClick={onOpen}
+      >
+        <span className={`${doctorDnaFlatListPrimaryClass} block truncate`}>{branch.title}</span>
+        <BranchMeta branch={branch} />
+      </button>
+      {isDefault ? (
+        <Flag className="size-4 shrink-0 fill-primary text-primary" aria-label="По умолчанию" />
+      ) : null}
+      <Switch
+        className="shrink-0"
+        checked={branch.isActive}
+        disabled={disabled}
+        aria-label={`${branch.title} — активен`}
+        onCheckedChange={onActiveChange}
+      />
+    </li>
+  );
+}
 
 export function BookingSoloLocationsSection() {
   const [branches, setBranches] = useState<BranchRow[]>([]);
@@ -61,9 +163,13 @@ export function BookingSoloLocationsSection() {
   const [editAddress, setEditAddress] = useState('');
   const [editColor, setEditColor] = useState(DEFAULT_BRANCH_COLOR);
   const [editTimezone, setEditTimezone] = useState('Europe/Moscow');
-  const [editSortOrder, setEditSortOrder] = useState('0');
   const [editActive, setEditActive] = useState(true);
   const [editAsDefault, setEditAsDefault] = useState(false);
+  const dndContextId = useId();
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -150,7 +256,6 @@ export function BookingSoloLocationsSection() {
     setEditAddress(branch.address ?? '');
     setEditColor(branch.color ?? DEFAULT_BRANCH_COLOR);
     setEditTimezone(branch.timezone);
-    setEditSortOrder(String(branch.sortOrder));
     setEditActive(branch.isActive);
     setEditAsDefault(branch.id === defaultBranchId);
   }
@@ -168,7 +273,6 @@ export function BookingSoloLocationsSection() {
             color: editColor,
             address: editAddress.trim() || null,
             timezone: editTimezone,
-            sortOrder: Number(editSortOrder),
             isActive: editActive,
           }),
         });
@@ -195,6 +299,44 @@ export function BookingSoloLocationsSection() {
     });
   }
 
+  function reorderBranches(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = physicalBranches.findIndex((branch) => branch.id === active.id);
+    const newIndex = physicalBranches.findIndex((branch) => branch.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const reordered = arrayMove(physicalBranches, oldIndex, newIndex).map((branch, index) => ({
+      ...branch,
+      sortOrder: (index + 1) * 10,
+    }));
+    const nextOrderById = new Map(reordered.map((branch) => [branch.id, branch.sortOrder]));
+    setBranches((current) =>
+      current.map((branch) => {
+        const sortOrder = nextOrderById.get(branch.id);
+        return sortOrder === undefined ? branch : { ...branch, sortOrder };
+      }),
+    );
+    setActionError(null);
+    startTransition(async () => {
+      try {
+        await Promise.all(
+          reordered.map((branch) =>
+            apiJson(`${BASE}/branches/${branch.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sortOrder: branch.sortOrder }),
+            }),
+          ),
+        );
+        await load();
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : 'action_failed');
+        await load();
+      }
+    });
+  }
+
   if (unavailable) {
     return <p className="text-sm text-muted-foreground">{SOLO_BOOKING_UNAVAILABLE_MESSAGE}</p>;
   }
@@ -206,24 +348,6 @@ export function BookingSoloLocationsSection() {
       (left, right) =>
         left.sortOrder - right.sortOrder || left.title.localeCompare(right.title, 'ru'),
     );
-
-  function BranchMeta({ branch }: { branch: BranchRow }) {
-    const color = branch.color ?? DEFAULT_BRANCH_COLOR;
-    const shortLabel = branch.shortTitle?.trim() || '—';
-    const addressLabel = branch.address?.trim() || '—';
-    return (
-      <span className={`${doctorDnaFlatListMetaClass} flex min-w-0 items-center gap-2`}>
-        <span
-          className="size-[18px] shrink-0 rounded-full border border-border"
-          style={{ backgroundColor: color }}
-          aria-hidden="true"
-        />
-        <span className="shrink-0">{shortLabel}</span>
-        <span aria-hidden="true">·</span>
-        <span className="truncate">{addressLabel}</span>
-      </span>
-    );
-  }
 
   return (
     <>
@@ -268,35 +392,31 @@ export function BookingSoloLocationsSection() {
           </div>
         </div>
 
-        <DoctorDnaFlatList aria-label="Филиалы">
-          {physicalBranches.map((branch) => (
-            <li key={branch.id} className={`${doctorDnaFlatListRowClass} items-start`}>
-              <button
-                type="button"
-                className={`${doctorDnaFlatListClickableClass} min-w-0 flex-1 rounded-md text-left`}
-                onClick={() => openPhysicalBranch(branch)}
-              >
-                <span className={`${doctorDnaFlatListPrimaryClass} block truncate`}>
-                  {branch.title}
-                </span>
-                <BranchMeta branch={branch} />
-              </button>
-              {branch.id === defaultBranchId ? (
-                <Flag
-                  className="mt-0.5 size-4 shrink-0 fill-primary text-primary"
-                  aria-label="По умолчанию"
+        <DndContext
+          id={dndContextId}
+          sensors={dndSensors}
+          collisionDetection={closestCenter}
+          onDragEnd={reorderBranches}
+        >
+          <SortableContext
+            items={physicalBranches.map((branch) => branch.id)}
+            strategy={verticalListSortingStrategy}
+            disabled={pending}
+          >
+            <DoctorDnaFlatList aria-label="Филиалы">
+              {physicalBranches.map((branch) => (
+                <SortableBranchRow
+                  key={branch.id}
+                  branch={branch}
+                  disabled={pending}
+                  isDefault={branch.id === defaultBranchId}
+                  onOpen={() => openPhysicalBranch(branch)}
+                  onActiveChange={(checked) => setBranchActive(branch, checked)}
                 />
-              ) : null}
-              <Switch
-                className="mt-0.5 shrink-0"
-                checked={branch.isActive}
-                disabled={pending}
-                aria-label={`${branch.title} — активен`}
-                onCheckedChange={(checked) => setBranchActive(branch, checked)}
-              />
-            </li>
-          ))}
-        </DoctorDnaFlatList>
+              ))}
+            </DoctorDnaFlatList>
+          </SortableContext>
+        </DndContext>
         {physicalBranches.length === 0 ? (
           <p className="text-sm text-muted-foreground">Филиалов пока нет.</p>
         ) : null}
@@ -436,16 +556,6 @@ export function BookingSoloLocationsSection() {
               disabled={pending}
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="branch-edit-sort-order">Порядок</Label>
-            <Input
-              id="branch-edit-sort-order"
-              type="number"
-              value={editSortOrder}
-              onChange={(event) => setEditSortOrder(event.target.value)}
-            />
-          </div>
-
           <label className="flex items-center justify-between gap-3 text-sm">
             Активен
             <Switch checked={editActive} disabled={pending} onCheckedChange={setEditActive} />
