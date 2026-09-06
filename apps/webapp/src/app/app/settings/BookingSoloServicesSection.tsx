@@ -1,12 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useState, useTransition } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
-import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
+import {
+  DoctorDnaFlatList,
+  doctorDnaFlatListMetaClass,
+  doctorDnaFlatListPrimaryClass,
+  doctorDnaFlatListRowClass,
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { Flag } from 'lucide-react';
 import {
   SOLO_BOOKING_UNAVAILABLE_MESSAGE,
@@ -24,6 +34,19 @@ const BASE = '/api/admin/booking-engine';
 
 type ServiceRow = SoloOverview['services'][0];
 
+function formatPrice(priceMinor: number) {
+  return `${(priceMinor / 100).toLocaleString('ru-RU')} ₽`;
+}
+
+function ServiceFlag({ label, enabled }: { label: string; enabled: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+      <span>{label}</span>
+      <span aria-label={`${label}: ${enabled ? 'да' : 'нет'}`}>{enabled ? '✓' : '—'}</span>
+    </span>
+  );
+}
+
 export function BookingSoloServicesSection() {
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -31,22 +54,24 @@ export function BookingSoloServicesSection() {
   const [unavailable, setUnavailable] = useState(false);
   const [pending, startTransition] = useTransition();
   const [defaultServiceId, setDefaultServiceId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState('60');
   const [bufferAfter, setBufferAfter] = useState('0');
   const [priceRub, setPriceRub] = useState('5000');
-  const [patientVisible, setPatientVisible] = useState(true);
+  const [serviceEnabled, setServiceEnabled] = useState(true);
   const [usableInPackages, setUsableInPackages] = useState(true);
   const [prepaymentApplicable, setPrepaymentApplicable] = useState(false);
   const [onlinePaymentApplicable, setOnlinePaymentApplicable] = useState(false);
   const [createAsDefault, setCreateAsDefault] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
+  const [editedService, setEditedService] = useState<ServiceRow | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editDuration, setEditDuration] = useState('');
   const [editBufferAfter, setEditBufferAfter] = useState('');
   const [editPriceRub, setEditPriceRub] = useState('');
+  const [editEnabled, setEditEnabled] = useState(true);
   const [editUsableInPackages, setEditUsableInPackages] = useState(true);
   const [editPrepaymentApplicable, setEditPrepaymentApplicable] = useState(false);
   const [editOnlinePaymentApplicable, setEditOnlinePaymentApplicable] = useState(false);
@@ -66,8 +91,8 @@ export function BookingSoloServicesSection() {
       }
       setServices(data.services);
       setDefaultServiceId(currentDefaultServiceId);
-    } catch (e) {
-      setLoadError(e instanceof Error ? e.message : 'load_failed');
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'load_failed');
     }
   }, []);
 
@@ -77,14 +102,131 @@ export function BookingSoloServicesSection() {
     });
   }, [load]);
 
-  function run(fn: () => Promise<void>) {
+  function run(task: () => Promise<void>, onSuccess?: () => void) {
     setActionError(null);
     startTransition(async () => {
       try {
-        await fn();
+        await task();
         await load();
-      } catch (e) {
-        setActionError(e instanceof Error ? e.message : 'action_failed');
+        onSuccess?.();
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : 'action_failed');
+      }
+    });
+  }
+
+  function resetCreateForm() {
+    setTitle('');
+    setDescription('');
+    setDuration('60');
+    setBufferAfter('0');
+    setPriceRub('5000');
+    setServiceEnabled(true);
+    setUsableInPackages(true);
+    setPrepaymentApplicable(false);
+    setOnlinePaymentApplicable(false);
+    setCreateAsDefault(false);
+  }
+
+  function createService() {
+    if (!title.trim()) return;
+    run(
+      async () => {
+        const rub = parseRublesInput(priceRub);
+        const maxOrder = services.reduce(
+          (current, service) => Math.max(current, service.sortOrder),
+          0,
+        );
+        const created = await apiJson<{ ok: boolean; service: { id: string } }>(
+          `${BASE}/services`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: title.trim(),
+              description: description.trim() || null,
+              durationMinutes: Number(duration),
+              bufferAfterMinutes: Number(bufferAfter),
+              priceMinor: rublesToMinor(rub),
+              isActive: serviceEnabled,
+              publicWidgetVisible: serviceEnabled,
+              adminManualOnly: !serviceEnabled,
+              usableInPackages,
+              prepaymentApplicable,
+              onlinePaymentApplicable,
+              sortOrder: maxOrder + 10,
+            }),
+          },
+        );
+        if (createAsDefault) await setBookingDefaultId('service', created.service.id);
+      },
+      () => {
+        resetCreateForm();
+        setCreateOpen(false);
+      },
+    );
+  }
+
+  function openService(service: ServiceRow) {
+    setActionError(null);
+    setEditedService(service);
+    setEditTitle(service.title);
+    setEditDescription(service.description ?? '');
+    setEditDuration(String(service.durationMinutes));
+    setEditBufferAfter(String(service.bufferAfterMinutes));
+    setEditPriceRub(minorToRublesInput(service.priceMinor));
+    setEditEnabled(service.isActive);
+    setEditUsableInPackages(service.usableInPackages);
+    setEditPrepaymentApplicable(service.prepaymentApplicable);
+    setEditOnlinePaymentApplicable(service.onlinePaymentApplicable);
+    setEditAsDefault(service.id === defaultServiceId);
+  }
+
+  function saveEditedService() {
+    if (!editedService) return;
+    run(
+      async () => {
+        const rub = parseRublesInput(editPriceRub);
+        await apiJson(`${BASE}/services/${editedService.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: editTitle.trim(),
+            description: editDescription.trim() || null,
+            durationMinutes: Number(editDuration),
+            bufferAfterMinutes: Number(editBufferAfter),
+            priceMinor: rublesToMinor(rub),
+            isActive: editEnabled,
+            publicWidgetVisible: editEnabled,
+            adminManualOnly: !editEnabled,
+            usableInPackages: editUsableInPackages,
+            prepaymentApplicable: editPrepaymentApplicable,
+            onlinePaymentApplicable: editOnlinePaymentApplicable,
+          }),
+        });
+        if (editAsDefault) {
+          await setBookingDefaultId('service', editedService.id);
+        } else if (editedService.id === defaultServiceId) {
+          await setBookingDefaultId('service', null);
+        }
+      },
+      () => setEditedService(null),
+    );
+  }
+
+  function setServiceActive(service: ServiceRow, enabled: boolean) {
+    run(async () => {
+      await apiJson(`${BASE}/services/${service.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isActive: enabled,
+          publicWidgetVisible: enabled,
+          adminManualOnly: !enabled,
+        }),
+      });
+      if (!enabled && service.id === defaultServiceId) {
+        await setBookingDefaultId('service', null);
       }
     });
   }
@@ -94,412 +236,309 @@ export function BookingSoloServicesSection() {
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Услуги</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
-        {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
+    <>
+      <DoctorSection>
+        <DoctorSectionHeader className="flex-row items-center justify-between gap-3">
+          <DoctorSectionTitle>Услуги</DoctorSectionTitle>
+          <Button
+            type="button"
+            size="sm"
+            disabled={pending}
+            onClick={() => {
+              setActionError(null);
+              setCreateOpen(true);
+            }}
+          >
+            Добавить услугу
+          </Button>
+        </DoctorSectionHeader>
 
-        <div className="space-y-2 rounded-md border border-border/60 p-3">
-          <Label>Новая услуга</Label>
-          <div className="flex flex-wrap items-center gap-2">
+        {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
+        {actionError && !createOpen && !editedService ? (
+          <p className="text-sm text-destructive">{actionError}</p>
+        ) : null}
+
+        <DoctorDnaFlatList aria-label="Услуги">
+          {services.map((service) => (
+            <li
+              key={service.id}
+              className={`${doctorDnaFlatListRowClass} transition-colors hover:bg-muted focus-within:bg-muted`}
+            >
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 cursor-pointer flex-col self-stretch justify-center gap-0.5 text-left focus-visible:outline-none"
+                onClick={() => openService(service)}
+              >
+                <span className="flex min-w-0 items-baseline justify-between gap-4">
+                  <span
+                    className={`${doctorDnaFlatListPrimaryClass} block truncate ${!service.isActive ? 'text-muted-foreground line-through' : ''}`}
+                  >
+                    {service.title}
+                  </span>
+                  <span className="shrink-0 text-sm text-foreground">
+                    {formatPrice(service.priceMinor)}
+                  </span>
+                </span>
+                <span
+                  className={`${doctorDnaFlatListMetaClass} flex flex-wrap items-center gap-x-3 gap-y-0.5`}
+                >
+                  <span className="whitespace-nowrap">
+                    Длительность {service.durationMinutes} мин, перерыв {service.bufferAfterMinutes}{' '}
+                    мин
+                  </span>
+                  <ServiceFlag label="Абонемент" enabled={service.usableInPackages} />
+                  <ServiceFlag label="Предоплата" enabled={service.prepaymentApplicable} />
+                  <ServiceFlag label="Онлайн" enabled={service.onlinePaymentApplicable} />
+                </span>
+              </button>
+              {service.id === defaultServiceId ? (
+                <Flag
+                  className="size-4 shrink-0 fill-primary text-primary"
+                  aria-label="По умолчанию"
+                />
+              ) : null}
+              <Switch
+                className="shrink-0"
+                checked={service.isActive}
+                disabled={pending}
+                aria-label={`${service.title} — включена`}
+                onCheckedChange={(checked) => setServiceActive(service, checked)}
+              />
+            </li>
+          ))}
+        </DoctorDnaFlatList>
+        {services.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Услуг пока нет.</p>
+        ) : null}
+      </DoctorSection>
+
+      <ServiceModal
+        mode="create"
+        open={createOpen}
+        pending={pending}
+        title={title}
+        description={description}
+        duration={duration}
+        bufferAfter={bufferAfter}
+        priceRub={priceRub}
+        enabled={serviceEnabled}
+        usableInPackages={usableInPackages}
+        prepaymentApplicable={prepaymentApplicable}
+        onlinePaymentApplicable={onlinePaymentApplicable}
+        asDefault={createAsDefault}
+        error={actionError}
+        onTitleChange={setTitle}
+        onDescriptionChange={setDescription}
+        onDurationChange={setDuration}
+        onBufferAfterChange={setBufferAfter}
+        onPriceChange={setPriceRub}
+        onEnabledChange={setServiceEnabled}
+        onUsableInPackagesChange={setUsableInPackages}
+        onPrepaymentApplicableChange={setPrepaymentApplicable}
+        onOnlinePaymentApplicableChange={setOnlinePaymentApplicable}
+        onDefaultChange={setCreateAsDefault}
+        onClose={() => setCreateOpen(false)}
+        onSubmit={createService}
+      />
+
+      <ServiceModal
+        mode="edit"
+        open={editedService !== null}
+        pending={pending}
+        title={editTitle}
+        description={editDescription}
+        duration={editDuration}
+        bufferAfter={editBufferAfter}
+        priceRub={editPriceRub}
+        enabled={editEnabled}
+        usableInPackages={editUsableInPackages}
+        prepaymentApplicable={editPrepaymentApplicable}
+        onlinePaymentApplicable={editOnlinePaymentApplicable}
+        asDefault={editAsDefault}
+        error={actionError}
+        onTitleChange={setEditTitle}
+        onDescriptionChange={setEditDescription}
+        onDurationChange={setEditDuration}
+        onBufferAfterChange={setEditBufferAfter}
+        onPriceChange={setEditPriceRub}
+        onEnabledChange={setEditEnabled}
+        onUsableInPackagesChange={setEditUsableInPackages}
+        onPrepaymentApplicableChange={setEditPrepaymentApplicable}
+        onOnlinePaymentApplicableChange={setEditOnlinePaymentApplicable}
+        onDefaultChange={setEditAsDefault}
+        onClose={() => setEditedService(null)}
+        onSubmit={saveEditedService}
+      />
+    </>
+  );
+}
+
+type ServiceModalProps = {
+  mode: 'create' | 'edit';
+  open: boolean;
+  pending: boolean;
+  title: string;
+  description: string;
+  duration: string;
+  bufferAfter: string;
+  priceRub: string;
+  enabled: boolean;
+  usableInPackages: boolean;
+  prepaymentApplicable: boolean;
+  onlinePaymentApplicable: boolean;
+  asDefault: boolean;
+  error: string | null;
+  onTitleChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onDurationChange: (value: string) => void;
+  onBufferAfterChange: (value: string) => void;
+  onPriceChange: (value: string) => void;
+  onEnabledChange: (value: boolean) => void;
+  onUsableInPackagesChange: (value: boolean) => void;
+  onPrepaymentApplicableChange: (value: boolean) => void;
+  onOnlinePaymentApplicableChange: (value: boolean) => void;
+  onDefaultChange: (value: boolean) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+};
+
+function ServiceModal({
+  mode,
+  open,
+  pending,
+  title,
+  description,
+  duration,
+  bufferAfter,
+  priceRub,
+  enabled,
+  usableInPackages,
+  prepaymentApplicable,
+  onlinePaymentApplicable,
+  asDefault,
+  error,
+  onTitleChange,
+  onDescriptionChange,
+  onDurationChange,
+  onBufferAfterChange,
+  onPriceChange,
+  onEnabledChange,
+  onUsableInPackagesChange,
+  onPrepaymentApplicableChange,
+  onOnlinePaymentApplicableChange,
+  onDefaultChange,
+  onClose,
+  onSubmit,
+}: ServiceModalProps) {
+  const prefix = mode === 'create' ? 'service-create' : 'service-edit';
+  return (
+    <DoctorModal
+      open={open}
+      onClose={onClose}
+      title={mode === 'create' ? 'Новая услуга' : 'Редактировать услугу'}
+      size="md"
+      footer={
+        <>
+          <Button type="button" size="sm" variant="outline" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button type="button" size="sm" disabled={pending || !title.trim()} onClick={onSubmit}>
+            {mode === 'create' ? 'Создать' : 'Сохранить'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <div className="flex flex-col gap-1">
+          <Label htmlFor={`${prefix}-title`}>Название</Label>
+          <Input
+            id={`${prefix}-title`}
+            value={title}
+            onChange={(event) => onTitleChange(event.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor={`${prefix}-description`}>Описание для пациента</Label>
+          <Input
+            id={`${prefix}-description`}
+            value={description}
+            onChange={(event) => onDescriptionChange(event.target.value)}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor={`${prefix}-duration`}>Длительность, мин</Label>
             <Input
-              className="min-w-[10rem] flex-1"
-              placeholder="Название"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-            <Input
-              className="min-w-[12rem] flex-1"
-              placeholder="Описание для пациента"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-            <Input
-              className="w-20"
+              id={`${prefix}-duration`}
               type="number"
               min={1}
               value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              aria-label="Длительность в минутах"
+              onChange={(event) => onDurationChange(event.target.value)}
             />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor={`${prefix}-buffer`}>Перерыв, мин</Label>
             <Input
-              className="w-24"
+              id={`${prefix}-buffer`}
               type="number"
               min={0}
               step={5}
               value={bufferAfter}
-              onChange={(e) => setBufferAfter(e.target.value)}
-              aria-label="Перерыв после приема в минутах"
+              onChange={(event) => onBufferAfterChange(event.target.value)}
             />
-            <Input
-              className="w-28"
-              type="number"
-              min={0}
-              step="0.01"
-              value={priceRub}
-              onChange={(e) => setPriceRub(e.target.value)}
-              aria-label="Цена в рублях"
-            />
-            <span className="text-sm text-muted-foreground">₽</span>
-            <label className="flex items-center gap-2 text-sm">
-              <Switch checked={patientVisible} onCheckedChange={setPatientVisible} />
-              Доступна пациентам
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Switch checked={usableInPackages} onCheckedChange={setUsableInPackages} />
-              Абонементы
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Switch checked={prepaymentApplicable} onCheckedChange={setPrepaymentApplicable} />
-              Предоплата
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Switch
-                checked={onlinePaymentApplicable}
-                onCheckedChange={setOnlinePaymentApplicable}
-              />
-              Онлайн-оплата
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={createAsDefault} onCheckedChange={setCreateAsDefault} />
-              Выбрать услугой по умолчанию
-            </label>
-            <Button
-              type="button"
-              size="sm"
-              disabled={pending || !title.trim()}
-              onClick={() =>
-                run(async () => {
-                  const rub = parseRublesInput(priceRub);
-                  const created = await apiJson<{ ok: boolean; service: { id: string } }>(
-                    `${BASE}/services`,
-                    {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        title: title.trim(),
-                        description: description.trim() || null,
-                        durationMinutes: Number(duration),
-                        bufferAfterMinutes: Number(bufferAfter),
-                        priceMinor: rublesToMinor(rub),
-                        publicWidgetVisible: patientVisible,
-                        adminManualOnly: !patientVisible,
-                        usableInPackages,
-                        prepaymentApplicable,
-                        onlinePaymentApplicable,
-                      }),
-                    },
-                  );
-                  if (createAsDefault) {
-                    await setBookingDefaultId('service', created.service.id);
-                  }
-                  setTitle('');
-                  setDescription('');
-                  setBufferAfter('0');
-                  setCreateAsDefault(false);
-                })
-              }
-            >
-              Добавить
-            </Button>
           </div>
         </div>
-
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40 text-left">
-                <th className="px-3 py-2 font-medium">Услуга</th>
-                <th className="px-3 py-2 font-medium">Мин</th>
-                <th className="px-3 py-2 font-medium">Перерыв</th>
-                <th className="px-3 py-2 font-medium">Цена</th>
-                <th className="px-3 py-2 font-medium">Доступна пациентам</th>
-                <th className="px-3 py-2 font-medium">Абон.</th>
-                <th className="px-3 py-2 font-medium">Предопл.</th>
-                <th className="px-3 py-2 font-medium">Онлайн</th>
-                <th className="px-3 py-2 font-medium text-right">Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              {services.map((s) => {
-                const visibleToPatient = s.publicWidgetVisible && !s.adminManualOnly;
-                return (
-                  <tr key={s.id} className="border-b border-border/60 last:border-0">
-                    <td className="px-3 py-2">
-                      {editId === s.id ? (
-                        <div className="space-y-1">
-                          <Input
-                            className="h-8"
-                            value={editTitle}
-                            onChange={(e) => setEditTitle(e.target.value)}
-                          />
-                          <Input
-                            className="h-8"
-                            placeholder="Описание"
-                            value={editDescription}
-                            onChange={(e) => setEditDescription(e.target.value)}
-                          />
-                          <label className="flex items-center gap-2 text-xs">
-                            <Checkbox
-                              checked={editAsDefault}
-                              disabled={!s.isActive && !editAsDefault}
-                              onCheckedChange={setEditAsDefault}
-                            />
-                            Выбрать услугой по умолчанию
-                          </label>
-                        </div>
-                      ) : (
-                        <span
-                          className={!s.isActive ? 'text-muted-foreground line-through' : undefined}
-                        >
-                          {s.title}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {editId === s.id ? (
-                        <Input
-                          className="h-8 w-16"
-                          type="number"
-                          value={editDuration}
-                          onChange={(e) => setEditDuration(e.target.value)}
-                        />
-                      ) : (
-                        s.durationMinutes
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {editId === s.id ? (
-                        <Input
-                          className="h-8 w-20"
-                          type="number"
-                          min={0}
-                          step={5}
-                          value={editBufferAfter}
-                          onChange={(e) => setEditBufferAfter(e.target.value)}
-                        />
-                      ) : (
-                        s.bufferAfterMinutes
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {editId === s.id ? (
-                        <Input
-                          className="h-8 w-24"
-                          type="number"
-                          step="0.01"
-                          value={editPriceRub}
-                          onChange={(e) => setEditPriceRub(e.target.value)}
-                        />
-                      ) : (
-                        `${(s.priceMinor / 100).toLocaleString('ru-RU')} ₽`
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {editId === s.id ? null : (
-                        <Switch
-                          checked={visibleToPatient}
-                          disabled={pending || !s.isActive}
-                          onCheckedChange={(checked) =>
-                            run(async () => {
-                              await apiJson(`${BASE}/services/${s.id}`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  publicWidgetVisible: checked,
-                                  adminManualOnly: !checked,
-                                }),
-                              });
-                            })
-                          }
-                        />
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {editId === s.id ? (
-                        <Switch
-                          checked={editUsableInPackages}
-                          onCheckedChange={setEditUsableInPackages}
-                        />
-                      ) : (
-                        <Switch
-                          checked={s.usableInPackages}
-                          disabled={pending || !s.isActive}
-                          onCheckedChange={(checked) =>
-                            run(async () => {
-                              await apiJson(`${BASE}/services/${s.id}`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ usableInPackages: checked }),
-                              });
-                            })
-                          }
-                        />
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {editId === s.id ? (
-                        <Switch
-                          checked={editPrepaymentApplicable}
-                          onCheckedChange={setEditPrepaymentApplicable}
-                        />
-                      ) : (
-                        <Switch
-                          checked={s.prepaymentApplicable}
-                          disabled={pending || !s.isActive}
-                          onCheckedChange={(checked) =>
-                            run(async () => {
-                              await apiJson(`${BASE}/services/${s.id}`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ prepaymentApplicable: checked }),
-                              });
-                            })
-                          }
-                        />
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {editId === s.id ? (
-                        <Switch
-                          checked={editOnlinePaymentApplicable}
-                          onCheckedChange={setEditOnlinePaymentApplicable}
-                        />
-                      ) : (
-                        <Switch
-                          checked={s.onlinePaymentApplicable}
-                          disabled={pending || !s.isActive}
-                          onCheckedChange={(checked) =>
-                            run(async () => {
-                              await apiJson(`${BASE}/services/${s.id}`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ onlinePaymentApplicable: checked }),
-                              });
-                            })
-                          }
-                        />
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {s.id === defaultServiceId ? (
-                          <Flag
-                            className="mr-1 size-4 shrink-0 fill-primary text-primary"
-                            aria-label="По умолчанию"
-                          />
-                        ) : null}
-                        {editId === s.id ? (
-                          <>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-7 px-2"
-                              disabled={pending}
-                              onClick={() =>
-                                run(async () => {
-                                  const rub = parseRublesInput(editPriceRub);
-                                  await apiJson(`${BASE}/services/${s.id}`, {
-                                    method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      title: editTitle,
-                                      description: editDescription.trim() || null,
-                                      durationMinutes: Number(editDuration),
-                                      bufferAfterMinutes: Number(editBufferAfter),
-                                      priceMinor: rublesToMinor(rub),
-                                      usableInPackages: editUsableInPackages,
-                                      prepaymentApplicable: editPrepaymentApplicable,
-                                      onlinePaymentApplicable: editOnlinePaymentApplicable,
-                                    }),
-                                  });
-                                  if (editAsDefault) {
-                                    await setBookingDefaultId('service', s.id);
-                                  } else if (s.id === defaultServiceId) {
-                                    await setBookingDefaultId('service', null);
-                                  }
-                                  setEditId(null);
-                                })
-                              }
-                            >
-                              OK
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2"
-                              disabled={pending}
-                              onClick={() => setEditId(null)}
-                            >
-                              ×
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2"
-                              disabled={pending}
-                              onClick={() => {
-                                setEditId(s.id);
-                                setEditTitle(s.title);
-                                setEditDescription(s.description ?? '');
-                                setEditDuration(String(s.durationMinutes));
-                                setEditBufferAfter(String(s.bufferAfterMinutes));
-                                setEditPriceRub(minorToRublesInput(s.priceMinor));
-                                setEditUsableInPackages(s.usableInPackages);
-                                setEditPrepaymentApplicable(s.prepaymentApplicable);
-                                setEditOnlinePaymentApplicable(s.onlinePaymentApplicable);
-                                setEditAsDefault(s.id === defaultServiceId);
-                              }}
-                            >
-                              Изм.
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2"
-                              disabled={pending}
-                              onClick={() =>
-                                run(async () => {
-                                  if (s.isActive) {
-                                    await apiJson(`${BASE}/services/${s.id}`, { method: 'DELETE' });
-                                    if (s.id === defaultServiceId) {
-                                      await setBookingDefaultId('service', null);
-                                    }
-                                  } else {
-                                    await apiJson(`${BASE}/services/${s.id}`, {
-                                      method: 'PATCH',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ isActive: true }),
-                                    });
-                                  }
-                                })
-                              }
-                            >
-                              {s.isActive ? 'Выкл.' : 'Вкл.'}
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {services.length === 0 ? (
-            <p className="px-3 py-4 text-sm text-muted-foreground">Услуг пока нет.</p>
-          ) : null}
+        <div className="flex flex-col gap-1">
+          <Label htmlFor={`${prefix}-price`}>Цена, ₽</Label>
+          <Input
+            id={`${prefix}-price`}
+            type="number"
+            min={0}
+            step="0.01"
+            value={priceRub}
+            onChange={(event) => onPriceChange(event.target.value)}
+          />
         </div>
-      </CardContent>
-    </Card>
+        <div className="flex flex-col gap-3 pt-1">
+          <label className="flex items-center gap-3 text-sm">
+            <Switch
+              checked={usableInPackages}
+              disabled={pending}
+              onCheckedChange={onUsableInPackagesChange}
+            />
+            Доступна для абонементов
+          </label>
+          <label className="flex items-center gap-3 text-sm">
+            <Switch
+              checked={prepaymentApplicable}
+              disabled={pending}
+              onCheckedChange={onPrepaymentApplicableChange}
+            />
+            Предоплата
+          </label>
+          <label className="flex items-center gap-3 text-sm">
+            <Switch
+              checked={onlinePaymentApplicable}
+              disabled={pending}
+              onCheckedChange={onOnlinePaymentApplicableChange}
+            />
+            Онлайн-оплата
+          </label>
+          <label className="flex items-center gap-3 text-sm">
+            <Switch checked={enabled} disabled={pending} onCheckedChange={onEnabledChange} />
+            Услуга включена
+          </label>
+          <label className="flex items-center gap-3 text-sm">
+            <Switch
+              checked={asDefault}
+              disabled={pending || (!enabled && !asDefault)}
+              onCheckedChange={onDefaultChange}
+            />
+            Услуга по умолчанию
+          </label>
+        </div>
+      </div>
+    </DoctorModal>
   );
 }

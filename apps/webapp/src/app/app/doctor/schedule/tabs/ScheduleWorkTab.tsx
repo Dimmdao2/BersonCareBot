@@ -537,7 +537,7 @@ function DayCell({
   if (!dateKey) {
     return (
       <div
-        className="min-h-[52px] rounded-md border border-dashed border-transparent bg-transparent transition-colors hover:border-border/70 hover:bg-muted/20"
+        className="min-h-[52px] min-w-0 rounded-md border border-dashed border-transparent bg-transparent transition-colors hover:border-border/70 hover:bg-muted/20"
         data-testid={cellIndex != null ? `day-cell-empty-${cellIndex}` : undefined}
       />
     );
@@ -558,7 +558,7 @@ function DayCell({
   const branchHex = primaryBranchId ? resolveBranchHex(branches, primaryBranchId) : undefined;
 
   let cellClass =
-    'rounded-md border p-1 min-h-[52px] cursor-pointer select-none transition-colors ';
+    'min-h-[52px] min-w-0 rounded-md border p-1 cursor-pointer select-none transition-colors ';
 
   if (isToday) {
     // Today is a temporal marker, not a location state. It fully replaces the branch
@@ -1610,7 +1610,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           {/* #235: клик в стороне от активных элементов (за пределами month-grid и hours-panel)
           сбрасывает выбор. Используем onMouseDown чтобы перехватить раньше дочерних onClick. */}
           <div
-            className="grid gap-3 lg:grid-cols-[1fr_320px]"
+            className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[minmax(0,1fr)_320px]"
             onMouseDown={(e) => {
               const target = e.target as HTMLElement;
               // Не сбрасываем если клик внутри month-grid (дни/заголовки) или hours-panel.
@@ -1632,7 +1632,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
             }}
           >
             {/* LEFT: month grid */}
-            <div className="flex flex-col gap-2">
+            <div className="flex min-w-0 flex-col gap-2">
               <div
                 className={cn(doctorSectionCardClass, 'overflow-hidden p-0')}
                 data-testid="month-grid"
@@ -1659,7 +1659,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                         style={templateHex ? branchCellStyle(templateHex, true) : undefined}
                         className={cn(
                           // #236: border как у DayCell — видно что кликабельна
-                          'h-auto min-h-8 flex-col gap-0.5 rounded border px-0.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer',
+                          'h-auto min-h-8 min-w-0 flex-col gap-0.5 rounded border px-0.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer',
                           isActiveWd
                             ? 'text-primary font-semibold bg-primary/10 border-primary/40'
                             : templateHex
@@ -1779,11 +1779,11 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                       Выберите дни для настройки расписания. Для постоянного расписания выберите
                       день недели наверху.
                     </p>
-                    <div className="flex items-center gap-5 overflow-x-auto whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1.5">
+                    <div className="flex flex-col gap-1.5">
+                      <span className="flex items-center gap-1.5">
                         <MapPin className="size-4" aria-hidden /> — фильтр по филиалам
                       </span>
-                      <span className="inline-flex items-center gap-1.5">
+                      <span className="flex items-center gap-1.5">
                         <Layers className="size-4" aria-hidden /> — Режим мультивыбора
                       </span>
                     </div>

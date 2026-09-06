@@ -144,16 +144,16 @@
 
 Admin-only (обеспечено на уровне nav и шелла). Под-навигация секций:
 
-| `?section=`           | Компоненты                                                                                                                                                    |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `locations` (default) | `BookingSoloLocationsSection`: плоский drag-and-drop список; создание и редактирование в `DoctorModal`; выбор по умолчанию находится в деталях филиала        |
-| `services`            | `BookingSoloServicesSection` + `BookingSoloAvailabilitySection`; выбор по умолчанию находится в деталях услуги, матрица использует короткие названия филиалов |
-| `specialists`         | `BookingSoloSpecialistsSection` (owner/себя + сотрудники); выбор по умолчанию находится в деталях специалиста                                                 |
-| `form`                | `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + `BookingPublicAttributionSection`                                                             |
-| `payments`            | `BookingPaymentsSectionLoader` + `BookingPrepaymentSection`                                                                                                   |
-| `rules`               | `BookingRulesLoader` (→ `BookingRulesPageClient`): горизонт календаря записи клиники (1–92 дня), правила отмены/переноса и уведомления                        |
-| `notifications`       | `ScheduleNotificationsSection`                                                                                                                                |
-| `packages`            | Шаблоны абонементов (`SectionPackages` через `/api/doctor/booking-engine/packages`); прямой URL: `/app/doctor/schedule?tab=setup&section=packages`            |
+| `?section=`           | Компоненты                                                                                                                                                                                           |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `locations` (default) | `BookingSoloLocationsSection`: плоский drag-and-drop список; создание и редактирование в `DoctorModal`; выбор по умолчанию находится в деталях филиала                                               |
+| `services`            | `BookingSoloServicesSection`: плоский список с единым флагом включения и настройками в `DoctorModal`; `BookingSoloAvailabilitySection` без горизонтального скролла, названия филиалов до 10 символов |
+| `specialists`         | `BookingSoloSpecialistsSection` (owner/себя + сотрудники); выбор по умолчанию находится в деталях специалиста                                                                                        |
+| `form`                | `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + `BookingPublicAttributionSection`                                                                                                    |
+| `payments`            | `BookingPaymentsSectionLoader` + `BookingPrepaymentSection`                                                                                                                                          |
+| `rules`               | `BookingRulesLoader` (→ `BookingRulesPageClient`): горизонт календаря записи клиники (1–92 дня), правила отмены/переноса и уведомления                                                               |
+| `notifications`       | `ScheduleNotificationsSection`                                                                                                                                                                       |
+| `packages`            | Шаблоны абонементов (`SectionPackages` через `/api/doctor/booking-engine/packages`); прямой URL: `/app/doctor/schedule?tab=setup&section=packages`                                                   |
 
 В секции `locations` отдельный блок **«Онлайн»** — встроенный филиал организации поверх существующей
 `be_branches`, а не отдельный тип записи. Её нельзя переименовать, удалить или создать повторно.
