@@ -102,6 +102,22 @@ Rubitime выведено из эксплуатации 2026-07-27. Старые
 - **Web Push при переносе записи (`booking.updated` / `rescheduled`):** copy для push уже в `apps/webapp/src/modules/web-push/pushNotificationCopy.ts` (`variant: rescheduled`); нужно provider-neutral lifecycle-событие в integrator и вызов `sendBookingWebPush` из `apps/integrator/src/integrations/bersoncare/bookingLifecycleRoute.ts` (сейчас только `booking.created` / `booking.cancelled`). См. также `apps/webapp/INTEGRATOR_CONTRACT.md` §«patient Web Push».
 - **Рассылки врача — отдельный preview «сколько получат push»:** сейчас в confirm показывается только общий `audienceSize` (хотя бы один выбранный канал). Число получателей именно Web Push (`eligibleClients` ∩ `webPushEligibleUserIds` при канале `push`) в UI не выводится; batch-резолв уже есть в `resolveBroadcastWebPushEligibleUserIds` / `BroadcastAudienceResolveResult.webPushEligibleUserIds`. Follow-up: поле в `BroadcastPreviewResult`, строка в `BroadcastConfirmStep`, при необходимости отдельный счётчик без пересчёта TG/SMS. См. `apps/webapp/src/modules/doctor-broadcasts/README.md`.
 
+## Анкеты пациента (нативные) — вложения обязаны лежать в шифрованном бакете
+
+- **Требование владельца (06.09.2026):** документы, которые пациент прикладывает к анкете, — это данные пациента,
+  значит они хранятся в шифрованном бакете Yandex (`PATIENT_S3_BUCKET`), а не в библиотечном Selectel. Сегодня это не так.
+- **Что в коде сейчас:** standalone онлайн-анкета удалена (`docs/_TODO/SAAS_FOUNDATION/REMOVE_ONLINE_INTAKE_BLIND_AUDIT_2026-08-02.md`),
+  живого кода, который пишет вложения, нет — `online_intake_attachments` встречается только в схеме, relations и purge
+  (`grep -rn "online_intake_attachments\|onlineIntakeAttachments" apps --include=*.ts --include=*.tsx -l`).
+  Таблица хранит `s3_key` **без** колонки `storage_target` (`apps/webapp/db/schema/schema.ts:2678`): исторические
+  вложения лежат в библиотечном бакете без шифрования, и место хранения для них нигде не записано.
+- **Что сделать, когда анкеты вернутся нативными:** колонка `storage_target` в `online_intake_attachments` тем же
+  маршрутом, что у `media_files`/`patient_files` — миграция плюс `deploy/postgres/privileges/declaration.ts`
+  (GRANT в миграции запрещён, AGENTS.md §1); загрузка и удаление через `getS3Client('patient')`; по историческим
+  строкам — решение владельца: перенести в шифрованный бакет или оставить как есть.
+- Разделение хранилищ и единый чокпоинт: `apps/webapp/src/infra/s3/client.ts`,
+  прогон `docs/_TODO/runs/patient-media-storage-20260906/`.
+
 ## Security / Auth
 
 - **Видео / медиа по UUID (post-prod):** верхний раздел этого файла («Медиа / видео — авторизация и права на поток») и `docs/ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md`.
