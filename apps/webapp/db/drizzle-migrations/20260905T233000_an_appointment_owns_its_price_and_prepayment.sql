@@ -91,19 +91,6 @@ UPDATE public.be_appointments AS appointment
         AND sibling.organization_id = appointment.organization_id
    ) = 1;
 --> statement-breakpoint
--- BCB-MIGRATION-BACKFILL
--- PAY-APPT-08: платформенное умолчание срока ожидания предоплаты — 20 минут. Клиника, которая
--- ничего не настраивала (в том числе только что созданная), работает по нему; собственная строка
--- клиники, как и у соседних настроек записи, побеждает. Существующие значения не трогаем.
-INSERT INTO public.system_settings (
-  key, scope, organization_id, value_json, updated_at, updated_by
-)
-VALUES (
-  'booking_prepayment_wait_minutes', 'admin', NULL,
-  pg_catalog.jsonb_build_object('value', 20), pg_catalog.now(), NULL
-)
-ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;
---> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_booking_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
