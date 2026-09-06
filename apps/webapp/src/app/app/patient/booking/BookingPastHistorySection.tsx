@@ -1,16 +1,10 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { History } from 'lucide-react';
 import { Badge } from '@/shared/ui/patient/primitives/badge';
 import { Button } from '@/shared/ui/patient/primitives/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/shared/ui/patient/primitives/dialog';
+import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { cn } from '@/lib/utils';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
@@ -76,25 +70,19 @@ function PastList({ items, appDisplayTimeZone }: Props) {
 }
 
 export function BookingPastHistorySection({ items, appDisplayTimeZone }: Props) {
+  const [open, setOpen] = useState(false);
   return (
     <div className={patientSectionSurfaceClass}>
       <div className="flex min-w-0 items-center gap-3">
         <History className="size-5 shrink-0 text-[var(--patient-color-primary)]" aria-hidden />
         <h3 className={cn(patientSectionTitleClass, 'min-w-0')}>История посещений</h3>
       </div>
-      <Dialog>
-        <DialogTrigger render={<Button type="button" variant="outline" className="w-full" />}>
-          Открыть историю
-        </DialogTrigger>
-        <DialogContent className="flex max-h-[min(80vh,560px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-          <DialogHeader className="shrink-0 border-b px-4 py-3 text-left">
-            <DialogTitle>История посещений</DialogTitle>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
-            <PastList items={items} appDisplayTimeZone={appDisplayTimeZone} />
-          </div>
-        </DialogContent>
-      </Dialog>
+      <Button type="button" variant="outline" className="w-full" onClick={() => setOpen(true)}>
+        Открыть историю
+      </Button>
+      <PatientModal open={open} onClose={() => setOpen(false)} title="История посещений" size="lg">
+        <PastList items={items} appDisplayTimeZone={appDisplayTimeZone} />
+      </PatientModal>
     </div>
   );
 }

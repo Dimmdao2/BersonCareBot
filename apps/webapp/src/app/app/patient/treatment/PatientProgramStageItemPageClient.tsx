@@ -183,11 +183,7 @@ function ModalMediaBlock(props: { media: RecommendationMediaItem | null; title: 
    */
   if (media.mediaType === 'hosted_video') {
     return (
-      <HostedVideoEmbed
-        url={media.mediaUrl}
-        title={title}
-        className="shrink-0 rounded-none"
-      />
+      <HostedVideoEmbed url={media.mediaUrl} title={title} className="shrink-0 rounded-none" />
     );
   }
 
@@ -1084,6 +1080,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             <ProgramItemDiscussionDialog
               instanceId={instanceId}
               itemId={item.id}
+              itemLabel={title}
               open={discussionDialogOpen}
               mediaSubmissionEnabled={mediaPickerVisible && mediaPickerEnabled}
               onOpenChange={(open) => {

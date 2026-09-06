@@ -30,7 +30,7 @@ import {
   chatThreadSurfaceClass,
 } from '@/shared/ui/chat/chatThreadSurface';
 import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
-import { ProgramItemDiscussionMessageBody } from '@/app/app/patient/treatment/ProgramItemDiscussionMessageBody';
+import { DoctorProgramItemDiscussionMessageBody } from './DoctorProgramItemDiscussionMessageBody';
 import type { ExerciseMedia } from '@/modules/lfk-exercises/types';
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import { DoctorExerciseMediaPlayer } from '@/shared/ui/doctor/media/DoctorExerciseMediaPlayer';
@@ -504,9 +504,8 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                           : undefined
                       }
                     >
-                      <ProgramItemDiscussionMessageBody
+                      <DoctorProgramItemDiscussionMessageBody
                         message={m}
-                        mine={false}
                         textClassName={doctorChatMessageTextClass}
                         trailingContent={
                           !m.mediaFileId ? (

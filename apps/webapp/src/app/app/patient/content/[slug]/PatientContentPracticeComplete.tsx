@@ -8,12 +8,7 @@ import { Check, CheckCircle2 } from 'lucide-react';
 import { routePaths } from '@/app-layer/routes/paths';
 import { appLoginWithNextHref } from '@/app/app/patient/home/patientHomeGuestNav';
 import { PatientHomeMoodScoreRow } from '@/app/app/patient/home/PatientHomeMoodScoreRow';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/ui/patient/primitives/dialog';
+import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import type { PracticeSource } from '@/modules/patient-practice/types';
 import { cn } from '@/lib/utils';
@@ -23,7 +18,6 @@ import {
   patientCardClass,
   patientInlineLinkClass,
   patientMutedTextClass,
-  patientSectionTitleClass,
   patientSimpleCompleteDoneButtonToneClass,
   patientSurfaceSuccessClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -283,43 +277,35 @@ export function PatientContentPracticeComplete({
           {isWarmup ? 'Отметить выполнение' : 'Я выполнил(а) практику'}
         </Button>
       </section>
-      <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
-        <DialogContent
-          className={cn(
-            'flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0',
-            '[&_[data-slot=dialog-close]]:text-[var(--patient-text-muted)] [&_[data-slot=dialog-close]]:hover:bg-black/[0.06] [&_[data-slot=dialog-close]]:focus-visible:ring-[var(--patient-border)]',
-          )}
-        >
-          <DialogHeader className="shrink-0 gap-0 px-4 pb-2 pt-4 pr-12">
-            <DialogTitle className={cn(patientSectionTitleClass, 'text-sm leading-snug')}>
-              {modalTitle}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-3 px-4 pb-4">
-            <PatientHomeMoodScoreRow
-              frozenDisabled={false}
-              selectedScore={pickedMoodScore}
-              busy={modalBusy}
-              onPickScore={handleModalPickScore}
-            />
-            {!isWarmup ? (
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={submitting}
-                className={cn(
-                  'w-full px-4 py-2 text-sm text-[var(--patient-text-muted)]',
-                  'hover:bg-[var(--patient-color-primary-soft)]/30',
-                  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
-                )}
-                onClick={() => void submitWithFeeling(null)}
-              >
-                Пропустить
-              </Button>
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PatientModal
+        open={dialogOpen}
+        onClose={() => handleDialogOpenChange(false)}
+        title={modalTitle}
+        size="sm"
+        footer={
+          !isWarmup ? (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={submitting}
+              className={cn(
+                'px-4 py-2 text-sm text-[var(--patient-text-muted)]',
+                'hover:bg-[#e8eefb]/50',
+              )}
+              onClick={() => void submitWithFeeling(null)}
+            >
+              Пропустить
+            </Button>
+          ) : undefined
+        }
+      >
+        <PatientHomeMoodScoreRow
+          frozenDisabled={false}
+          selectedScore={pickedMoodScore}
+          busy={modalBusy}
+          onPickScore={handleModalPickScore}
+        />
+      </PatientModal>
     </>
   );
 }

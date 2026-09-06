@@ -18,14 +18,7 @@ import {
 } from '@/shared/ui/patient/patientVisual';
 import { Switch } from '@/shared/ui/patient/primitives/switch';
 import toast from 'react-hot-toast';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/ui/patient/primitives/dialog';
+import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { ReminderCreateDialog } from '@/modules/reminders/components/ReminderCreateDialog';
 import type { ReminderRule, ReminderCategory } from '@/modules/reminders/types';
 import { clampIntervalMinutes } from '@/modules/reminders/reminderIntervalBounds';
@@ -267,13 +260,13 @@ function PersonalReminderCard({
         </CardHeader>
       </Card>
 
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="border-[var(--patient-border)] bg-[var(--patient-card-bg)] sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Удалить напоминание?</DialogTitle>
-            <DialogDescription>Это действие нельзя отменить.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
+      <PatientModal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Удалить напоминание?"
+        size="sm"
+        footer={
+          <>
             <Button
               type="button"
               variant="outline"
@@ -290,9 +283,11 @@ function PersonalReminderCard({
             >
               Удалить
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <p className={patientMutedTextClass}>Это действие нельзя отменить.</p>
+      </PatientModal>
     </>
   );
 }
@@ -659,22 +654,13 @@ export function ReminderRulesClient({
         </>
       ) : null}
 
-      <Dialog
+      <PatientModal
         open={blockDeleteTarget != null}
-        onOpenChange={(o) => {
-          if (!o) setBlockDeleteTarget(null);
-        }}
-      >
-        <DialogContent className="border-[var(--patient-border)] bg-[var(--patient-card-bg)] sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Удалить напоминание?</DialogTitle>
-            <DialogDescription>
-              {blockDeleteTarget?.title
-                ? `«${blockDeleteTarget.title}» — это действие нельзя отменить.`
-                : 'Это действие нельзя отменить.'}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
+        onClose={() => setBlockDeleteTarget(null)}
+        title="Удалить напоминание?"
+        size="sm"
+        footer={
+          <>
             <Button
               type="button"
               variant="outline"
@@ -691,9 +677,15 @@ export function ReminderRulesClient({
             >
               Удалить
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <p className={patientMutedTextClass}>
+          {blockDeleteTarget?.title
+            ? `«${blockDeleteTarget.title}» — это действие нельзя отменить.`
+            : 'Это действие нельзя отменить.'}
+        </p>
+      </PatientModal>
 
       {renderEditDialog()}
     </div>
