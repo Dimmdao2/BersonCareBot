@@ -138,10 +138,14 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
 
 async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob): Promise<void> {
   const loaded = await outer.control.load(job, outer.lockId);
-  /* Пока наряд не прочитан, хранилище неизвестно; отказы до этого места в S3 не ходят. */
+  /*
+   * Строки нет — работать не с чем, и в S3 этот путь не ходит: привязка нужна лишь для того,
+   * чтобы отметить наряд провалившимся. Если строка ЕСТЬ, хранилище обязано быть названо, иначе
+   * `parseStorageTarget` откажет и наряд упадёт громко — вместо тихой работы в чужом бакете.
+   */
   const ctx: TranscodeJobContext = {
     ...outer,
-    ...outer.storageFor(parseStorageTarget(loaded?.storageTarget)),
+    ...outer.storageFor(loaded ? parseStorageTarget(loaded.storageTarget) : 'library'),
   };
   const media = loaded && {
     id: loaded.id,
