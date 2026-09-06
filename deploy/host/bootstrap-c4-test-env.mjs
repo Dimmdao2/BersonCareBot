@@ -765,6 +765,29 @@ function selfTest() {
     if (firstWebapp.get(TEST_PORT_CONTEXT.webapp.key) !== TEST_PORT_CONTEXT.webapp.value) {
       fail('self-test did not render declaration-owned webapp capabilities');
     }
+    const matchingWebapp = readFileSync(webapp, 'utf8');
+    const matchingMedia = readFileSync(media, 'utf8');
+    writeFileSync(webapp, `${matchingWebapp}PATIENT_S3_BUCKET='webapp-patient'\n`);
+    writeFileSync(media, `${matchingMedia}PATIENT_S3_BUCKET='worker-patient'\n`);
+    let mismatchedPatientBucketRejected = false;
+    try {
+      bootstrap({
+        apiPath: api,
+        webappPath: webapp,
+        mediaPath: media,
+        ownerUid: process.getuid(),
+        deployGid: process.getgid(),
+        write: false,
+      });
+    } catch {
+      mismatchedPatientBucketRejected = true;
+    } finally {
+      writeFileSync(webapp, matchingWebapp);
+      writeFileSync(media, matchingMedia);
+    }
+    if (!mismatchedPatientBucketRejected) {
+      fail('self-test accepted different webapp/media-worker PATIENT_S3_BUCKET values');
+    }
     writeFileSync(
       media,
       `${readFileSync(media, 'utf8')}PGSSLMODE='verify-full'\nPGSSLCRL='/tmp/crl'\nPGSSLCRLDIR='/tmp/crl.d'\nPGSSLMINPROTOCOLVERSION='TLSv1.3'\nMEDIA_WORKER_CA='ca'\nMEDIA_DATABASE_CA='ca'\nMEDIA_POSTGRESQL_URL='postgresql://legacy:secret@127.0.0.1/db'\nPOSTGRESQL_URL='postgresql://legacy:secret@127.0.0.1/db'\nPOSTGRES_URL='postgresql://legacy:secret@127.0.0.1/db'\nPOSTGRES_PASSWORD='secret'\nMEDIA_WORKER_CONNECTION_STRING='postgresql://legacy:secret@127.0.0.1/db'\nMEDIA_CONNECTION_STRING='postgresql://legacy:secret@127.0.0.1/db'\nDB_URL='postgresql://legacy:secret@127.0.0.1/db'\n`,

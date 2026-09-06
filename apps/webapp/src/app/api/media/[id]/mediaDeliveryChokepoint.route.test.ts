@@ -102,9 +102,9 @@ describe('media delivery routes', () => {
     mocks.getSession.mockResolvedValue(appSession);
     mocks.authorize.mockResolvedValue(allowed);
     mocks.ttl.mockResolvedValue(900);
-    mocks.getS3Key.mockResolvedValue({ key: 'media/file.mp4', target: 'library' });
+    mocks.getS3Key.mockResolvedValue({ key: 'media/file.mp4', target: 'patient' });
     mocks.presign.mockResolvedValue('https://storage.example/signed');
-    mocks.getPreviewKey.mockResolvedValue({ key: 'media/preview.jpg', target: 'library' });
+    mocks.getPreviewKey.mockResolvedValue({ key: 'media/preview.jpg', target: 'patient' });
     mocks.getPreviewHead.mockResolvedValue({
       eTag: '"etag"',
       lastModified: new Date('2026-01-01'),
@@ -154,7 +154,7 @@ describe('media delivery routes', () => {
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toBe('https://storage.example/signed');
     expect(response.headers.get('cache-control')).toBe('private, max-age=0, must-revalidate');
-    expect(mocks.presign).toHaveBeenCalledWith('media/file.mp4', 900, 'library');
+    expect(mocks.presign).toHaveBeenCalledWith('media/file.mp4', 900, 'patient');
     expect(mocks.withPatientPrincipal).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: '00000000-0000-4000-8000-000000000001',
@@ -195,6 +195,8 @@ describe('media delivery routes', () => {
     );
     expect(response.headers.get('etag')).toBe('"etag"');
     await expect(response.arrayBuffer()).resolves.toEqual(Uint8Array.from([1, 2, 3]).buffer);
+    expect(mocks.getPreviewHead).toHaveBeenCalledWith('media/preview.jpg', 'patient');
+    expect(mocks.getPreviewBody).toHaveBeenCalledWith('media/preview.jpg', 'patient');
   });
 
   it('keeps both preview fallbacks private and behind authorization', async () => {
@@ -215,7 +217,7 @@ describe('media delivery routes', () => {
     expect(signed.status).toBe(307);
     expect(signed.headers.get('location')).toBe('https://storage.example/signed');
     expect(signed.headers.get('cache-control')).toBe('private, max-age=900, must-revalidate');
-    expect(mocks.presign).toHaveBeenCalledWith('media/preview.jpg', 900, 'library');
+    expect(mocks.presign).toHaveBeenCalledWith('media/preview.jpg', 900, 'patient');
   });
 
   it('keeps HLS-disabled 503 and forwards Range only after the common door', async () => {

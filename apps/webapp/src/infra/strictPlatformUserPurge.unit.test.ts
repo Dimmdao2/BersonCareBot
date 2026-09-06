@@ -148,6 +148,24 @@ describe('strict account purge external cleanup contract', () => {
     expect(auditPayload()).toMatchObject({ status: 'ok', details: { failureClasses: [] } });
   });
 
+  it('deletes a patient media row from the patient store named by that row', async () => {
+    fakes.s3Enabled = true;
+    fakes.collectArtifactKeys.mockResolvedValue({
+      intakeS3Keys: [],
+      mediaFiles: [{ id: MEDIA_ID, s3Key: MEDIA_KEY, storageTarget: 'patient' }],
+      patientFileS3Keys: [],
+    });
+    fakes.deleteS3Objects.mockResolvedValue([{ ok: true, key: MEDIA_KEY }]);
+
+    await runStrictPurgePlatformUser({
+      targetId: USER_ID,
+      actorId: ACTOR_ID,
+      audit: { enabled: true },
+    });
+
+    expect(fakes.deleteS3Objects).toHaveBeenCalledWith([MEDIA_KEY], 'patient');
+  });
+
   it('reduces provider cleanup failures to a class and count in the audit record', async () => {
     fakes.s3Enabled = true;
     fakes.deleteS3Objects.mockResolvedValue([
