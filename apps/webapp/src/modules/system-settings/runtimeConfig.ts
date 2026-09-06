@@ -174,6 +174,7 @@ export const SERVER_RUNTIME_INTEGER_DEFINITIONS = {
   booking_prepayment_wait_minutes: {
     minValue: 1,
     maxValue: 525_600,
+    defaultValue: Number(SYSTEM_SETTING_REGISTRY.booking_prepayment_wait_minutes.defaultValue),
   },
 } as const;
 

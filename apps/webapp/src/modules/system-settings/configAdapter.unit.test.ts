@@ -108,4 +108,12 @@ describe('configAdapter DB-only legacy reads', () => {
       }),
     );
   });
+
+  it('uses the registered prepayment wait default when the clinic has no override', async () => {
+    getEffective.mockResolvedValueOnce(null);
+
+    await expect(
+      getServerRuntimeInteger('booking_prepayment_wait_minutes', 'clinic-1'),
+    ).resolves.toBe(20);
+  });
 });

@@ -203,6 +203,9 @@ function panelErrorLabel(error: string | undefined): string {
   if (error === 'appointment_financials_locked') {
     return 'Запись уже оплачена: стоимость и условие оплаты не меняются.';
   }
+  if (error === 'appointment_create_unavailable') {
+    return 'Не удалось создать запись. Попробуйте ещё раз.';
+  }
   return error;
 }
 
