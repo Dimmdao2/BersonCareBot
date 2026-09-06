@@ -58,6 +58,7 @@ function buildDeps(overrides: Partial<CanonicalBookingDeps> = {}): CanonicalBook
     bookingScheduling: {
       assertSlotAvailable: vi.fn(async () => undefined),
       getMaxConsecutiveSlotHours: vi.fn(async () => 8),
+      getPrepaymentWaitMinutes: vi.fn(async () => 20),
     } as unknown as CanonicalBookingDeps['bookingScheduling'],
     bookingForm: null,
     payments: null,

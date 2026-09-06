@@ -26,6 +26,12 @@ vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
     fn: () => Promise<unknown>,
   ) => fn(),
 }));
+// PAY-APPT-03: расчёт снимка спрашивает тариф клиники; здесь механика оплаты доступна, а
+// политика предоплаты отсутствует — то есть требования нет и запись остаётся подтверждённой.
+vi.mock('@/app-layer/guards/requireEntitlement', async (importActual) => ({
+  ...(await importActual<object>()),
+  getMechanicMutationAvailability: vi.fn(async () => ({ available: true })),
+}));
 vi.mock('@/modules/integrator/bookingM2mApi', () => ({
   createBookingSyncPort: fakes.createBookingSyncPort,
 }));
@@ -79,6 +85,7 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
         session: { user: { userId: 'user-doc-1', role: 'specialist' } },
         service: {
           createAppointment: fakes.createAppointment,
+          services: { getService: vi.fn(async () => ({ priceMinor: 250_000 })) },
           getAppointment: vi.fn(async () => null),
           getSpecialistAppointmentReminderSettings: fakes.getSpecialistAppointmentReminderSettings,
         },
@@ -213,6 +220,130 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ ok: false, error: 'branch_not_found' });
+  });
+
+  /**
+   * PAY-APPT-01/03/07/08/18. Oracle — требование владельца: «если для записи требуется
+   * предоплата, и пациентская, и созданная врачом запись появляются в календаре со статусом
+   * `Ожидает оплаты`; слот на это время временно занят» и «в настройках записи задаётся срок
+   * ожидания предоплаты… врач может установить любой требуемый срок».
+   *
+   * Что ломается без этой проверки: врачебная запись возвращается к безусловному `confirmed`
+   * (как было до этой работы) — клиника выставляет счёт, слот считается подтверждённым, и
+   * неоплаченная запись занимает время врача навсегда: истечение срока смотрит только на
+   * `awaiting_payment` и на `payment_deadline_at`, а у такой записи нет ни того, ни другого.
+   * Отдельно ломается срок: захардкоженные 20 минут молча игнорируют настройку клиники, и врач,
+   * поставивший час, теряет бронь через двадцать минут.
+   *
+   * Мутации, которыми проверена красность:
+   *   `status: initialStatus` → `status: 'confirmed'` — краснеет первое утверждение;
+   *   `getPrepaymentWaitMinutes(...)` → константа `20` — краснеет утверждение о дедлайне.
+   */
+  describe('PAY-APPT-07/08: предоплата врачебной записи держит слот и несёт точный срок', () => {
+    beforeEach(() => {
+      fakes.buildAppDeps.mockReturnValue({
+        // Клиника ждёт предоплату 90 минут — значение НЕ равно платформенному умолчанию.
+        bookingScheduling: {
+          assertSlotAvailable: vi.fn(async () => undefined),
+          getPrepaymentWaitMinutes: vi.fn(async () => 90),
+        },
+        payments: {
+          getSettings: vi.fn(async () => ({ enabled: true })),
+          getPrepaymentPolicyForBooking: vi.fn(async () => ({
+            id: 'policy-1',
+            organizationId: 'org-1',
+            serviceId: SERVICE_ID,
+            onlineCategory: null,
+            mode: 'percent',
+            amountMinor: null,
+            percentBps: 3000,
+            currency: 'RUB',
+            isActive: true,
+          })),
+        },
+        patientBooking: { ensureStaffBookingProjection: fakes.ensureStaffBookingProjection },
+        patientOrganization: null,
+        memberships: null,
+        systemSettings: { getSetting: vi.fn(async (key: string) => settingsRows[key] ?? null) },
+        bookingEngine: {
+          getSpecialistAppointmentReminderSettings:
+            fakes.getSpecialistAppointmentReminderSettings,
+        },
+      });
+    });
+
+    async function create(body: Record<string, unknown> = {}) {
+      return POST(
+        new Request('http://127.0.0.1/api/doctor/booking-engine/appointments/manual', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            startAt: '2027-03-10T09:00:00.000Z',
+            endAt: '2027-03-10T09:30:00.000Z',
+            durationMinutes: 30,
+            branchId: BRANCH_ID,
+            serviceId: SERVICE_ID,
+            ...body,
+          }),
+        }),
+      );
+    }
+
+    it('политика клиники открывает врачебную запись в ожидании оплаты со сроком из настройки', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2027-03-01T08:00:00.000Z'));
+      try {
+        expect((await create()).status).toBe(200);
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(fakes.createAppointment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'awaiting_payment',
+          priceMinor: 250_000,
+          priceCurrency: 'RUB',
+          prepaymentMode: 'percent',
+          prepaymentPercentBps: 3000,
+          // 2500,00 ₽ · 30 % = ровно 75 000 копеек.
+          prepaymentRequiredMinor: 75_000,
+          // 08:00 + 90 минут настройки клиники, а не платформенные 20.
+          paymentDeadlineAt: '2027-03-01T09:30:00.000Z',
+        }),
+      );
+    });
+
+    it('переопределение врача «без предоплаты» возвращает запись к обычному подтверждению', async () => {
+      expect((await create({ prepayment: { mode: 'disabled' } })).status).toBe(200);
+
+      expect(fakes.createAppointment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'confirmed',
+          prepaymentMode: 'disabled',
+          prepaymentRequiredMinor: 0,
+          paymentDeadlineAt: null,
+        }),
+      );
+    });
+
+    it('ручная цена врача, а не прайс каталога, ложится в снимок и в требование', async () => {
+      expect(
+        (await create({ priceMinor: 180_000, prepayment: { mode: 'full_price' } })).status,
+      ).toBe(200);
+
+      expect(fakes.createAppointment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'awaiting_payment',
+          priceMinor: 180_000,
+          prepaymentRequiredMinor: 180_000,
+        }),
+      );
+    });
+
+    it('дробные деньги контракт врача не принимает и до создания записи не доходит', async () => {
+      expect((await create({ priceMinor: 1000.5 })).status).toBe(400);
+      expect(fakes.createAppointment).not.toHaveBeenCalled();
+    });
   });
 
   it('refuses a clinic-owner create without an explicit branch and service', async () => {

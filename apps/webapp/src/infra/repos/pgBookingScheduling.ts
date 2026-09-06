@@ -155,7 +155,10 @@ async function readCurrentPatientBookingSlotSnapshot(input: {
 }
 
 async function readCurrentPatientBookingRuntimeInteger(
-  key: 'booking_min_notice_hours' | 'booking_max_consecutive_slot_hours',
+  key:
+    | 'booking_min_notice_hours'
+    | 'booking_max_consecutive_slot_hours'
+    | 'booking_prepayment_wait_minutes',
 ): Promise<number> {
   const result = await runWebappNamedRoot<{ value: number | null }>(
     getWebappSqlDb(),
@@ -663,6 +666,18 @@ export function createPgBookingSchedulingPort(
         return readCurrentPatientBookingRuntimeInteger('booking_max_consecutive_slot_hours');
       }
       return getServerRuntimeInteger('booking_max_consecutive_slot_hours', organizationId);
+    },
+
+    /**
+     * PAY-APPT-08. Публичной ветки здесь нет намеренно: ЗАПИСЬ снаружи (`createVerifiedPublicBooking`)
+     * коммитится под ПАЦИЕНТСКИМ принципалом, а не под организационным, поэтому срок ожидания
+     * читается той же пациентской дверью, что и две соседние настройки записи.
+     */
+    async getPrepaymentWaitMinutes(organizationId) {
+      if (isCurrentPatientPrincipal()) {
+        return readCurrentPatientBookingRuntimeInteger('booking_prepayment_wait_minutes');
+      }
+      return getServerRuntimeInteger('booking_prepayment_wait_minutes', organizationId);
     },
 
     async listScheduleBlocks({

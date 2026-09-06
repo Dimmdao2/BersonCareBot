@@ -1,4 +1,5 @@
 import type { AppointmentReminderPresetId } from '@/modules/booking-notifications/appointmentReminderPresets';
+import type { PrepaymentMode } from '@/modules/payments/types';
 
 export const APPOINTMENT_STATUSES = [
   'created',
@@ -116,12 +117,41 @@ export type BeAppointment = {
   originalStartAt: string | null;
   rescheduleCount: number;
   paymentRef: string | null;
+  /**
+   * PAY-APPT-01/18: финансовый снимок принадлежит самой записи. `priceMinor === null` —
+   * запись создана до появления снимка; читатели в этом случае продолжают показывать значение
+   * исторической проекции `patient_bookings`, а не выдумывают ноль.
+   */
+  priceMinor: number | null;
+  priceCurrency: string;
+  prepaymentMode: PrepaymentMode;
+  prepaymentPercentBps: number | null;
+  prepaymentAmountMinor: number | null;
+  prepaymentRequiredMinor: number;
+  /** Факт зачисленных денег. Пишет ТОЛЬКО платёжный корень, не кабинет и не пациент. */
+  prepaymentPaidMinor: number;
+  paymentDeadlineAt: string | null;
   packageUsageRef: string | null;
   phoneNormalized: string | null;
   attributionJson: Record<string, unknown>;
   appointmentReminderAllowedPresetIds: AppointmentReminderPresetId[];
   appointmentReminderPresetId: AppointmentReminderPresetId | null;
   appointmentReminderSelectionSource: 'specialist_default' | 'patient';
+};
+
+/**
+ * Канонический контракт записи финансового снимка. ОДИН на пациентский и врачебный путь: и
+ * `canonicalCreate`, и ручное создание/правка врачом кладут ровно эти поля, посчитанные
+ * `resolveAppointmentFinancialSnapshot`.
+ */
+export type AppointmentFinancialFields = {
+  priceMinor?: number | null;
+  priceCurrency?: string;
+  prepaymentMode?: PrepaymentMode;
+  prepaymentPercentBps?: number | null;
+  prepaymentAmountMinor?: number | null;
+  prepaymentRequiredMinor?: number;
+  paymentDeadlineAt?: string | null;
 };
 
 export type CreateAppointmentInput = {
@@ -147,7 +177,7 @@ export type CreateAppointmentInput = {
   appointmentReminderAllowedPresetIds?: AppointmentReminderPresetId[];
   appointmentReminderPresetId?: AppointmentReminderPresetId | null;
   appointmentReminderSelectionSource?: 'specialist_default' | 'patient';
-};
+} & AppointmentFinancialFields;
 
 type CreateManualPatientIdentityInput = {
   organizationId: string;
@@ -214,4 +244,27 @@ export type TransitionAppointmentStatusInput = {
   toStatus: AppointmentStatus;
   actorId?: string | null;
   payload?: Record<string, unknown>;
+};
+
+/**
+ * PAY-APPT-12: переписывание финансового снимка уже существующей записи. Значения приходят
+ * ПОСЧИТАННЫМИ (`resolveAppointmentFinancialSnapshot`) — здесь только запись и замок на деньги.
+ */
+/** Плоское представление снимка одной записи для батчевых читателей карточки/календаря. */
+export type AppointmentFinancialSnapshotRecord = {
+  appointmentId: string;
+  priceMinor: number | null;
+  priceCurrency: string;
+  prepaymentMode: PrepaymentMode;
+  prepaymentPercentBps: number | null;
+  prepaymentRequiredMinor: number;
+  prepaymentPaidMinor: number;
+  paymentDeadlineAt: string | null;
+};
+
+export type UpdateAppointmentFinancialSnapshotInput = {
+  appointmentId: string;
+  organizationId: string;
+  actorId?: string | null;
+  snapshot: Required<Omit<AppointmentFinancialFields, 'priceCurrency'>> & { priceCurrency: string };
 };

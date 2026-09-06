@@ -1,0 +1,11 @@
+# СГЕНЕРИРОВАНО из apps/webapp/src/modules/operator-health/backgroundJobManifest.ts. Руками не править.
+# Перегенерировать: node deploy/host/background-jobs-cli.mjs --write
+# Сверить (гейт deploy и CI): node deploy/host/background-jobs-cli.mjs --check
+#
+# Истечение предоплаты записи — среда test.
+# PAY-APPT-11: без тика неоплаченное ожидание держит слот вечно, и на это время к врачу не может записаться никто другой. Минутный ритм — потому что срок задаётся в минутах.
+# id=booking_prepayment_expiry tick=maintenance/maintenance.booking_prepayment_expiry.tick POST /api/internal/booking-prepayment/expire?limit=100
+# principal=internal_job_bearer surface=app_public_origin timeout=50s stale_after=300s
+# Host/Origin/X-Forwarded-Proto и env-файл (/opt/env/bersoncarebot/webapp.test) строит общий transport
+# deploy/host/run-internal-job.sh — cron-строка их не копирует и не знает про branding proxy.
+* * * * * root /opt/projects/bersoncarebot-test/deploy/host/run-internal-job.sh test booking_prepayment_expiry

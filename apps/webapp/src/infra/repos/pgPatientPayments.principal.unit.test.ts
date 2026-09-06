@@ -13,6 +13,13 @@
  * Every route-level test of this door fakes `addCashPayment`, so none of them can see which DB role
  * the money is written as — that is what this file holds. The real `@bersoncare/db-principal` is
  * used deliberately: the assertion is about the principal actually in force at write time.
+ *
+ * The appointment door now settles through the named root `app.settle_appointment_cash_prepayment`
+ * (PAY-APPT-11/12: the ledger row and the prepayment credit must be one commit), so «write time» for
+ * it is the moment that root is issued rather than a relation transaction. The question this file
+ * answers is unchanged and it is about the door people actually use — which is why the principal is
+ * captured at whichever door the write takes, and why the tenant gate is asserted on the appointment
+ * input, not on the visit/package leftovers.
  */
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -51,34 +58,27 @@ const PATIENT_ID = '66666666-6666-4666-8666-666666666666';
 const STAFF_ID = '77777777-7777-4777-8777-777777777777';
 const APPOINTMENT_ID = '88888888-8888-4888-8888-888888888888';
 
-const insertedRow = {
+/** The ledger row as the named root returns it: `to_jsonb` hands back DB columns, not camelCase. */
+const settledLedgerRow = {
   id: '99999999-9999-4999-8999-999999999999',
-  organizationId: ORGANIZATION_ID,
-  patientUserId: PATIENT_ID,
-  amountMinor: 700_000,
+  organization_id: ORGANIZATION_ID,
+  patient_user_id: PATIENT_ID,
+  amount_minor: 700_000,
   currency: 'RUB',
   kind: 'cash',
   status: 'paid',
   comment: 'Оплачено наличными в карточке записи',
   service: null,
-  visitId: null,
-  appointmentId: APPOINTMENT_ID,
-  patientPackageId: null,
-  idempotencyKey: `staff-appointment-cash:${APPOINTMENT_ID}:700000`,
+  visit_id: null,
+  appointment_id: APPOINTMENT_ID,
+  patient_package_id: null,
+  idempotency_key: `staff-appointment-cash:${APPOINTMENT_ID}:700000`,
   provider: null,
-  providerPaymentId: null,
-  createdBy: STAFF_ID,
-  createdAt: '2026-09-05T00:00:00.000Z',
+  provider_payment_id: null,
+  created_by: STAFF_ID,
+  created_at: '2026-09-05T00:00:00.000Z',
 };
 
-/** Minimal stand-in for the drizzle insert chain the cash write uses. */
-function fakeTx() {
-  return {
-    insert: () => ({
-      values: () => ({ onConflictDoNothing: () => ({ returning: async () => [insertedRow] }) }),
-    }),
-  };
-}
 
 function cashInput(organizationId = ORGANIZATION_ID) {
   return {
@@ -108,16 +108,24 @@ function runAsCabinetStaff<T>(fn: () => Promise<T>): Promise<T> {
 describe('patient payment cash write principal', () => {
   let principalAtWriteTime: { kind: string | undefined; organizationId: string | undefined };
 
+  function capturePrincipal() {
+    principalAtWriteTime = {
+      kind: getCurrentDbPrincipal()?.kind,
+      organizationId: getCurrentDbPrincipalOrganizationId(),
+    };
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     principalAtWriteTime = { kind: undefined, organizationId: undefined };
-    fakes.getWebappSqlFromPgClient.mockImplementation(() => fakeTx());
+    fakes.getWebappSqlFromPgClient.mockImplementation(() => ({}));
     fakes.withTransaction.mockImplementation(async (fn: (client: unknown) => Promise<unknown>) => {
-      principalAtWriteTime = {
-        kind: getCurrentDbPrincipal()?.kind,
-        organizationId: getCurrentDbPrincipalOrganizationId(),
-      };
+      capturePrincipal();
       return fn({});
+    });
+    fakes.runWebappNamedRoot.mockImplementation(async () => {
+      capturePrincipal();
+      return { rows: [{ settlement: { payment: settledLedgerRow } }] };
     });
   });
 
@@ -128,8 +136,9 @@ describe('patient payment cash write principal', () => {
 
     expect(payment.amountMinor).toBe(700_000);
     expect(payment.status).toBe('paid');
-    // `staff` is the only principal class the webapp port declares a relation door for and the only
-    // role granted INSERT on `public.patient_payment`; anything else cannot reach the ledger at all.
+    // `staff` is the only principal class the webapp port declares a relation door for, the only
+    // role granted INSERT on `public.patient_payment`, and the class the cash settlement root is
+    // declared under; anything else cannot reach the ledger at all.
     expect(principalAtWriteTime.kind).toBe('staff');
     expect(principalAtWriteTime.organizationId).toBe(ORGANIZATION_ID);
   });
@@ -140,7 +149,10 @@ describe('patient payment cash write principal', () => {
         createPgPatientPaymentsPort().addCashPayment(cashInput(OTHER_ORGANIZATION_ID)),
       ),
     ).rejects.toThrow('patient_payment_organization_principal_mismatch');
+    // Neither door: the gate stands in front of the relation transaction AND of the named root, so
+    // no statement of any shape is issued for a clinic the installed principal does not carry.
     expect(fakes.withTransaction).not.toHaveBeenCalled();
+    expect(fakes.runWebappNamedRoot).not.toHaveBeenCalled();
   });
 
   it('refuses a cash write with no principal installed at all', async () => {
@@ -148,6 +160,7 @@ describe('patient payment cash write principal', () => {
       'organization_principal_required',
     );
     expect(fakes.withTransaction).not.toHaveBeenCalled();
+    expect(fakes.runWebappNamedRoot).not.toHaveBeenCalled();
   });
 });
 

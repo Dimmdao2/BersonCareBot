@@ -57,6 +57,8 @@ function buildDeps(
   const bookingScheduling = {
     assertSlotAvailable: vi.fn(async () => undefined),
     getMaxConsecutiveSlotHours: vi.fn(async () => 8),
+    // PAY-APPT-07: срок ожидания оплаты — настройка клиники, её читает канонический create.
+    getPrepaymentWaitMinutes: vi.fn(async () => 20),
   };
   const bookingEngine = {
     createOnlineAppointmentsIfAvailable: vi.fn(async () => [
@@ -183,15 +185,25 @@ describe('D14, часть 5: booking.created отправляет doctorNotify/d
 
 describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff payment', () => {
   it('keeps an existing prepayment for a public booking while the clinic is read-only', async () => {
-    const resolvePrepayment = vi.fn(async () => ({
-      required: true,
+    // PAY-APPT-04: пациентская половина больше не спрашивает готовую сумму — она берёт ПОЛИТИКУ и
+    // считает снимок тем же доменным расчётом, что и врачебная. Оракул тот же: деньги пациента
+    // берутся и при read-only клинике.
+    const getPrepaymentPolicyForBooking = vi.fn(async () => ({
+      id: 'policy-1',
+      organizationId: 'org-1',
+      serviceId: null,
+      onlineCategory: null,
+      mode: 'fixed_minor',
       amountMinor: 5_000,
+      percentBps: null,
       currency: 'RUB',
+      isActive: true,
     }));
     const createAppointmentPaymentIntent = vi.fn();
     const deps = buildDeps(async () => undefined, {
       payments: {
-        resolvePrepayment,
+        getPrepaymentPolicyForBooking,
+        getSettings: vi.fn(async () => ({ enabled: true })),
         createAppointmentPaymentIntent,
       } as unknown as CanonicalBookingDeps['payments'],
       canAcceptBookingPrepayment: async () => true,
@@ -207,20 +219,17 @@ describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff 
     });
 
     expect(result.status).toBe('awaiting_payment');
-    expect(resolvePrepayment).toHaveBeenCalledOnce();
+    expect(getPrepaymentPolicyForBooking).toHaveBeenCalledOnce();
     expect(createAppointmentPaymentIntent).toHaveBeenCalledOnce();
   });
 
   it('confirms the booking without requesting or accepting prepayment when the mechanic is disabled', async () => {
-    const resolvePrepayment = vi.fn(async () => ({
-      required: true,
-      amountMinor: 5_000,
-      currency: 'RUB',
-    }));
+    const getPrepaymentPolicyForBooking = vi.fn();
     const createAppointmentPaymentIntent = vi.fn();
     const deps = buildDeps(async () => undefined, {
       payments: {
-        resolvePrepayment,
+        getPrepaymentPolicyForBooking,
+        getSettings: vi.fn(async () => ({ enabled: true })),
         createAppointmentPaymentIntent,
       } as unknown as CanonicalBookingDeps['payments'],
       canAcceptBookingPrepayment: async () => false,
@@ -229,8 +238,140 @@ describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff 
     const result = await createBookingOnCanonicalEngine(deps, createInput);
 
     expect(result.status).toBe('confirmed');
-    expect(resolvePrepayment).not.toHaveBeenCalled();
+    expect(getPrepaymentPolicyForBooking).not.toHaveBeenCalled();
     expect(createAppointmentPaymentIntent).not.toHaveBeenCalled();
     expect(deps.bookingsPort.markConfirmed).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * PAY-APPT-04/07/08/18. Oracle — требование владельца: «снимок стоимости, условие/сумма
+   * предоплаты, дедлайн и платёжный статус имеют один канонический write-path».
+   *
+   * Что ломается без этой проверки: пациентская половина продолжает считать предоплату «на
+   * лету», а В САМОЙ записи финансовых значений не остаётся. Тогда истечение срока (оно
+   * смотрит только на `payment_deadline_at` и `prepayment_required_minor` записи) не находит
+   * ни одной строки — неоплаченное ожидание держит слот вечно, и к врачу на это время не
+   * записывается никто. Отказ полностью тихий: create возвращает 200, запись в календаре
+   * есть, а срок оплаты не наступает никогда.
+   *
+   * Мутация, которой проверена красность: из `canonicalCreate` удалены финансовые поля
+   * `priceMinor…paymentDeadlineAt` во входе создания записи — падают оба утверждения ниже.
+   */
+  it('кладёт снимок и точный срок оплаты В САМУ запись, а не только в платёжное намерение', async () => {
+    const getPrepaymentPolicyForBooking = vi.fn(async () => ({
+      id: 'policy-1',
+      organizationId: 'org-1',
+      serviceId: null,
+      onlineCategory: null,
+      mode: 'fixed_minor',
+      amountMinor: 5_000,
+      percentBps: null,
+      currency: 'RUB',
+      isActive: true,
+    }));
+    const createOnlineAppointmentsIfAvailable = vi.fn(async () => [
+      { id: 'appt-1', organizationId: 'org-1', startAt: createInput.slotStart, endAt: createInput.slotEnd },
+    ]);
+    // Клиника ждёт предоплату 45 минут — значение НЕ равно платформенному умолчанию, поэтому
+    // хардкод «20 минут» этой проверки не переживёт.
+    const getPrepaymentWaitMinutes = vi.fn(async () => 45);
+    const deps = buildDeps(async () => undefined, {
+      payments: {
+        getPrepaymentPolicyForBooking,
+        getSettings: vi.fn(async () => ({ enabled: true })),
+        createAppointmentPaymentIntent: vi.fn(async () => ({ checkoutUrl: null })),
+      } as unknown as CanonicalBookingDeps['payments'],
+      canAcceptBookingPrepayment: async () => true,
+      bookingEngine: {
+        createOnlineAppointmentsIfAvailable,
+      } as unknown as CanonicalBookingDeps['bookingEngine'],
+      bookingScheduling: {
+        assertSlotAvailable: vi.fn(async () => undefined),
+        getMaxConsecutiveSlotHours: vi.fn(async () => 8),
+        getPrepaymentWaitMinutes,
+      } as unknown as CanonicalBookingDeps['bookingScheduling'],
+    });
+
+    const awaitingPort = deps.bookingsPort as unknown as {
+      markAwaitingPayment: ReturnType<typeof vi.fn>;
+    };
+    awaitingPort.markAwaitingPayment = vi.fn(async () => fakeRecord({ status: 'awaiting_payment' }));
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2027-03-01T12:00:00.000Z'));
+    try {
+      await createBookingOnCanonicalEngine(deps, createInput);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const persisted = (
+      createOnlineAppointmentsIfAvailable.mock.calls[0] as unknown as [
+        Array<Record<string, unknown>>,
+      ]
+    )[0];
+    expect(persisted[0]).toMatchObject({
+      status: 'awaiting_payment',
+      prepaymentMode: 'fixed_minor',
+      prepaymentAmountMinor: 5_000,
+      prepaymentRequiredMinor: 5_000,
+      priceCurrency: 'RUB',
+      // 12:00 + 45 минут настройки клиники, посчитано один раз в момент создания.
+      paymentDeadlineAt: '2027-03-01T12:45:00.000Z',
+    });
+    expect(getPrepaymentWaitMinutes).toHaveBeenCalledWith('org-1');
+  });
+
+  /**
+   * PAY-APPT-04: пациент не подаёт финансовых значений вовсе. Контракт создания пациентской
+   * записи их не принимает, а снимок выводится из политики клиники — проверяем именно это:
+   * посторонние поля в пользовательском вводе не доезжают до записи.
+   */
+  it('не принимает финансовые значения от пациента: снимок выводится из политики клиники', async () => {
+    const getPrepaymentPolicyForBooking = vi.fn(async () => ({
+      id: 'policy-1',
+      organizationId: 'org-1',
+      serviceId: null,
+      onlineCategory: null,
+      mode: 'fixed_minor',
+      amountMinor: 5_000,
+      percentBps: null,
+      currency: 'RUB',
+      isActive: true,
+    }));
+    const createOnlineAppointmentsIfAvailable = vi.fn(async () => [
+      { id: 'appt-1', organizationId: 'org-1', startAt: createInput.slotStart, endAt: createInput.slotEnd },
+    ]);
+    const deps = buildDeps(async () => undefined, {
+      payments: {
+        getPrepaymentPolicyForBooking,
+        getSettings: vi.fn(async () => ({ enabled: true })),
+        createAppointmentPaymentIntent: vi.fn(async () => ({ checkoutUrl: null })),
+      } as unknown as CanonicalBookingDeps['payments'],
+      canAcceptBookingPrepayment: async () => true,
+      bookingEngine: {
+        createOnlineAppointmentsIfAvailable,
+      } as unknown as CanonicalBookingDeps['bookingEngine'],
+    });
+
+    const awaitingPort2 = deps.bookingsPort as unknown as {
+      markAwaitingPayment: ReturnType<typeof vi.fn>;
+    };
+    awaitingPort2.markAwaitingPayment = vi.fn(async () => fakeRecord({ status: 'awaiting_payment' }));
+
+    await createBookingOnCanonicalEngine(deps, {
+      ...createInput,
+      // Пациент «просит» свою цену и своё условие предоплаты — контракт таких полей не знает.
+      ...({ priceMinor: 1, prepaymentRequiredMinor: 1, prepaymentMode: 'disabled' } as object),
+    } as CreatePatientBookingInput);
+
+    const persisted = (
+      createOnlineAppointmentsIfAvailable.mock.calls[0] as unknown as [
+        Array<Record<string, unknown>>,
+      ]
+    )[0];
+    expect(persisted[0]!.prepaymentRequiredMinor).toBe(5_000);
+    expect(persisted[0]!.prepaymentMode).toBe('fixed_minor');
+    expect(persisted[0]!.status).toBe('awaiting_payment');
   });
 });

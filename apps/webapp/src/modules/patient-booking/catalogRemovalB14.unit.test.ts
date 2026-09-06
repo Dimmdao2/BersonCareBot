@@ -166,6 +166,9 @@ function bookingDeps(): CanonicalBookingDeps {
       async getMaxConsecutiveSlotHours() {
         return 8;
       },
+      async getPrepaymentWaitMinutes() {
+        return 20;
+      },
     } as unknown as CanonicalBookingDeps['bookingScheduling'],
     bookingForm: null,
     payments: null,

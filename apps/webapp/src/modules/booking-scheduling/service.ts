@@ -326,6 +326,10 @@ export function createBookingSchedulingService(
       return port.getMaxConsecutiveSlotHours(organizationId);
     },
 
+    getPrepaymentWaitMinutes(organizationId) {
+      return port.getPrepaymentWaitMinutes(organizationId);
+    },
+
     listWorkingDays(input) {
       assertUuid(input.organizationId, 'organizationId');
       assertUuid(input.specialistId, 'specialistId');

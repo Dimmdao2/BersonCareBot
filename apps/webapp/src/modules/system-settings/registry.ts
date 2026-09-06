@@ -390,6 +390,12 @@ export const SYSTEM_SETTING_REGISTRY = {
   ),
   booking_min_notice_hours: runtime('admin', 'per_org', 'server', 'integer', '0'),
   booking_max_consecutive_slot_hours: runtime('admin', 'per_org', 'server', 'integer', '3'),
+  /**
+   * PAY-APPT-08: срок ожидания предоплаты в минутах. Умолчание новой клиники — 20 минут;
+   * искусственного продуктового максимума нет, верхняя граница ниже — только санитарная граница
+   * ХРАНЕНИЯ (365 суток в минутах), чтобы значение оставалось корректным целым.
+   */
+  booking_prepayment_wait_minutes: runtime('admin', 'per_org', 'server', 'integer', '20'),
   patient_home_daily_warmup_repeat_cooldown_minutes: runtime(
     'admin',
     'per_org',

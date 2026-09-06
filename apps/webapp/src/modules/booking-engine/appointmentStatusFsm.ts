@@ -22,6 +22,12 @@ const VALID_TRANSITIONS: Record<AppointmentStatus, readonly AppointmentStatus[]>
   awaiting_payment: [
     'paid',
     'confirmed',
+    /**
+     * PAY-APPT-12: запись в ожидании оплаты можно перенести и отредактировать. Перенос идёт тем
+     * же маршрутом, что и у любой другой записи (`created → rescheduled → итог`), поэтому без
+     * этого ребра правка неоплаченной записи упиралась в отказ FSM, а другой двери для неё нет.
+     */
+    'rescheduled',
     'cancelled_by_patient',
     'cancelled_by_specialist',
     'manual_review_required',
@@ -35,6 +41,13 @@ const VALID_TRANSITIONS: Record<AppointmentStatus, readonly AppointmentStatus[]>
     'manual_review_required',
   ],
   confirmed: [
+    /**
+     * PAY-APPT-12: клиника ввела требование предоплаты для уже созданной, но ещё НЕ оплаченной
+     * записи. Обратного риска здесь нет: единственный путь, который делает этот переход
+     * (правка записи врачом), сначала упирается в замок денег — запись с `payment_ref` или с
+     * ненулевой зачисленной суммой финансовые значения не переписывает вовсе.
+     */
+    'awaiting_payment',
     'rescheduled',
     'cancelled_by_patient',
     'cancelled_by_specialist',
@@ -47,6 +60,13 @@ const VALID_TRANSITIONS: Record<AppointmentStatus, readonly AppointmentStatus[]>
   ],
   rescheduled: [
     'confirmed',
+    /**
+     * PAY-APPT-12: перенос НЕ подтверждает неоплаченную запись. Пришла в перенос ожидающей и
+     * требование предоплаты осталось непокрытым — возвращается в ожидание, а не в `confirmed`:
+     * иначе тик истечения (`status = 'awaiting_payment'`) такую строку больше не видит, и слот
+     * держит подтверждённая, но неоплаченная запись.
+     */
+    'awaiting_payment',
     'cancelled_by_patient',
     'cancelled_by_specialist',
     'late_cancellation',

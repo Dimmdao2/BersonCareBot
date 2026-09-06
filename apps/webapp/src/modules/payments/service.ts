@@ -8,7 +8,12 @@ import type {
   PaymentsConfigReader,
   PaymentsPort,
 } from './ports';
-import type { AppointmentPaymentSummary, BookingPaymentSettings, PrepaymentQuote } from './types';
+import type {
+  AppointmentPaymentSummary,
+  BookingPaymentSettings,
+  PrepaymentPolicyRecord,
+  PrepaymentQuote,
+} from './types';
 import type { ResolvePrepaymentParams } from './ports';
 import type { PrepaymentResolveContext } from './prepaymentContextFromBooking';
 import { parsePatientPackageProductRef } from '@/modules/memberships/patientPackageProductRef';
@@ -263,9 +268,17 @@ export function createPaymentsService(deps: {
       }
     },
 
-    async resolvePrepayment(params: ResolvePrepaymentParams): Promise<PrepaymentQuote> {
-      const settings = await loadSettings(params.organizationId);
-      const policy = params.serviceId
+    /**
+     * ОДИН выбор политики предоплаты: сначала точная политика услуги, иначе политика онлайн-
+     * категории. Им пользуются и котировка ниже, и канонический расчёт снимка записи
+     * (`resolveAppointmentFinancialSnapshot`), поэтому второго правила выбора не существует.
+     */
+    async getPrepaymentPolicyForBooking(params: {
+      organizationId: string;
+      serviceId: string | null;
+      onlineCategory: string | null;
+    }): Promise<PrepaymentPolicyRecord | null> {
+      return params.serviceId
         ? await deps.port.getPrepaymentPolicyForService(params.organizationId, params.serviceId)
         : params.onlineCategory
           ? await deps.port.getPrepaymentPolicyForOnlineCategory(
@@ -273,6 +286,15 @@ export function createPaymentsService(deps: {
               params.onlineCategory,
             )
           : null;
+    },
+
+    async resolvePrepayment(params: ResolvePrepaymentParams): Promise<PrepaymentQuote> {
+      const settings = await loadSettings(params.organizationId);
+      const policy = await this.getPrepaymentPolicyForBooking({
+        organizationId: params.organizationId,
+        serviceId: params.serviceId,
+        onlineCategory: params.onlineCategory ?? null,
+      });
       return quotePrepayment({
         policy,
         servicePriceMinor: params.servicePriceMinor,
@@ -288,6 +310,11 @@ export function createPaymentsService(deps: {
     /** APPT-DETAIL-11: сырые платежи набора записей; долю считает вызывающий тем же правилом. */
     async listAppointmentPaymentBriefs(organizationId: string, appointmentIds: string[]) {
       return deps.port.listAppointmentPaymentBriefs(organizationId, appointmentIds);
+    },
+
+    /** PAY-APPT-06: сохранённые ссылки оплаты набора записей, без создания новых намерений. */
+    async listAppointmentCheckoutUrls(organizationId: string, appointmentIds: string[]) {
+      return deps.port.listAppointmentCheckoutUrls(organizationId, appointmentIds);
     },
 
     async upsertPrepaymentPolicy(input: Parameters<PaymentsPort['upsertPrepaymentPolicy']>[0]) {
@@ -541,6 +568,14 @@ export function createPaymentsService(deps: {
 
     async captureIntentSuccess(intentId: string, organizationId: string) {
       return captureIntentSuccess(intentId, organizationId);
+    },
+
+    /**
+     * PAY-APPT-11: один тик истечения. Ни фильтрации, ни второго планировщика здесь нет: границу
+     * срока, гонку с оплатой и освобождение слота держит объявленный корень.
+     */
+    async expireDueBookingPrepayments(input: { limit: number }) {
+      return deps.port.expireDueBookingPrepayments(input);
     },
 
     async processProviderWebhook(input: {

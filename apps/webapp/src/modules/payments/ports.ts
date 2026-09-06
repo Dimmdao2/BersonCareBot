@@ -96,6 +96,14 @@ export type PaymentsPort = {
     organizationId: string,
     appointmentIds: string[],
   ): Promise<AppointmentPaymentBrief[]>;
+  /**
+   * PAY-APPT-06: уже сохранённая ссылка оплаты по набору записей. Повторное получение ссылки —
+   * чтение существующего намерения, а не создание второго.
+   */
+  listAppointmentCheckoutUrls(
+    organizationId: string,
+    appointmentIds: string[],
+  ): Promise<{ appointmentId: string; checkoutUrl: string | null }[]>;
   createPaymentFromIntent(intent: PaymentIntentRecord): Promise<PaymentRecord>;
   updatePaymentStatus(paymentId: string, status: string, organizationId: string): Promise<void>;
   getSucceededRefundedAmount(paymentId: string, organizationId: string): Promise<number>;
@@ -139,6 +147,13 @@ export type PaymentsPort = {
     intentRef: string | null;
     payloadJson: Record<string, unknown>;
   }): Promise<ProviderWebhookSettlement>;
+
+  /**
+   * PAY-APPT-11: один межарендный проход истечения неоплаченной предоплаты. Организацию корень
+   * не принимает и не может: заранее неизвестно, у какой клиники истёк срок, а машинный тик
+   * входит без арендатора. Гонку с оплатой на границе срока закрывает сам корень.
+   */
+  expireDueBookingPrepayments(input: { limit: number }): Promise<ExpiredBookingPrepayments>;
 
   hasCapturedHistoryEvent(paymentId: string, organizationId: string): Promise<boolean>;
 
@@ -198,6 +213,12 @@ export type ProviderWebhookSettlement = {
   platformUserId: string | null;
   productRef: string | null;
   confirmedAppointmentIds: string[];
+};
+
+/** Итог одного тика истечения: сколько ожиданий сняли и какие именно записи. */
+export type ExpiredBookingPrepayments = {
+  expired: number;
+  appointmentIds: string[];
 };
 
 export type PaymentCaptureUnitOfWork = {

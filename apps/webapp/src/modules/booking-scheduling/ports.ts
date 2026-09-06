@@ -171,6 +171,11 @@ export type BookingSchedulingPort = {
   }): Promise<void>;
   getMinNoticeHours(organizationId: string): Promise<number>;
   getMaxConsecutiveSlotHours(organizationId: string): Promise<number>;
+  /**
+   * PAY-APPT-08: сколько минут клиника ждёт предоплату. Читается тем же настроечным путём, что и
+   * две соседние величины записи, поэтому и врачебная, и пациентская половина видят одно значение.
+   */
+  getPrepaymentWaitMinutes(organizationId: string): Promise<number>;
   listScheduleBlocks(input: {
     organizationId: string;
     rangeStart: string;
@@ -342,6 +347,11 @@ export type BookingSchedulingService = {
   }): Promise<void>;
   getMinNoticeHours(organizationId: string): Promise<number>;
   getMaxConsecutiveSlotHours(organizationId: string): Promise<number>;
+  /**
+   * PAY-APPT-08: сколько минут клиника ждёт предоплату. Читается тем же настроечным путём, что и
+   * две соседние величины записи, поэтому и врачебная, и пациентская половина видят одно значение.
+   */
+  getPrepaymentWaitMinutes(organizationId: string): Promise<number>;
   // Per-date working days
   listWorkingDays(input: {
     organizationId: string;

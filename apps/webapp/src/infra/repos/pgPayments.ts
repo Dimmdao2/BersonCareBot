@@ -18,6 +18,7 @@ import { beAppointments } from '../../../db/schema/bookingEngine';
 import type {
   AppointmentPaymentBrief,
   PaymentsPort,
+  ExpiredBookingPrepayments,
   ProviderWebhookSettlement,
   StoredPaymentProviderEvent,
   UpsertPrepaymentPolicyInput,
@@ -189,6 +190,22 @@ function parseProviderWebhookSettlement(value: unknown): ProviderWebhookSettleme
     productRef: optionalString(raw?.productRef),
     confirmedAppointmentIds: appointmentIds,
   };
+}
+
+/** Ответ корня истечения разбирается так же строго, как и ответ корня проведения денег. */
+function parseExpiredBookingPrepayments(value: unknown): ExpiredBookingPrepayments {
+  const raw = (typeof value === 'string' ? JSON.parse(value) : value) as Record<
+    string,
+    unknown
+  > | null;
+  const expired = raw?.expired;
+  if (typeof expired !== 'number' || !Number.isSafeInteger(expired) || expired < 0) {
+    throw new Error('booking_prepayment_expiry_result_unrecognised');
+  }
+  const appointmentIds = Array.isArray(raw?.appointmentIds)
+    ? raw.appointmentIds.filter((id): id is string => typeof id === 'string')
+    : [];
+  return { expired, appointmentIds };
 }
 
 function runPaymentMutation<T>(
@@ -403,6 +420,48 @@ export function createPgPaymentsPort(): PaymentsPort {
          ) AS settlement`,
       );
       return parseProviderWebhookSettlement(result.rows[0]?.settlement);
+    },
+
+    /**
+     * PAY-APPT-11: истечение неоплаченных ожиданий одним объявленным корнем. Реляционного пути
+     * сюда нет и быть не может: тик входит машинным принципалом без арендатора, а `be_appointments`
+     * закрыт стеной арендатора.
+     */
+    async expireDueBookingPrepayments(input) {
+      const result = await runWebappNamedRoot<{ expired: unknown }>(
+        getWebappSqlDb(),
+        'app.expire_due_booking_prepayments(integer)',
+        [input.limit],
+        sql`SELECT app.expire_due_booking_prepayments(${input.limit}::integer) AS expired`,
+      );
+      return parseExpiredBookingPrepayments(result.rows[0]?.expired);
+    },
+
+    async listAppointmentCheckoutUrls(organizationId, appointmentIds) {
+      if (appointmentIds.length === 0) return [];
+      const db = getDrizzleOrMutationTx();
+      const rows = await db
+        .select({
+          appointmentId: bePaymentIntents.appointmentId,
+          checkoutUrl: bePaymentIntents.checkoutUrl,
+          createdAt: bePaymentIntents.createdAt,
+        })
+        .from(bePaymentIntents)
+        .where(
+          and(
+            eq(bePaymentIntents.organizationId, organizationId),
+            inArray(bePaymentIntents.appointmentId, appointmentIds),
+          ),
+        )
+        .orderBy(desc(bePaymentIntents.createdAt));
+      // Свежайшее намерение записи побеждает: строки уже отсортированы, поэтому первая встреченная
+      // и есть последняя по времени.
+      const latest = new Map<string, string | null>();
+      for (const row of rows) {
+        if (!row.appointmentId || latest.has(row.appointmentId)) continue;
+        latest.set(row.appointmentId, row.checkoutUrl ?? null);
+      }
+      return Array.from(latest, ([appointmentId, checkoutUrl]) => ({ appointmentId, checkoutUrl }));
     },
 
     async findLatestIntentByAppointment(appointmentId) {

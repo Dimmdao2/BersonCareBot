@@ -108,6 +108,14 @@ describe('staff booking payment projection', () => {
       originalStartAt: null,
       rescheduleCount: 0,
       paymentRef: null,
+      priceMinor: null,
+      priceCurrency: 'RUB',
+      prepaymentMode: 'disabled',
+      prepaymentPercentBps: null,
+      prepaymentAmountMinor: null,
+      prepaymentRequiredMinor: 0,
+      prepaymentPaidMinor: 0,
+      paymentDeadlineAt: null,
       packageUsageRef: null,
       phoneNormalized: '+79990000000',
       attributionJson: {},
@@ -214,6 +222,14 @@ describe('staff booking payment projection', () => {
       endAt: '2026-09-07T13:30:00.000Z',
       durationMinutes: 90,
       paymentRef: null,
+      priceMinor: null,
+      priceCurrency: 'RUB',
+      prepaymentMode: 'disabled',
+      prepaymentPercentBps: null,
+      prepaymentAmountMinor: null,
+      prepaymentRequiredMinor: 0,
+      prepaymentPaidMinor: 0,
+      paymentDeadlineAt: null,
     } as unknown as BeAppointment;
 
     const result = await patientBooking.ensureStaffBookingProjection({
@@ -228,5 +244,93 @@ describe('staff booking payment projection', () => {
       durationMinutesSnapshot: 90,
       slotStart: '2026-09-07T12:00:00.000Z',
     });
+  });
+  /**
+   * PAY-APPT-01/02: историческая проекция ОТРАЖАЕТ снимок записи, а не спорит с ним.
+   *
+   * Что ломается без этой проверки: `ensureStaffBookingProjection` перечитывает прайс каталога на
+   * каждом обновлении, поэтому подорожавшая услуга задним числом переписывает стоимость уже
+   * согласованной с пациентом записи — и врач видит одну сумму, а пациент помнит другую.
+   */
+  it('reflects the appointment own price snapshot instead of the moved catalog price', async () => {
+    let projection = projectionRecord(
+      {
+        organizationId: 'org-1',
+        userId: 'patient-1',
+        bookingType: 'in_person',
+        city: 'spb',
+        category: 'general',
+        slotStart: '2026-09-06T09:00:00.000Z',
+        slotEnd: '2026-09-06T10:00:00.000Z',
+        contactName: 'Берсон Дмитрий',
+        contactPhone: '+79990000000',
+        contactEmail: null,
+        branchId: null,
+        serviceId: null,
+        branchServiceId: null,
+        cityCodeSnapshot: 'spb',
+        branchTitleSnapshot: 'Санкт-Петербург',
+        serviceTitleSnapshot: 'Сеанс 60 мин',
+        durationMinutesSnapshot: 60,
+        priceMinorSnapshot: 250_000,
+      } as CreatePendingPatientBookingInput,
+      'appointment-1',
+    );
+    const bookingsPort = {
+      getByCanonicalAppointmentId: async () => projection,
+      updateStaffProjection: async (
+        input: Parameters<PatientBookingsPort['updateStaffProjection']>[0],
+      ) => {
+        projection = {
+          ...projection,
+          priceMinorSnapshot: input.priceMinorSnapshot ?? projection.priceMinorSnapshot,
+        };
+        return projection;
+      },
+    } as unknown as PatientBookingsPort;
+    const patientBooking = createPatientBookingService({
+      bookingsPort,
+      syncPort: { emitBookingEvent: async () => undefined },
+      bookingEngine: {
+        catalog: {
+          getBranch: async () => ({
+            id: 'branch-1', organizationId: 'org-1', title: 'Санкт-Петербург', cityCode: 'spb',
+          }),
+        },
+        // Каталог подорожал ВТРОЕ уже после того, как запись была создана.
+        services: {
+          getService: async () => ({
+            id: 'service-60', organizationId: 'org-1', title: 'Сеанс 60 мин', priceMinor: 750_000,
+          }),
+        },
+      } as unknown as Parameters<typeof createPatientBookingService>[0]['bookingEngine'],
+      outboundMessageQueue: { enqueue: async () => true },
+    });
+
+    const result = await patientBooking.ensureStaffBookingProjection({
+      appointment: {
+        id: 'appointment-1',
+        organizationId: 'org-1',
+        branchId: 'branch-1',
+        serviceId: 'service-60',
+        platformUserId: 'patient-1',
+        startAt: '2026-09-06T09:00:00.000Z',
+        endAt: '2026-09-06T10:00:00.000Z',
+        durationMinutes: 60,
+        paymentRef: null,
+        priceMinor: 250_000,
+        priceCurrency: 'RUB',
+        prepaymentMode: 'disabled',
+        prepaymentPercentBps: null,
+        prepaymentAmountMinor: null,
+        prepaymentRequiredMinor: 0,
+        prepaymentPaidMinor: 0,
+        paymentDeadlineAt: null,
+      } as unknown as BeAppointment,
+      contactName: 'Берсон Дмитрий',
+      contactPhone: '+79990000000',
+    });
+
+    expect(result).toMatchObject({ priceMinorSnapshot: 250_000 });
   });
 });

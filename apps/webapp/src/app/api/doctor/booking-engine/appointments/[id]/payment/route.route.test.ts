@@ -16,6 +16,7 @@ const fakes = vi.hoisted(() => ({
   getSettings: vi.fn(),
   listPrepaymentPolicies: vi.fn(),
   listAppointmentPaymentBriefs: vi.fn(),
+  listAppointmentCheckoutUrls: vi.fn(),
   listBookingsByCanonicalAppointments: vi.fn(),
   sumPaidMinorForAppointments: vi.fn(),
   listPortalLinkedPatients: vi.fn(),
@@ -92,7 +93,6 @@ beforeEach(() => {
   fakes.loadStaffAppointmentPaymentSummary.mockResolvedValue({
     appointmentId: APPOINTMENT_ID,
     appointmentStatus: 'confirmed',
-    prepaymentQuote: null,
     intent: null,
     payment: null,
     history: [],
@@ -117,6 +117,7 @@ beforeEach(() => {
   fakes.getSettings.mockResolvedValue({ enabled: true, defaultProviderId: 'p', providers: [] });
   fakes.listPrepaymentPolicies.mockResolvedValue([]);
   fakes.listAppointmentPaymentBriefs.mockResolvedValue([]);
+  fakes.listAppointmentCheckoutUrls.mockResolvedValue([]);
   fakes.listBookingsByCanonicalAppointments.mockResolvedValue([
     { canonicalAppointmentId: APPOINTMENT_ID, bookingType: 'offline', priceMinorSnapshot: 10_000 },
   ]);
@@ -129,6 +130,7 @@ beforeEach(() => {
       getSettings: fakes.getSettings,
       listPrepaymentPolicies: fakes.listPrepaymentPolicies,
       listAppointmentPaymentBriefs: fakes.listAppointmentPaymentBriefs,
+      listAppointmentCheckoutUrls: fakes.listAppointmentCheckoutUrls,
     },
     patientInvites: {
       getPortalStatus: fakes.getPortalStatus,
@@ -209,7 +211,6 @@ describe('doctor appointment payment route', () => {
     fakes.loadStaffAppointmentPaymentSummary.mockResolvedValue({
       appointmentId: APPOINTMENT_ID,
       appointmentStatus: 'confirmed',
-      prepaymentQuote: null,
       intent: null,
       payment: { amountMinor: 2_500, status: 'succeeded' },
       history: [],

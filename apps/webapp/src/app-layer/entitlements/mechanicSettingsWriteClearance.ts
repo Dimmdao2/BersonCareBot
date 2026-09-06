@@ -33,6 +33,7 @@ type SystemSettingsServiceLike = {
 const TARIFF_MECHANIC_SETTING_KEYS: Partial<Record<string, readonly OrgMechanic[]>> = {
   booking_min_notice_hours: ['booking'],
   booking_max_consecutive_slot_hours: ['booking'],
+  booking_prepayment_wait_minutes: ['booking'],
   booking_payment_providers: ['payments'],
   booking_payment_enabled: ['payments'],
   google_refresh_token: ['external_calendar'],

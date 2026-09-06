@@ -260,13 +260,13 @@ type PaymentViewOverride = Partial<CalendarAppointmentPaymentView>;
 /** The block only exists for an entitled clinic, so every fixture states that fact explicitly. */
 function paymentView(override: PaymentViewOverride = {}): CalendarAppointmentPaymentView {
   return {
-    prepaymentQuote: null,
     payment: null,
     totalMinor: null,
     manualPaidMinor: 0,
     paymentsEntitled: true,
     onlinePaymentAvailable: true,
     patientChatAvailable: false,
+    prepayment: null,
     ...override,
   };
 }

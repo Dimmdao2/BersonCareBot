@@ -47,6 +47,10 @@ vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
 vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: vi.fn(async (_ctx: unknown, run: () => unknown) => run()),
 }));
+vi.mock('@/app-layer/guards/requireEntitlement', async (importActual) => ({
+  ...(await importActual<object>()),
+  getMechanicMutationAvailability: vi.fn(async () => ({ available: true })),
+}));
 vi.mock('@/modules/integrator/bookingM2mApi', () => ({
   createBookingSyncPort: vi.fn(() => ({ emitBookingEvent: mocks.emitBookingEvent })),
 }));
@@ -92,6 +96,14 @@ function appointment(specialistId: string): BeAppointment {
     originalStartAt: null,
     rescheduleCount: 0,
     paymentRef: null,
+    priceMinor: null,
+    priceCurrency: 'RUB',
+    prepaymentMode: 'disabled',
+    prepaymentPercentBps: null,
+    prepaymentAmountMinor: null,
+    prepaymentRequiredMinor: 0,
+    prepaymentPaidMinor: 0,
+    paymentDeadlineAt: null,
     packageUsageRef: null,
     phoneNormalized: null,
     attributionJson: {},
@@ -111,6 +123,8 @@ function context(canManageAllSpecialists: boolean): DoctorBookingEngineContext {
       createAppointment: mocks.createAppointment,
       getSpecialistAppointmentReminderSettings:
         mocks.getSpecialistAppointmentReminderSettings,
+      // PAY-APPT-03: ручное создание считает финансовый снимок и берёт цену услуги из каталога.
+      services: { getService: vi.fn(async () => ({ priceMinor: 250_000 })) },
       catalog: {
         listSpecialists: vi.fn().mockResolvedValue([
           { id: OWN_ID, fullName: 'Свой специалист', isActive: true },

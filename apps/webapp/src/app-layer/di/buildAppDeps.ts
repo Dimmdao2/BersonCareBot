@@ -755,6 +755,7 @@ const bookingCalendarService =
           hydrateCalendarAppointmentPayments(
             {
               payments: paymentsService,
+              bookingEngine: bookingEngineService,
               patientBooking: patientBookingService,
               patientPayments: patientPaymentsService,
               patientInvites: patientInvitesService,

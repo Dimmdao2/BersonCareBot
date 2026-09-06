@@ -12281,9 +12281,17 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "organization_id",
           "original_start_at",
           "package_usage_ref",
+          "payment_deadline_at",
           "payment_ref",
           "phone_normalized",
           "platform_user_id",
+          "prepayment_amount_minor",
+          "prepayment_mode",
+          "prepayment_paid_minor",
+          "prepayment_percent_bps",
+          "prepayment_required_minor",
+          "price_currency",
+          "price_minor",
           "reschedule_count",
           "room_id",
           "service_id",
@@ -12308,9 +12316,16 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "end_at",
           "original_start_at",
           "package_usage_ref",
+          "payment_deadline_at",
           "payment_ref",
           "phone_normalized",
           "platform_user_id",
+          "prepayment_amount_minor",
+          "prepayment_mode",
+          "prepayment_percent_bps",
+          "prepayment_required_minor",
+          "price_currency",
+          "price_minor",
           "reschedule_count",
           "room_id",
           "service_id",
@@ -25269,6 +25284,13 @@ const WEBAPP_WORKER_SOURCES = [
   // Часовой тик продления подписок: до 19.08 он входил платформенным принципалом с выдуманным
   // актором и падал на установке контекста — здесь его не было, потому что и класс был не тот.
   'api/internal/saas-billing/renewal/tick:POST',
+  // PAY-APPT-11/18: минутный тик истечения предоплаты записи. Данные он трогает ТОЛЬКО объявленным
+  // корнем `booking_prepayment_expire` (тот же `app_worker`, класс `service`) — эта строка не даёт
+  // ему новых прав, она объявляет, чем он вообще входит в базу как infra-принципал. Без неё
+  // `webappPortCapabilityForInfraSource` не находит источник, а locked-набор
+  // (`webappLockedInfraCronSources.ts`) уже пускает его на staff-пул: то самое расхождение кода с
+  // центральной декларацией, которым дважды до этого джобы молча ничего не делали.
+  'api/internal/booking-prepayment/expire:POST',
   'api/internal/heartbeat/pipeline_delivery:POST',
   'api/internal/heartbeat/pipeline_delivery:GET',
   'api/internal/heartbeat/digest:POST',
@@ -25963,6 +25985,23 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking-payment.webhook.settle',
       functionIdentity: 'app.settle_booking_payment_webhook_event(text,text,text,text,text)' },
+    // PAY-APPT-11: часовой... точнее ежеминутный тик истечения предоплаты. Работа межарендная —
+    // заранее неизвестно, у какой клиники истёк срок, — а машинный тик входит без арендатора,
+    // поэтому реляционного пути к `be_appointments` у него нет. Свой корень у ТОГО ЖЕ шва, что
+    // уже проводит предоплату записи.
+    booking_prepayment_expire: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'booking-payment.prepayment.expire',
+      functionIdentity: 'app.expire_due_booking_prepayments(integer)' },
+    // PAY-APPT-11/12: наличные в кассе гасят требование предоплаты. Дверь врачебная, но пишет она
+    // ФАКТИЧЕСКИ полученные деньги (`prepayment_paid_minor`), а этой колонки у `app_staff` нет и
+    // быть не должно — иначе обычная правка записи умеет подделать оплату. Отсюда корень ТОГО ЖЕ
+    // платёжного шва, исполняемый кабинетом: одна дверь, один владелец, одна проверка.
+    booking_prepayment_cash_settle: { port: 'webapp',
+      runtimeName: 'settle_appointment_cash_prepayment', sessionRole: 'app_staff',
+      targetRole: 'app_staff', contextClass: 'staff',
+      purpose: 'booking-payment.prepayment.cash-settle',
+      functionIdentity: 'app.settle_appointment_cash_prepayment(text)' },
     saas_billing_provider_preauth_read: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'billing.webhook.provider.read',
       functionIdentity: 'app.read_saas_billing_payment_provider_preauth()' },
@@ -27889,9 +27928,78 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointments',
           columns: ['id', 'organization_id', 'chain_id', 'platform_user_id', 'status', 'payment_ref',
-            'updated_at'],
+            'prepayment_paid_minor', 'updated_at'],
           operations: ['SELECT' as const, 'UPDATE' as const],
-          operationColumns: { UPDATE: ['payment_ref', 'status', 'updated_at'] },
+          operationColumns: { UPDATE: ['payment_ref', 'prepayment_paid_minor', 'status', 'updated_at'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_history_events',
+          columns: ['organization_id', 'appointment_id', 'event_type', 'payload', 'occurred_at'],
+          operations: ['INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_patient_timeline_events',
+          columns: ['organization_id', 'platform_user_id', 'domain', 'event_type', 'linked_object_type',
+            'linked_object_id', 'payload', 'occurred_at'],
+          operations: ['INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // PAY-APPT-11/12: наличные в кассе. Приём денег врачом — та же операция «деньги пришли», что и
+    // вебхук, поэтому владелец шва тот же, а исполнитель — кабинет. Журнал наличных
+    // (`patient_payment`) пишется здесь же, потому что именованный корень не стартует внутри уже
+    // открытой реляционной транзакции: разложенные на два коммита журнал и зачисление оставляли бы
+    // оплаченную запись под отменой по истечении срока. Финансовый СНИМОК (цена, режим, требуемая
+    // сумма) отсюда не пишется — его переписывает только врачебная правка через свои колонки.
+    'app.settle_appointment_cash_prepayment(text)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_staff'],
+      purpose: 'settle one cash prepayment of the accepted organization against its appointment',
+      typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: [
+          'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
+          'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
+          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
+          'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
+          'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
+          'payment_deadline_at',
+        ], operations: ['SELECT' as const, 'UPDATE' as const],
+        operationColumns: { UPDATE: ['prepayment_paid_minor', 'status', 'updated_at'] },
+        evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_payment', columns: [
+          'id', 'organization_id', 'patient_user_id', 'amount_minor', 'currency', 'kind', 'status',
+          'comment', 'service', 'visit_id', 'appointment_id', 'patient_package_id',
+          'idempotency_key', 'provider', 'provider_payment_id', 'created_by', 'created_at',
+        ], operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_history_events',
+          columns: ['organization_id', 'appointment_id', 'event_type', 'actor_id', 'payload', 'occurred_at'],
+          operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_patient_timeline_events', columns: [
+          'organization_id', 'platform_user_id', 'domain', 'event_type', 'linked_object_type',
+          'linked_object_id', 'payload', 'occurred_at',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // PAY-APPT-11: истечение неоплаченного ожидания. Отбор — `FOR UPDATE SKIP LOCKED`, сам UPDATE
+    // повторно проверяет `awaiting_payment / prepayment_paid_minor = 0 / payment_ref IS NULL`,
+    // поэтому оплата, пришедшая ровно на границе срока, из-под истечения выпадает, а не
+    // переписывается. Целевой статус — существующий `cancelled_by_specialist`: он выведен из
+    // exclusion-ограничения слота, значит слот освобождается самим переходом.
+    'app.expire_due_booking_prepayments(integer)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_worker'],
+      purpose: 'expire only past-deadline unpaid booking prepayments and release their slots',
+      typedArgs: ['integer'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments',
+          columns: ['id', 'organization_id', 'platform_user_id', 'status', 'payment_ref',
+            'prepayment_paid_minor', 'payment_deadline_at', 'deleted_at', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: { UPDATE: ['status', 'payment_deadline_at', 'updated_at'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointment_history_events',
           columns: ['organization_id', 'appointment_id', 'event_type', 'payload', 'occurred_at'],
@@ -28703,8 +28811,10 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_branches', columns: ['id', 'organization_id', 'is_active'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // PAY-APPT-04: цену записи дверь читает из каталога сама — аргументом её не передают.
         { relation: 'public.be_clinic_services',
-          columns: ['id', 'organization_id', 'is_active', 'public_widget_visible', 'admin_manual_only'],
+          columns: ['id', 'organization_id', 'is_active', 'public_widget_visible', 'admin_manual_only',
+            'price_minor'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.patient_specialist_links',
           columns: ['organization_id', 'patient_user_id', 'specialist_id', 'status', 'created_via'],
@@ -28715,6 +28825,9 @@ const REV10_CONTEXT = {
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
           'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
+          'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
+          'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
+          'payment_deadline_at',
         ], operations: ['SELECT' as const, 'INSERT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointment_history_events',
@@ -28739,6 +28852,9 @@ const REV10_CONTEXT = {
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
           'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
+          'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
+          'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
+          'payment_deadline_at',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -28883,13 +28999,26 @@ const REV10_CONTEXT = {
       purpose: 'apply an already policy-evaluated same-catalog reschedule to the current patient own appointment',
       typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
+        // PAY-APPT-04: обе функции возвращают строку целиком (`to_jsonb` от `UPDATE ... RETURNING *`),
+        // поэтому финансовые колонки нужны на ЧТЕНИЕ. На запись их тут нет намеренно: пациентский шов
+        // переносит и отменяет запись, но не переписывает её стоимость и условие предоплаты.
         { relation: 'public.be_appointments', columns: [
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
           'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
           'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
+          'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
+          'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
+          'payment_deadline_at',
         ], operations: ['SELECT' as const, 'UPDATE' as const],
+        operationColumns: { UPDATE: [
+          'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
+          'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
+          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
+        ] },
         evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointment_reschedules', columns: [
           'organization_id', 'appointment_id', 'from_start_at', 'from_end_at', 'to_start_at', 'to_end_at',
@@ -28912,13 +29041,26 @@ const REV10_CONTEXT = {
       purpose: 'apply an already policy-evaluated cancellation to the current patient own appointment',
       typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
+        // PAY-APPT-04: обе функции возвращают строку целиком (`to_jsonb` от `UPDATE ... RETURNING *`),
+        // поэтому финансовые колонки нужны на ЧТЕНИЕ. На запись их тут нет намеренно: пациентский шов
+        // переносит и отменяет запись, но не переписывает её стоимость и условие предоплаты.
         { relation: 'public.be_appointments', columns: [
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
           'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
           'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
+          'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
+          'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
+          'payment_deadline_at',
         ], operations: ['SELECT' as const, 'UPDATE' as const],
+        operationColumns: { UPDATE: [
+          'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
+          'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
+          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
+        ] },
         evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointment_cancellations', columns: [
           'organization_id', 'appointment_id', 'actor_type', 'actor_id', 'cancellation_type', 'reason',
