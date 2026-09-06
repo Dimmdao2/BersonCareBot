@@ -1,5 +1,8 @@
 import { SURFACE_AUTH_SETTING_KEYS } from '@/modules/auth/surfaceAuthSettings';
-import { RUNTIME_FLAG_DEFINITIONS as S5_RUNTIME_FLAG_DEFINITIONS } from './registry';
+import {
+  RUNTIME_FLAG_DEFINITIONS as S5_RUNTIME_FLAG_DEFINITIONS,
+  SYSTEM_SETTING_REGISTRY,
+} from './registry';
 import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
 
 /**
@@ -55,10 +58,7 @@ export type RuntimeBooleanSetting = keyof typeof RUNTIME_BOOLEAN_SETTING_DEFINIT
 export type RuntimeIntegerSetting = keyof typeof RUNTIME_INTEGER_SETTING_DEFINITIONS;
 export type RuntimeConfigAudience = 'public' | 'authenticated_client' | 'server';
 export type RuntimeConfigOperationFamily =
-  | 'public_auth_config'
-  | 'auth_role_config'
-  | 'patient_runtime_config'
-  | 'public_booking_config';
+  'public_auth_config' | 'auth_role_config' | 'patient_runtime_config' | 'public_booking_config';
 
 export type RuntimeConfigContext = {
   patientUserId: string;
@@ -136,9 +136,7 @@ export const AUTHENTICATED_RUNTIME_STRING_KEYS = [
   'patient_booking_url',
 ] as const;
 
-export const SERVER_RUNTIME_BOOLEAN_KEYS = [
-  'material_ratings_enabled',
-] as const;
+export const SERVER_RUNTIME_BOOLEAN_KEYS = ['material_ratings_enabled'] as const;
 
 export const SERVER_RUNTIME_TOKEN_LIST_KEYS = [
   'admin_telegram_ids',
@@ -159,6 +157,15 @@ export const SERVER_RUNTIME_INTEGER_DEFINITIONS = {
   booking_min_notice_hours: {
     minValue: 0,
     maxValue: 168,
+  },
+  booking_availability_horizon_days: {
+    minValue: 1,
+    maxValue: 92,
+    /** BAH-01/F2: клиника без per-org строки получает значение из единственного реестра.
+     * Сохранённое, но сломанное значение (row !== null, parse fails) по-прежнему кидает required(). */
+    defaultValue: Number(
+      SYSTEM_SETTING_REGISTRY.booking_availability_horizon_days.defaultValue,
+    ),
   },
   booking_max_consecutive_slot_hours: {
     minValue: 1,
@@ -363,6 +370,11 @@ export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
         allowedAudiences: ['server'],
         operationFamily: 'patient_runtime_config',
       });
+      // Строки нет совсем (row === null) → реестровый дефолт, если объявлен для ключа.
+      // Строка есть, но parse вернул null → сломанное значение → required() бросает (loud).
+      if (row === null && 'defaultValue' in definition) {
+        return definition.defaultValue;
+      }
       return required(
         key,
         parseIntegerEnvelope(row?.valueJson ?? null, definition.minValue, definition.maxValue),
