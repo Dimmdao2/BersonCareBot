@@ -50,9 +50,12 @@ import {
 } from '@/shared/ui/doctor/doctorVisual';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
-import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { formatPatientPackageLongLabel } from '@/modules/memberships/display';
-import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
+import {
+  DoctorModal,
+  DoctorModalStackedTitle,
+  DoctorModalTextEditorField,
+} from '@/shared/ui/doctor/DoctorModal';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorCatalogMediaStaticThumb } from '@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb';
 import {
@@ -1651,7 +1654,8 @@ export function PatientTabOverview({
         />
       }
       size="sm"
-      bodyClassName="flex min-h-[45dvh] flex-col md:min-h-0"
+      presentation="fullscreen-text"
+      bodyClassName="flex min-h-[45dvh] flex-col p-0 md:min-h-0"
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => setNoteFormOpen(false)}>
@@ -1667,19 +1671,11 @@ export function PatientTabOverview({
         </>
       }
     >
-      <div className="flex min-h-0 flex-1 items-end md:items-start">
-        <Textarea
-          value={noteText}
-          onChange={(event) => {
-            setNoteText(event.target.value);
-            event.currentTarget.style.height = 'auto';
-            event.currentTarget.style.height = `${event.currentTarget.scrollHeight}px`;
-          }}
-          rows={5}
-          placeholder="Текст заметки…"
-          className="max-h-[55dvh] min-h-24 resize-none border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 md:min-h-40 md:border md:bg-white md:px-3 md:shadow-xs"
-        />
-      </div>
+      <DoctorModalTextEditorField
+        value={noteText}
+        onChange={setNoteText}
+        placeholder="Текст заметки…"
+      />
     </DoctorModal>
   );
   const taskFormDialog = (
