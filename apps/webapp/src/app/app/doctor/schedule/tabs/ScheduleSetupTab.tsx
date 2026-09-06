@@ -34,6 +34,7 @@ import { apiJson } from '@/shared/lib/apiJson';
 import toast from 'react-hot-toast';
 import type { ScheduleTabProps } from '../scheduleTabRegistry';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { SYSTEM_SETTING_REGISTRY } from '@/modules/system-settings/registry';
 
 // ---------------------------------------------------------------------------
 // Sub-nav section definition
@@ -104,6 +105,10 @@ type RulesSettingsState =
   | { phase: 'error' }
   | { phase: 'ready'; allowPastUnlink: boolean; availabilityHorizonDays: number };
 
+const BOOKING_AVAILABILITY_HORIZON_DEFAULT_DAYS = Number(
+  SYSTEM_SETTING_REGISTRY.booking_availability_horizon_days.defaultValue,
+);
+
 function BookingRulesLoader() {
   const [state, setState] = useState<RulesSettingsState>({ phase: 'loading' });
   const [, startTransition] = useTransition();
@@ -130,10 +135,9 @@ function BookingRulesLoader() {
       const horizonRow = json.settings?.find((s) => s.key === 'booking_availability_horizon_days');
       // BAH-01/F2: отсутствие per-org строки — реестровый дефолт, раздел работает.
       // Строка есть, но значение сломано — phase: 'error' (громко, не маскировать).
-      const HORIZON_REGISTRY_DEFAULT = 30;
       let availabilityHorizonDays: number;
       if (!horizonRow) {
-        availabilityHorizonDays = HORIZON_REGISTRY_DEFAULT;
+        availabilityHorizonDays = BOOKING_AVAILABILITY_HORIZON_DEFAULT_DAYS;
       } else {
         const rawValue =
           horizonRow.valueJson !== null &&
