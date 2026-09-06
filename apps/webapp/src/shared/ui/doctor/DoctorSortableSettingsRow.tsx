@@ -61,7 +61,8 @@ export function DoctorSortableSettingsRow({
       <button
         ref={setActivatorNodeRef}
         type="button"
-        className="-ml-3.5 flex size-7 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+        style={{ marginInlineStart: -14 }}
+        className="flex size-7 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
         aria-label={`Изменить порядок: ${label}`}
         disabled={disabled}
         {...attributes}
@@ -93,7 +94,10 @@ export function DoctorSortableSettingsRow({
             aria-label={`${label} — включен`}
             onCheckedChange={onActiveChange}
           />
-          <span className="ml-0.5 -mr-3.5 flex size-3 shrink-0 items-center justify-center">
+          <span
+            style={{ marginInlineEnd: -14 }}
+            className="ml-0.5 flex size-3 shrink-0 items-center justify-center"
+          >
             {isDefault ? (
               <Flag className="size-3 fill-primary text-primary" aria-label="По умолчанию" />
             ) : null}
