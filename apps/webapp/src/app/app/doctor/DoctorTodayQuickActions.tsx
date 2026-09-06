@@ -46,14 +46,14 @@ export function DoctorTodayQuickActions({
           className={
             placement === 'mobile-header' ? DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS : undefined
           }
-          aria-label="Новый визит"
-          title="Новый визит"
+          aria-label="Новая запись"
+          title="Новая запись"
           onClick={openAppointment}
         >
           {placement === 'mobile-header' ? (
             <CalendarPlus className="size-[22px]" aria-hidden />
           ) : (
-            'Новый визит'
+            'Новая запись'
           )}
         </Button>
         <DoctorNewClientAction

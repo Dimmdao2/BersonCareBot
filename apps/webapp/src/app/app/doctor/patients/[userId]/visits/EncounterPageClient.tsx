@@ -7,18 +7,11 @@
  *   - Visit write path:       POST/PATCH /api/doctor/patients/[userId]/visits[/[visitId]].
  *   - Symptom/diagnosis forms: POST /api/doctor/patients/[userId]/complaints|diagnoses
  *                              (те же эндпойнты, что PatientClinicalSections.tsx).
- *   - Appointment form:        каноническая `DoctorAppointmentForm` (calendar) + тот же
- *                              `POST /api/doctor/booking-engine/appointments/manual`, которым
- *                              пользуется `DoctorCalendarEventPanel`/`DoctorNewAppointmentModal`.
- *   - Unlinked appointments:   GET /api/doctor/patients/[userId]/appointments/unlinked.
- *
- *   - Overlap retry:           the first canonical manual request remains fail-closed; a 409
- *                              `slot_overlap` opens the shared confirmation and retries that
- *                              exact request with staff-only `allowOverlap: true`.
+ *   - Appointment linkage:     выбран до открытия страницы общей стартовой модалкой пациента;
+ *                              страница получает только готовый appointmentId либо режим без записи.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DateTime } from 'luxon';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type {
@@ -33,29 +26,12 @@ import type {
   Visit,
 } from '@/modules/patient-clinical/ports';
 import type { PatientAppointmentItem } from '@/modules/doctor-clients/ports';
-import type {
-  CalendarFilterMeta,
-  CalendarServiceFilterOption,
-} from '@/modules/booking-calendar/types';
-import {
-  resolveCalendarCreateSubmission,
-  type CalendarCreateActiveFilters,
-} from '@/modules/booking-calendar/calendarCreateFieldMode';
-import type { DoctorScheduleSpecialistOption } from '@/modules/doctor-schedule/scope';
 import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/ui/doctor/primitives/select';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
-import { DoctorModal, DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { patientCardHref } from '../../patientCardHref';
@@ -68,18 +44,6 @@ import {
   type FormComplaintEntry,
   type FormDiagnosisEntry,
 } from './EncounterFormFields';
-import {
-  DoctorAppointmentForm,
-  type AppointmentFormDraft,
-  type AppointmentStatusOption,
-} from '../../../calendar/DoctorAppointmentForm';
-import {
-  type AppointmentFinancialRequestFields,
-  AppointmentFormFinancialsError,
-  appointmentFinancialRequestFields,
-} from '../../../calendar/appointmentFormFinancials';
-
-const BOOKING_API_BASE = '/api/doctor/booking-engine';
 const fieldLabelClass = 'text-sm font-semibold text-foreground';
 const hintClass = 'text-xs text-muted-foreground';
 
@@ -94,7 +58,6 @@ type Props = {
   mode: 'create' | 'edit';
   userId: string;
   patient: PatientContext;
-  ownSpecialistId: string | null;
   /** Canonical appointment id — задан только когда страница открыта из деталей записи. */
   boundAppointmentId: string | null;
   /** Только для mode="edit": визит, загруженный сервером. */
@@ -116,13 +79,6 @@ type RepeatDiagnosisUpdate = {
 
 type ClinicalApiResponse = { ok: boolean; state: ClinicalState; visits: Visit[] };
 type AppointmentsApiResponse = { appointments: PatientAppointmentItem[] };
-type UnlinkedApiResponse = { ok: boolean; appointments: PatientAppointmentItem[] };
-type CalendarApiResponse = {
-  ok: boolean;
-  filters?: CalendarFilterMeta;
-  resolvedScope?: { ownSpecialistId: string | null; specialists: DoctorScheduleSpecialistOption[] };
-  timeZone?: string;
-};
 
 type CreateVisitRequest = {
   visitType: 'first' | 'repeat';
@@ -144,22 +100,6 @@ type CreateVisitRequest = {
 
 type UpdateVisitRequest = Omit<UpdateVisitFieldsInput, 'patientUserId' | 'visitId'>;
 
-const EMPTY_FILTER_META: CalendarFilterMeta = { specialists: [], branches: [], rooms: [], services: [] };
-
-const EMPTY_APPOINTMENT_DRAFT: AppointmentFormDraft = {
-  start: '',
-  durationMinutes: null,
-  specialistId: null,
-  branchId: null,
-  serviceId: null,
-  patient: null,
-  comment: '',
-  status: null,
-  priceRubles: '',
-  priceOverridden: false,
-  prepayment: null,
-  prepaymentOverridden: false,
-};
 
 function toIsoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -199,7 +139,6 @@ export function EncounterPageClient({
   mode,
   userId,
   patient,
-  ownSpecialistId,
   boundAppointmentId,
   initialVisit,
 }: Props) {
@@ -249,13 +188,9 @@ export function EncounterPageClient({
 
   // ── Связь с записью (создание) ────────────────────────────────────────
   const [boundAppointment, setBoundAppointment] = useState<PatientAppointmentItem | null>(null);
-  const [unlinkedAppointments, setUnlinkedAppointments] = useState<PatientAppointmentItem[]>([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(
-    mode === 'create' || Boolean(initialVisit?.canonicalAppointmentId),
+    Boolean(boundAppointmentId ?? initialVisit?.canonicalAppointmentId),
   );
-  const [selectedUnlinkedId, setSelectedUnlinkedId] = useState<string>('');
-  // ENCOUNTER-APPOINTMENT-03: без выбранной записи флажок «Создать запись» включён по умолчанию.
-  const [createAppointmentEnabled, setCreateAppointmentEnabled] = useState(true);
 
   const appointmentIdToLoad = boundAppointmentId ?? initialVisit?.canonicalAppointmentId ?? null;
 
@@ -277,20 +212,6 @@ export function EncounterPageClient({
         .finally(() => {
           if (!cancelled) setAppointmentsLoading(false);
         });
-    } else if (mode === 'create') {
-      // ENCOUNTER-APPOINTMENT-02: выбор уже существующей ещё не связанной записи.
-      fetch(`/api/doctor/patients/${userId}/appointments/unlinked`, { credentials: 'include' })
-        .then((r) => (r.ok ? (r.json() as Promise<UnlinkedApiResponse>) : null))
-        .then((data) => {
-          if (cancelled) return;
-          setUnlinkedAppointments(data?.appointments ?? []);
-        })
-        .catch(() => {
-          if (!cancelled) setUnlinkedAppointments([]);
-        })
-        .finally(() => {
-          if (!cancelled) setAppointmentsLoading(false);
-        });
     } else {
       setAppointmentsLoading(false);
     }
@@ -299,68 +220,6 @@ export function EncounterPageClient({
     };
   }, [mode, userId, appointmentIdToLoad]);
 
-  const effectiveBoundAppointment: PatientAppointmentItem | null =
-    boundAppointment ??
-    (selectedUnlinkedId
-      ? (unlinkedAppointments.find((a) => a.internalId === selectedUnlinkedId) ?? null)
-      : null);
-  const appointmentPreboundFromQuery = Boolean(boundAppointmentId);
-  const showCreateAppointmentSection =
-    mode === 'create' && !effectiveBoundAppointment && createAppointmentEnabled;
-
-  // ── Форма создания записи (каноническая DoctorAppointmentForm) ─────────
-  const [apptFilterMeta, setApptFilterMeta] = useState<CalendarFilterMeta>(EMPTY_FILTER_META);
-  const [apptClinicSpecialists, setApptClinicSpecialists] = useState<
-    readonly DoctorScheduleSpecialistOption[] | null
-  >(null);
-  const [apptFilterMetaLoaded, setApptFilterMetaLoaded] = useState(false);
-  const [apptTimeZone, setApptTimeZone] = useState('UTC');
-  const [apptDraft, setApptDraft] = useState<AppointmentFormDraft>(EMPTY_APPOINTMENT_DRAFT);
-  const [apptMessage, setApptMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!showCreateAppointmentSection || apptFilterMetaLoaded) return;
-    let cancelled = false;
-    fetch(`${BOOKING_API_BASE}/calendar?view=day&scope=clinic`, { credentials: 'include' })
-      .then((r) => (r.ok ? (r.json() as Promise<CalendarApiResponse>) : null))
-      .then((data) => {
-        if (cancelled || !data?.ok) return;
-        setApptFilterMeta(data.filters ?? EMPTY_FILTER_META);
-        setApptClinicSpecialists(data.resolvedScope?.specialists ?? null);
-        setApptTimeZone(data.timeZone ?? 'UTC');
-        setApptDraft((prev) => ({
-          ...prev,
-          specialistId: prev.specialistId ?? data.resolvedScope?.ownSpecialistId ?? ownSpecialistId,
-          start: prev.start || `${todayIsoDate()}T${nowHm()}`,
-        }));
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (!cancelled) setApptFilterMetaLoaded(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [showCreateAppointmentSection, apptFilterMetaLoaded, ownSpecialistId]);
-
-  const apptServiceOptions: CalendarServiceFilterOption[] = useMemo(() => {
-    if (!apptDraft.specialistId || !apptDraft.branchId) return [];
-    return apptFilterMeta.services.filter((service) =>
-      service.availability.some(
-        (a) => a.specialistId === apptDraft.specialistId && a.branchId === apptDraft.branchId,
-      ),
-    );
-  }, [apptFilterMeta.services, apptDraft.specialistId, apptDraft.branchId]);
-
-  const apptHideSpecialist =
-    apptClinicSpecialists != null && apptClinicSpecialists.length === 1;
-  const apptActiveFilters: CalendarCreateActiveFilters = {
-    specialistId: null,
-    branchId: null,
-    roomId: null,
-    serviceId: null,
-  };
-  const apptStatusOptions: AppointmentStatusOption[] = [];
 
   // ── Визит: содержательные поля ─────────────────────────────────────────
   const [date, setDate] = useState(() =>
@@ -389,19 +248,19 @@ export function EncounterPageClient({
   // existing visit snapshot model (source appointment prefill).
   const prefillConsumedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (mode !== 'create' || !effectiveBoundAppointment) return;
-    const key = effectiveBoundAppointment.id;
+    if (mode !== 'create' || !boundAppointment) return;
+    const key = boundAppointment.id;
     if (prefillConsumedRef.current === key) return;
     prefillConsumedRef.current = key;
-    const dt = effectiveBoundAppointment.dateTime ? new Date(effectiveBoundAppointment.dateTime) : null;
+    const dt = boundAppointment.dateTime ? new Date(boundAppointment.dateTime) : null;
     if (dt) {
       setDate(toIsoDate(dt));
       setTime(`${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`);
     }
-    if (effectiveBoundAppointment.location) setLocation(effectiveBoundAppointment.location);
-    if (effectiveBoundAppointment.serviceName) setService(effectiveBoundAppointment.serviceName);
-    if (effectiveBoundAppointment.durationMin) setDuration(String(effectiveBoundAppointment.durationMin));
-  }, [mode, effectiveBoundAppointment]);
+    if (boundAppointment.location) setLocation(boundAppointment.location);
+    if (boundAppointment.serviceName) setService(boundAppointment.serviceName);
+    if (boundAppointment.durationMin) setDuration(String(boundAppointment.durationMin));
+  }, [mode, boundAppointment]);
 
   // Первичный приём: собственные жалобы/диагнозы, создаваемые вместе с визитом (тот же write
   // path — CreateVisitInput.complaints/diagnoses).
@@ -439,99 +298,21 @@ export function EncounterPageClient({
 
   // ── Симптомы/диагнозы: быстрое добавление (ENCOUNTER-PAGE-03) ─────────
   const [quickAddKind, setQuickAddKind] = useState<'complaint' | 'diagnosis' | null>(null);
-  const [overlapConfirmOpen, setOverlapConfirmOpen] = useState(false);
 
   // ── Сохранение ──────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const backHref = patientCardHref(userId, { tab: 'karta' });
 
-  const createLinkedAppointment = async (options?: { allowOverlap?: boolean }): Promise<
-    | { ok: true; appointmentId: string; branchLabel: string | null; serviceLabel: string | null }
-    | { ok: false }
-  > => {
-    const submission = resolveCalendarCreateSubmission({
-      start: apptDraft.start,
-      durationMinutes: apptDraft.durationMinutes,
-      specialistId: apptDraft.specialistId,
-      branchId: apptDraft.branchId,
-      serviceId: apptDraft.serviceId,
-      serviceIsOffered: apptServiceOptions.some((s) => s.id === apptDraft.serviceId),
-    });
-    if (!submission.ok) {
-      setApptMessage(submission.message);
-      return { ok: false };
-    }
-    const start = DateTime.fromFormat(submission.start, "yyyy-MM-dd'T'HH:mm", {
-      zone: apptTimeZone,
-    });
-    if (!start.isValid) {
-      setApptMessage('Укажите начало записи.');
-      return { ok: false };
-    }
-    let financials: AppointmentFinancialRequestFields;
-    try {
-      financials = appointmentFinancialRequestFields(apptDraft);
-    } catch (error) {
-      setApptMessage(
-        error instanceof AppointmentFormFinancialsError
-          ? error.message
-          : 'Проверьте стоимость записи.',
-      );
-      return { ok: false };
-    }
-    const specialistId = ownSpecialistId ?? submission.specialistId;
-    const startAt = start.toUTC().toISO();
-    const endAt = start.plus({ minutes: submission.durationMinutes }).toUTC().toISO();
-    if (!startAt || !endAt) {
-      setApptMessage('Укажите начало записи.');
-      return { ok: false };
-    }
-    const res = await fetch(`${BOOKING_API_BASE}/appointments/manual`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        platformUserId: userId,
-        phoneNormalized: patient.phone,
-        ...financials,
-        ...(options?.allowOverlap ? { allowOverlap: true } : {}),
-        startAt,
-        endAt,
-        durationMinutes: submission.durationMinutes,
-        specialistId,
-        branchId: submission.branchId,
-        serviceId: submission.serviceId,
-      }),
-    });
-    const json = (await res.json().catch(() => ({}))) as {
-      ok?: boolean;
-      error?: string;
-      appointment?: { id?: string };
-    };
-    if (!json.ok || !json.appointment?.id) {
-      if (json.error === 'slot_overlap' && !options?.allowOverlap) {
-        setOverlapConfirmOpen(true);
-      } else setApptMessage('Не удалось создать запись.');
-      return { ok: false };
-    }
-    const branchLabel =
-      apptFilterMeta.branches.find((b) => b.id === submission.branchId)?.label ?? null;
-    const serviceLabel = apptServiceOptions.find((s) => s.id === submission.serviceId)?.label ?? null;
-    return { ok: true, appointmentId: json.appointment.id, branchLabel, serviceLabel };
-  };
-
-  const handleCreate = async (options?: { allowOverlap?: boolean }) => {
+  const handleCreate = async () => {
     setSaveError(null);
-    if (appointmentPreboundFromQuery && !appointmentsLoading && !boundAppointment) {
+    if (boundAppointmentId && !appointmentsLoading && !boundAppointment) {
       setSaveError('Не удалось подтвердить связанную запись.');
       return;
     }
     const missing: string[] = [];
-    if (!showCreateAppointmentSection) {
-      if (!location.trim()) missing.push('Место приёма');
-      if (!service.trim()) missing.push('Услуга');
-    }
+    if (!location.trim()) missing.push('Место приёма');
+    if (!service.trim()) missing.push('Услуга');
     if (missing.length > 0) {
       setSaveError(`Заполните обязательные поля: ${missing.join(', ')}`);
       return;
@@ -539,33 +320,14 @@ export function EncounterPageClient({
 
     setSaving(true);
     try {
-      let canonicalAppointmentId: string | undefined;
-      let effectiveLocation = location.trim() || undefined;
-      let effectiveService = service.trim() || undefined;
-      let effectiveDuration = duration.trim() || undefined;
-      let visitedAt = `${date}T${time}:00`;
-
-      if (effectiveBoundAppointment) {
-        canonicalAppointmentId = effectiveBoundAppointment.internalId ?? undefined;
-      } else if (createAppointmentEnabled) {
-        const created = await createLinkedAppointment(options);
-        if (!created.ok) {
-          return;
-        }
-        setOverlapConfirmOpen(false);
-        canonicalAppointmentId = created.appointmentId;
-        visitedAt = `${apptDraft.start}:00`;
-        effectiveLocation = created.branchLabel ?? effectiveLocation;
-        effectiveService = created.serviceLabel ?? effectiveService;
-        effectiveDuration = apptDraft.durationMinutes ? String(apptDraft.durationMinutes) : effectiveDuration;
-      }
+      const canonicalAppointmentId = boundAppointment?.internalId ?? undefined;
 
       const body: CreateVisitRequest = {
         visitType,
-        date: visitedAt,
-        location: effectiveLocation,
-        service: effectiveService,
-        duration: effectiveDuration,
+        date: `${date}T${time}:00`,
+        location: location.trim() || undefined,
+        service: service.trim() || undefined,
+        duration: duration.trim() || undefined,
         anamnesisText: anamnesisText.trim() || undefined,
         ...(canonicalAppointmentId ? { canonicalAppointmentId } : {}),
       };
@@ -722,8 +484,8 @@ export function EncounterPageClient({
             </div>
           </dl>
         ) : null}
-        {mode === 'create' && appointmentPreboundFromQuery ? (
-          <p className="text-sm text-foreground">
+        {mode === 'create' && boundAppointmentId ? (
+          <div className="text-sm text-foreground">
             {appointmentsLoading ? (
               <DoctorPanelLoading className="py-1" />
             ) : boundAppointment ? (
@@ -731,76 +493,9 @@ export function EncounterPageClient({
             ) : (
               'Запись не найдена.'
             )}
-          </p>
+          </div>
         ) : null}
       </section>
-
-      {/* Связь с записью — ENCOUNTER-APPOINTMENT-02/03/04 */}
-      {mode === 'create' && !appointmentPreboundFromQuery ? (
-        <section className={cn(doctorSectionCardClass)}>
-          <h2 className={doctorSectionTitleClass}>Связь с записью</h2>
-          {appointmentsLoading ? (
-            <DoctorPanelLoading className="py-2" />
-          ) : (
-            <>
-              <div className="space-y-1.5">
-                <label className={fieldLabelClass}>Существующая запись пациента</label>
-                <Select
-                  value={selectedUnlinkedId || '__none__'}
-                  onValueChange={(v) => setSelectedUnlinkedId(v === '__none__' ? '' : (v ?? ''))}
-                >
-                  <SelectTrigger
-                    className="w-full"
-                    displayLabel={
-                      selectedUnlinkedId
-                        ? appointmentSummaryLine(
-                            unlinkedAppointments.find((a) => a.internalId === selectedUnlinkedId)!,
-                          )
-                        : 'Без записи'
-                    }
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Без записи</SelectItem>
-                    {unlinkedAppointments.map((a) => (
-                      <SelectItem key={a.internalId ?? a.id} value={a.internalId ?? a.id}>
-                        {appointmentSummaryLine(a)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {!selectedUnlinkedId ? (
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={createAppointmentEnabled}
-                    onCheckedChange={(v) => setCreateAppointmentEnabled(v === true)}
-                  />
-                  Создать запись
-                </label>
-              ) : null}
-            </>
-          )}
-          {showCreateAppointmentSection ? (
-            <div className="rounded-lg border border-border bg-muted/10 p-3">
-              <DoctorAppointmentForm
-                mode="create"
-                draft={apptDraft}
-                onDraftChange={(patch) => setApptDraft((prev) => ({ ...prev, ...patch }))}
-                filterMeta={apptFilterMeta}
-                serviceOptions={apptServiceOptions}
-                activeFilters={apptActiveFilters}
-                hideSpecialist={apptHideSpecialist}
-                hidePatient
-                statusOptions={apptStatusOptions}
-                pending={saving}
-                message={apptMessage}
-              />
-            </div>
-          ) : null}
-        </section>
-      ) : null}
 
       {/* Симптомы и диагнозы пациента — ENCOUNTER-PAGE-03 */}
       <section className={doctorSectionCardClass}>
@@ -864,11 +559,11 @@ export function EncounterPageClient({
           ) : null}
         </div>
 
-        {mode === 'create' && !showCreateAppointmentSection ? (
+        {mode === 'create' ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="space-y-1">
               <label className={fieldLabelClass}>Дата</label>
-              <DoctorDatePicker value={date} onChange={setDate} disabled={Boolean(effectiveBoundAppointment)} />
+              <DoctorDatePicker value={date} onChange={setDate} disabled={Boolean(boundAppointment)} />
             </div>
             <div className="space-y-1">
               <label className={fieldLabelClass}>Время</label>
@@ -876,7 +571,7 @@ export function EncounterPageClient({
                 mode="time"
                 value={time}
                 onChange={setTime}
-                disabled={Boolean(effectiveBoundAppointment)}
+                disabled={Boolean(boundAppointment)}
                 ariaLabel="Время приёма"
               />
             </div>
@@ -1152,34 +847,6 @@ export function EncounterPageClient({
           onSaved={reloadClinical}
         />
       ) : null}
-
-      <DoctorModal
-        open={overlapConfirmOpen}
-        onClose={() => setOverlapConfirmOpen(false)}
-        title="Время занято"
-        size="sm"
-      >
-        <p className="text-sm text-foreground">
-          На это время у специалиста уже есть запись. Создать наложение?
-        </p>
-        <DoctorModalFooter>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={saving}
-            onClick={() => setOverlapConfirmOpen(false)}
-          >
-            Отмена
-          </Button>
-          <Button
-            type="button"
-            disabled={saving}
-            onClick={() => void handleCreate({ allowOverlap: true })}
-          >
-            Создать наложение
-          </Button>
-        </DoctorModalFooter>
-      </DoctorModal>
     </div>
   );
 }

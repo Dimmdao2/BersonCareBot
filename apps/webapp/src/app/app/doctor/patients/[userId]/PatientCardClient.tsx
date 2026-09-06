@@ -24,7 +24,6 @@ import {
   doctorSectionCardClass,
   doctorPageStackClass,
 } from '@/shared/ui/doctor/doctorVisual';
-import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
@@ -47,14 +46,12 @@ import type {
   DoctorPatientCardTabBootstrap,
 } from '../loadDoctorPatientCardPageBootstrap';
 import { unwrapBootstrapEnvelope } from '../doctorPatientCardBootstrapShared';
-import type { AppointmentPrefill } from './tabs/PatientTabRecords';
 import type { FileRecord } from './tabs/PatientTabFiles';
 import type { SupplementaryContact } from './tabs/PatientTabAccount';
 import type { PatientProgramInteractionPolicy } from '@/modules/doctor-clients/supportPolicy';
 import type { PatientPortalStatus } from '@/modules/patient-invites/ports';
 import { PatientPortalInviteControls } from './PatientPortalInviteControls';
 import toast from 'react-hot-toast';
-import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import { DoctorShellMobileBottomTabsRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { DateTime } from 'luxon';
 import {
@@ -64,6 +61,15 @@ import {
 import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorClientMembershipsPanel } from '@/app/app/doctor/clients/DoctorClientMembershipsPanel';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import {
+  PATIENT_CARD_TABS,
+  PatientCardDesktopTabs,
+  PatientCardMobileTabs,
+  type PatientCardTabId,
+} from './PatientCardSectionTabs';
+import { PatientEncounterStartModal } from './PatientEncounterStartModal';
+import { EncounterHistoryModal } from './tabs/karta/EncounterHistoryModal';
+import { EncounterViewModal } from './tabs/karta/EncounterViewModal';
 
 function formatSupportStartedAt(value: string): string {
   const date = new Date(value);
@@ -150,75 +156,13 @@ type TabPanelsProps = Props & {
   activeTab: TabId;
   visitedTabs: ReadonlySet<TabId>;
   selectTab: (tab: TabId) => void;
-  pendingAppointmentId: string | null;
-  pendingVisitDate: string | null;
-  pendingPrefillLocation: string | null;
-  pendingPrefillService: string | null;
-  pendingPrefillDurationMin: number | null;
-  onPendingConsumed: () => void;
-  onCreateVisitFromAppointment: (prefill: AppointmentPrefill) => void;
-  newVisitRequestId: number;
+  historyOpen: boolean;
+  onHistoryClose: () => void;
+  onStartEncounter: (appointmentId?: string) => void;
   header: NonNullable<DoctorPatientCardShellMeta['cardHeader']>;
 };
 
-type TabId = 'overview' | 'karta' | 'program' | 'files' | 'account';
-
-const PATIENT_TABS: Array<{ id: TabId; label: string; badge?: number }> = [
-  { id: 'overview', label: 'Обзор' },
-  { id: 'karta', label: 'Карта' },
-  { id: 'program', label: 'ЛФК' },
-  { id: 'files', label: 'Файлы' },
-  { id: 'account', label: 'Учётка' },
-];
-
-/**
- * Вкладки карточки пациента в слоте `tabs` `DoctorPageHeader` — тот же паттерн, что
- * Расписание/Аналитика/Коммуникации (`doctorSectionTabClass`). Заменяет прежнюю внутреннюю
- * полосу вкладок внутри identity-карточки (owner correction 2026-08-20).
- */
-function PatientCardTabsNav({
-  activeTab,
-  onTabClick,
-}: {
-  activeTab: TabId;
-  onTabClick: (tab: TabId) => void;
-}) {
-  return (
-    <nav
-      id="doctor-patient-card-tabs"
-      aria-label="Разделы карточки пациента"
-      className="hidden gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden"
-    >
-      {PATIENT_TABS.map((tab) => {
-        const active = tab.id === activeTab;
-        return (
-          <Button
-            key={tab.id}
-            type="button"
-            variant="ghost"
-            aria-current={active ? 'page' : undefined}
-            onClick={() => onTabClick(tab.id)}
-            className={doctorSectionTabClass(active)}
-          >
-            {tab.label}
-            {tab.badge != null && (
-              <span
-                className={cn(
-                  'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums',
-                  active
-                    ? 'bg-primary-foreground/20 text-primary-foreground'
-                    : 'bg-muted text-muted-foreground',
-                )}
-              >
-                {tab.badge}
-              </span>
-            )}
-          </Button>
-        );
-      })}
-    </nav>
-  );
-}
+type TabId = PatientCardTabId;
 
 /** Format ISO date yyyy-mm-dd → DD.MM.YYYY */
 function fmtBirthDate(iso: string | null | undefined): string {
@@ -410,21 +354,18 @@ export function PatientCardClient({
 }: Props) {
   const header = shellMeta.cardHeader;
   const resolvedInitialTab: TabId =
-    initialTab && PATIENT_TABS.some((t) => t.id === initialTab)
+    initialTab && PATIENT_CARD_TABS.some((t) => t.id === initialTab)
       ? (initialTab as TabId)
       : 'overview';
   const [activeTab, setActiveTab] = useState<TabId>(resolvedInitialTab);
   const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<TabId>>(
     () => new Set<TabId>([resolvedInitialTab]),
   );
-  const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(
+  const [encounterHistoryOpen, setEncounterHistoryOpen] = useState(false);
+  const [encounterStartOpen, setEncounterStartOpen] = useState(Boolean(createVisitFrom));
+  const [encounterStartAppointmentId, setEncounterStartAppointmentId] = useState<string | null>(
     createVisitFrom ?? null,
   );
-  const [pendingVisitDate, setPendingVisitDate] = useState<string | null>(visitDate ?? null);
-  const [pendingPrefillLocation, setPendingPrefillLocation] = useState<string | null>(null);
-  const [pendingPrefillService, setPendingPrefillService] = useState<string | null>(null);
-  const [pendingPrefillDurationMin, setPendingPrefillDurationMin] = useState<number | null>(null);
-  const [newVisitRequestId, setNewVisitRequestId] = useState(0);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
   const selectTab = useCallback((tab: TabId) => {
@@ -437,16 +378,21 @@ export function PatientCardClient({
     });
   }, []);
 
-  // Auto-switch to karta tab when opening with createVisitFrom URL param
+  const openEncounterStart = useCallback((appointmentId?: string) => {
+    setEncounterStartAppointmentId(appointmentId ?? null);
+    setEncounterStartOpen(true);
+  }, []);
+
+  // A trusted appointment coming from Today/calendar opens the same common start flow.
   useEffect(() => {
-    if (createVisitFrom) selectTab('karta');
-  }, [createVisitFrom, selectTab]);
+    if (createVisitFrom) openEncounterStart(createVisitFrom);
+  }, [createVisitFrom, openEncounterStart]);
 
   // Listen for cross-tab navigation events dispatched by child tabs (e.g. «Оформить визит» → Карта)
   useEffect(() => {
     function handleOpenTab(e: Event) {
       const tab = (e as CustomEvent<{ tab: string }>).detail?.tab as TabId | undefined;
-      if (tab && PATIENT_TABS.some((t) => t.id === tab)) {
+      if (tab && PATIENT_CARD_TABS.some((t) => t.id === tab)) {
         selectTab(tab);
       }
     }
@@ -485,12 +431,7 @@ export function PatientCardClient({
   const mobileBottomTabs = useMemo(
     () =>
       header ? (
-        <DoctorMobileSectionTabs
-          tabs={PATIENT_TABS}
-          activeTab={activeTab}
-          onTabChange={selectTab}
-          ariaLabel="Разделы карточки пациента"
-        />
+        <PatientCardMobileTabs activeTab={activeTab} onTabChange={selectTab} />
       ) : null,
     [activeTab, header, selectTab],
   );
@@ -570,7 +511,7 @@ export function PatientCardClient({
             >
               К клиентам
             </Link>
-            <PatientCardTabsNav activeTab={activeTab} onTabClick={selectTab} />
+            <PatientCardDesktopTabs activeTab={activeTab} onTabChange={selectTab} />
           </div>
         }
       />
@@ -635,6 +576,20 @@ export function PatientCardClient({
                   }
                 }
               />
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEncounterHistoryOpen(true)}
+                >
+                  История приёмов
+                </Button>
+                <Button type="button" size="sm" onClick={() => openEncounterStart()}>
+                  Начать приём
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -673,31 +628,29 @@ export function PatientCardClient({
               activeTab={activeTab}
               visitedTabs={visitedTabs}
               selectTab={selectTab}
-              pendingAppointmentId={pendingAppointmentId}
-              pendingVisitDate={pendingVisitDate}
-              pendingPrefillLocation={pendingPrefillLocation}
-              pendingPrefillService={pendingPrefillService}
-              pendingPrefillDurationMin={pendingPrefillDurationMin}
-              onPendingConsumed={() => {
-                setPendingAppointmentId(null);
-                setPendingVisitDate(null);
-                setPendingPrefillLocation(null);
-                setPendingPrefillService(null);
-                setPendingPrefillDurationMin(null);
-              }}
-              onCreateVisitFromAppointment={(prefill: AppointmentPrefill) => {
-                setPendingAppointmentId(prefill.id);
-                setPendingPrefillLocation(prefill.location ?? null);
-                setPendingPrefillService(prefill.service ?? null);
-                setPendingPrefillDurationMin(prefill.durationMin ?? null);
-                selectTab('karta');
-              }}
-              newVisitRequestId={newVisitRequestId}
+              historyOpen={encounterHistoryOpen}
+              onHistoryClose={() => setEncounterHistoryOpen(false)}
+              onStartEncounter={openEncounterStart}
               header={header}
             />
           </div>
         </Suspense>
       </section>
+      {encounterStartOpen ? (
+        <PatientEncounterStartModal
+          open
+          userId={identity.userId}
+          header={header}
+          displayIana={shellMeta.displayIana ?? 'Europe/Moscow'}
+          todayIso={
+            shellMeta.todayIso ??
+            DateTime.now().setZone(shellMeta.displayIana ?? 'Europe/Moscow').toISODate() ??
+            ''
+          }
+          initialAppointmentId={encounterStartAppointmentId}
+          onClose={() => setEncounterStartOpen(false)}
+        />
+      ) : null}
     </DoctorAppShell>
   );
 }
@@ -710,14 +663,9 @@ function PatientCardTabPanels({
   activeTab,
   visitedTabs,
   selectTab,
-  pendingAppointmentId,
-  pendingVisitDate,
-  pendingPrefillLocation,
-  pendingPrefillService,
-  pendingPrefillDurationMin,
-  onPendingConsumed,
-  onCreateVisitFromAppointment,
-  newVisitRequestId,
+  historyOpen,
+  onHistoryClose,
+  onStartEncounter,
   header,
 }: TabPanelsProps) {
   const tab = use(tabPromise);
@@ -729,8 +677,10 @@ function PatientCardTabPanels({
   const [selectedVisitAppointmentId, setSelectedVisitAppointmentId] = useState<string | null>(null);
   const [mobilePane, setMobilePane] = useState<'master' | 'detail'>('master');
   const [membershipConfigurationOpen, setMembershipConfigurationOpen] = useState(false);
+  const [historyVisitId, setHistoryVisitId] = useState<string | null>(null);
   const appointments = unwrapBootstrapEnvelope(tab.initialAppointments) ?? [];
   const packages = unwrapBootstrapEnvelope(tab.initialPackages) ?? [];
+  const visits = unwrapBootstrapEnvelope(tab.initialVisits) ?? [];
 
   return (
     <>
@@ -742,9 +692,7 @@ function PatientCardTabPanels({
             compositionMode="master"
             onCreateVisitFromAppointment={(prefill) => {
               setSelectedVisitAppointmentId(null);
-              setMobilePane('detail');
-              selectTab('karta');
-              onCreateVisitFromAppointment(prefill);
+              onStartEncounter(prefill.id);
             }}
             onOpenVisitNotes={(appointmentId) => {
               setSelectedVisitAppointmentId(appointmentId);
@@ -792,13 +740,6 @@ function PatientCardTabPanels({
           <PatientTabKarta
             userId={identity.userId}
             header={header}
-            pendingAppointmentId={pendingAppointmentId}
-            pendingVisitDate={pendingVisitDate}
-            pendingPrefillLocation={pendingPrefillLocation}
-            pendingPrefillService={pendingPrefillService}
-            pendingPrefillDurationMin={pendingPrefillDurationMin}
-            newVisitRequestId={newVisitRequestId}
-            onPendingConsumed={onPendingConsumed}
             initialClinicalState={unwrapBootstrapEnvelope(tab.initialClinicalState)}
             initialVisits={unwrapBootstrapEnvelope(tab.initialVisits)}
             initialAnamnesis={unwrapBootstrapEnvelope(tab.initialAnamnesis)}
@@ -851,6 +792,26 @@ function PatientCardTabPanels({
           />
         </div>
       ) : null}
+      <EncounterHistoryModal
+        open={historyOpen}
+        onClose={onHistoryClose}
+        visits={visits}
+        patientName={formatDoctorFioShort(identity, identity.displayName)}
+        patientOnSupport={header.support.isOnSupport}
+        onOpenVisit={setHistoryVisitId}
+      />
+      <EncounterViewModal
+        visit={historyVisitId ? (visits.find((visit) => visit.id === historyVisitId) ?? null) : null}
+        nested={historyOpen}
+        editHref={
+          historyVisitId
+            ? `/app/doctor/patients/${identity.userId}/visits/${historyVisitId}`
+            : ''
+        }
+        patientName={formatDoctorFioShort(identity, identity.displayName)}
+        patientOnSupport={header.support.isOnSupport}
+        onClose={() => setHistoryVisitId(null)}
+      />
       <DoctorModal
         open={membershipConfigurationOpen}
         onClose={() => setMembershipConfigurationOpen(false)}

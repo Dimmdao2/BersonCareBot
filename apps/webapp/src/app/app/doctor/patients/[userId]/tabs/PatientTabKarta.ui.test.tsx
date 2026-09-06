@@ -4,27 +4,16 @@ import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
 import type { ClinicalState, AnamnesisState, Visit } from '@/modules/patient-clinical/ports';
 
 /**
- * ENCOUNTERS-01..05 wiring. This tab computes N/previous-visit from real visit data and
- * merges two distinct "which encounter is open" sources (its own summary/history clicks
- * and PatientTabRecords' external `composition.selectedAppointmentId`) into one view. A
+ * The karta tab no longer owns the encounter summary/start controls. It still resolves
+ * PatientTabRecords' external `composition.selectedAppointmentId` into one visit view. A
  * plausible break here is silent: the wrong encounter's notes render under the right
  * date, or closing the externally-opened view leaves the parent's selection stuck (the
  * "Открыть заметки" entry point from Записи would then never work again without a page
  * reload). PatientClinicalSections (owned by a sibling P4.1-P4.3 workstream) is mocked
  * out — it is not part of this scope and its own network calls are irrelevant here.
  */
-const routerReplace = vi.fn();
-const routerPush = vi.fn();
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: routerReplace, push: routerPush }),
-}));
-
 vi.mock('./karta/PatientClinicalSections', () => ({
-  PatientClinicalSections: ({
-    betweenDiseaseAndLife,
-  }: {
-    betweenDiseaseAndLife?: React.ReactNode;
-  }) => <div data-testid="clinical-sections">{betweenDiseaseAndLife}</div>,
+  PatientClinicalSections: () => <div data-testid="clinical-sections" />,
 }));
 
 const { PatientTabKarta } = await import('./PatientTabKarta');
@@ -127,44 +116,12 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-describe('PatientTabKarta — encounter summary/history (ENCOUNTERS-01..05)', () => {
-  it('summary counts real visits (not appointments) and names the previous encounter', () => {
+describe('PatientTabKarta — encounter details without a local summary block', () => {
+  it('does not render the removed encounter summary and actions', () => {
     renderKarta();
-    expect(screen.getByText('Приёмы: 3')).toBeTruthy();
-    expect(
-      screen.getByText((_, node) => node?.tagName === 'SPAN' && node.textContent === 'Первичных: 2'),
-    ).toBeTruthy();
-    expect(
-      screen.getByText((_, node) => node?.tagName === 'SPAN' && node.textContent === 'Повторных: 1'),
-    ).toBeTruthy();
-    // visits[0] (newest) is the previous encounter, not visits[1].
-    expect(screen.getByText('Предыдущий приём: 05.09.2026')).toBeTruthy();
-  });
-
-  it('the previous-visit link opens the newest visit, never the older one', () => {
-    renderKarta();
-    fireEvent.click(screen.getByText('Предыдущий приём: 05.09.2026'));
-    expect(screen.getByText('Осмотр-А-текст')).toBeTruthy();
-    expect(screen.queryByText('Осмотр-Б-текст')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Изменить' }).getAttribute('href')).toBe(
-      `/app/doctor/patients/${userId}/visits/visit-a`,
-    );
-  });
-
-  it('a history-modal row opens that exact visit, replacing whatever was shown before', () => {
-    renderKarta();
-    fireEvent.click(screen.getByText('Предыдущий приём: 05.09.2026'));
-    expect(screen.getByText('Осмотр-А-текст')).toBeTruthy();
-
-    fireEvent.click(screen.getByText('История приёмов'));
-    const olderRow = screen
-      .getAllByRole('button')
-      .find((button) => button.textContent?.includes('01.09.2026'));
-    expect(olderRow).toBeTruthy();
-    fireEvent.click(olderRow!);
-
-    expect(screen.getByText('Осмотр-Б-текст')).toBeTruthy();
-    expect(screen.queryByText('Осмотр-А-текст')).toBeNull();
+    expect(screen.queryByText('Приёмы: 3')).toBeNull();
+    expect(screen.queryByText('История приёмов')).toBeNull();
+    expect(screen.queryByText('Новый приём')).toBeNull();
   });
 
   it('opening a visit via composition.selectedAppointmentId routes close back to the caller', () => {
@@ -185,16 +142,5 @@ describe('PatientTabKarta — encounter summary/history (ENCOUNTERS-01..05)', ()
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onCloseSelectedVisit).toHaveBeenCalledTimes(1);
-  });
-
-  it('pendingAppointmentId redirects to the full-page editor instead of opening an inline panel', () => {
-    const onPendingConsumed = vi.fn();
-    renderKarta({ pendingAppointmentId: 'appt-a', onPendingConsumed });
-
-    expect(routerReplace).toHaveBeenCalledWith(
-      `/app/doctor/patients/${userId}/visits/new?appointmentId=appt-a`,
-    );
-    expect(onPendingConsumed).toHaveBeenCalledTimes(1);
-    expect(routerPush).not.toHaveBeenCalled();
   });
 });

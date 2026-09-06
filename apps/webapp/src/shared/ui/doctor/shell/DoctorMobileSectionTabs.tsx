@@ -18,7 +18,7 @@ export function DoctorMobileSectionTabs<T extends string>({
   elevated = true,
 }: {
   tabs: readonly DoctorMobileSectionTab<T>[];
-  activeTab: T;
+  activeTab: T | null;
   onTabChange: (tab: T) => void;
   ariaLabel: string;
   /** Use the canonical mobile tabs as a horizontally scrollable subsection row. */

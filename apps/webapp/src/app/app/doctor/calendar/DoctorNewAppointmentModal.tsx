@@ -61,27 +61,37 @@ type Props = {
   onChanged?: () => void;
 };
 
-/** Shared host for creating a schedule appointment from doctor screens. */
-export function DoctorNewAppointmentModal({
-  open,
-  onClose,
+type CreatePanelProps = {
+  active: boolean;
+  patient?: CalendarPatientOption | null;
+  contextDate?: string;
+  fallbackTimeZone?: string;
+  onClose: () => void;
+  onChanged?: () => void;
+  onCreated?: (appointmentId: string) => void;
+};
+
+/** Canonical fixed-patient appointment form without its own modal chrome. */
+export function DoctorAppointmentCreatePanel({
+  active,
   patient = null,
   contextDate,
   fallbackTimeZone = 'Europe/Moscow',
-  title = 'Новая запись',
-  patientOnSupport = false,
-  patientVariant = 'link',
+  onClose,
   onChanged,
-}: Props) {
+  onCreated,
+}: CreatePanelProps) {
   const router = useRouter();
   const [createContext, setCreateContext] = useState<CreateContext | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!active) {
+      setCreateContext(null);
+      setLoadError(null);
+      return;
+    }
     let cancelled = false;
-    // scope=clinic отдаёт весь каталог специалистов клиники: у пользователя без прав на
-    // чужие расписания сервер всё равно сузит его до собственного (APPT-FORM-07).
     const query = contextDate
       ? `?${new URLSearchParams({ view: 'day', from: contextDate, to: contextDate, scope: 'clinic' })}`
       : '?view=day&scope=clinic';
@@ -106,18 +116,57 @@ export function DoctorNewAppointmentModal({
     return () => {
       cancelled = true;
     };
-  }, [contextDate, fallbackTimeZone, open]);
+  }, [active, contextDate, fallbackTimeZone]);
 
-  function handleClose() {
-    onClose();
-    setCreateContext(null);
-    setLoadError(null);
-  }
-
-  function handleChanged() {
-    handleClose();
+  const handleChanged = () => {
     onChanged?.();
     router.refresh();
+  };
+
+  if (loadError) {
+    return (
+      <p role="alert" className="py-4 text-sm text-destructive">
+        {loadError}
+      </p>
+    );
+  }
+  if (!createContext) return <DoctorPanelLoading className="min-h-32" />;
+
+  return (
+    <DoctorCalendarEventPanel
+      apiBase={API_BASE}
+      selected={null}
+      timeZone={createContext.timeZone}
+      filterMeta={createContext.filters}
+      activeFilters={EMPTY_ACTIVE_FILTERS}
+      ownSpecialistId={createContext.ownSpecialistId}
+      clinicSpecialists={createContext.clinicSpecialists}
+      createInitialSpecialistId={createContext.ownSpecialistId}
+      createInitialPatient={patient}
+      startInCreate
+      flushChrome
+      hideCreatePatient={Boolean(patient)}
+      onClose={onClose}
+      onCreated={onCreated}
+      onChanged={handleChanged}
+    />
+  );
+}
+
+/** Shared host for creating a schedule appointment from doctor screens. */
+export function DoctorNewAppointmentModal({
+  open,
+  onClose,
+  patient = null,
+  contextDate,
+  fallbackTimeZone = 'Europe/Moscow',
+  title = 'Новая запись',
+  patientOnSupport = false,
+  patientVariant = 'link',
+  onChanged,
+}: Props) {
+  function handleClose() {
+    onClose();
   }
 
   const patientName = patient
@@ -151,30 +200,17 @@ export function DoctorNewAppointmentModal({
       size="lg"
       desktopPresentation="right-sheet"
     >
-      {loadError ? (
-        <p role="alert" className="py-4 text-sm text-destructive">
-          {loadError}
-        </p>
-      ) : createContext ? (
-        <DoctorCalendarEventPanel
-          apiBase={API_BASE}
-          selected={null}
-          timeZone={createContext.timeZone}
-          filterMeta={createContext.filters}
-          activeFilters={EMPTY_ACTIVE_FILTERS}
-          ownSpecialistId={createContext.ownSpecialistId}
-          clinicSpecialists={createContext.clinicSpecialists}
-          createInitialSpecialistId={createContext.ownSpecialistId}
-          createInitialPatient={patient}
-          startInCreate
-          flushChrome
-          hideCreatePatient={Boolean(patient)}
-          onClose={handleClose}
-          onChanged={handleChanged}
-        />
-      ) : (
-        <DoctorPanelLoading className="min-h-32" />
-      )}
+      <DoctorAppointmentCreatePanel
+        active={open}
+        patient={patient}
+        contextDate={contextDate}
+        fallbackTimeZone={fallbackTimeZone}
+        onClose={handleClose}
+        onChanged={() => {
+          handleClose();
+          onChanged?.();
+        }}
+      />
     </DoctorModal>
   );
 }

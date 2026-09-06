@@ -9,9 +9,8 @@ import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
-import { patientCardHref } from '../../../patientCardHref';
 import { EncounterPageClient } from '../EncounterPageClient';
+import { PatientEncounterPageShell } from '../PatientEncounterPageShell';
 
 type PageProps = {
   params: Promise<{ userId: string }>;
@@ -39,7 +38,7 @@ export default async function NewEncounterPage({ params, searchParams }: PagePro
       : undefined;
 
   return (
-    <DoctorAppShell title="Новый приём" backHref={patientCardHref(userId, { tab: 'karta' })}>
+    <PatientEncounterPageShell userId={userId} title="Новый приём">
       <EncounterPageClient
         mode="create"
         userId={identity.userId}
@@ -49,9 +48,8 @@ export default async function NewEncounterPage({ params, searchParams }: PagePro
           lastName: identity.lastName ?? null,
           phone: identity.phone,
         }}
-        ownSpecialistId={workspace.specialistId}
         boundAppointmentId={appointmentId ?? null}
       />
-    </DoctorAppShell>
+    </PatientEncounterPageShell>
   );
 }

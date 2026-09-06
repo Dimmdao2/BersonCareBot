@@ -72,6 +72,10 @@ vi.mock('./tabs/PatientTabAccount', () => ({
 vi.mock('@/app/app/doctor/clients/DoctorClientMembershipsPanel', () => ({
   DoctorClientMembershipsPanel: () => <div data-testid="membership-configuration">config</div>,
 }));
+vi.mock('./PatientEncounterStartModal', () => ({
+  PatientEncounterStartModal: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="encounter-start-modal">start</div> : null,
+}));
 
 const { PatientCardClient } = await import('./PatientCardClient');
 

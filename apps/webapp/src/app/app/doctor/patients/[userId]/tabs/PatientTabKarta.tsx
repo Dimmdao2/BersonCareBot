@@ -3,20 +3,15 @@
 /**
  * PatientTabKarta — clinical core («Карта»).
  *
- * Симптомы · Диагнозы · Анамнез (`PatientClinicalSections`) carries the encounter
- * summary (`EncounterSummary`, ENCOUNTERS-01/02/03) in its typed slot between disease
- * and life anamnesis. There is no permanent second
- * history column any more: full history and a single encounter view are one and two
- * `DoctorModal` layers away (`EncounterHistoryModal` / `EncounterViewModal`,
- * ENCOUNTERS-04). Creating or editing an encounter navigates to the canonical full-page
- * editor (ENCOUNTERS-05) — this tab only links there, it does not duplicate the editor.
+ * Симптомы · Диагнозы · Анамнез (`PatientClinicalSections`). История и запуск приёма
+ * находятся в общей identity-шапке пациента и доступны на каждой вкладке; локального
+ * блока приёмов на карте нет.
  *
  * Data:
  *   - Clinical state (жалобы/диагнозы/визиты): GET .../clinical (real).
  *   - Анамнез: GET/POST/PATCH .../anamnesis.
  */
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
 import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
 import type {
   ActiveComplaint,
@@ -30,33 +25,11 @@ import {
   PatientClinicalSections,
   type PatientClinicalComorbidity,
 } from './karta/PatientClinicalSections';
-import { EncounterSummary } from './karta/EncounterSummary';
-import { EncounterHistoryModal } from './karta/EncounterHistoryModal';
 import { EncounterViewModal } from './karta/EncounterViewModal';
 
 type Props = {
   userId: string;
   header?: PatientCardHeader;
-  /** When set, redirect to the full-page encounter editor pre-linked to this appointment. */
-  pendingAppointmentId?: string | null;
-  /**
-   * @deprecated Encounter creation moved to the full-page editor (ENCOUNTERS-05), which
-   * resolves its own prefill from `pendingAppointmentId`. Kept for backwards-compat with
-   * PatientCardClient, which still passes it. Ignored internally.
-   */
-  pendingVisitDate?: string | null;
-  /** @deprecated See `pendingVisitDate`. Ignored internally. */
-  pendingPrefillLocation?: string | null;
-  /** @deprecated See `pendingVisitDate`. Ignored internally. */
-  pendingPrefillService?: string | null;
-  /** Redirects to the full-page encounter editor whenever the request id changes. */
-  newVisitRequestId?: number;
-  /**
-   * @deprecated Duration is no longer stored on the visit (task #208). Field kept for
-   * backwards-compat with PatientCardClient which still passes it. Ignored internally.
-   */
-  pendingPrefillDurationMin?: number | null;
-  onPendingConsumed?: () => void;
   initialClinicalState?: ClinicalState | null;
   initialVisits?: Visit[] | null;
   /** SSR-provided anamnesis — skips the initial client fetch when present. */
@@ -99,21 +72,13 @@ const EMPTY_ANAMNESIS: AnamnesisState = { trauma: [], illness: [], lifestyle: []
 export function PatientTabKarta({
   userId,
   header,
-  pendingAppointmentId,
-  newVisitRequestId = 0,
-  onPendingConsumed,
   initialClinicalState,
   initialVisits,
   initialAnamnesis,
   initialComorbidities,
   composition,
 }: Props) {
-  const router = useRouter();
   const hasSsrClinical = initialClinicalState != null && initialVisits != null;
-
-  // History list modal (ENCOUNTERS-04) and the single-encounter view modal it opens.
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [viewedVisitId, setViewedVisitId] = useState<string | null>(null);
 
   // Clinical data — loaded from /api/doctor/patients/[userId]/clinical
   const [complaints, setComplaints] = useState<ActiveComplaint[]>(() =>
@@ -198,28 +163,6 @@ export function PatientTabKarta({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchClinical, fetchAnamnesis]);
 
-  // Redirect to the canonical full-page encounter editor instead of opening an inline
-  // panel (ENCOUNTERS-05). onPendingConsumed() is safe to call immediately — this
-  // component unmounts once the route changes, so there is no local state to race.
-  useEffect(() => {
-    if (!pendingAppointmentId) return;
-    router.replace(
-      `/app/doctor/patients/${userId}/visits/new?appointmentId=${encodeURIComponent(pendingAppointmentId)}`,
-    );
-    onPendingConsumed?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- onPendingConsumed is a fresh callback each render; re-run only on a new pendingAppointmentId.
-  }, [pendingAppointmentId, userId]);
-
-  useEffect(() => {
-    const handleNewVisit = () => router.push(`/app/doctor/patients/${userId}/visits/new`);
-    window.addEventListener('patient:new-visit', handleNewVisit);
-    return () => window.removeEventListener('patient:new-visit', handleNewVisit);
-  }, [router, userId]);
-
-  useEffect(() => {
-    if (newVisitRequestId > 0) router.push(`/app/doctor/patients/${userId}/visits/new`);
-  }, [newVisitRequestId, router, userId]);
-
   // Treat as loading while userId doesn't match loaded data
   const isStale = loadedUserId !== userId;
   const loading = isStale || isLoading;
@@ -236,14 +179,10 @@ export function PatientTabKarta({
   const externallySelectedVisit = composition?.selectedAppointmentId
     ? (visits.find((v) => v.canonicalAppointmentId === composition.selectedAppointmentId) ?? null)
     : null;
-  const internallySelectedVisit = viewedVisitId
-    ? (visits.find((v) => v.id === viewedVisitId) ?? null)
-    : null;
-  const viewedVisit = externallySelectedVisit ?? internallySelectedVisit;
+  const viewedVisit = externallySelectedVisit;
 
   const closeViewedVisit = useCallback(() => {
     if (composition?.selectedAppointmentId) composition.onCloseSelectedVisit();
-    setViewedVisitId(null);
   }, [composition]);
 
   return (
@@ -265,32 +204,13 @@ export function PatientTabKarta({
           anamnesisLoading={anamnesisLoading}
           anamnesisError={anamnesisError}
           onAnamnesisRefresh={fetchAnamnesis}
-          betweenDiseaseAndLife={
-            <EncounterSummary
-              visits={visits}
-              loading={loading}
-              fetchError={fetchError}
-              newEncounterHref={`/app/doctor/patients/${userId}/visits/new`}
-              onOpenHistory={() => setHistoryOpen(true)}
-              onOpenVisit={setViewedVisitId}
-            />
-          }
           initialComorbidities={initialComorbidities ?? undefined}
         />
       </div>
 
-      <EncounterHistoryModal
-        open={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-        visits={visits}
-        patientName={patientName}
-        patientOnSupport={patientOnSupport}
-        onOpenVisit={setViewedVisitId}
-      />
-
       <EncounterViewModal
         visit={viewedVisit}
-        nested={historyOpen}
+        nested={false}
         editHref={viewedVisit ? `/app/doctor/patients/${userId}/visits/${viewedVisit.id}` : ''}
         patientName={patientName}
         patientOnSupport={patientOnSupport}

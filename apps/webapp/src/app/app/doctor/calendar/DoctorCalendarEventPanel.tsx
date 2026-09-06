@@ -83,6 +83,8 @@ type Props = {
   clinicSpecialists?: readonly DoctorScheduleSpecialistOption[] | null;
   onClose: () => void;
   onChanged: () => void;
+  /** Called after a canonical manual appointment has been created successfully. */
+  onCreated?: (appointmentId: string) => void;
   /** Обновляет открытую карточку после правки, не закрывая первый слой модалки. */
   onUpdated?: (appointment?: CalendarAppointmentEvent) => void;
   /** §3.6: открыть панель сразу в режиме создания, минуя плейсхолдер */
@@ -295,6 +297,7 @@ function DoctorCalendarEventPanelInner({
   clinicSpecialists = null,
   onClose,
   onChanged,
+  onCreated,
   onUpdated,
   startInCreate = false,
   createInitialStart = null,
@@ -572,6 +575,7 @@ function DoctorCalendarEventPanelInner({
       createManualRequestIdRef.current = crypto.randomUUID();
       toast.success('Создано');
       setMode('view');
+      if (newId) onCreated?.(newId);
       onChanged();
     });
   };
@@ -1043,7 +1047,7 @@ function DoctorCalendarEventPanelInner({
         ) : null}
       </div>
 
-      {/* APPT-DETAIL-08: «Изменить», «Отменить», «Создать визит» — в общем футере модалки. */}
+      {/* APPT-DETAIL-08: «Изменить», «Отменить», «Начать приём» — в общем футере модалки. */}
       <DoctorModalFooter>
         {cancelled ? (
           <>
@@ -1061,11 +1065,11 @@ function DoctorCalendarEventPanelInner({
             ) : null}
             {visitHref ? (
               <Link href={visitHref} className={buttonVariants()}>
-                Создать визит
+                Начать приём
               </Link>
             ) : (
               <Button type="button" disabled>
-                Создать визит
+                Начать приём
               </Button>
             )}
           </>
@@ -1085,11 +1089,11 @@ function DoctorCalendarEventPanelInner({
             </Button>
             {visitHref ? (
               <Link href={visitHref} className={buttonVariants()}>
-                Создать визит
+                Начать приём
               </Link>
             ) : (
               <Button type="button" disabled>
-                Создать визит
+                Начать приём
               </Button>
             )}
           </>

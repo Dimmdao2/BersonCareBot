@@ -9,9 +9,8 @@ import { z } from 'zod';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
-import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
-import { patientCardHref } from '../../../patientCardHref';
 import { EncounterPageClient } from '../EncounterPageClient';
+import { PatientEncounterPageShell } from '../PatientEncounterPageShell';
 
 type PageProps = {
   params: Promise<{ userId: string; visitId: string }>;
@@ -42,7 +41,7 @@ export default async function EditEncounterPage({ params }: PageProps) {
   if (!visit) notFound();
 
   return (
-    <DoctorAppShell title="Приём" backHref={patientCardHref(userId, { tab: 'karta' })}>
+    <PatientEncounterPageShell userId={userId} title="Приём">
       <EncounterPageClient
         mode="edit"
         userId={identity.userId}
@@ -52,10 +51,9 @@ export default async function EditEncounterPage({ params }: PageProps) {
           lastName: identity.lastName ?? null,
           phone: identity.phone,
         }}
-        ownSpecialistId={workspace.specialistId}
         boundAppointmentId={null}
         initialVisit={visit}
       />
-    </DoctorAppShell>
+    </PatientEncounterPageShell>
   );
 }
