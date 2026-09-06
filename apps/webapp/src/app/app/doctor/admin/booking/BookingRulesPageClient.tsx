@@ -17,7 +17,7 @@ import { patchAdminSetting } from '@/app/app/settings/patchAdminSetting';
 
 type Props = {
   allowPastUnlinkPastPackageSessions?: boolean;
-  availabilityHorizonDays: number;
+  availabilityHorizonDays: number | null;
 };
 
 export function BookingRulesPageClient({
@@ -25,7 +25,7 @@ export function BookingRulesPageClient({
   availabilityHorizonDays: initialAvailabilityHorizonDays,
 }: Props) {
   const [availabilityHorizonDays, setAvailabilityHorizonDays] = useState(
-    String(initialAvailabilityHorizonDays),
+    initialAvailabilityHorizonDays === null ? '' : String(initialAvailabilityHorizonDays),
   );
   const [saveError, setSaveError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();

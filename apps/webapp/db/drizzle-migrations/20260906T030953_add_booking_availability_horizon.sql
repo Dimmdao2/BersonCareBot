@@ -1,11 +1,10 @@
--- BCB-MIGRATION-OWNER: app_object_owner
+-- BCB-MIGRATION-BACKFILL
 -- BCB-MIGRATION-VERIFY: SELECT EXISTS (SELECT 1 FROM public.system_settings WHERE key = 'booking_availability_horizon_days' AND scope = 'admin' AND organization_id IS NULL AND value_json = '{"value":30}'::jsonb) AND pg_catalog.pg_get_functiondef('app.read_public_booking_slot_snapshot(uuid,uuid,text,text)'::regprocedure) LIKE '%availabilityHorizonDays%' AND pg_catalog.pg_get_functiondef('app.read_current_patient_booking_runtime_integer(text)'::regprocedure) LIKE '%booking_availability_horizon_days%' AND pg_catalog.pg_get_functiondef('app.provision_specialist_owner(uuid)'::regprocedure) LIKE '%booking_availability_horizon_days%'
 --
 -- BAH-01…03: один клинический горизонт управляет публичной и пациентской выдачей
 -- доступности. Глобальная строка даёт безопасное эффективное значение существующим клиникам;
 -- новая клиника получает собственную строку в том же атомарном провижининге владельца.
 
--- BCB-MIGRATION-BACKFILL
 INSERT INTO public.system_settings (
   key, scope, organization_id, value_json, updated_at, updated_by
 )
