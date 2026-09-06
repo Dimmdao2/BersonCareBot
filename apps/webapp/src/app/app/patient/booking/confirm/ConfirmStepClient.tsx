@@ -307,6 +307,11 @@ export function ConfirmStepClient({
       (type === 'online' || isOnlineLocation ? 'Онлайн' : (cityTitle ?? ''));
     if (loc) doneQ.set('locationLabel', loc);
     if (cityCode) doneQ.set('cityCode', cityCode);
+    if (type === 'in_person' && orgSlug && branchId && serviceId) {
+      doneQ.set('orgSlug', orgSlug);
+      doneQ.set('branchId', branchId);
+      doneQ.set('serviceId', serviceId);
+    }
     router.push(`${doneRedirectPath}?${doneQ.toString()}`);
   }
 

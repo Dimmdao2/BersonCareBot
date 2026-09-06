@@ -8,7 +8,10 @@ import { describe, expect, it, vi } from 'vitest';
  * drive the page the way a real redirect from the booking wizard does: through `searchParams`.
  */
 
-const fakes = vi.hoisted(() => ({ getAppDisplayTimeZone: vi.fn() }));
+const fakes = vi.hoisted(() => ({
+  getAppDisplayTimeZone: vi.fn(),
+  loadPublicInPersonSlotContextForSlugRsc: vi.fn(),
+}));
 
 vi.mock('next/navigation', () => ({
   redirect: vi.fn((target: string) => {
@@ -19,6 +22,10 @@ vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
   getAppDisplayTimeZone: fakes.getAppDisplayTimeZone,
 }));
 vi.mock('@/config/env', () => ({ env: { APP_BASE_URL: 'https://test.bersoncare.ru' } }));
+vi.mock('../publicOrganizationBooking', () => ({
+  loadPublicInPersonSlotContextForSlugRsc:
+    fakes.loadPublicInPersonSlotContextForSlugRsc,
+}));
 
 import PublicBookDonePage from './page';
 
@@ -56,5 +63,35 @@ describe('GET /book/done — public booking success screen', () => {
     fakes.getAppDisplayTimeZone.mockResolvedValue('Europe/Moscow');
 
     await expect(PublicBookDonePage(searchParamsFor({}))).rejects.toThrow('REDIRECT:/book');
+  });
+
+  it('показывает время публичной записи в каноническом часовом поясе филиала', async () => {
+    fakes.getAppDisplayTimeZone.mockResolvedValue('Europe/Moscow');
+    fakes.loadPublicInPersonSlotContextForSlugRsc.mockResolvedValue({
+      ok: true,
+      branchTimeZone: 'Asia/Yekaterinburg',
+    });
+
+    const element = await PublicBookDonePage(
+      searchParamsFor({
+        bookingId: 'a1111111-1111-4111-8111-111111111111',
+        slotStart: '2026-08-20T07:00:00.000Z',
+        slotEnd: '2026-08-20T07:30:00.000Z',
+        serviceTitle: 'Консультация невролога',
+        locationLabel: 'Екатеринбург',
+        orgSlug: 'clinic',
+        branchId: 'branch-1',
+        serviceId: 'service-1',
+      }),
+    );
+    const html = renderToStaticMarkup(element);
+
+    expect(fakes.loadPublicInPersonSlotContextForSlugRsc).toHaveBeenCalledWith({
+      orgSlug: 'clinic',
+      branchId: 'branch-1',
+      serviceId: 'service-1',
+    });
+    expect(html).toContain('12:00');
+    expect(html).not.toContain('10:00');
   });
 });

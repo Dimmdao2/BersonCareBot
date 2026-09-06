@@ -4,6 +4,7 @@ import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimez
 import { BookingDoneClient } from '@/app/app/patient/booking/done/BookingDoneClient';
 import { publicBookPaths } from '@/shared/publicBook/paths';
 import { PublicBookingShell } from '../PublicBookingShell';
+import { loadPublicInPersonSlotContextForSlugRsc } from '../publicOrganizationBooking';
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -35,6 +36,14 @@ export default async function PublicBookDonePage({ searchParams }: Props) {
   }
 
   const locationLabel = first(raw.locationLabel)?.trim() ?? '';
+  const orgSlug = first(raw.orgSlug)?.trim();
+  const branchId = first(raw.branchId)?.trim();
+  const serviceId = first(raw.serviceId)?.trim();
+  const branchContext =
+    orgSlug && branchId && serviceId
+      ? await loadPublicInPersonSlotContextForSlugRsc({ orgSlug, branchId, serviceId })
+      : null;
+  const branchTimeZone = branchContext?.ok ? branchContext.branchTimeZone : null;
   const appDisplayTimeZone = await getAppDisplayTimeZone();
 
   return (
@@ -47,6 +56,7 @@ export default async function PublicBookDonePage({ searchParams }: Props) {
         bookingId={bookingId}
         backToHubHref={publicBookPaths.new}
         appDisplayTimeZone={appDisplayTimeZone}
+        branchTimeZone={branchTimeZone}
         appBaseUrl={env.APP_BASE_URL}
       />
     </PublicBookingShell>
