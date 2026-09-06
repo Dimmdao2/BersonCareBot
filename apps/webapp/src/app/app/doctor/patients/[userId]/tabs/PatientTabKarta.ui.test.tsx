@@ -20,7 +20,11 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('./karta/PatientClinicalSections', () => ({
-  PatientClinicalSections: () => <div data-testid="clinical-sections" />,
+  PatientClinicalSections: ({
+    betweenDiseaseAndLife,
+  }: {
+    betweenDiseaseAndLife?: React.ReactNode;
+  }) => <div data-testid="clinical-sections">{betweenDiseaseAndLife}</div>,
 }));
 
 const { PatientTabKarta } = await import('./PatientTabKarta');
@@ -143,7 +147,7 @@ describe('PatientTabKarta — encounter summary/history (ENCOUNTERS-01..05)', ()
     expect(screen.getByText('Осмотр-А-текст')).toBeTruthy();
     expect(screen.queryByText('Осмотр-Б-текст')).toBeNull();
     expect(screen.getByRole('link', { name: 'Изменить' }).getAttribute('href')).toBe(
-      `/app/doctor/patients/${userId}/visits/visit-a/edit`,
+      `/app/doctor/patients/${userId}/visits/visit-a`,
     );
   });
 

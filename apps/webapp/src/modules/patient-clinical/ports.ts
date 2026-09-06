@@ -105,7 +105,7 @@ export type CreateDiagnosisInput = {
   comment?: string | null;
 };
 
-// -- История визитов (форма зеркалит UI VisitCard / mockData.ts Visit) ---------
+// -- История визитов (форма зеркалит full encounter page / compact visit view) --
 
 export type VisitDynamicsRow = {
   id: string;

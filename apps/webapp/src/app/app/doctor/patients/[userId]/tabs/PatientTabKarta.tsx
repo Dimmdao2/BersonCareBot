@@ -3,8 +3,9 @@
 /**
  * PatientTabKarta — clinical core («Карта»).
  *
- * Симптомы · Диагнозы · Анамнез (`PatientClinicalSections`) followed by the encounter
- * summary (`EncounterSummary`, ENCOUNTERS-01/02/03). There is no permanent second
+ * Симптомы · Диагнозы · Анамнез (`PatientClinicalSections`) carries the encounter
+ * summary (`EncounterSummary`, ENCOUNTERS-01/02/03) in its typed slot between disease
+ * and life anamnesis. There is no permanent second
  * history column any more: full history and a single encounter view are one and two
  * `DoctorModal` layers away (`EncounterHistoryModal` / `EncounterViewModal`,
  * ENCOUNTERS-04). Creating or editing an encounter navigates to the canonical full-page
@@ -264,15 +265,17 @@ export function PatientTabKarta({
           anamnesisLoading={anamnesisLoading}
           anamnesisError={anamnesisError}
           onAnamnesisRefresh={fetchAnamnesis}
+          betweenDiseaseAndLife={
+            <EncounterSummary
+              visits={visits}
+              loading={loading}
+              fetchError={fetchError}
+              newEncounterHref={`/app/doctor/patients/${userId}/visits/new`}
+              onOpenHistory={() => setHistoryOpen(true)}
+              onOpenVisit={setViewedVisitId}
+            />
+          }
           initialComorbidities={initialComorbidities ?? undefined}
-        />
-        <EncounterSummary
-          visits={visits}
-          loading={loading}
-          fetchError={fetchError}
-          newEncounterHref={`/app/doctor/patients/${userId}/visits/new`}
-          onOpenHistory={() => setHistoryOpen(true)}
-          onOpenVisit={setViewedVisitId}
         />
       </div>
 
@@ -288,7 +291,7 @@ export function PatientTabKarta({
       <EncounterViewModal
         visit={viewedVisit}
         nested={historyOpen}
-        editHref={viewedVisit ? `/app/doctor/patients/${userId}/visits/${viewedVisit.id}/edit` : ''}
+        editHref={viewedVisit ? `/app/doctor/patients/${userId}/visits/${viewedVisit.id}` : ''}
         patientName={patientName}
         patientOnSupport={patientOnSupport}
         onClose={closeViewedVisit}

@@ -572,48 +572,73 @@
 
 ### P4.4. Сводка и история приёмов
 
-- [ ] `ENCOUNTERS-01` Между анамнезом заболевания и анамнезом жизни расположен блок `Приёмы: N`, где `N` —
-      фактическое число приёмов пациента, а не календарных записей.
-- [ ] `ENCOUNTERS-02` Сводка показывает количество первичных и повторных приёмов и дату предыдущего приёма;
+- [x] `ENCOUNTERS-01` Между анамнезом заболевания и анамнезом жизни расположен блок `Приёмы: N`, где `N` —
+      фактическое число приёмов пациента, а не календарных записей. — typed `betweenDiseaseAndLife` slot in
+      `PatientClinicalSections.tsx`; `pnpm --dir apps/webapp exec vitest --run --project=ui
+      "src/app/app/doctor/patients/[userId]/tabs/PatientTabKarta.ui.test.tsx"` → 5/5 PASS.
+- [x] `ENCOUNTERS-02` Сводка показывает количество первичных и повторных приёмов и дату предыдущего приёма;
       показанная дата кликабельна и открывает просмотр соответствующего приёма. Несколько первичных приёмов
-      допустимы и корректно учитываются.
-- [ ] `ENCOUNTERS-03` Внизу блока находятся действия «История приёмов» и «Новый приём» в общей doctor-панели
-      действий; отдельная колонка/постоянный второй экран истории на вкладке «Карта» удалены.
-- [ ] `ENCOUNTERS-04` «История приёмов» открывает следующим слоем модалку полного хронологического списка;
+      допустимы и корректно учитываются. — `pnpm --dir apps/webapp exec vitest --run --project=ui
+      "src/app/app/doctor/patients/[userId]/tabs/PatientTabKarta.ui.test.tsx"` → 5/5 PASS, including asymmetric
+      primary/repeat fixture and newest-visit click.
+- [x] `ENCOUNTERS-03` Внизу блока находятся действия «История приёмов» и «Новый приём» в общей doctor-панели
+      действий; отдельная колонка/постоянный второй экран истории на вкладке «Карта» удалены. — accepted P4.4
+      modal/action composition retained; `pnpm --dir apps/webapp exec vitest --run --project=ui
+      "src/app/app/doctor/patients/[userId]/tabs/PatientTabKarta.ui.test.tsx"` → 5/5 PASS.
+- [x] `ENCOUNTERS-04` «История приёмов» открывает следующим слоем модалку полного хронологического списка;
       нажатие на строку открывает просмотр выбранного приёма, не теряя карточку пациента под стеком модалок.
-- [ ] `ENCOUNTERS-05` Просмотр существующего приёма остаётся компактной модалкой, а создание и редактирование
-      приёма переходят на одну полноценную страницу приёма, а не в длинную вложенную форму.
+      — accepted P4.4 modal stack retained; `pnpm --dir apps/webapp exec vitest --run --project=ui
+      "src/app/app/doctor/patients/[userId]/tabs/PatientTabKarta.ui.test.tsx"` → 5/5 PASS.
+- [x] `ENCOUNTERS-05` Просмотр существующего приёма остаётся компактной модалкой, а создание и редактирование
+      приёма переходят на одну полноценную страницу приёма, а не в длинную вложенную форму. — compact modal now
+      links to the one existing `/visits/[visitId]` page; `pnpm --dir apps/webapp exec vitest --run --project=ui
+      "src/app/app/doctor/patients/[userId]/tabs/PatientTabKarta.ui.test.tsx"` → 5/5 PASS.
 
 ### P4.5. Страница приёма
 
-- [ ] `ENCOUNTER-PAGE-01` Полноценная страница приёма сохраняет контекст пациента и показывает дату, время,
-      филиал, специалиста и связанную календарную запись либо явное отсутствие связи.
-- [ ] `ENCOUNTER-PAGE-02` Страница переиспользует существующий visit contract и позволяет вести жалобы и динамику
+- [x] `ENCOUNTER-PAGE-01` Полноценная страница приёма сохраняет контекст пациента и показывает дату, время,
+      филиал, специалиста и связанную календарную запись либо явное отсутствие связи. —
+      `EncounterPageClient.tsx` loads and renders canonical appointment context (date, branch, specialist,
+      service) for prebound and edit visits; webapp typecheck + scoped ESLint PASS.
+- [x] `ENCOUNTER-PAGE-02` Страница переиспользует существующий visit contract и позволяет вести жалобы и динамику
       симптомов, осмотр и тестирование, манипуляции, результаты и рекомендации без параллельной сущности визита.
-- [ ] `ENCOUNTER-PAGE-03` Из страницы можно добавить симптом или диагноз существующей patient-scoped формой и
-      после сохранения сразу увидеть обновлённые данные, не покидая страницу приёма.
-- [ ] `ENCOUNTER-PAGE-04` Существующий приём можно открыть на редактирование после его даты; сохранённые изменения
-      обновляют и страницу приёма, и карту пациента.
+      — `EncounterPageClient.tsx` uses existing POST/PATCH visit contracts and typed request bodies; webapp
+      typecheck + scoped ESLint PASS.
+- [x] `ENCOUNTER-PAGE-03` Из страницы можно добавить симптом или диагноз существующей patient-scoped формой и
+      после сохранения сразу увидеть обновлённые данные, не покидая страницу приёма. — shared
+      `PatientClinicalCreateModal` owns the established contracts and calls page refresh after save; webapp
+      typecheck + scoped ESLint PASS.
+- [x] `ENCOUNTER-PAGE-04` Существующий приём можно открыть на редактирование после его даты; сохранённые изменения
+      обновляют и страницу приёма, и карту пациента. — canonical `/visits/[visitId]` route uses the existing
+      typed visit PATCH and returns to the karta route; webapp typecheck + scoped ESLint PASS.
 
 ### P4.6. Связь нового приёма с календарной записью
 
-- [ ] `ENCOUNTER-APPOINTMENT-01` При создании приёма из деталей календарной записи связь с этой записью задана
-      заранее и повторно не выбирается.
-- [ ] `ENCOUNTER-APPOINTMENT-02` При создании из карты сначала можно выбрать существующую ещё не связанную запись
-      пациента либо продолжить без неё; технически связанная запись не предлагается повторно.
-- [ ] `ENCOUNTER-APPOINTMENT-03` Для приёма без выбранной записи включён по умолчанию флажок «Создать запись»;
-      специалист может явно выключить его и сохранить приём без календарной записи.
-- [ ] `ENCOUNTER-APPOINTMENT-04` При включённом флажке форма использует канонические поля записи — дата, время,
+- [x] `ENCOUNTER-APPOINTMENT-01` При создании приёма из деталей календарной записи связь с этой записью задана
+      заранее и повторно не выбирается. — `appointmentId` is loaded as fixed context and save refuses an unresolved
+      link; `pnpm --dir apps/webapp exec vitest --run --project=ui
+      "src/app/app/doctor/patients/[userId]/tabs/PatientTabKarta.ui.test.tsx"` → 5/5 PASS.
+- [x] `ENCOUNTER-APPOINTMENT-02` При создании из карты сначала можно выбрать существующую ещё не связанную запись
+      пациента либо продолжить без неё; технически связанная запись не предлагается повторно. — existing
+      `/appointments/unlinked` service remains the single filtered source; scoped ESLint PASS.
+- [x] `ENCOUNTER-APPOINTMENT-03` Для приёма без выбранной записи включён по умолчанию флажок «Создать запись»;
+      специалист может явно выключить его и сохранить приём без календарной записи. — page defaults the flag on
+      and its OFF branch sends only the typed visit request; webapp typecheck + scoped ESLint PASS.
+- [x] `ENCOUNTER-APPOINTMENT-04` При включённом флажке форма использует канонические поля записи — дата, время,
       филиал, услуга, длительность и стоимость — и создаёт обычную календарную запись, связанную с новым приёмом;
-      параллельный упрощённый appointment write-path не создаётся.
+      параллельный упрощённый appointment write-path не создаётся. — canonical `DoctorAppointmentForm` +
+      `appointmentFinancialRequestFields` call the existing manual route; `pnpm --dir apps/webapp exec vitest --run
+      "src/app/api/doctor/booking-engine/appointments/manual/route.route.test.ts"` → 13/13 PASS.
 - [ ] `ENCOUNTER-APPOINTMENT-05` Если на выбранное время уже существует запись специалиста, до сохранения показано
       явное подтверждение конфликта. Отмена подтверждения ничего не создаёт; явное согласие разрешает наложение.
       Серверная зависимость готова: #1096 — `appointments/manual/route.ts` проверяет фактический `slot_overlap` и
       пишет маркер только для него; `AUDIT.md` §«Correction result»: targeted Vitest 20 files / 114 tests и
       rollback-only DEV P1–P7. Чекбокс закрывается только после подключения и живой проверки UI-подтверждения на
       странице приёма.
-- [ ] `ENCOUNTER-APPOINTMENT-06` Создание приёма без записи не создаёт календарную запись или финансовую операцию;
-      создание со связанной записью следует обычным snapshot/price/payment contracts записи.
+- [x] `ENCOUNTER-APPOINTMENT-06` Создание приёма без записи не создаёт календарную запись или финансовую операцию;
+      создание со связанной записью следует обычным snapshot/price/payment contracts записи. — OFF branch skips
+      manual appointment creation; ON branch uses its canonical financial request builder; `pnpm --dir apps/webapp
+      exec vitest --run "src/app/api/doctor/booking-engine/appointments/manual/route.route.test.ts"` → 13/13 PASS.
 
 ### P4.7. Приёмка нового клинического пути
 
