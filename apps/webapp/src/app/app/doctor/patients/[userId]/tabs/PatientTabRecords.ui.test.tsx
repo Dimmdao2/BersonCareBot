@@ -22,6 +22,11 @@ vi.mock('@/app/app/doctor/calendar/DoctorNewAppointmentModal', () => ({
     ) : null,
 }));
 
+vi.mock('@/app/app/doctor/TodayAppointmentFullModal', () => ({
+  TodayAppointmentFullModal: ({ apptId }: { apptId: string | null }) =>
+    apptId ? <div role="dialog">Детали записи {apptId}</div> : null,
+}));
+
 import { PatientTabRecords } from './PatientTabRecords';
 
 const patientId = '22222222-2222-4222-8222-222222222222';
@@ -143,7 +148,7 @@ describe('patient records tab — a refused load is not a visit history', () => 
     expect(openVisit).not.toHaveBeenCalled();
   });
 
-  it('opens the visit history from the summary and opens prepared notes without creating a duplicate visit', async () => {
+  it('opens canonical appointment details from the patient records list', async () => {
     const createVisit = vi.fn();
     const createMembership = vi.fn();
     const openNotes = vi.fn();
@@ -180,9 +185,12 @@ describe('patient records tab — a refused load is not a visit history', () => 
     fireEvent.click(screen.getByRole('button', { name: 'Добавить абонемент' }));
     expect(createMembership).toHaveBeenCalledOnce();
 
-    fireEvent.click(screen.getByRole('button', { name: /Визитов\s*1/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Открыть' }));
-    expect(openNotes).toHaveBeenCalledWith('appointment-with-visit');
+    fireEvent.click(screen.getByRole('button', { name: /Записей\s*1/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /19\.08\.2026.*Консультация/ }));
+    expect(screen.getByRole('dialog', { name: '' })).toHaveTextContent(
+      'Детали записи appointment-with-visit',
+    );
+    expect(openNotes).not.toHaveBeenCalled();
     expect(createVisit).not.toHaveBeenCalled();
   });
 
@@ -306,7 +314,7 @@ describe('patient records tab — a refused load is not a visit history', () => 
     expect(screen.queryByText('Без абонемента')).not.toBeInTheDocument();
   });
 
-  it('shows visit totals in the fixed modal summary without putting a count in its title', async () => {
+  it('keeps cancellations hidden until the cancellation filter is enabled', async () => {
     const completed = {
       id: 'completed',
       internalId: 'completed',
@@ -337,8 +345,11 @@ describe('patient records tab — a refused load is not a visit history', () => 
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Визитов\s*1/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Записей\s*2/ }));
     expect(screen.getByText('Поздних отмен 1')).toBeInTheDocument();
+    expect(screen.queryByText('19.08.2026 · 13:00')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Показать отменённые записи' }));
     expect(screen.getByText('19.08.2026 · 13:00')).toBeInTheDocument();
     expect(screen.getByText('Консультация · 60 мин')).toBeInTheDocument();
   });

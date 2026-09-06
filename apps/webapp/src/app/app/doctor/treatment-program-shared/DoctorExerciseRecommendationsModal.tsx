@@ -81,6 +81,7 @@ export function DoctorExerciseRecommendationsModal(props: {
   patientName?: string | null;
   patientUserId?: string | null;
   patientOnSupport?: boolean;
+  patientVariant?: 'link' | 'context';
   initialValue: DoctorExerciseRecommendationsValue;
   onSaved: (result: DoctorExerciseRecommendationsSaveResult) => void;
 }) {
@@ -93,6 +94,7 @@ export function DoctorExerciseRecommendationsModal(props: {
     patientName,
     patientUserId,
     patientOnSupport = false,
+    patientVariant = 'link',
     initialValue,
     onSaved,
   } = props;
@@ -180,6 +182,8 @@ export function DoctorExerciseRecommendationsModal(props: {
           patientName={patientName}
           patientHref={patientUserId ? patientCardHref(patientUserId) : null}
           patientOnSupport={patientOnSupport}
+          patientVariant={patientVariant}
+          entityClassName={patientVariant === 'context' ? 'text-primary' : undefined}
         />
       }
       size="lg"

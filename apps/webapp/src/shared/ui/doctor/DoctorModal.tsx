@@ -149,6 +149,7 @@ export function DoctorModalStackedTitle({
   patientName,
   patientHref,
   patientOnSupport = false,
+  patientVariant = 'link',
   entityClassName,
 }: {
   label: ReactNode;
@@ -156,11 +157,14 @@ export function DoctorModalStackedTitle({
   patientName?: string | null;
   patientHref?: string | null;
   patientOnSupport?: boolean;
+  /** Patient-card context does not need a link back to the page already underneath the modal. */
+  patientVariant?: 'link' | 'context';
   entityClassName?: string;
 }) {
   const patientClassName = cn(
     doctorModalTitleClass,
-    'min-w-0 truncate text-right text-[15px] font-semibold text-primary',
+    'min-w-0 truncate text-right text-[15px] font-semibold',
+    patientVariant === 'context' ? 'text-foreground' : 'text-primary',
   );
   const patientLabel = patientName ? formatDoctorFioShortLabel(patientName) : null;
 
@@ -175,7 +179,7 @@ export function DoctorModalStackedTitle({
             style={{ maxWidth: '55%' }}
             nameClassName="block"
           >
-            {patientHref ? (
+            {patientHref && patientVariant === 'link' ? (
               <Link
                 href={patientHref}
                 className="block truncate underline decoration-1 underline-offset-2"

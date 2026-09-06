@@ -10,7 +10,6 @@ import type {
   DiagnosisClinicalStatus,
 } from '@/modules/patient-clinical/ports';
 import { cn } from '@/lib/utils';
-import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
@@ -83,7 +82,6 @@ const EMPTY_DIAGNOSIS: DiagnosisDraft = { text: '', comment: '', priority: false
 function patientTitle(
   label: string,
   patientName: string | null,
-  userId: string,
   patientOnSupport: boolean,
   entity?: ReactNode,
 ) {
@@ -92,8 +90,9 @@ function patientTitle(
       label={label}
       entity={entity}
       patientName={patientName}
-      patientHref={patientCardHref(userId)}
       patientOnSupport={patientOnSupport}
+      patientVariant="context"
+      entityClassName={entity ? 'text-primary' : undefined}
     />
   );
 }
@@ -640,7 +639,7 @@ export function PatientClinicalSections({
       <ComplaintFormModal
         open={complaintAddOpen}
         nested={false}
-        patientTitle={patientTitle('Новый симптом', patientName, userId, patientOnSupport)}
+        patientTitle={patientTitle('Новый симптом', patientName, patientOnSupport)}
         draft={complaintDraft}
         onDraft={setComplaintDraft}
         saving={saving}
@@ -653,13 +652,7 @@ export function PatientClinicalSections({
       <DoctorModal
         open={selectedComplaint !== null}
         onClose={() => setSelectedComplaint(null)}
-        title={patientTitle(
-          'Симптом',
-          patientName,
-          userId,
-          patientOnSupport,
-          selectedComplaint?.text,
-        )}
+        title={patientTitle('Симптом', patientName, patientOnSupport, selectedComplaint?.text)}
         size="md"
         bodyClassName="space-y-4"
         footer={
@@ -743,7 +736,7 @@ export function PatientClinicalSections({
       <ComplaintFormModal
         open={complaintEditOpen}
         nested
-        patientTitle={patientTitle('Изменить симптом', patientName, userId, patientOnSupport)}
+        patientTitle={patientTitle('Изменить симптом', patientName, patientOnSupport)}
         draft={complaintDraft}
         onDraft={setComplaintDraft}
         saving={saving}
@@ -755,7 +748,7 @@ export function PatientClinicalSections({
       <DiagnosisFormModal
         open={diagnosisAddOpen}
         nested={false}
-        patientTitle={patientTitle('Новый диагноз', patientName, userId, patientOnSupport)}
+        patientTitle={patientTitle('Новый диагноз', patientName, patientOnSupport)}
         draft={diagnosisDraft}
         onDraft={setDiagnosisDraft}
         saving={saving}
@@ -767,13 +760,7 @@ export function PatientClinicalSections({
       <DoctorModal
         open={selectedDiagnosis !== null}
         onClose={() => setSelectedDiagnosis(null)}
-        title={patientTitle(
-          'Диагноз',
-          patientName,
-          userId,
-          patientOnSupport,
-          selectedDiagnosis?.text,
-        )}
+        title={patientTitle('Диагноз', patientName, patientOnSupport, selectedDiagnosis?.text)}
         size="md"
         bodyClassName="space-y-4"
         footer={
@@ -817,7 +804,7 @@ export function PatientClinicalSections({
       <DiagnosisFormModal
         open={diagnosisEditOpen}
         nested
-        patientTitle={patientTitle('Изменить диагноз', patientName, userId, patientOnSupport)}
+        patientTitle={patientTitle('Изменить диагноз', patientName, patientOnSupport)}
         draft={diagnosisDraft}
         onDraft={setDiagnosisDraft}
         saving={saving}
@@ -1194,7 +1181,7 @@ function AnamnesisSection({
       <DoctorModal
         open={open}
         onClose={() => setOpen(false)}
-        title={patientTitle('Анамнез', patientName, userId, patientOnSupport)}
+        title={patientTitle('Анамнез', patientName, patientOnSupport)}
         size="lg"
         bodyVariant="list"
       >
@@ -1258,7 +1245,6 @@ function AnamnesisSection({
         title={patientTitle(
           editor?.id ? 'Изменить запись' : 'Новая запись',
           patientName,
-          userId,
           patientOnSupport,
         )}
         size="md"

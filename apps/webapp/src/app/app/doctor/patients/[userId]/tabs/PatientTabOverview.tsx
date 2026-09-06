@@ -12,7 +12,6 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { FilePlus2, ListPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
@@ -49,7 +48,7 @@ import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
 } from '@/shared/ui/doctor/doctorVisual';
-import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { formatPatientPackageLongLabel } from '@/modules/memberships/display';
@@ -69,7 +68,6 @@ import {
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorProgramItemDiscussionDialog } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramItemDiscussionDialog';
-import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { formatDoctorFioShort } from '@/shared/lib/fio';
 import { SpecialistTaskFormDialog } from '@/app/app/doctor/clients/SpecialistTaskFormDialog';
@@ -79,7 +77,6 @@ import {
   isSpecialistTaskOverdue,
   selectSpecialistTasksDueTodayOrOverdue,
 } from '@/modules/specialist-tasks/taskPriority';
-import { routePaths } from '@/app-layer/routes/paths';
 import { formatRussianLongDateCompactLabel } from '@/shared/datetime/displayTimeZoneFormat';
 import {
   DoctorExerciseActivityCalendar,
@@ -1649,11 +1646,12 @@ export function PatientTabOverview({
         <DoctorModalStackedTitle
           label="Новая заметка"
           patientName={patientHeaderName}
-          patientHref={patientCardHref(userId)}
           patientOnSupport={header?.support.isOnSupport === true}
+          patientVariant="context"
         />
       }
       size="sm"
+      bodyClassName="flex min-h-[45dvh] flex-col md:min-h-0"
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => setNoteFormOpen(false)}>
@@ -1669,14 +1667,19 @@ export function PatientTabOverview({
         </>
       }
     >
-      <Textarea
-        autoFocus
-        value={noteText}
-        onChange={(event) => setNoteText(event.target.value)}
-        rows={5}
-        placeholder="Текст заметки…"
-        className="resize-none"
-      />
+      <div className="flex min-h-0 flex-1 items-end md:items-start">
+        <Textarea
+          value={noteText}
+          onChange={(event) => {
+            setNoteText(event.target.value);
+            event.currentTarget.style.height = 'auto';
+            event.currentTarget.style.height = `${event.currentTarget.scrollHeight}px`;
+          }}
+          rows={5}
+          placeholder="Текст заметки…"
+          className="max-h-[55dvh] min-h-24 resize-none border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 md:min-h-40 md:border md:bg-white md:px-3 md:shadow-xs"
+        />
+      </div>
     </DoctorModal>
   );
   const taskFormDialog = (
@@ -1908,26 +1911,30 @@ export function PatientTabOverview({
               <DoctorModalStackedTitle
                 label="Заметки"
                 patientName={patientHeaderName}
-                patientHref={patientCardHref(userId)}
                 patientOnSupport={header?.support.isOnSupport === true}
+                patientVariant="context"
               />
             }
             size="lg"
             bodyVariant="list"
             desktopPresentation="right-sheet"
+            footer={
+              <>
+                <span aria-hidden className="max-sm:block sm:hidden" />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setNoteText('');
+                    setNoteFormOpen(true);
+                  }}
+                >
+                  <FilePlus2 className="size-4" aria-hidden />
+                  Новая заметка
+                </Button>
+              </>
+            }
           >
-            <div className="flex justify-end px-4 pb-2">
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  setNoteText('');
-                  setNoteFormOpen(true);
-                }}
-              >
-                Добавить
-              </Button>
-            </div>
             {isLoading ? (
               <DoctorPanelLoading className="px-4 py-4" />
             ) : data?.notesStatus === 'error' ? (
@@ -1935,16 +1942,22 @@ export function PatientTabOverview({
             ) : data?.notes.length ? (
               <DoctorDnaFlatList>
                 {[...data.notes]
-                  .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+                  .sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime())
                   .map((note) => (
-                    <li key={note.id} className={`${doctorDnaFlatListRowClass} justify-between`}>
+                    <li
+                      key={note.id}
+                      className={cn(
+                        doctorDnaFlatListRowClass,
+                        'grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-4 border-t border-border',
+                      )}
+                    >
+                      <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                        {fmtDateMsgShort(note.updatedAt)}
+                      </span>
                       <span
                         className={`${doctorDnaFlatListPrimaryClass} min-w-0 whitespace-pre-wrap`}
                       >
                         {note.text}
-                      </span>
-                      <span className={`${doctorDnaFlatListMetaClass} shrink-0 tabular-nums`}>
-                        {fmtDateMsgShort(note.updatedAt)}
                       </span>
                     </li>
                   ))}
@@ -1989,23 +2002,17 @@ export function PatientTabOverview({
                 <DoctorModalStackedTitle
                   label="Задачи"
                   patientName={patientHeaderName}
-                  patientHref={patientCardHref(userId)}
                   patientOnSupport={header?.support.isOnSupport === true}
+                  patientVariant="context"
                 />
               }
               size="lg"
               bodyVariant="list"
               desktopPresentation="right-sheet"
               footer={
-                <div className="flex w-full items-center justify-between gap-2">
-                  <Link
-                    href={routePaths.doctorTasks}
-                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
-                    onClick={() => setTasksModalOpen(false)}
-                  >
-                    Все задачи
-                  </Link>
-                  {specialistTasksAvailable ? (
+                specialistTasksAvailable ? (
+                  <>
+                    <span aria-hidden className="max-sm:block sm:hidden" />
                     <Button
                       type="button"
                       size="sm"
@@ -2017,8 +2024,8 @@ export function PatientTabOverview({
                       <ListPlus className="size-4" aria-hidden />
                       Новая задача
                     </Button>
-                  ) : null}
-                </div>
+                  </>
+                ) : null
               }
             >
               {isLoading ? (
@@ -2083,7 +2090,7 @@ export function PatientTabOverview({
                 type="button"
                 variant="ghost"
                 onClick={() => onTabSwitch?.('program')}
-                className="h-auto w-full justify-start p-0 text-left text-base font-normal text-foreground hover:bg-transparent hover:text-primary"
+                className="h-auto w-full justify-start p-0 text-left text-base font-normal text-doctor-calendar-today hover:bg-transparent hover:text-doctor-calendar-today"
               >
                 {data.programTitle}
               </Button>
@@ -2155,8 +2162,9 @@ export function PatientTabOverview({
               label={`Этап ${displayStageIndex + 1} из ${data?.programStages.length ?? 0}`}
               entity={displayStage?.title}
               patientName={patientHeaderName}
-              patientHref={patientCardHref(userId)}
               patientOnSupport={header?.support.isOnSupport === true}
+              patientVariant="context"
+              entityClassName="text-primary"
             />
           }
           size="lg"
@@ -2189,6 +2197,7 @@ export function PatientTabOverview({
               patientName={patientHeaderName}
               patientUserId={userId}
               patientOnSupport={header?.support.isOnSupport === true}
+              patientVariant="context"
               open={stageExerciseDiscussionOpen}
               onOpenChange={(nextOpen) => {
                 setStageExerciseDiscussionOpen(nextOpen);

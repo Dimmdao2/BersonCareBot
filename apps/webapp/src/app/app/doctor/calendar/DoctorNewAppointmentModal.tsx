@@ -57,6 +57,8 @@ type Props = {
   fallbackTimeZone?: string;
   title?: ReactNode;
   patientOnSupport?: boolean;
+  patientVariant?: 'link' | 'context';
+  onChanged?: () => void;
 };
 
 /** Shared host for creating a schedule appointment from doctor screens. */
@@ -68,6 +70,8 @@ export function DoctorNewAppointmentModal({
   fallbackTimeZone = 'Europe/Moscow',
   title = 'Новая запись',
   patientOnSupport = false,
+  patientVariant = 'link',
+  onChanged,
 }: Props) {
   const router = useRouter();
   const [createContext, setCreateContext] = useState<CreateContext | null>(null);
@@ -112,6 +116,7 @@ export function DoctorNewAppointmentModal({
 
   function handleChanged() {
     handleClose();
+    onChanged?.();
     router.refresh();
   }
 
@@ -137,6 +142,7 @@ export function DoctorNewAppointmentModal({
             patientName={patientName}
             patientHref={patient.id ? patientCardHref(patient.id) : null}
             patientOnSupport={patientOnSupport}
+            patientVariant={patientVariant}
           />
         ) : (
           title

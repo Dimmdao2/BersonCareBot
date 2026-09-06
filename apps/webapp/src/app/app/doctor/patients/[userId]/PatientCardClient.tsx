@@ -64,7 +64,6 @@ import {
 import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorClientMembershipsPanel } from '@/app/app/doctor/clients/DoctorClientMembershipsPanel';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
-import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 
 function formatSupportStartedAt(value: string): string {
   const date = new Date(value);
@@ -757,6 +756,7 @@ function PatientCardTabPanels({
             initialPackages={packages}
             membershipsVisible={membershipsVisible}
             membershipMutationsAllowed={membershipMutationsAllowed}
+            displayIana={shellMeta.displayIana}
           />
           <PatientTabOverview
             active={activeTab === 'overview'}
@@ -858,8 +858,8 @@ function PatientCardTabPanels({
           <DoctorModalStackedTitle
             label="Добавить абонемент"
             patientName={formatDoctorFioShort(identity, identity.displayName)}
-            patientHref={patientCardHref(identity.userId)}
             patientOnSupport={header.support.isOnSupport === true}
+            patientVariant="context"
           />
         }
         size="lg"

@@ -38,6 +38,7 @@ type Props = {
   displayIana: string;
   onClose: () => void;
   onChanged?: () => void;
+  patientVariant?: 'link' | 'context';
 };
 
 type CalendarApiResponse = {
@@ -54,6 +55,7 @@ export function TodayAppointmentFullModal({
   displayIana,
   onClose,
   onChanged,
+  patientVariant = 'link',
 }: Props) {
   const [event, setEvent] = useState<CalendarAppointmentEvent | null>(null);
   const [filterMeta, setFilterMeta] = useState<CalendarFilterMeta>(EMPTY_FILTER_META);
@@ -66,7 +68,6 @@ export function TodayAppointmentFullModal({
 
   useEffect(() => {
     if (!apptId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- guard reset: clears stale event synchronously when apptId becomes null
       setEvent(null);
       return;
     }
@@ -118,6 +119,7 @@ export function TodayAppointmentFullModal({
           patientName={event?.patientName ?? undefined}
           patientHref={event?.platformUserId ? patientCardHref(event.platformUserId) : null}
           patientOnSupport={event?.patientOnSupport === true}
+          patientVariant={patientVariant}
         />
       }
       size="lg"

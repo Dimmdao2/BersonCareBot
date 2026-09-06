@@ -81,6 +81,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
   patientName?: string | null;
   patientUserId?: string | null;
   patientOnSupport?: boolean;
+  patientVariant?: 'link' | 'context';
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onMarkedRead?: () => void;
@@ -91,6 +92,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
     itemLabel,
     patientName,
     patientOnSupport = false,
+    patientVariant = 'link',
     patientUserId: initialPatientUserId,
     open,
     onOpenChange,
@@ -257,6 +259,8 @@ export function DoctorProgramItemDiscussionDialog(props: {
           patientName={patientName}
           patientHref={patientUserId ? patientCardHref(patientUserId) : null}
           patientOnSupport={patientOnSupport}
+          patientVariant={patientVariant}
+          entityClassName={patientVariant === 'context' ? 'text-primary' : undefined}
         />
       }
       size="content"
@@ -303,7 +307,9 @@ export function DoctorProgramItemDiscussionDialog(props: {
             await loadPage(null, false, generation);
           } catch {
             if (generation === loadGenerationRef.current) {
-              toast.error('Файл удалён из чата, но список не обновился. Откройте обсуждение заново.');
+              toast.error(
+                'Файл удалён из чата, но список не обновился. Откройте обсуждение заново.',
+              );
             }
           }
           return { ok: true as const };
@@ -334,6 +340,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
           patientName={patientName}
           patientUserId={patientUserId}
           patientOnSupport={patientOnSupport}
+          patientVariant={patientVariant}
           initialValue={assignment}
           onSaved={({ value }) => {
             setAssignment((current) => (current ? { ...current, ...value } : current));
@@ -347,6 +354,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
           patientUserId={patientUserId}
           patientName={patientName}
           patientOnSupport={patientOnSupport}
+          patientVariant={patientVariant}
           exerciseTitle={itemLabel ?? 'Упражнение'}
           instanceId={instanceId}
           itemId={itemId}

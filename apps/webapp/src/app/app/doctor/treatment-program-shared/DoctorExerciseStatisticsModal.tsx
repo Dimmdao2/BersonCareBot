@@ -60,6 +60,7 @@ export function DoctorExerciseStatisticsModal({
   patientUserId,
   patientName,
   patientOnSupport = false,
+  patientVariant = 'link',
   exerciseTitle,
   instanceId,
   itemId,
@@ -70,6 +71,7 @@ export function DoctorExerciseStatisticsModal({
   /** «Фамилия Имя» пациента справа в первой строке шапки. */
   patientName?: string | null;
   patientOnSupport?: boolean;
+  patientVariant?: 'link' | 'context';
   exerciseTitle: string;
   instanceId: string;
   itemId: string;
@@ -201,6 +203,8 @@ export function DoctorExerciseStatisticsModal({
           patientName={patientName}
           patientHref={patientCardHref(patientUserId)}
           patientOnSupport={patientOnSupport}
+          patientVariant={patientVariant}
+          entityClassName={patientVariant === 'context' ? 'text-primary' : undefined}
         />
       }
       size="lg"

@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BadgePlus, CalendarPlus, ChevronDown, ChevronRight, Eye } from 'lucide-react';
+import { BadgePlus, CalendarPlus, ChevronDown, ChevronRight, Eye, FunnelX } from 'lucide-react';
 import type { PatientAppointmentItem, PatientCardHeader } from '@/modules/doctor-clients/ports';
 import { MembershipCardHeader } from '@/shared/ui/doctor/MembershipCardHeader';
 import {
@@ -48,7 +48,7 @@ import {
   formatPatientPackageShortLabel,
 } from '@/modules/memberships/display';
 import { DoctorNewAppointmentModal } from '@/app/app/doctor/calendar/DoctorNewAppointmentModal';
-import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
+import { TodayAppointmentFullModal } from '@/app/app/doctor/TodayAppointmentFullModal';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -236,6 +236,7 @@ type Props = {
   compositionMode?: 'master';
   onOpenVisitNotes?: (appointmentId: string) => void;
   onOpenMembershipConfiguration?: () => void;
+  displayIana?: string;
 };
 
 export function PatientTabRecords({
@@ -250,12 +251,16 @@ export function PatientTabRecords({
   compositionMode,
   onOpenVisitNotes,
   onOpenMembershipConfiguration,
+  displayIana = 'Europe/Moscow',
 }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
   const [highlightedPackageId, setHighlightedPackageId] = useState<string | null>(null);
   const [visitsModalOpen, setVisitsModalOpen] = useState(false);
   const [newAppointmentModalOpen, setNewAppointmentModalOpen] = useState(false);
   const [membershipModalOpen, setMembershipModalOpen] = useState(false);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  const [showCancelledAppointments, setShowCancelledAppointments] = useState(false);
+  const [appointmentsRefreshToken, setAppointmentsRefreshToken] = useState(0);
   const [membershipSessions, setMembershipSessions] = useState<PackageSession[] | null>(null);
   const [membershipSessionsError, setMembershipSessionsError] = useState(false);
 
@@ -271,7 +276,7 @@ export function PatientTabRecords({
   );
 
   useEffect(() => {
-    if (initialAppointments != null && loadedUserId === userId) {
+    if (appointmentsRefreshToken === 0 && initialAppointments != null && loadedUserId === userId) {
       return;
     }
     let active = true;
@@ -294,8 +299,10 @@ export function PatientTabRecords({
     return () => {
       active = false;
     };
+    // `loadedUserId` is deliberately not a dependency: setting it after a client fetch must not
+    // start a second fetch. `appointmentsRefreshToken` is the explicit mutation refresh trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [appointmentsRefreshToken, userId]);
 
   // Stale = loaded state belongs to a previous userId → treat as loading.
   const isStale = loadedUserId !== userId;
@@ -328,6 +335,15 @@ export function PatientTabRecords({
   const totalRecords = completedCount + cancelsCount + reschedulesCount;
   const firstVisitDate = header?.firstVisitDate;
   const lateCancellationsCount = historyList.filter((a) => a.isLateCancellation).length;
+  const recordsCount = displayList.length;
+  const visibleAppointments = showCancelledAppointments
+    ? displayList
+    : displayList.filter(
+        (appointment) => appointment.status !== 'canceled' && appointment.status !== 'no_show',
+      );
+  const selectedAppointment = displayList.find(
+    (appointment) => appointment.id === selectedAppointmentId,
+  );
 
   const { packages: livePackages, error: packagesError } = usePatientPackages(
     userId,
@@ -416,12 +432,12 @@ export function PatientTabRecords({
         <div className="grid grid-cols-2 gap-2">
           <DoctorStatCard
             id="patient-overview-visits"
-            title="Визитов"
-            value={completedCount}
+            title="Записей"
+            value={recordsCount}
             hint={formatNextAppointment(nextAppointment)}
             hintClassName={cn(doctorMetaTextClass, 'text-primary')}
             valuePlacement="side-center"
-            onClick={completedCount > 0 ? () => setVisitsModalOpen(true) : undefined}
+            onClick={recordsCount > 0 ? () => setVisitsModalOpen(true) : undefined}
             actionIcon={<CalendarPlus className="size-5" aria-hidden />}
             actionLabel="Добавить запись"
             onActionClick={() => setNewAppointmentModalOpen(true)}
@@ -462,6 +478,9 @@ export function PatientTabRecords({
             email: header?.identity.email ?? null,
           }}
           patientOnSupport={header?.support.isOnSupport === true}
+          patientVariant="context"
+          fallbackTimeZone={displayIana}
+          onChanged={() => setAppointmentsRefreshToken((value) => value + 1)}
         />
 
         <DoctorModal
@@ -469,76 +488,124 @@ export function PatientTabRecords({
           onClose={() => setVisitsModalOpen(false)}
           title={
             <DoctorModalStackedTitle
-              label="Визиты"
+              label="Записи"
               patientName={visitsPatientName}
-              patientHref={patientCardHref(userId)}
               patientOnSupport={header?.support.isOnSupport === true}
+              patientVariant="context"
             />
           }
           size="lg"
           bodyVariant="list"
           desktopPresentation="right-sheet"
         >
-          <DoctorModalSummaryBar className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
-            <span>Отмен {cancelsCount}</span>
-            <span>Переносов {reschedulesCount}</span>
-            <span>Поздних отмен {lateCancellationsCount}</span>
-            <span>Будущих {upcomingList.length}</span>
+          <DoctorModalSummaryBar className="flex items-center justify-between gap-3">
+            <span className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-1">
+              <span className="col-span-2">Будущих {upcomingList.length}</span>
+              <span>Переносов {reschedulesCount}</span>
+              <span>Отмен {cancelsCount}</span>
+              <span className="col-span-2">Поздних отмен {lateCancellationsCount}</span>
+            </span>
+            <span className="flex shrink-0 items-center gap-1">
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                aria-pressed={showCancelledAppointments}
+                aria-label={
+                  showCancelledAppointments
+                    ? 'Скрыть отменённые записи'
+                    : 'Показать отменённые записи'
+                }
+                className={cn(
+                  'bg-card text-muted-foreground',
+                  showCancelledAppointments && 'border-primary text-primary',
+                )}
+                onClick={() => setShowCancelledAppointments((value) => !value)}
+              >
+                <FunnelX className="size-4" aria-hidden />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="text-primary hover:text-primary"
+                aria-label="Добавить запись"
+                onClick={() => setNewAppointmentModalOpen(true)}
+              >
+                <CalendarPlus className="size-5" aria-hidden />
+              </Button>
+            </span>
           </DoctorModalSummaryBar>
           {isLoading ? (
             <DoctorPanelLoading className="px-4 py-4" />
           ) : fetchError ? (
             <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить записи.</p>
           ) : displayList.length === 0 ? (
-            <DoctorEmptyState>Визитов нет</DoctorEmptyState>
+            <DoctorEmptyState>Записей нет</DoctorEmptyState>
+          ) : visibleAppointments.length === 0 ? (
+            <DoctorEmptyState>Отменённые записи скрыты</DoctorEmptyState>
           ) : (
             <DoctorDnaFlatList>
-              {displayList.map((appt) => {
+              {visibleAppointments.map((appt) => {
                 const specialist = specialistLastName(appt.specialistName);
                 const location = appointmentLocationLabel(appt.locationShort, appt.location);
                 const locationAndSpecialist = [location, specialist].filter(Boolean).join(' · ');
                 return (
-                  <li key={appt.id} className={doctorDnaFlatListRowClass}>
-                    <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5">
-                      <span className={`${doctorDnaFlatListPrimaryClass} truncate tabular-nums`}>
-                        {fmtDate(appt.date)} · {appt.time}
-                      </span>
-                      <span className="flex shrink-0 items-center justify-end gap-2">
-                        <StatusChip
-                          status={appt.status}
-                          rescheduledToDate={appt.rescheduledToDate}
-                        />
-                        {appt.status === 'completed' && appt.hasVisitRecord ? (
-                          <Button
-                            type="button"
-                            size="xs"
-                            variant="outline"
-                            onClick={() => onOpenVisitNotes?.(appt.id)}
+                  <li key={appt.id}>
+                    <button
+                      type="button"
+                      className={cn(
+                        doctorDnaFlatListRowClass,
+                        'w-full text-left hover:bg-muted/60',
+                      )}
+                      onClick={() => setSelectedAppointmentId(appt.id)}
+                    >
+                      <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5">
+                        <span
+                          className={cn(
+                            doctorDnaFlatListPrimaryClass,
+                            'truncate tabular-nums',
+                            (appt.status === 'canceled' || appt.status === 'no_show') &&
+                              'text-destructive line-through decoration-1',
+                          )}
+                        >
+                          {fmtDate(appt.date)} · {appt.time}
+                        </span>
+                        <span className="flex shrink-0 items-center justify-end gap-2">
+                          <StatusChip
+                            status={appt.status}
+                            rescheduledToDate={appt.rescheduledToDate}
+                          />
+                        </span>
+                        <span className={`${doctorDnaFlatListMetaClass} truncate`}>
+                          {appt.service}
+                          {appt.durationMin ? ` · ${appt.durationMin} мин` : ''}
+                        </span>
+                        {locationAndSpecialist ? (
+                          <span
+                            className={`${doctorDnaFlatListMetaClass} flex min-w-0 max-w-40 items-center justify-end gap-1.5 text-right`}
+                            title={locationAndSpecialist}
                           >
-                            Открыть
-                          </Button>
+                            {location ? <span className="truncate">{location}</span> : null}
+                            {location && specialist ? <span aria-hidden="true">·</span> : null}
+                            {specialist ? <span className="shrink-0">{specialist}</span> : null}
+                          </span>
                         ) : null}
                       </span>
-                      <span className={`${doctorDnaFlatListMetaClass} truncate`}>
-                        {appt.service}
-                        {appt.durationMin ? ` · ${appt.durationMin} мин` : ''}
-                      </span>
-                      {locationAndSpecialist ? (
-                        <span
-                          className={`${doctorDnaFlatListMetaClass} flex min-w-0 max-w-40 items-center justify-end gap-1.5 text-right`}
-                          title={locationAndSpecialist}
-                        >
-                          {location ? <span className="truncate">{location}</span> : null}
-                          {location && specialist ? <span aria-hidden="true">·</span> : null}
-                          {specialist ? <span className="shrink-0">{specialist}</span> : null}
-                        </span>
-                      ) : null}
-                    </span>
+                    </button>
                   </li>
                 );
               })}
             </DoctorDnaFlatList>
           )}
+          <TodayAppointmentFullModal
+            apptId={selectedAppointmentId}
+            todayIso={selectedAppointment?.date ?? ''}
+            displayIana={displayIana}
+            onClose={() => setSelectedAppointmentId(null)}
+            onChanged={() => setAppointmentsRefreshToken((value) => value + 1)}
+            patientVariant="context"
+          />
         </DoctorModal>
 
         <DoctorModal
@@ -548,8 +615,8 @@ export function PatientTabRecords({
             <DoctorModalStackedTitle
               label="Абонемент"
               patientName={visitsPatientName}
-              patientHref={patientCardHref(userId)}
               patientOnSupport={header?.support.isOnSupport === true}
+              patientVariant="context"
             />
           }
           size="lg"
