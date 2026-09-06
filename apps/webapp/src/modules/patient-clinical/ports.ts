@@ -6,8 +6,8 @@
  * справочник диагнозов. Файлы линкуются к визиту через patient_files.visit_id
  * (см. модуль patient-files — единый источник файлов).
  *
- * Запись — только через createVisit («Новый визит»). Чтение — getClinicalState
- * (проекция «актуальное состояние») + listVisits (история).
+ * Запись симптомов и диагнозов возможна как из визита, так и напрямую из карты пациента.
+ * Чтение — getClinicalState (актуальное + закрытое) и listVisits (история визитов).
  */
 
 // -- Проекция «актуальное состояние» -----------------------------------------
@@ -24,6 +24,17 @@ export type ActiveComplaint = {
   trend: number[];
   /** Человекочитаемая дата постановки, напр. «с 05.01». */
   since: string;
+  createdAt: string;
+  resolvedAt: string | null;
+  history: ComplaintHistoryEntry[];
+};
+
+export type ComplaintHistoryEntry = {
+  id: string;
+  severity: number;
+  note: string | null;
+  recordedAt: string;
+  resolved: boolean;
 };
 
 /**
@@ -49,22 +60,49 @@ export type DiagnosisStatusHistoryEntry = {
   note: string | null;
 };
 
-/** Активный (не снятый) диагноз. */
+/** Диагноз в актуальной или исторической проекции. */
 export type ActiveDiagnosis = {
   id: string;
   text: string;
   priority: boolean;
-  status: 'active' | 'refined';
+  status: 'active' | 'refined' | 'resolved';
   /** Врачебный клинический статус. */
   clinicalStatus: DiagnosisClinicalStatus;
   /** Человекочитаемая мета, напр. «уточнён 22.01» / «поставлен 05.01». */
   meta: string;
   comment: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
 };
 
 export type ClinicalState = {
   complaints: ActiveComplaint[];
+  complaintHistory: ActiveComplaint[];
   diagnoses: ActiveDiagnosis[];
+  diagnosisHistory: ActiveDiagnosis[];
+};
+
+export type CreateComplaintInput = {
+  patientUserId: string;
+  text: string;
+  description?: string | null;
+  priority: boolean;
+  severity: number;
+};
+
+export type AppendComplaintUpdateInput = {
+  patientUserId: string;
+  complaintId: string;
+  severity: number;
+  note?: string | null;
+  resolved: boolean;
+};
+
+export type CreateDiagnosisInput = {
+  patientUserId: string;
+  text: string;
+  priority: boolean;
+  comment?: string | null;
 };
 
 // -- История визитов (форма зеркалит UI VisitCard / mockData.ts Visit) ---------
@@ -116,7 +154,7 @@ export type Visit = {
 
 /**
  * Запись в секции «Травмы и операции».
- * Append-log: биографическая запись, не привязана к визиту.
+ * Биографическая запись, не привязана к визиту; допускает исправление без удаления.
  */
 export type AnamnesisTraumaEntry = {
   id: string;
@@ -152,7 +190,7 @@ export type AnamnesisState = {
   lifestyle: AnamnesisLifestyleEntry[];
 };
 
-// -- Вход appendAnamnesis* ---------------------------------------------------
+// -- Входы добавления и исправления анамнеза ---------------------------------
 
 export type AppendAnamnesisTraumaInput = {
   patientUserId: string;
@@ -178,6 +216,32 @@ export type AppendAnamnesisLifestyleInput = {
   text: string;
   createdBy: string;
 };
+
+export type UpdateAnamnesisEntryInput =
+  | {
+      section: 'trauma';
+      patientUserId: string;
+      entryId: string;
+      year: string;
+      what: string;
+      type: string;
+      immobilization: string;
+    }
+  | {
+      section: 'illness';
+      patientUserId: string;
+      entryId: string;
+      period: string;
+      what: string;
+      comment: string;
+    }
+  | {
+      section: 'lifestyle';
+      patientUserId: string;
+      entryId: string;
+      recordDate: string;
+      text: string;
+    };
 
 // -- Справочник диагнозов -----------------------------------------------------
 
@@ -251,17 +315,18 @@ export type CreateVisitInput = {
 
 /**
  * Правка атрибутов жалобы (исправление опечатки / переключение приоритета).
- * НЕ меняет статус (снятие — только через повторный визит). Поля опциональны:
+ * Статус меняется отдельным appendComplaintUpdate. Поля опциональны:
  * передаётся только то, что меняем.
  */
 export type UpdateComplaintFieldsInput = {
   patientUserId: string;
   complaintId: string;
   text?: string;
+  description?: string | null;
   priority?: boolean;
 };
 
-/** Правка атрибутов диагноза. Статус не меняется (уточнение/снятие — через визит). */
+/** Правка атрибутов диагноза. Клинический статус меняется отдельной командой. */
 export type UpdateDiagnosisFieldsInput = {
   patientUserId: string;
   diagnosisId: string;
@@ -308,6 +373,9 @@ export interface PatientClinicalPort {
   ): Promise<DiagnosisCatalogSuggestion>;
   /** Создать визит транзакционно (см. CreateVisitInput). Возвращает id визита. */
   createVisit(input: CreateVisitInput): Promise<string>;
+  createComplaint(input: CreateComplaintInput): Promise<string>;
+  appendComplaintUpdate(input: AppendComplaintUpdateInput): Promise<boolean>;
+  createDiagnosis(input: CreateDiagnosisInput): Promise<string>;
 
   // -- Инлайн-правка полей (scoped по patientUserId; false — запись не найдена) --
 
@@ -343,6 +411,8 @@ export interface PatientClinicalPort {
   appendAnamnesisIllness(input: AppendAnamnesisIllnessInput): Promise<AnamnesisIllnessEntry>;
   /** Добавить запись в секцию «Образ жизни». */
   appendAnamnesisLifestyle(input: AppendAnamnesisLifestyleInput): Promise<AnamnesisLifestyleEntry>;
+  /** Исправить существующую биографическую запись; записи анамнеза не удаляются. */
+  updateAnamnesisEntry(input: UpdateAnamnesisEntryInput): Promise<boolean>;
 
   /**
    * Список канонических appointment id, уже привязанных к визитам пациента.

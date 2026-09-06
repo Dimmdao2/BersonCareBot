@@ -942,6 +942,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const bindings = rowToBindings(bindingsRows.rows);
       const telegramUsername =
         bindingsRows.rows.find((row) => row.channel_code === 'telegram')?.display_handle ?? null;
+      const maxUsername =
+        bindingsRows.rows.find((row) => row.channel_code === 'max')?.display_handle ?? null;
 
       // Есть ли переписка: хотя бы одно сообщение в любой беседе пациента
       // (даёт открыть чат даже без привязанного Telegram/MAX-канала).
@@ -1101,6 +1103,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           email: ur.email,
           emailVerifiedAt: ur.email_verified_at,
           telegramUsername,
+          maxUsername,
           bindings,
           hasConversation,
           isArchived: ur.is_archived,

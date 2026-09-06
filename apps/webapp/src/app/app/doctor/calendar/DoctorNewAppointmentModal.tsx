@@ -2,15 +2,17 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import type { CalendarFilterMeta } from '@/modules/booking-calendar/types';
 import type {
   DoctorScheduleSpecialistOption,
   ResolvedDoctorScheduleScope,
 } from '@/modules/doctor-schedule/scope';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import type { CalendarPatientOption } from './DoctorCalendarPatientSearch';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { formatDoctorFioShort } from '@/shared/lib/fio';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 
 const API_BASE = '/api/doctor/booking-engine';
 
@@ -53,7 +55,8 @@ type Props = {
   patient?: CalendarPatientOption | null;
   contextDate?: string;
   fallbackTimeZone?: string;
-  title?: string;
+  title?: ReactNode;
+  patientOnSupport?: boolean;
 };
 
 /** Shared host for creating a schedule appointment from doctor screens. */
@@ -64,6 +67,7 @@ export function DoctorNewAppointmentModal({
   contextDate,
   fallbackTimeZone = 'Europe/Moscow',
   title = 'Новая запись',
+  patientOnSupport = false,
 }: Props) {
   const router = useRouter();
   const [createContext, setCreateContext] = useState<CreateContext | null>(null);
@@ -111,11 +115,33 @@ export function DoctorNewAppointmentModal({
     router.refresh();
   }
 
+  const patientName = patient
+    ? formatDoctorFioShort(
+        {
+          lastName: patient.lastName ?? null,
+          firstName: patient.firstName ?? null,
+          patronymic: patient.patronymic ?? null,
+        },
+        patient.displayName,
+      )
+    : null;
+
   return (
     <DoctorModal
       open={open}
       onClose={handleClose}
-      title={title}
+      title={
+        patient && patientName ? (
+          <DoctorModalStackedTitle
+            label={title}
+            patientName={patientName}
+            patientHref={patient.id ? patientCardHref(patient.id) : null}
+            patientOnSupport={patientOnSupport}
+          />
+        ) : (
+          title
+        )
+      }
       size="lg"
       desktopPresentation="right-sheet"
     >
@@ -136,6 +162,7 @@ export function DoctorNewAppointmentModal({
           createInitialPatient={patient}
           startInCreate
           flushChrome
+          hideCreatePatient={Boolean(patient)}
           onClose={handleClose}
           onChanged={handleChanged}
         />

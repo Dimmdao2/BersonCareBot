@@ -140,7 +140,8 @@ export const clinicalComplaint = pgTable(
     description: text('description'),
     priority: boolean('priority').default(false).notNull(),
     status: text('status').default('active').notNull(),
-    sourceVisitId: uuid('source_visit_id').notNull(),
+    /** Null when the specialist records the symptom directly from the patient card. */
+    sourceVisitId: uuid('source_visit_id'),
     resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -177,7 +178,8 @@ export const clinicalComplaintUpdate = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     organizationId: uuid('organization_id'),
     complaintId: uuid('complaint_id').notNull(),
-    visitId: uuid('visit_id').notNull(),
+    /** Null for an update recorded directly from the patient card. */
+    visitId: uuid('visit_id'),
     note: text('note'),
     severity: integer('severity').notNull(),
     resolved: boolean('resolved').default(false).notNull(),
@@ -227,7 +229,8 @@ export const clinicalDiagnosis = pgTable(
      */
     clinicalStatus: text('clinical_status').default('предварительный').notNull(),
     comment: text('comment'),
-    sourceVisitId: uuid('source_visit_id').notNull(),
+    /** Null when the specialist records the diagnosis directly from the patient card. */
+    sourceVisitId: uuid('source_visit_id'),
     resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()

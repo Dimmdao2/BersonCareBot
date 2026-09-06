@@ -31,7 +31,7 @@ type Props = {
   valueClassName?: string;
   hintClassName?: string;
   testId?: string;
-  valuePlacement?: 'responsive' | 'inline';
+  valuePlacement?: 'responsive' | 'inline' | 'side-center';
   actionIcon?: ReactNode;
   actionLabel?: string;
   onActionClick?: () => void;
@@ -125,7 +125,15 @@ export function DoctorStatCard({
       ) : null}
     </div>
   );
-  const inner = (
+  const inner = valuePlacement === 'side-center' ? (
+    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-start gap-x-1.5">
+      <div className="col-start-1 row-start-1">{label}</div>
+      <div className="col-start-2 row-span-2 row-start-1 flex self-center justify-end">
+        {metric}
+      </div>
+      {hint ? <div className="col-start-1 row-start-2">{hintNode}</div> : null}
+    </div>
+  ) : (
     <div
       className={cn(
         'w-full min-w-0',

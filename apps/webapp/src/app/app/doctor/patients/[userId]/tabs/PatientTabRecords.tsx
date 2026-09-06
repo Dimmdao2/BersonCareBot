@@ -28,7 +28,7 @@ import {
   doctorStatCardShellClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
-import { DoctorModal, DoctorModalCompositeTitle } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { formatDoctorFioShort } from '@/shared/lib/fio';
 import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -48,6 +48,7 @@ import {
   formatPatientPackageShortLabel,
 } from '@/modules/memberships/display';
 import { DoctorNewAppointmentModal } from '@/app/app/doctor/calendar/DoctorNewAppointmentModal';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -418,7 +419,8 @@ export function PatientTabRecords({
             title="Визитов"
             value={completedCount}
             hint={formatNextAppointment(nextAppointment)}
-            hintClassName={doctorMetaTextClass}
+            hintClassName={cn(doctorMetaTextClass, 'text-primary')}
+            valuePlacement="side-center"
             onClick={completedCount > 0 ? () => setVisitsModalOpen(true) : undefined}
             actionIcon={<CalendarPlus className="size-5" aria-hidden />}
             actionLabel="Добавить запись"
@@ -435,6 +437,7 @@ export function PatientTabRecords({
             hint={
               membershipValidUntil ? `до ${fmtDate(membershipValidUntil.slice(0, 10))}` : undefined
             }
+            valuePlacement="side-center"
             onClick={activePackages.length > 0 ? () => setMembershipModalOpen(true) : undefined}
             actionIcon={<BadgePlus className="size-5" aria-hidden />}
             actionLabel="Добавить абонемент"
@@ -458,12 +461,20 @@ export function PatientTabRecords({
             phone: header?.identity.phone ?? null,
             email: header?.identity.email ?? null,
           }}
+          patientOnSupport={header?.support.isOnSupport === true}
         />
 
         <DoctorModal
           open={visitsModalOpen}
           onClose={() => setVisitsModalOpen(false)}
-          title={<DoctorModalCompositeTitle label="Визиты" entity={visitsPatientName} />}
+          title={
+            <DoctorModalStackedTitle
+              label="Визиты"
+              patientName={visitsPatientName}
+              patientHref={patientCardHref(userId)}
+              patientOnSupport={header?.support.isOnSupport === true}
+            />
+          }
           size="lg"
           bodyVariant="list"
           desktopPresentation="right-sheet"
@@ -533,7 +544,14 @@ export function PatientTabRecords({
         <DoctorModal
           open={membershipModalOpen}
           onClose={() => setMembershipModalOpen(false)}
-          title="Абонемент"
+          title={
+            <DoctorModalStackedTitle
+              label="Абонемент"
+              patientName={visitsPatientName}
+              patientHref={patientCardHref(userId)}
+              patientOnSupport={header?.support.isOnSupport === true}
+            />
+          }
           size="lg"
           bodyVariant="list"
           desktopPresentation="right-sheet"

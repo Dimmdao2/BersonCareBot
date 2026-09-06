@@ -34,18 +34,41 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('clinic calendar create form', () => {
-  it('starts with the patient supplied by the host already selected', async () => {
+  it('submits the patient fixed by the host context', async () => {
+    const onChanged = vi.fn();
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true, appointment: { id: 'appointment-1' } }),
+    }));
+    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
+
     render(
       <DoctorCalendarEventPanel
         apiBase="/api/doctor/booking-engine"
         selected={null}
         timeZone="Europe/Moscow"
-        filterMeta={{ specialists: [], branches: [], rooms: [], services: [] }}
+        filterMeta={{
+          specialists: [{ id: SPECIALIST_ID, label: 'Доктор Иванов' }],
+          branches: [{ id: BRANCH_ID, label: 'Центр' }],
+          rooms: [],
+          services: [
+            {
+              id: SERVICE_ID,
+              label: 'Приём',
+              durationMinutes: 30,
+              availability: [{ specialistId: SPECIALIST_ID, branchId: BRANCH_ID }],
+            },
+          ],
+        }}
         activeFilters={{ specialistId: null, branchId: null, roomId: null, serviceId: null }}
-        ownSpecialistId={null}
+        ownSpecialistId={SPECIALIST_ID}
         onClose={vi.fn()}
-        onChanged={vi.fn()}
+        onChanged={onChanged}
         startInCreate
+        createInitialStart="2027-03-10T09:00"
+        createInitialSpecialistId={SPECIALIST_ID}
+        createInitialBranchId={BRANCH_ID}
+        createInitialServiceId={SERVICE_ID}
         createInitialPatient={{
           id: 'patient-1',
           displayName: 'Иванова Мария',
@@ -53,10 +76,20 @@ describe('clinic calendar create form', () => {
           lastName: 'Иванова',
           phone: '+79990000000',
         }}
+        hideCreatePatient
       />,
     );
 
-    expect(await screen.findByTestId('patient-search')).toHaveTextContent('Иванова Мария');
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    const fetchCalls = (
+      fetchMock as unknown as {
+        mock: { calls: Array<[input: string, init?: RequestInit]> };
+      }
+    ).mock.calls;
+    const [, init] = fetchCalls[0]!;
+    expect(JSON.parse(String(init?.body))).toMatchObject({ platformUserId: 'patient-1' });
   });
 
   it('renders canonical specialist/branch/service fields and submits their exact ids', async () => {

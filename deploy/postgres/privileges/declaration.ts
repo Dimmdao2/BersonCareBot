@@ -14481,6 +14481,17 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "period",
           "what"
         ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "comment",
+          "period",
+          "what"
+        ]
       }
     ]
   },
@@ -14509,6 +14520,16 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "id",
           "organization_id",
           "patient_user_id",
+          "record_date",
+          "text"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
           "record_date",
           "text"
         ]
@@ -14541,6 +14562,18 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "immobilization",
           "organization_id",
           "patient_user_id",
+          "type",
+          "what",
+          "year"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "immobilization",
           "type",
           "what",
           "year"
@@ -14586,6 +14619,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
+          "description",
           "organization_id",
           "priority",
           "resolved_at",

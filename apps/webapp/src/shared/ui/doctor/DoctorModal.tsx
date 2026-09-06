@@ -160,7 +160,7 @@ export function DoctorModalStackedTitle({
 }) {
   const patientClassName = cn(
     doctorModalTitleClass,
-    'min-w-0 truncate text-right text-[15px] text-primary',
+    'min-w-0 truncate text-right text-[15px] font-semibold text-primary',
   );
   const patientLabel = patientName ? formatDoctorFioShortLabel(patientName) : null;
 

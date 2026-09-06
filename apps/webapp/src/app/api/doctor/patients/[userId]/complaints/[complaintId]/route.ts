@@ -13,9 +13,10 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 const bodySchema = z
   .object({
     text: z.string().min(1).max(2000).optional(),
+    description: z.string().max(5000).nullable().optional(),
     priority: z.boolean().optional(),
   })
-  .refine((b) => b.text !== undefined || b.priority !== undefined, {
+  .refine((b) => b.text !== undefined || b.description !== undefined || b.priority !== undefined, {
     message: 'nothing_to_update',
   });
 
@@ -70,6 +71,7 @@ export async function PATCH(
           patientUserId,
           complaintId,
           text: parsed.data.text,
+          description: parsed.data.description,
           priority: parsed.data.priority,
         }),
     );
