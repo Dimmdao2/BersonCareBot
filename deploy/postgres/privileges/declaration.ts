@@ -27439,6 +27439,12 @@ const REV10_CONTEXT = {
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
+    'public.enforce_be_appointments_confirmed_overlap_occupancy()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
+      purpose: 'confirmed appointment overlap occupancy trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, public, pg_temp'], invocation: 'trigger' as const,
+    }),
     'public.media_folders_enforce_depth()': rev10Function({
       owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'media-folder maximum-depth integrity trigger', typedArgs: [],

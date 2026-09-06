@@ -171,3 +171,64 @@ Full CI, push, deploy, land, plan/taskdb — не выполнялись (вне
   а UI честно не предлагает там подтверждение. Расширением скоупа не занимаюсь.
 - Наблюдение автора про `/api/doctor/patient-packages/[id]/consume` (тот же недостающий `subscriptions`
   clearance) — вне scope этих ID, оставляю как есть.
+
+---
+
+## Correction result — 2026-09-06
+
+- Correction commit SHA: `<FINAL_#1096_SHA>` (этот append-only evidence входит в тот же commit; точный SHA выдан в handoff).
+- F-1 устранён в одном canonical write-path. `allowOverlap: true` больше не пропускает scheduling безусловно:
+  маршрут сначала вызывает `assertSlotAvailable`, и записывает пару `overlap_confirmed_*` только когда тот вернул
+  фактический `slot_overlap`. Свободный слот с флагом остаётся обычной строкой без длительного иммунитета.
+- Один partial exclusion остался guard для ordinary-vs-ordinary. Новый `SECURITY INVOKER` trigger под
+  `pg_advisory_xact_lock(hashtextextended('be-appointments-specialist:' || specialist_id, 0))` проверяет
+  confirmed строки для каждой последующей ordinary insert/reschedule и выбрасывает тот же `23P01`.
+  Поэтому B может быть создана поверх A по явному согласию, но C не обходит B; согласованный marker не переживает
+  перенос B, потому что больше не совпадает с её новым интервалом и B снова входит в исходный exclusion guard.
+- Права: новая internal trigger-function объявлена только в `deploy/postgres/privileges/declaration.ts` как
+  `INVOKER`, без execute surface. Её `SELECT public.be_appointments` работает через уже существующий central
+  `app_staff` direct `SELECT`; migration не меняет grants/policies. Generator обновил оба named artifacts;
+  `pnpm run check:db-privileges-generated` подтвердил byte parity.
+
+### DEV rollback-only proof
+
+Команда: candidate DDL из `20260906T110000_an_overlap_stands_only_where_a_specialist_confirmed_that_slot.sql`,
+reconcile-строки из `deploy/postgres/generated/privileges.bcb_webapp_dev.sql`, затем
+`SET LOCAL SESSION AUTHORIZATION bcb_dev_webapp_staff` и canonical
+`app.begin_port_context(... 'staff', 'app_staff', 'relation', ...)` внутри одной `BEGIN … ROLLBACK` на
+именованной `bcb_webapp_dev`. Внешние уведомления и платежи не вызывались.
+
+| Проба | Result |
+|---|---|
+| P1 ordinary свободный слот | `created` |
+| P2 ordinary поверх ordinary | `23P01` |
+| P3 confirmed поверх ordinary | `created` |
+| P4 ordinary поверх confirmed | `23P01` |
+| P5 перенос confirmed на ordinary | `23P01` |
+| P6 перенос ordinary на confirmed | `23P01` |
+| P7 не-текущий organization UUID под org-A principal | `42501` |
+
+Внутри rollback-транзакции было 3 fixture rows (P1/P3/P4 seed); после неё
+`sudo -n -u postgres psql -X -q -t -A -h /var/run/postgresql -p 5432 -d bcb_webapp_dev -v ON_ERROR_STOP=1 -c
+"SELECT count(*) FROM public.be_appointments WHERE id::text LIKE '11110000-%';"` вернула `0`.
+В текущей DEV есть одна active organization (измерено
+`SELECT count(DISTINCT organization_id) FROM public.be_organization_members;`), поэтому P7 использовала
+отличающийся от current-org UUID и доказала именно RLS refusal, а не наличие второй fixture-клиники.
+
+### Concurrency evidence
+
+- ordinary-vs-ordinary: P2 — PostgreSQL exclusion `23P01`; это сохраняет существующую физическую race safety.
+- confirmed-vs-later-ordinary: отдельная rollback-only transaction создала A, confirmed B поверх A, отменила A и
+  держала transaction открытой. Второй backend выполнил
+  `SELECT pg_try_advisory_xact_lock(pg_catalog.hashtextextended('be-appointments-specialist:<specialist-id>', 0));`
+  и получил `blocked`. Любая ordinary create/reschedule входит в trigger до проверки confirmed B и берёт тот же
+  xact lock, поэтому не может пройти между отменой A и commit B; после ожидания P4/P6 predicate возвращает `23P01`.
+
+### Correction validation
+
+- `node --test deploy/postgres/privileges/migration-order.test.mjs` — 28/28 pass.
+- `pnpm run check:db-privileges-generated` — byte parity pass.
+- `node --test deploy/postgres/privileges/*.test.mjs` — 184 pass / 0 fail / 157 skipped.
+- `bash deploy/host/migrate-dev.sh --preflight --runtime-env-root /home/dev/dev-projects/BersonCareBot` — PASS,
+  pending остаётся не применённым.
+- `pnpm --dir apps/webapp exec vitest run src/app/api/doctor/booking-engine src/app/app/doctor/calendar src/modules/memberships src/modules/booking-calendar src/modules/booking-appointment-lifecycle` — 20 files / 114 tests pass.

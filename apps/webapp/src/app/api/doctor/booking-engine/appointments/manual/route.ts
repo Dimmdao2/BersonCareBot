@@ -105,17 +105,26 @@ export async function POST(request: Request) {
           organizationId: ctx.organizationId,
           specialistId: resolvedSpecialistId,
         });
-        // ENCOUNTER-APPOINTMENT-05: подтверждение снимает ровно ту проверку, которая и отказала
-        // первому запросу. Без него поведение не меняется ни на шаг.
-        if (deps.bookingScheduling && !parsed.data.allowOverlap) {
-          await deps.bookingScheduling.assertSlotAvailable({
-            organizationId: ctx.organizationId,
-            specialistId: resolvedSpecialistId,
-            roomId: parsed.data.roomId ?? null,
-            slotStart: parsed.data.startAt,
-            slotEnd: parsed.data.endAt,
-            durationMinutes: parsed.data.durationMinutes,
-          });
+        // ENCOUNTER-APPOINTMENT-05: `allowOverlap` — не общий bypass, а retry ПОСЛЕ реально
+        // найденного конфликта. На свободном слоте он оставляет обычную запись без долгоживущего
+        // маркера; другой отказ scheduling не превращается в согласие.
+        let overlapConfirmed = false;
+        if (deps.bookingScheduling) {
+          try {
+            await deps.bookingScheduling.assertSlotAvailable({
+              organizationId: ctx.organizationId,
+              specialistId: resolvedSpecialistId,
+              roomId: parsed.data.roomId ?? null,
+              slotStart: parsed.data.startAt,
+              slotEnd: parsed.data.endAt,
+              durationMinutes: parsed.data.durationMinutes,
+            });
+          } catch (err) {
+            if (!parsed.data.allowOverlap || !(err instanceof Error && err.message === 'slot_overlap')) {
+              throw err;
+            }
+            overlapConfirmed = true;
+          }
         }
         // PAY-APPT-01/03/07: снимок считается ДО вставки, потому что от него зависит и стартовый
         // статус записи, и занятость слота. Абонемент проверяется здесь же (чтение), чтобы
@@ -170,11 +179,12 @@ export async function POST(request: Request) {
             initialStatus === 'awaiting_payment' ? financials.prepaymentRequiredMinor : 0,
           paymentDeadlineAt:
             initialStatus === 'awaiting_payment' ? financials.paymentDeadlineAt : null,
-          // Признак несёт САМ подтверждённый слот, поэтому он не может распространиться дальше
-          // этого времени: перенос записи делает пару отличной от нового `start_at`/`end_at`, и
-          // база снова запрещает пересечение.
-          overlapConfirmedStartAt: parsed.data.allowOverlap ? parsed.data.startAt : null,
-          overlapConfirmedEndAt: parsed.data.allowOverlap ? parsed.data.endAt : null,
+          // Признак появляется только после фактического `slot_overlap`, а не от одного флага
+          // клиента. Перенос делает пару отличной от нового времени и вновь включает обычный
+          // exclusion guard; DB trigger отдельно не даёт новому обычному write пройти поверх
+          // записи, оставленной этим подтверждением на исходном слоте.
+          overlapConfirmedStartAt: overlapConfirmed ? parsed.data.startAt : null,
+          overlapConfirmedEndAt: overlapConfirmed ? parsed.data.endAt : null,
         });
         try {
           if (parsed.data.platformUserId && parsed.data.serviceId && deps.memberships) {

@@ -478,7 +478,7 @@ describe('ENCOUNTER-APPOINTMENT-05: наложение только по явн�
     const response = await create({ allowOverlap: true });
 
     expect(response.status).toBe(200);
-    expect(assertSlotAvailable).not.toHaveBeenCalled();
+    expect(assertSlotAvailable).toHaveBeenCalledTimes(1);
     expect(fakes.createAppointment).toHaveBeenCalledTimes(1);
     const created = fakes.createAppointment.mock.calls[0]![0] as Record<string, unknown>;
     // Пара обязана совпасть с собственным временем записи — только тогда предикат ограничения
@@ -491,10 +491,11 @@ describe('ENCOUNTER-APPOINTMENT-05: наложение только по явн�
     expect(created.endAt).toBe(SLOT_END);
   });
 
-  it('обычный запрос не помечает слот подтверждённым', async () => {
+  it('allowOverlap на свободном слоте не помечает слот подтверждённым', async () => {
     assertSlotAvailable.mockImplementation(async () => undefined);
 
-    expect((await create()).status).toBe(200);
+    expect((await create({ allowOverlap: true })).status).toBe(200);
+    expect(assertSlotAvailable).toHaveBeenCalledTimes(1);
 
     const created = fakes.createAppointment.mock.calls[0]![0] as Record<string, unknown>;
     expect({
