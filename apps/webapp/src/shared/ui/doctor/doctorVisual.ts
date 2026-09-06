@@ -152,6 +152,47 @@ export const doctorInlineLinkClass = 'text-primary underline underline-offset-2'
 /** Secondary hover-link style used for optional actions. */
 export const doctorHoverLinkClass = 'text-primary underline-offset-4 hover:underline font-medium';
 
+// -- Appointment status roles -------------------------------------------------
+
+/**
+ * PAY-APPT-17: one semantic role per appointment-status meaning, shared by list rows, calendar
+ * grids and the event panel. Colours live in the doctor-zone CSS variables (`doctor.css`), never
+ * as a per-screen Tailwind shade, so a status looks the same everywhere it is rendered.
+ *
+ * Cancellation intentionally reuses the zone-wide `destructive` role rather than getting a second
+ * token of its own.
+ */
+export type DoctorAppointmentStatusRole = 'payment-pending' | 'cancelled';
+
+const DOCTOR_APPOINTMENT_STATUS_ROLE_TEXT: Record<DoctorAppointmentStatusRole, string> = {
+  'payment-pending': 'text-[color:var(--doctor-status-payment-pending)]',
+  cancelled: 'text-destructive',
+};
+
+const DOCTOR_APPOINTMENT_STATUS_ROLE_MARKER: Record<DoctorAppointmentStatusRole, string> = {
+  'payment-pending': 'bg-[color:var(--doctor-status-payment-pending)]',
+  cancelled: 'bg-destructive',
+};
+
+/** Text colour of a status label rendered in the doctor zone. */
+export function doctorAppointmentStatusTextClass(role: DoctorAppointmentStatusRole): string {
+  return DOCTOR_APPOINTMENT_STATUS_ROLE_TEXT[role];
+}
+
+/**
+ * The round status marker of PAY-APPT-13 — a real filled circle, not a text bullet, so it stays
+ * legible at the sizes the mobile list uses.
+ */
+export function doctorAppointmentStatusMarkerClass(role: DoctorAppointmentStatusRole): string {
+  return cn(
+    'inline-block size-2 shrink-0 rounded-full',
+    DOCTOR_APPOINTMENT_STATUS_ROLE_MARKER[role],
+  );
+}
+
+/** Shared calendar-event treatment for «awaiting payment» (border + right-edge marker). */
+export const DOCTOR_APPOINTMENT_PAYMENT_PENDING_EVENT_CLASS = 'doctor-appt-payment-pending';
+
 // -- Empty states -------------------------------------------------------------
 
 /** Default container for empty states in doctor pages. */

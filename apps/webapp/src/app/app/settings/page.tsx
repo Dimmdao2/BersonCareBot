@@ -37,6 +37,7 @@ import { ClinicSlugSection } from './ClinicSlugSection';
 import { ClinicPublicCardSection } from './ClinicPublicCardSection';
 import { ClinicBookingLinkSection } from './ClinicBookingLinkSection';
 import { publicBookPaths } from '@/shared/publicBook/paths';
+import { BookingPaymentsSection } from './BookingPaymentsSection';
 import { ClinicDeliveryChannelsSection } from './ClinicDeliveryChannelsSection';
 import { OrgBrandingSection } from './OrgBrandingSection';
 import { OrgCustomDomainSection } from './OrgCustomDomainSection';
@@ -54,6 +55,8 @@ import { shouldShowGoogleCalendarSettings } from './googleCalendarVisibility';
 import { type AppointmentReminderSpecialistSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
 import { parseClinicDeliveryReadiness } from '@/modules/system-settings/clinicDeliveryReadiness';
 import { parseClinicBotPublicConfig } from '@/modules/system-settings/clinicBotConfig';
+import { parseBookingPaymentSettingsValue } from '@/modules/payments/bookingPaymentSettings';
+import { redactAdminSettingsForClient } from '@/modules/system-settings/webPushVapidRuntime';
 
 type LegacySettingsTab = 'specialist' | 'organization' | 'team' | 'billing' | 'install';
 
@@ -153,6 +156,8 @@ export default async function SettingsPage({
       bookingLinkOptions,
       customDomainSurface,
       customDomainMutation,
+      paymentsVisibility,
+      paymentsMutation,
     ] = await Promise.all([
       deps.systemSettings.listSettingsByScope('doctor', {
         organizationId: workspace.organizationId,
@@ -194,6 +199,8 @@ export default async function SettingsPage({
       canManageCustomDomain
         ? getMechanicMutationAvailability(workspace, 'custom_domain')
         : Promise.resolve(null),
+      getMechanicSurfaceVisibility(workspace, 'payments'),
+      getMechanicMutationAvailability(workspace, 'payments'),
     ]);
     const publishedBrand = brandingState.published;
     const publishedLogoUrl =
@@ -242,6 +249,26 @@ export default async function SettingsPage({
         )?.valueJson,
         false,
       ) === true;
+    /**
+     * PAY-APPT-21: clinic settings own the acquiring account, so the provider choice and its
+     * credentials are read here instead of in the calendar tab.
+     *
+     * PAY-APPT-22: the rows go through the SAME browser-facing projection the settings API uses
+     * (`redactAdminSettingsForClient`), so this SSR payload cannot become a second, laxer contract
+     * that ships the secret straight into the HTML.
+     */
+    const clientClinicAdminSettings = redactAdminSettingsForClient(clinicAdminSettings);
+    const clientClinicAdminSetting = (key: string) =>
+      clientClinicAdminSettings.find(
+        (setting) => setting.key === key && setting.organizationId === workspace.organizationId,
+      ) ?? null;
+    const bookingPaymentProviders = parseBookingPaymentSettingsValue(
+      clientClinicAdminSetting('booking_payment_providers')?.valueJson ?? null,
+    );
+    const bookingPaymentEnabled =
+      valueOf<unknown>(clientClinicAdminSetting('booking_payment_enabled')?.valueJson, false) ===
+      true;
+
     const [clinicSmtpEnabled, externalCalendarEnabled] = await Promise.all([
       isMechanicIncluded(workspace, 'clinic_smtp'),
       isMechanicIncluded(workspace, 'external_calendar'),
@@ -353,6 +380,13 @@ export default async function SettingsPage({
         />
         {workspace.specialistId ? (
           <AppointmentReminderSettingsSection initialSettings={appointmentReminderSettings} />
+        ) : null}
+        {paymentsVisibility.directUrl ? (
+          <BookingPaymentsSection
+            paymentEnabled={bookingPaymentEnabled}
+            providersJson={bookingPaymentProviders}
+            readOnly={!paymentsMutation.available}
+          />
         ) : null}
         <ClinicDeliveryChannelsSection
           initial={clinicDelivery}

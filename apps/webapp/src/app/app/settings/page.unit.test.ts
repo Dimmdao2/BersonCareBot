@@ -8,6 +8,8 @@ const fakes = vi.hoisted(() => ({
   resolveCabinetAccess: vi.fn(),
   requireEntitlementForReadAction: vi.fn(),
   isMechanicIncluded: vi.fn(),
+  getMechanicSurfaceVisibility: vi.fn(),
+  getMechanicMutationAvailability: vi.fn(),
   getManagementState: vi.fn(),
   listSettingsByScope: vi.fn(),
   getClinicPlatformIntegrationAvailability: vi.fn(),
@@ -41,6 +43,8 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   isMechanicIncluded: fakes.isMechanicIncluded,
   requireEntitlementForReadAction: fakes.requireEntitlementForReadAction,
+  getMechanicSurfaceVisibility: fakes.getMechanicSurfaceVisibility,
+  getMechanicMutationAvailability: fakes.getMechanicMutationAvailability,
 }));
 vi.mock('@/app-layer/guards/cabinetAccessGate', () => ({
   isCabinetEntryBlocked: () => false,
@@ -88,6 +92,16 @@ describe('settings organization branding read', () => {
     fakes.resolveCabinetAccess.mockResolvedValue({ state: 'full_access' });
     fakes.requireEntitlementForReadAction.mockResolvedValue({ ok: false });
     fakes.isMechanicIncluded.mockResolvedValue(false);
+    fakes.getMechanicSurfaceVisibility.mockResolvedValue({
+      specialistNavigation: false,
+      patientNavigation: false,
+      directUrl: false,
+      warning: null,
+    });
+    fakes.getMechanicMutationAvailability.mockResolvedValue({
+      available: false,
+      reason: 'not_included',
+    });
     fakes.listSettingsByScope.mockResolvedValue([]);
     fakes.getClinicPlatformIntegrationAvailability.mockResolvedValue({
       version: 1,

@@ -56,7 +56,6 @@ describe('ScheduleWorkTab weekly template path', () => {
           { canSeeAllSpecialists: false, specialists: [], ownSpecialistId: 'spec-1' } as never
         }
         paymentsVisible={false}
-        paymentsReadOnly
         notificationTemplatesVisible={false}
         packagesVisible={false}
         packagesReadOnly

@@ -38,6 +38,13 @@ export type PaymentProviderConfig = {
   merchantLogin?: string;
   /** Acquiring gateway base URL override (Alfa-Bank test vs prod). */
   gatewayUrl?: string;
+  /**
+   * PAY-APPT-22 client-facing facts, present ONLY on the safe projection served to the browser
+   * (`redactAdminSettingsForClient`). The stored value never carries them — the write path strips
+   * them again — so a UI can tell "a secret is configured" apart from "here is the secret".
+   */
+  hasApiKey?: boolean;
+  hasWebhookSecret?: boolean;
 };
 
 export type BookingPaymentSettings = {

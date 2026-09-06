@@ -46,6 +46,107 @@ describe('booking payment fiscal settings', () => {
     ).toMatchObject({ fiscalVatCode: null, fiscalTaxSystemCode: null });
   });
 
+  /**
+   * PAY-APPT-22: since the browser no longer receives the secret, an admin who opens the payment
+   * settings and presses «Сохранить» without retyping sends back an empty field. That MUST retain
+   * the stored credential — the alternative is silently wiping a working acquiring account on a
+   * no-op save. The `hasApiKey`/`hasWebhookSecret` facts the projection added are display-only and
+   * must not reach the stored value.
+   */
+  it('retains stored secrets on a save that carries only the safe projection facts', async () => {
+    const merged = await mergeBookingPaymentProvidersSecretsRetain(
+      async () => ({
+        value: {
+          providers: [
+            { id: 'yookassa', label: 'ЮKassa', enabled: true, apiKey: 'stored-yookassa-key' },
+            {
+              id: 'tinkoff',
+              label: 'Тинькофф Касса',
+              enabled: true,
+              apiKey: 'stored-tinkoff-key',
+              webhookSecret: 'stored-tinkoff-hook',
+            },
+          ],
+        },
+      }),
+      {
+        value: {
+          defaultProviderId: 'yookassa',
+          providers: [
+            {
+              id: 'yookassa',
+              label: 'ЮKassa',
+              enabled: true,
+              shopId: 'shop-42',
+              apiKey: '',
+              hasApiKey: true,
+            },
+            // Nothing at all about the secrets: an older client may omit the fields entirely.
+            { id: 'tinkoff', label: 'Тинькофф Касса', enabled: true, hasWebhookSecret: true },
+          ],
+        },
+      },
+    );
+
+    const providers = (merged.value as { providers: Array<Record<string, unknown>> }).providers;
+    expect(providers[0]).toMatchObject({ shopId: 'shop-42', apiKey: 'stored-yookassa-key' });
+    expect(providers[1]).toMatchObject({
+      apiKey: 'stored-tinkoff-key',
+      webhookSecret: 'stored-tinkoff-hook',
+    });
+    for (const provider of providers) {
+      expect(provider).not.toHaveProperty('hasApiKey');
+      expect(provider).not.toHaveProperty('hasWebhookSecret');
+    }
+  });
+
+  /**
+   * The other half of the retain contract, and the one no test held: a secret the admin DID retype
+   * must reach the stored value. The break is «провайдер сменил ключ, админ вписал новый, форма
+   * ответила «Сохранён», а сервер оставил мёртвый старый» — the acquiring account stops taking
+   * money and nothing anywhere says so, because retain is exactly the code path that hides it.
+   */
+  it('stores a retyped acquiring secret instead of retaining the previous one', async () => {
+    const merged = await mergeBookingPaymentProvidersSecretsRetain(
+      async () => ({
+        value: {
+          providers: [
+            { id: 'yookassa', label: 'ЮKassa', enabled: true, apiKey: 'rotated-away-key' },
+            {
+              id: 'tinkoff',
+              label: 'Тинькофф Касса',
+              enabled: true,
+              apiKey: 'old-tinkoff-key',
+              webhookSecret: 'old-tinkoff-hook',
+            },
+          ],
+        },
+      }),
+      {
+        value: {
+          defaultProviderId: 'yookassa',
+          providers: [
+            { id: 'yookassa', label: 'ЮKassa', enabled: true, apiKey: 'fresh-yookassa-key' },
+            {
+              id: 'tinkoff',
+              label: 'Тинькофф Касса',
+              enabled: true,
+              apiKey: 'fresh-tinkoff-key',
+              webhookSecret: 'fresh-tinkoff-hook',
+            },
+          ],
+        },
+      },
+    );
+
+    const providers = (merged.value as { providers: Array<Record<string, unknown>> }).providers;
+    expect(providers[0]).toMatchObject({ apiKey: 'fresh-yookassa-key' });
+    expect(providers[1]).toMatchObject({
+      apiKey: 'fresh-tinkoff-key',
+      webhookSecret: 'fresh-tinkoff-hook',
+    });
+  });
+
   it('retains fiscal settings while preserving redacted provider secrets', async () => {
     const merged = await mergeBookingPaymentProvidersSecretsRetain(
       async () => ({
