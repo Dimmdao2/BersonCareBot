@@ -160,3 +160,25 @@ describe('LifeAnamnesisSection — «Образ жизни» single current valu
     expect(body.recordDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
+
+describe('LifeAnamnesisSection — «Образ жизни» cancel (MODAL-TEXT-08)', () => {
+  it('discards the draft without touching the anamnesis endpoint and keeps the previous value', async () => {
+    const fetchMock = stubAnamnesisFetch();
+    const { onAnamnesisRefresh } = renderSections({
+      trauma: [],
+      illness: [],
+      lifestyle: [{ id: 'ls-latest', date: '15.03.2026', text: 'Курит, не занимается спортом' }],
+    });
+
+    fireEvent.click(screen.getByTitle('Изменить: Образ жизни'));
+    const dialog = await screen.findByRole('dialog');
+    const textarea = within(dialog).getByPlaceholderText('Образ жизни') as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'Черновик, который не должен сохраниться' } });
+    fireEvent.click(within(dialog).getByText('Отмена'));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(onAnamnesisRefresh).not.toHaveBeenCalled();
+    expect(screen.getByText('Курит, не занимается спортом')).toBeTruthy();
+  });
+});

@@ -147,3 +147,83 @@ describe('DoctorModal fullscreen-text presentation', () => {
     expect(drawerContent?.style.top).toBe('44px');
   });
 });
+
+describe('DoctorModal fullscreen-text — reopen, listener lifetime and desktop fallthrough', () => {
+  function ReopenHarness() {
+    const [open, setOpen] = useState(true);
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}>
+          Открыть заново
+        </button>
+        <DoctorModal
+          open={open}
+          onClose={() => setOpen(false)}
+          title="Новая заметка"
+          presentation="fullscreen-text"
+          footer={
+            <button type="button" onClick={() => setOpen(false)}>
+              Отмена
+            </button>
+          }
+        >
+          <DoctorModalTextEditorField value="" onChange={() => undefined} placeholder="Текст заметки" />
+        </DoctorModal>
+      </>
+    );
+  }
+
+  it('MODAL-TEXT-06: reopening the editor focuses the sole textarea again, not only on the first open', async () => {
+    render(<ReopenHarness />);
+    expect(document.activeElement).toBe(screen.getByPlaceholderText('Текст заметки'));
+
+    fireEvent.click(screen.getByText('Отмена'));
+    await waitFor(() => expect(screen.queryByPlaceholderText('Текст заметки')).toBeNull());
+
+    fireEvent.click(screen.getByText('Открыть заново'));
+    const reopened = await screen.findByPlaceholderText('Текст заметки');
+    expect(document.activeElement).toBe(reopened);
+  });
+
+  it('MODAL-TEXT-05: closing the editor unsubscribes from visualViewport (no listener left behind)', async () => {
+    const added: string[] = [];
+    const removed: string[] = [];
+    vi.stubGlobal('visualViewport', {
+      offsetTop: 0,
+      height: 600,
+      addEventListener: (type: string) => added.push(type),
+      removeEventListener: (type: string) => removed.push(type),
+    });
+
+    render(<ReopenHarness />);
+    expect(added.sort()).toEqual(['resize', 'scroll']);
+    expect(removed).toEqual([]);
+
+    fireEvent.click(screen.getByText('Отмена'));
+    await waitFor(() => expect(screen.queryByPlaceholderText('Текст заметки')).toBeNull());
+    expect(removed.sort()).toEqual(['resize', 'scroll']);
+  });
+
+  it('MODAL-TEXT-02/DISEASE-EDIT-05: on desktop the same editor stays in the canonical dialog, not the mobile drawer', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({ ...mobileMediaQueryList, matches: false })),
+    );
+
+    render(
+      <DoctorModal
+        open
+        onClose={() => undefined}
+        title="Анамнез заболевания"
+        presentation="fullscreen-text"
+        footer={<button type="button">Сохранить</button>}
+      >
+        <DoctorModalTextEditorField value="" onChange={() => undefined} placeholder="Анамнез" />
+      </DoctorModal>,
+    );
+
+    expect(document.querySelector('[data-slot="dialog-content"]')).not.toBeNull();
+    expect(document.querySelector('[data-slot="drawer-content"]')).toBeNull();
+    expect(screen.getByPlaceholderText('Анамнез')).toBeVisible();
+  });
+});
