@@ -2,14 +2,7 @@
 
 import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
 
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from 'recharts';
 import type { StatsPeriod } from '@/modules/diaries/stats/periodWindow';
 import {
   diaryChartFormatTickLabel,
@@ -29,9 +22,11 @@ const STROKE_DAILY = 'hsl(28 78% 42%)';
 export default function SymptomChartRecharts({
   points,
   period,
+  scrollable = false,
 }: {
   points: SymptomChartPoint[];
   period: StatsPeriod;
+  scrollable?: boolean;
 }) {
   const data = points.map((p) => ({
     full: p.date,
@@ -39,8 +34,13 @@ export default function SymptomChartRecharts({
     daily: p.daily,
   }));
 
+  const chartWidth = scrollable ? Math.max(364, data.length * 52) : undefined;
+
   return (
-    <div className="h-[260px] w-full min-w-0 pb-2">
+    <div
+      className={scrollable ? 'h-[260px] min-w-[364px] pb-2' : 'h-[260px] w-full min-w-0 pb-2'}
+      style={chartWidth ? { width: chartWidth } : undefined}
+    >
       <PositiveSizeResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 48 }}>
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
