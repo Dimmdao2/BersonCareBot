@@ -44,6 +44,7 @@ const bootstrapHybridOrgGatedTables = new Set([
 // Tenant-owned tables that already carry a direct organization_id but do not use the historical
 // public.be_* prefix and therefore do not belong in the P0.4 materialization batches.
 export const preScopedDirectOrgTables = new Set([
+  'public.clinical_disease_anamnesis',
   'public.clinic_public_directory_entries',
   'public.patient_invites',
   'public.saas_organization_trials',
@@ -252,6 +253,7 @@ const patientOwnedColumns = new Map([
   ['public.be_payment_history_events', { column: 'platform_user_id' }],
   ['public.be_payment_intents', { column: 'platform_user_id' }],
   ['public.be_payments', { column: 'platform_user_id' }],
+  ['public.clinical_disease_anamnesis', { column: 'patient_user_id' }],
   ['public.clinical_anamnesis_illness', { column: 'patient_user_id' }],
   ['public.clinical_anamnesis_lifestyle', { column: 'patient_user_id' }],
   ['public.clinical_anamnesis_trauma', { column: 'patient_user_id' }],
