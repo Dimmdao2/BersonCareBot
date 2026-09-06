@@ -121,9 +121,18 @@ function addDays(dateKey: string, days: number): string {
 function defaultDateRange(
   date: string | undefined,
   timeZone: string,
-): { from: string; to: string } {
-  const today = date ?? localDateKey(new Date().toISOString(), timeZone);
-  return { from: today, to: addDays(today, 13) };
+  horizonDays: number,
+): { from: string; to: string } | null {
+  if (!Number.isInteger(horizonDays) || horizonDays < 1 || horizonDays > MAX_RANGE_DAYS) {
+    throw new Error('booking_availability_horizon_unavailable');
+  }
+  const today = localDateKey(new Date().toISOString(), timeZone);
+  const horizonEnd = addDays(today, horizonDays - 1);
+  if (date) {
+    if (date < today || date > horizonEnd) return null;
+    return { from: date, to: date };
+  }
+  return { from: today, to: horizonEnd };
 }
 
 type BookingSchedulingServiceDependencies = {
@@ -165,7 +174,9 @@ export function createBookingSchedulingService(
         serviceId,
       });
       if (!ctx) throw new Error('branch_service_not_found');
-      const { from, to } = defaultDateRange(date, ctx.branchTimezone);
+      const horizonDays = await port.getAvailabilityHorizonDays(ctx.organizationId);
+      const range = defaultDateRange(date, ctx.branchTimezone, horizonDays);
+      if (!range) return [];
       return port.getSlots({
         organizationId: ctx.organizationId,
         branchId: ctx.branchId,
@@ -175,14 +186,16 @@ export function createBookingSchedulingService(
         durationMinutes: ctx.durationMinutes,
         bufferAfterMinutes: ctx.bufferAfterMinutes,
         branchTimezone: ctx.branchTimezone,
-        dateFrom: from,
-        dateTo: to,
+        dateFrom: range.from,
+        dateTo: range.to,
         slotCount,
       });
     },
 
     async getOnlineSlots({ organizationId, date, branchTimezone = 'Europe/Moscow', slotCount }) {
-      const { from, to } = defaultDateRange(date, branchTimezone);
+      const horizonDays = await port.getAvailabilityHorizonDays(organizationId);
+      const range = defaultDateRange(date, branchTimezone, horizonDays);
+      if (!range) return [];
       return port.getSlots({
         organizationId,
         branchId: null,
@@ -192,8 +205,8 @@ export function createBookingSchedulingService(
         durationMinutes: 60,
         bufferAfterMinutes: 0,
         branchTimezone,
-        dateFrom: from,
-        dateTo: to,
+        dateFrom: range.from,
+        dateTo: range.to,
         slotCount: slotCount ?? 1,
       });
     },
@@ -320,6 +333,10 @@ export function createBookingSchedulingService(
 
     getMinNoticeHours(organizationId) {
       return port.getMinNoticeHours(organizationId);
+    },
+
+    getAvailabilityHorizonDays(organizationId) {
+      return port.getAvailabilityHorizonDays(organizationId);
     },
 
     getMaxConsecutiveSlotHours(organizationId) {
