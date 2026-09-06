@@ -7,6 +7,41 @@ const BASE = '/api/admin/booking-engine';
 
 export const SOLO_BOOKING_UNAVAILABLE_MESSAGE = 'Запись недоступна без подключения к базе данных.';
 
+export type BookingDefaultKind = 'branch' | 'service' | 'specialist';
+
+const BOOKING_DEFAULT_SETTING_KEYS: Record<BookingDefaultKind, string> = {
+  branch: 'booking_calendar_default_branch_id',
+  service: 'booking_calendar_default_service_id',
+  specialist: 'booking_calendar_default_specialist_id',
+};
+
+export async function fetchBookingDefaultId(kind: BookingDefaultKind): Promise<string | null> {
+  const json = await apiJson<{
+    ok: boolean;
+    settings: Array<{ key: string; valueJson: unknown }>;
+  }>('/api/doctor/settings');
+  const valueJson = json.settings.find(
+    (setting) => setting.key === BOOKING_DEFAULT_SETTING_KEYS[kind],
+  )?.valueJson;
+  if (!valueJson || typeof valueJson !== 'object' || !('value' in valueJson)) return null;
+  const value = valueJson.value;
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+export async function setBookingDefaultId(
+  kind: BookingDefaultKind,
+  id: string | null,
+): Promise<void> {
+  await apiJson('/api/doctor/settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      key: BOOKING_DEFAULT_SETTING_KEYS[kind],
+      value: { value: id },
+    }),
+  });
+}
+
 export type SoloOverview = {
   organizationId: string;
   organization: { id: string; title: string } | null;

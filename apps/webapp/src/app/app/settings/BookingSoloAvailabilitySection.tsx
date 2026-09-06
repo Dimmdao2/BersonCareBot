@@ -1,8 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
 import {
   SOLO_BOOKING_UNAVAILABLE_MESSAGE,
   ensureDefaultSpecialist,
@@ -73,63 +77,72 @@ export function BookingSoloAvailabilitySection() {
 
   if (activeBranches.length === 0 || activeServices.length === 0) {
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Доступность</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Сначала добавьте активные локации и услуги.
-          </p>
-        </CardContent>
-      </Card>
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Доступность услуг по филиалам</DoctorSectionTitle>
+        </DoctorSectionHeader>
+        <p className="text-sm text-muted-foreground">Сначала добавьте активные филиалы и услуги.</p>
+      </DoctorSection>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Доступность услуг по локациям</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
-        {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
+    <DoctorSection>
+      <DoctorSectionHeader>
+        <DoctorSectionTitle>Доступность услуг по филиалам</DoctorSectionTitle>
+      </DoctorSectionHeader>
+      {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
+      {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
 
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40 text-left">
-                <th className="px-3 py-2 font-medium">Услуга</th>
-                {activeBranches.map((b) => (
-                  <th key={b.id} className="px-3 py-2 font-medium text-center">
-                    {b.title}
+      <div className="overflow-x-auto rounded-md border">
+        <table className="w-full min-w-max table-fixed text-sm">
+          <colgroup>
+            <col className="w-full min-w-52" />
+            {activeBranches.map((branch) => (
+              <col key={branch.id} className="w-14" />
+            ))}
+          </colgroup>
+          <thead>
+            <tr className="border-b bg-muted/40 text-left">
+              <th className="px-3 py-2 font-medium">Услуга</th>
+              {activeBranches.map((branch) => {
+                const compactTitle = (branch.shortTitle?.trim() || branch.title).slice(0, 5);
+                return (
+                  <th
+                    key={branch.id}
+                    className="px-1 py-2 text-center font-medium"
+                    title={branch.title}
+                  >
+                    {compactTitle}
                   </th>
-                ))}
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {activeServices.map((service) => (
+              <tr key={service.id} className="border-b border-border/60 last:border-0">
+                <td className="max-w-0 truncate px-3 py-2" title={service.title}>
+                  {service.title}
+                </td>
+                {activeBranches.map((branch) => {
+                  const enabled = isServiceAvailableAtLocation(overview, service.id, branch.id);
+                  return (
+                    <td key={branch.id} className="px-1 py-2 text-center">
+                      <Switch
+                        checked={enabled}
+                        disabled={pending}
+                        aria-label={`${service.title} — ${branch.title}`}
+                        onCheckedChange={(checked) => toggle(service.id, branch.id, checked)}
+                      />
+                    </td>
+                  );
+                })}
               </tr>
-            </thead>
-            <tbody>
-              {activeServices.map((s) => (
-                <tr key={s.id} className="border-b border-border/60 last:border-0">
-                  <td className="px-3 py-2">{s.title}</td>
-                  {activeBranches.map((b) => {
-                    const on = isServiceAvailableAtLocation(overview, s.id, b.id);
-                    return (
-                      <td key={b.id} className="px-3 py-2 text-center">
-                        <Switch
-                          checked={on}
-                          disabled={pending}
-                          aria-label={`${s.title} — ${b.title}`}
-                          onCheckedChange={(checked) => toggle(s.id, b.id, checked)}
-                        />
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </DoctorSection>
   );
 }

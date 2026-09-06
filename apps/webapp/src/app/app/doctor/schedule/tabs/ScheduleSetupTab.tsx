@@ -16,7 +16,6 @@ import {
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
-import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { BOOKING_CARD_GRID_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
@@ -41,7 +40,6 @@ import { SYSTEM_SETTING_REGISTRY } from '@/modules/system-settings/registry';
 // ---------------------------------------------------------------------------
 
 type SetupSectionId =
-  | 'calendar'
   | 'locations'
   | 'services'
   | 'specialists'
@@ -57,8 +55,7 @@ type SetupSectionDef = {
 };
 
 const SETUP_SECTIONS: SetupSectionDef[] = [
-  { id: 'calendar', label: 'Календарь' },
-  { id: 'locations', label: 'Локации' },
+  { id: 'locations', label: 'Филиалы' },
   { id: 'services', label: 'Услуги' },
   { id: 'specialists', label: 'Специалисты' },
   { id: 'form', label: 'Публичная форма' },
@@ -68,7 +65,7 @@ const SETUP_SECTIONS: SetupSectionDef[] = [
   { id: 'packages', label: 'Абонементы' },
 ];
 
-const DEFAULT_SECTION: SetupSectionId = 'calendar';
+const DEFAULT_SECTION: SetupSectionId = 'locations';
 
 type SetupSectionVisibility = Readonly<{
   payments: boolean;
@@ -182,240 +179,6 @@ function BookingRulesLoader() {
       allowPastUnlinkPastPackageSessions={state.allowPastUnlink}
       availabilityHorizonDays={state.availabilityHorizonDays}
     />
-  );
-}
-
-type CalendarSettingsRow = {
-  key: string;
-  valueJson: unknown;
-};
-
-type CalendarCatalogOption = {
-  id: string;
-  label: string;
-  durationMinutes?: number;
-};
-
-type CalendarSettingsState =
-  | { phase: 'loading' }
-  | { phase: 'error'; message: string }
-  | {
-      phase: 'ready';
-      branches: CalendarCatalogOption[];
-      services: CalendarCatalogOption[];
-      specialists: CalendarCatalogOption[];
-      defaultBranchId: string | null;
-      defaultServiceId: string | null;
-      defaultSpecialistId: string | null;
-    };
-
-function getSettingValue(rows: CalendarSettingsRow[], key: string): unknown {
-  const valueJson = rows.find((row) => row.key === key)?.valueJson;
-  if (valueJson && typeof valueJson === 'object' && 'value' in valueJson) {
-    return (valueJson as { value?: unknown }).value;
-  }
-  return null;
-}
-
-function stringOrNull(raw: unknown): string | null {
-  return typeof raw === 'string' && raw.trim() ? raw : null;
-}
-
-function ScheduleCalendarDefaultsSection() {
-  const [state, setState] = useState<CalendarSettingsState>({ phase: 'loading' });
-  const [, startTransition] = useTransition();
-
-  const fetchCalendarSettings = useCallback(async (): Promise<CalendarSettingsState> => {
-    const [settingsJson, calendarJson] = await Promise.all([
-      apiJson<{ ok: boolean; settings: CalendarSettingsRow[] }>('/api/doctor/settings'),
-      apiJson<{
-        ok: boolean;
-        filters: {
-          branches: CalendarCatalogOption[];
-          services: CalendarCatalogOption[];
-          specialists: CalendarCatalogOption[];
-        };
-      }>('/api/doctor/booking-engine/calendar?view=day&scope=clinic'),
-    ]);
-    return {
-      phase: 'ready',
-      branches: calendarJson.filters.branches,
-      services: calendarJson.filters.services,
-      specialists: calendarJson.filters.specialists,
-      defaultBranchId: stringOrNull(
-        getSettingValue(settingsJson.settings, 'booking_calendar_default_branch_id'),
-      ),
-      defaultServiceId: stringOrNull(
-        getSettingValue(settingsJson.settings, 'booking_calendar_default_service_id'),
-      ),
-      defaultSpecialistId: stringOrNull(
-        getSettingValue(settingsJson.settings, 'booking_calendar_default_specialist_id'),
-      ),
-    };
-  }, []);
-
-  const load = useCallback(() => {
-    startTransition(async () => {
-      try {
-        setState(await fetchCalendarSettings());
-      } catch (e) {
-        setState({ phase: 'error', message: e instanceof Error ? e.message : 'load_failed' });
-      }
-    });
-  }, [fetchCalendarSettings]);
-
-  useEffect(() => {
-    let cancelled = false;
-    startTransition(async () => {
-      try {
-        const next = await fetchCalendarSettings();
-        if (!cancelled) setState(next);
-      } catch (e) {
-        if (!cancelled) {
-          setState({ phase: 'error', message: e instanceof Error ? e.message : 'load_failed' });
-        }
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchCalendarSettings]);
-
-  function patchDoctorSetting(key: string, value: unknown): Promise<void> {
-    return apiJson('/api/doctor/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key, value: { value } }),
-    }).then(() => undefined);
-  }
-
-  function updateReady(patch: Partial<Extract<CalendarSettingsState, { phase: 'ready' }>>) {
-    setState((prev) => (prev.phase === 'ready' ? { ...prev, ...patch } : prev));
-  }
-
-  function save() {
-    if (state.phase !== 'ready') return;
-    startTransition(async () => {
-      try {
-        await Promise.all([
-          patchDoctorSetting('booking_calendar_default_branch_id', state.defaultBranchId),
-          patchDoctorSetting('booking_calendar_default_service_id', state.defaultServiceId),
-          patchDoctorSetting('booking_calendar_default_specialist_id', state.defaultSpecialistId),
-        ]);
-        toast.success('Сохранено');
-      } catch {
-        toast.error('Не удалось сохранить настройки календаря');
-      }
-    });
-  }
-
-  if (state.phase === 'loading') {
-    return <DoctorPanelLoading className="py-6" />;
-  }
-  if (state.phase === 'error') {
-    return (
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Календарь</DoctorSectionTitle>
-        </DoctorSectionHeader>
-        <div className="flex items-center gap-2">
-          <p className="text-sm text-destructive">{state.message}</p>
-          <Button type="button" size="sm" variant="outline" onClick={load}>
-            Повторить
-          </Button>
-        </div>
-      </DoctorSection>
-    );
-  }
-
-  return (
-    <DoctorSection>
-      <DoctorSectionHeader>
-        <DoctorSectionTitle>Календарь</DoctorSectionTitle>
-      </DoctorSectionHeader>
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label>Филиал по умолчанию</Label>
-          <Select
-            value={state.defaultBranchId ?? '__none__'}
-            onValueChange={(v) => updateReady({ defaultBranchId: v === '__none__' ? null : v })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__" label="Не выбран">
-                Не выбран
-              </SelectItem>
-              {state.branches.map((branch) => (
-                <SelectItem key={branch.id} value={branch.id} label={branch.label}>
-                  {branch.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Услуга по умолчанию</Label>
-          <Select
-            value={state.defaultServiceId ?? '__none__'}
-            onValueChange={(v) => updateReady({ defaultServiceId: v === '__none__' ? null : v })}
-          >
-            <SelectTrigger
-              displayLabel={
-                state.services.find((s) => s.id === state.defaultServiceId)?.label ?? 'Не выбрана'
-              }
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__" label="Не выбрана">
-                Не выбрана
-              </SelectItem>
-              {state.services.map((service) => (
-                <SelectItem key={service.id} value={service.id} label={service.label}>
-                  {service.label}
-                  {service.durationMinutes ? ` · ${service.durationMinutes} мин` : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Специалист по умолчанию</Label>
-          <Select
-            value={state.defaultSpecialistId ?? '__none__'}
-            onValueChange={(v) => updateReady({ defaultSpecialistId: v === '__none__' ? null : v })}
-          >
-            <SelectTrigger
-              displayLabel={
-                state.specialists.find((s) => s.id === state.defaultSpecialistId)?.label ??
-                'Не выбран'
-              }
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__" label="Не выбран">
-                Не выбран
-              </SelectItem>
-              {state.specialists.map((specialist) => (
-                <SelectItem key={specialist.id} value={specialist.id} label={specialist.label}>
-                  {specialist.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="mt-4 flex items-center gap-3">
-        <Button type="button" size="sm" onClick={save}>
-          Сохранить
-        </Button>
-      </div>
-    </DoctorSection>
   );
 }
 
@@ -767,21 +530,17 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
 // Section content components
 // ---------------------------------------------------------------------------
 
-function SectionCalendar() {
-  return <ScheduleCalendarDefaultsSection />;
-}
-
 function SectionLocations() {
-  return (
-    <div className="flex flex-col gap-3">
-      <BookingSoloLocationsSection />
-      <BookingSoloAvailabilitySection />
-    </div>
-  );
+  return <BookingSoloLocationsSection />;
 }
 
 function SectionServices() {
-  return <BookingSoloServicesSection />;
+  return (
+    <div className="flex flex-col gap-3">
+      <BookingSoloServicesSection />
+      <BookingSoloAvailabilitySection />
+    </div>
+  );
 }
 
 function SectionSpecialists() {
@@ -913,7 +672,6 @@ export function ScheduleSetupTab({
 
       {/* Active section content */}
       <div data-testid={`setup-section-${activeSection}`}>
-        {activeSection === 'calendar' && <SectionCalendar />}
         {activeSection === 'locations' && <SectionLocations />}
         {activeSection === 'services' && <SectionServices />}
         {activeSection === 'specialists' && <SectionSpecialists />}

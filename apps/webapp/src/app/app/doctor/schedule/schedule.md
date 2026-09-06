@@ -109,8 +109,6 @@
   `src/modules/booking-scheduling/workingDayBreakEdits.ts`. Команды графика доступны только когда календарь
   показывает собственного специалиста врача — маршрут `working-days` всегда пишет именно его.
 - Фоновые слои сетки не подписываются: перерыв визуально совпадает с нерабочим временем до и после смены.
-- В `Настройки → Календарь` можно выбрать филиал, услугу и специалиста по умолчанию для формы создания;
-  явный scope/фильтр текущего календаря имеет приоритет, а недоступный специалист не подставляется.
 - Прошедшие и будущие записи проверяются в этом же календаре: выбрать подходящий вид и перейти к нужному
   диапазону кнопками предыдущего/следующего периода либо через deep-link `view` + `date`; при необходимости
   тот же диапазон открыть списком через `render=list`. Отдельных past/future-списков больше нет; legacy
@@ -146,21 +144,20 @@
 
 Admin-only (обеспечено на уровне nav и шелла). Под-навигация секций:
 
-| `?section=`          | Компоненты                                                                                                                                           |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `calendar` (default) | `ScheduleCalendarDefaultsSection`                                                                                                                    |
-| `locations`          | `BookingSoloLocationsSection` + `BookingSoloAvailabilitySection`                                                                                     |
-| `services`           | `BookingSoloServicesSection` — canonical booking catalog (create/edit/deactivate)                                                                    |
-| `specialists`        | `BookingSoloSpecialistsSection` — canonical booking-engine specialists (owner/себя + сотрудники); отдельно от личных «Настроек специалиста» аккаунта |
-| `form`               | `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + `BookingPublicAttributionSection`                                                    |
-| `payments`           | `BookingPaymentsSectionLoader` + `BookingPrepaymentSection`                                                                                          |
-| `rules`              | `BookingRulesLoader` (→ `BookingRulesPageClient`): горизонт календаря записи клиники (1–92 дня), правила отмены/переноса и уведомления               |
-| `notifications`      | `ScheduleNotificationsSection`                                                                                                                       |
-| `packages`           | Шаблоны абонементов (`SectionPackages` через `/api/doctor/booking-engine/packages`); прямой URL: `/app/doctor/schedule?tab=setup&section=packages`   |
+| `?section=`           | Компоненты                                                                                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `locations` (default) | `BookingSoloLocationsSection`: плоский список; создание и редактирование в `DoctorModal`; выбор по умолчанию находится в деталях филиала                      |
+| `services`            | `BookingSoloServicesSection` + `BookingSoloAvailabilitySection`; выбор по умолчанию находится в деталях услуги, матрица использует короткие названия филиалов |
+| `specialists`         | `BookingSoloSpecialistsSection` (owner/себя + сотрудники); выбор по умолчанию находится в деталях специалиста                                                 |
+| `form`                | `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + `BookingPublicAttributionSection`                                                             |
+| `payments`            | `BookingPaymentsSectionLoader` + `BookingPrepaymentSection`                                                                                                   |
+| `rules`               | `BookingRulesLoader` (→ `BookingRulesPageClient`): горизонт календаря записи клиники (1–92 дня), правила отмены/переноса и уведомления                        |
+| `notifications`       | `ScheduleNotificationsSection`                                                                                                                                |
+| `packages`            | Шаблоны абонементов (`SectionPackages` через `/api/doctor/booking-engine/packages`); прямой URL: `/app/doctor/schedule?tab=setup&section=packages`            |
 
-В секции `locations` строка **«Онлайн»** — встроенная локация организации поверх существующей
+В секции `locations` отдельный блок **«Онлайн»** — встроенный филиал организации поверх существующей
 `be_branches`, а не отдельный тип записи. Её нельзя переименовать, удалить или создать повторно.
-Включённая локация появляется отдельной колонкой в матрице доступности услуг; новые услуги в ней
+Включённый филиал появляется отдельной колонкой в матрице доступности услуг; новые услуги в ней
 по умолчанию выключены. Выключение скрывает колонку и публичный выбор, но сохраняет назначения для
 последующего повторного включения.
 

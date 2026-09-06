@@ -1707,7 +1707,7 @@ export function ScheduleCalendarTab({
   const renderScheduleFilters = (className: string, controlClassName?: string) => (
     <div className={className}>
       <DoctorCalendarToolbarFilter
-        noneLabel="Все локации"
+        noneLabel="Все филиалы"
         options={filters.branches}
         value={branchId}
         onChange={setBranchId}
