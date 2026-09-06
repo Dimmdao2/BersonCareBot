@@ -1180,6 +1180,11 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
     reason: 'critical mechanic (patient_card) — never tariff-gated',
   },
   {
+    file: 'src/app/api/doctor/patients/[userId]/anamnesis/route.ts',
+    exportName: 'PATCH',
+    reason: 'critical mechanic (patient_card) — never tariff-gated',
+  },
+  {
     file: 'src/app/api/doctor/patients/[userId]/complaints/[complaintId]/route.ts',
     exportName: 'PATCH',
     reason: 'critical mechanic (patient_card) — never tariff-gated',
