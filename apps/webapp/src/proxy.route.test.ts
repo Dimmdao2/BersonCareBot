@@ -737,6 +737,46 @@ describe('global admin reaching platform pages under the doctor portal prefix', 
       );
     },
   );
+
+  /**
+   * Приёмка AN-ROUTE-02: платформенная навигация и legacy-редиректы ведут на
+   * `/app/admin/analytics` и НЕ упираются в клинический `/app/doctor/analytics`.
+   *
+   * Отказ словами: глобальный админ открывает свою старую ссылку/закладку на платформенную
+   * аналитику, получает 308 на клинический маршрут кабинета врача, а тот его не пускает — вместо
+   * аналитики он оказывается на `system-health` с тостом «доступ запрещён». Платформенная
+   * аналитика для него становится недостижимой по этим входам.
+   *
+   * Тест идёт по цепочке ровно так, как это делает браузер: 308 → повторный запрос через proxy.
+   */
+  const LEGACY_PLATFORM_ANALYTICS_ENTRIES = [
+    '/app/doctor/analytics/clients',
+    '/app/doctor/analytics/notifications',
+    '/app/doctor/usage',
+  ];
+
+  it.each(LEGACY_PLATFORM_ANALYTICS_ENTRIES)(
+    'does not dead-end a platform-operations admin following legacy entry %s',
+    async (path) => {
+      let current = path;
+      let denied: string | null = null;
+
+      for (let hop = 0; hop < 4; hop += 1) {
+        const response = await proxy(requestFor(STAFF_ORIGIN, current, { role: 'admin' }));
+        const location = response.headers.get('location');
+        if (!location) break;
+        const target = new URL(location);
+        if (target.searchParams.get('app_access_denied') === '1') {
+          denied = `${target.pathname}${target.search}`;
+          break;
+        }
+        current = `${target.pathname}${target.search}`;
+      }
+
+      expect(denied, `legacy entry ${path} ended at an access-denied bounce`).toBeNull();
+      expect(current.startsWith('/app/doctor/analytics')).toBe(false);
+    },
+  );
 });
 
 describe('resolved surface request choke point', () => {
