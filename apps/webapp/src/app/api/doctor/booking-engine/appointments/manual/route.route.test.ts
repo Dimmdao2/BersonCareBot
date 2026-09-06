@@ -36,10 +36,12 @@ vi.mock('@/modules/integrator/bookingM2mApi', () => ({
   createBookingSyncPort: fakes.createBookingSyncPort,
 }));
 
+import { assertMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
 import { POST } from './route';
 
 const BRANCH_ID = '33333333-3333-4333-8333-333333333333';
 const SERVICE_ID = '44444444-4444-4444-8444-444444444444';
+const PATIENT_ID = '55555555-5555-4555-8555-555555555555';
 
 /**
  * D13a(добор): врач создаёт запись вручную (doctor manual-create) — до этой правки
@@ -361,5 +363,264 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
 
     expect(response.status).toBe(400);
     expect(fakes.createAppointment).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * ENCOUNTER-APPOINTMENT-05 (owner acceptance 2026-09-04, §P4.6): «Если на выбранное время уже
+ * существует запись специалиста, до сохранения показано явное подтверждение конфликта. Отмена
+ * подтверждения ничего не создаёт; явное согласие разрешает наложение.»
+ *
+ * Что сломается без этих утверждений:
+ *   1. `allowOverlap` перестаёт быть повтором подтверждённого запроса и снимает проверку слота с
+ *      ОБЫЧНОГО запроса — врач получает молчаливую двойную бронь вместо подтверждения, и «отмена
+ *      ничего не создаёт» становится ложью (запись уже создана к моменту показа диалога).
+ *   2. Подтверждённый слот записывается не тем временем (или не записывается вовсе) — предикат
+ *      `be_appointments_specialist_no_overlap` сравнивает пару с собственным временем строки,
+ *      поэтому расхождение оставляет запись под запретом и согласие врача не исполняется вовсе
+ *      (`23P01` → 409). Оракул равенства взят из самого файла миграции, не из реализации формы.
+ */
+describe('ENCOUNTER-APPOINTMENT-05: наложение только по явному согласию врача', () => {
+  const SLOT_START = '2027-04-12T09:00:00.000Z';
+  const SLOT_END = '2027-04-12T10:00:00.000Z';
+  let assertSlotAvailable: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fakes.createAppointment.mockImplementation(async (input: Record<string, unknown>) => ({
+      id: 'appt-overlap-1',
+      organizationId: input.organizationId,
+      specialistId: input.specialistId,
+      branchId: input.branchId,
+      serviceId: input.serviceId,
+      startAt: input.startAt,
+      endAt: input.endAt,
+      platformUserId: null,
+      phoneNormalized: null,
+      appointmentReminderAllowedPresetIds: [],
+      appointmentReminderPresetId: null,
+      attributionJson: {},
+    }));
+    fakes.getSpecialistAppointmentReminderSettings.mockResolvedValue({
+      allowedPresetIds: [],
+      defaultPresetId: null,
+    });
+    fakes.ensureStaffBookingProjection.mockResolvedValue(null);
+    fakes.requireDoctorBookingEngine.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: 'org-1',
+        session: { user: { userId: 'user-doc-1', role: 'specialist' } },
+        service: {
+          createAppointment: fakes.createAppointment,
+          services: { getService: vi.fn(async () => ({ priceMinor: 250_000 })) },
+          getAppointment: vi.fn(async () => null),
+          getSpecialistAppointmentReminderSettings: fakes.getSpecialistAppointmentReminderSettings,
+        },
+      },
+    });
+    fakes.resolveDoctorCreateSpecialist.mockResolvedValue({
+      ok: true,
+      specialistId: '11111111-1111-4111-8111-111111111111',
+    });
+    // Занятый слот: та же проверка, которая отказывает первому запросу в проде.
+    assertSlotAvailable = vi.fn(async () => {
+      throw new Error('slot_overlap');
+    });
+    fakes.buildAppDeps.mockReturnValue({
+      bookingScheduling: { assertSlotAvailable, getPrepaymentWaitMinutes: vi.fn(async () => 20) },
+      payments: {
+        getSettings: vi.fn(async () => ({ enabled: false })),
+        getPrepaymentPolicyForBooking: vi.fn(async () => null),
+      },
+      patientBooking: {
+        ensureStaffBookingProjection: fakes.ensureStaffBookingProjection,
+        getBookingByCanonicalAppointment: vi.fn(async () => null),
+      },
+      patientOrganization: null,
+      memberships: null,
+      systemSettings: { getSetting: vi.fn(async () => null) },
+      bookingEngine: {
+        getSpecialistAppointmentReminderSettings: fakes.getSpecialistAppointmentReminderSettings,
+      },
+    });
+    fakes.createBookingSyncPort.mockReturnValue({ emitBookingEvent: vi.fn(async () => undefined) });
+  });
+
+  async function create(body: Record<string, unknown> = {}) {
+    return POST(
+      new Request('http://127.0.0.1/api/doctor/booking-engine/appointments/manual', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          startAt: SLOT_START,
+          endAt: SLOT_END,
+          durationMinutes: 60,
+          branchId: BRANCH_ID,
+          serviceId: SERVICE_ID,
+          ...body,
+        }),
+      }),
+    );
+  }
+
+  it('обычный запрос на занятое время отказывает и не создаёт ничего', async () => {
+    const response = await create();
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'slot_overlap' });
+    expect(assertSlotAvailable).toHaveBeenCalledTimes(1);
+    // «Отмена подтверждения ничего не создаёт»: к моменту показа диалога записи ещё нет.
+    expect(fakes.createAppointment).not.toHaveBeenCalled();
+  });
+
+  it('повтор с явным согласием создаёт запись и помечает ИМЕННО подтверждённый слот', async () => {
+    const response = await create({ allowOverlap: true });
+
+    expect(response.status).toBe(200);
+    expect(assertSlotAvailable).not.toHaveBeenCalled();
+    expect(fakes.createAppointment).toHaveBeenCalledTimes(1);
+    const created = fakes.createAppointment.mock.calls[0]![0] as Record<string, unknown>;
+    // Пара обязана совпасть с собственным временем записи — только тогда предикат ограничения
+    // выводит строку из-под запрета пересечений.
+    expect({
+      overlapConfirmedStartAt: created.overlapConfirmedStartAt,
+      overlapConfirmedEndAt: created.overlapConfirmedEndAt,
+    }).toEqual({ overlapConfirmedStartAt: SLOT_START, overlapConfirmedEndAt: SLOT_END });
+    expect(created.startAt).toBe(SLOT_START);
+    expect(created.endAt).toBe(SLOT_END);
+  });
+
+  it('обычный запрос не помечает слот подтверждённым', async () => {
+    assertSlotAvailable.mockImplementation(async () => undefined);
+
+    expect((await create()).status).toBe(200);
+
+    const created = fakes.createAppointment.mock.calls[0]![0] as Record<string, unknown>;
+    expect({
+      overlapConfirmedStartAt: created.overlapConfirmedStartAt,
+      overlapConfirmedEndAt: created.overlapConfirmedEndAt,
+    }).toEqual({ overlapConfirmedStartAt: null, overlapConfirmedEndAt: null });
+  });
+});
+
+/**
+ * Подтверждённый дефект (worker-отчёт df87839fe, вторая половина): врачебное создание записи с
+ * выбранным пациентом падало в `patient_principal_required` → `appointment_create_unavailable`, а
+ * автопривязка абонемента ДОПОЛНИТЕЛЬНО отказывала на замке механики `subscriptions` и глушилась
+ * пустым `catch {}` — то есть сеанс не списывался НИ РАЗУ, и об этом никто не узнавал.
+ *
+ * Что сломается без этого утверждения: врач записывает пациента с действующим абонементом — запись
+ * либо не создаётся вовсе (503), либо создаётся, а сеанс не списан; клиника отдаёт услугу бесплатно
+ * и видит абонемент нетронутым. Отказ дорогой (деньги) и молчаливый (пустой `catch`).
+ */
+describe('ENCOUNTER-APPOINTMENT-06: врачебная запись пациенту списывает сеанс абонемента', () => {
+  let reserveOutcome: 'cleared' | 'refused' | null;
+  let reserveForAppointment: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    reserveOutcome = null;
+    fakes.createAppointment.mockImplementation(async (input: Record<string, unknown>) => ({
+      id: 'appt-pkg-1',
+      organizationId: input.organizationId,
+      specialistId: input.specialistId,
+      branchId: input.branchId,
+      serviceId: input.serviceId,
+      startAt: input.startAt,
+      endAt: input.endAt,
+      platformUserId: input.platformUserId ?? null,
+      phoneNormalized: null,
+      appointmentReminderAllowedPresetIds: [],
+      appointmentReminderPresetId: null,
+      attributionJson: {},
+    }));
+    fakes.getSpecialistAppointmentReminderSettings.mockResolvedValue({
+      allowedPresetIds: [],
+      defaultPresetId: null,
+    });
+    fakes.ensureStaffBookingProjection.mockResolvedValue(null);
+    fakes.requireDoctorBookingEngine.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: 'org-1',
+        session: { user: { userId: 'user-doc-1', role: 'specialist' } },
+        service: {
+          createAppointment: fakes.createAppointment,
+          services: { getService: vi.fn(async () => ({ priceMinor: 250_000 })) },
+          getAppointment: vi.fn(async () => null),
+          getSpecialistAppointmentReminderSettings: fakes.getSpecialistAppointmentReminderSettings,
+        },
+      },
+    });
+    fakes.resolveDoctorCreateSpecialist.mockResolvedValue({
+      ok: true,
+      specialistId: '11111111-1111-4111-8111-111111111111',
+    });
+    // Продуктовая правда: `reserveForAppointment` первым делом требует clearance механики
+    // `subscriptions`, иначе физически отказывает. Здесь спрашивается ровно она.
+    reserveForAppointment = vi.fn(async () => {
+      try {
+        assertMechanicWriteClearance('subscriptions');
+        reserveOutcome = 'cleared';
+      } catch (err) {
+        reserveOutcome = 'refused';
+        throw err;
+      }
+      return { id: 'usage-1' };
+    });
+    fakes.buildAppDeps.mockReturnValue({
+      bookingScheduling: {
+        assertSlotAvailable: vi.fn(async () => undefined),
+        getPrepaymentWaitMinutes: vi.fn(async () => 20),
+      },
+      payments: {
+        getSettings: vi.fn(async () => ({ enabled: false })),
+        getPrepaymentPolicyForBooking: vi.fn(async () => null),
+      },
+      patientBooking: {
+        ensureStaffBookingProjection: fakes.ensureStaffBookingProjection,
+        getBookingByCanonicalAppointment: vi.fn(async () => null),
+      },
+      patientOrganization: null,
+      memberships: {
+        pickAutoPackageForBooking: vi.fn(async () => ({ id: 'pkg-1', organizationId: 'org-1' })),
+        reserveForAppointment,
+      },
+      systemSettings: { getSetting: vi.fn(async () => null) },
+      bookingEngine: {
+        getSpecialistAppointmentReminderSettings: fakes.getSpecialistAppointmentReminderSettings,
+      },
+    });
+    fakes.createBookingSyncPort.mockReturnValue({ emitBookingEvent: vi.fn(async () => undefined) });
+  });
+
+  it('запись создаётся и списание идёт в области записи механики, а не глохнет в catch', async () => {
+    const response = await POST(
+      new Request('http://127.0.0.1/api/doctor/booking-engine/appointments/manual', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          startAt: '2027-04-13T09:00:00.000Z',
+          endAt: '2027-04-13T10:00:00.000Z',
+          durationMinutes: 60,
+          branchId: BRANCH_ID,
+          serviceId: SERVICE_ID,
+          platformUserId: PATIENT_ID,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(reserveForAppointment).toHaveBeenCalledTimes(1);
+    expect(reserveOutcome).toBe('cleared');
+    expect(reserveForAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org-1',
+        patientPackageId: 'pkg-1',
+        appointmentId: 'appt-pkg-1',
+        platformUserId: PATIENT_ID,
+      }),
+    );
   });
 });
