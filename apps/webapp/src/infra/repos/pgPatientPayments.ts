@@ -108,10 +108,22 @@ function runPatientPaymentMutation<T>(
   organizationId: string,
   fn: (db: DrizzleDb) => Promise<T>,
 ): Promise<T> {
+  assertPatientPaymentTenant(organizationId);
+  return withTransaction((client) => fn(getWebappSqlFromPgClient(client) as DrizzleDb));
+}
+
+/**
+ * Единственная формулировка правила арендатора для журнала платежей: у КАЖДОЙ пишущей двери, а не
+ * у одного реляционного пути. Именованный корень наличных по записи не отменяет его: SQL-сверка
+ * внутри корня (`require_accepted_context` + `app.current_org_id()`) закрывает стену, но снятый
+ * здесь гейт молча меняет вопрос — дверь перестаёт утверждать, под каким принципалом пишутся
+ * собранные врачом наличные, и `organizationId` из честного аргумента снова становится способом
+ * назвать чужую клинику.
+ */
+function assertPatientPaymentTenant(organizationId: string): void {
   if (requiredPrincipalOrganizationId() !== organizationId) {
     throw new Error('patient_payment_organization_principal_mismatch');
   }
-  return withTransaction((client) => fn(getWebappSqlFromPgClient(client) as DrizzleDb));
 }
 
 function requiredPrincipalOrganizationId(): string {
@@ -190,6 +202,7 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
        * нет, гасить нечего.
        */
       if (input.appointmentId && idempotencyKey) {
+        assertPatientPaymentTenant(input.organizationId);
         const payload = JSON.stringify({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,

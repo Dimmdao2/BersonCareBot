@@ -25284,6 +25284,13 @@ const WEBAPP_WORKER_SOURCES = [
   // Часовой тик продления подписок: до 19.08 он входил платформенным принципалом с выдуманным
   // актором и падал на установке контекста — здесь его не было, потому что и класс был не тот.
   'api/internal/saas-billing/renewal/tick:POST',
+  // PAY-APPT-11/18: минутный тик истечения предоплаты записи. Данные он трогает ТОЛЬКО объявленным
+  // корнем `booking_prepayment_expire` (тот же `app_worker`, класс `service`) — эта строка не даёт
+  // ему новых прав, она объявляет, чем он вообще входит в базу как infra-принципал. Без неё
+  // `webappPortCapabilityForInfraSource` не находит источник, а locked-набор
+  // (`webappLockedInfraCronSources.ts`) уже пускает его на staff-пул: то самое расхождение кода с
+  // центральной декларацией, которым дважды до этого джобы молча ничего не делали.
+  'api/internal/booking-prepayment/expire:POST',
   'api/internal/heartbeat/pipeline_delivery:POST',
   'api/internal/heartbeat/pipeline_delivery:GET',
   'api/internal/heartbeat/digest:POST',
