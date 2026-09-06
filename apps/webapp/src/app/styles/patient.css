@@ -190,10 +190,11 @@
  * iOS Safari auto-zoom prevention for portalled dialogs.
  * Dialogs from shadcn/base-ui are rendered on <body> outside #app-shell-patient, so the
  * existing rule below (max-width: 767px / #app-shell-patient) does not cover them.
- * Covers inputs/textareas inside [data-slot="dialog-content"] on mobile.
+ * Covers inputs/textareas inside the portalled dialog AND the canonical mobile drawer
+ * (PatientModal renders a drawer on mobile, so the dialog-only selector would miss it).
  */
 @media (max-width: 767px) {
-  [data-slot='dialog-content']
+  :is([data-slot='dialog-content'], [data-slot='drawer-content'])
     :where(
       input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='hidden']):not(
           [type='submit']
@@ -244,21 +245,9 @@
  * `customVariant:h-[calc(... var(--x) ...)]` (вариант + arbitrary со `var()`) этим стеком
  * Tailwind v4 + Turbopack НЕ генерируется — класс висит без правила, высота схлопывается.
  *
- * `.patient-messages-chat-height` — секция чата поддержки (messages):
- *   моб/узкое окно = content-dvh − 1rem; desktop = 100dvh − header − 2rem.
  * `.patient-address-iframe-height` — iframe адреса кабинета (address):
  *   desktop = shell-inner-dvh − 2rem; моб/узкое окно = 100dvh − header − 3rem.
  */
-#app-shell-patient .patient-messages-chat-height {
-  height: calc(var(--patient-content-dvh) - 1rem);
-}
-
-@media (min-width: 768px) and (min-height: 600px) {
-  #app-shell-patient .patient-messages-chat-height {
-    height: calc(100dvh - var(--patient-header-total-offset) - 2rem);
-  }
-}
-
 #app-shell-patient .patient-address-iframe-height {
   height: calc(var(--patient-shell-inner-dvh) - 2rem);
 }
@@ -624,5 +613,30 @@
       .text-\[15px\]
     ) {
     font-size: 1rem !important;
+  }
+}
+
+/*
+ * Полноэкранный просмотр медиа пациента (`PatientModal presentation="fullscreen-media"`).
+ * Safari рисует нативные controls по краю <video>: в ландшафте оставляем чёрную рамку,
+ * чтобы controls не уезжали в углы/вырез. Портрет сохраняет edge-to-edge геометрию.
+ */
+.patient-fullscreen-media-close {
+  top: max(0.75rem, env(safe-area-inset-top, 0px));
+  right: calc(max(0.75rem, env(safe-area-inset-right, 0px)) + 3.25rem);
+}
+
+.patient-fullscreen-media-drawer > [aria-hidden='true'] {
+  background-color: rgb(255 255 255 / 38%);
+}
+
+@media (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  .patient-fullscreen-media-video {
+    top: max(0.5rem, env(safe-area-inset-top, 0px));
+    right: max(1rem, env(safe-area-inset-right, 0px));
+    bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+    left: max(1rem, env(safe-area-inset-left, 0px));
+    width: auto;
+    height: auto;
   }
 }

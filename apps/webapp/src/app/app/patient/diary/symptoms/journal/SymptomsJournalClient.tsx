@@ -7,13 +7,7 @@ import Link from 'next/link';
 import { MoreHorizontal } from 'lucide-react';
 import { Button, buttonVariants } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/ui/patient/primitives/dialog';
+import { PatientModal, PatientModalFooter } from '@/shared/ui/patient/PatientModal';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +39,8 @@ function toDatetimeLocalValue(iso: string): string {
   const d = new Date(iso);
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
+
+const SYMPTOM_JOURNAL_EDIT_FORM_ID = 'symptom-journal-edit-form';
 
 export function SymptomsJournalClient(props: {
   entries: SymptomEntry[];
@@ -196,107 +192,109 @@ export function SymptomsJournalClient(props: {
         </ul>
       )}
 
-      <Dialog open={editEntry !== null} onOpenChange={(o) => !o && setEditEntry(null)}>
-        <DialogContent className="border border-[var(--patient-border)] shadow-md sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Редактировать запись</DialogTitle>
-          </DialogHeader>
-          {editEntry ? (
-            !isSymptomJournalEntryEditable(editEntry.recordedAt) ? (
-              <>
-                <p className={patientMutedTextClass}>
-                  Редактирование доступно только в течение 24 часов с момента времени записи.
-                </p>
-                <DialogFooter>
-                  <Button type="button" onClick={() => setEditEntry(null)}>
-                    Закрыть
-                  </Button>
-                </DialogFooter>
-              </>
-            ) : (
-              <form
-                className="flex flex-col gap-3"
-                onSubmit={(ev) => {
-                  ev.preventDefault();
-                  const form = ev.currentTarget;
-                  const fd = new FormData(form);
-                  const local = fd.get('recordedAtLocal');
-                  if (typeof local !== 'string' || !local) {
-                    toast.error('Укажите дату и время');
-                    return;
+      <PatientModal
+        open={editEntry !== null}
+        onClose={() => setEditEntry(null)}
+        title="Редактировать запись"
+        size="md"
+      >
+        {editEntry ? (
+          !isSymptomJournalEntryEditable(editEntry.recordedAt) ? (
+            <>
+              <p className={patientMutedTextClass}>
+                Редактирование доступно только в течение 24 часов с момента времени записи.
+              </p>
+              <PatientModalFooter>
+                <Button type="button" onClick={() => setEditEntry(null)}>
+                  Закрыть
+                </Button>
+              </PatientModalFooter>
+            </>
+          ) : (
+            <form
+              id={SYMPTOM_JOURNAL_EDIT_FORM_ID}
+              className="flex flex-col gap-3"
+              onSubmit={(ev) => {
+                ev.preventDefault();
+                const form = ev.currentTarget;
+                const fd = new FormData(form);
+                const local = fd.get('recordedAtLocal');
+                if (typeof local !== 'string' || !local) {
+                  toast.error('Укажите дату и время');
+                  return;
+                }
+                fd.set('recordedAt', new Date(local).toISOString());
+                fd.set('entryId', editEntry.id);
+                startTransition(async () => {
+                  const res = await updateSymptomJournalEntry(fd);
+                  if (res.ok) {
+                    toast.success('Сохранено');
+                    setEditEntry(null);
+                    router.refresh();
+                  } else {
+                    toast.error(res.message ?? 'Не удалось сохранить');
                   }
-                  fd.set('recordedAt', new Date(local).toISOString());
-                  fd.set('entryId', editEntry.id);
-                  startTransition(async () => {
-                    const res = await updateSymptomJournalEntry(fd);
-                    if (res.ok) {
-                      toast.success('Сохранено');
-                      setEditEntry(null);
-                      router.refresh();
-                    } else {
-                      toast.error(res.message ?? 'Не удалось сохранить');
-                    }
-                  });
-                }}
-              >
-                <label className="flex flex-col gap-1">
-                  <span
-                    className={cn(
-                      patientMutedTextClass,
-                      'text-xs font-medium uppercase tracking-wide',
-                    )}
-                  >
-                    Интенсивность (0–10)
-                  </span>
-                  <Input
-                    type="number"
-                    name="value"
-                    min={0}
-                    max={10}
-                    required
-                    defaultValue={editEntry.value0_10}
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span
-                    className={cn(
-                      patientMutedTextClass,
-                      'text-xs font-medium uppercase tracking-wide',
-                    )}
-                  >
-                    Дата и время
-                  </span>
-                  <Input
-                    type="datetime-local"
-                    name="recordedAtLocal"
-                    required
-                    defaultValue={toDatetimeLocalValue(editEntry.recordedAt)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span
-                    className={cn(
-                      patientMutedTextClass,
-                      'text-xs font-medium uppercase tracking-wide',
-                    )}
-                  >
-                    Заметки
-                  </span>
-                  <Textarea name="notes" rows={3} defaultValue={editEntry.notes ?? ''} />
-                </label>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setEditEntry(null)}>
-                    Отмена
-                  </Button>
-                  <Button type="submit" disabled={pending}>
-                    Сохранить
-                  </Button>
-                </DialogFooter>
-              </form>
-            )
-          ) : null}
-        </DialogContent>
-      </Dialog>
+                });
+              }}
+            >
+              <label className="flex flex-col gap-1">
+                <span
+                  className={cn(
+                    patientMutedTextClass,
+                    'text-xs font-medium uppercase tracking-wide',
+                  )}
+                >
+                  Интенсивность (0–10)
+                </span>
+                <Input
+                  type="number"
+                  name="value"
+                  min={0}
+                  max={10}
+                  required
+                  defaultValue={editEntry.value0_10}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span
+                  className={cn(
+                    patientMutedTextClass,
+                    'text-xs font-medium uppercase tracking-wide',
+                  )}
+                >
+                  Дата и время
+                </span>
+                <Input
+                  type="datetime-local"
+                  name="recordedAtLocal"
+                  required
+                  defaultValue={toDatetimeLocalValue(editEntry.recordedAt)}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span
+                  className={cn(
+                    patientMutedTextClass,
+                    'text-xs font-medium uppercase tracking-wide',
+                  )}
+                >
+                  Заметки
+                </span>
+                <Textarea name="notes" rows={3} defaultValue={editEntry.notes ?? ''} />
+              </label>
+              <PatientModalFooter>
+                <Button type="button" variant="outline" onClick={() => setEditEntry(null)}>
+                  Отмена
+                </Button>
+                {/* Футер живёт вне DOM-дерева формы (портал), поэтому связь — атрибутом `form`. */}
+                <Button type="submit" form={SYMPTOM_JOURNAL_EDIT_FORM_ID} disabled={pending}>
+                  Сохранить
+                </Button>
+              </PatientModalFooter>
+            </form>
+          )
+        ) : null}
+      </PatientModal>
     </div>
   );
 }

@@ -1,23 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { reminderRuleToPatientJson } from '@/app/api/patient/reminders/reminderPatientJson';
 import type { PatientReminderRuleJson } from '@/app/api/patient/reminders/reminderPatientJson';
 import { Button } from '@/shared/ui/patient/primitives/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/ui/patient/primitives/dialog';
-import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from '@/shared/ui/patient/primitives/sheet';
+import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import type { UpdateRuleData } from '@/modules/reminders/service';
 import type { ReminderRule } from '@/modules/reminders/types';
 import { scheduleInvalidFromError } from '@/modules/reminders/reminderFormAria';
@@ -38,29 +25,9 @@ import {
   REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
   clampIntervalMinutes,
 } from '@/modules/reminders/reminderIntervalBounds';
-import {
-  minutesToTimeInput,
-  timeInputToMinutes,
-} from '@/modules/reminders/reminderTimeInputs';
+import { minutesToTimeInput, timeInputToMinutes } from '@/modules/reminders/reminderTimeInputs';
 import { ReminderScheduleForm } from '@/modules/reminders/components/ReminderScheduleForm';
 import { patchPatientReminderScheduleBundle } from '@/app/app/patient/reminders/actions';
-import { cn } from '@/lib/utils';
-import { patientPortalModalSurfaceClass } from '@/shared/ui/patient/patientVisual';
-
-function subscribeMobileViewport(onStoreChange: () => void) {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return () => {};
-  }
-  const mq = window.matchMedia('(max-width: 767px), (pointer: coarse)');
-  mq.addEventListener('change', onStoreChange);
-  return () => mq.removeEventListener('change', onStoreChange);
-}
-
-function getMobileViewportSnapshot(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-  return window.matchMedia('(max-width: 767px), (pointer: coarse)').matches;
-}
-
 const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const;
 
 function dedupeSortTimes(times: string[]): string[] {
@@ -81,12 +48,6 @@ export function LegacyReminderScheduleDialog({
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
-  const isMobileViewport = useSyncExternalStore(
-    subscribeMobileViewport,
-    getMobileViewportSnapshot,
-    () => false,
-  );
-
   const [intervalMinutes, setIntervalMinutes] = useState(DEFAULT_REMINDER_FORM_INTERVAL_MINUTES);
   const [startTime, setStartTime] = useState(
     minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_START_MINUTE),
@@ -153,15 +114,7 @@ export function LegacyReminderScheduleDialog({
     const we = timeInputToMinutes(endTime);
     if (ws == null || we == null) return 'Проверьте время.';
     return `${startTime}–${endTime}, каждые ${intervalMinutes} мин. Дни: ${daysOn || 'не выбраны'}.`;
-  }, [
-    scheduleMode,
-    slotTimeRows,
-    slotsDayFilter,
-    startTime,
-    endTime,
-    intervalMinutes,
-    daysMask,
-  ]);
+  }, [scheduleMode, slotTimeRows, slotsDayFilter, startTime, endTime, intervalMinutes, daysMask]);
 
   const scheduleFieldInvalid = useMemo(() => scheduleInvalidFromError(error), [error]);
 
@@ -294,7 +247,7 @@ export function LegacyReminderScheduleDialog({
   );
 
   const footer = (
-    <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+    <>
       <Button
         type="button"
         variant="outline"
@@ -306,45 +259,19 @@ export function LegacyReminderScheduleDialog({
       <Button type="button" onClick={() => void handleSubmit()} disabled={submitting}>
         {submitting ? 'Сохранение…' : 'Сохранить'}
       </Button>
-    </div>
+    </>
   );
 
-  const title = `Расписание: ${categoryLabel}`;
-
-  if (isMobileViewport) {
-    return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent
-          side="bottom"
-          className={cn(
-            patientPortalModalSurfaceClass,
-            'max-h-[92vh] overflow-y-auto rounded-t-2xl border-t border-[var(--patient-border)] px-4 pb-6',
-          )}
-        >
-          <SheetHeader className="px-0 text-left">
-            <SheetTitle>{title}</SheetTitle>
-          </SheetHeader>
-          {body}
-          <SheetFooter className="px-0">{footer}</SheetFooter>
-        </SheetContent>
-      </Sheet>
-    );
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className={cn(
-          patientPortalModalSurfaceClass,
-          'max-h-[90vh] max-w-lg overflow-y-auto border-[var(--patient-border)] sm:max-w-lg',
-        )}
-      >
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        {body}
-        <DialogFooter className="gap-2 sm:gap-0">{footer}</DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <PatientModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Расписание"
+      titleSubject={categoryLabel}
+      size="lg"
+      footer={footer}
+    >
+      {body}
+    </PatientModal>
   );
 }

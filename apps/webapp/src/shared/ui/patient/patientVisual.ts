@@ -46,12 +46,6 @@ export const patientHeroBookingSectionClass = cn(
 );
 
 /**
- * Фон модалки/шита пациента в портале (вне `#app-shell-patient` CSS vars недоступны) — белый 90%.
- */
-export const patientPortalModalSurfaceClass =
-  'bg-[rgba(255,255,255,0.9)] supports-backdrop-filter:backdrop-blur-sm';
-
-/**
  * Общая «карточная» оболочка semantic surface: радиус и тень как у обычной patient-карточки, без home-геометрии.
  * Цвета задаются отдельно через `--patient-surface-<tone>-*`.
  */
@@ -478,25 +472,6 @@ export const patientScrollbarHiddenClass = cn(
 );
 
 /**
- * Оболочка `DialogContent` для patient-модалок с синей шапкой и белым крестиком:
- * колонка, ограничение высоты, без двойного скролла у края окна.
- */
-export const patientModalDialogContentShellClass = cn(
-  'flex max-h-[85vh] flex-col gap-0 overflow-hidden',
-  '[&_[data-slot=dialog-close]]:text-white [&_[data-slot=dialog-close]]:hover:bg-white/15 [&_[data-slot=dialog-close]]:focus-visible:ring-white/40',
-);
-
-/** Синяя полоса заголовка модалки пациента (крестик — `absolute` из `DialogContent`, нужен `pr-12`). */
-export const patientModalHeaderBarClass = cn(
-  '-mx-4 -mt-4 rounded-t-xl bg-[rgb(126,161,209)] px-4 pt-3 pb-3 pr-12 text-white',
-);
-
-/** `DialogTitle` внутри {@link patientModalHeaderBarClass}. */
-export const patientModalDialogTitleClass = cn(
-  'font-sans text-base font-normal leading-snug text-white',
-);
-
-/**
  * Primary CTA внутри patient `Dialog` portal (вне `#app-shell-patient`):
  * {@link patientButtonPrimaryClass} использует `var(--patient-color-primary)` с fallback hex — иначе в портале
  * фон не резолвится, остаётся белый `bg-background` модалки, а `text-white` не виден до hover.
@@ -507,12 +482,6 @@ export const patientModalPortalPrimaryCtaClass = cn(
   'shadow-[0_6px_14px_rgba(40,77,160,0.24)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#284da0]',
   'disabled:cursor-not-allowed disabled:opacity-60',
-);
-
-/** Прокручиваемое тело под шапкой: скрытый scrollbar, съедает оставшуюся высоту во flex-колонке. Отступ сверху — в {@link PatientModalDialogContent}. */
-export const patientModalBodyScrollClass = cn(
-  'min-h-0 flex-1 space-y-3 overflow-y-auto',
-  patientScrollbarHiddenClass,
 );
 
 /** Pending-полоска действия и shell для `loading.tsx` (`@keyframes` только в `patient.css`). */

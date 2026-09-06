@@ -2,31 +2,34 @@
 
 import type { ReactNode } from 'react';
 import { useState } from 'react';
-import { PatientModal } from '@/shared/ui/patient/PatientModal';
-import { PatientMediaPlaybackVideo } from '@/shared/ui/patient/media/PatientMediaPlaybackVideo';
-import { PatientCatalogMediaStaticThumb } from '@/shared/ui/patient/PatientCatalogMediaStaticThumb';
-import { MediaThumb } from '@/shared/ui/patient/media/MediaThumb';
-import type { MediaPreviewUiModel } from '@/shared/ui/patient/media/mediaPreviewUiModel';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/ui/doctor/primitives/dialog';
+import { DoctorMediaPlaybackVideo } from '@/shared/ui/doctor/media/DoctorMediaPlaybackVideo';
+import { DoctorCatalogMediaStaticThumb } from '@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import type { MediaPreviewUiModel } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 import { cn } from '@/lib/utils';
-import { patientBodyTextClass } from '@/shared/ui/patient/patientVisual';
 import { useDiscussionMessageMediaPlayback } from '@/shared/ui/chat/useDiscussionMessageMediaPlayback';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 
 /**
- * Тело сообщения обсуждения в кабинете ПАЦИЕНТА.
+ * Тело сообщения обсуждения в кабинете ВРАЧА — зеркало patient-варианта на doctor-примитивах.
  *
- * Медиа открывается полноэкранно поверх обсуждения (`PatientModal presentation="fullscreen-media"`),
- * а обсуждение под ним остаётся смонтированным — закрытие возвращает ровно в тот же тред.
- * Модель загрузки playback общая с кабинетом врача ({@link useDiscussionMessageMediaPlayback}),
- * сам UI — patient-примитивы, без импорта doctor-зоны (AGENTS.md §17).
+ * Отдельный компонент, а не общий с пациентом: раньше doctor-панель импортировала patient-версию и
+ * вместе с ней тянула в doctor-дерево patient-модалку, превью и плеер (AGENTS.md §17 — деревья UI
+ * зон не пересекаются). Общей осталась только модель загрузки
+ * {@link useDiscussionMessageMediaPlayback}; поведение просмотра медиа врача не менялось.
  */
-export function ProgramItemDiscussionMessageBody(props: {
+export function DoctorProgramItemDiscussionMessageBody(props: {
   message: ProgramItemDiscussionMessage;
-  mine: boolean;
   textClassName?: string;
   trailingContent?: ReactNode;
 }) {
-  const { message, mine, textClassName, trailingContent } = props;
+  const { message, textClassName, trailingContent } = props;
   const [playerOpen, setPlayerOpen] = useState(false);
   const mediaId = message.mediaFileId;
   const { playback, failed: playbackFailed, isVideo } = useDiscussionMessageMediaPlayback(mediaId);
@@ -72,7 +75,7 @@ export function ProgramItemDiscussionMessageBody(props: {
           }}
         >
           {isVideo ? (
-            <PatientCatalogMediaStaticThumb
+            <DoctorCatalogMediaStaticThumb
               media={videoThumbMedia}
               frameClassName="aspect-video w-44"
               sizes="176px"
@@ -87,32 +90,29 @@ export function ProgramItemDiscussionMessageBody(props: {
             />
           )}
         </button>
-        <PatientModal
-          open={playerOpen}
-          onClose={() => setPlayerOpen(false)}
-          title={isVideo ? 'Видео' : 'Фото'}
-          presentation="fullscreen-media"
-        >
-          {isVideo ? (
-            <PatientMediaPlaybackVideo
-              mediaId={mediaId}
-              title="Видео"
-              initialPlayback={playback}
-              presentation="fullscreen"
-            />
-          ) : (
-            <div className="flex min-h-0 flex-1 items-center justify-center p-2">
+        <Dialog open={playerOpen} onOpenChange={setPlayerOpen}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>{isVideo ? 'Видео' : 'Фото'}</DialogTitle>
+            </DialogHeader>
+            {isVideo ? (
+              <DoctorMediaPlaybackVideo
+                mediaId={mediaId}
+                title="Видео"
+                initialPlayback={playback}
+              />
+            ) : (
               <MediaThumb
                 media={imagePreview}
-                className="max-h-full w-full object-contain"
-                imgClassName="max-h-full w-full object-contain"
-                sizes="100vw"
+                className="max-h-[70vh] w-full object-contain"
+                imgClassName="max-h-[70vh] w-full object-contain"
+                sizes="(max-width: 640px) 100vw, 672px"
                 lazy={false}
                 alt=""
               />
-            </div>
-          )}
-        </PatientModal>
+            )}
+          </DialogContent>
+        </Dialog>
       </>
     );
   }
@@ -120,13 +120,7 @@ export function ProgramItemDiscussionMessageBody(props: {
   if (!message.body?.trim()) return null;
 
   return (
-    <p
-      className={cn(
-        'whitespace-pre-wrap break-words',
-        mine ? undefined : patientBodyTextClass,
-        textClassName,
-      )}
-    >
+    <p className={cn('whitespace-pre-wrap break-words', textClassName)}>
       {message.body}
       {trailingContent}
     </p>
