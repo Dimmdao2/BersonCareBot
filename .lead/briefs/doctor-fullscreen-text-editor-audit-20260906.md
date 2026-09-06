@@ -6,7 +6,7 @@ You are the independent auditor of candidate `bfc6bd52d` in branch `wt/doctor-fu
 
 Do not change product code. You may add/commit only genuinely missing behavioral acceptance tests and a concise audit artifact if required. Revert every fault injection. Do not push, land, deploy, run full CI, or perform visual/screenshot acceptance; the owner performs the visual review on TEST.
 
-## Classify before checking
+## Тест или взгляд — классификация до проверки
 
 - Repeated behavior: modal mode selection, immediate autofocus, viewport/keyboard geometry reactions, cancel/save semantics, note/disease/lifestyle write behavior. Use behavioral tests and a kill-set prepared before reading existing tests.
 - One-time structure: reuse of the existing `DoctorModal` stack/portal instead of a parallel modal implementation; desktop branch preservation. Inspect the final diff rather than writing source-text tests.
