@@ -14808,6 +14808,46 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       }
     ]
   },
+  "public.clinical_disease_anamnesis": {
+    "kind": "direct",
+    "purpose": "Анамнез заболевания — единый patient-scoped текст после диагнозов, отдельно от "
+      + "биографического анамнеза жизни",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "created_by",
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "text"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "text"
+        ]
+      }
+    ]
+  },
   "public.clinical_test_regions": {
     "kind": "direct",
     "purpose": "Связка «клинический тест ↔ регион тела» — фильтр тестов по региону тела",
@@ -23649,6 +23689,8 @@ const TABLE_ROWS: TableRow[] = [
     + 'кто и когда снял/поставил диагноз' },
   { t: 'public.clinical_diagnosis_update', cls: 'P', org: true, why: 'Уточнения диагноза по визитам — без неё '
     + 'диагноз не уточняется от визита к визиту' },
+  { t: 'public.clinical_disease_anamnesis', cls: 'P', org: true, why: 'Анамнез заболевания — единый '
+    + 'patient-scoped текст после диагнозов, отдельно от биографического анамнеза жизни' },
   { t: 'public.clinical_test_measure_kinds', cls: 'R', org: false, wall: 'pending-removal', rls: 'n/a',
     disp: 'REMOVED', why: 'УДАЛЕНО миграцией 0394: виды измерений перенесены в organization-scoped '
       + 'reference_categories/reference_items; возможные legacy-строки скопированы каждой существующей клинике',
@@ -30510,6 +30552,11 @@ export const REV10_LOCKED_POLICY_DATA: Readonly<Record<string, LockedPolicyEntry
     policyName: "saas_org_dormant_p0_8_4",
     strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"clinical_diagnosis\" AS \"b4f_diagnosis\" WHERE \"b4f_diagnosis\".\"id\" = \"diagnosis_id\" AND \"b4f_diagnosis\".\"patient_user_id\" = app.current_patient_user_id() )))",
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"clinical_diagnosis\" AS \"b4f_diagnosis\" WHERE \"b4f_diagnosis\".\"id\" = \"diagnosis_id\" AND \"b4f_diagnosis\".\"patient_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.clinical_disease_anamnesis": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
   },
   "public.clinical_test_regions": {
     policyName: "saas_org_dormant_p0_8_3",

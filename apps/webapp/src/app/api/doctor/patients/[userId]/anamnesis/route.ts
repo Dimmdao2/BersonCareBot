@@ -1,11 +1,13 @@
 /**
  * GET  /api/doctor/patients/[userId]/anamnesis → { ok, anamnesis: AnamnesisState }
- * POST /api/doctor/patients/[userId]/anamnesis → append an entry to one of three sections.
+ * POST /api/doctor/patients/[userId]/anamnesis → append an entry to one of three biographical
+ *   sections, or replace the single «Анамнез заболевания» text.
  *
  * Секция указывается через поле `section` в теле запроса:
- *   "trauma"    → добавить запись «Травмы и операции»
- *   "illness"   → добавить запись «Болезни, стрессы»
- *   "lifestyle" → добавить запись «Образ жизни»
+ *   "trauma"    → добавить запись «Травмы и операции» (Анамнез жизни)
+ *   "illness"   → добавить запись «Болезни, стрессы» (Анамнез жизни)
+ *   "lifestyle" → добавить запись «Образ жизни» (Анамнез жизни)
+ *   "disease"   → заменить целиком единый текст «Анамнез заболевания» (upsert, не append)
  */
 
 import { NextResponse } from 'next/server';
@@ -38,10 +40,17 @@ const appendLifestyleSchema = z.object({
   text: z.string().min(1).max(5000),
 });
 
+const setDiseaseSchema = z.object({
+  section: z.literal('disease'),
+  /** Пустая строка — легитимное «очистить анамнез заболевания». */
+  text: z.string().max(20000),
+});
+
 const appendAnamnesisBodySchema = z.discriminatedUnion('section', [
   appendTraumaSchema,
   appendIllnessSchema,
   appendLifestyleSchema,
+  setDiseaseSchema,
 ]);
 
 const updateAnamnesisBodySchema = z.discriminatedUnion('section', [
@@ -130,6 +139,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
         }),
     );
     return NextResponse.json({ ok: true, entry }, { status: 201 });
+  }
+
+  if (b.section === 'disease') {
+    const text = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      'doctor.patients.clinical.anamnesis.disease.set',
+      () => deps.patientClinical.setAnamnesisDisease({ patientUserId, text: b.text, createdBy }),
+    );
+    return NextResponse.json({ ok: true, entry: { text } });
   }
 
   if (b.section === 'illness') {

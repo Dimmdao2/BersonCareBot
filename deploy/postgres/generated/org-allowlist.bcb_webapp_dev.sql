@@ -57,6 +57,7 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'clinical_diagnosis_catalog'),
   ('public', 'clinical_diagnosis_status_history'),
   ('public', 'clinical_diagnosis_update'),
+  ('public', 'clinical_disease_anamnesis'),
   ('public', 'clinical_test_regions'),
   ('public', 'clinical_visit'),
   ('public', 'comments'),

@@ -128,6 +128,7 @@ VALUES
   ('"public"."be_working_days"'),
   ('"public"."be_working_hours"'),
   ('"public"."broadcast_audit"'),
+  ('"public"."clinical_disease_anamnesis"'),
   ('"public"."clinical_anamnesis_illness"'),
   ('"public"."clinical_anamnesis_lifestyle"'),
   ('"public"."clinical_anamnesis_trauma"'),

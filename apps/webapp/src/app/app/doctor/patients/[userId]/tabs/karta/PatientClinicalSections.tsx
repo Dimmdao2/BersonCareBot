@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { FilePlus2, HeartPlus, Plus, SquarePen } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { ChevronDown, ChevronUp, FilePlus2, HeartPlus, Plus, SquarePen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type {
   ActiveComplaint,
@@ -21,6 +21,7 @@ import {
   SelectTrigger,
 } from '@/shared/ui/doctor/primitives/select';
 import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
+import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import {
   DoctorDnaFlatList,
   doctorDnaFlatListClickableClass,
@@ -161,6 +162,29 @@ function formatDate(iso: string): string {
   return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+/** Первая строка непустого текста; '' если текста нет или он пуст после трима. */
+function firstLine(text: string | null | undefined): string {
+  if (!text) return '';
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+  return trimmed.split('\n')[0]?.trim() ?? '';
+}
+
+/**
+ * CLINICAL-SYMPTOM-01: превью анамнеза под названием симптома — первая строка исходного
+ * `description`, иначе первая строка самой ранней непустой записи history. '' — нет превью
+ * (CLINICAL-SYMPTOM-02: пустой preview не выводится).
+ */
+function complaintAnamnesisPreview(complaint: ActiveComplaint): string {
+  const fromDescription = firstLine(complaint.description);
+  if (fromDescription) return fromDescription;
+  for (const entry of complaint.history) {
+    const line = firstLine(entry.note);
+    if (line) return line;
+  }
+  return '';
+}
+
 function ComplaintTrend({
   complaint,
   expanded = false,
@@ -218,6 +242,7 @@ function ComplaintRow({
   historical: boolean;
   onOpen: () => void;
 }) {
+  const anamnesisPreview = complaintAnamnesisPreview(complaint);
   return (
     <li>
       <button
@@ -244,6 +269,11 @@ function ComplaintRow({
           >
             {complaint.text}
           </span>
+          {anamnesisPreview ? (
+            <span className={cn(doctorDnaFlatListMetaClass, 'mt-0.5 block truncate font-normal')}>
+              {anamnesisPreview}
+            </span>
+          ) : null}
           <span
             className={cn(
               doctorDnaFlatListMetaClass,
@@ -625,7 +655,17 @@ export function PatientClinicalSections({
         ) : null}
       </section>
 
-      <AnamnesisSection
+      <DiseaseAnamnesisSection
+        userId={userId}
+        patientName={patientName}
+        patientOnSupport={patientOnSupport}
+        text={anamnesis.disease ?? ''}
+        loading={anamnesisLoading}
+        error={anamnesisError}
+        onRefresh={onAnamnesisRefresh}
+      />
+
+      <LifeAnamnesisSection
         userId={userId}
         patientName={patientName}
         patientOnSupport={patientOnSupport}
@@ -952,7 +992,184 @@ function DiagnosisFormModal({
 
 type AnamnesisModalSection = 'comorbidity' | 'trauma' | 'illness' | 'lifestyle';
 
-function AnamnesisSection({
+/**
+ * DISEASE-ANAMNESIS-01..05: «Анамнез заболевания» — отдельный белый блок после диагнозов, единый
+ * patient-scoped текст (не биографический append-log анамнеза жизни ниже). Свёрнутое состояние —
+ * максимум 5 строк, chevron только при фактическом overflow; редактор — следующий слой DoctorModal
+ * с безрамочным полем ввода.
+ */
+function DiseaseAnamnesisSection({
+  userId,
+  patientName,
+  patientOnSupport,
+  text,
+  loading,
+  error,
+  onRefresh,
+}: {
+  userId: string;
+  patientName: string | null;
+  patientOnSupport: boolean;
+  text: string;
+  loading: boolean;
+  error: boolean;
+  onRefresh: () => void;
+}) {
+  const isMobile = useIsMobileViewport();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(text);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  const clampRef = useRef<HTMLParagraphElement>(null);
+
+  // Overflow can only be measured against the collapsed (clamped) height; while expanded the
+  // element has no clamp and scrollHeight === clientHeight, so the last collapsed measurement is
+  // kept instead of being overwritten with a false "no overflow" reading.
+  useLayoutEffect(() => {
+    const el = clampRef.current;
+    if (!el || expanded) return;
+    setOverflowing(el.scrollHeight > el.clientHeight + 1);
+  }, [text, expanded]);
+  const showChevron = overflowing || expanded;
+
+  const openEditor = () => {
+    setDraft(text);
+    setSaveError(false);
+    setOpen(true);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setSaveError(false);
+    try {
+      const response = await fetch(`/api/doctor/patients/${userId}/anamnesis`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ section: 'disease', text: draft }),
+      });
+      if (!response.ok) throw new Error();
+      setOpen(false);
+      toast.success('Сохранено');
+      onRefresh();
+    } catch {
+      setSaveError(true);
+      toast.error('Не удалось сохранить');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <section className={doctorSectionCardClass}>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className={doctorSectionTitleClass}>Анамнез заболевания</h3>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title="Изменить анамнез заболевания"
+            onClick={openEditor}
+          >
+            <SquarePen className="size-5" />
+          </Button>
+        </div>
+        {loading ? <DoctorPanelLoading className="py-4" /> : null}
+        {!loading && error ? (
+          <p className="text-sm text-destructive">Не удалось загрузить анамнез заболевания.</p>
+        ) : null}
+        {!loading && !error ? (
+          text ? (
+            <div className="flex flex-col items-center gap-1">
+              <p
+                ref={clampRef}
+                className={cn(
+                  'w-full whitespace-pre-wrap text-[14px] font-normal text-foreground',
+                  !expanded && 'line-clamp-5',
+                )}
+              >
+                {text}
+              </p>
+              {showChevron ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={expanded ? 'Свернуть' : 'Показать полностью'}
+                  onClick={() => setExpanded((value) => !value)}
+                >
+                  {expanded ? (
+                    <ChevronUp className="size-4" />
+                  ) : (
+                    <ChevronDown className="size-4" />
+                  )}
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">—</p>
+          )
+        ) : null}
+      </section>
+
+      <DoctorModal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={patientTitle('Анамнез заболевания', patientName, patientOnSupport)}
+        size="md"
+        bodyClassName={cn('flex flex-col gap-2 p-4', isMobile ? 'justify-end' : 'justify-start')}
+        footer={
+          <Button type="button" disabled={saving} onClick={() => void save()}>
+            Сохранить
+          </Button>
+        }
+      >
+        <FormError visible={saveError} />
+        <DiseaseAnamnesisEditorTextarea value={draft} onChange={setDraft} />
+      </DoctorModal>
+    </>
+  );
+}
+
+/** Безрамочное поле ввода (DISEASE-ANAMNESIS-04): без бордера/фона, высота растёт под текст. */
+function DiseaseAnamnesisEditorTextarea({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder="Анамнез заболевания"
+      rows={1}
+      autoFocus
+      className="w-full resize-none border-0 bg-transparent p-0 text-base text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0"
+    />
+  );
+}
+
+/**
+ * LIFE-ANAMNESIS-01..03: «Анамнез жизни» — сопутствующие заболевания, травмы и операции, болезни
+ * и стрессы, образ жизни. Подсекции видны сразу и не сворачиваются; правка переиспользует те же
+ * typed contracts/форму, что и раньше (общий вложенный редактор одной записи).
+ */
+function LifeAnamnesisSection({
   userId,
   patientName,
   patientOnSupport,
@@ -971,7 +1188,6 @@ function AnamnesisSection({
   onRefresh: () => void;
   initialComorbidities?: PatientClinicalComorbidity[];
 }) {
-  const [open, setOpen] = useState(false);
   const [comorbidities, setComorbidities] = useState<PatientClinicalComorbidity[] | null>(
     initialComorbidities ?? null,
   );
@@ -1010,22 +1226,6 @@ function AnamnesisSection({
     // One request per patient until a mutation explicitly refreshes it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, comorbidities]);
-
-  const summary = useMemo(
-    () => [
-      [
-        'Сопутствующие заболевания',
-        comorbidities
-          ?.filter((item) => item.status === 'active')
-          .map((item) => item.text)
-          .join(', ') || '—',
-      ],
-      ['Травмы и операции', state.trauma.map((item) => item.what).join(', ') || '—'],
-      ['Болезни, стрессы', state.illness.map((item) => item.what).join(', ') || '—'],
-      ['Образ жизни', state.lifestyle.at(-1)?.text || '—'],
-    ],
-    [comorbidities, state],
-  );
 
   const openEditor = (section: AnamnesisModalSection, item?: { id: string }) => {
     if (!item) {
@@ -1149,99 +1349,74 @@ function AnamnesisSection({
 
   return (
     <>
-      <section className={doctorSectionCardClass}>
-        <div className="flex items-center justify-between gap-3">
-          <h3 className={doctorSectionTitleClass}>Анамнез</h3>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            title="Изменить анамнез"
-            onClick={() => setOpen(true)}
-          >
-            <SquarePen className="size-5" />
-          </Button>
-        </div>
+      <section className={cn(doctorSectionCardClass, 'gap-0 overflow-hidden p-0')}>
+        <h3 className={cn(doctorSectionTitleClass, 'px-[var(--doctor-block-padding,18px)] pt-[var(--doctor-block-padding,18px)]')}>
+          Анамнез жизни
+        </h3>
         {loading ? <DoctorPanelLoading className="py-4" /> : null}
         {!loading && (error || comorbiditiesError) ? (
-          <p className="text-sm text-destructive">Не удалось загрузить анамнез.</p>
+          <p className="px-[var(--doctor-block-padding,18px)] pb-4 text-sm text-destructive">
+            Не удалось загрузить анамнез жизни.
+          </p>
         ) : null}
         {!loading && !error ? (
-          <dl className="space-y-2">
-            {summary.map(([label, value]) => (
-              <div key={label}>
-                <dt className="text-[14px] font-semibold text-foreground">{label}</dt>
-                <dd className="text-[14px] font-normal text-foreground">{value}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="mt-2">
+            <AnamnesisListSection
+              title="Сопутствующие заболевания"
+              onAdd={() => openEditor('comorbidity')}
+              history={showComorbidityHistory}
+              onHistoryChange={() => {
+                setShowComorbidityHistory((value) => !value);
+                if (!comorbiditiesIncludeHistory) loadComorbidities(true);
+              }}
+              items={(comorbidities ?? [])
+                .filter((item) =>
+                  showComorbidityHistory ? item.status === 'removed' : item.status === 'active',
+                )
+                .map((item) => ({
+                  id: item.id,
+                  primary: item.text,
+                  secondary: item.since,
+                }))}
+              onOpen={(id) => openEditor('comorbidity', { id })}
+            />
+            <AnamnesisListSection
+              title="Травмы и операции"
+              onAdd={() => openEditor('trauma')}
+              items={state.trauma.map((item) => ({
+                id: item.id,
+                primary: item.what,
+                secondary: [item.year, item.type, item.immobilization].filter(Boolean).join(' · '),
+              }))}
+              onOpen={(id) => openEditor('trauma', { id })}
+            />
+            <AnamnesisListSection
+              title="Болезни, стрессы"
+              onAdd={() => openEditor('illness')}
+              items={state.illness.map((item) => ({
+                id: item.id,
+                primary: item.what,
+                secondary: [item.period, item.comment].filter(Boolean).join(' · '),
+              }))}
+              onOpen={(id) => openEditor('illness', { id })}
+            />
+            <AnamnesisListSection
+              title="Образ жизни"
+              onAdd={() => openEditor('lifestyle')}
+              items={state.lifestyle.map((item) => ({
+                id: item.id,
+                primary: item.text,
+                secondary: item.date,
+              }))}
+              onOpen={(id) => openEditor('lifestyle', { id })}
+            />
+          </div>
         ) : null}
       </section>
 
       <DoctorModal
-        open={open}
-        onClose={() => setOpen(false)}
-        title={patientTitle('Анамнез', patientName, patientOnSupport)}
-        size="lg"
-        bodyVariant="list"
-      >
-        <div className="bg-card">
-          <AnamnesisListSection
-            title="Сопутствующие заболевания"
-            onAdd={() => openEditor('comorbidity')}
-            history={showComorbidityHistory}
-            onHistoryChange={() => {
-              setShowComorbidityHistory((value) => !value);
-              if (!comorbiditiesIncludeHistory) loadComorbidities(true);
-            }}
-            items={(comorbidities ?? [])
-              .filter((item) =>
-                showComorbidityHistory ? item.status === 'removed' : item.status === 'active',
-              )
-              .map((item) => ({
-                id: item.id,
-                primary: item.text,
-                secondary: item.since,
-              }))}
-            onOpen={(id) => openEditor('comorbidity', { id })}
-          />
-          <AnamnesisListSection
-            title="Травмы и операции"
-            onAdd={() => openEditor('trauma')}
-            items={state.trauma.map((item) => ({
-              id: item.id,
-              primary: item.what,
-              secondary: [item.year, item.type, item.immobilization].filter(Boolean).join(' · '),
-            }))}
-            onOpen={(id) => openEditor('trauma', { id })}
-          />
-          <AnamnesisListSection
-            title="Болезни, стрессы"
-            onAdd={() => openEditor('illness')}
-            items={state.illness.map((item) => ({
-              id: item.id,
-              primary: item.what,
-              secondary: [item.period, item.comment].filter(Boolean).join(' · '),
-            }))}
-            onOpen={(id) => openEditor('illness', { id })}
-          />
-          <AnamnesisListSection
-            title="Образ жизни"
-            onAdd={() => openEditor('lifestyle')}
-            items={state.lifestyle.map((item) => ({
-              id: item.id,
-              primary: item.text,
-              secondary: item.date,
-            }))}
-            onOpen={(id) => openEditor('lifestyle', { id })}
-          />
-        </div>
-      </DoctorModal>
-
-      <DoctorModal
         open={editor !== null}
         onClose={() => setEditor(null)}
-        nested
         title={patientTitle(
           editor?.id ? 'Изменить запись' : 'Новая запись',
           patientName,
@@ -1298,10 +1473,19 @@ function AnamnesisListSection({
   history?: boolean;
   onHistoryChange?: () => void;
 }) {
+  const hasItems = items.length > 0;
   return (
     <section className="border-b border-border last:border-b-0">
       <div className="flex items-center justify-between px-[var(--doctor-list-inline-padding,18px)] py-2.5">
-        <h4 className="text-[15px] font-semibold">{title}</h4>
+        {/* LIFE-ANAMNESIS-02: заполненный заголовок чёрный, пустой — приглушённый серый. */}
+        <h4
+          className={cn(
+            'text-[15px] font-semibold',
+            hasItems ? 'text-foreground' : 'text-muted-foreground',
+          )}
+        >
+          {title}
+        </h4>
         <div className="flex items-center gap-1.5">
           {onHistoryChange ? (
             <Button
@@ -1329,7 +1513,7 @@ function AnamnesisListSection({
           </Button>
         </div>
       </div>
-      {items.length === 0 ? (
+      {!hasItems ? (
         <p className="px-[var(--doctor-list-inline-padding,18px)] pb-3 text-sm text-muted-foreground">
           —
         </p>
