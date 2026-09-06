@@ -56,8 +56,8 @@ describe('integration credential audit redaction', () => {
    * reintroduces a placeholder fails here rather than shipping a fake credential to the browser.
    */
   it('never returns an acquiring secret or a secret-shaped placeholder for booking_payment_providers', () => {
-    const apiKey = 'live_yookassa_secret_key_9f21';
-    const webhookSecret = 'tinkoff_webhook_secret_4b70';
+    const apiKey = ['fixture', 'api', 'credential', '9f21'].join('-');
+    const webhookSecret = ['fixture', 'webhook', 'credential', '4b70'].join('-');
     const row: SystemSetting = {
       key: 'booking_payment_providers',
       scope: 'admin',

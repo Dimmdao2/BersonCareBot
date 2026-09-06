@@ -18,6 +18,7 @@ f0ce519f42b220f0fc71ea2e9b479a58fe26a226:src/integrations/rubitime/config.ts:gen
 f0ce519f42b220f0fc71ea2e9b479a58fe26a226:src/integrations/rubitime/config.ts:generic-api-key:11
 
 # Synthetic test/example values and security self-check fixtures.
+2e331e26be6c7d8fcc8b25ca52e7c7ec2576ff75:apps/webapp/src/modules/system-settings/auditRedaction.unit.test.ts:generic-api-key:59
 0fab9587aa31b1295eaed0202a8dca63cee84fc4:apps/integrator/src/app/operatorHealthProbeRunner.test.ts:generic-api-key:4
 3828379fbbb0931f4bef4f052e7b93dff8ee3dd3:apps/webapp/src/app/api/admin/settings/route.test.ts:generic-api-key:304
 3a9f9531ccc6d90e2419f6a88c651508e2a16f6c:.env.example:generic-api-key:16
