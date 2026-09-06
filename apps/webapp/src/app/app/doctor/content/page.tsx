@@ -115,7 +115,7 @@ export default async function DoctorContentPage() {
   }
 
   return (
-    <DoctorAppShell title="Контент" user={session.user}>
+    <DoctorAppShell title="Контент" user={session.user} layout="full-height">
       <ContentHubShell
         sections={hubSections}
         cmsEnabled={cmsVisibility.directUrl}
