@@ -794,6 +794,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         duration_minutes: number | null;
         branch_name: string | null;
         branch_short_name: string | null;
+        branch_timezone: string | null;
         specialist_name: string | null;
         is_package: boolean | null;
         patient_package_id: string | null;
@@ -811,6 +812,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            bea.duration_minutes,
            br.title AS branch_name,
            br.short_title AS branch_short_name,
+           br.timezone AS branch_timezone,
            spec.full_name AS specialist_name,
            (bea.package_usage_ref IS NOT NULL)::boolean AS is_package,
            u.patient_package_id::text AS patient_package_id,
@@ -876,6 +878,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           serviceName: (row.service_title && row.service_title.trim()) || null,
           location: row.branch_name ?? null,
           locationShort: row.branch_short_name ?? null,
+          branchTimeZone: row.branch_timezone ?? null,
           specialistName: row.specialist_name ?? null,
           durationMin,
           isPackage: row.is_package ?? null,

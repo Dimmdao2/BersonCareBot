@@ -36,6 +36,7 @@ import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { patientCardHref } from '../../patientCardHref';
 import { PatientClinicalCreateModal } from '../tabs/karta/PatientClinicalSections';
+import { displayZonePartsFromUtcInstant } from '@/shared/datetime/displayTimeZoneFormat';
 import { VisitCatalogTextarea } from './VisitCatalogTextarea';
 import {
   DiagnosisAutocomplete,
@@ -100,7 +101,6 @@ type CreateVisitRequest = {
 
 type UpdateVisitRequest = Omit<UpdateVisitFieldsInput, 'patientUserId' | 'visitId'>;
 
-
 function toIsoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -117,15 +117,25 @@ function nowHm(): string {
 }
 
 function appointmentSummaryLine(appointment: PatientAppointmentItem): string {
-  const dt = appointment.dateTime
-    ? new Date(appointment.dateTime).toLocaleString('ru-RU', {
+  let dt = '—';
+  if (appointment.dateTime) {
+    if (appointment.branchTimeZone) {
+      const parts = displayZonePartsFromUtcInstant(
+        appointment.dateTime,
+        appointment.branchTimeZone,
+      );
+      const month = RU_MONTHS_GENITIVE[Number(parts.month) - 1] ?? parts.month;
+      dt = `${Number(parts.day)} ${month} ${parts.year}, ${parts.hour}:${parts.minute}`;
+    } else {
+      dt = new Date(appointment.dateTime).toLocaleString('ru-RU', {
         day: '2-digit',
         month: 'long',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-      })
-    : '—';
+      });
+    }
+  }
   const parts = [
     dt,
     appointment.location,
@@ -133,6 +143,29 @@ function appointmentSummaryLine(appointment: PatientAppointmentItem): string {
     appointment.serviceName,
   ].filter(Boolean);
   return parts.join(' · ');
+}
+
+const RU_MONTHS_GENITIVE = [
+  'января',
+  'февраля',
+  'марта',
+  'апреля',
+  'мая',
+  'июня',
+  'июля',
+  'августа',
+  'сентября',
+  'октября',
+  'ноября',
+  'декабря',
+] as const;
+
+function formDateTimeParts(utcIso: string, timeZone: string) {
+  const parts = displayZonePartsFromUtcInstant(utcIso, timeZone);
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:${parts.minute}`,
+  };
 }
 
 export function EncounterPageClient({
@@ -220,13 +253,19 @@ export function EncounterPageClient({
     };
   }, [mode, userId, appointmentIdToLoad]);
 
-
   // ── Визит: содержательные поля ─────────────────────────────────────────
   const [date, setDate] = useState(() =>
-    mode === 'edit' && initialVisit?.raw ? toIsoDate(new Date(initialVisit.raw.visitedAtIso)) : todayIsoDate(),
+    mode === 'edit' && initialVisit?.raw && initialVisit.timeZone
+      ? formDateTimeParts(initialVisit.raw.visitedAtIso, initialVisit.timeZone).date
+      : mode === 'edit' && initialVisit?.raw
+        ? toIsoDate(new Date(initialVisit.raw.visitedAtIso))
+        : todayIsoDate(),
   );
   const [time, setTime] = useState(() => {
     if (mode === 'edit' && initialVisit?.raw) {
+      if (initialVisit.timeZone) {
+        return formDateTimeParts(initialVisit.raw.visitedAtIso, initialVisit.timeZone).time;
+      }
       const d = new Date(initialVisit.raw.visitedAtIso);
       return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     }
@@ -239,9 +278,7 @@ export function EncounterPageClient({
   const [exam, setExam] = useState(initialVisit?.raw?.exam ?? '');
   const [manipulations, setManipulations] = useState(initialVisit?.raw?.manipulations ?? '');
   const [trialResults, setTrialResults] = useState(initialVisit?.raw?.trialResults ?? '');
-  const [recommendations, setRecommendations] = useState(
-    initialVisit?.raw?.recommendations ?? '',
-  );
+  const [recommendations, setRecommendations] = useState(initialVisit?.raw?.recommendations ?? '');
 
   // Приём при связи с записью использует канонические поля записи (ENCOUNTER-APPOINTMENT-04):
   // локация/услуга подставляются из записи и остаются редактируемыми снимком визита, как в
@@ -252,10 +289,18 @@ export function EncounterPageClient({
     const key = boundAppointment.id;
     if (prefillConsumedRef.current === key) return;
     prefillConsumedRef.current = key;
-    const dt = boundAppointment.dateTime ? new Date(boundAppointment.dateTime) : null;
-    if (dt) {
-      setDate(toIsoDate(dt));
-      setTime(`${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`);
+    if (boundAppointment.dateTime) {
+      if (boundAppointment.branchTimeZone) {
+        const parts = formDateTimeParts(boundAppointment.dateTime, boundAppointment.branchTimeZone);
+        setDate(parts.date);
+        setTime(parts.time);
+      } else {
+        const dt = new Date(boundAppointment.dateTime);
+        setDate(toIsoDate(dt));
+        setTime(
+          `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`,
+        );
+      }
     }
     if (boundAppointment.location) setLocation(boundAppointment.location);
     if (boundAppointment.serviceName) setService(boundAppointment.serviceName);
@@ -362,7 +407,8 @@ export function EncounterPageClient({
               u.note.trim() ||
               u.resolved ||
               u.severity !==
-                (activeComplaints.find((c) => c.id === u.complaintId)?.currentSeverity ?? u.severity),
+                (activeComplaints.find((c) => c.id === u.complaintId)?.currentSeverity ??
+                  u.severity),
           )
           .map((u) => ({
             complaintId: u.complaintId,
@@ -441,10 +487,17 @@ export function EncounterPageClient({
   const addFirstComplaint = () =>
     setFirstComplaints((prev) => [
       ...prev,
-      { id: `fc${prev.length}_${Date.now()}`, priority: false, text: '', description: '', severity: 0 },
+      {
+        id: `fc${prev.length}_${Date.now()}`,
+        priority: false,
+        text: '',
+        description: '',
+        severity: 0,
+      },
     ]);
 
-  const patientFio = [patient.lastName, patient.firstName].filter(Boolean).join(' ') || patient.displayName;
+  const patientFio =
+    [patient.lastName, patient.firstName].filter(Boolean).join(' ') || patient.displayName;
 
   return (
     <div className="flex flex-col gap-3">
@@ -527,10 +580,20 @@ export function EncounterPageClient({
               </>
             )}
             <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setQuickAddKind('complaint')}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setQuickAddKind('complaint')}
+              >
                 + Симптом
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => setQuickAddKind('diagnosis')}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setQuickAddKind('diagnosis')}
+              >
                 + Диагноз
               </Button>
             </div>
@@ -563,7 +626,11 @@ export function EncounterPageClient({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="space-y-1">
               <label className={fieldLabelClass}>Дата</label>
-              <DoctorDatePicker value={date} onChange={setDate} disabled={Boolean(boundAppointment)} />
+              <DoctorDatePicker
+                value={date}
+                onChange={setDate}
+                disabled={Boolean(boundAppointment)}
+              />
             </div>
             <div className="space-y-1">
               <label className={fieldLabelClass}>Время</label>
@@ -625,7 +692,10 @@ export function EncounterPageClient({
                 </Button>
               </div>
               {firstComplaints.map((c) => (
-                <div key={c.id} className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/10 p-2">
+                <div
+                  key={c.id}
+                  className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/10 p-2"
+                >
                   <div className="flex items-center gap-2">
                     <PriorityFlag
                       on={c.priority}
@@ -673,7 +743,12 @@ export function EncounterPageClient({
               ))}
             </div>
 
-            <FormTextarea label="Осмотр" placeholder="Данные объективного осмотра…" value={exam} onChange={setExam} />
+            <FormTextarea
+              label="Осмотр"
+              placeholder="Данные объективного осмотра…"
+              value={exam}
+              onChange={setExam}
+            />
             <VisitCatalogTextarea
               label="Проведённые манипуляции"
               placeholder="Проведённые манипуляции…"
@@ -739,7 +814,11 @@ export function EncounterPageClient({
                 );
               })}
               {activeDiagnoses.map((d) => {
-                const upd = diagnosisUpdates[d.id] ?? { diagnosisId: d.id, refinement: '', removed: false };
+                const upd = diagnosisUpdates[d.id] ?? {
+                  diagnosisId: d.id,
+                  refinement: '',
+                  removed: false,
+                };
                 const setUpd = (patch: Partial<RepeatDiagnosisUpdate>) =>
                   setDiagnosisUpdates((prev) => ({ ...prev, [d.id]: { ...upd, ...patch } }));
                 return (
@@ -752,14 +831,22 @@ export function EncounterPageClient({
                       onChange={(e) => setUpd({ refinement: e.target.value })}
                     />
                     <label className="mt-1.5 flex items-center gap-1 text-xs">
-                      <Checkbox checked={upd.removed} onCheckedChange={(v) => setUpd({ removed: v === true })} />
+                      <Checkbox
+                        checked={upd.removed}
+                        onCheckedChange={(v) => setUpd({ removed: v === true })}
+                      />
                       Снять диагноз
                     </label>
                   </div>
                 );
               })}
             </div>
-            <FormTextarea label="Осмотр" placeholder="Данные объективного осмотра…" value={exam} onChange={setExam} />
+            <FormTextarea
+              label="Осмотр"
+              placeholder="Данные объективного осмотра…"
+              value={exam}
+              onChange={setExam}
+            />
             <VisitCatalogTextarea
               label="Проведённые манипуляции"
               placeholder="Проведённые манипуляции…"
@@ -790,7 +877,12 @@ export function EncounterPageClient({
                 ))}
               </div>
             ) : null}
-            <FormTextarea label="Осмотр" placeholder="Данные объективного осмотра…" value={exam} onChange={setExam} />
+            <FormTextarea
+              label="Осмотр"
+              placeholder="Данные объективного осмотра…"
+              value={exam}
+              onChange={setExam}
+            />
             <VisitCatalogTextarea
               label="Проведённые манипуляции"
               placeholder="Проведённые манипуляции…"

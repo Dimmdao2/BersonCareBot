@@ -136,6 +136,8 @@ export type Visit = {
   date: string;
   /** Человекочитаемое время визита, напр. «14:30». */
   time: string;
+  /** IANA-таймзона филиала связанной записи либо общий fallback для визита без филиала. */
+  timeZone?: string | null;
   type: 'first' | 'repeat';
   location: string;
   duration: string;

@@ -340,6 +340,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         string,
         { title: string; displayNumber: number | null }
       >();
+      const timeZoneByCanonicalAppointmentId = new Map<string, string>();
       const canonicalAppointmentIds = visitRows
         .map((v) => v.canonicalAppointmentId)
         .filter((id): id is string => id != null);
@@ -350,7 +351,8 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         );
         const pkgRows = await db.execute<{
           canonical_appointment_id: string;
-          title: string;
+          branch_timezone: string | null;
+          title: string | null;
           display_number: number | null;
         }>(sql`
           WITH visit_be(id) AS (
@@ -358,17 +360,23 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           )
           SELECT DISTINCT ON (vb.id)
             vb.id AS canonical_appointment_id,
+            br.timezone AS branch_timezone,
             pp.title,
             pp.display_number
           FROM visit_be vb
-          JOIN be_package_usages u
+          JOIN be_appointments bea ON bea.id = vb.id
+          LEFT JOIN be_branches br ON br.id = bea.branch_id
+          LEFT JOIN be_package_usages u
             ON u.appointment_id = vb.id
            AND u.usage_kind IN ('consume', 'penalty')
-          JOIN be_patient_packages pp ON pp.id = u.patient_package_id
+          LEFT JOIN be_patient_packages pp ON pp.id = u.patient_package_id
           ORDER BY vb.id, u.occurred_at DESC, u.id DESC
         `);
         for (const row of pkgRows.rows) {
-          if (!packageByCanonicalAppointmentId.has(row.canonical_appointment_id)) {
+          if (row.branch_timezone) {
+            timeZoneByCanonicalAppointmentId.set(row.canonical_appointment_id, row.branch_timezone);
+          }
+          if (row.title && !packageByCanonicalAppointmentId.has(row.canonical_appointment_id)) {
             packageByCanonicalAppointmentId.set(row.canonical_appointment_id, {
               title: row.title,
               displayNumber: row.display_number,
@@ -378,6 +386,9 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       }
 
       return visitRows.map((v) => {
+        const visitTimeZone = v.canonicalAppointmentId
+          ? (timeZoneByCanonicalAppointmentId.get(v.canonicalAppointmentId) ?? displayTimeZone)
+          : displayTimeZone;
         const dynamics = cuRows
           .filter((u) => u.visitId === v.id)
           .map((u) => {
@@ -417,8 +428,9 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         return {
           id: v.id,
           canonicalAppointmentId: v.canonicalAppointmentId,
-          date: fmtVisitDate(v.visitedAt, displayTimeZone),
-          time: fmtVisitTime(v.visitedAt, displayTimeZone),
+          date: fmtVisitDate(v.visitedAt, visitTimeZone),
+          time: fmtVisitTime(v.visitedAt, visitTimeZone),
+          timeZone: visitTimeZone,
           type: v.visitType as 'first' | 'repeat',
           location: v.location ?? '',
           duration: v.duration ?? '',
@@ -1139,7 +1151,10 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
             createdBy: input.createdBy,
           })
           .onConflictDoUpdate({
-            target: [clinicalDiseaseAnamnesis.patientUserId, clinicalDiseaseAnamnesis.organizationId],
+            target: [
+              clinicalDiseaseAnamnesis.patientUserId,
+              clinicalDiseaseAnamnesis.organizationId,
+            ],
             set: { text: input.text },
           })
           .returning({ text: clinicalDiseaseAnamnesis.text }),
