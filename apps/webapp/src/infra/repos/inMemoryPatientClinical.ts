@@ -341,6 +341,14 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
         sections: sections.length > 0 ? sections : undefined,
         files: undefined, // files joined from patient_files in pg repo; n/a in memory
         package: null, // package lookup requires DB; n/a in memory
+        raw: {
+          visitedAtIso: new Date(v.visitedAt).toISOString(),
+          service: v.service ?? null,
+          exam: v.exam ?? null,
+          manipulations: v.manipulations ?? null,
+          trialResults: v.trialResults ?? null,
+          recommendations: v.recommendations ?? null,
+        },
       };
     });
   },

@@ -57,7 +57,7 @@ import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type VisitType = 'first' | 'repeat';
 
-type FormComplaintEntry = {
+export type FormComplaintEntry = {
   id: string;
   priority: boolean;
   text: string;
@@ -65,7 +65,7 @@ type FormComplaintEntry = {
   severity: number;
 };
 
-type FormDiagnosisEntry = {
+export type FormDiagnosisEntry = {
   id: string;
   priority: boolean;
   text: string;
@@ -146,7 +146,7 @@ export function buildVisitLocationOptions(
 // Small sub-components
 // ---------------------------------------------------------------------------
 
-function PriorityFlag({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+export function PriorityFlag({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
     <Button
       type="button"
@@ -164,7 +164,7 @@ function PriorityFlag({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-function FormTextarea({
+export function FormTextarea({
   label,
   placeholder,
   minH = 'min-h-[38px]',
@@ -194,7 +194,7 @@ function FormTextarea({
 // Diagnosis autocomplete sub-component
 // ---------------------------------------------------------------------------
 
-function DiagnosisAutocomplete({
+export function DiagnosisAutocomplete({
   userId,
   onSelect,
 }: {

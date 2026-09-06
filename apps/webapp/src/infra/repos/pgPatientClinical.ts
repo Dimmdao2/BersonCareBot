@@ -423,6 +423,14 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           sections: sections.length > 0 ? sections : undefined,
           files: files.length > 0 ? files : undefined,
           package: pkg,
+          raw: {
+            visitedAtIso: new Date(v.visitedAt).toISOString(),
+            service: v.service ?? null,
+            exam: v.exam ?? null,
+            manipulations: v.manipulations ?? null,
+            trialResults: v.trialResults ?? null,
+            recommendations: v.recommendations ?? null,
+          },
         };
       });
     },

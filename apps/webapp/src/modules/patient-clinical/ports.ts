@@ -148,6 +148,20 @@ export type Visit = {
   files?: VisitFile[];
   /** Если визит был списан с абонемента — данные абонемента, иначе null. */
   package?: { title: string; displayNumber: number | null } | null;
+  /**
+   * Сырые редактируемые поля визита (страница приёма, ENCOUNTER-PAGE-04/05). `sections`
+   * выше остаётся общим read-only представлением для компактного просмотра; `raw` — тот же
+   * набор полей `clinical_visit`, не склеенных в текст, для формы правки полноценной страницы.
+   */
+  raw?: {
+    /** ISO-строка момента визита (для date/time picker'ов формы правки). */
+    visitedAtIso: string;
+    service: string | null;
+    exam: string | null;
+    manipulations: string | null;
+    trialResults: string | null;
+    recommendations: string | null;
+  };
 };
 
 // -- Анамнез ------------------------------------------------------------------
