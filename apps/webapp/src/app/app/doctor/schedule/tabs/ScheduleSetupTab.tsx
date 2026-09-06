@@ -31,10 +31,10 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { apiJson } from '@/shared/lib/apiJson';
-import { SYSTEM_SETTING_REGISTRY } from '@/modules/system-settings/registry';
 import toast from 'react-hot-toast';
 import type { ScheduleTabProps } from '../scheduleTabRegistry';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { SYSTEM_SETTING_REGISTRY } from '@/modules/system-settings/registry';
 
 // ---------------------------------------------------------------------------
 // Sub-nav section definition
@@ -103,7 +103,11 @@ function resolveSectionId(
 type RulesSettingsState =
   | { phase: 'loading' }
   | { phase: 'error' }
-  | { phase: 'ready'; allowPastUnlink: boolean; availabilityHorizonDays: number | null };
+  | { phase: 'ready'; allowPastUnlink: boolean; availabilityHorizonDays: number };
+
+const BOOKING_AVAILABILITY_HORIZON_DEFAULT_DAYS = Number(
+  SYSTEM_SETTING_REGISTRY.booking_availability_horizon_days.defaultValue,
+);
 
 function BookingRulesLoader() {
   const [state, setState] = useState<RulesSettingsState>({ phase: 'loading' });
@@ -129,25 +133,30 @@ function BookingRulesLoader() {
         typeof row.valueJson === 'object' &&
         (row.valueJson as Record<string, unknown>).value === true;
       const horizonRow = json.settings?.find((s) => s.key === 'booking_availability_horizon_days');
-      const storedHorizonValue =
-        horizonRow?.valueJson !== null &&
-        typeof horizonRow?.valueJson === 'object' &&
-        'value' in horizonRow.valueJson
-          ? horizonRow.valueJson.value
-          : null;
-      const fallbackHorizonValue = Number(
-        SYSTEM_SETTING_REGISTRY.booking_availability_horizon_days.defaultValue,
-      );
-      const horizonValue =
-        horizonRow === undefined
-          ? fallbackHorizonValue
-          : typeof storedHorizonValue === 'number' &&
-              Number.isInteger(storedHorizonValue) &&
-              storedHorizonValue >= 1 &&
-              storedHorizonValue <= 92
-            ? storedHorizonValue
+      // BAH-01/F2: отсутствие per-org строки — реестровый дефолт, раздел работает.
+      // Строка есть, но значение сломано — phase: 'error' (громко, не маскировать).
+      let availabilityHorizonDays: number;
+      if (!horizonRow) {
+        availabilityHorizonDays = BOOKING_AVAILABILITY_HORIZON_DEFAULT_DAYS;
+      } else {
+        const rawValue =
+          horizonRow.valueJson !== null &&
+          typeof horizonRow.valueJson === 'object' &&
+          'value' in horizonRow.valueJson
+            ? horizonRow.valueJson.value
             : null;
-      setState({ phase: 'ready', allowPastUnlink, availabilityHorizonDays: horizonValue });
+        if (
+          typeof rawValue !== 'number' ||
+          !Number.isInteger(rawValue) ||
+          rawValue < 1 ||
+          rawValue > 92
+        ) {
+          setState({ phase: 'error' });
+          return;
+        }
+        availabilityHorizonDays = rawValue;
+      }
+      setState({ phase: 'ready', allowPastUnlink, availabilityHorizonDays });
     });
   }, []);
 

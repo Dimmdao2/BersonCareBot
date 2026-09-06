@@ -5,7 +5,7 @@
 - [x] `BAH-01` Убрать жёстко заданный горизонт в 14 дней из публичной записи: доступные дни и слоты ограничиваются настройкой клиники «на сколько дней вперёд показывать календарь записи». — `booking-scheduling/service.ts`, `pgBookingScheduling.ts`, миграция `20260906T030953_add_booking_availability_horizon.sql`.
 - [x] `BAH-02` Настройка относится к клинике и доступна в настройках записи специалиста; она не является глобальной константой или индивидуальным свойством пациента. — `ScheduleSetupTab.tsx`, `BookingRulesPageClient.tsx`, реестр `system-settings/registry.ts` (`per_org`).
 - [x] `BAH-03` При создании новой клиники в базе создаётся значение по умолчанию — 30 дней (один месяц). — `app.provision_specialist_owner(uuid)` в миграции `20260906T030953_add_booking_availability_horizon.sql`.
-- [x] `BAH-04` Добавить целевые проверки: дефолт для новой клиники и применение клинического горизонта в выдаче доступных дней/слотов. — Живая rollback-проба `specialist-owner-provisioning.devDbProof.test.mjs` подтверждает значение `30` у новой клиники; `availabilityHorizon.unit.test.ts` и `pgBookingScheduling.settings.unit.test.ts` проверяют ограничение дней/слотов клинической настройкой.
+- [x] `BAH-04` Добавить целевые проверки: дефолт для новой клиники и применение клинического горизонта в выдаче доступных дней/слотов. — независимый kill-set и correction-pass; итоговый focused gate `2 files / 6 tests`, owner-aware rollback-only preflight PASS.
 
 ## Граница
 

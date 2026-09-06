@@ -1379,6 +1379,11 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
     userPurge: { kind: 'cascade', column: 'patient_user_id' },
     orgPurge: { kind: 'organization_id' },
   },
+  'public.clinical_disease_anamnesis': {
+    reason: 'one current disease-anamnesis text per patient and clinic, replaced in place',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
   'public.clinical_complaint': {
     reason: 'complaints in the patient card',
     userPurge: { kind: 'cascade', column: 'patient_user_id' },
