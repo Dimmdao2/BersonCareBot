@@ -5,6 +5,8 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { displayZonePartsFromUtcInstant } from '@/shared/datetime/displayTimeZoneFormat';
 import type {
   ActiveComplaint,
   ActiveDiagnosis,
@@ -192,11 +194,8 @@ function fmtDisplayDateInMemory(isoOrLocal: string): string {
   return `${dd}.${mm}.${yyyy}`;
 }
 
-function fmtSince(iso: string): string {
-  const d = new Date(iso);
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  return `с ${dd}.${mm}`;
+function fmtSince(iso: string, timeZone: string): string {
+  return `с ${fmtDayMonth(iso, timeZone)}`;
 }
 
 const RU_MONTHS = [
@@ -214,25 +213,24 @@ const RU_MONTHS = [
   'декабря',
 ];
 
-function fmtVisitDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getUTCDate()} ${RU_MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+function fmtVisitDate(iso: string, timeZone: string): string {
+  const { day, month, year } = displayZonePartsFromUtcInstant(iso, timeZone);
+  return `${Number(day)} ${RU_MONTHS[Number(month) - 1]} ${year}`;
 }
 
-function fmtVisitTime(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+function fmtVisitTime(iso: string, timeZone: string): string {
+  const { hour, minute } = displayZonePartsFromUtcInstant(iso, timeZone);
+  return `${hour}:${minute}`;
 }
 
-function fmtDayMonth(iso: string): string {
-  const d = new Date(iso);
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  return `${dd}.${mm}`;
+function fmtDayMonth(iso: string, timeZone: string): string {
+  const { day, month } = displayZonePartsFromUtcInstant(iso, timeZone);
+  return `${day}.${month}`;
 }
 
 export const inMemoryPatientClinicalPort: PatientClinicalPort = {
   async getClinicalState(patientUserId: string): Promise<ClinicalState> {
+    const displayTimeZone = await getAppDisplayTimeZone();
     const projectedComplaints: ActiveComplaint[] = complaints
       .filter((c) => c.patientUserId === patientUserId)
       .map((c) => {
@@ -249,7 +247,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
           priority: c.priority,
           currentSeverity,
           trend,
-          since: fmtSince(sourceVisit?.visitedAt ?? c.createdAt),
+          since: fmtSince(sourceVisit?.visitedAt ?? c.createdAt, displayTimeZone),
           createdAt: c.createdAt,
           resolvedAt: c.resolvedAt,
           history: updates.map((update) => ({
@@ -275,8 +273,8 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
         const sourceVisit = visits.find((v) => v.id === d.sourceVisitId);
         const meta =
           d.status === 'refined' && last
-            ? `уточнён ${fmtDayMonth(lastVisit?.visitedAt ?? last.createdAt)}`
-            : `поставлен ${fmtDayMonth(sourceVisit?.visitedAt ?? d.createdAt)}`;
+            ? `уточнён ${fmtDayMonth(lastVisit?.visitedAt ?? last.createdAt, displayTimeZone)}`
+            : `поставлен ${fmtDayMonth(sourceVisit?.visitedAt ?? d.createdAt, displayTimeZone)}`;
         return {
           id: d.id,
           text: d.text,
@@ -304,6 +302,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
   },
 
   async listVisits(patientUserId: string): Promise<Visit[]> {
+    const displayTimeZone = await getAppDisplayTimeZone();
     const rows = visits
       .filter((v) => v.patientUserId === patientUserId)
       .sort((a, b) => b.visitedAt.localeCompare(a.visitedAt));
@@ -342,8 +341,8 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
       return {
         id: v.id,
         canonicalAppointmentId: v.canonicalAppointmentId,
-        date: fmtVisitDate(v.visitedAt),
-        time: fmtVisitTime(v.visitedAt),
+        date: fmtVisitDate(v.visitedAt, displayTimeZone),
+        time: fmtVisitTime(v.visitedAt, displayTimeZone),
         type: v.visitType,
         location: v.location ?? '',
         duration: v.duration ?? '',
