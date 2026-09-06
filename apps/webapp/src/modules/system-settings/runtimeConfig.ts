@@ -158,6 +158,10 @@ export const SERVER_RUNTIME_INTEGER_DEFINITIONS = {
   booking_availability_horizon_days: {
     minValue: 1,
     maxValue: 92,
+    /** BAH-01/F2: реестровый дефолт (registry.ts defaultValue: '30'). Клиника без per-org строки
+     * получает это значение вместо RuntimeSettingUnavailableError. Сохранённое, но сломанное
+     * значение (row !== null, parse fails) по-прежнему кидает required(). */
+    defaultValue: 30,
   },
   booking_max_consecutive_slot_hours: {
     minValue: 1,
@@ -362,6 +366,11 @@ export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
         allowedAudiences: ['server'],
         operationFamily: 'patient_runtime_config',
       });
+      // Строки нет совсем (row === null) → реестровый дефолт, если объявлен для ключа.
+      // Строка есть, но parse вернул null → сломанное значение → required() бросает (loud).
+      if (row === null && 'defaultValue' in definition) {
+        return definition.defaultValue;
+      }
       return required(
         key,
         parseIntegerEnvelope(row?.valueJson ?? null, definition.minValue, definition.maxValue),

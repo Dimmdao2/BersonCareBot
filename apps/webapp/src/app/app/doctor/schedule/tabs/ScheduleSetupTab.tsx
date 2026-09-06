@@ -128,22 +128,31 @@ function BookingRulesLoader() {
         typeof row.valueJson === 'object' &&
         (row.valueJson as Record<string, unknown>).value === true;
       const horizonRow = json.settings?.find((s) => s.key === 'booking_availability_horizon_days');
-      const horizonValue =
-        horizonRow?.valueJson !== null &&
-        typeof horizonRow?.valueJson === 'object' &&
-        'value' in horizonRow.valueJson
-          ? horizonRow.valueJson.value
-          : null;
-      if (
-        typeof horizonValue !== 'number' ||
-        !Number.isInteger(horizonValue) ||
-        horizonValue < 1 ||
-        horizonValue > 92
-      ) {
-        setState({ phase: 'error' });
-        return;
+      // BAH-01/F2: отсутствие per-org строки — реестровый дефолт, раздел работает.
+      // Строка есть, но значение сломано — phase: 'error' (громко, не маскировать).
+      const HORIZON_REGISTRY_DEFAULT = 30;
+      let availabilityHorizonDays: number;
+      if (!horizonRow) {
+        availabilityHorizonDays = HORIZON_REGISTRY_DEFAULT;
+      } else {
+        const rawValue =
+          horizonRow.valueJson !== null &&
+          typeof horizonRow.valueJson === 'object' &&
+          'value' in horizonRow.valueJson
+            ? horizonRow.valueJson.value
+            : null;
+        if (
+          typeof rawValue !== 'number' ||
+          !Number.isInteger(rawValue) ||
+          rawValue < 1 ||
+          rawValue > 92
+        ) {
+          setState({ phase: 'error' });
+          return;
+        }
+        availabilityHorizonDays = rawValue;
       }
-      setState({ phase: 'ready', allowPastUnlink, availabilityHorizonDays: horizonValue });
+      setState({ phase: 'ready', allowPastUnlink, availabilityHorizonDays });
     });
   }, []);
 

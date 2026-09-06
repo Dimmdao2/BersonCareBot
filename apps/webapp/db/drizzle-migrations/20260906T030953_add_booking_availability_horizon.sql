@@ -1,24 +1,14 @@
 -- BCB-MIGRATION-OWNER: app_object_owner
--- BCB-MIGRATION-VERIFY: SELECT EXISTS (SELECT 1 FROM public.system_settings WHERE key = 'booking_availability_horizon_days' AND scope = 'admin' AND organization_id IS NULL AND value_json = '{"value":30}'::jsonb) AND pg_catalog.pg_get_functiondef('app.read_public_booking_slot_snapshot(uuid,uuid,text,text)'::regprocedure) LIKE '%availabilityHorizonDays%' AND pg_catalog.pg_get_functiondef('app.read_current_patient_booking_runtime_integer(text)'::regprocedure) LIKE '%booking_availability_horizon_days%' AND pg_catalog.pg_get_functiondef('app.provision_specialist_owner(uuid)'::regprocedure) LIKE '%booking_availability_horizon_days%'
+-- BCB-MIGRATION-VERIFY: SELECT pg_catalog.pg_get_functiondef('app.read_public_booking_slot_snapshot(uuid,uuid,text,text)'::regprocedure) LIKE '%availabilityHorizonDays%' AND pg_catalog.pg_get_functiondef('app.read_current_patient_booking_runtime_integer(text)'::regprocedure) LIKE '%booking_availability_horizon_days%' AND pg_catalog.pg_get_functiondef('app.provision_specialist_owner(uuid)'::regprocedure) LIKE '%booking_availability_horizon_days%'
 --
 -- BAH-01…03: один клинический горизонт управляет публичной и пациентской выдачей
--- доступности. Глобальная строка даёт безопасное эффективное значение существующим клиникам;
+-- доступности. Без per-org строки definer-функции деградируют к реестровому дефолту 30 дней;
 -- новая клиника получает собственную строку в том же атомарном провижининге владельца.
-
--- BCB-MIGRATION-BACKFILL
-INSERT INTO public.system_settings (
-  key, scope, organization_id, value_json, updated_at, updated_by
-)
-VALUES (
-  'booking_availability_horizon_days', 'admin', NULL,
-  pg_catalog.jsonb_build_object('value', 30), pg_catalog.now(), NULL
-)
-ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;
+-- Глобальная scope=admin строка не создаётся: она неисполнима под FORCE RLS (A1).
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_booking_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
--- BCB-MIGRATION-REHOME-FUNCTION: app.read_current_patient_booking_runtime_integer(text)
 CREATE OR REPLACE FUNCTION app.read_current_patient_booking_runtime_integer(p_key text)
  RETURNS integer
  LANGUAGE plpgsql
@@ -66,6 +56,11 @@ BEGIN
 
   IF v_value IS NULL AND p_key = 'booking_prepayment_wait_minutes' THEN
     RETURN 20;
+  END IF;
+  -- BAH-01/F2: клиника без per-org строки получает реестровый дефолт; сломанное сохранённое
+  -- значение по-прежнему падает громко (ERRCODE 22023) ниже.
+  IF v_value IS NULL AND p_key = 'booking_availability_horizon_days' THEN
+    RETURN 30;
   END IF;
   IF v_value IS NULL OR v_value !~ '^\d+$' THEN
     RAISE EXCEPTION 'patient booking runtime integer is unavailable: %', p_key
@@ -515,14 +510,19 @@ BEGIN
   ORDER BY setting.organization_id IS NULL ASC
   LIMIT 1;
 
-  IF v_availability_horizon_text IS NULL OR v_availability_horizon_text !~ '^\d+$' THEN
+  -- BAH-01/F2: отсутствие per-org строки (NULL) деградирует к реестровому дефолту.
+  -- Сохранённое, но сломанное значение остаётся loud (ERRCODE 22023).
+  IF v_availability_horizon_text IS NULL THEN
+    v_availability_horizon_days := 30;
+  ELSIF v_availability_horizon_text !~ '^\d+$' THEN
     RAISE EXCEPTION 'booking availability horizon is unavailable'
       USING ERRCODE = '22023';
-  END IF;
-  v_availability_horizon_days := v_availability_horizon_text::integer;
-  IF v_availability_horizon_days < 1 OR v_availability_horizon_days > 92 THEN
-    RAISE EXCEPTION 'booking availability horizon is out of range'
-      USING ERRCODE = '22023';
+  ELSE
+    v_availability_horizon_days := v_availability_horizon_text::integer;
+    IF v_availability_horizon_days < 1 OR v_availability_horizon_days > 92 THEN
+      RAISE EXCEPTION 'booking availability horizon is out of range'
+        USING ERRCODE = '22023';
+    END IF;
   END IF;
 
   SELECT GREATEST(1, LEAST(24, COALESCE((setting.value_json ->> 'value')::integer, 1)))
