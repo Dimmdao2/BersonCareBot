@@ -218,3 +218,121 @@ stub and could be the model), or keep them as a supported patient capability. No
   and `symptoms.md` scopes the exclusion to "в новом списке" — no claim was broken.
 - `SymptomChart`'s zero-tracking string «Нет отслеживаемых симптомов. Добавьте симптом выше.» is unreachable from
   this surface (the modal always passes exactly one tracking) — dead copy, not a defect.
+
+## 7. Correction closing pass — F-1
+
+Closing pass over the retained correction `685793d31 fix(patient): scroll symptom chart to newest on mount`,
+HEAD `32895ac7c` on `wt/patient-work3-20260906`. This is one correction pass against the oracle recorded in
+§§1–6, not a new blind audit: no test was added, no product code was edited, F-2 was not revisited, and no new
+finding sweep was run.
+
+**Verdict: PASS (5/5 checks).** F-1 is closed on code/lifecycle evidence + the retained behavior oracle; the
+live assigned-tracking click-through remains BLOCKED for the same reason as in §4 (recorded limitation, not a
+new failure).
+
+### 7.1 Check 1 — the real dynamic mount signals the scroll owner after width exists — PASS
+
+`RechartsSymptom` is still the single `dynamic(() => import('./SymptomChartRecharts'), { ssr: false })`
+(`SymptomChart.tsx:13`), i.e. the chunk that F-1 said arrives late. Inside the real module the seam is a
+`useLayoutEffect` (`SymptomChartRecharts.tsx:42-44`) that fires on the **real** component's own mount — the
+loading placeholder is a different component and never calls it, so the callback cannot run against the
+`w-full` placeholder that caused F-1.
+
+The width is present when it fires. The child's own outer `div` carries `style={{ width: chartWidth }}` with
+`chartWidth = Math.max(364, data.length * 52)` (`SymptomChartRecharts.tsx:40,49`), and that node is committed
+to the DOM before its layout effect runs; reading `scrollWidth` in the callback forces the synchronous reflow
+that resolves it. The seam therefore does **not** depend on Recharts' internal measurement:
+`PositiveSizeResponsiveContainer` renders nothing until it has a positive box
+(`PositiveSizeResponsiveContainer.tsx:44-46`), but the explicit inline width above it already makes the
+container's `scrollWidth` correct.
+
+The parent scrolls the pre-existing owner, not a new one: `scrollToNewest`
+(`SymptomChart.tsx:48-52`) writes `container.scrollLeft = container.scrollWidth` on `chartScrollRef`, the same
+single `overflow-x-auto` div (`SymptomChart.tsx:179-187`) that existed before the correction.
+
+### 7.2 Check 2 — typed direct lifecycle seam, nothing else introduced — PASS
+
+The seam is one optional typed prop, `onScrollableMount?: () => void`, declared in the child's props type
+(`SymptomChartRecharts.tsx:27,32`) and passed directly parent → child (`SymptomChart.tsx:192`). Typecheck
+covers it (§7.5); the non-scrollable call site simply omits it.
+
+Scan of both changed files for the forbidden shapes — `setTimeout`, `setInterval`,
+`requestAnimationFrame`, `queueMicrotask`, `ResizeObserver`, `MutationObserver`, `dispatchEvent`,
+`getBoundingClientRect`, `offsetWidth`: **no hit**. The single `addEventListener` hit
+(`SymptomChart.tsx:121`) is the pre-existing `DIARY_SYMPTOM_ENTRY_SAVED_EVENT` refresh listener, untouched by
+`685793d31`. One dynamic chart import, one scroll owner (`overflow-x-auto` occurs exactly once). No test
+asserts layout, DOM width, CSS class, source text or component identity — no test file was touched at all.
+
+No feedback loop: `scrollToNewest` sets no state and its `useCallback` identity depends only on
+`[points, scrollable]`, so scrolling cannot re-trigger the effect that scrolled.
+
+### 7.3 Check 3 — point/window changes and the saved-entry refresh reach the same behavior — PASS
+
+All three paths converge on the one `scrollToNewest` callback, which is why there is no second implementation
+of "newest edge":
+
+- **Point/window change** (symptom select, period, offset): `load()` → `setPoints` → new `points` →
+  `scrollToNewest` identity changes → the parent layout effect (`SymptomChart.tsx:113-115`) fires, and the
+  child's effect re-fires too because `onScrollableMount` is in its dependency list. Both call the same
+  function; it is idempotent (a plain assignment, clamped by the browser), so the duplicate call is harmless.
+  Noted as an observation, not a defect.
+- **Saved-entry refresh**: the `DIARY_SYMPTOM_ENTRY_SAVED_EVENT` listener still calls the unchanged `load()`
+  (`SymptomChart.tsx:117-123`), so it lands on the same path above. Retained UI test K6 still covers that the
+  save announces itself (§7.5, 2/2).
+- **First open** (the F-1 case): `points` no longer changes when the chunk resolves, so the parent effect
+  alone was silent — the child's mount seam is what now fires.
+
+Nothing downstream of the data changed: `load()`, the query string, `fillDays`, `period`/`offset` semantics and
+the aggregation route are byte-identical in `685793d31` (diff touches only the callback extraction, the effect
+body, one JSX prop, and the child's prop + effect). Non-scrollable consumers are doubly guarded — the child only
+calls when `scrollable` (`SymptomChartRecharts.tsx:43`) and `scrollToNewest` returns early when not scrollable
+or when `points` is empty. The only importer of `SymptomChart` is
+`app/app/patient/diary/symptoms/SymptomTrackingRow.tsx:90` (passes `scrollable`); the doctor-side
+`SymptomChart` in `PatientTabOverview.tsx:455` is an unrelated local function and `SymptomChartRecharts` has no
+other consumer.
+
+### 7.4 Check 4 — scope of the correction — PASS
+
+`git show --stat 685793d31` → exactly two files, both product chart files:
+`apps/webapp/src/modules/diaries/components/SymptomChart.tsx` (+14/−5) and
+`SymptomChartRecharts.tsx` (+7/−0).
+
+`git diff --name-status 823130173..HEAD` over the retained audit tests
+(`SymptomTrackingRow.ui.test.tsx`, `patientSymptomEntryBoundary.route.test.ts`) → **empty**: the fixer did not
+touch, weaken or re-point either test. The only other files changed between the audit commit and HEAD belong to
+the parallel modals workstream and the orchestration queue, not to this correction.
+
+### 7.5 Check 5 — gates rerun — PASS
+
+```
+pnpm --dir apps/webapp exec vitest run --project route  …/patientSymptomEntryBoundary.route.test.ts  → 1 file, 4 passed
+pnpm --dir apps/webapp exec vitest run --project ui     …/SymptomTrackingRow.ui.test.tsx             → 1 file, 2 passed
+pnpm --dir apps/webapp exec vitest run --project unit   …/PositiveSizeResponsiveContainer.unit.test.tsx → 1 file, 2 passed
+pnpm --dir apps/webapp typecheck                                                                    → exit 0
+npx eslint (2 changed chart files + SymptomTrackingRow.tsx + the 2 retained audit tests)            → exit 0
+git diff --check 685793d31^..685793d31                                                              → exit 0
+git diff --check (working tree)                                                                     → exit 0
+```
+
+`PositiveSizeResponsiveContainer.unit.test.tsx` is the only other existing test that covers this chart stack;
+there are no other test files under `modules/diaries/**` or `shared/ui/charts/**`. Full CI was **not** run, per
+the brief and §10 levels — the correction is `local` scope in two client components, with no shared package,
+root config, lockfile or cross-app contract touched.
+
+### 7.6 Live limitation (unchanged, honest record)
+
+The live click-through — open an assigned symptom → month graph opens on the newest/right edge → scroll back to
+older dates — is still **BLOCKED on named DEV**: the owner's DEV patient owns no assigned non-system tracking
+(only the service `warmup_feeling`), and creating a fixture is forbidden. jsdom has no layout engine
+(`scrollWidth` is always 0), so no cheap automated arbiter for the geometry exists either, and per §10a a
+layout/DOM-width assertion is exactly what must not be written. The closing gate for F-1 is therefore the
+code/lifecycle inspection above plus the retained behavior oracle; the geometry itself still deserves one live
+look the first time an assigned tracking exists. This is the same limitation recorded in §4 and §5 — not a new
+failure and not a regression from the correction.
+
+### 7.7 No mutation remains
+
+No product code and no test file was modified in this pass; nothing was injected and therefore nothing needed
+reverting. `git status --porcelain` before the artifact commit → clean apart from this artifact;
+`git diff --check` → exit 0. This pass commits only
+`docs/_TODO/runs/patient-work3-20260906/PATIENT_SYMPTOMS_AUDIT.md` by explicit path, and does not push or land.
