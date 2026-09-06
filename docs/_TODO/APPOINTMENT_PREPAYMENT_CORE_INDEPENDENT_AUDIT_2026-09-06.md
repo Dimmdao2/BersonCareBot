@@ -216,3 +216,112 @@ confirmed` в маршруте перестала быть мёртвой.
 `privileges/appointment-prepayment-least-privilege.test.mjs`.
 
 **Замечания ниже порога MUST FIX не трогались** — они остаются открытыми развилками/долгом.
+
+---
+
+## Финальная приёмка исправлений (2026-09-06, независимый проход)
+
+**Кандидат:** `wt/appointment-prepayment-core`, HEAD `fab2b8bff` (исправления `8e1fb0a90` + слияние
+актуальной `feat/doctor-ui-rebuild`). Продуктовый код не менялся; вся временная поломка откачена,
+рабочее дерево чистое.
+
+### Вердикт: **FAIL** — два блокера, оба доказаны прогоном, оба в скоупе этой работы
+
+#### БЛОКЕР 1. Исправление наличных сломало собственный регрессионный тест платёжного принципала
+
+**Достижимый сценарий.** `cd apps/webapp && npx vitest --run
+src/infra/repos/pgPatientPayments.principal.unit.test.ts` → **3 из 6 красных** на кандидате.
+
+Доказательство, что сломало именно `8e1fb0a90`, а не что-то раньше: откат ОДНОГО файла
+`git checkout 8e1fb0a90^ -- apps/webapp/src/infra/repos/pgPatientPayments.ts` → тот же файл тестов
+**6/6 зелёных**; возврат — снова 3 красных.
+
+**Почему.** Новая ветка наличных ПО ЗАПИСИ (`pgPatientPayments.ts:190`) уходит в именованный корень
+ДО `runPatientPaymentMutation`, а именно в нём стоят оба TS-уровневых гейта арендатора
+(`:111` `patient_payment_organization_principal_mismatch`, `:119` `organization_principal_required`).
+Для записи-двери они больше не исполняются вовсе.
+
+**Impact.** (а) merge-gate красный. (б) Файл, который держал ответ на вопрос «под каким принципалом
+пишутся собранные врачом наличные», больше не покрывает дверь записи — а он написан ровно под неё:
+его фикстура — `staff-appointment-cash:<id>:700000`, и его шапка описывает живой дефект DEV 05.09
+(«Оплачено наличными» на записи в 7 000 ₽ отвечало «Не удалось выполнить действие»). Стена
+арендатора при этом на месте — её держит SQL (`require_accepted_context` + сверка
+`organizationId` с `app.current_org_id()`), поэтому это не дыра доступа, а потерянный сторож и
+красный гейт.
+
+**Нарушенный пункт authority.** `AGENTS.md` merge-gate (полный lint + typecheck + затронутые тесты
+зелёные — единственное «готово»); `PAY-APPT-18` в части «роли… имеют только необходимые права
+чтения и записи» — утверждение о принципале кассовой двери теперь не проверяет ни один тест.
+
+#### БЛОКЕР 2. Тик истечения предоплаты внесён в locked-набор cron-источников без объявленной relation-возможности
+
+**Достижимый сценарий.** `cd apps/webapp && npx vitest --run
+src/modules/db-retention/journalRetention.contract.test.ts` → красный:
+
+```
+locked-infra cron sources with no declared port capability:
+  ["api/internal/booking-prepayment/expire:POST"]
+```
+
+Источник добавлен `2b865795d` (реализация этой работы) в
+`packages/db-principal/src/webappLockedInfraCronSources.ts:19`. Набор нагруженный, а не
+декоративный: по нему выбирается пул (`apps/webapp/src/infra/db/webappPoolProvider.ts:172`) и
+допускается infra-принципал в locked-режиме (`packages/db-principal/src/index.ts:776`, `:1047`).
+Соответствующей `purpose: 'relation'` возможности с этим `runtimeSources` в
+`deploy/postgres/privileges/declaration.ts` нет.
+
+**Impact.** Сам тик в port-context режиме разрешается через возможность именованного корня
+(`app.expire_due_booking_prepayments(integer)`, `webappPortContextPrincipal` берёт
+`operation.functionIdentity` раньше infra-источника), поэтому «джоб мёртв» здесь НЕ утверждается.
+Ломается другое: контракт, который единственный связывает код, входящий в базу как infra, с
+центральной декларацией, теперь красный — и красный он СРАЗУ ДЛЯ ВСЕГО набора, то есть перестаёт
+ловить следующий источник, который действительно не сможет открыть соединение. Шапка самого теста
+описывает этот класс дважды случившимся (`billing.saas_renewal.tick`, staff-push аудитория
+операторского алерта) — каждый раз замечали только после того, как задание молча ничего не делало.
+
+**Нарушенный пункт authority.** `PAY-APPT-18` («…через центральную схему grants» — возможность
+источника объявляется только в декларации) и `PAY-APPT-11` в части доказуемости: гейт, который
+подтверждает, что тик истечения вообще имеет чем войти в базу, не проходит. Плюс merge-gate.
+
+### Унаследованный красный, НЕ находка против этой работы
+
+`src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` — красный:
+`src/app/api/doctor/patients/[userId]/anamnesis/route.ts:PATCH` не зарегистрирован. Экспорт `PATCH`
+добавлен `11acc20eb feat(doctor-ui): rebuild patient clinical map`, и этот коммит УЖЕ в
+`feat/doctor-ui-rebuild` (`git merge-base --is-ancestor` подтверждает). Приехал слиянием, к
+предоплате отношения не имеет — но приземлению кандидата мешает так же.
+
+### Что проверено и держится
+
+| Проверка брифа | Как проверено | Итог |
+|---|---|---|
+| 1. Перенос/правка `awaiting_payment` без 500, без молчаливого подтверждения | реальный FSM + реальное поведение репозитория (`awaitingPaymentReschedule.unit.test.ts`, `pgBookingAppointmentLifecycle.awaitingPayment.unit.test.ts`); kill-set: снятие ребра FSM → 4 красных, `appointmentStatusAfterReschedule → 'confirmed'` → красные | держится |
+| 1. То же правило в пациентском корне | взгляд: `20260906T101500_…sql`, `v_to_status` CASE повторяет доменное правило; VERIFY-заголовок миграции ассертит наличие условия в теле функции | держится |
+| 2. Наличные гасят требование атомарно и идемпотентно | взгляд: строка журнала и зачисление — один statement-атомарный корень, `FOR UPDATE` до журнала, зачисление ТОЛЬКО при фактической вставке, идемпотентность на `uq_patient_payment_appointment_idempotency (organization_id, appointment_id, idempotency_key)`; ключ детерминированный (`staff-appointment-cash:<id>:<сумма>`) | держится |
+| 2. Оплаченная запись не попадает под автоотмену | тик отбирает `status='awaiting_payment' AND prepayment_paid_minor=0 AND payment_ref IS NULL`; корень выводит в `confirmed` и оставляет ненулевой `prepayment_paid_minor` | держится |
+| 3. Ссылка/QR на непокрытую часть ТРЕБОВАНИЯ из снимка | `staffAppointmentPaymentIntent.unit.test.ts`; kill-set: `appointmentPaymentIntentAmountMinor → remainingTotalMinor` → красный. `deps.bookingEngine` реально подключён (`buildAppDeps.ts:2076`), фолбэка на полную стоимость в проде нет | держится |
+| 3. Живой пересчёт `prepaymentQuote` убран из контракта чтения | `prepaymentQuote` отсутствует в `booking-calendar/types.ts` и в `AppointmentPaymentSection.tsx` | держится |
+| 4. Миграция под объявленными владельцами | `migrate-local.mjs --rollback-only` против `bcb_webapp_dev`: `pending=2 total=122 reapplied=0 unapplied=0` | PASS |
+| 4. Права, владельцы, EXECUTE, артефакты | `check:db-privileges-generated` — побайтно; `test:db-privileges` — 341/184 pass, 0 fail; владелец `app_seam_payment_webhook_owner`, `REVOKE ALL FROM PUBLIC`, `GRANT EXECUTE` только `app_staff`, UPDATE-поверхность ограничена `prepayment_paid_minor, status, updated_at`; `prepayment_paid_minor` у `app_staff` по-прежнему нет | держится |
+| 4. Второго планировщика нет | `background-jobs-cli --check` → OK (24 артефакта) | держится |
+| 5. Единая проекция статусов после синхронизации с `feat/doctor-ui-rebuild` | `src/app/app/doctor/calendar`, `src/app/app/doctor/appointments`, `src/modules/booking-calendar`, `src/shared/ui/doctor/calendar` — все зелёные | держится |
+| Общий гейт | `pnpm typecheck` — все 7 проектов Done; `pnpm lint` — exit 0 | PASS |
+
+### Команды и результаты
+
+```
+pnpm typecheck                     → Done (7 проектов)
+pnpm lint                          → exit 0
+pnpm check:db-privileges-generated → побайтно, exit 0
+pnpm test:db-privileges            → 341 tests, 184 pass, 0 fail, 157 skip
+node deploy/host/background-jobs-cli.mjs --check → OK (24 artifacts)
+node deploy/postgres/privileges/migrate-local.mjs --db bcb_webapp_dev \
+  --migrator bcb_dev_migrator --drizzle-folder apps/webapp/db/drizzle-migrations \
+  --sudo-postgres --rollback-only
+  → validated and rolled back: pending=2 total=122 reapplied=0 unapplied=0
+(apps/webapp) npx vitest --run   → 530 files: 3 FAILED / 520 passed / 7 skipped
+                                   2755 tests: 5 FAILED / 2719 passed / 31 skipped
+```
+
+Прежний аудит гонял только выборочные наборы — оба блокера лежат вне них, поэтому и не были видны.
+Одноразовых баз не поднималось, DEV/TEST/PROD не изменялись.
