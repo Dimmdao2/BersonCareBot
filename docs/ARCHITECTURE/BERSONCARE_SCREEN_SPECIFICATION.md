@@ -90,7 +90,7 @@ screen:
     - name: <имя>
       trigger: <действие-триггер>
       content: <что внутри>
-      size: <sm|md|lg|content — DoctorModal / PatientModalDialogContent>
+      size: <sm|md|lg|content — DoctorModal / PatientModal>
   side_panels:                     # БОКОВЫЕ ПАНЕЛИ
     - name: <имя>
       trigger: <когда появляется>

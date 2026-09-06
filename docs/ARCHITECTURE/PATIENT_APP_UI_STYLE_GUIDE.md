@@ -10,9 +10,12 @@
 
 Для patient UI опираемся на три слоя:
 
-1. `apps/webapp/src/shared/ui/patientVisual.ts` — patient-specific shared classes (surface, typography, actions, page layout).
-2. `apps/webapp/src/app/globals.css` (`#app-shell-patient`) — токены patient темы (`--patient-*`, `--patient-surface-*`).
-3. `apps/webapp/src/components/ui/*` — базовые shadcn/base-ui primitives (`Button`, `Card`, `Badge`, `Input`, `Textarea`, `Dialog`, `Tabs`, `Switch`, `Select`, `Tooltip`).
+1. `apps/webapp/src/shared/ui/patient/patientVisual.ts` — patient-specific shared classes (surface, typography, actions, page layout).
+2. `apps/webapp/src/app/styles/patient.css` — токены patient темы (`:root` + `#app-shell-patient`: `--patient-*`, `--patient-surface-*`).
+3. `apps/webapp/src/shared/ui/patient/primitives/*` — shadcn/base-ui копии **patient-зоны** (`Button`, `Card`, `Badge`, `Input`, `Textarea`, `Dialog`, `Drawer`, `Tabs`, `Switch`, `Select`, `Tooltip`).
+4. `apps/webapp/src/shared/ui/patient/PatientModal.tsx` — единственный контейнер модалок пациента (§8).
+
+`@/components/ui/**` в patient-маршрутах **запрещён** (ESLint + AGENTS.md §15/§17).
 
 `apps/webapp/src/app/app/patient/home/patientHomeCardStyles.ts` — это отдельный home-specific слой. Его fixed geometry, hero-обвязку и dashboard-позиционирование нельзя механически переносить на внутренние страницы.
 
@@ -32,7 +35,7 @@
 Перед добавлением любого нового UI на patient-страницах:
 
 1. Проверить, нет ли готового класса в `patientVisual.ts`.
-2. Если нет — проверить подходящий primitive в `components/ui/*`.
+2. Если нет — проверить подходящий primitive в `shared/ui/patient/primitives/*` (модалки — `PatientModal`, §8).
 3. Только если оба шага не покрывают задачу, вводить кастомный локальный UI.
 
 Нельзя создавать одноразовые локальные реализации карточек/кнопок/бейджей/аккордеонов/форм-контролов, если уже есть shared или shadcn/base-ui вариант.
@@ -67,7 +70,7 @@
 - Patient layer отвечает за product-specific визуальный язык пациента.
 - Допустим смешанный подход: `Card`/`Badge`/`Button` + patient classes/tokens.
 
-**`Select` (выпадающий список):** если `value` — нечитаемый ключ (id, enum), а в закрытом поле нужна русская подпись, см. `.cursor/rules/ui-select-trigger-display-label.mdc` и комментарий в `components/ui/select.tsx` (`items` / явный `SelectValue`).
+**`Select` (выпадающий список):** если `value` — нечитаемый ключ (id, enum), а в закрытом поле нужна русская подпись, см. AGENTS.md §22 и комментарий в `shared/ui/primitives/select.tsx` (`displayLabel` / `items` / явный `SelectValue`).
 
 Нельзя менять глобальные doctor/admin-паттерны ради локального patient-эксперимента.
 
@@ -77,7 +80,7 @@
 
 - не придумывать новый “локальный chrome” в компонентах, если shared слой уже покрывает кейс;
 - не расширять scope в product/content/API/DB/env;
-- deferred-экраны (`/messages`, `/emergency`, `/lessons`, `/address`, `/intake/*`, booking landing) стилизовать только в рамках отдельно подтверждённых фаз App Restructure / профильных инициатив.
+- deferred-экраны (`/emergency`, `/lessons`, `/address`, `/intake/*`, booking landing) стилизовать только в рамках отдельно подтверждённых фаз App Restructure / профильных инициатив. `/messages` из этого списка выведен: чат ведётся каноническим `PatientModal size="content"` (§8).
 
 ## 7. Когда Кастом Разрешён
 
@@ -88,3 +91,49 @@
 3. Причина зафиксирована в документации активной инициативы/логе.
 
 Без этих трёх условий кастом считается архитектурным долгом.
+
+## 8. Модалки: один контейнер на всю patient-зону
+
+**Источник истины — `apps/webapp/src/shared/ui/patient/PatientModal.tsx`.** Любая feature-модалка пациента
+открывается через `PatientModal`; собственные `Dialog`/`Sheet`-обёртки со своей геометрией не заводятся.
+
+### Что даёт контейнер
+
+- **Desktop** — диалог по центру, **mobile** — канонический bottom-drawer (`shared/ui/patient/primitives/drawer.tsx`,
+  ширина ограничена колонкой оболочки 430px). Порог мобильного вьюпорта — `primitives/useIsMobileViewport.ts`,
+  тот же, что у `patient-mobile` в `app/styles/patient.css` (узкий **или** низкий экран).
+- **Шапка / тело / подвал закреплены:** прокручивается только тело — единственный владелец скролла.
+  Заголовок — `title`, вторая строка контекста — `titleSubject` (простой текст, не ссылка).
+- **Подвал** — проп `footer` либо `PatientModalFooter` из содержимого (портал в ту же панель). Панель одна:
+  одинаковая геометрия, `env(safe-area-inset-bottom)` и одинаковые по ширине кнопки на mobile. Кнопка
+  `type="submit"` из формы связывается с подвалом атрибутом `form`, потому что портал уносит её из DOM формы.
+- **Размеры** `sm | md | lg | content`. `content` отдаёт телу flex-колонку под контент со СВОИМ внутренним
+  скроллом — чат и обсуждения (`PatientMessagesClient`, `ProgramItemDiscussionDialog`).
+- **Слои и затемнение:** `PatientModalLayerContext` держит вложенные и соседние модалки в одном стеке —
+  затемнение рисует только первый открытый слой. Модалка под вложенной остаётся смонтированной, поэтому
+  закрытие верхнего слоя возвращает в тот же экран с сохранённым черновиком.
+- **`presentation="fullscreen-media"`** — полноэкранный просмотр фото/видео поверх обсуждения; видео
+  показывает `PatientMediaPlaybackVideo presentation="fullscreen"` (AGENTS.md §19), закрытие возвращает в тред.
+- Тело сбрасывает скролл наверх при открытии.
+
+### Legacy-диалоги
+
+`shared/ui/patient/primitives/dialog.tsx` на mobile делегирует геометрию тому же `DrawerContent`, поэтому
+оставшиеся прямые `Dialog`-вызовы зоны не могут разъехаться с `PatientModal`. Это переходный слой:
+новые модалки пишутся на `PatientModal`, локальные mobile-ветки с собственной геометрией, фоном или
+анимацией запрещены.
+
+### Граница patient / doctor (AGENTS.md §17)
+
+Patient-модалки и их примитивы **не импортируют** `@/shared/ui/doctor/**` и `@/components/ui/**`, doctor —
+`@/shared/ui/patient/**`. Совпадение поведения достигается зеркальной реализацией, а не общим компонентом:
+`PatientModal` повторяет проверенный контракт `DoctorModal`, не заимствуя его код. Если экран нужен обеим
+зонам, общей делается только модель без UI (пример — `shared/ui/chat/useDiscussionMessageMediaPlayback.ts`),
+а рендер остаётся зональной обёрткой.
+
+### Портал вне `#app-shell-patient`
+
+Модалка рендерится в портал на `<body>`, поэтому доступны только `:root`-токены `patient.css`
+(`--patient-card-bg`, `--patient-border`, `--patient-text-*`, `--patient-block-heading`). `--patient-color-primary`
+объявлен на `#app-shell-patient` и в портале **не резолвится** — для primary CTA внутри модалки использовать
+`patientModalPortalPrimaryCtaClass`.

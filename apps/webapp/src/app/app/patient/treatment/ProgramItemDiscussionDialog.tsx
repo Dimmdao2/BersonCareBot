@@ -3,12 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/patient/primitives/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/ui/patient/primitives/dialog';
+import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { Textarea } from '@/shared/ui/patient/primitives/textarea';
 import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
@@ -52,15 +47,29 @@ function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussi
   return a.id.localeCompare(b.id);
 }
 
+/**
+ * Обсуждение пункта программы у пациента: канонический `PatientModal size="content"`.
+ * Тред владеет своим скроллом, composer закреплён внизу тела, шапка не уезжает.
+ */
 export function ProgramItemDiscussionDialog(props: {
   instanceId: string;
   itemId: string;
+  /** Название упражнения/пункта во второй строке шапки; без него строка не рисуется. */
+  itemLabel?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRead?: () => void | Promise<void>;
   mediaSubmissionEnabled?: boolean;
 }) {
-  const { instanceId, itemId, open, onOpenChange, onRead, mediaSubmissionEnabled = false } = props;
+  const {
+    instanceId,
+    itemId,
+    itemLabel,
+    open,
+    onOpenChange,
+    onRead,
+    mediaSubmissionEnabled = false,
+  } = props;
   const [messages, setMessages] = useState<ProgramItemDiscussionMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
@@ -185,144 +194,145 @@ export function ProgramItemDiscussionDialog(props: {
   const sortedMessages = useMemo(() => [...messages].sort(compareMessages), [messages]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-lg border border-[var(--patient-border)] shadow-md sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Комментарии</DialogTitle>
-        </DialogHeader>
-
-        <div className="flex h-[min(75vh,34rem)] min-h-[20rem] flex-col gap-2">
-          {error ? (
-            <p className={cn(patientMutedTextClass, 'text-sm text-[var(--patient-color-danger)]')}>
-              {error}
-            </p>
-          ) : null}
-          {nextCursor ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="self-start"
-              disabled={loading || loadingOlder}
-              onClick={() => {
-                if (!nextCursor) return;
-                setLoadingOlder(true);
-                void loadPage(nextCursor, true)
-                  .catch((e) => {
-                    const msg = e instanceof Error ? e.message : 'Не удалось загрузить комментарии';
-                    setError(msg);
-                  })
-                  .finally(() => setLoadingOlder(false));
-              }}
-            >
-              {loadingOlder ? 'Загрузка...' : 'Показать предыдущие'}
-            </Button>
-          ) : null}
-
-          <div
-            className={cn(
-              'min-h-0 flex-1 overflow-y-auto space-y-4 pb-4 pt-1 md:pb-5',
-              chatThreadSurfaceClass,
-            )}
+    <PatientModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Комментарии"
+      titleSubject={itemLabel ?? undefined}
+      size="content"
+    >
+      {/* Mobile: колонка занимает drawer целиком; desktop: комфортная фиксированная высота треда. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-2 md:h-[min(75vh,34rem)] md:min-h-[20rem] md:flex-none">
+        {error ? (
+          <p className={cn(patientMutedTextClass, 'text-sm text-[var(--patient-color-danger)]')}>
+            {error}
+          </p>
+        ) : null}
+        {nextCursor ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="self-start"
+            disabled={loading || loadingOlder}
+            onClick={() => {
+              if (!nextCursor) return;
+              setLoadingOlder(true);
+              void loadPage(nextCursor, true)
+                .catch((e) => {
+                  const msg = e instanceof Error ? e.message : 'Не удалось загрузить комментарии';
+                  setError(msg);
+                })
+                .finally(() => setLoadingOlder(false));
+            }}
           >
-            {sortedMessages.length === 0 ? (
-              loading ? (
-                <AppContentLoading className="py-6" />
-              ) : (
-                <p className={cn('text-center', patientMutedTextClass)}>Пока нет комментариев.</p>
-              )
+            {loadingOlder ? 'Загрузка...' : 'Показать предыдущие'}
+          </Button>
+        ) : null}
+
+        <div
+          className={cn(
+            'min-h-0 flex-1 overflow-y-auto space-y-4 pb-4 pt-1 md:pb-5',
+            chatThreadSurfaceClass,
+          )}
+        >
+          {sortedMessages.length === 0 ? (
+            loading ? (
+              <AppContentLoading className="py-6" />
             ) : (
-              sortedMessages.map((m) => {
-                const mine = m.senderRole === 'patient';
-                const deliveryStatus = mine
-                  ? chatMessageDeliveryStatus({ createdAt: m.createdAt, peerLastReadAt })
-                  : null;
-                return (
+              <p className={cn('text-center', patientMutedTextClass)}>Пока нет комментариев.</p>
+            )
+          ) : (
+            sortedMessages.map((m) => {
+              const mine = m.senderRole === 'patient';
+              const deliveryStatus = mine
+                ? chatMessageDeliveryStatus({ createdAt: m.createdAt, peerLastReadAt })
+                : null;
+              return (
+                <div
+                  key={m.id}
+                  className={cn('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}
+                >
                   <div
-                    key={m.id}
-                    className={cn('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}
+                    className={cn(
+                      'flex max-w-[min(100%,22rem)]',
+                      mine ? 'justify-end' : 'justify-start',
+                    )}
                   >
                     <div
                       className={cn(
-                        'flex max-w-[min(100%,22rem)]',
-                        mine ? 'justify-end' : 'justify-start',
+                        'max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]',
+                        'rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
+                        mine ? chatBubbleOwnClass : chatBubblePeerClass,
                       )}
                     >
-                      <div
-                        className={cn(
-                          'max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]',
-                          'rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
-                          mine ? chatBubbleOwnClass : chatBubblePeerClass,
-                        )}
-                      >
-                        <ProgramItemDiscussionMessageBody message={m} mine={mine} />
-                        {mine && deliveryStatus ? (
-                          <ChatBubbleOutgoingMeta
-                            timeLabel={formatChatMessageTimeRu(m.createdAt)}
-                            deliveryStatus={deliveryStatus}
-                          />
-                        ) : null}
-                      </div>
+                      <ProgramItemDiscussionMessageBody message={m} mine={mine} />
+                      {mine && deliveryStatus ? (
+                        <ChatBubbleOutgoingMeta
+                          timeLabel={formatChatMessageTimeRu(m.createdAt)}
+                          deliveryStatus={deliveryStatus}
+                        />
+                      ) : null}
                     </div>
-                    {!mine ? (
-                      <p
-                        className={cn(
-                          'max-w-[min(100%,22rem)] md:max-w-[min(100%,24rem)]',
-                          patientChatMetaLineClass,
-                          'text-start',
-                        )}
-                      >
-                        {formatChatRelativeDateLabelRu(m.createdAt, new Date())} ·{' '}
-                        {formatChatMessageTimeRu(m.createdAt)}
-                      </p>
-                    ) : null}
                   </div>
-                );
-              })
-            )}
-          </div>
-
-          <MessageComposer
-            value={draft}
-            onValueChange={setDraft}
-            onSubmit={sendText}
-            submitting={sending}
-            disabled={loading}
-            placeholder="Ваш комментарий..."
-            ariaLabel="Текст комментария"
-            submitLabel="Отправить"
-            submittingLabel="Отправка..."
-            maxLength={4000}
-            className="flex shrink-0 flex-col gap-2 border-t border-[var(--patient-border)] pt-3"
-            inputRowClassName="flex items-end gap-2"
-            leadingControl={
-              mediaSubmissionEnabled ? (
-                <ProgramItemDiscussionMediaPicker
-                  instanceId={instanceId}
-                  itemId={itemId}
-                  disabled={sending || loading}
-                  onUploaded={() => bootstrap()}
-                  onError={(message) =>
-                    toast.error(
-                      message === 'video_too_short'
-                        ? 'Видео должно быть не короче 10 секунд'
-                        : 'Не удалось загрузить файл',
-                    )
-                  }
-                />
-              ) : null
-            }
-            renderTextarea={(props) => (
-              <Textarea
-                {...props}
-                className={cn(patientChatComposerTextareaClass, 'min-h-0 flex-1')}
-              />
-            )}
-            renderSubmit={(props) => (
-              <Button {...props} className={cn(patientPrimaryActionClass, 'disabled:opacity-55')} />
-            )}
-          />
+                  {!mine ? (
+                    <p
+                      className={cn(
+                        'max-w-[min(100%,22rem)] md:max-w-[min(100%,24rem)]',
+                        patientChatMetaLineClass,
+                        'text-start',
+                      )}
+                    >
+                      {formatChatRelativeDateLabelRu(m.createdAt, new Date())} ·{' '}
+                      {formatChatMessageTimeRu(m.createdAt)}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })
+          )}
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <MessageComposer
+          value={draft}
+          onValueChange={setDraft}
+          onSubmit={sendText}
+          submitting={sending}
+          disabled={loading}
+          placeholder="Ваш комментарий..."
+          ariaLabel="Текст комментария"
+          submitLabel="Отправить"
+          submittingLabel="Отправка..."
+          maxLength={4000}
+          className="flex shrink-0 flex-col gap-2 border-t border-[var(--patient-border)] pt-3"
+          inputRowClassName="flex items-end gap-2"
+          leadingControl={
+            mediaSubmissionEnabled ? (
+              <ProgramItemDiscussionMediaPicker
+                instanceId={instanceId}
+                itemId={itemId}
+                disabled={sending || loading}
+                onUploaded={() => bootstrap()}
+                onError={(message) =>
+                  toast.error(
+                    message === 'video_too_short'
+                      ? 'Видео должно быть не короче 10 секунд'
+                      : 'Не удалось загрузить файл',
+                  )
+                }
+              />
+            ) : null
+          }
+          renderTextarea={(props) => (
+            <Textarea
+              {...props}
+              className={cn(patientChatComposerTextareaClass, 'min-h-0 flex-1')}
+            />
+          )}
+          renderSubmit={(props) => (
+            <Button {...props} className={cn(patientPrimaryActionClass, 'disabled:opacity-55')} />
+          )}
+        />
+      </div>
+    </PatientModal>
   );
 }

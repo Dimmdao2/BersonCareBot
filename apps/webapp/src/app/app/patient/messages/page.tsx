@@ -6,7 +6,7 @@ import { PatientMessagesClient } from './PatientMessagesClient';
 export default async function PatientMessagesPage() {
   const session = await requirePatientAccessWithPhone(routePaths.patientMessages);
   return (
-    <PatientAppShell title="Чат с Дмитрием" user={session.user}>
+    <PatientAppShell title="Чат" user={session.user}>
       <PatientMessagesClient />
     </PatientAppShell>
   );
