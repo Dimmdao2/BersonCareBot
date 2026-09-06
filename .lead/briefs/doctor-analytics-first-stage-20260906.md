@@ -5,6 +5,7 @@
 - `AGENTS.md` is canonical. Read the heading map and relevant §1 migrations/privileges, §5, §10a, §10b, §16, §17, §21, §22, §24.
 - Owner authority and exact acceptance checklist: `docs/_TODO/DOCTOR_ANALYTICS_REBUILD_2026-09-06.md`.
 - Implement only first-stage IDs in sections `A–D`, `F`, `G`. Do not close or implement section `E`.
+- Источник оракула: `docs/_TODO/DOCTOR_ANALYTICS_REBUILD_2026-09-06.md` §§A–D,F,G — «Специалист видит только аналитику по доступным ему пациентам и получает два понятных разреза: записи и фактическую активность назначенных программ».
 
 ## Required architecture
 
