@@ -13,12 +13,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { FilePlus2, HeartPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type {
   ActiveComplaint,
   ActiveDiagnosis,
   ClinicalState,
-  CreateVisitComplaint,
   CreateVisitComplaintUpdate,
   CreateVisitDiagnosis,
   CreateVisitDiagnosisUpdate,
@@ -41,8 +41,6 @@ import { VisitCatalogTextarea } from './VisitCatalogTextarea';
 import {
   DiagnosisAutocomplete,
   FormTextarea,
-  PriorityFlag,
-  type FormComplaintEntry,
   type FormDiagnosisEntry,
 } from './EncounterFormFields';
 const fieldLabelClass = 'text-sm font-semibold text-foreground';
@@ -93,7 +91,6 @@ type CreateVisitRequest = {
   manipulations?: string;
   trialResults?: string;
   recommendations?: string;
-  complaints?: CreateVisitComplaint[];
   diagnoses?: CreateVisitDiagnosis[];
   complaintUpdates?: CreateVisitComplaintUpdate[];
   diagnosisUpdates?: CreateVisitDiagnosisUpdate[];
@@ -309,9 +306,6 @@ export function EncounterPageClient({
 
   // Первичный приём: собственные жалобы/диагнозы, создаваемые вместе с визитом (тот же write
   // path — CreateVisitInput.complaints/diagnoses).
-  const [firstComplaints, setFirstComplaints] = useState<FormComplaintEntry[]>([
-    { id: 'fc_init', priority: false, text: '', description: '', severity: 0 },
-  ]);
   const [firstDiagnoses, setFirstDiagnoses] = useState<FormDiagnosisEntry[]>([]);
 
   // Повторный приём: динамика уже существующих жалоб/диагнозов.
@@ -378,15 +372,6 @@ export function EncounterPageClient({
       };
 
       if (visitType === 'first') {
-        const validComplaints = firstComplaints.filter((c) => c.text.trim());
-        if (validComplaints.length > 0) {
-          body.complaints = validComplaints.map((c) => ({
-            text: c.text,
-            description: c.description.trim() || undefined,
-            priority: c.priority,
-            severity: c.severity,
-          }));
-        }
         const validDiagnoses = firstDiagnoses.filter((d) => d.text.trim());
         if (validDiagnoses.length > 0) {
           body.diagnoses = validDiagnoses.map((d) => ({
@@ -484,18 +469,6 @@ export function EncounterPageClient({
     }
   };
 
-  const addFirstComplaint = () =>
-    setFirstComplaints((prev) => [
-      ...prev,
-      {
-        id: `fc${prev.length}_${Date.now()}`,
-        priority: false,
-        text: '',
-        description: '',
-        severity: 0,
-      },
-    ]);
-
   const patientFio =
     [patient.lastName, patient.firstName].filter(Boolean).join(' ') || patient.displayName;
 
@@ -550,53 +523,155 @@ export function EncounterPageClient({
         ) : null}
       </section>
 
-      {/* Симптомы и диагнозы пациента — ENCOUNTER-PAGE-03 */}
+      {/* Симптомы — отдельный блок ENCOUNTER-PAGE-12/13/20 */}
       <section className={doctorSectionCardClass}>
         <div className="flex items-center justify-between gap-3">
-          <h2 className={doctorSectionTitleClass}>Симптомы и диагнозы</h2>
+          <h2 className={doctorSectionTitleClass}>Симптомы</h2>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            title="Добавить симптом"
+            aria-label="Добавить симптом"
+            onClick={() => setQuickAddKind('complaint')}
+          >
+            <FilePlus2 className="size-5" />
+          </Button>
         </div>
         {clinicalLoading ? <DoctorPanelLoading className="py-2" /> : null}
         {!clinicalLoading && clinicalError ? (
-          <p className="text-sm text-destructive">Не удалось загрузить симптомы и диагнозы.</p>
+          <p className="text-sm text-destructive">Не удалось загрузить симптомы.</p>
         ) : null}
         {!clinicalLoading && !clinicalError ? (
           <div className="flex flex-col gap-2 text-sm">
-            {activeComplaints.length === 0 && activeDiagnoses.length === 0 ? (
-              <p className={hintClass}>Активных симптомов и диагнозов нет.</p>
-            ) : (
-              <>
-                {activeComplaints.map((c) => (
+            {mode === 'create' && visitType === 'repeat'
+              ? activeComplaints.map((c) => {
+                  const upd = complaintUpdates[c.id] ?? {
+                    complaintId: c.id,
+                    note: '',
+                    severity: c.currentSeverity,
+                    resolved: false,
+                  };
+                  const setUpd = (patch: Partial<RepeatComplaintUpdate>) =>
+                    setComplaintUpdates((prev) => ({ ...prev, [c.id]: { ...upd, ...patch } }));
+                  return (
+                    <div key={c.id} className="border-b border-border pb-2 last:border-0 last:pb-0">
+                      <p>
+                        {c.priority ? <span className="font-bold text-destructive">! </span> : null}
+                        {c.text}
+                      </p>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <Input
+                          placeholder="Заметка…"
+                          value={upd.note}
+                          onChange={(e) => setUpd({ note: e.target.value })}
+                        />
+                        <Input
+                          type="number"
+                          min={0}
+                          max={10}
+                          value={upd.severity}
+                          onChange={(e) => setUpd({ severity: Number(e.target.value) })}
+                          className="w-16"
+                        />
+                        <label className="flex items-center gap-1 text-xs">
+                          <Checkbox
+                            checked={upd.resolved}
+                            onCheckedChange={(v) => setUpd({ resolved: v === true })}
+                          />
+                          Закрыт
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })
+              : activeComplaints.map((c) => (
                   <p key={c.id}>
                     {c.priority ? <span className="font-bold text-destructive">! </span> : null}
                     {c.text} — {c.currentSeverity}/10
                   </p>
                 ))}
-                {activeDiagnoses.map((d) => (
+            {mode === 'edit' && initialVisit?.dynamics?.length
+              ? initialVisit.dynamics.map((row) => (
+                  <p key={row.id} className="text-muted-foreground">
+                    {row.label}: {row.from} → {row.to}
+                    {row.note ? ` — ${row.note}` : ''}
+                  </p>
+                ))
+              : null}
+          </div>
+        ) : null}
+      </section>
+
+      {/* Диагнозы — отдельный блок ENCOUNTER-PAGE-12/21 */}
+      <section className={doctorSectionCardClass}>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className={doctorSectionTitleClass}>Диагнозы</h2>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            title="Добавить диагноз"
+            aria-label="Добавить диагноз"
+            onClick={() => setQuickAddKind('diagnosis')}
+          >
+            <HeartPlus className="size-5" />
+          </Button>
+        </div>
+        {clinicalLoading ? <DoctorPanelLoading className="py-2" /> : null}
+        {!clinicalLoading && clinicalError ? (
+          <p className="text-sm text-destructive">Не удалось загрузить диагнозы.</p>
+        ) : null}
+        {!clinicalLoading && !clinicalError ? (
+          <div className="flex flex-col gap-2 text-sm">
+            {mode === 'create' && visitType === 'repeat'
+              ? activeDiagnoses.map((d) => {
+                  const upd = diagnosisUpdates[d.id] ?? {
+                    diagnosisId: d.id,
+                    refinement: '',
+                    removed: false,
+                  };
+                  const setUpd = (patch: Partial<RepeatDiagnosisUpdate>) =>
+                    setDiagnosisUpdates((prev) => ({ ...prev, [d.id]: { ...upd, ...patch } }));
+                  return (
+                    <div key={d.id} className="border-b border-border pb-2 last:border-0 last:pb-0">
+                      <p>
+                        {d.priority ? <span className="font-bold text-destructive">! </span> : null}
+                        {d.text}
+                      </p>
+                      <Input
+                        className="mt-1.5"
+                        placeholder="Уточнение…"
+                        value={upd.refinement}
+                        onChange={(e) => setUpd({ refinement: e.target.value })}
+                      />
+                      <label className="mt-1.5 flex items-center gap-1 text-xs">
+                        <Checkbox
+                          checked={upd.removed}
+                          onCheckedChange={(v) => setUpd({ removed: v === true })}
+                        />
+                        Снять диагноз
+                      </label>
+                    </div>
+                  );
+                })
+              : activeDiagnoses.map((d) => (
                   <p key={d.id}>
                     {d.priority ? <span className="font-bold text-destructive">! </span> : null}
                     {d.text} ({d.clinicalStatus})
                   </p>
                 ))}
+            {mode === 'create' && visitType === 'first' ? (
+              <>
+                <DiagnosisAutocomplete
+                  userId={userId}
+                  onSelect={(entry) => setFirstDiagnoses((prev) => [...prev, entry])}
+                />
+                {firstDiagnoses.map((d) => (
+                  <p key={d.id}>{d.text}</p>
+                ))}
               </>
-            )}
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setQuickAddKind('complaint')}
-              >
-                + Симптом
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setQuickAddKind('diagnosis')}
-              >
-                + Диагноз
-              </Button>
-            </div>
+            ) : null}
           </div>
         ) : null}
       </section>
@@ -684,65 +759,6 @@ export function EncounterPageClient({
 
         {mode === 'create' && visitType === 'first' ? (
           <>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-1.5">
-                <span className={fieldLabelClass}>Симптомы</span>
-                <Button type="button" onClick={addFirstComplaint} variant="ghost" size="icon-xs">
-                  +
-                </Button>
-              </div>
-              {firstComplaints.map((c) => (
-                <div
-                  key={c.id}
-                  className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/10 p-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <PriorityFlag
-                      on={c.priority}
-                      onToggle={() =>
-                        setFirstComplaints((prev) =>
-                          prev.map((x) => (x.id === c.id ? { ...x, priority: !x.priority } : x)),
-                        )
-                      }
-                    />
-                    <Input
-                      value={c.text}
-                      onChange={(e) =>
-                        setFirstComplaints((prev) =>
-                          prev.map((x) => (x.id === c.id ? { ...x, text: e.target.value } : x)),
-                        )
-                      }
-                      placeholder="Симптом…"
-                      className="flex-1"
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      max={10}
-                      value={c.severity}
-                      onChange={(e) =>
-                        setFirstComplaints((prev) =>
-                          prev.map((x) =>
-                            x.id === c.id ? { ...x, severity: Number(e.target.value) } : x,
-                          ),
-                        )
-                      }
-                      className="w-16"
-                    />
-                  </div>
-                </div>
-              ))}
-              <DiagnosisAutocomplete
-                userId={userId}
-                onSelect={(entry) => setFirstDiagnoses((prev) => [...prev, entry])}
-              />
-              {firstDiagnoses.map((d) => (
-                <p key={d.id} className="text-sm">
-                  {d.text}
-                </p>
-              ))}
-            </div>
-
             <FormTextarea
               label="Осмотр"
               placeholder="Данные объективного осмотра…"
@@ -774,73 +790,6 @@ export function EncounterPageClient({
 
         {mode === 'create' && visitType === 'repeat' ? (
           <>
-            <div className="flex flex-col gap-1.5">
-              <span className={fieldLabelClass}>Динамика симптомов</span>
-              {activeComplaints.map((c) => {
-                const upd = complaintUpdates[c.id] ?? {
-                  complaintId: c.id,
-                  note: '',
-                  severity: c.currentSeverity,
-                  resolved: false,
-                };
-                const setUpd = (patch: Partial<RepeatComplaintUpdate>) =>
-                  setComplaintUpdates((prev) => ({ ...prev, [c.id]: { ...upd, ...patch } }));
-                return (
-                  <div key={c.id} className="rounded-lg border border-border bg-muted/15 p-2.5">
-                    <p className="text-xs text-muted-foreground">{c.text}</p>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <Input
-                        placeholder="Заметка…"
-                        value={upd.note}
-                        onChange={(e) => setUpd({ note: e.target.value })}
-                      />
-                      <Input
-                        type="number"
-                        min={0}
-                        max={10}
-                        value={upd.severity}
-                        onChange={(e) => setUpd({ severity: Number(e.target.value) })}
-                        className="w-16"
-                      />
-                      <label className="flex items-center gap-1 text-xs">
-                        <Checkbox
-                          checked={upd.resolved}
-                          onCheckedChange={(v) => setUpd({ resolved: v === true })}
-                        />
-                        Решена
-                      </label>
-                    </div>
-                  </div>
-                );
-              })}
-              {activeDiagnoses.map((d) => {
-                const upd = diagnosisUpdates[d.id] ?? {
-                  diagnosisId: d.id,
-                  refinement: '',
-                  removed: false,
-                };
-                const setUpd = (patch: Partial<RepeatDiagnosisUpdate>) =>
-                  setDiagnosisUpdates((prev) => ({ ...prev, [d.id]: { ...upd, ...patch } }));
-                return (
-                  <div key={d.id} className="rounded-lg border border-border bg-muted/15 p-2.5">
-                    <p className="text-xs text-muted-foreground">{d.text}</p>
-                    <Input
-                      className="mt-1.5"
-                      placeholder="Уточнение…"
-                      value={upd.refinement}
-                      onChange={(e) => setUpd({ refinement: e.target.value })}
-                    />
-                    <label className="mt-1.5 flex items-center gap-1 text-xs">
-                      <Checkbox
-                        checked={upd.removed}
-                        onCheckedChange={(v) => setUpd({ removed: v === true })}
-                      />
-                      Снять диагноз
-                    </label>
-                  </div>
-                );
-              })}
-            </div>
             <FormTextarea
               label="Осмотр"
               placeholder="Данные объективного осмотра…"
@@ -866,17 +815,6 @@ export function EncounterPageClient({
 
         {mode === 'edit' ? (
           <>
-            {initialVisit?.dynamics?.length ? (
-              <div className="flex flex-col gap-1.5">
-                <span className={fieldLabelClass}>Динамика, записанная на этом приёме</span>
-                {initialVisit.dynamics.map((row) => (
-                  <p key={row.id} className="text-sm text-muted-foreground">
-                    {row.label}: {row.from} → {row.to}
-                    {row.note ? ` — ${row.note}` : ''}
-                  </p>
-                ))}
-              </div>
-            ) : null}
             <FormTextarea
               label="Осмотр"
               placeholder="Данные объективного осмотра…"

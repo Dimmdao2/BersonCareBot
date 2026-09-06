@@ -142,6 +142,8 @@ export function DoctorModalTextEditorField({
   useLayoutEffect(() => {
     if (!autoFocus) return;
     textareaRef.current?.focus();
+    const focusTimer = window.setTimeout(() => textareaRef.current?.focus(), 0);
+    return () => window.clearTimeout(focusTimer);
   }, [autoFocus]);
 
   return (

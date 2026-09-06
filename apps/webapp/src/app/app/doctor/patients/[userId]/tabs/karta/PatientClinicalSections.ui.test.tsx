@@ -68,7 +68,9 @@ describe('DiseaseAnamnesisSection editor (DISEASE-EDIT-03..05A)', () => {
 
     fireEvent.click(screen.getByTitle('Изменить анамнез заболевания'));
     const dialog = await screen.findByRole('dialog');
-    const textarea = within(dialog).getByPlaceholderText('Анамнез заболевания') as HTMLTextAreaElement;
+    const textarea = within(dialog).getByPlaceholderText(
+      'Анамнез заболевания',
+    ) as HTMLTextAreaElement;
     expect(textarea.value).toBe('Старый текст анамнеза');
     expect(document.activeElement).toBe(textarea);
 
@@ -91,7 +93,10 @@ describe('DiseaseAnamnesisSection editor (DISEASE-EDIT-03..05A)', () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({ section: 'disease', text: 'Новый текст анамнеза' });
+    expect(JSON.parse(init.body as string)).toEqual({
+      section: 'disease',
+      text: 'Новый текст анамнеза',
+    });
     expect(onAnamnesisRefresh).toHaveBeenCalledTimes(1);
   });
 });
@@ -108,18 +113,20 @@ describe('LifeAnamnesisSection — «Образ жизни» single current valu
       ],
     });
 
-    expect(screen.getByText('Курит, не занимается спортом')).toBeTruthy();
+    expect(screen.getAllByText('Курит, не занимается спортом').length).toBeGreaterThan(0);
     // LIFE-LIFESTYLE-02: no record date is ever rendered next to the value on the main card.
     expect(screen.queryByText('15.03.2026')).toBeNull();
     expect(screen.queryByText('01.01.2025')).toBeNull();
 
-    fireEvent.click(screen.getByTitle('Изменить: Образ жизни'));
-    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(screen.getByTitle('Изменить анамнез жизни'));
+    const lifeDialog = await screen.findByRole('dialog');
+    fireEvent.click(within(lifeDialog).getByTitle('Изменить: Образ жизни'));
+    const dialog = (await screen.findAllByRole('dialog')).at(-1)!;
     expect(within(dialog).queryByText(/Дата/i)).toBeNull();
     expect(within(dialog).queryByRole('textbox', { name: /дата/i })).toBeNull();
     const textarea = within(dialog).getByPlaceholderText('Образ жизни') as HTMLTextAreaElement;
     expect(textarea.value).toBe('Курит, не занимается спортом');
-    expect(document.activeElement).toBe(textarea);
+    await waitFor(() => expect(document.activeElement).toBe(textarea));
 
     fireEvent.change(textarea, { target: { value: 'Бросил курить, начал бегать' } });
     fireEvent.click(within(dialog).getByText('Сохранить'));
@@ -140,11 +147,11 @@ describe('LifeAnamnesisSection — «Образ жизни» single current valu
     const fetchMock = stubAnamnesisFetch();
     renderSections({ trauma: [], illness: [], lifestyle: [] });
 
-    const lifestyleSection = screen.getByText('Образ жизни').closest('section');
-    expect(lifestyleSection).not.toBeNull();
-    expect(within(lifestyleSection as HTMLElement).getByText('—')).toBeTruthy();
-    fireEvent.click(screen.getByTitle('Изменить: Образ жизни'));
-    const dialog = await screen.findByRole('dialog');
+    expect(screen.queryByText('Образ жизни')).toBeNull();
+    fireEvent.click(screen.getByTitle('Изменить анамнез жизни'));
+    const lifeDialog = await screen.findByRole('dialog');
+    fireEvent.click(within(lifeDialog).getByTitle('Изменить: Образ жизни'));
+    const dialog = (await screen.findAllByRole('dialog')).at(-1)!;
     const textarea = within(dialog).getByPlaceholderText('Образ жизни') as HTMLTextAreaElement;
     expect(textarea.value).toBe('');
 
@@ -170,15 +177,18 @@ describe('LifeAnamnesisSection — «Образ жизни» cancel (MODAL-TEXT-
       lifestyle: [{ id: 'ls-latest', date: '15.03.2026', text: 'Курит, не занимается спортом' }],
     });
 
-    fireEvent.click(screen.getByTitle('Изменить: Образ жизни'));
-    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(screen.getByTitle('Изменить анамнез жизни'));
+    const lifeDialog = await screen.findByRole('dialog');
+    fireEvent.click(within(lifeDialog).getByTitle('Изменить: Образ жизни'));
+    const dialog = (await screen.findAllByRole('dialog')).at(-1)!;
     const textarea = within(dialog).getByPlaceholderText('Образ жизни') as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: 'Черновик, который не должен сохраниться' } });
     fireEvent.click(within(dialog).getByText('Отмена'));
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByPlaceholderText('Образ жизни')).toBeNull());
+    expect(screen.getByRole('dialog')).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(onAnamnesisRefresh).not.toHaveBeenCalled();
-    expect(screen.getByText('Курит, не занимается спортом')).toBeTruthy();
+    expect(screen.getAllByText('Курит, не занимается спортом').length).toBeGreaterThan(0);
   });
 });
