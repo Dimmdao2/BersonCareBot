@@ -112,7 +112,7 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
   {
     id: 'analytics',
     label: 'Аналитика',
-    href: '/app/doctor/material-ratings',
+    href: '/app/doctor/analytics',
   },
   {
     id: 'library',

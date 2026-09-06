@@ -24,9 +24,10 @@ import { isDoctorMenuLinkVisible } from '@/shared/ui/doctor/doctorNavLinks';
  * whole `admin/*` subtree (app-settings, auth, booking, integrations, technical). All of it first
  * landed at `/app/platform/*`; owner ruling 2026-07-26 (final home) renamed that whole tree to
  * `/app/admin/*` the same day, flattening the nested `admin/*` settings subtree one level (no
- * `/app/admin/admin/*`) — every href below reflects that final shape. Slices 5-7 move the rest
- * (`analytics`, still pointing at the clinical `/app/doctor/analytics` URL below) and update its
- * href then. No label collided once un-nested; every entry below kept its original label. This
+ * `/app/admin/admin/*`) — every href below reflects that final shape. `analytics` moved 2026-09-06
+ * (DOCTOR_ANALYTICS_REBUILD): `/app/doctor/analytics` became a real tenant-scoped doctor page, so
+ * the platform view lives at `/app/admin/analytics` now — never the clinical URL. No label
+ * collided once un-nested; every entry below kept its original label. This
  * file keeps its historical name — "platform" here names the `platform.operations` capability
  * this menu serves, not the (now-retired) `/app/platform/*` URL prefix.
  */
@@ -40,7 +41,7 @@ const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
   {
     id: 'analytics',
     label: 'Аналитика',
-    href: '/app/doctor/analytics',
+    href: '/app/admin/analytics',
     accessTier: 'global_admin',
   },
   // Owner punchlist §9.3 / #1068: the platform's clinic customers now have a first-class list.

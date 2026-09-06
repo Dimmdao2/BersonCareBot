@@ -29,7 +29,14 @@ export type DoctorAppointmentsListFilter =
   /** Полная временная шкала записей специалиста для недельной динамики. */
   | { kind: 'timeline' }
   /** Прошедшие записи с пагинацией для архива. */
-  | { kind: 'past'; limit?: number; offset?: number };
+  | { kind: 'past'; limit?: number; offset?: number }
+  /**
+   * Drill-down для KPI/графика раздела «Аналитика → Записи»: тот же диапазон, что и
+   * `getScheduleKpis`/`getAppointmentDailySeries` (через `DoctorAppointmentStatsFilter`,
+   * границы считает `resolveAppointmentStatsBounds` — единая точка, не повторяется).
+   * `onlyCancelled` переключает «все записи периода» ↔ «отмены периода».
+   */
+  | { kind: 'periodRange'; period: DoctorAppointmentStatsFilter; onlyCancelled?: boolean };
 
 /** Строка записи в списке специалиста. */
 export type AppointmentRow = {

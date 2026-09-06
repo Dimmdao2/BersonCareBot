@@ -37,9 +37,13 @@ export function portalForAppPath(pathname: string): RoleLoginPortal | null {
  * can never hold `role === 'doctor'` (`resolveLaunchCapabilities`), so without this exact allowlist
  * `roleCanUsePortal` permanently denies its own click on these pages — TEST owner findings
  * 2026-08-03, D2. Every other `/app/doctor/*` path (patients, appointments, ...) stays doctor-only.
+ *
+ * `/app/doctor/analytics` was removed 2026-09-06: the tenant/visibility-scoped rebuild
+ * (docs/_TODO/DOCTOR_ANALYTICS_REBUILD_2026-09-06.md) made that path a real clinical doctor page,
+ * and the platform view moved to `/app/admin/analytics`. A platform-operations admin must now be
+ * denied at this same portal gate, exactly like `/app/doctor/patients`.
  */
 const DOCTOR_PORTAL_PLATFORM_OPERATIONS_PATHS = [
-  '/app/doctor/analytics',
   '/app/doctor/booking-merge',
   '/app/doctor/usage',
 ] as const;

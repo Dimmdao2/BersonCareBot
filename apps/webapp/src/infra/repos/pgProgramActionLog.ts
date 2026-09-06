@@ -23,22 +23,11 @@ import type {
 } from '@/modules/treatment-program/types';
 import { PROGRAM_ACTION_TYPES } from '@/modules/treatment-program/types';
 import { programActionDoneActivityKey } from '@/modules/treatment-program/programActionActivityKey';
+import { localCalendarDateSql } from '@/infra/repos/localCalendarDateSql';
 
-/**
- * Local calendar date of `created_at` in the caller's display zone.
- *
- * The IANA name keeps its allowlist validation and is then BOUND as a parameter — it is no
- * longer escaped into the SQL text by hand. Callers that also group by this expression must use
- * a positional `GROUP BY` ordinal rather than repeating the fragment: PostgreSQL matches a
- * GROUP BY entry to the select list by parse-node equality, and Drizzle emits a distinct `$n`
- * for every occurrence of a bound value, so two spelled-out copies stop matching (SQLSTATE
- * 42803). Grouping by ordinal selects the very same expression, so the grouping is unchanged.
- */
+/** Local calendar date of `created_at` in the caller's display zone — see `localCalendarDateSql`. */
 function localDoneDateSql(displayIana: string): SQL {
-  if (!/^[-+/_0-9a-zA-Z]+$/.test(displayIana)) {
-    throw new Error('invalid_timezone');
-  }
-  return sql`((${logTable.createdAt} AT TIME ZONE ${displayIana})::date)`;
+  return localCalendarDateSql(logTable.createdAt, displayIana);
 }
 
 function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {

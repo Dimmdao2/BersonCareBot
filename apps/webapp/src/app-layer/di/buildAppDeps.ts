@@ -121,6 +121,9 @@ import { createPgPlatformAnalyticsPort } from '@/infra/repos/pgPlatformAnalytics
 import { createInMemoryPlatformAnalyticsPort } from '@/infra/repos/inMemoryPlatformAnalytics';
 import { createPgDoctorAnalyticsMetricAccountsPort } from '@/infra/repos/pgDoctorAnalyticsMetricAccounts';
 import { inMemoryDoctorAnalyticsMetricAccountsPort } from '@/infra/repos/inMemoryDoctorAnalyticsMetricAccounts';
+import { createPgDoctorProgramActivityPort } from '@/infra/repos/pgDoctorProgramActivity';
+import { inMemoryDoctorProgramActivityPort } from '@/infra/repos/inMemoryDoctorProgramActivity';
+import { createDoctorProgramActivityService } from '@/modules/doctor-program-activity/service';
 import { createPgDoctorCanonicalAppointmentsPort } from '@/infra/repos/pgDoctorCanonicalAppointments';
 import { getPurchaseSectionState } from '@/modules/purchases/service';
 import {
@@ -971,6 +974,12 @@ const doctorAnalyticsMetricAccountsPort =
         bookingEngineCorePort.getDefaultOrganizationId(),
       )
     : inMemoryDoctorAnalyticsMetricAccountsPort;
+const doctorProgramActivityPort = !inMemoryRepos
+  ? createPgDoctorProgramActivityPort()
+  : inMemoryDoctorProgramActivityPort;
+const doctorProgramActivityService = createDoctorProgramActivityService({
+  activityPort: doctorProgramActivityPort,
+});
 const membershipsPort = !inMemoryRepos ? createPgMembershipsPort() : null;
 const entitlementsPort = !inMemoryRepos ? createPgEntitlementsPort() : null;
 const entitlementsService = entitlementsPort
@@ -2078,6 +2087,7 @@ function _buildAppDeps() {
     doctorWorkspace: doctorWorkspaceDirectoryService,
     materialRating: materialRatingService,
     materialRatingFeedback: materialRatingFeedbackService,
+    doctorProgramActivity: doctorProgramActivityService,
     warmupFeelingCompletion: warmupFeelingCompletionPort,
     patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,

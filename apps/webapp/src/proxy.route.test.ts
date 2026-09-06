@@ -714,7 +714,7 @@ describe('B5: one patient tree with resolved context', () => {
 });
 
 describe('global admin reaching platform pages under the doctor portal prefix', () => {
-  it.each(['/app/doctor/analytics', '/app/doctor/booking-merge'])(
+  it.each(['/app/doctor/booking-merge'])(
     'lets a platform-operations admin through to %s',
     async (path) => {
       const response = await proxy(requestFor(STAFF_ORIGIN, path, { role: 'admin' }));
@@ -722,16 +722,21 @@ describe('global admin reaching platform pages under the doctor portal prefix', 
     },
   );
 
-  it('still denies a platform-operations admin on a clinical-only doctor page', async () => {
-    const response = await proxy(
-      requestFor(STAFF_ORIGIN, '/app/doctor/patients', { role: 'admin' }),
-    );
-    const location = response.headers.get('location');
-    expect(location).not.toBeNull();
-    expect(`${new URL(location!).pathname}${new URL(location!).search}`).toBe(
-      '/app/admin/system-health?app_access_denied=1',
-    );
-  });
+  // /app/doctor/analytics moved off the platform-operations allowlist 2026-09-06: the
+  // tenant/visibility-scoped rebuild made it a real clinical doctor page (the platform view now
+  // lives at /app/admin/analytics), so a platform-operations admin must be denied here exactly
+  // like any other clinical-only doctor page.
+  it.each(['/app/doctor/patients', '/app/doctor/analytics'])(
+    'still denies a platform-operations admin on a clinical-only doctor page (%s)',
+    async (path) => {
+      const response = await proxy(requestFor(STAFF_ORIGIN, path, { role: 'admin' }));
+      const location = response.headers.get('location');
+      expect(location).not.toBeNull();
+      expect(`${new URL(location!).pathname}${new URL(location!).search}`).toBe(
+        '/app/admin/system-health?app_access_denied=1',
+      );
+    },
+  );
 });
 
 describe('resolved surface request choke point', () => {

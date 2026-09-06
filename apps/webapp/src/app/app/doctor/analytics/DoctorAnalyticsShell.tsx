@@ -3,7 +3,6 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ClientContactBreakdown } from '@/modules/doctor-clients/clientContactSegments';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
@@ -17,86 +16,24 @@ import {
   type AnalyticsTabId,
 } from './doctorAnalyticsTabs';
 
-// ---------------------------------------------------------------------------
-// Dynamic tab content — каждый таб тянется лениво при первом открытии (ssr:false).
-// Клиенты получают SSR-данные среза (см. clientsData); остальные табы самозагружаются.
-// ---------------------------------------------------------------------------
-
-const ClientsTab = dynamic(
+// Каждый таб тянется лениво при первом открытии (ssr:false) — тот же паттерн, что у
+// DoctorScheduleShell/старого DoctorAnalyticsShell, один tab-sync механизм на весь кабинет.
+const RecordsTab = dynamic(
+  () => import('./records/RecordsAnalyticsTab').then((m) => ({ default: m.RecordsAnalyticsTab })),
+  { ssr: false },
+);
+const ActivityTab = dynamic(
   () =>
-    import('./clients/DoctorAnalyticsClientsPageClient').then((m) => ({
-      default: m.DoctorAnalyticsClientsPageClient,
-    })),
+    import('./activity/ActivityAnalyticsTab').then((m) => ({ default: m.ActivityAnalyticsTab })),
   { ssr: false },
 );
-const ContentTab = dynamic(
-  () => import('./tabs/AnalyticsContentTab').then((m) => ({ default: m.AnalyticsContentTab })),
-  { ssr: false },
-);
-const AppTab = dynamic(
-  () =>
-    import('../usage/ProductAnalyticsSection').then((m) => ({
-      default: m.ProductAnalyticsSection,
-    })),
-  { ssr: false },
-);
-// Уведомления (push-статистика) перенесены в таб «Приложение» — рендерятся под ProductAnalyticsSection.
-const NotificationsInAppTab = dynamic(
-  () =>
-    import('./notifications/NotificationsAnalyticsClient').then((m) => ({
-      default: m.NotificationsAnalyticsClient,
-    })),
-  { ssr: false },
-);
-const RegistrationInAppTab = dynamic(
-  () =>
-    import('./clients/RegistrationStatsAppTabWrapper').then((m) => ({
-      default: m.RegistrationStatsAppTabWrapper,
-    })),
-  { ssr: false },
-);
-// Подписчики приложения (C1/C2) — перенесены из вкладки «Клиенты» (AN-11):
-// подписчики ≠ клиенты (§24.6/24.9), это аудитория приложения.
-const SubscribersInAppTab = dynamic(
-  () =>
-    import('./clients/SubscriberStatsAppTabWrapper').then((m) => ({
-      default: m.SubscriberStatsAppTabWrapper,
-    })),
-  { ssr: false },
-);
-const SoprovozhdeniePage = dynamic(
-  () =>
-    import('./soprovozhdenie/SoprovozhdeniePage').then((m) => ({
-      default: m.SoprovozhdeniePage,
-    })),
-  { ssr: false },
-);
-
-/** SSR-срез для вкладки «Клиенты» (список не зависит от периода тулбара). */
-export type AnalyticsClientsData = {
-  calendarTodayYmd: string;
-  displayIana: string;
-  clients: {
-    total: number;
-    phoneOnly: number;
-    appGuests: number;
-    patientsCount: number;
-    subscribersOnlyCount: number;
-    contactBreakdown: ClientContactBreakdown;
-  };
-};
-
-// ---------------------------------------------------------------------------
-// TabsNav — ряд кнопок в слоте `tabs` шапки DoctorPageHeader (как в Расписании).
-// ---------------------------------------------------------------------------
 
 type AnalyticsTabsNavProps = {
   activeTab: AnalyticsTabId;
   onTabClick: (tab: AnalyticsTabId) => void;
-  clientsLabel?: string;
 };
 
-function AnalyticsTabsNav({ activeTab, onTabClick, clientsLabel }: AnalyticsTabsNavProps) {
+function AnalyticsTabsNav({ activeTab, onTabClick }: AnalyticsTabsNavProps) {
   return (
     <div
       id="doctor-analytics-tabs"
@@ -115,7 +52,7 @@ function AnalyticsTabsNav({ activeTab, onTabClick, clientsLabel }: AnalyticsTabs
             className={doctorSectionTabClass(active)}
             data-testid={`tab-btn-${tab.id}`}
           >
-            {tab.id === 'clients' && clientsLabel ? clientsLabel : tab.label}
+            {tab.label}
           </Button>
         );
       })}
@@ -123,37 +60,28 @@ function AnalyticsTabsNav({ activeTab, onTabClick, clientsLabel }: AnalyticsTabs
   );
 }
 
-// ---------------------------------------------------------------------------
-// Shell
-// ---------------------------------------------------------------------------
-
 export type DoctorAnalyticsShellProps = {
   /** Начальный таб (от серверной страницы, по `?tab=`). */
   initialTab?: AnalyticsTabId;
-  /** SSR-срез для вкладки «Клиенты». */
-  clientsData: AnalyticsClientsData;
-  /** Именование клиентов из настройки patient_label: «Клиенты» или «Пациенты». */
-  patientPluralLabel?: string;
-  /** Генитив мн.ч. из той же настройки: «клиентов» или «пациентов». */
+  calendarTodayYmd: string;
+  displayIana: string;
+  /** Родительный падеж мн.ч. из настройки patient_label: «пациентов» или «клиентов». */
   patientGenPlural?: string;
 };
 
 /**
- * Клиентский контейнер-шелл «Аналитика» — одна страница, четыре вкладки:
- * Клиенты · Приложение (+ push) · Контент · Сопровождение.
+ * Клиентский контейнер-шелл «Аналитика» кабинета врача — две вкладки: Записи · Активность.
+ * Tenant/visibility-scoped (обе вкладки читают через doctor-scoped API, см. брифы
+ * `/api/doctor/analytics/records` и `/api/doctor/analytics/activity`).
  *
- * Паттерн keepMounted (как в `DoctorScheduleShell`): таб монтируется при первом
- * открытии и скрывается (`hidden`) при переходе на другой, без размонтирования.
- * Переключение мгновенное. Смена таба отражается в `?tab=` через
- * `history.replaceState` (без полной навигации); back/forward — через popstate.
- *
- * S4.2: вкладка «Уведомления» упразднена — push-статистика включена в «Приложение».
- * Добавлена вкладка «Сопровождение» (placeholder, метрики будут расширены).
+ * Паттерн keepMounted (как в `DoctorScheduleShell`): таб монтируется при первом открытии и
+ * скрывается (`hidden`) при переходе на другой, без размонтирования. Смена таба отражается в
+ * `?tab=` через `history.replaceState` (без полной навигации); back/forward — через popstate.
  */
 export function DoctorAnalyticsShell({
   initialTab,
-  clientsData,
-  patientPluralLabel,
+  calendarTodayYmd,
+  displayIana,
   patientGenPlural,
 }: DoctorAnalyticsShellProps) {
   const [activeTab, setActiveTab] = useState<AnalyticsTabId>(initialTab ?? ANALYTICS_DEFAULT_TAB);
@@ -165,7 +93,6 @@ export function DoctorAnalyticsShell({
     activeTabRef.current = activeTab;
   }, [activeTab]);
 
-  // back/forward restore
   useEffect(() => {
     const handlePopState = () => {
       const tab = analyticsTabFromQuery(new URLSearchParams(window.location.search).get('tab'));
@@ -188,46 +115,24 @@ export function DoctorAnalyticsShell({
         id="doctor-analytics-header"
         title="Аналитика"
         showTabsOnMobile
-        tabs={
-          <AnalyticsTabsNav
-            activeTab={activeTab}
-            onTabClick={handleTabChange}
-            clientsLabel={patientPluralLabel}
-          />
-        }
+        tabs={<AnalyticsTabsNav activeTab={activeTab} onTabClick={handleTabChange} />}
       />
-      {mountedTabs.has('clients') ? (
-        <div hidden={activeTab !== 'clients'} data-testid="tab-panel-clients">
-          <ClientsTab
-            calendarTodayYmd={clientsData.calendarTodayYmd}
-            displayIana={clientsData.displayIana}
-            clients={clientsData.clients}
-            patientPluralLabel={patientPluralLabel}
+      {mountedTabs.has('records') ? (
+        <div hidden={activeTab !== 'records'} data-testid="tab-panel-records">
+          <RecordsTab
+            calendarTodayYmd={calendarTodayYmd}
+            displayIana={displayIana}
             patientGenPlural={patientGenPlural}
           />
         </div>
       ) : null}
-      {mountedTabs.has('app') ? (
-        <div hidden={activeTab !== 'app'} data-testid="tab-panel-app">
-          <div className="flex flex-col gap-6">
-            <AppTab />
-            {/* Push-статистика и уведомления — перенесены из упразднённой вкладки «Уведомления» */}
-            <NotificationsInAppTab isActive={activeTab === 'app'} />
-            {/* Регистрации и слияния — перенесены из вкладки «Клиенты» (AN-03) */}
-            <RegistrationInAppTab />
-            {/* Подписчики — перенесены из вкладки «Клиенты» (AN-11): подписчики ≠ клиенты */}
-            <SubscribersInAppTab />
-          </div>
-        </div>
-      ) : null}
-      {mountedTabs.has('content') ? (
-        <div hidden={activeTab !== 'content'} data-testid="tab-panel-content">
-          <ContentTab />
-        </div>
-      ) : null}
-      {mountedTabs.has('soprovozhdenie') ? (
-        <div hidden={activeTab !== 'soprovozhdenie'} data-testid="tab-panel-soprovozhdenie">
-          <SoprovozhdeniePage patientGenPlural={patientGenPlural} />
+      {mountedTabs.has('activity') ? (
+        <div hidden={activeTab !== 'activity'} data-testid="tab-panel-activity">
+          <ActivityTab
+            calendarTodayYmd={calendarTodayYmd}
+            displayIana={displayIana}
+            patientGenPlural={patientGenPlural}
+          />
         </div>
       ) : null}
     </DoctorAppShell>

@@ -28,6 +28,8 @@ import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userId
 import { resolveAppointmentStatsBounds } from '@/modules/doctor-appointments/resolveAppointmentStatsBounds';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { localDayRangeBoundsIso } from '@/shared/datetime/localDayRangeBounds';
+import { localCalendarDateSql } from '@/infra/repos/localCalendarDateSql';
+import { enumerateLocalDayKeysInclusive } from '@/modules/admin-platform-stats/registrationTimeRange';
 import { appointmentStatusLabel } from '@/modules/booking-calendar/appointmentStatusLabels';
 import { drizzleExcludeUserIdColumn } from '@/modules/analytics/analyticsAudience';
 import {
@@ -47,6 +49,8 @@ import type {
   ScheduleKpisQuery,
   DoctorScheduleKpisAudience,
   DoctorAppointmentsAudience,
+  AppointmentDayPoint,
+  AppointmentBranchPoint,
 } from '@/modules/doctor-appointments/ports';
 
 const CANCELLED_STATUSES = [
@@ -321,6 +325,34 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .orderBy(desc(beAppointments.startAt))
           .limit(limit)
           .offset(offset);
+      } else if (filter.kind === 'periodRange') {
+        const iana = await getAppDisplayTimeZone();
+        const { from, toExclusive } = resolveAppointmentStatsBounds(filter.period, iana);
+        const statusCond = filter.onlyCancelled
+          ? inArray(beAppointments.status, [...CANCELLED_STATUSES])
+          : notInArray(beAppointments.status, [...CANCELLED_STATUSES]);
+        rows = await db
+          .select(listSelect)
+          .from(beAppointments)
+          .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
+          .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
+          .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .leftJoin(bePackageUsages, packageUsageJoinCond())
+          .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
+          .where(
+            and(
+              eq(beAppointments.organizationId, organizationId),
+              isNull(beAppointments.deletedAt),
+              userAudience,
+              specialistAudience,
+              gte(beAppointments.startAt, from),
+              lt(beAppointments.startAt, toExclusive),
+              statusCond,
+              BE_APPOINTMENTS_NOT_PURGED,
+            ),
+          )
+          .orderBy(desc(beAppointments.startAt));
       } else if (filter.kind === 'cancellations30d') {
         rows = await db
           .select(listSelect)
@@ -691,9 +723,115 @@ export function createPgDoctorCanonicalAppointmentsPort(
       };
     },
 
-    // Canonical appointments are not yet used for daily series analytics; stub returns empty.
-    async getAppointmentDailySeries() {
-      return { daySeries: [], branchSeries: [] };
+    async getAppointmentDailySeries(
+      filter: DoctorAppointmentStatsFilter,
+      audience?: DoctorAppointmentsAudience,
+    ): Promise<{ daySeries: AppointmentDayPoint[]; branchSeries: AppointmentBranchPoint[] }> {
+      const db = getDrizzle();
+      const organizationId = audience?.organizationId ?? (await getDefaultOrganizationId());
+      const iana = await getAppDisplayTimeZone();
+      const { from, toExclusive, fromDay, toDay } = resolveAppointmentStatsBounds(filter, iana);
+      const userAudience = appointmentUserAudienceCond(audience?.excludedUserIds ?? []);
+      const specialistAudience = appointmentVisibilityCond(audience);
+      const orgCond = and(eq(beAppointments.organizationId, organizationId), userAudience, specialistAudience);
+
+      const startAtDay = localCalendarDateSql(beAppointments.startAt, iana);
+      const createdAtDay = localCalendarDateSql(beAppointments.createdAt, iana);
+      const cancellationCreatedAtDay = localCalendarDateSql(beAppointmentCancellations.createdAt, iana);
+
+      const [pastRows, createdRows, cancelActionRows] = await Promise.all([
+        db
+          .select({ day: sql<string>`${startAtDay}::text`, c: count() })
+          .from(beAppointments)
+          .where(
+            and(
+              orgCond,
+              isNull(beAppointments.deletedAt),
+              gte(beAppointments.startAt, from),
+              lt(beAppointments.startAt, toExclusive),
+              lt(beAppointments.startAt, sql`NOW()`),
+              notInArray(beAppointments.status, [...CANCELLED_STATUSES]),
+              BE_APPOINTMENTS_NOT_PURGED,
+            ),
+          )
+          .groupBy(sql`1`),
+        db
+          .select({ day: sql<string>`${createdAtDay}::text`, c: count() })
+          .from(beAppointments)
+          .where(
+            and(
+              orgCond,
+              isNull(beAppointments.deletedAt),
+              gte(beAppointments.createdAt, from),
+              lt(beAppointments.createdAt, toExclusive),
+              BE_APPOINTMENTS_NOT_PURGED,
+            ),
+          )
+          .groupBy(sql`1`),
+        db
+          .select({ day: sql<string>`${cancellationCreatedAtDay}::text`, c: count() })
+          .from(beAppointmentCancellations)
+          .innerJoin(beAppointments, eq(beAppointments.id, beAppointmentCancellations.appointmentId))
+          .where(
+            and(
+              eq(beAppointmentCancellations.organizationId, organizationId),
+              isNull(beAppointments.deletedAt),
+              gte(beAppointmentCancellations.createdAt, from),
+              lt(beAppointmentCancellations.createdAt, toExclusive),
+              userAudience,
+              specialistAudience,
+            ),
+          )
+          .groupBy(sql`1`),
+      ]);
+
+      const pastByDay = new Map(pastRows.map((r) => [r.day, r.c]));
+      const createdByDay = new Map(createdRows.map((r) => [r.day, r.c]));
+      const cancelActionsByDay = new Map(cancelActionRows.map((r) => [r.day, r.c]));
+
+      const dayKeys = enumerateLocalDayKeysInclusive(iana, fromDay, toDay);
+      const daySeries: AppointmentDayPoint[] = dayKeys.map((day) => ({
+        day,
+        pastVisits: pastByDay.get(day) ?? 0,
+        bookingsCreated: createdByDay.get(day) ?? 0,
+        cancellationActions: cancelActionsByDay.get(day) ?? 0,
+      }));
+
+      const rangeCond = and(
+        orgCond,
+        isNull(beAppointments.deletedAt),
+        gte(beAppointments.startAt, from),
+        lt(beAppointments.startAt, toExclusive),
+      );
+      const branchRows = await db
+        .select({
+          branchName: beBranches.title,
+          pastVisits: sql<number>`count(*) FILTER (
+            WHERE ${beAppointments.startAt} < NOW()
+              AND ${beAppointments.status} NOT IN (${sql.join(
+                CANCELLED_STATUSES.map((s) => sql`${s}`),
+                sql`, `,
+              )})
+          )::int`,
+          cancelledVisits: sql<number>`count(*) FILTER (
+            WHERE ${beAppointments.status} IN (${sql.join(
+              CANCELLED_STATUSES.map((s) => sql`${s}`),
+              sql`, `,
+            )})
+          )::int`,
+        })
+        .from(beAppointments)
+        .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+        .where(and(rangeCond, BE_APPOINTMENTS_NOT_PURGED))
+        .groupBy(beBranches.title);
+
+      const branchSeries: AppointmentBranchPoint[] = branchRows.map((r) => ({
+        branchName: r.branchName ?? 'Без филиала',
+        pastVisits: r.pastVisits,
+        cancelledVisits: r.cancelledVisits,
+      }));
+
+      return { daySeries, branchSeries };
     },
   };
 }

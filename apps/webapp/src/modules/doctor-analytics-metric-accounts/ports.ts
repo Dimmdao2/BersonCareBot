@@ -27,7 +27,12 @@ export type DoctorAnalyticsMetricKey =
   | 'today_cancellations_30d'
   | 'notif_reminders_sent'
   | 'notif_reminders_failed'
-  | 'notif_push_opened';
+  | 'notif_push_opened'
+  /** AN-REC-03: doctor «Аналитика → Записи» drill-down, served by its own tenant-scoped route. */
+  | 'analytics_records_period'
+  | 'analytics_records_cancelled'
+  /** AN-ACT-04: doctor «Аналитика → Активность» drill-down, served by its own tenant-scoped route. */
+  | 'analytics_activity_patients';
 
 /** Drill-down on `/app/doctor` — doctor-safe API whitelist. */
 export const DOCTOR_TODAY_METRIC_KEYS = [

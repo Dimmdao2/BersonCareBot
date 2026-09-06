@@ -1,9 +1,13 @@
 /**
- * Статистика материалов: платформенные метрики и сводка оценок (звёзды) по данным пациентов.
+ * Статистика материалов: tenant-scoped сводка оценок (звёзды) по данным пациентов.
+ *
+ * AN-SCOPE-03 (2026-09-06): платформенный блок `MaterialContentStatsClient` (глобальный
+ * `/api/doctor/content-stats`, всегда нули + дисклеймер «Платформа за выбранный период») убран
+ * из doctor UI — он не был tenant-scoped и не нёс честной метрики. Tenant-scoped таблица оценок
+ * ниже (`listDoctorSummary`) остаётся.
  */
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { MaterialContentStatsClient } from '@/app/app/doctor/material-ratings/MaterialContentStatsClient';
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
@@ -90,7 +94,6 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
     >
       <DoctorPageHeader title="Аналитика" />
       <div className="flex flex-col gap-6">
-        <MaterialContentStatsClient />
         <p className="text-xs text-muted-foreground">
           Оценки · страница {pageNum}
           {hasNext ? ' · есть следующие записи' : offset > 0 ? ' · конец списка' : null}

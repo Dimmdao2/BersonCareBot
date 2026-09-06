@@ -34,6 +34,8 @@ const APPOINTMENT_METRICS = new Set<DoctorAnalyticsMetricKey>([
   'today_appointments_today',
   'today_appointments_week',
   'today_cancellations_30d',
+  'analytics_records_period',
+  'analytics_records_cancelled',
 ]);
 
 function formatEventAt(iso: string | null): string {
