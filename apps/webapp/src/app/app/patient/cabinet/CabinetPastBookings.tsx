@@ -12,6 +12,8 @@ import {
 import { cn } from '@/lib/utils';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
+import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
+import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
 import {
   patientCardClass,
   patientListItemClass,
@@ -61,7 +63,13 @@ export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
             {items.length === 0 ? (
               <p className={patientMutedTextClass}>Пока пусто.</p>
             ) : (
-              items.map((booking) => (
+              items.map((booking) => {
+                const branchTimeZone = booking.canonicalInPersonContext?.timezone;
+                const displayTimeZone = resolveAppointmentTimeZone(
+                  branchTimeZone,
+                  appDisplayTimeZone,
+                );
+                return (
                 <div
                   key={booking.id}
                   className={cn(
@@ -70,8 +78,12 @@ export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
                   )}
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {formatBookingDateTimeMediumRu(booking.slotStart, appDisplayTimeZone)}
+                    <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                      <span>{formatBookingDateTimeMediumRu(booking.slotStart, displayTimeZone)}</span>
+                      <AppointmentZoneOffsetWarning
+                        iso={booking.slotStart}
+                        branchTimeZone={branchTimeZone}
+                      />
                     </p>
                     <p className={cn(patientMutedTextClass, 'truncate text-xs')}>
                       {bookingProvenancePrefix(booking)}
@@ -80,7 +92,8 @@ export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
                   </div>
                   {nativePastStatusRight(booking.status)}
                 </div>
-              ))
+                );
+              })
             )}
           </CardContent>
         </CollapsibleContent>

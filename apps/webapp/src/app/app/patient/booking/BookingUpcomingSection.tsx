@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { Badge } from '@/shared/ui/patient/primitives/badge';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
+import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
+import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
 import { CabinetBookingActions } from '@/app/app/patient/cabinet/CabinetBookingActions';
 import {
   bookingProvenancePrefix,
@@ -77,6 +79,8 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
       <div className="flex flex-col gap-2">
         {bookings.map((row) => {
           const hasNativeActions = Boolean(row.canonicalAppointmentId);
+          const branchTimeZone = row.canonicalInPersonContext?.timezone;
+          const displayTimeZone = resolveAppointmentTimeZone(branchTimeZone, appDisplayTimeZone);
 
           return (
             <div
@@ -89,8 +93,9 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
               )}
             >
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">
-                  {formatBookingDateTimeMediumRu(row.slotStart, appDisplayTimeZone)}
+                <p className="flex items-center gap-1.5 text-sm font-medium">
+                  <span>{formatBookingDateTimeMediumRu(row.slotStart, displayTimeZone)}</span>
+                  <AppointmentZoneOffsetWarning iso={row.slotStart} branchTimeZone={branchTimeZone} />
                 </p>
                 <p className={cn(patientMutedTextClass, 'truncate text-xs')}>
                   {bookingProvenancePrefix(row)}

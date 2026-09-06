@@ -19,6 +19,8 @@ type InPersonProps = {
   slotCount: number;
   priceMinor: number;
   appDisplayTimeZone: string;
+  /** Canonical IANA timezone of the branch (`be_branches.timezone`); `null` — not resolvable. */
+  branchTimeZone?: string | null;
 };
 
 type OnlineProps = {

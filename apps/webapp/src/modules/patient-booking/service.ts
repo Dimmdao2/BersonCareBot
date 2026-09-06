@@ -265,6 +265,10 @@ export function createPatientBookingService(input: {
       return input.bookingsPort.getByCanonicalAppointmentId(canonicalAppointmentId);
     },
 
+    async getBookingForUser(bookingId: string, userId: string) {
+      return input.bookingsPort.getByIdForUser(bookingId, userId);
+    },
+
     /** APPT-DETAIL-11: те же строки бронирования, но сразу по набору канонических записей. */
     async listBookingsByCanonicalAppointments(canonicalAppointmentIds: string[]) {
       return input.bookingsPort.listByCanonicalAppointmentIds(canonicalAppointmentIds);

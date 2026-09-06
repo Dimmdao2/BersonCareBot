@@ -7320,6 +7320,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "organization_id",
           "title",
           "city_code",
+          "timezone",
           "is_active",
           "created_at",
           "updated_at"
@@ -29029,6 +29030,24 @@ const REV10_CONTEXT = {
           'branch_service_id', 'city_code_snapshot', 'branch_title_snapshot', 'service_title_snapshot',
           'duration_minutes_snapshot', 'price_minor_snapshot', 'provenance_created_by', 'provenance_updated_by',
           'canonical_appointment_id',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // Same canonical in-person enrichment as `read_current_patient_booking_rows` below (evidence
+        // in that entry's comment); this single-row read joins the same cross-owner relations for
+        // the same purpose, just for one booking instead of a list.
+        { relation: 'public.be_appointments', columns: [
+          'id', 'organization_id', 'branch_id', 'service_id', 'specialist_id', 'duration_minutes',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_branches', columns: [
+          'id', 'organization_id', 'title', 'city_code', 'timezone', 'is_active',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_clinic_services', columns: [
+          'id', 'organization_id', 'title', 'price_minor', 'is_active', 'public_widget_visible', 'admin_manual_only',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialist_service_availability', columns: [
+          'organization_id', 'specialist_id', 'branch_id', 'service_id', 'is_active',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialists', columns: [
+          'id', 'organization_id', 'is_active',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),

@@ -8,6 +8,8 @@ import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { cn } from '@/lib/utils';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
+import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
+import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
 import {
   patientListItemClass,
   patientMutedTextClass,
@@ -45,26 +47,31 @@ function PastList({ items, appDisplayTimeZone }: Props) {
   }
   return (
     <ul className="m-0 flex list-none flex-col gap-2 p-0">
-      {items.map((booking) => (
-        <li
-          key={booking.id}
-          className={cn(
-            patientListItemClass,
-            'flex items-center justify-between gap-2 !px-3 !py-2',
-          )}
-        >
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">
-              {formatBookingDateTimeMediumRu(booking.slotStart, appDisplayTimeZone)}
-            </p>
-            <p className={cn(patientMutedTextClass, 'truncate text-xs')}>
-              {bookingProvenancePrefix(booking)}
-              {nativeBookingSubtitle(booking)}
-            </p>
-          </div>
-          {nativePastStatusRight(booking.status)}
-        </li>
-      ))}
+      {items.map((booking) => {
+        const branchTimeZone = booking.canonicalInPersonContext?.timezone;
+        const displayTimeZone = resolveAppointmentTimeZone(branchTimeZone, appDisplayTimeZone);
+        return (
+          <li
+            key={booking.id}
+            className={cn(
+              patientListItemClass,
+              'flex items-center justify-between gap-2 !px-3 !py-2',
+            )}
+          >
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                <span>{formatBookingDateTimeMediumRu(booking.slotStart, displayTimeZone)}</span>
+                <AppointmentZoneOffsetWarning iso={booking.slotStart} branchTimeZone={branchTimeZone} />
+              </p>
+              <p className={cn(patientMutedTextClass, 'truncate text-xs')}>
+                {bookingProvenancePrefix(booking)}
+                {nativeBookingSubtitle(booking)}
+              </p>
+            </div>
+            {nativePastStatusRight(booking.status)}
+          </li>
+        );
+      })}
     </ul>
   );
 }

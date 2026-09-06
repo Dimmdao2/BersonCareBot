@@ -5,6 +5,8 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/primitives/card';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
+import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
+import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
 import { useSurfaceName } from '@/shared/ui/PlatformProvider';
 import { bookingProvenancePrefix, nativeBookingSubtitle } from './patientBookingLabels';
 import { CabinetBookingActions } from './CabinetBookingActions';
@@ -122,6 +124,8 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         {bookings.map((row) => {
+          const branchTimeZone = row.canonicalInPersonContext?.timezone;
+          const displayTimeZone = resolveAppointmentTimeZone(branchTimeZone, appDisplayTimeZone);
           return (
             <div
               key={row.id}
@@ -131,8 +135,9 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
               )}
             >
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">
-                  {formatBookingDateTimeMediumRu(row.slotStart, appDisplayTimeZone)}
+                <p className="flex items-center gap-1.5 text-sm font-medium">
+                  <span>{formatBookingDateTimeMediumRu(row.slotStart, displayTimeZone)}</span>
+                  <AppointmentZoneOffsetWarning iso={row.slotStart} branchTimeZone={branchTimeZone} />
                 </p>
                 <p className={cn(patientMutedTextClass, 'truncate text-xs')}>
                   {bookingProvenancePrefix(row)}
