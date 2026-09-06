@@ -91,3 +91,93 @@ describe('memberships service — 3.2 physical door (subscriptions)', () => {
     expect(upsertCatalogPackage).toHaveBeenCalledOnce();
   });
 });
+
+/**
+ * Подтверждённый дефект (worker-отчёт df87839fe): ветку абонементов выбирало НАЛИЧИЕ пациентских
+ * definer-корней, а не ПРАВО ими воспользоваться. Врач, записывающий пациента, попадал в
+ * `*Current*`-корень, который принимает только пациентский контекст, и получал
+ * `patient_principal_required` — запись не создавалась вовсе.
+ *
+ * Что сломается без этих утверждений: любой персонал, создающий запись пациенту с абонементом,
+ * снова уходит в пациентский корень (503 `appointment_create_unavailable`), либо — в обратную
+ * сторону — сам пациент перестаёт попадать в свой корень и уходит на org-scoped путь, которого у
+ * роли `app_patient` нет. Оракул — решение владельца о стене пациента и текст дефекта, не форма
+ * реализации.
+ */
+describe('memberships service — ветку выбирает право, а не наличие пациентского корня', () => {
+  const PATIENT_ID = '22222222-2222-4222-8222-222222222222';
+
+  function buildDispatch(canActAsCurrentPatient: (id: string) => boolean) {
+    const listCurrentPatientBookingPackages = vi.fn(async () => []);
+    const reserveCurrentPatientBookingPackage = vi.fn(async () => ({ id: 'usage-patient' }));
+    const listPatientPackagesForUser = vi.fn(async () => []);
+    const runWithPackageLock = vi.fn(async () => ({ id: 'usage-staff' }));
+    const port = {
+      canActAsCurrentPatient,
+      listCurrentPatientBookingPackages,
+      reserveCurrentPatientBookingPackage,
+      listPatientPackagesForUser,
+      runWithPackageLock,
+      getPatientPackage: vi.fn(async () => null),
+      listUsagesForPackage: vi.fn(async () => []),
+      appendUsage: vi.fn(),
+      appendHistoryEvent: vi.fn(),
+      setAppointmentPackageUsageRef: vi.fn(),
+    } as unknown as MembershipsPort;
+    const service = createMembershipsService({
+      port,
+      payments: null,
+      bookingEngine: null,
+      assertWriteClearance: assertMechanicWriteClearance,
+    });
+    return {
+      service,
+      listCurrentPatientBookingPackages,
+      reserveCurrentPatientBookingPackage,
+      listPatientPackagesForUser,
+      runWithPackageLock,
+    };
+  }
+
+  it('персонал не трогает пациентский корень ни на чтении, ни на списании', async () => {
+    const d = buildDispatch(() => false);
+
+    await d.service.pickAutoPackageForBooking(PATIENT_ID, ORG_ID, 'svc-1');
+    await runWithoutMechanicWriteClearance(async () => {
+      enterWithMechanicWriteClearance('subscriptions');
+      await d.service.reserveForAppointment({
+        organizationId: ORG_ID,
+        patientPackageId: 'pkg-1',
+        serviceId: 'svc-1',
+        appointmentId: 'appt-1',
+        platformUserId: PATIENT_ID,
+      });
+    });
+
+    expect(d.listCurrentPatientBookingPackages).not.toHaveBeenCalled();
+    expect(d.reserveCurrentPatientBookingPackage).not.toHaveBeenCalled();
+    expect(d.listPatientPackagesForUser).toHaveBeenCalledWith(PATIENT_ID, ORG_ID, ['active']);
+    expect(d.runWithPackageLock).toHaveBeenCalledOnce();
+  });
+
+  it('сам пациент по-прежнему идёт своим корнем, а не org-scoped путём', async () => {
+    const d = buildDispatch((id) => id === PATIENT_ID);
+
+    await d.service.pickAutoPackageForBooking(PATIENT_ID, ORG_ID, 'svc-1');
+    await runWithoutMechanicWriteClearance(async () => {
+      enterWithMechanicWriteClearance('subscriptions');
+      await d.service.reserveForAppointment({
+        organizationId: ORG_ID,
+        patientPackageId: 'pkg-1',
+        serviceId: 'svc-1',
+        appointmentId: 'appt-1',
+        platformUserId: PATIENT_ID,
+      });
+    });
+
+    expect(d.listCurrentPatientBookingPackages).toHaveBeenCalledOnce();
+    expect(d.reserveCurrentPatientBookingPackage).toHaveBeenCalledOnce();
+    expect(d.listPatientPackagesForUser).not.toHaveBeenCalled();
+    expect(d.runWithPackageLock).not.toHaveBeenCalled();
+  });
+});

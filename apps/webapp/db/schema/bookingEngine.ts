@@ -569,6 +569,20 @@ export const beAppointments = pgTable(
     prepaymentPaidMinor: integer('prepayment_paid_minor').default(0).notNull(),
     /** PAY-APPT-08: точный срок оплаты записи; `null` — предоплата не требуется. */
     paymentDeadlineAt: timestamp('payment_deadline_at', { withTimezone: true, mode: 'string' }),
+    /**
+     * ENCOUNTER-APPOINTMENT-05: слот, для которого специалист ЯВНО подтвердил наложение. Пара
+     * выводит запись из-под `be_appointments_specialist_no_overlap` только пока совпадает с
+     * собственным временем строки, поэтому любой перенос перевзводит защиту сам. `null` —
+     * обычная запись, пересечения ей по-прежнему запрещены.
+     */
+    overlapConfirmedStartAt: timestamp('overlap_confirmed_start_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    overlapConfirmedEndAt: timestamp('overlap_confirmed_end_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
     packageUsageRef: text('package_usage_ref'),
     phoneNormalized: text('phone_normalized'),
     attributionJson: jsonb('attribution_json')

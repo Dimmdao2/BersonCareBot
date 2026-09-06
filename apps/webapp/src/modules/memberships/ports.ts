@@ -60,6 +60,17 @@ export type CreateManualPatientPackageInput = {
 };
 
 export type MembershipsPort = {
+  /**
+   * True only when the live caller IS this patient, so the `*Current*` roots below are usable.
+   *
+   * Their presence is NOT the same question. Both are `SECURITY DEFINER` roots accepted only under
+   * a patient context, so a staff member creating an appointment FOR a patient is refused by the
+   * database (`patient_principal_required`) even though the port implements them. Asking presence
+   * instead of authority is what made a doctor's ordinary manual create fail whenever the patient
+   * might hold a package. Staff answer `false` here and take the org-scoped path below, which is
+   * the same wall every other doctor package screen already goes through.
+   */
+  canActAsCurrentPatient?(platformUserId: string): boolean;
   /** Exact current-patient confirmation snapshot; absent on staff/in-memory ports. */
   listCurrentPatientBookingPackages?(
     organizationId: string,

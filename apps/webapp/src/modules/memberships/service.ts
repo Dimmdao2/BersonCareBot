@@ -609,7 +609,13 @@ export function createMembershipsService(deps: {
       organizationId: string,
       serviceId: string,
     ) {
-      if (deps.port.listCurrentPatientBookingPackages) {
+      // Ветку выбирает НЕ наличие корня, а право им воспользоваться: пациентский корень принимает
+      // только патиентский контекст, и врач, записывающий пациента, получал из него отказ. Врач
+      // читает те же абонементы org-scoped путём — тем самым, которым их показывает карточка.
+      if (
+        deps.port.listCurrentPatientBookingPackages &&
+        deps.port.canActAsCurrentPatient?.(platformUserId) === true
+      ) {
         return deps.port.listCurrentPatientBookingPackages(organizationId, serviceId);
       }
       const rows = await deps.port.listPatientPackagesForUser(platformUserId, organizationId, [
@@ -651,7 +657,12 @@ export function createMembershipsService(deps: {
       platformUserId: string;
     }) {
       deps.assertWriteClearance?.('subscriptions');
-      if (deps.port.reserveCurrentPatientBookingPackage) {
+      // Тот же вопрос, что и на чтении: корень пациента доступен только самому пациенту. Врач
+      // списывает сеанс под своим принципалом, org-scoped — так же, как из карточки абонемента.
+      if (
+        deps.port.reserveCurrentPatientBookingPackage &&
+        deps.port.canActAsCurrentPatient?.(input.platformUserId) === true
+      ) {
         return deps.port.reserveCurrentPatientBookingPackage(input);
       }
       return deps.port.runWithPackageLock(

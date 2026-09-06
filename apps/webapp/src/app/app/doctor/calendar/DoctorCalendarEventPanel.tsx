@@ -51,9 +51,16 @@ import {
 import { AppointmentPaymentSection } from './AppointmentPaymentSection';
 import {
   DoctorAppointmentForm,
+  prepaymentPercentFromBps,
+  servicePriceRublesInput,
   type AppointmentFormDraft,
   type AppointmentStatusOption,
 } from './DoctorAppointmentForm';
+import {
+  AppointmentFormFinancialsError,
+  appointmentFinancialRequestFields,
+  hasAppointmentFinancialEdits,
+} from './appointmentFormFinancials';
 import {
   DoctorAppointmentCancelModal,
   type AppointmentCancelDraft,
@@ -191,6 +198,9 @@ function panelErrorLabel(error: string | undefined): string {
   if (error === 'external_slot_taken') return 'Время уже занято во внешней записи.';
   if (error === 'slot_overlap') return 'Слот уже занят.';
   if (error === 'not_cancelled') return 'Сначала отмените запись.';
+  if (error === 'appointment_financials_locked') {
+    return 'Запись уже оплачена: стоимость и условие оплаты не меняются.';
+  }
   return error;
 }
 
@@ -217,7 +227,52 @@ const EMPTY_DRAFT: AppointmentFormDraft = {
   patient: null,
   comment: '',
   status: null,
+  priceRubles: '',
+  priceOverridden: false,
+  prepayment: null,
+  prepaymentOverridden: false,
 };
+
+/**
+ * PAY-APPT-01/03: деньги открытой на правку записи — её СОБСТВЕННЫЙ снимок. Снимка нет (запись
+ * создана до его появления) — форма показывает то же, что и карточка: сумму проекции, а при её
+ * отсутствии умолчание услуги. Выдуманного нуля здесь не появляется.
+ */
+function appointmentSnapshotDraftMoney(
+  appointment: CalendarAppointmentEvent,
+  services: CalendarServiceFilterOption[],
+): Pick<AppointmentFormDraft, 'priceRubles' | 'prepayment'> {
+  const defaults = serviceFinancialDefaults(services, appointment.serviceId);
+  const snapshot = appointment.payment?.prepayment ?? null;
+  const totalMinor = appointment.payment?.totalMinor ?? null;
+  return {
+    priceRubles: totalMinor == null ? defaults.priceRubles : servicePriceRublesInput(totalMinor),
+    prepayment: snapshot
+      ? { mode: snapshot.mode, percent: prepaymentPercentFromBps(snapshot.percentBps) }
+      : defaults.prepayment,
+  };
+}
+
+/**
+ * PAY-APPT-01/03: исходные деньги записи ДО первой правки врача — цена услуги и её условие
+ * оплаты. Тот же расчёт открывает форму создания и подставляется при смене услуги, поэтому
+ * умолчание в форме ровно одно.
+ */
+function serviceFinancialDefaults(
+  services: CalendarServiceFilterOption[],
+  serviceId: string | null,
+): Pick<AppointmentFormDraft, 'priceRubles' | 'prepayment'> {
+  const service = serviceId ? services.find((option) => option.id === serviceId) : undefined;
+  return {
+    priceRubles: servicePriceRublesInput(service?.priceMinor ?? null),
+    prepayment: service?.prepaymentDefault
+      ? {
+          mode: service.prepaymentDefault.mode,
+          percent: prepaymentPercentFromBps(service.prepaymentDefault.percentBps),
+        }
+      : null,
+  };
+}
 
 const EMPTY_CANCEL_DRAFT: AppointmentCancelDraft = {
   reason: '',
@@ -259,6 +314,8 @@ function DoctorCalendarEventPanelInner({
     patient: createInitialPatient,
   });
   const [cancelOpen, setCancelOpen] = useState(false);
+  /** ENCOUNTER-APPOINTMENT-05: подтверждение конфликта показывается ДО сохранения. */
+  const [overlapConfirmOpen, setOverlapConfirmOpen] = useState(false);
   const [cancelDraft, setCancelDraft] = useState<AppointmentCancelDraft>(EMPTY_CANCEL_DRAFT);
   const [message, setMessage] = useState<string | null>(null);
   // APPT-FORM-13: правка идёт двумя контрактами (запись и комментарий). Отказ комментария
@@ -373,6 +430,7 @@ function DoctorCalendarEventPanelInner({
       branchId: nextBranchId,
       serviceId,
       patient: createInitialPatient,
+      ...serviceFinancialDefaults(filterMeta.services, serviceId),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -401,7 +459,13 @@ function DoctorCalendarEventPanelInner({
    */
   const hideSpecialist = clinicSpecialists != null && clinicSpecialists.length === 1;
 
-  const submitCreate = () => {
+  /**
+   * ENCOUNTER-APPOINTMENT-05: `allowOverlap` — ПОВТОР того же запроса после явного согласия
+   * врача, а не второй путь создания. Первый вызов идёт без него и остаётся fail-closed: занятое
+   * время отбивается `slot_overlap`, форма показывает подтверждение, и отказ подтверждения не
+   * создаёт ничего.
+   */
+  const submitCreate = (options?: { allowOverlap?: boolean }) => {
     setMessage(null);
     const submission = resolveCalendarCreateSubmission({
       start: draft.start,
@@ -427,8 +491,17 @@ function DoctorCalendarEventPanelInner({
       setMessage('Укажите имя пациента.');
       return;
     }
+    let financials;
+    try {
+      financials = appointmentFinancialRequestFields(draft);
+    } catch (err) {
+      setMessage(
+        err instanceof AppointmentFormFinancialsError ? err.message : 'Проверьте стоимость записи.',
+      );
+      return;
+    }
+    const isNewPatient = patient?.isNew === true;
     startTransition(async () => {
-      const isNewPatient = patient?.isNew === true;
       const res = await fetch(
         isNewPatient
           ? `${apiBase}/appointments/manual-patient-visit`
@@ -450,6 +523,8 @@ function DoctorCalendarEventPanelInner({
               : {
                   platformUserId: patient?.id ?? null,
                   phoneNormalized: patient?.phone?.trim() || null,
+                  ...financials,
+                  ...(options?.allowOverlap ? { allowOverlap: true } : {}),
                 }),
             startAt,
             endAt,
@@ -467,10 +542,17 @@ function DoctorCalendarEventPanelInner({
         appointment?: { id?: string };
       };
       if (!json.ok) {
+        // Подтверждение предлагается только там, где согласие ИСПОЛНИМО: у канонической ручной
+        // двери. Дверь нового пациента им не расширялась, и обещать там наложение нельзя.
+        if (json.error === 'slot_overlap' && !isNewPatient && !options?.allowOverlap) {
+          setOverlapConfirmOpen(true);
+          return;
+        }
         toast.error(json.message ?? panelErrorLabel(json.error));
         if (json.error === 'external_slot_taken') onChanged();
         return;
       }
+      setOverlapConfirmOpen(false);
       // R16: после создания (есть id) комментарий записи уходит отдельным запросом. Его отказ
       // не имеет права выглядеть как полный успех: форма остаётся с набранным текстом, а
       // requestId не обновляется — повторное «Сохранить» воспроизводит ту же запись и
@@ -536,10 +618,39 @@ function DoctorCalendarEventPanelInner({
           >
             Отмена
           </Button>
-          <Button type="button" disabled={pending} onClick={submitCreate}>
+          <Button type="button" disabled={pending} onClick={() => submitCreate()}>
             Сохранить
           </Button>
         </DoctorModalFooter>
+
+        <DoctorModal
+          open={overlapConfirmOpen}
+          onClose={() => setOverlapConfirmOpen(false)}
+          title="Время занято"
+          size="sm"
+          nested
+        >
+          <p className={doctorBodyTextClass}>
+            На это время у специалиста уже есть запись. Создать наложение?
+          </p>
+          <DoctorModalFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setOverlapConfirmOpen(false)}
+            >
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              disabled={pending}
+              onClick={() => submitCreate({ allowOverlap: true })}
+            >
+              Создать наложение
+            </Button>
+          </DoctorModalFooter>
+        </DoctorModal>
       </div>
     );
   }
@@ -597,6 +708,11 @@ function DoctorCalendarEventPanelInner({
       },
       comment: primaryComment,
       status: selected.status,
+      // PAY-APPT-01/03: правка открывается на СНИМКЕ САМОЙ записи, а не на текущей цене каталога:
+      // сохранённая врачом стоимость не должна уезжать за прайсом при первом же открытии формы.
+      ...appointmentSnapshotDraftMoney(selected, filterMeta.services),
+      priceOverridden: false,
+      prepaymentOverridden: false,
     });
     setMode('edit');
   };
@@ -630,6 +746,18 @@ function DoctorCalendarEventPanelInner({
       patientChanged;
     const commentChanged = draft.comment.trim() !== primaryComment.trim();
     const statusChanged = draft.status !== null && draft.status !== selected.status;
+    // PAY-APPT-02/12: деньги правятся ТЕМ ЖЕ контрактом, что и время. Нетронутая форма их не
+    // посылает вовсе — иначе обычный перенос уже оплаченной записи упирался бы в денежный замок.
+    const financialsChanged = hasAppointmentFinancialEdits(draft);
+    let financials;
+    try {
+      financials = appointmentFinancialRequestFields(draft);
+    } catch (err) {
+      setMessage(
+        err instanceof AppointmentFormFinancialsError ? err.message : 'Проверьте стоимость записи.',
+      );
+      return;
+    }
     const applied =
       appliedEditRef.current.id === selected.id
         ? appliedEditRef.current
@@ -641,10 +769,11 @@ function DoctorCalendarEventPanelInner({
       draft.branchId,
       draft.serviceId,
       nextPatientId,
+      financials,
     ]);
 
     startTransition(async () => {
-      if (scheduleChanged && applied.schedule !== scheduleSignature) {
+      if ((scheduleChanged || financialsChanged) && applied.schedule !== scheduleSignature) {
         const res = await fetch(
           `${apiBase}/appointments/${encodeURIComponent(selected.id)}/manual-reschedule`,
           {
@@ -658,6 +787,7 @@ function DoctorCalendarEventPanelInner({
               serviceId: draft.serviceId,
               // APPT-FORM-13: пациента меняет тот же lifecycle-контракт, отдельного endpoint нет.
               ...(patientChanged ? { platformUserId: nextPatientId } : {}),
+              ...financials,
             }),
           },
         );
