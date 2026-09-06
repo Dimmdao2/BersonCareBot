@@ -151,8 +151,9 @@ export function DoctorModalTextEditorField({
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       autoFocus={autoFocus}
+      rows={5}
       className={cn(
-        'h-full min-h-0 w-full flex-1 resize-none overflow-y-auto border-0 bg-white p-4 text-base text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0',
+        'h-full min-h-0 w-full flex-1 resize-none overflow-y-auto border-0 bg-white p-4 text-base text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 md:h-auto md:min-h-40',
         className,
       )}
     />

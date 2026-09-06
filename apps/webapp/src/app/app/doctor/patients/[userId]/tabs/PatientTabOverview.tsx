@@ -1655,7 +1655,7 @@ export function PatientTabOverview({
       }
       size="sm"
       presentation="fullscreen-text"
-      bodyClassName="flex min-h-[45dvh] flex-col p-0 md:min-h-0"
+      bodyClassName="flex min-h-0 flex-col p-0"
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => setNoteFormOpen(false)}>
