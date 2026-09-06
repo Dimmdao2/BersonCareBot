@@ -119,6 +119,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
             id: beClinicServices.id,
             label: beClinicServices.title,
             durationMinutes: beClinicServices.durationMinutes,
+            priceMinor: beClinicServices.priceMinor,
           })
           .from(beClinicServices)
           .where(
@@ -177,6 +178,11 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           label: r.label,
           durationMinutes: r.durationMinutes,
           availability: Array.from(availabilityByService.get(r.id)?.values() ?? []),
+          // PAY-APPT-01: цена каталога едет вместе с длительностью — тем же способом, которым
+          // длительность уже подставляется в форму. Условие оплаты добавляет слой сценария:
+          // политика предоплаты принадлежит платёжному модулю, а не календарному репозиторию.
+          priceMinor: r.priceMinor ?? null,
+          prepaymentDefault: null,
         })),
       };
     },

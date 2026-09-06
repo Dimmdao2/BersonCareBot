@@ -12,6 +12,7 @@ import {
   mergeLastActivityDisplayedIso,
   primaryMediaForStageItem,
   recommendationBodyMdPreviewPlain,
+  stageItemSnapshotTitle,
   type InstanceStageItem,
 } from '@/app/app/patient/treatment/stageItemSnapshot';
 import {
@@ -447,6 +448,13 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     [stage, visibleProgramItems],
   );
 
+  /** Вторая строка шапки модалки обсуждения — название пункта, по которому её открыли. */
+  const discussionDialogItemLabel = useMemo(() => {
+    if (!discussionDialogItemId) return null;
+    const item = visibleProgramItems.find((it) => it.id === discussionDialogItemId);
+    return item ? stageItemSnapshotTitle(item.snapshot, item.itemType) : null;
+  }, [discussionDialogItemId, visibleProgramItems]);
+
   const loadDiscussionSummary = useCallback(async () => {
     if (!programCommentsInteraction.visible) {
       setDiscussionSummaryByItemId({});
@@ -785,6 +793,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
         <ProgramItemDiscussionDialog
           instanceId={instanceId}
           itemId={discussionDialogItemId}
+          itemLabel={discussionDialogItemLabel}
           open
           mediaSubmissionEnabled={
             programMediaInteraction.visible && programMediaInteraction.enabled

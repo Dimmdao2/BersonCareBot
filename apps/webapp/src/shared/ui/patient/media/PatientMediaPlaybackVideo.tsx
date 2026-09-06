@@ -48,6 +48,8 @@ export type PatientMediaPlaybackVideoProps = {
   initialPlayback: MediaPlaybackPayload | null;
   /** Оболочка (фон, скругление, shrink). */
   shellClassName?: string;
+  /** Полноэкранный viewer отдаёт видео всю доступную высоту, сохраняя controls. */
+  presentation?: 'inline' | 'fullscreen';
   /** Один раз при первом фактическом воспроизведении (событие `playing`). */
   onFirstPlaying?: () => void;
 };
@@ -112,12 +114,16 @@ function PlaybackEngine({
   title,
   initialPayload,
   shellClassName,
+  containerClassName,
+  isFullscreen,
   onFirstPlaying,
 }: {
   mediaId: string;
   title: string;
   initialPayload: MediaPlaybackPayload;
   shellClassName: string;
+  containerClassName?: string;
+  isFullscreen: boolean;
   onFirstPlaying?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -467,7 +473,7 @@ function PlaybackEngine({
   }, [fetchPlaybackJson, mediaId, reportPlaybackIssue, sourceKind]);
 
   return (
-    <div className="flex w-full flex-col gap-2">
+    <div className={cn('flex w-full flex-col gap-2', containerClassName)}>
       <div
         className={shellClassName}
         onContextMenu={(e) => {
@@ -508,7 +514,10 @@ function PlaybackEngine({
               controlsList="nodownload"
               preload="metadata"
               playsInline
-              className="absolute inset-0 z-0 h-full w-full object-contain"
+              className={cn(
+                'absolute inset-0 z-0 h-full w-full object-contain',
+                isFullscreen && 'patient-fullscreen-media-video',
+              )}
               title={title}
             />
           </>
@@ -551,9 +560,15 @@ export function PatientMediaPlaybackVideo({
   title,
   initialPlayback,
   shellClassName,
+  presentation = 'inline',
   onFirstPlaying,
 }: PatientMediaPlaybackVideoProps) {
-  const shell = cn(DEFAULT_SHELL, shellClassName);
+  const isFullscreen = presentation === 'fullscreen';
+  const shell = cn(
+    DEFAULT_SHELL,
+    isFullscreen && 'min-h-0 flex-1 rounded-none bg-black [aspect-ratio:auto]',
+    shellClassName,
+  );
   const [payload, setPayload] = useState<MediaPlaybackPayload | null>(() => initialPlayback);
   const [phase, setPhase] = useState<'loading' | 'error' | 'ready'>(() =>
     initialPlayback ? 'ready' : 'loading',
@@ -666,6 +681,8 @@ export function PatientMediaPlaybackVideo({
       title={title}
       initialPayload={payload}
       shellClassName={shell}
+      containerClassName={isFullscreen ? 'h-full min-h-0 bg-black' : undefined}
+      isFullscreen={isFullscreen}
       onFirstPlaying={onFirstPlaying}
     />
   );

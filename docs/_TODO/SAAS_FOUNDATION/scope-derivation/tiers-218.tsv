@@ -94,6 +94,7 @@ SCOPED|public.be_working_hours
 SCOPED|public.broadcast_audit
 SCOPED|public.broadcast_audit_recipients
 SCOPED|public.broadcast_drafts
+SCOPED|public.clinical_disease_anamnesis
 SCOPED|public.clinical_anamnesis_illness
 SCOPED|public.clinical_anamnesis_lifestyle
 SCOPED|public.clinical_anamnesis_trauma

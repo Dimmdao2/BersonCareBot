@@ -224,6 +224,10 @@ async function loadCanonicalAppointmentStatuses(
 
 export function createPgMembershipsPort(): MembershipsPort {
   return {
+    canActAsCurrentPatient(platformUserId) {
+      const principal = getCurrentDbPrincipal();
+      return principal?.kind === 'patient' && principal.platformUserId === platformUserId;
+    },
     async listCurrentPatientBookingPackages(organizationId, serviceId) {
       if (getCurrentDbPrincipal()?.kind !== 'patient') {
         throw new Error('patient_principal_required');

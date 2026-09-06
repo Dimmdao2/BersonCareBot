@@ -3,13 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { Textarea } from '@/shared/ui/patient/primitives/textarea';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/ui/patient/primitives/dialog';
+import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { cn } from '@/lib/utils';
 import {
   MATERIAL_RATING_FEEDBACK_REASON_CODES,
@@ -93,14 +87,32 @@ export function PatientWarmupRatingFeedbackDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => onOpenChange(!!nextOpen)}>
-      <DialogContent className="border-[var(--patient-border)] bg-[var(--patient-card-bg)] sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            Расскажите, что было не так — это поможет точнее подбирать разминки.
-          </DialogTitle>
-        </DialogHeader>
-
+    <PatientModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Расскажите, что было не так — это поможет точнее подбирать разминки."
+      size="md"
+      footer={
+        <div className="flex w-full gap-2 sm:justify-between">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={submitting}
+            onClick={() => onOpenChange(false)}
+          >
+            Пропустить
+          </Button>
+          <Button
+            type="button"
+            disabled={!canSubmit || submitting}
+            onClick={() => void handleSubmit()}
+          >
+            {submitting ? 'Отправка…' : 'Отправить'}
+          </Button>
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-4">
         <div className="flex flex-wrap gap-2">
           {MATERIAL_RATING_FEEDBACK_REASON_CODES.map((code) => {
             const active = selected.includes(code);
@@ -135,25 +147,7 @@ export function PatientWarmupRatingFeedbackDialog({
         />
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-        <DialogFooter className="gap-2 sm:justify-between">
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={submitting}
-            onClick={() => onOpenChange(false)}
-          >
-            Пропустить
-          </Button>
-          <Button
-            type="button"
-            disabled={!canSubmit || submitting}
-            onClick={() => void handleSubmit()}
-          >
-            {submitting ? 'Отправка…' : 'Отправить'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </PatientModal>
   );
 }

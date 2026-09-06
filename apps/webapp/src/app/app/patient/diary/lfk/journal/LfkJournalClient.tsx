@@ -8,13 +8,7 @@ import { MoreHorizontal } from 'lucide-react';
 import { Button, buttonVariants } from '@/shared/ui/patient/primitives/button';
 import { Badge } from '@/shared/ui/patient/primitives/badge';
 import { cn } from '@/lib/utils';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/ui/patient/primitives/dialog';
+import { PatientModal, PatientModalFooter } from '@/shared/ui/patient/PatientModal';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +39,8 @@ function toDatetimeLocalValue(iso: string): string {
   const d = new Date(iso);
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
+
+const LFK_JOURNAL_EDIT_FORM_ID = 'lfk-journal-edit-form';
 
 export function LfkJournalClient(props: {
   sessions: LfkSession[];
@@ -193,136 +189,123 @@ export function LfkJournalClient(props: {
         </ul>
       )}
 
-      <Dialog open={editSession !== null} onOpenChange={(o) => !o && setEditSession(null)}>
-        <DialogContent className="border border-[var(--patient-border)] shadow-md sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Редактировать занятие</DialogTitle>
-          </DialogHeader>
-          {editSession ? (
-            <form
-              className="flex flex-col gap-3"
-              onSubmit={(ev) => {
-                ev.preventDefault();
-                const form = ev.currentTarget;
-                const fd = new FormData(form);
-                const local = fd.get('completedAtLocal');
-                if (typeof local !== 'string' || !local) {
-                  toast.error('Укажите дату и время');
-                  return;
+      <PatientModal
+        open={editSession !== null}
+        onClose={() => setEditSession(null)}
+        title="Редактировать занятие"
+        size="md"
+      >
+        {editSession ? (
+          <form
+            id={LFK_JOURNAL_EDIT_FORM_ID}
+            className="flex flex-col gap-3"
+            onSubmit={(ev) => {
+              ev.preventDefault();
+              const form = ev.currentTarget;
+              const fd = new FormData(form);
+              const local = fd.get('completedAtLocal');
+              if (typeof local !== 'string' || !local) {
+                toast.error('Укажите дату и время');
+                return;
+              }
+              fd.set('completedAt', new Date(local).toISOString());
+              fd.set('sessionId', editSession.id);
+              startTransition(async () => {
+                const res = await updateLfkJournalSession(fd);
+                if (res.ok) {
+                  toast.success('Сохранено');
+                  setEditSession(null);
+                  router.refresh();
+                } else {
+                  toast.error(res.message ?? 'Не удалось сохранить');
                 }
-                fd.set('completedAt', new Date(local).toISOString());
-                fd.set('sessionId', editSession.id);
-                startTransition(async () => {
-                  const res = await updateLfkJournalSession(fd);
-                  if (res.ok) {
-                    toast.success('Сохранено');
-                    setEditSession(null);
-                    router.refresh();
-                  } else {
-                    toast.error(res.message ?? 'Не удалось сохранить');
-                  }
-                });
-              }}
-            >
-              <label className="flex flex-col gap-1">
-                <span
-                  className={cn(
-                    patientMutedTextClass,
-                    'text-xs font-medium uppercase tracking-wide',
-                  )}
-                >
-                  Дата и время
-                </span>
-                <Input
-                  type="datetime-local"
-                  name="completedAtLocal"
-                  required
-                  defaultValue={toDatetimeLocalValue(editSession.completedAt)}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span
-                  className={cn(
-                    patientMutedTextClass,
-                    'text-xs font-medium uppercase tracking-wide',
-                  )}
-                >
-                  Длительность (мин)
-                </span>
-                <Input
-                  type="number"
-                  name="durationMinutes"
-                  min={1}
-                  max={600}
-                  placeholder="—"
-                  defaultValue={editSession.durationMinutes ?? ''}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span
-                  className={cn(
-                    patientMutedTextClass,
-                    'text-xs font-medium uppercase tracking-wide',
-                  )}
-                >
-                  Сложность 0–10
-                </span>
-                <Input
-                  type="number"
-                  name="difficulty0_10"
-                  min={0}
-                  max={10}
-                  placeholder="—"
-                  defaultValue={editSession.difficulty0_10 ?? ''}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span
-                  className={cn(
-                    patientMutedTextClass,
-                    'text-xs font-medium uppercase tracking-wide',
-                  )}
-                >
-                  Боль 0–10
-                </span>
-                <Input
-                  type="number"
-                  name="pain0_10"
-                  min={0}
-                  max={10}
-                  placeholder="—"
-                  defaultValue={editSession.pain0_10 ?? ''}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span
-                  className={cn(
-                    patientMutedTextClass,
-                    'text-xs font-medium uppercase tracking-wide',
-                  )}
-                >
-                  Комментарий
-                </span>
-                <Textarea
-                  name="comment"
-                  className="min-h-[4.5rem] rounded-xl"
-                  rows={3}
-                  maxLength={200}
-                  defaultValue={editSession.comment ?? ''}
-                />
-              </label>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setEditSession(null)}>
-                  Отмена
-                </Button>
-                <Button type="submit" disabled={pending}>
-                  Сохранить
-                </Button>
-              </DialogFooter>
-            </form>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+              });
+            }}
+          >
+            <label className="flex flex-col gap-1">
+              <span
+                className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+              >
+                Дата и время
+              </span>
+              <Input
+                type="datetime-local"
+                name="completedAtLocal"
+                required
+                defaultValue={toDatetimeLocalValue(editSession.completedAt)}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span
+                className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+              >
+                Длительность (мин)
+              </span>
+              <Input
+                type="number"
+                name="durationMinutes"
+                min={1}
+                max={600}
+                placeholder="—"
+                defaultValue={editSession.durationMinutes ?? ''}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span
+                className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+              >
+                Сложность 0–10
+              </span>
+              <Input
+                type="number"
+                name="difficulty0_10"
+                min={0}
+                max={10}
+                placeholder="—"
+                defaultValue={editSession.difficulty0_10 ?? ''}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span
+                className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+              >
+                Боль 0–10
+              </span>
+              <Input
+                type="number"
+                name="pain0_10"
+                min={0}
+                max={10}
+                placeholder="—"
+                defaultValue={editSession.pain0_10 ?? ''}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span
+                className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+              >
+                Комментарий
+              </span>
+              <Textarea
+                name="comment"
+                className="min-h-[4.5rem] rounded-xl"
+                rows={3}
+                maxLength={200}
+                defaultValue={editSession.comment ?? ''}
+              />
+            </label>
+            <PatientModalFooter>
+              <Button type="button" variant="outline" onClick={() => setEditSession(null)}>
+                Отмена
+              </Button>
+              {/* Футер живёт вне DOM-дерева формы (портал), поэтому связь — атрибутом `form`. */}
+              <Button type="submit" form={LFK_JOURNAL_EDIT_FORM_ID} disabled={pending}>
+                Сохранить
+              </Button>
+            </PatientModalFooter>
+          </form>
+        ) : null}
+      </PatientModal>
     </div>
   );
 }

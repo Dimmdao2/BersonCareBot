@@ -17,6 +17,7 @@ import type {
   BookingCalendarPort,
   BookingCalendarService,
 } from './ports';
+import type { PrepaymentMode } from '@/modules/payments/types';
 import type {
   CalendarAggregate,
   CalendarAppointmentEvent,
@@ -38,6 +39,14 @@ type Deps = {
   resolveShowWorkingHours?: () => Promise<boolean>;
   /** APPT-DETAIL-11: один и тот же досбор для всех читателей календаря. */
   hydrateAppointmentDetails?: AppointmentDetailHydrator;
+  /**
+   * PAY-APPT-03: исходное условие оплаты по услугам клиники. Возвращает `null`, когда клиника
+   * предоплату не принимает вовсе — тогда условия оплаты в форме записи нет. Политика живёт в
+   * платёжном модуле, поэтому она приходит инъекцией, а не запросом календарного репозитория.
+   */
+  resolveServicePrepaymentDefaults?: (
+    organizationId: string,
+  ) => Promise<Map<string, { mode: PrepaymentMode; percentBps: number | null }> | null>;
 };
 
 function mapBlock(block: ScheduleBlockRecord): CalendarBlockEvent {
@@ -279,6 +288,21 @@ export function createBookingCalendarService(deps: Deps): BookingCalendarService
         ? deriveWorkingBounds(workingAndBreak.working, timeZone)
         : null;
 
+      // PAY-APPT-03: условие оплаты услуги доезжает тем же payload'ом, что и её длительность,
+      // поэтому форма записи открывается с готовыми умолчаниями и не досылает второй запрос.
+      const prepaymentDefaults = deps.resolveServicePrepaymentDefaults
+        ? await deps.resolveServicePrepaymentDefaults(filters.organizationId)
+        : null;
+      const filtersWithFinancialDefaults = {
+        ...filterMeta,
+        services: filterMeta.services.map((service) => ({
+          ...service,
+          prepaymentDefault: prepaymentDefaults
+            ? (prepaymentDefaults.get(service.id) ?? { mode: 'disabled' as const, percentBps: null })
+            : null,
+        })),
+      };
+
       return {
         events: [
           ...(await hydrate(filters.organizationId, appointmentEvents)),
@@ -286,7 +310,7 @@ export function createBookingCalendarService(deps: Deps): BookingCalendarService
           ...workingAndBreak.working,
           ...workingAndBreak.breaks,
         ],
-        filters: filterMeta,
+        filters: filtersWithFinancialDefaults,
         readSource: 'canonical',
         showWorkingHours,
         workingBounds,

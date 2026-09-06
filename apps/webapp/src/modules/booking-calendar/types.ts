@@ -54,6 +54,16 @@ export type CalendarFilterOption = {
 export type CalendarServiceFilterOption = CalendarFilterOption & {
   durationMinutes: number;
   availability: { specialistId: string; branchId: string }[];
+  /**
+   * PAY-APPT-01: цена услуги из каталога — ИСХОДНОЕ значение поля «Стоимость» в форме записи.
+   * Снимком записи она не является: снимок считает и хранит сервер. `null` — цены в каталоге нет.
+   */
+  priceMinor: number | null;
+  /**
+   * PAY-APPT-03: исходное условие оплаты этой услуги. `null` — клиника предоплату не принимает
+   * (механика или настройки выключены), и условия оплаты в форме нет вовсе.
+   */
+  prepaymentDefault: { mode: PrepaymentMode; percentBps: number | null } | null;
 };
 
 export type CalendarFilterMeta = {

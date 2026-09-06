@@ -3,11 +3,7 @@ import { z } from 'zod';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import type { BreakInterval } from '@/modules/booking-scheduling/ports';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  runWebappTransaction,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappTransaction } from '@/infra/db/runWebappSql';
 import { getServerRuntimeInteger } from '@/modules/system-settings/configAdapter';
 import {
   currentPublicBookingRuntimeSettings,
@@ -69,29 +65,31 @@ const bookingSnapshotContextSchema = z.object({
   durationMinutes: z.number().int().positive(),
   bufferAfterMinutes: z.number().int().nonnegative(),
   branchTimezone: z.string().min(1),
-  patientCatalogSnapshot: z.object({
-    branchTitle: z.string().min(1),
-    branchShortTitle: z.string().nullable(),
-    branchColor: z.string().nullable(),
-    branchCityCode: z.string().min(1),
-    branchAddress: z.string().nullable(),
-    branchSortOrder: z.number().int(),
-    serviceTitle: z.string().min(1),
-    serviceDescription: z.string().nullable(),
-    servicePriceMinor: z.number().int().nonnegative(),
-    servicePrepaymentApplicable: z.boolean(),
-    serviceUsableInPackages: z.boolean(),
-    serviceOnlinePaymentApplicable: z.boolean(),
-    servicePublicWidgetVisible: z.boolean(),
-    serviceAdminManualOnly: z.boolean(),
-    serviceSortOrder: z.number().int(),
-    specialistReminderAllowedPresetIds: z.array(
-      z.enum(['day_and_two_hours', 'day_before', 'two_hours_before']),
-    ),
-    specialistReminderDefaultPresetId: z
-      .enum(['day_and_two_hours', 'day_before', 'two_hours_before'])
-      .nullable(),
-  }).optional(),
+  patientCatalogSnapshot: z
+    .object({
+      branchTitle: z.string().min(1),
+      branchShortTitle: z.string().nullable(),
+      branchColor: z.string().nullable(),
+      branchCityCode: z.string().min(1),
+      branchAddress: z.string().nullable(),
+      branchSortOrder: z.number().int(),
+      serviceTitle: z.string().min(1),
+      serviceDescription: z.string().nullable(),
+      servicePriceMinor: z.number().int().nonnegative(),
+      servicePrepaymentApplicable: z.boolean(),
+      serviceUsableInPackages: z.boolean(),
+      serviceOnlinePaymentApplicable: z.boolean(),
+      servicePublicWidgetVisible: z.boolean(),
+      serviceAdminManualOnly: z.boolean(),
+      serviceSortOrder: z.number().int(),
+      specialistReminderAllowedPresetIds: z.array(
+        z.enum(['day_and_two_hours', 'day_before', 'two_hours_before']),
+      ),
+      specialistReminderDefaultPresetId: z
+        .enum(['day_and_two_hours', 'day_before', 'two_hours_before'])
+        .nullable(),
+    })
+    .optional(),
 });
 
 /**
@@ -129,6 +127,10 @@ const bookingSlotSnapshotSchema = z.object({
   maxConsecutiveSlotHours: z.number().int().min(1).max(24),
 });
 
+const publicBookingSlotSnapshotSchema = bookingSlotSnapshotSchema.extend({
+  availabilityHorizonDays: z.number().int().min(1).max(92),
+});
+
 function isCurrentPatientPrincipal(): boolean {
   return getCurrentDbPrincipal()?.kind === 'patient';
 }
@@ -157,6 +159,7 @@ async function readCurrentPatientBookingSlotSnapshot(input: {
 async function readCurrentPatientBookingRuntimeInteger(
   key:
     | 'booking_min_notice_hours'
+    | 'booking_availability_horizon_days'
     | 'booking_max_consecutive_slot_hours'
     | 'booking_prepayment_wait_minutes',
 ): Promise<number> {
@@ -195,15 +198,16 @@ async function readPublicBookingSlotSnapshot(input: {
   );
   const snapshot = result.rows[0]?.snapshot;
   if (snapshot == null) return null;
-  const parsed = bookingSlotSnapshotSchema.parse(snapshot);
+  const parsed = publicBookingSlotSnapshotSchema.parse(snapshot);
   rememberPublicBookingRuntimeSettings({
     minNoticeHours: parsed.minNoticeHours,
+    availabilityHorizonDays: parsed.availabilityHorizonDays,
     maxConsecutiveSlotHours: parsed.maxConsecutiveSlotHours,
   });
   return parsed;
 }
 
-/** Обе настройки записи приезжают внутри снимка; отдельного чтения настроек публичной двери нет. */
+/** Настройки записи приезжают внутри снимка; отдельного чтения настроек публичной двери нет. */
 function requirePublicBookingRuntimeSettings() {
   const settings = currentPublicBookingRuntimeSettings();
   if (!settings) throw new Error('catalog_unavailable');
@@ -656,6 +660,16 @@ export function createPgBookingSchedulingPort(
         return readCurrentPatientBookingRuntimeInteger('booking_min_notice_hours');
       }
       return getServerRuntimeInteger('booking_min_notice_hours', organizationId);
+    },
+
+    async getAvailabilityHorizonDays(organizationId) {
+      if (isCurrentPublicBookingPrincipal()) {
+        return requirePublicBookingRuntimeSettings().availabilityHorizonDays;
+      }
+      if (isCurrentPatientPrincipal()) {
+        return readCurrentPatientBookingRuntimeInteger('booking_availability_horizon_days');
+      }
+      return getServerRuntimeInteger('booking_availability_horizon_days', organizationId);
     },
 
     async getMaxConsecutiveSlotHours(organizationId) {

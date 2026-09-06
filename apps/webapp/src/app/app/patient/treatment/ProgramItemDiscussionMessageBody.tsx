@@ -1,22 +1,25 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/ui/patient/primitives/dialog';
+import { useState } from 'react';
+import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { PatientMediaPlaybackVideo } from '@/shared/ui/patient/media/PatientMediaPlaybackVideo';
 import { PatientCatalogMediaStaticThumb } from '@/shared/ui/patient/PatientCatalogMediaStaticThumb';
 import { MediaThumb } from '@/shared/ui/patient/media/MediaThumb';
 import type { MediaPreviewUiModel } from '@/shared/ui/patient/media/mediaPreviewUiModel';
 import { cn } from '@/lib/utils';
 import { patientBodyTextClass } from '@/shared/ui/patient/patientVisual';
-import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
+import { useDiscussionMessageMediaPlayback } from '@/shared/ui/chat/useDiscussionMessageMediaPlayback';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 
+/**
+ * Тело сообщения обсуждения в кабинете ПАЦИЕНТА.
+ *
+ * Медиа открывается полноэкранно поверх обсуждения (`PatientModal presentation="fullscreen-media"`),
+ * а обсуждение под ним остаётся смонтированным — закрытие возвращает ровно в тот же тред.
+ * Модель загрузки playback общая с кабинетом врача ({@link useDiscussionMessageMediaPlayback}),
+ * сам UI — patient-примитивы, без импорта doctor-зоны (AGENTS.md §17).
+ */
 export function ProgramItemDiscussionMessageBody(props: {
   message: ProgramItemDiscussionMessage;
   mine: boolean;
@@ -25,38 +28,10 @@ export function ProgramItemDiscussionMessageBody(props: {
 }) {
   const { message, mine, textClassName, trailingContent } = props;
   const [playerOpen, setPlayerOpen] = useState(false);
-  const [playbackResult, setPlaybackResult] = useState<{
-    mediaId: string;
-    payload: MediaPlaybackPayload;
-  } | null>(null);
-  const [failedMediaId, setFailedMediaId] = useState<string | null>(null);
   const mediaId = message.mediaFileId;
-
-  useEffect(() => {
-    if (!mediaId) return;
-    let cancelled = false;
-    void fetch(`/api/media/${encodeURIComponent(mediaId)}/playback`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`media playback metadata: ${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
-        if (!cancelled && data && typeof data === 'object' && 'mediaId' in data) {
-          setPlaybackResult({ mediaId, payload: data as MediaPlaybackPayload });
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setFailedMediaId(mediaId);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [mediaId]);
+  const { playback, failed: playbackFailed, isVideo } = useDiscussionMessageMediaPlayback(mediaId);
 
   if (mediaId) {
-    const playback = playbackResult?.mediaId === mediaId ? playbackResult.payload : null;
-    const playbackFailed = failedMediaId === mediaId;
-    const isVideo = playback?.delivery === 'mp4' || playback?.delivery === 'hls';
     /**
      * While the thumbnail is missing the bubble shows the stored file itself, but only once the
      * upload has been through the standard rendition (owner ruling 19.08); before that the file is
@@ -112,29 +87,32 @@ export function ProgramItemDiscussionMessageBody(props: {
             />
           )}
         </button>
-        <Dialog open={playerOpen} onOpenChange={setPlayerOpen}>
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>{isVideo ? 'Видео' : 'Фото'}</DialogTitle>
-            </DialogHeader>
-            {isVideo ? (
-              <PatientMediaPlaybackVideo
-                mediaId={mediaId}
-                title="Видео"
-                initialPlayback={playback}
-              />
-            ) : (
+        <PatientModal
+          open={playerOpen}
+          onClose={() => setPlayerOpen(false)}
+          title={isVideo ? 'Видео' : 'Фото'}
+          presentation="fullscreen-media"
+        >
+          {isVideo ? (
+            <PatientMediaPlaybackVideo
+              mediaId={mediaId}
+              title="Видео"
+              initialPlayback={playback}
+              presentation="fullscreen"
+            />
+          ) : (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-2">
               <MediaThumb
                 media={imagePreview}
-                className="max-h-[70vh] w-full object-contain"
-                imgClassName="max-h-[70vh] w-full object-contain"
-                sizes="(max-width: 640px) 100vw, 672px"
+                className="max-h-full w-full object-contain"
+                imgClassName="max-h-full w-full object-contain"
+                sizes="100vw"
                 lazy={false}
                 alt=""
               />
-            )}
-          </DialogContent>
-        </Dialog>
+            </div>
+          )}
+        </PatientModal>
       </>
     );
   }

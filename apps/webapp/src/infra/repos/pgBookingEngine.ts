@@ -444,6 +444,12 @@ async function insertAppointmentInTransaction(
       prepaymentAmountMinor: input.prepaymentAmountMinor ?? null,
       prepaymentRequiredMinor: input.prepaymentRequiredMinor ?? 0,
       paymentDeadlineAt: input.paymentDeadlineAt ?? null,
+      // ENCOUNTER-APPOINTMENT-05: подтверждённое наложение хранится КАК СЛОТ, а не как флаг, и
+      // сравнивается предикатом ограничения с собственным временем строки. Поэтому здесь пишется
+      // ровно то, что подтвердил врач; несовпадение с `start_at`/`end_at` оставляет запись под
+      // обычным запретом пересечений, то есть подделать иммунитет вперёд нечем.
+      overlapConfirmedStartAt: input.overlapConfirmedStartAt ?? null,
+      overlapConfirmedEndAt: input.overlapConfirmedEndAt ?? null,
       createdAt: now,
       updatedAt: now,
     })

@@ -5,6 +5,17 @@ import { ScheduleSetupTab } from './tabs/ScheduleSetupTab';
 
 const fakes = vi.hoisted(() => ({
   apiJson: vi.fn(),
+  bookingRulesProps: vi.fn(),
+}));
+
+vi.mock('@/app/app/doctor/admin/booking/BookingRulesPageClient', () => ({
+  BookingRulesPageClient: (props: {
+    allowPastUnlinkPastPackageSessions?: boolean;
+    availabilityHorizonDays: number | null;
+  }) => {
+    fakes.bookingRulesProps(props);
+    return <div data-testid="booking-rules" />;
+  },
 }));
 
 vi.mock('next/dynamic', () => ({
@@ -54,6 +65,7 @@ describe('doctor schedule access visibility', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
     fakes.apiJson.mockReset();
+    fakes.bookingRulesProps.mockReset();
     fakes.apiJson.mockImplementation(async (url: string) => {
       if (url === '/api/doctor/settings') return { ok: true, settings: [] };
       if (url.startsWith('/api/doctor/booking-engine/calendar')) {
@@ -132,5 +144,27 @@ describe('doctor schedule access visibility', () => {
 
     fireEvent.click(desktopNavigation.getByRole('button', { name: 'Календарь' }));
     expect(screen.getByTestId('setup-section-calendar')).toBeInTheDocument();
+  });
+
+  it('keeps booking rules usable with the registry default when the clinic setting is absent', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true, settings: [] }), { status: 200 }),
+    );
+
+    render(
+      <ScheduleSetupTab
+        {...setupProps()}
+        deepLinkParams={{ section: 'rules' }}
+        paymentsVisible
+        notificationTemplatesVisible
+        packagesVisible
+      />,
+    );
+
+    expect(await screen.findByTestId('booking-rules')).toBeInTheDocument();
+    expect(fakes.bookingRulesProps).toHaveBeenCalledWith(
+      expect.objectContaining({ availabilityHorizonDays: 30 }),
+    );
+    expect(screen.queryByText('Не удалось загрузить настройки')).not.toBeInTheDocument();
   });
 });

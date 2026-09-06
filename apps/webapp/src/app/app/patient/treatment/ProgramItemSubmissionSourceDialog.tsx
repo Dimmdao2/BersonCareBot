@@ -3,12 +3,7 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import { Camera, FolderOpen, ImageIcon } from 'lucide-react';
 import { Button } from '@/shared/ui/patient/primitives/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/ui/patient/primitives/dialog';
+import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { PROGRAM_SUBMISSION_FILE_INPUT_ACCEPT } from '@/modules/media/programSubmissionUploadLimits';
 import { uploadProgramSubmissionToDiscussion } from '@/app/app/patient/treatment/uploadProgramSubmissionToDiscussion';
 import { cn } from '@/lib/utils';
@@ -34,6 +29,11 @@ function resetIosMobileZoom() {
   });
 }
 
+/**
+ * Выбор источника файла поверх обсуждения: маленькая модалка следующего слоя.
+ * Второе затемнение не рисуется (общий стек слоёв {@link PatientModal}), а обсуждение под ней
+ * остаётся смонтированным — закрытие возвращает в тот же тред с сохранённым черновиком.
+ */
 export const ProgramItemSubmissionSourceDialog = forwardRef<
   ProgramItemSubmissionSourceDialogHandle,
   {
@@ -117,44 +117,44 @@ export const ProgramItemSubmissionSourceDialog = forwardRef<
         aria-hidden
         onChange={(e) => void processFile(e.target.files?.[0] ?? null)}
       />
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="rounded-lg border border-[var(--patient-border)] shadow-md sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Добавить фото или видео</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-2">
-            <Button
-              type="button"
-              className={cn(patientPrimaryActionClass, 'justify-start gap-2')}
-              disabled={disabled || busy}
-              onClick={() => recordInputRef.current?.click()}
-            >
-              <Camera className="size-4 shrink-0" aria-hidden />
-              Записать
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="justify-start gap-2"
-              disabled={disabled || busy}
-              onClick={() => galleryInputRef.current?.click()}
-            >
-              <ImageIcon className="size-4 shrink-0" aria-hidden />
-              Галерея
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="justify-start gap-2"
-              disabled={disabled || busy}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <FolderOpen className="size-4 shrink-0" aria-hidden />
-              Файлы
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PatientModal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Добавить фото или видео"
+        size="sm"
+      >
+        <div className="flex flex-col gap-2">
+          <Button
+            type="button"
+            className={cn(patientPrimaryActionClass, 'justify-start gap-2')}
+            disabled={disabled || busy}
+            onClick={() => recordInputRef.current?.click()}
+          >
+            <Camera className="size-4 shrink-0" aria-hidden />
+            Записать
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="justify-start gap-2"
+            disabled={disabled || busy}
+            onClick={() => galleryInputRef.current?.click()}
+          >
+            <ImageIcon className="size-4 shrink-0" aria-hidden />
+            Галерея
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="justify-start gap-2"
+            disabled={disabled || busy}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <FolderOpen className="size-4 shrink-0" aria-hidden />
+            Файлы
+          </Button>
+        </div>
+      </PatientModal>
     </>
   );
 });

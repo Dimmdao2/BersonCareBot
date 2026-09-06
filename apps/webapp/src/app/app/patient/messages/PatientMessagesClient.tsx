@@ -1,7 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { routePaths } from '@/app-layer/routes/paths';
+import { PatientModal } from '@/shared/ui/patient/PatientModal';
+import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { Textarea } from '@/shared/ui/patient/primitives/textarea';
 import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
@@ -11,7 +15,6 @@ import { notifyPatientSupportUnreadCountChanged } from '@/modules/messaging/hook
 import type { SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
 import { cn } from '@/lib/utils';
 import {
-  patientCardClass,
   patientChatComposerTextareaClass,
   patientInnerPageStackClass,
   patientMutedTextClass,
@@ -19,7 +22,17 @@ import {
 } from '@/shared/ui/patient/patientVisual';
 import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
+/**
+ * 1:1 обращение пациента в канонической модалке `PatientModal size="content"`.
+ *
+ * Шапка — активная организация ПРОСТЫМ ТЕКСТОМ: текущий контракт поддержки
+ * (`GET /api/patient/messages`) не отдаёт назначенного врача, поэтому имя человека не
+ * выдумывается и не хардкодится. Закрытие возвращает на безопасный маршрут пациента.
+ */
 export function PatientMessagesClient() {
+  const router = useRouter();
+  const organizationContext = usePatientOrganizationContext();
+  const headerTitle = organizationContext?.organization.title.trim() || 'Чат';
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SerializedSupportMessage[]>([]);
   const [draft, setDraft] = useState('');
@@ -142,91 +155,94 @@ export function PatientMessagesClient() {
     }
   };
 
-  if (loading) {
-    return <AppContentLoading className="flex-1 py-6" />;
-  }
-
   return (
-    <section
-      className={cn(
-        patientCardClass,
-        'flex min-h-0 flex-col gap-3 overflow-hidden',
-        'patient-messages-chat-height',
-      )}
+    <PatientModal
+      open
+      onClose={() => router.replace(routePaths.patient)}
+      title={headerTitle}
+      size="content"
     >
-      {error ? (
-        <p
-          className={cn(
-            patientMutedTextClass,
-            'shrink-0 font-medium text-[var(--patient-color-danger)]',
-          )}
-        >
-          {error}
-        </p>
-      ) : null}
-      <ChatView
-        variant="patient"
-        relativeFooters
-        messages={messages}
-        emptyText={
-          readOnly
-            ? 'В этом обращении нет сообщений.'
-            : 'Напишите сообщение поддержке — ответ появится здесь.'
-        }
-        className="min-h-0 flex-1"
-        composer={
-          readOnly ? (
+      {loading ? (
+        <AppContentLoading className="flex-1 py-6" />
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-3 md:h-[min(75vh,40rem)] md:min-h-[20rem] md:flex-none">
+          {error ? (
             <p
-              data-testid="patient-messages-readonly-notice"
               className={cn(
                 patientMutedTextClass,
-                'shrink-0 border-t border-[var(--patient-border)] bg-[var(--patient-card-bg)] pt-3 text-center md:pt-4',
-                patientInnerPageStackClass,
+                'shrink-0 font-medium text-[var(--patient-color-danger)]',
               )}
             >
-              Обращение закрыто. Историю можно читать, но написать в него уже нельзя — создайте
-              новое обращение.
+              {error}
             </p>
-          ) : (
-            <MessageComposer
-              value={draft}
-              onValueChange={setDraft}
-              onSubmit={send}
-              submitting={sending}
-              placeholder="Ваше сообщение…"
-              ariaLabel="Текст сообщения"
-              submitLabel="Отправить"
-              submittingLabel="Отправка…"
-              maxLength={4000}
-              className={cn(
-                'shrink-0 border-t border-[var(--patient-border)] bg-[var(--patient-card-bg)] pt-3 md:pt-4',
-                patientInnerPageStackClass,
-              )}
-              rows={2}
-              onFocus={() => setComposerExpanded(true)}
-              onBlur={() => {
-                if (!draft.trim()) setComposerExpanded(false);
-              }}
-              renderTextarea={(props) => (
-                <Textarea
-                  {...props}
+          ) : null}
+          <ChatView
+            variant="patient"
+            relativeFooters
+            messages={messages}
+            emptyText={
+              readOnly
+                ? 'В этом обращении нет сообщений.'
+                : 'Напишите сообщение поддержке — ответ появится здесь.'
+            }
+            className="min-h-0 flex-1"
+            composer={
+              readOnly ? (
+                <p
+                  data-testid="patient-messages-readonly-notice"
                   className={cn(
-                    patientChatComposerTextareaClass,
-                    'transition-[min-height] duration-200 ease-out',
-                    composerExpanded || draft.trim().length > 0 ? 'min-h-[112px]' : 'min-h-[56px]',
+                    patientMutedTextClass,
+                    'shrink-0 border-t border-[var(--patient-border)] bg-[var(--patient-card-bg)] pt-3 text-center md:pt-4',
+                    patientInnerPageStackClass,
+                  )}
+                >
+                  Обращение закрыто. Историю можно читать, но написать в него уже нельзя — создайте
+                  новое обращение.
+                </p>
+              ) : (
+                <MessageComposer
+                  value={draft}
+                  onValueChange={setDraft}
+                  onSubmit={send}
+                  submitting={sending}
+                  placeholder="Ваше сообщение…"
+                  ariaLabel="Текст сообщения"
+                  submitLabel="Отправить"
+                  submittingLabel="Отправка…"
+                  maxLength={4000}
+                  className={cn(
+                    'shrink-0 border-t border-[var(--patient-border)] bg-[var(--patient-card-bg)] pt-3 md:pt-4',
+                    patientInnerPageStackClass,
+                  )}
+                  rows={2}
+                  onFocus={() => setComposerExpanded(true)}
+                  onBlur={() => {
+                    if (!draft.trim()) setComposerExpanded(false);
+                  }}
+                  renderTextarea={(props) => (
+                    <Textarea
+                      {...props}
+                      className={cn(
+                        patientChatComposerTextareaClass,
+                        'transition-[min-height] duration-200 ease-out',
+                        composerExpanded || draft.trim().length > 0
+                          ? 'min-h-[112px]'
+                          : 'min-h-[56px]',
+                      )}
+                    />
+                  )}
+                  renderSubmit={(props) => (
+                    <Button
+                      {...props}
+                      className={cn(patientPrimaryActionClass, 'disabled:opacity-55')}
+                    />
                   )}
                 />
-              )}
-              renderSubmit={(props) => (
-                <Button
-                  {...props}
-                  className={cn(patientPrimaryActionClass, 'disabled:opacity-55')}
-                />
-              )}
-            />
-          )
-        }
-      />
-    </section>
+              )
+            }
+          />
+        </div>
+      )}
+    </PatientModal>
   );
 }

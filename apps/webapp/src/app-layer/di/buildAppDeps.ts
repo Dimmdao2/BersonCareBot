@@ -386,6 +386,8 @@ import { createInMemoryOrganizationMembershipPort } from '@/infra/repos/inMemory
 import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
 import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
 import { assertMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
+import { getMechanicMutationAvailability } from '@/app-layer/guards/requireEntitlement';
+import type { PrepaymentMode } from '@/modules/payments/types';
 import { withRequestLocalMechanicAccess } from '@/app-layer/entitlements/requestLocalMechanicAccess';
 import { wrapSystemSettingsServiceWithTariffMechanicWriteClearance } from '@/app-layer/entitlements/mechanicSettingsWriteClearance';
 import {
@@ -763,6 +765,26 @@ const bookingCalendarService =
             organizationId,
             events,
           ),
+        // PAY-APPT-03: умолчание условия оплаты берётся из ТОЙ ЖЕ политики предоплаты, из которой
+        // сервер считает снимок записи (`resolveStaffAppointmentFinancials`). Второго источника
+        // умолчаний для формы не заводится: расходиться им негде.
+        resolveServicePrepaymentDefaults: async (organizationId: string) => {
+          if (inMemoryRepos || !paymentsService) return null;
+          const entitled = await getMechanicMutationAvailability({ organizationId }, 'payments');
+          if (!entitled.available) return null;
+          const settings = await paymentsService.getSettings(organizationId);
+          if (!settings.enabled) return null;
+          const policies = await paymentsService.listPrepaymentPolicies(organizationId);
+          const byService = new Map<string, { mode: PrepaymentMode; percentBps: number | null }>();
+          for (const policy of policies) {
+            if (!policy.serviceId || !policy.isActive) continue;
+            byService.set(policy.serviceId, {
+              mode: policy.mode,
+              percentBps: policy.percentBps,
+            });
+          }
+          return byService;
+        },
         resolveShowWorkingHours: async () => {
           if (inMemoryRepos) return true;
           const row = await systemSettingsService.getSetting(

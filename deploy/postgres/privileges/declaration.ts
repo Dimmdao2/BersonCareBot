@@ -6567,6 +6567,21 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "UPDATE"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "organization_id",
+          "value_json",
+          "updated_at",
+          "updated_by"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],
     "invocation": "runtime"
@@ -12280,6 +12295,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "id",
           "organization_id",
           "original_start_at",
+          "overlap_confirmed_end_at",
+          "overlap_confirmed_start_at",
           "package_usage_ref",
           "payment_deadline_at",
           "payment_ref",
@@ -14804,6 +14821,46 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "removed",
           "status",
           "visit_id"
+        ]
+      }
+    ]
+  },
+  "public.clinical_disease_anamnesis": {
+    "kind": "direct",
+    "purpose": "Анамнез заболевания — единый patient-scoped текст после диагнозов, отдельно от "
+      + "биографического анамнеза жизни",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPatientClinical.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "created_by",
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "text"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "text"
         ]
       }
     ]
@@ -23649,6 +23706,8 @@ const TABLE_ROWS: TableRow[] = [
     + 'кто и когда снял/поставил диагноз' },
   { t: 'public.clinical_diagnosis_update', cls: 'P', org: true, why: 'Уточнения диагноза по визитам — без неё '
     + 'диагноз не уточняется от визита к визиту' },
+  { t: 'public.clinical_disease_anamnesis', cls: 'P', org: true, why: 'Анамнез заболевания — единый '
+    + 'patient-scoped текст после диагнозов, отдельно от биографического анамнеза жизни' },
   { t: 'public.clinical_test_measure_kinds', cls: 'R', org: false, wall: 'pending-removal', rls: 'n/a',
     disp: 'REMOVED', why: 'УДАЛЕНО миграцией 0394: виды измерений перенесены в organization-scoped '
       + 'reference_categories/reference_items; возможные legacy-строки скопированы каждой существующей клинике',
@@ -27380,6 +27439,12 @@ const REV10_CONTEXT = {
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
+    'public.enforce_be_appointments_confirmed_overlap_occupancy()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
+      purpose: 'confirmed appointment overlap occupancy trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, public, pg_temp'], invocation: 'trigger' as const,
+    }),
     'public.media_folders_enforce_depth()': rev10Function({
       owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'media-folder maximum-depth integrity trigger', typedArgs: [],
@@ -27965,6 +28030,10 @@ const REV10_CONTEXT = {
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
           'payment_deadline_at',
+          // ENCOUNTER-APPOINTMENT-05: функция читает строку записи ЦЕЛИКОМ (`%ROWTYPE` / `to_jsonb`),
+          // поэтому новые колонки подтверждённого наложения нужны ей на ЧТЕНИЕ. На запись их здесь
+          // нет: признак ставит только ручная дверь врача при явном подтверждении.
+          'overlap_confirmed_start_at', 'overlap_confirmed_end_at',
         ], operations: ['SELECT' as const, 'UPDATE' as const],
         operationColumns: { UPDATE: ['prepayment_paid_minor', 'status', 'updated_at'] },
         evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -28828,6 +28897,10 @@ const REV10_CONTEXT = {
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
           'payment_deadline_at',
+          // ENCOUNTER-APPOINTMENT-05: функция читает строку записи ЦЕЛИКОМ (`%ROWTYPE` / `to_jsonb`),
+          // поэтому новые колонки подтверждённого наложения нужны ей на ЧТЕНИЕ. На запись их здесь
+          // нет: признак ставит только ручная дверь врача при явном подтверждении.
+          'overlap_confirmed_start_at', 'overlap_confirmed_end_at',
         ], operations: ['SELECT' as const, 'INSERT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointment_history_events',
@@ -28855,6 +28928,10 @@ const REV10_CONTEXT = {
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
           'payment_deadline_at',
+          // ENCOUNTER-APPOINTMENT-05: функция читает строку записи ЦЕЛИКОМ (`%ROWTYPE` / `to_jsonb`),
+          // поэтому новые колонки подтверждённого наложения нужны ей на ЧТЕНИЕ. На запись их здесь
+          // нет: признак ставит только ручная дверь врача при явном подтверждении.
+          'overlap_confirmed_start_at', 'overlap_confirmed_end_at',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -29011,6 +29088,10 @@ const REV10_CONTEXT = {
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
           'payment_deadline_at',
+          // ENCOUNTER-APPOINTMENT-05: функция читает строку записи ЦЕЛИКОМ (`%ROWTYPE` / `to_jsonb`),
+          // поэтому новые колонки подтверждённого наложения нужны ей на ЧТЕНИЕ. На запись их здесь
+          // нет: признак ставит только ручная дверь врача при явном подтверждении.
+          'overlap_confirmed_start_at', 'overlap_confirmed_end_at',
         ], operations: ['SELECT' as const, 'UPDATE' as const],
         operationColumns: { UPDATE: [
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
@@ -29053,6 +29134,10 @@ const REV10_CONTEXT = {
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
           'payment_deadline_at',
+          // ENCOUNTER-APPOINTMENT-05: функция читает строку записи ЦЕЛИКОМ (`%ROWTYPE` / `to_jsonb`),
+          // поэтому новые колонки подтверждённого наложения нужны ей на ЧТЕНИЕ. На запись их здесь
+          // нет: признак ставит только ручная дверь врача при явном подтверждении.
+          'overlap_confirmed_start_at', 'overlap_confirmed_end_at',
         ], operations: ['SELECT' as const, 'UPDATE' as const],
         operationColumns: { UPDATE: [
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
@@ -30510,6 +30595,11 @@ export const REV10_LOCKED_POLICY_DATA: Readonly<Record<string, LockedPolicyEntry
     policyName: "saas_org_dormant_p0_8_4",
     strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"clinical_diagnosis\" AS \"b4f_diagnosis\" WHERE \"b4f_diagnosis\".\"id\" = \"diagnosis_id\" AND \"b4f_diagnosis\".\"patient_user_id\" = app.current_patient_user_id() )))",
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"clinical_diagnosis\" AS \"b4f_diagnosis\" WHERE \"b4f_diagnosis\".\"id\" = \"diagnosis_id\" AND \"b4f_diagnosis\".\"patient_user_id\" = app.current_patient_user_id() ))))",
+  },
+  "public.clinical_disease_anamnesis": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
   },
   "public.clinical_test_regions": {
     policyName: "saas_org_dormant_p0_8_3",

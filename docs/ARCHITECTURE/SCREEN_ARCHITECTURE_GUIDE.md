@@ -290,7 +290,7 @@
 | Semantic surfaces     | `patientSurfaceNeutral/Info/Success/Warning/DangerClass`                                                          | `patientVisual.ts`                                |
 | Карточка списка/сетки | `FeatureCard`                                                                                                     | `shared/ui/patient/FeatureCard.tsx`               |
 | CTA                   | `patientButtonPrimary/Success/Secondary/DangerOutline…Class`                                                      | `patientVisual.ts`                                |
-| Модалка               | `PatientModalDialogContent`                                                                                       | `shared/ui/patient/PatientModalDialogContent.tsx` |
+| Модалка               | `PatientModal` (+ `PatientModalFooter`)                                                                           | `shared/ui/patient/PatientModal.tsx`              |
 | Коллапсы              | `patientRecommendationCollapsible*` / `patientStageGoalsCollapsible*`                                             | `patientVisual.ts`                                |
 | Загрузка              | `PatientLoadingShimmer` (4 паттерна: `gridCards`/`heroList`/`formRows`/`cardBlocks`) + `PatientRouteLoadingShell` | `shared/ui/patient/PatientLoadingShimmer.tsx`     |
 | Пусто/гость           | `patientEmptyStateClass` / `GuestPlaceholder`                                                                     | `shared/ui/patient/*`                             |
@@ -399,7 +399,7 @@
 6. **Zone Z4:** тело из §6-примитивов. Каталог = копия стека T3. Форма = T5 + `DoctorCatalogPersistPublishBar`.
 7. **Действия:** первичное — правый слот Z1 (врач) / full-width CTA (пациент); сохранение — publish-bar. Не inline в произвольном месте.
 8. **Состояния:** `Suspense` + named-скелет (§6), `DoctorEmptyState`/`patientEmptyStateClass`, `DataLoadFailureNotice`.
-9. **Медиа:** только `MediaThumb`/`*MediaPlaybackVideo`. **Модалка:** только `DoctorModal`/`PatientModalDialogContent`.
+9. **Медиа:** только `MediaThumb`/`*MediaPlaybackVideo`. **Модалка:** только `DoctorModal`/`PatientModal`.
 10. **Само-проверка по §7 (инварианты)** + прогон reuse-first: не сделал ли локальную копию существующего примитива.
 
 ### Порядок унификации существующего (по приоритету §8)

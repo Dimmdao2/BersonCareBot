@@ -15,6 +15,8 @@ import type {
   CalendarFilterMeta,
   CalendarServiceFilterOption,
 } from '@/modules/booking-calendar/types';
+import type { PrepaymentMode } from '@/modules/payments/types';
+import { minorToRublesInput } from '@/app/app/settings/bookingSoloAdminApi';
 import type { CalendarCreateActiveFilters } from '@/modules/booking-calendar/calendarCreateFieldMode';
 import { resolveCalendarCreateFieldMode } from '@/modules/booking-calendar/calendarCreateFieldMode';
 import {
@@ -22,6 +24,15 @@ import {
   type CalendarPatientOption,
 } from './DoctorCalendarPatientSearch';
 import { DoctorCalendarCreateFormField } from './DoctorCalendarCreateFormField';
+
+/**
+ * PAY-APPT-03: условие оплаты ЭТОЙ записи. Режим — тот же общесистемный словарь, что и у политики
+ * клиники; процент врач набирает по-человечески, в базисные пункты его переводит отправка.
+ */
+export type AppointmentPrepaymentDraft = {
+  mode: PrepaymentMode;
+  percent: string;
+};
 
 /** Черновик записи. Одна форма обслуживает и создание, и режим «Изменить». */
 export type AppointmentFormDraft = {
@@ -34,7 +45,36 @@ export type AppointmentFormDraft = {
   patient: CalendarPatientOption | null;
   comment: string;
   status: string | null;
+  /** PAY-APPT-01: стоимость в рублях ровно как её набирает врач; в копейки переводит отправка. */
+  priceRubles: string;
+  /**
+   * PAY-APPT-02: врач уже задал стоимость руками. Смена услуги подставляет цену новой услуги
+   * только пока этого не произошло — сохранённый ручной снимок не перетирается сам.
+   */
+  priceOverridden: boolean;
+  /** `null` — клиника предоплату не принимает, и условия оплаты в форме нет вовсе. */
+  prepayment: AppointmentPrepaymentDraft | null;
+  /** PAY-APPT-03: условие оплаты задано врачом; смена услуги его больше не переставляет. */
+  prepaymentOverridden: boolean;
 };
+
+/** Переопределяемые врачом условия — ровно три, названные владельцем. */
+const PREPAYMENT_MODE_LABELS: Record<PrepaymentMode, string> = {
+  disabled: 'Без предоплаты',
+  percent: 'Процент предоплаты',
+  full_price: 'Полная предоплата',
+  fixed_minor: 'Фиксированная сумма',
+};
+const OVERRIDABLE_PREPAYMENT_MODES: PrepaymentMode[] = ['disabled', 'percent', 'full_price'];
+
+export function prepaymentPercentFromBps(percentBps: number | null): string {
+  if (percentBps == null) return '';
+  return String(percentBps / 100);
+}
+
+export function servicePriceRublesInput(priceMinor: number | null): string {
+  return priceMinor == null ? '' : minorToRublesInput(priceMinor);
+}
 
 export type AppointmentStatusOption = { value: string; label: string };
 
@@ -79,12 +119,42 @@ export function DoctorAppointmentForm({
   const serviceMode = resolveCalendarCreateFieldMode(serviceOptions, activeFilters.serviceId);
 
   const setServiceId = (value: string | null) => {
-    const duration = value
-      ? (serviceOptions.find((service) => service.id === value)?.durationMinutes ?? null)
-      : null;
+    const service = value ? serviceOptions.find((option) => option.id === value) : undefined;
+    const duration = service?.durationMinutes ?? null;
+    // PAY-APPT-02: смена услуги подставляет цену и условие новой услуги, но ровно до тех пор,
+    // пока врач не задал их сам. Уже сохранённое ручное значение не переписывается молча.
+    const financialDefaults: Partial<AppointmentFormDraft> = {
+      ...(draft.priceOverridden
+        ? {}
+        : { priceRubles: servicePriceRublesInput(service?.priceMinor ?? null) }),
+      ...(draft.prepaymentOverridden
+        ? {}
+        : {
+            prepayment: service?.prepaymentDefault
+              ? {
+                  mode: service.prepaymentDefault.mode,
+                  percent: prepaymentPercentFromBps(service.prepaymentDefault.percentBps),
+                }
+              : null,
+          }),
+    };
     // APPT-FORM-09: длительность подставляется из услуги и остаётся редактируемой.
-    onDraftChange({ serviceId: value, ...(duration ? { durationMinutes: duration } : {}) });
+    onDraftChange({
+      serviceId: value,
+      ...(duration ? { durationMinutes: duration } : {}),
+      ...financialDefaults,
+    });
   };
+
+  const prepayment = draft.prepayment;
+  const prepaymentModeOptions = prepayment
+    ? OVERRIDABLE_PREPAYMENT_MODES.includes(prepayment.mode)
+      ? OVERRIDABLE_PREPAYMENT_MODES
+      : // Политика услуги может стоять на режиме, которого нет в словаре записи. Врач обязан
+        // ВИДЕТЬ действующее условие, поэтому оно остаётся в списке; выбрав другое, он его
+        // переопределяет, а не «теряет».
+        [...OVERRIDABLE_PREPAYMENT_MODES, prepayment.mode]
+    : [];
 
   return (
     <div className="flex flex-col gap-3">
@@ -164,6 +234,72 @@ export function DoctorAppointmentForm({
           }}
         />
       </div>
+
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="appointment-price">Стоимость, ₽</Label>
+        <Input
+          id="appointment-price"
+          inputMode="decimal"
+          className="w-full"
+          aria-label="Стоимость, ₽"
+          disabled={pending}
+          value={draft.priceRubles}
+          onChange={(event) =>
+            onDraftChange({ priceRubles: event.target.value, priceOverridden: true })
+          }
+        />
+      </div>
+
+      {prepayment ? (
+        <div className="flex flex-col gap-1">
+          <Label>Условие оплаты</Label>
+          <Select
+            value={prepayment.mode}
+            disabled={pending}
+            onValueChange={(value) =>
+              onDraftChange({
+                prepayment: { ...prepayment, mode: (value as PrepaymentMode) ?? 'disabled' },
+                prepaymentOverridden: true,
+              })
+            }
+          >
+            <SelectTrigger
+              className="w-full"
+              aria-label="Условие оплаты"
+              displayLabel={PREPAYMENT_MODE_LABELS[prepayment.mode]}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {prepaymentModeOptions.map((option) => (
+                <SelectItem key={option} value={option} label={PREPAYMENT_MODE_LABELS[option]}>
+                  {PREPAYMENT_MODE_LABELS[option]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+
+      {prepayment?.mode === 'percent' ? (
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="appointment-prepayment-percent">Процент предоплаты, %</Label>
+          <Input
+            id="appointment-prepayment-percent"
+            inputMode="decimal"
+            className="w-full"
+            aria-label="Процент предоплаты, %"
+            disabled={pending}
+            value={prepayment.percent}
+            onChange={(event) =>
+              onDraftChange({
+                prepayment: { ...prepayment, percent: event.target.value },
+                prepaymentOverridden: true,
+              })
+            }
+          />
+        </div>
+      ) : null}
 
       {mode === 'edit' && statusOptions.length > 1 ? (
         <div className="flex flex-col gap-1">

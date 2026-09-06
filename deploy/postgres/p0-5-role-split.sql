@@ -141,6 +141,7 @@ VALUES
   ('public', 'clinical_diagnosis_catalog', 'SCOPED'),
   ('public', 'clinical_diagnosis_status_history', 'SCOPED'),
   ('public', 'clinical_diagnosis_update', 'SCOPED'),
+  ('public', 'clinical_disease_anamnesis', 'SCOPED'),
   ('public', 'clinical_test_regions', 'SCOPED'),
   ('public', 'clinical_visit', 'SCOPED'),
   ('public', 'comments', 'SCOPED'),

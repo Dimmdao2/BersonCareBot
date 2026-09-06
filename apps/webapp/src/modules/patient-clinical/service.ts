@@ -20,6 +20,7 @@ import type {
   DiagnosisCatalogSuggestion,
   DiagnosisStatusHistoryEntry,
   PatientClinicalPort,
+  SetAnamnesisDiseaseInput,
   SetDiagnosisClinicalStatusInput,
   UpdateAnamnesisEntryInput,
   UpdateComplaintFieldsInput,
@@ -292,6 +293,11 @@ export function createPatientClinicalService({ patientClinicalPort }: PatientCli
       const text = input.text.trim();
       if (!recordDate || !text) throw new Error('invalid_anamnesis_lifestyle');
       return patientClinicalPort.updateAnamnesisEntry({ ...input, recordDate, text });
+    },
+
+    async setAnamnesisDisease(input: SetAnamnesisDiseaseInput): Promise<string> {
+      // Пустой текст — легитимное «очистить анамнез заболевания», не ошибка ввода.
+      return patientClinicalPort.setAnamnesisDisease({ ...input, text: input.text.trim() });
     },
 
     async listLinkedAppointmentIds(patientUserId: string): Promise<string[]> {
