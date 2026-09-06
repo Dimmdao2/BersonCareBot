@@ -377,3 +377,92 @@ scoped ESLint (3 изменённых файла)  → exit 0
 (`anamnesis/route.ts:PATCH`) — по указанию брифа не трогался, это дефект `feat/doctor-ui-rebuild`,
 приехавший слиянием; приземлению кандидата он мешает по-прежнему. Замечания ниже порога MUST FIX из
 первого аудита также не трогались.
+
+---
+
+## Финальная приёмка исправлений (2026-09-06, независимый закрывающий проход)
+
+**Кандидат:** `wt/appointment-prepayment-core`, HEAD `ea587013e` (исправления двух merge-блокеров
+`39042bc9d`, регистрация anamnesis-действия `812bf879e`, слияние актуальной
+`feat/doctor-ui-rebuild`). Продуктовый код не менялся; все временные поломки откачены, рабочее
+дерево чистое.
+
+### Вердикт: **PASS**
+
+Все пять проверок брифа закрыты. Ни одного достижимого сценария отказа против пунктов authority
+(`PAY-APPT-05`, `PAY-APPT-10`–`PAY-APPT-12`, `PAY-APPT-18`–`PAY-APPT-20`) не найдено. Оба блокера
+прошлой приёмки закрыты по существу, а не обходом гейта; унаследованный красный
+`protectedActionRegistryCoverage` тоже закрыт (`812bf879e` — та же exemption-строка
+`critical mechanic (patient_card)`, что уже несёт соседний `POST` того же маршрута, и `PATCH`
+стоит за тем же `requireDoctorWorkspaceApiContext`).
+
+### Проверки брифа
+
+| № | Проверка | Как проверено | Итог |
+|---|---|---|---|
+| 1 | Перенос/правка `awaiting_payment` без 500, без молчаливого подтверждения, запись остаётся в пути истечения | реальный FSM + реальное поведение `applyReschedule`; маршрут правки читает пред-состояние для `serviceChanged` и пост-состояние для расчёта, замок денег стоит и в маршруте, и в самом `UPDATE` (`prepayment_paid_minor = 0 AND payment_ref IS NULL`) | PASS |
+| 1 | То же правило в пациентском корне | взгляд: `20260906T101500_…sql`, `v_to_status` CASE повторяет `appointmentStatusAfterReschedule`; VERIFY-заголовок миграции ассертит условие в теле функции | PASS |
+| 2 | Наличные атомарно и идемпотентно гасят требование | взгляд на `app.settle_appointment_cash_prepayment(text)`: `FOR UPDATE` записи ДО журнала, зачисление только при фактической вставке (`v_inserted`), идемпотентность на `uq_patient_payment_appointment_idempotency`; журнал и зачисление — один statement-атомарный корень | PASS |
+| 2 | Оплаченная запись не попадает под автоотмену | тик отбирает `status='awaiting_payment' AND prepayment_paid_minor=0 AND payment_ref IS NULL`; корень выводит в `confirmed` и оставляет ненулевой `prepayment_paid_minor`. Дверь наличных по записи достижима только с ключом: единственный вызывающий (`staffAppointmentPayments.ts:288`) всегда шлёт детерминированный `staff-appointment-cash:<id>:<сумма>`; вторая дверь (`patients/[userId]/payments`) `appointmentId` не передаёт вовсе | PASS |
+| 3 | Ссылка/QR на непокрытую часть ТРЕБОВАНИЯ из снимка | `appointmentPaymentIntentAmountMinor` из снимка; `getPaymentState.totalMinor` — снимок, историческая проекция только как резерв для старых записей; живой пересчёт `prepaymentQuote` отсутствует и в контракте, и в карточке — карточка печатает то же число, на которое создаётся намерение | PASS |
+| 4 | Миграция под объявленными владельцами | `migrate-local.mjs --rollback-only` против `bcb_webapp_dev`: `pending=2 total=122 reapplied=0 unapplied=0` | PASS |
+| 4 | Владельцы, `EXECUTE`, grants, артефакты | `check:db-privileges-generated` побайтно; `test:db-privileges` 341/184 pass 0 fail; `test:db-principal` 31/31; `check-migration-privileges` OK (123 файла) в составе `pnpm lint`; у `app_staff` нет `UPDATE` на `prepayment_paid_minor`; новый cron-источник объявлен существующей возможностью `webapp_worker_relation` без новой роли и без ручного `GRANT` | PASS |
+| 4 | Второго планировщика нет | `background-jobs-cli --check` → OK (24 артефакта) | PASS |
+| 5 | Единая проекция статусов после синхронизации с `feat/doctor-ui-rebuild` | `doctorAppointmentStatusView` — единственная лесенка, и её спрашивают все три поверхности: строка списка (`ScheduleCalendarTab.tsx:549`), сетка (`:449`, `:2345` + `DoctorTodayMiniCalendar.tsx:135`) и панель деталей (`DoctorCalendarEventPanel.tsx:547`) | PASS |
+
+### Kill-set на кандидате (каждая поломка внесена отдельно и полностью откачена)
+
+| Поломка | Что покраснело |
+|---|---|
+| снято ребро FSM `awaiting_payment → rescheduled` | 3 красных: `awaitingPaymentReschedule`, `pgBookingAppointmentLifecycle.awaitingPayment`, `financials.route` |
+| `appointmentStatusAfterReschedule` → константа `'confirmed'` | те же 3 красных |
+| ветка именованного корня наличных отключена (падение на реляционный путь) | 3 красных: `pgPatientPayments.appointmentCash`, `pgPatientPayments.principal` |
+| `appointmentPaymentIntentAmountMinor` → `remainingTotalMinor` | 3 красных в `staffAppointmentPaymentIntent` |
+| `prepayment_paid_minor` добавлен в `app_staff` UPDATE | `appointment-prepayment-least-privilege` → 1 fail из 9 |
+| строка источника удалена из `WEBAPP_WORKER_SOURCES` | `journalRetention.contract` → красный, источник назван поимённо |
+| снят TS-гейт арендатора с ветки именованного корня | `pgPatientPayments.principal` → 2 красных из 6 |
+| снята ступень «ожидает оплаты» из общей лесенки | `doctorCalendarPresentation.unit` + `DoctorCalendarEventPanel.ui` → 2 красных |
+
+### Команды и результаты
+
+```
+(apps/webapp) npx vitest --run  → 530 файлов: 523 passed | 7 skipped | 0 failed
+                                  2755 тестов: 2724 passed | 31 skipped | 0 failed
+pnpm typecheck                     → Done (7 проектов)
+pnpm lint                          → exit 0 (включая check-migration-privileges, 123 файла)
+pnpm check:db-privileges-generated → побайтно, exit 0
+pnpm test:db-privileges            → 341 tests, 184 pass, 0 fail, 157 skip
+pnpm test:db-principal             → 31 pass, 0 fail
+node deploy/host/background-jobs-cli.mjs --check → OK (24 artifacts)
+node deploy/postgres/privileges/migrate-local.mjs --db bcb_webapp_dev \
+  --migrator bcb_dev_migrator --drizzle-folder apps/webapp/db/drizzle-migrations \
+  --sudo-postgres --rollback-only
+  → validated and rolled back: pending=2 total=122 reapplied=0 unapplied=0
+```
+
+### Замечания ниже порога finding (не блокируют, для триажа владельца)
+
+1. **Счёт на ОСТАТОК стоимости после покрытой предоплаты не выставляется.** Предоплата 750 из
+   2500 оплачена → `appointmentPaymentIntentAmountMinor` даёт 0, и кнопка ссылки отвечает
+   `already_paid`, хотя 1750 ₽ не получены (наличными добрать по-прежнему можно —
+   `canCollect` смотрит на `remainingMinor`). Требование брифа («ссылка на непокрытую часть
+   ТРЕБОВАНИЯ предоплаты») выполнено буквально; нужна ли из деталей вторая ссылка на остаток и с
+   каким текстом отказа — продуктовая развилка `PAY-APPT-06`, а не дефект против authority.
+2. **Наличные по записи зачисляются в `prepayment_paid_minor` целиком**, даже когда требования
+   предоплаты нет (`prepayment_required_minor = 0`). Следствие: после кассы включается замок
+   `isAppointmentFinancialsLocked` и стоимость такой записи больше не переписывается. Поведение
+   согласуется с `PAY-APPT-12` («после состоявшихся денег финансовые значения не переписываются»),
+   но имя колонки в этом случае шире своего смысла.
+3. Замечания 1–7 первого аудита не трогались и остаются открытыми (двойное зачисление при повторе
+   под НОВЫМ ключом, неатомарность правки с переносом, `INSERT` `app_staff` на
+   `prepayment_paid_minor`, неотличимость истечения от отмены клиникой, отсутствие цены у
+   онлайн-записи пациента, размноженное умолчание «20 минут», дублированная
+   `prepaymentOverrideSchema`).
+
+### НЕ СДЕЛАНО
+
+- `PAY-APPT-20` (полные сценарии на живом TEST: оплата ссылкой/QR у реального провайдера, webhook,
+  повтор webhook, истечение срока) — приёмка на TEST в этот проход не выполнялась и остаётся за
+  владельцем. Ни DEV, ни TEST, ни PROD не изменялись, одноразовых баз не поднималось.
+- Живая приёмка владельца по галочкам `PAY-APPT-05/10/11/12/18/19` — за владельцем; здесь закрыт
+  только инженерный гейт.
