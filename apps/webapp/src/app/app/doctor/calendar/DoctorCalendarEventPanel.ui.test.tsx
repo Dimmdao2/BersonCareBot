@@ -59,6 +59,8 @@ describe('clinic calendar create form', () => {
               label: 'Приём',
               durationMinutes: 30,
               availability: [{ specialistId: SPECIALIST_ID, branchId: BRANCH_ID }],
+              priceMinor: null,
+              prepaymentDefault: null,
             },
           ],
         }}
@@ -117,6 +119,8 @@ describe('clinic calendar create form', () => {
               label: 'Приём',
               durationMinutes: 30,
               availability: [{ specialistId: SPECIALIST_ID, branchId: BRANCH_ID }],
+              priceMinor: null,
+              prepaymentDefault: null,
             },
           ],
         }}
@@ -202,6 +206,8 @@ describe('clinic calendar create form', () => {
               label: 'Приём',
               durationMinutes: 30,
               availability: [{ specialistId: SPECIALIST_ID, branchId: BRANCH_ID }],
+              priceMinor: null,
+              prepaymentDefault: null,
             },
           ],
         }}
@@ -395,6 +401,8 @@ const EDIT_FILTER_META: CalendarFilterMeta = {
       label: 'Приём',
       durationMinutes: 30,
       availability: [{ specialistId: SPECIALIST_ID, branchId: BRANCH_ID }],
+      priceMinor: null,
+      prepaymentDefault: null,
     },
   ],
 };

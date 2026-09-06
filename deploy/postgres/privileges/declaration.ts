@@ -12280,6 +12280,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "id",
           "organization_id",
           "original_start_at",
+          "overlap_confirmed_end_at",
+          "overlap_confirmed_start_at",
           "package_usage_ref",
           "payment_deadline_at",
           "payment_ref",
@@ -28007,6 +28009,10 @@ const REV10_CONTEXT = {
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
           'payment_deadline_at',
+          // ENCOUNTER-APPOINTMENT-05: функция читает строку записи ЦЕЛИКОМ (`%ROWTYPE` / `to_jsonb`),
+          // поэтому новые колонки подтверждённого наложения нужны ей на ЧТЕНИЕ. На запись их здесь
+          // нет: признак ставит только ручная дверь врача при явном подтверждении.
+          'overlap_confirmed_start_at', 'overlap_confirmed_end_at',
         ], operations: ['SELECT' as const, 'UPDATE' as const],
         operationColumns: { UPDATE: ['prepayment_paid_minor', 'status', 'updated_at'] },
         evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -28870,6 +28876,10 @@ const REV10_CONTEXT = {
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
           'payment_deadline_at',
+          // ENCOUNTER-APPOINTMENT-05: функция читает строку записи ЦЕЛИКОМ (`%ROWTYPE` / `to_jsonb`),
+          // поэтому новые колонки подтверждённого наложения нужны ей на ЧТЕНИЕ. На запись их здесь
+          // нет: признак ставит только ручная дверь врача при явном подтверждении.
+          'overlap_confirmed_start_at', 'overlap_confirmed_end_at',
         ], operations: ['SELECT' as const, 'INSERT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointment_history_events',
@@ -28897,6 +28907,10 @@ const REV10_CONTEXT = {
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
           'payment_deadline_at',
+          // ENCOUNTER-APPOINTMENT-05: функция читает строку записи ЦЕЛИКОМ (`%ROWTYPE` / `to_jsonb`),
+          // поэтому новые колонки подтверждённого наложения нужны ей на ЧТЕНИЕ. На запись их здесь
+          // нет: признак ставит только ручная дверь врача при явном подтверждении.
+          'overlap_confirmed_start_at', 'overlap_confirmed_end_at',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -29053,6 +29067,10 @@ const REV10_CONTEXT = {
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
           'payment_deadline_at',
+          // ENCOUNTER-APPOINTMENT-05: функция читает строку записи ЦЕЛИКОМ (`%ROWTYPE` / `to_jsonb`),
+          // поэтому новые колонки подтверждённого наложения нужны ей на ЧТЕНИЕ. На запись их здесь
+          // нет: признак ставит только ручная дверь врача при явном подтверждении.
+          'overlap_confirmed_start_at', 'overlap_confirmed_end_at',
         ], operations: ['SELECT' as const, 'UPDATE' as const],
         operationColumns: { UPDATE: [
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
@@ -29095,6 +29113,10 @@ const REV10_CONTEXT = {
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
           'payment_deadline_at',
+          // ENCOUNTER-APPOINTMENT-05: функция читает строку записи ЦЕЛИКОМ (`%ROWTYPE` / `to_jsonb`),
+          // поэтому новые колонки подтверждённого наложения нужны ей на ЧТЕНИЕ. На запись их здесь
+          // нет: признак ставит только ручная дверь врача при явном подтверждении.
+          'overlap_confirmed_start_at', 'overlap_confirmed_end_at',
         ], operations: ['SELECT' as const, 'UPDATE' as const],
         operationColumns: { UPDATE: [
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',

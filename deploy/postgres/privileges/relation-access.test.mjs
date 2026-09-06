@@ -627,11 +627,14 @@ test('schedule grants cover the default columns emitted by Drizzle inserts', () 
     // PAY-APPT-01: the appointment carries its own price and prepayment snapshot, so the staff
     // INSERT now names eight more columns — including `prepayment_paid_minor`, which the staff
     // request never supplies but Drizzle still names.
+    // ENCOUNTER-APPOINTMENT-05: plus the confirmed-overlap slot the manual door writes, which the
+    // same Drizzle insert names on every staff create.
     'public.be_appointments': [
       'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
       'appointment_reminder_selection_source', 'attribution_json', 'branch_id', 'chain_id',
       'chain_position', 'created_at', 'deleted_at', 'duration_minutes', 'end_at', 'id',
-      'organization_id', 'original_start_at', 'package_usage_ref', 'payment_deadline_at',
+      'organization_id', 'original_start_at', 'overlap_confirmed_end_at',
+      'overlap_confirmed_start_at', 'package_usage_ref', 'payment_deadline_at',
       'payment_ref', 'phone_normalized', 'platform_user_id', 'prepayment_amount_minor',
       'prepayment_mode', 'prepayment_paid_minor', 'prepayment_percent_bps',
       'prepayment_required_minor', 'price_currency', 'price_minor', 'reschedule_count',
