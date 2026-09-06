@@ -1,5 +1,6 @@
 'use client';
 
+import { useLayoutEffect } from 'react';
 import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
 
 import { CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from 'recharts';
@@ -23,10 +24,12 @@ export default function SymptomChartRecharts({
   points,
   period,
   scrollable = false,
+  onScrollableMount,
 }: {
   points: SymptomChartPoint[];
   period: StatsPeriod;
   scrollable?: boolean;
+  onScrollableMount?: () => void;
 }) {
   const data = points.map((p) => ({
     full: p.date,
@@ -35,6 +38,10 @@ export default function SymptomChartRecharts({
   }));
 
   const chartWidth = scrollable ? Math.max(364, data.length * 52) : undefined;
+
+  useLayoutEffect(() => {
+    if (scrollable) onScrollableMount?.();
+  }, [onScrollableMount, scrollable]);
 
   return (
     <div

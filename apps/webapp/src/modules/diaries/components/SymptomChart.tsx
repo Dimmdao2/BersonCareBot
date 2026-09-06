@@ -45,6 +45,12 @@ export function SymptomChart({
   const [error, setError] = useState<string | null>(null);
   const chartScrollRef = useRef<HTMLDivElement>(null);
 
+  const scrollToNewest = useCallback(() => {
+    const container = chartScrollRef.current;
+    if (!scrollable || !container || points.length === 0) return;
+    container.scrollLeft = container.scrollWidth;
+  }, [points, scrollable]);
+
   useEffect(() => {
     if (trackings.length === 0) {
       setTrackingId('');
@@ -105,10 +111,8 @@ export function SymptomChart({
   }, [load]);
 
   useLayoutEffect(() => {
-    const container = chartScrollRef.current;
-    if (!scrollable || !container || points.length === 0) return;
-    container.scrollLeft = container.scrollWidth;
-  }, [points, scrollable]);
+    scrollToNewest();
+  }, [scrollToNewest]);
 
   useEffect(() => {
     const onEntrySaved = () => {
@@ -181,7 +185,12 @@ export function SymptomChart({
           )}
           aria-busy={chartRefreshing}
         >
-          <RechartsSymptom points={points} period={period} scrollable={scrollable} />
+          <RechartsSymptom
+            points={points}
+            period={period}
+            scrollable={scrollable}
+            onScrollableMount={scrollToNewest}
+          />
         </div>
       ) : null}
 
