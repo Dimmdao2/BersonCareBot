@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useState, useTransition, type CSSProperties } from 'react';
+import { useCallback, useEffect, useId, useState, useTransition } from 'react';
 import {
   DndContext,
   KeyboardSensor,
@@ -14,10 +14,8 @@ import {
   SortableContext,
   arrayMove,
   sortableKeyboardCoordinates,
-  useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
@@ -33,8 +31,8 @@ import {
   DoctorDnaFlatList,
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
-  doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { DoctorSortableSettingsRow } from '@/shared/ui/doctor/DoctorSortableSettingsRow';
 import {
   SOLO_BOOKING_UNAVAILABLE_MESSAGE,
   apiJson,
@@ -49,8 +47,6 @@ import {
 import { isBuiltInOnlineLocation } from '@/modules/booking-engine/onlineLocation';
 import { DEFAULT_BOOKING_LOCATION_PALETTE } from '@/modules/booking-engine/locationPalette';
 import { DoctorTimezoneSelect } from '@/shared/ui/doctor/DoctorTimezoneSelect';
-import { cn } from '@/lib/utils';
-import { Flag, GripVertical } from 'lucide-react';
 
 const BASE = '/api/admin/booking-engine';
 const DEFAULT_BRANCH_COLOR = '#2563eb';
@@ -74,83 +70,6 @@ function BranchMeta({ branch }: { branch: BranchRow }) {
       <span aria-hidden="true">·</span>
       <span className="truncate">{addressLabel}</span>
     </span>
-  );
-}
-
-function SortableBranchRow({
-  branch,
-  disabled,
-  isDefault,
-  onOpen,
-  onActiveChange,
-}: {
-  branch: BranchRow;
-  disabled: boolean;
-  isDefault: boolean;
-  onOpen: () => void;
-  onActiveChange: (checked: boolean) => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    setActivatorNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: branch.id, disabled });
-  const style: CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    position: 'relative',
-    zIndex: isDragging ? 10 : undefined,
-  };
-
-  return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        doctorDnaFlatListRowClass,
-        'gap-2 pr-0 pl-1.5 transition-colors hover:bg-muted focus-within:bg-muted',
-        isDragging && 'bg-muted shadow-sm',
-      )}
-    >
-      <button
-        ref={setActivatorNodeRef}
-        type="button"
-        className="-ml-1 flex size-7 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
-        aria-label={`Изменить порядок: ${branch.title}`}
-        disabled={disabled}
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical className="size-4" />
-      </button>
-      <button
-        type="button"
-        className="flex min-w-0 flex-1 cursor-pointer flex-col self-stretch justify-center overflow-hidden text-left focus-visible:outline-none"
-        onClick={onOpen}
-      >
-        <span className={`${doctorDnaFlatListPrimaryClass} block truncate`}>{branch.title}</span>
-        <BranchMeta branch={branch} />
-      </button>
-      <span className="relative shrink-0">
-        <Switch
-          className="shrink-0"
-          checked={branch.isActive}
-          disabled={disabled}
-          aria-label={`${branch.title} — активен`}
-          onCheckedChange={onActiveChange}
-        />
-        {isDefault ? (
-          <Flag
-            className="absolute top-1/2 left-full ml-0.5 size-3 -translate-y-1/2 fill-primary text-primary"
-            aria-label="По умолчанию"
-          />
-        ) : null}
-      </span>
-    </li>
   );
 }
 
@@ -363,34 +282,6 @@ export function BookingSoloLocationsSection() {
   return (
     <>
       <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Онлайн</DoctorSectionTitle>
-        </DoctorSectionHeader>
-
-        <div className="flex min-w-0 items-center justify-between gap-3 py-1">
-          <Label className="min-w-0" htmlFor="booking-online-location">
-            Разрешить онлайн-запись
-          </Label>
-          <div className="flex shrink-0 items-center gap-3">
-            <DoctorColorPicker
-              label="Цвет онлайн-локации"
-              value={onlineLocation?.color ?? DEFAULT_BOOKING_LOCATION_PALETTE.online}
-              disabled={pending}
-              onChange={(next) =>
-                run(() => setOnlineLocationEnabled(onlineLocation?.isActive ?? false, next))
-              }
-            />
-            <Switch
-              id="booking-online-location"
-              checked={onlineLocation?.isActive ?? false}
-              disabled={pending}
-              onCheckedChange={(checked) => run(() => setOnlineLocationEnabled(checked))}
-            />
-          </div>
-        </div>
-      </DoctorSection>
-
-      <DoctorSection>
         <DoctorSectionHeader className="flex-row items-center justify-between gap-3">
           <DoctorSectionTitle>Филиалы</DoctorSectionTitle>
           <Button
@@ -424,14 +315,21 @@ export function BookingSoloLocationsSection() {
           >
             <DoctorDnaFlatList aria-label="Филиалы">
               {physicalBranches.map((branch) => (
-                <SortableBranchRow
+                <DoctorSortableSettingsRow
                   key={branch.id}
-                  branch={branch}
+                  id={branch.id}
+                  label={branch.title}
                   disabled={pending}
+                  active={branch.isActive}
                   isDefault={branch.id === defaultBranchId}
                   onOpen={() => openPhysicalBranch(branch)}
                   onActiveChange={(checked) => setBranchActive(branch, checked)}
-                />
+                >
+                  <span className={`${doctorDnaFlatListPrimaryClass} block truncate`}>
+                    {branch.title}
+                  </span>
+                  <BranchMeta branch={branch} />
+                </DoctorSortableSettingsRow>
               ))}
             </DoctorDnaFlatList>
           </SortableContext>
@@ -439,6 +337,34 @@ export function BookingSoloLocationsSection() {
         {physicalBranches.length === 0 ? (
           <p className="text-sm text-muted-foreground">Филиалов пока нет.</p>
         ) : null}
+      </DoctorSection>
+
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Онлайн</DoctorSectionTitle>
+        </DoctorSectionHeader>
+
+        <div className="flex min-w-0 items-center justify-between gap-3 py-1">
+          <Label className="min-w-0" htmlFor="booking-online-location">
+            Разрешить онлайн-запись
+          </Label>
+          <div className="flex shrink-0 items-center gap-3">
+            <DoctorColorPicker
+              label="Цвет онлайн-локации"
+              value={onlineLocation?.color ?? DEFAULT_BOOKING_LOCATION_PALETTE.online}
+              disabled={pending}
+              onChange={(next) =>
+                run(() => setOnlineLocationEnabled(onlineLocation?.isActive ?? false, next))
+              }
+            />
+            <Switch
+              id="booking-online-location"
+              checked={onlineLocation?.isActive ?? false}
+              disabled={pending}
+              onCheckedChange={(checked) => run(() => setOnlineLocationEnabled(checked))}
+            />
+          </div>
+        </div>
       </DoctorSection>
 
       <DoctorModal

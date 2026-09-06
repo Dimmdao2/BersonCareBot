@@ -333,7 +333,7 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
     );
   }
 
-  const activeServices = state.services.filter((s) => s.isActive && s.usableInPackages);
+  const activeServices = state.services.filter((s) => s.isActive);
 
   return (
     <div className="flex flex-col gap-4">
