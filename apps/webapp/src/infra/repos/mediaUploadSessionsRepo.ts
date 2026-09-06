@@ -6,6 +6,7 @@ import { withPoolTransaction } from '@/infra/db/withClient';
 import { mediaFiles, mediaUploadSessions } from '../../../db/schema/schema';
 import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import type { StorageTarget } from '@/shared/types/storageTarget';
 
 export type UploadSessionRow = {
   id: string;
@@ -19,6 +20,8 @@ export type UploadSessionRow = {
   original_name: string;
   part_size_bytes: number;
   expires_at: Date;
+  /** Из media_files: сессия живёт в том же хранилище, что и строка, ради которой она открыта. */
+  storage_target: StorageTarget;
 };
 
 export type FinalizeMultipartResult = {
@@ -27,14 +30,15 @@ export type FinalizeMultipartResult = {
 };
 
 export type AbortMultipartDbResult =
-  | { ok: 'aborted'; s3Key: string; uploadId: string }
+  | { ok: 'aborted'; s3Key: string; uploadId: string; storageTarget: StorageTarget }
   | { ok: 'already_completed' }
   | { ok: 'already_final' }
   | { ok: 'not_found' };
 
 const uploadSessionReturning = sql`
   s.id, s.media_id, s.s3_key, s.upload_id, s.owner_user_id, s.status,
-  s.expected_size_bytes::text, s.mime_type, m.original_name, s.part_size_bytes, s.expires_at
+  s.expected_size_bytes::text, s.mime_type, m.original_name, s.part_size_bytes, s.expires_at,
+  m.storage_target
 `;
 
 export async function insertUploadSessionTx(
@@ -244,7 +248,7 @@ export async function abortMultipartPendingTx(
   const db = getWebappSqlFromPgClient(client);
   const sel = await runWebappSql<SessionWithMediaRow>(
     db,
-    sql`SELECT s.id AS session_id, s.media_id, s.s3_key, s.upload_id, s.status AS session_status, m.status AS media_status
+    sql`SELECT s.id AS session_id, s.media_id, s.s3_key, s.upload_id, s.status AS session_status, m.status AS media_status, m.storage_target
        FROM media_upload_sessions s
        INNER JOIN media_files m ON m.id = s.media_id
       WHERE s.id = ${sessionId}::uuid
@@ -284,7 +288,12 @@ export async function abortMultipartPendingTx(
     return { ok: 'not_found' };
   }
 
-  return { ok: 'aborted', s3Key: row.s3_key, uploadId: row.upload_id };
+  return {
+    ok: 'aborted',
+    s3Key: row.s3_key,
+    uploadId: row.upload_id,
+    storageTarget: row.storage_target,
+  };
 }
 
 export async function markUploadSessionExpiredTx(
@@ -432,9 +441,7 @@ export async function gateUploadSessionForPartUrl(
 }
 
 export type MultipartCompleteRejectError =
-  | 'session_not_found'
-  | 'session_expired'
-  | 'session_state_conflict';
+  'session_not_found' | 'session_expired' | 'session_state_conflict';
 
 /**
  * When claim + completing-retry both miss, explain why (for POST multipart/complete).
@@ -480,6 +487,7 @@ export type SessionWithMediaRow = {
   upload_id: string;
   session_status: string;
   media_status: string;
+  storage_target: StorageTarget;
 };
 
 export async function getUploadSessionWithMedia(
@@ -488,7 +496,7 @@ export async function getUploadSessionWithMedia(
 ): Promise<SessionWithMediaRow | null> {
   const res = await runWebappSql<SessionWithMediaRow>(
     getWebappSqlDb(),
-    sql`SELECT s.id AS session_id, s.media_id, s.s3_key, s.upload_id, s.status AS session_status, m.status AS media_status
+    sql`SELECT s.id AS session_id, s.media_id, s.s3_key, s.upload_id, s.status AS session_status, m.status AS media_status, m.storage_target
        FROM media_upload_sessions s
        JOIN media_files m ON m.id = s.media_id
       WHERE s.id = ${sessionId}::uuid AND s.owner_user_id = ${ownerUserId}::uuid`,

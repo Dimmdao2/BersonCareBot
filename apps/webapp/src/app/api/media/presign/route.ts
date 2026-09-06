@@ -85,6 +85,7 @@ export async function POST(request: Request) {
           sizeBytes: upload.intent.sizeBytes,
           userId: session.user.userId,
           folderId,
+          storageTarget: upload.target,
         });
       }),
     );

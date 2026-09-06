@@ -57,6 +57,7 @@ export async function POST(request: Request) {
     key: row.s3_key,
     uploadId: row.upload_id,
     partNumber: parsed.data.partNumber,
+    target: row.storage_target,
   });
   return NextResponse.json({
     ok: true as const,

@@ -180,6 +180,38 @@ const envSchema = z.object({
     .optional()
     .transform((v) => v === 'true'),
   /**
+   * Отдельное хранилище для файлов и видео пациентов (решение владельца 06.09.2026).
+   * Библиотека упражнений и CMS остаются в основном `S3_*` — там дешевле объём и трафик;
+   * данные пациентов лежат у провайдера с настоящим серверным шифрованием.
+   *
+   * Пусто → второго хранилища нет и всё идёт в основное, поэтому существующие
+   * окружения ведут себя ровно как раньше. Разделение включается заданием этих переменных.
+   */
+  PATIENT_S3_ENDPOINT: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? '').trim()),
+  PATIENT_S3_ACCESS_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? '').trim()),
+  PATIENT_S3_SECRET_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? '').trim()),
+  PATIENT_S3_BUCKET: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? '').trim()),
+  PATIENT_S3_REGION: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? '').trim()),
+  PATIENT_S3_FORCE_PATH_STYLE: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true'),
+  /**
    * Публичный username бота без `@` (как в `t.me/<username>`), для fallback deep link / Login Widget.
    * Не путать с числовым id бота из BotFather и с `ALLOWED_TELEGRAM_IDS` / `ADMIN_TELEGRAM_ID` (это id пользователей).
    */
@@ -291,6 +323,12 @@ const parsed = parseWebappEnv({
   S3_PRIVATE_BUCKET: process.env.S3_PRIVATE_BUCKET,
   S3_REGION: process.env.S3_REGION,
   S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
+  PATIENT_S3_ENDPOINT: process.env.PATIENT_S3_ENDPOINT,
+  PATIENT_S3_ACCESS_KEY: process.env.PATIENT_S3_ACCESS_KEY,
+  PATIENT_S3_SECRET_KEY: process.env.PATIENT_S3_SECRET_KEY,
+  PATIENT_S3_BUCKET: process.env.PATIENT_S3_BUCKET,
+  PATIENT_S3_REGION: process.env.PATIENT_S3_REGION,
+  PATIENT_S3_FORCE_PATH_STYLE: process.env.PATIENT_S3_FORCE_PATH_STYLE,
   TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME?.trim() || 'bersoncare_bot',
   INTERNAL_JOB_SECRET: process.env.INTERNAL_JOB_SECRET,
   OPERATOR_HEARTBEAT_PIPELINE_URL: process.env.OPERATOR_HEARTBEAT_PIPELINE_URL,

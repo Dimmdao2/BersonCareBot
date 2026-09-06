@@ -17,6 +17,8 @@ export type S3Config = {
   forcePathStyle: boolean;
 };
 
+export type StorageBinding = { client: S3Client; bucket: string };
+
 export function createS3Client(cfg: S3Config): S3Client {
   return new S3Client({
     endpoint: cfg.endpoint,

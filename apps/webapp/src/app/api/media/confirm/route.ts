@@ -74,7 +74,11 @@ export async function POST(request: Request) {
     const rejection = uploadValidationResponse(intent);
     return NextResponse.json(rejection.body, { status: rejection.status });
   }
-  const received = await validateReceivedMediaObject({ key: row.s3_key, intent: intent.value });
+  const received = await validateReceivedMediaObject({
+    key: row.s3_key,
+    intent: intent.value,
+    target: row.storage_target,
+  });
   if (!received.ok) {
     await withDoctorWorkspacePrincipal(gate.ctx, () =>
       abortPendingMediaUpload(parsed.data.mediaId),

@@ -13,6 +13,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'node:stream';
 import { env } from '@/config/env';
+import type { StorageTarget } from '@/shared/types/storageTarget';
 
 const PRESIGN_PUT_EXPIRES_SEC = 900;
 const PRESIGN_PART_EXPIRES_SEC = 900;
@@ -20,29 +21,96 @@ const PRESIGN_PART_EXPIRES_SEC = 900;
 const PRESIGN_GET_DEFAULT_SEC = 3600;
 const S3_KEY_PREFIX = 'media';
 
-let clientSingleton: S3Client | null = null;
+/**
+ * Хранилище объекта. Это один и тот же chokepoint с параметром, а не второй S3-модуль: все
+ * функции ниже принимают цель и решают её через {@link storageConfigFor}.
+ */
+export type { StorageTarget };
+
+const DEFAULT_TARGET: StorageTarget = 'library';
+
+type StorageConfig = {
+  endpoint: string;
+  region: string;
+  accessKey: string;
+  secretKey: string;
+  bucket: string;
+  forcePathStyle: boolean;
+};
+
+/**
+ * Конфигурация цели. Для `patient` переменные `PATIENT_S3_*` необязательны: если они не заданы,
+ * цель совпадает с основной. Поэтому окружение, где разделение ещё не включено, ведёт себя
+ * ровно как до его появления, а включается разделение заданием переменных, а не правкой кода.
+ */
+function storageConfigFor(target: StorageTarget): StorageConfig {
+  const library: StorageConfig = {
+    endpoint: env.S3_ENDPOINT,
+    region: env.S3_REGION,
+    accessKey: env.S3_ACCESS_KEY,
+    secretKey: env.S3_SECRET_KEY,
+    bucket: env.S3_PRIVATE_BUCKET,
+    forcePathStyle: env.S3_FORCE_PATH_STYLE,
+  };
+  if (target === 'library') return library;
+  if (!env.PATIENT_S3_BUCKET) return library;
+  return {
+    endpoint: env.PATIENT_S3_ENDPOINT || library.endpoint,
+    region: env.PATIENT_S3_REGION || library.region,
+    accessKey: env.PATIENT_S3_ACCESS_KEY || library.accessKey,
+    secretKey: env.PATIENT_S3_SECRET_KEY || library.secretKey,
+    bucket: env.PATIENT_S3_BUCKET,
+    forcePathStyle: env.PATIENT_S3_FORCE_PATH_STYLE,
+  };
+}
+
+/** Бакет цели — для мест, которым нужно назвать хранилище (например, ответ двери загрузки). */
+export function storageBucketFor(target: StorageTarget = DEFAULT_TARGET): string {
+  return storageConfigFor(target).bucket;
+}
+
+/** Отдельно ли живут данные пациентов в этом окружении. */
+export function isPatientStorageSeparate(): boolean {
+  return Boolean(env.PATIENT_S3_BUCKET);
+}
+
+/**
+ * Хранилище строки БД. Колонка `storage_target` объявлена NOT NULL DEFAULT 'library', но приходит
+ * сюда как обычная строка из драйвера, а на платформенных строках её нет вовсе — поэтому всё,
+ * что не названо явно, читается как библиотека: это ровно то поведение, что было до разделения.
+ *
+ * Обратное направление (считать неизвестное данными пациента) владелец отклонил 06.09.2026:
+ * тогда любая старая строка библиотеки начала бы искаться в пустом шифрованном бакете.
+ */
+export function parseStorageTarget(value: unknown): StorageTarget {
+  return value === 'patient' ? 'patient' : DEFAULT_TARGET;
+}
+
+const clientCache = new Map<StorageTarget, S3Client>();
 
 /**
  * Shared SDK client for media buckets. Uses AWS SDK default HTTP timeouts/request handlers unless
  * overridden upstream; classify failures via {@link classifyS3GetObjectFailure} (`upstream_timeout`, etc.).
  */
-export function getS3Client(): S3Client {
-  if (!clientSingleton) {
-    clientSingleton = new S3Client({
-      endpoint: env.S3_ENDPOINT,
-      region: env.S3_REGION,
-      credentials: {
-        accessKeyId: env.S3_ACCESS_KEY,
-        secretAccessKey: env.S3_SECRET_KEY,
-      },
-      forcePathStyle: env.S3_FORCE_PATH_STYLE,
-    });
-  }
-  return clientSingleton;
+export function getS3Client(target: StorageTarget = DEFAULT_TARGET): S3Client {
+  const cached = clientCache.get(target);
+  if (cached) return cached;
+  const cfg = storageConfigFor(target);
+  const client = new S3Client({
+    endpoint: cfg.endpoint,
+    region: cfg.region,
+    credentials: {
+      accessKeyId: cfg.accessKey,
+      secretAccessKey: cfg.secretKey,
+    },
+    forcePathStyle: cfg.forcePathStyle,
+  });
+  clientCache.set(target, client);
+  return client;
 }
 
-function privateBucket(): string {
-  return env.S3_PRIVATE_BUCKET;
+function privateBucket(target: StorageTarget = DEFAULT_TARGET): string {
+  return storageConfigFor(target).bucket;
 }
 
 /** Sanitize original filename for object key segment. */
@@ -82,10 +150,14 @@ export function s3PublicUrl(key: string): string {
 }
 
 /** Presigned PUT for CMS / patient uploads into the private bucket. */
-export async function presignPutUrl(key: string, mimeType: string): Promise<string> {
-  const client = getS3Client();
+export async function presignPutUrl(
+  key: string,
+  mimeType: string,
+  target: StorageTarget = DEFAULT_TARGET,
+): Promise<string> {
+  const client = getS3Client(target);
   const cmd = new PutObjectCommand({
-    Bucket: privateBucket(),
+    Bucket: privateBucket(target),
     Key: key,
     ContentType: mimeType,
   });
@@ -137,11 +209,12 @@ function contentDispositionFor(mimeType: string | undefined, filename: string | 
 export async function presignGetUrl(
   key: string,
   expiresSec: number = PRESIGN_GET_DEFAULT_SEC,
+  target: StorageTarget = DEFAULT_TARGET,
   serve?: { mimeType?: string; filename?: string },
 ): Promise<string> {
-  const client = getS3Client();
+  const client = getS3Client(target);
   const cmd = new GetObjectCommand({
-    Bucket: privateBucket(),
+    Bucket: privateBucket(target),
     Key: key,
     ...(serve?.mimeType ? { ResponseContentType: serve.mimeType } : {}),
     ...(serve?.mimeType || serve?.filename
@@ -151,8 +224,11 @@ export async function presignGetUrl(
   return getSignedUrl(client, cmd, { expiresIn: expiresSec });
 }
 
-export async function s3HeadObject(key: string): Promise<boolean> {
-  const d = await s3HeadObjectDetails(key);
+export async function s3HeadObject(
+  key: string,
+  target: StorageTarget = DEFAULT_TARGET,
+): Promise<boolean> {
+  const d = await s3HeadObjectDetails(key, target);
   return d !== null;
 }
 
@@ -166,12 +242,15 @@ export type S3HeadObjectDetails = {
   lastModified?: Date;
 };
 
-export async function s3HeadObjectDetails(key: string): Promise<S3HeadObjectDetails | null> {
-  const client = getS3Client();
+export async function s3HeadObjectDetails(
+  key: string,
+  target: StorageTarget = DEFAULT_TARGET,
+): Promise<S3HeadObjectDetails | null> {
+  const client = getS3Client(target);
   try {
     const out = await client.send(
       new HeadObjectCommand({
-        Bucket: privateBucket(),
+        Bucket: privateBucket(target),
         Key: key,
       }),
     );
@@ -196,11 +275,13 @@ export async function s3CreateMultipartUpload(params: {
   key: string;
   contentType: string;
   metadata: Record<string, string>;
+  target?: StorageTarget;
 }): Promise<{ uploadId: string }> {
-  const client = getS3Client();
+  const target = params.target ?? DEFAULT_TARGET;
+  const client = getS3Client(target);
   const out = await client.send(
     new CreateMultipartUploadCommand({
-      Bucket: privateBucket(),
+      Bucket: privateBucket(target),
       Key: params.key,
       ContentType: params.contentType,
       Metadata: params.metadata,
@@ -216,10 +297,11 @@ export async function presignUploadPartUrl(
   key: string,
   uploadId: string,
   partNumber: number,
+  target: StorageTarget = DEFAULT_TARGET,
 ): Promise<string> {
-  const client = getS3Client();
+  const client = getS3Client(target);
   const cmd = new UploadPartCommand({
-    Bucket: privateBucket(),
+    Bucket: privateBucket(target),
     Key: key,
     UploadId: uploadId,
     PartNumber: partNumber,
@@ -231,12 +313,13 @@ export async function s3CompleteMultipartUpload(
   key: string,
   uploadId: string,
   parts: { PartNumber: number; ETag: string }[],
+  target: StorageTarget = DEFAULT_TARGET,
 ): Promise<void> {
-  const client = getS3Client();
+  const client = getS3Client(target);
   const sorted = [...parts].sort((a, b) => a.PartNumber - b.PartNumber);
   await client.send(
     new CompleteMultipartUploadCommand({
-      Bucket: privateBucket(),
+      Bucket: privateBucket(target),
       Key: key,
       UploadId: uploadId,
       MultipartUpload: {
@@ -250,22 +333,31 @@ export async function s3CompleteMultipartUpload(
   );
 }
 
-export async function s3AbortMultipartUpload(key: string, uploadId: string): Promise<void> {
-  const client = getS3Client();
+export async function s3AbortMultipartUpload(
+  key: string,
+  uploadId: string,
+  target: StorageTarget = DEFAULT_TARGET,
+): Promise<void> {
+  const client = getS3Client(target);
   await client.send(
     new AbortMultipartUploadCommand({
-      Bucket: privateBucket(),
+      Bucket: privateBucket(target),
       Key: key,
       UploadId: uploadId,
     }),
   );
 }
 
-export async function s3PutObjectBody(key: string, body: Buffer, mimeType: string): Promise<void> {
-  const client = getS3Client();
+export async function s3PutObjectBody(
+  key: string,
+  body: Buffer,
+  mimeType: string,
+  target: StorageTarget = DEFAULT_TARGET,
+): Promise<void> {
+  const client = getS3Client(target);
   await client.send(
     new PutObjectCommand({
-      Bucket: privateBucket(),
+      Bucket: privateBucket(target),
       Key: key,
       Body: body,
       ContentType: mimeType,
@@ -276,12 +368,13 @@ export async function s3PutObjectBody(key: string, body: Buffer, mimeType: strin
 /** Buffer read with typed failure reasons (small objects such as HLS playlists). */
 export async function s3GetPrivateObjectBuffer(
   key: string,
+  target: StorageTarget = DEFAULT_TARGET,
 ): Promise<{ ok: true; buf: Buffer } | { ok: false; reason: S3GetObjectStreamFailureReason }> {
-  const client = getS3Client();
+  const client = getS3Client(target);
   try {
     const out = await client.send(
       new GetObjectCommand({
-        Bucket: privateBucket(),
+        Bucket: privateBucket(target),
         Key: key,
       }),
     );
@@ -297,8 +390,11 @@ export async function s3GetPrivateObjectBuffer(
 }
 
 /** Full object bytes from private bucket (e.g. preview worker reading originals). */
-export async function s3GetObjectBody(key: string): Promise<Buffer | null> {
-  const got = await s3GetPrivateObjectBuffer(key);
+export async function s3GetObjectBody(
+  key: string,
+  target: StorageTarget = DEFAULT_TARGET,
+): Promise<Buffer | null> {
+  const got = await s3GetPrivateObjectBuffer(key, target);
   return got.ok ? got.buf : null;
 }
 
@@ -306,12 +402,13 @@ export async function s3GetObjectBody(key: string): Promise<Buffer | null> {
 export async function s3GetObjectPrefix(
   key: string,
   maxBytes: number = 512,
+  target: StorageTarget = DEFAULT_TARGET,
 ): Promise<Buffer | null> {
-  const client = getS3Client();
+  const client = getS3Client(target);
   try {
     const out = await client.send(
       new GetObjectCommand({
-        Bucket: privateBucket(),
+        Bucket: privateBucket(target),
         Key: key,
         Range: `bytes=0-${Math.max(0, maxBytes - 1)}`,
       }),
@@ -363,12 +460,14 @@ export type S3GetObjectStreamResult =
 export async function s3GetObjectStream(params: {
   key: string;
   range?: string | null;
+  target?: StorageTarget;
 }): Promise<S3GetObjectStreamResult> {
-  const client = getS3Client();
+  const target = params.target ?? DEFAULT_TARGET;
+  const client = getS3Client(target);
   try {
     const out = await client.send(
       new GetObjectCommand({
-        Bucket: privateBucket(),
+        Bucket: privateBucket(target),
         Key: params.key,
         ...(params.range ? { Range: params.range } : {}),
       }),
@@ -395,11 +494,14 @@ export async function s3GetObjectStream(params: {
   }
 }
 
-export async function s3DeleteObject(key: string): Promise<void> {
-  const client = getS3Client();
+export async function s3DeleteObject(
+  key: string,
+  target: StorageTarget = DEFAULT_TARGET,
+): Promise<void> {
+  const client = getS3Client(target);
   await client.send(
     new DeleteObjectCommand({
-      Bucket: privateBucket(),
+      Bucket: privateBucket(target),
       Key: key,
     }),
   );
@@ -409,8 +511,11 @@ export async function s3DeleteObject(key: string): Promise<void> {
  * Lists object keys under `prefix` in the private bucket (pagination).
  * `prefix` may be `foo` or `foo/` — normalized to a hierarchical prefix for listing.
  */
-export async function s3ListObjectKeysUnderPrefix(prefix: string): Promise<string[]> {
-  const client = getS3Client();
+export async function s3ListObjectKeysUnderPrefix(
+  prefix: string,
+  target: StorageTarget = DEFAULT_TARGET,
+): Promise<string[]> {
+  const client = getS3Client(target);
   const p = prefix.replace(/\/+$/, '');
   const listPrefix = p.length > 0 ? `${p}/` : '';
   const keys: string[] = [];
@@ -418,7 +523,7 @@ export async function s3ListObjectKeysUnderPrefix(prefix: string): Promise<strin
   for (;;) {
     const out = await client.send(
       new ListObjectsV2Command({
-        Bucket: privateBucket(),
+        Bucket: privateBucket(target),
         Prefix: listPrefix,
         ContinuationToken: continuationToken,
       }),
@@ -434,19 +539,19 @@ export async function s3ListObjectKeysUnderPrefix(prefix: string): Promise<strin
 }
 
 export type S3PerKeyDeleteResult =
-  | { key: string; ok: true }
-  | { key: string; ok: false; error: string };
+  { key: string; ok: true } | { key: string; ok: false; error: string };
 
 /**
  * Deletes each key independently; does not short-circuit on first failure (strict purge post-commit).
  */
 export async function deleteS3ObjectsWithPerKeyResults(
   keys: string[],
+  target: StorageTarget = DEFAULT_TARGET,
 ): Promise<S3PerKeyDeleteResult[]> {
   const out: S3PerKeyDeleteResult[] = [];
   for (const key of keys) {
     try {
-      await s3DeleteObject(key);
+      await s3DeleteObject(key, target);
       out.push({ key, ok: true });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

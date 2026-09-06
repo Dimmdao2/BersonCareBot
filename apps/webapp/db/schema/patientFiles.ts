@@ -27,6 +27,8 @@ export const patientFiles = pgTable(
     category: text('category').notNull(),
     fileName: text('file_name').notNull(),
     s3Key: text('s3_key').notNull(),
+    /** Физическое хранилище объекта: 'library' или 'patient' (шифрованное). */
+    storageTarget: text('storage_target').default('library').notNull(),
     s3Bucket: text('s3_bucket').notNull(),
     mimeType: text('mime_type').notNull(),
     sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),

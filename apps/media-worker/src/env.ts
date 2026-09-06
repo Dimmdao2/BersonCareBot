@@ -48,6 +48,20 @@ const schema = z.object({
     .string()
     .optional()
     .transform((v) => v === 'true'),
+  /*
+   * Хранилище данных пациентов. Необязательное: пока `PATIENT_S3_BUCKET` не задан, обе цели
+   * ведут в один бакет и служба работает ровно как до разделения. Остальные `PATIENT_S3_*`
+   * подставляются из основных — обычно отличается только бакет и ключи доступа.
+   */
+  PATIENT_S3_ENDPOINT: z.string().optional().default(''),
+  PATIENT_S3_ACCESS_KEY: z.string().optional().default(''),
+  PATIENT_S3_SECRET_KEY: z.string().optional().default(''),
+  PATIENT_S3_BUCKET: z.string().optional().default(''),
+  PATIENT_S3_REGION: z.string().optional().default(''),
+  PATIENT_S3_FORCE_PATH_STYLE: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true'),
 });
 
 const legacyDatabaseCredentialKey =
@@ -92,6 +106,12 @@ export function loadMediaWorkerEnv(): MediaWorkerEnv {
     S3_PRIVATE_BUCKET: process.env.S3_PRIVATE_BUCKET,
     S3_REGION: process.env.S3_REGION,
     S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
+    PATIENT_S3_ENDPOINT: process.env.PATIENT_S3_ENDPOINT,
+    PATIENT_S3_ACCESS_KEY: process.env.PATIENT_S3_ACCESS_KEY,
+    PATIENT_S3_SECRET_KEY: process.env.PATIENT_S3_SECRET_KEY,
+    PATIENT_S3_BUCKET: process.env.PATIENT_S3_BUCKET,
+    PATIENT_S3_REGION: process.env.PATIENT_S3_REGION,
+    PATIENT_S3_FORCE_PATH_STYLE: process.env.PATIENT_S3_FORCE_PATH_STYLE,
   });
   const ffmpegPathResolved =
     parsed.FFMPEG_PATH || (require('@ffmpeg-installer/ffmpeg').path as string);

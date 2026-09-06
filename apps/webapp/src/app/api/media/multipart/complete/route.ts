@@ -112,7 +112,7 @@ export async function POST(request: Request) {
         'invalid_parts',
       );
     });
-    await abortPreparedMultipartUpload(row.s3_key, row.upload_id).catch(() => {
+    await abortPreparedMultipartUpload(row.s3_key, row.upload_id, row.storage_target).catch(() => {
       /* ignore */
     });
     await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(row.media_id)).catch(
@@ -125,7 +125,12 @@ export async function POST(request: Request) {
 
   if (!skipS3Complete) {
     try {
-      await completePreparedMultipartUpload(row.s3_key, row.upload_id, parsed.data.parts);
+      await completePreparedMultipartUpload(
+        row.s3_key,
+        row.upload_id,
+        parsed.data.parts,
+        row.storage_target,
+      );
     } catch (e) {
       logger.error({ err: e, sessionId }, '[media/multipart/complete] s3_complete_failed');
       await withMultipartSessionLock(pool, sessionId, async (client) => {
@@ -136,9 +141,11 @@ export async function POST(request: Request) {
           's3_complete_failed',
         );
       });
-      await abortPreparedMultipartUpload(row.s3_key, row.upload_id).catch(() => {
-        /* ignore */
-      });
+      await abortPreparedMultipartUpload(row.s3_key, row.upload_id, row.storage_target).catch(
+        () => {
+          /* ignore */
+        },
+      );
       await withDoctorWorkspacePrincipal(gate.ctx, () =>
         abortPendingMediaUpload(row.media_id),
       ).catch(() => {
@@ -148,7 +155,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const head = await inspectReceivedMediaObject(row.s3_key);
+  const head = await inspectReceivedMediaObject(row.s3_key, row.storage_target);
   const metaOk =
     head &&
     head.contentLength === expectedSize &&
@@ -192,7 +199,11 @@ export async function POST(request: Request) {
     const rejection = uploadValidationResponse(intent);
     return NextResponse.json(rejection.body, { status: rejection.status });
   }
-  const received = await validateReceivedMediaObject({ key: row.s3_key, intent: intent.value });
+  const received = await validateReceivedMediaObject({
+    key: row.s3_key,
+    intent: intent.value,
+    target: row.storage_target,
+  });
   if (!received.ok) {
     await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(row.media_id));
     const rejection = uploadValidationResponse(received);
@@ -211,10 +222,7 @@ export async function POST(request: Request) {
     );
 
     if (fin.kind === 'finalized' || fin.kind === 'already_done') {
-      await maybeAutoEnqueueVideoTranscodeAfterUpload(
-        row.media_id,
-        received.value.intent.mimeType,
-      );
+      await maybeAutoEnqueueVideoTranscodeAfterUpload(row.media_id, received.value.intent.mimeType);
       const appUrl = `/api/media/${row.media_id}`;
       return NextResponse.json({
         ok: true as const,

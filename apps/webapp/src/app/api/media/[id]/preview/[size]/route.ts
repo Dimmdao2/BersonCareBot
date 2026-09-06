@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { logger } from '@/app-layer/logging/logger';
-import { getMediaPreviewS3KeyForRedirect } from '@/app-layer/media/s3MediaStorage';
+import {
+  getMediaPreviewS3KeyForRedirect,
+  type MediaObjectLocation,
+} from '@/app-layer/media/s3MediaStorage';
 import { getVideoPresignTtlSeconds } from '@/app-layer/media/videoPresignTtl';
 import { presignGetUrl, s3GetObjectBody, s3HeadObjectDetails } from '@/app-layer/media/s3Client';
 import { getCurrentSession } from '@/modules/auth/service';
@@ -23,10 +26,10 @@ function redirectCacheControl(ttlSec: number): string {
   return `private, max-age=${safeTtl}, must-revalidate`;
 }
 
-async function redirectPresignedPreview(s3Key: string): Promise<Response> {
+async function redirectPresignedPreview(object: MediaObjectLocation): Promise<Response> {
   try {
     const ttlSec = await getVideoPresignTtlSeconds();
-    const signed = await presignGetUrl(s3Key, ttlSec);
+    const signed = await presignGetUrl(object.key, ttlSec, object.target);
     const res = NextResponse.redirect(signed, 307);
     // Redirect cache must never outlive presigned URL TTL.
     res.headers.set('Cache-Control', redirectCacheControl(ttlSec));
@@ -75,10 +78,10 @@ export async function GET(
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
 
-    const s3Key = await getMediaPreviewS3KeyForRedirect(id, size, {
+    const preview = await getMediaPreviewS3KeyForRedirect(id, size, {
       allowPlatformBase: access.allowPlatformBase,
     });
-    if (!s3Key) {
+    if (!preview) {
       logger.warn({ mediaId: id, size }, '[preview GET] not found');
       logger.warn({ mediaId: id, size }, '[preview GET] fallback original redirect used');
       return redirectOriginalMedia(id);
@@ -86,7 +89,7 @@ export async function GET(
 
     const ifNoneMatch = request.headers.get('if-none-match');
     const ifModifiedSinceRaw = request.headers.get('if-modified-since');
-    const head = await s3HeadObjectDetails(s3Key);
+    const head = await s3HeadObjectDetails(preview.key, preview.target);
     let etag = head?.eTag?.trim() || null;
     const validatorSource: 's3' | 'sha256' = etag ? 's3' : 'sha256';
     const lastModifiedFromHead = head?.lastModified ?? null;
@@ -128,11 +131,11 @@ export async function GET(
       });
     }
 
-    const body = await s3GetObjectBody(s3Key);
+    const body = await s3GetObjectBody(preview.key, preview.target);
     if (!body?.length) {
       logger.error({ mediaId: id, size }, '[preview GET] s3 read failed');
       logger.warn({ mediaId: id, size }, '[preview GET] fallback redirect used');
-      return redirectPresignedPreview(s3Key);
+      return redirectPresignedPreview(preview);
     }
 
     if (!etag) {

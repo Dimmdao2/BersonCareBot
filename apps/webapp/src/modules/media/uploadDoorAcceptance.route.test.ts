@@ -139,6 +139,8 @@ vi.mock('@/app-layer/media/s3Client', () => ({
   s3DeleteObject: fakes.s3DeleteObject,
   presignGetUrl: fakes.presignGetUrl,
   s3ObjectKey: (id: string, filename: string) => `media/${id}/${filename}`,
+  storageBucketFor: (target: string) =>
+    target === 'patient' ? 'patient-bucket' : 'library-bucket',
 }));
 vi.mock('@/app-layer/media/mediaTranscodeAutoEnqueue', () => ({
   maybeAutoEnqueueVideoTranscodeAfterUpload: fakes.maybeAutoEnqueueVideoTranscodeAfterUpload,
@@ -206,6 +208,7 @@ function pendingRow(overrides: Record<string, unknown> = {}) {
     original_name: 'photo.jpg',
     usage_purpose: null,
     size_bytes: 3,
+    storage_target: 'library' as const,
     ...overrides,
   };
 }
@@ -549,8 +552,8 @@ describe('Ч1 received object at real confirm handlers', () => {
     const response = await genericConfirm(jsonRequest({ mediaId: ids.media }));
 
     expect(response.status).toBe(200);
-    expect(fakes.s3HeadObjectDetails).toHaveBeenCalledWith('uploads/object');
-    expect(fakes.s3GetObjectPrefix).toHaveBeenCalledWith('uploads/object');
+    expect(fakes.s3HeadObjectDetails).toHaveBeenCalledWith('uploads/object', 'library');
+    expect(fakes.s3GetObjectPrefix).toHaveBeenCalledWith('uploads/object', undefined, 'library');
     expect(fakes.confirmMediaFileReady).toHaveBeenCalledOnce();
     expect(fakes.confirmMediaFileReady.mock.calls[0]?.[1]).toMatchObject({
       intent: { mimeType: 'image/jpeg', sizeBytes: 3 },

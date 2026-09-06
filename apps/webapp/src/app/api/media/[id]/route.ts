@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { env, isS3MediaEnabled, webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
 import { getStoredMediaBody } from '@/app-layer/media/mockMediaStorage';
-import { getMediaS3KeyForRedirect } from '@/app-layer/media/s3MediaStorage';
+import {
+  getMediaS3KeyForRedirect,
+  type MediaObjectLocation,
+} from '@/app-layer/media/s3MediaStorage';
 import { serializePresignFailureForLog } from '@/app-layer/media/presignLogRedaction';
 import { presignGetUrl } from '@/app-layer/media/s3Client';
 import { getVideoPresignTtlSeconds } from '@/app-layer/media/videoPresignTtl';
@@ -22,10 +25,10 @@ import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrga
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-async function redirectPresignedOr503(s3Key: string): Promise<Response> {
+async function redirectPresignedOr503(object: MediaObjectLocation): Promise<Response> {
   try {
     const ttlSec = await getVideoPresignTtlSeconds();
-    const signed = await presignGetUrl(s3Key, ttlSec);
+    const signed = await presignGetUrl(object.key, ttlSec, object.target);
     /** 307 so clients (esp. Safari/WebKit video) re-issue GET+Range to the presigned URL; 302 often drops Range after redirect. */
     const res = NextResponse.redirect(signed, 307);
     res.headers.set('Cache-Control', 'private, max-age=0, must-revalidate');
@@ -60,10 +63,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       if (!access.ok) {
         return NextResponse.json({ error: 'forbidden' }, { status: 403 });
       }
-      const s3Key = await getMediaS3KeyForRedirect(id, {
+      const object = await getMediaS3KeyForRedirect(id, {
         allowPlatformBase: access.allowPlatformBase,
       });
-      if (s3Key) return redirectPresignedOr503(s3Key);
+      if (object) return redirectPresignedOr503(object);
       const localBody = await readSaasTestLocalMedia({
         databaseUrl: legacyDatabaseUrl,
         storedPath: access.row.stored_path,
@@ -111,10 +114,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         : resolvedOrganization.reason === 'organization_selection_required'
           ? 409
           : 403;
-    return NextResponse.json(
-      { error: resolvedOrganization.reason },
-      { status },
-    );
+    return NextResponse.json({ error: resolvedOrganization.reason }, { status });
   }
   return withPatientOrganizationPrincipal(
     {

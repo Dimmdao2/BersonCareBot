@@ -123,6 +123,7 @@ it('файл своей работы читается дверью, чужая �
         videoProcessingStatus: 'processing',
         videoDurationSeconds: 42,
         usagePurpose: null,
+        storageTarget: 'patient',
       },
     }],
   });
@@ -135,6 +136,7 @@ it('файл своей работы читается дверью, чужая �
     videoProcessingStatus: 'processing',
     videoDurationSeconds: 42,
     usagePurpose: null,
+    storageTarget: 'patient',
   });
   expect(fakes.runWebappNamedRoot.mock.calls[0]?.slice(1, 3)).toEqual([
     'app.read_media_transcode_job_media(uuid,uuid,text)',

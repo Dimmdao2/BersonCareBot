@@ -18,6 +18,7 @@ function buildService() {
     fileName: 'scan.pdf',
     s3Key: 'patient-files/scan.pdf',
     s3Bucket: 'bucket',
+    storageTarget: 'patient' as const,
     mimeType: 'application/pdf',
     sizeBytes: 1024,
     uploadedByUserId: 'doctor-1',

@@ -112,6 +112,7 @@ export async function POST(request: Request) {
           sizeBytes: upload.intent.sizeBytes,
           userId: session.user.userId,
           folderId,
+          storageTarget: upload.target,
         });
         await insertUploadSessionTx(client, {
           sessionId,
@@ -139,7 +140,7 @@ export async function POST(request: Request) {
     });
   } catch (e) {
     if (uploadId) {
-      await abortPreparedMultipartUpload(key, uploadId).catch(() => {
+      await abortPreparedMultipartUpload(key, uploadId, upload.target).catch(() => {
         /* best-effort */
       });
     }

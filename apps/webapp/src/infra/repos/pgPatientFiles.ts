@@ -17,7 +17,7 @@ import type {
 import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
 import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
 import { env, isS3MediaEnabled } from '@/config/env';
-import { s3DeleteObject } from '@/infra/s3/client';
+import { parseStorageTarget, s3DeleteObject } from '@/infra/s3/client';
 import { patientFiles } from '../../../db/schema/patientFiles';
 import { mediaFiles } from '../../../db/schema/schema';
 import { clinicalVisit } from '../../../db/schema/patientClinical';
@@ -30,6 +30,7 @@ function mapRow(row: typeof patientFiles.$inferSelect): PatientFileRecord {
     fileName: row.fileName,
     s3Key: row.s3Key,
     s3Bucket: row.s3Bucket,
+    storageTarget: parseStorageTarget(row.storageTarget),
     mimeType: row.mimeType,
     sizeBytes: Number(row.sizeBytes),
     visitId: row.visitId ?? null,
@@ -138,6 +139,8 @@ export function createPgPatientFilesPort(): PatientFilesPort {
               folderId: params.folderId,
               status: 'pending',
               previewStatus: 'pending',
+              // Файл пациента живёт в шифрованном хранилище (owner ruling 06.09.2026).
+              storageTarget: 'patient',
             })
             .returning({ id: mediaFiles.id });
           mediaFileId = mf?.id ?? null;
@@ -155,6 +158,7 @@ export function createPgPatientFilesPort(): PatientFilesPort {
             sizeBytes: params.sizeBytes,
             uploadedByUserId: params.uploadedByUserId,
             mediaFileId,
+            storageTarget: 'patient',
           })
           .returning();
       });
@@ -189,14 +193,11 @@ export function createPgPatientFilesPort(): PatientFilesPort {
         ) {
           return [];
         }
-        await transactionQuotaPort.withinLock(
-          tx,
-          { organizationId, mechanic: 'files' },
-          (quota) =>
-            quota.assertStockAvailable(
-              () => countStorageUsedBytes(tx, organizationId),
-              received.intent.sizeBytes,
-            ),
+        await transactionQuotaPort.withinLock(tx, { organizationId, mechanic: 'files' }, (quota) =>
+          quota.assertStockAvailable(
+            () => countStorageUsedBytes(tx, organizationId),
+            received.intent.sizeBytes,
+          ),
         );
         const [ready] = await tx
           .update(mediaFiles)
@@ -314,13 +315,15 @@ export function createPgPatientFilesPort(): PatientFilesPort {
               uploadedBy: file.uploadedByUserId,
               status: 'pending_delete',
               previewStatus: 'skipped',
+              /* Уборщик удаляет по этой строке — без хранилища он вычистил бы не тот бакет. */
+              storageTarget: file.storageTarget,
             });
           }
         });
 
       if (isS3MediaEnabled(env)) {
         try {
-          await s3DeleteObject(file.s3Key);
+          await s3DeleteObject(file.s3Key, parseStorageTarget(file.storageTarget));
         } catch {
           // An orphaned row (recoverable, retryable) beats an orphaned object with no row left to
           // find it. Keep patient_files intact and stage the object for the shared retry purge

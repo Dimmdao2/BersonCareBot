@@ -14,6 +14,7 @@ import { withPoolTransaction } from '@/infra/db/withClient';
 import { logger } from '@/infra/logging/logger';
 import { mediaFiles } from '../../../db/schema/schema';
 import {
+  parseStorageTarget,
   presignGetUrl,
   s3DeleteObject,
   s3GetObjectBody,
@@ -22,6 +23,7 @@ import {
   s3PutObjectBody,
   s3StandardImageKey,
 } from '@/infra/s3/client';
+import type { StorageTarget } from '@/shared/types/storageTarget';
 import {
   buildImageStandardRendition,
   encodeStandardImageRendition,
@@ -85,6 +87,8 @@ type MediaPreviewIterationResult = {
   outcome: MediaPreviewIterationOutcome;
   /** Raw upload superseded by a standard rendition; deleted only after the transaction commits. */
   supersededOriginalKey?: string | null;
+  /** Хранилище того самого объекта: удалять его надо там, где он лежит. */
+  supersededOriginalTarget?: StorageTarget;
 };
 
 function backoffMinutesAfterFailure(attemptsAfterIncrement: number): number {
@@ -101,25 +105,18 @@ function isPermanentPreviewError(e: unknown): boolean {
 async function ffprobeSourceDimensions(
   url: string,
 ): Promise<{ width: number; height: number } | null> {
-  const result = await runFirstAvailable(
-    resolvedFfprobeCandidates,
-    buildProbeDimensionsArgs(url),
-    {
-      timeoutMs: FFMPEG_EXTRACT_TIMEOUT_MS,
-      maxStderrBytes: FFMPEG_STDERR_TAIL_BYTES,
-      maxStdoutBytes: FFPROBE_STDOUT_MAX_BYTES,
-    },
-  );
+  const result = await runFirstAvailable(resolvedFfprobeCandidates, buildProbeDimensionsArgs(url), {
+    timeoutMs: FFMPEG_EXTRACT_TIMEOUT_MS,
+    maxStderrBytes: FFMPEG_STDERR_TAIL_BYTES,
+    maxStdoutBytes: FFPROBE_STDOUT_MAX_BYTES,
+  });
   if (result.signal || result.code !== 0) {
     throw new Error(ffmpegFailureMessage(result, 'ffprobe'));
   }
   return parseProbeDimensions(result.stdout);
 }
 
-async function extractVideoPosterJpeg(
-  presignedUrl: string,
-  seekSeconds: number,
-): Promise<Buffer> {
+async function extractVideoPosterJpeg(presignedUrl: string, seekSeconds: number): Promise<Buffer> {
   const dir = await mkdtemp(join(tmpdir(), 'media-prev-v-'));
   try {
     const outPath = join(dir, 'poster.jpg');
@@ -141,13 +138,13 @@ async function extractVideoPosterJpeg(
   }
 }
 
-async function videoPosterJpegRaw(s3Key: string): Promise<Buffer> {
-  const url1 = await presignGetUrl(s3Key);
+async function videoPosterJpegRaw(s3Key: string, target: StorageTarget): Promise<Buffer> {
+  const url1 = await presignGetUrl(s3Key, undefined, target);
   try {
     return await extractVideoPosterJpeg(url1, 1);
   } catch (e1) {
     logger.warn({ err: e1 }, '[mediaPreviewWorker] video poster @1s failed, retry @0');
-    const url0 = await presignGetUrl(s3Key);
+    const url0 = await presignGetUrl(s3Key, undefined, target);
     return await extractVideoPosterJpeg(url0, 0);
   }
 }
@@ -250,9 +247,9 @@ function runMagickConvert(inputPath: string, outPath: string): Promise<void> {
  * deploy host, so decoding stays on the proven ffmpeg path with an ImageMagick fallback
  * (`-auto-orient`); the JPEG it produces is what the standard-rendition encoder re-encodes.
  */
-async function heicFullSizeJpeg(s3Key: string): Promise<Buffer> {
+async function heicFullSizeJpeg(s3Key: string, target: StorageTarget): Promise<Buffer> {
   try {
-    return await videoPosterJpegRaw(s3Key);
+    return await videoPosterJpegRaw(s3Key, target);
   } catch (ffmpegErr) {
     logger.warn(
       { err: ffmpegErr },
@@ -265,7 +262,7 @@ async function heicFullSizeJpeg(s3Key: string): Promise<Buffer> {
     dir = await mkdtemp(join(tmpdir(), 'media-prev-heic-'));
     const inputPath = join(dir, 'input.heic');
     const outputPath = join(dir, 'out.jpg');
-    const url = await presignGetUrl(s3Key);
+    const url = await presignGetUrl(s3Key, undefined, target);
     await downloadFileToPath(url, inputPath);
     await runMagickConvert(inputPath, outputPath);
     return await readFile(outputPath);
@@ -301,6 +298,7 @@ async function applyStandardImageRendition(
   source: Buffer,
   smKey: string,
   mdKey: string,
+  target: StorageTarget,
 ): Promise<string | null> {
   const outcome = await buildImageStandardRendition(
     {
@@ -312,8 +310,8 @@ async function applyStandardImageRendition(
     },
     {
       encode: encodeStandardImageRendition,
-      putObject: s3PutObjectBody,
-      headObject: s3HeadObject,
+      putObject: (key, body, mimeType) => s3PutObjectBody(key, body, mimeType, target),
+      headObject: (key) => s3HeadObject(key, target),
       thumbnails: thumbnailsSmMd,
     },
   );
@@ -373,6 +371,7 @@ export async function processMediaPreviewBatch(
           source_height: mediaFiles.sourceHeight,
           usage_purpose: mediaFiles.usagePurpose,
           hosted_video_source_url: mediaFiles.hostedVideoSourceUrl,
+          storage_target: mediaFiles.storageTarget,
         })
         .from(mediaFiles)
         .where(
@@ -414,6 +413,9 @@ export async function processMediaPreviewBatch(
 
       /* Ветки ниже работают только с уже лежащим у нас объектом: claim их без ключа не выдаёт. */
       const storedKey = row.s3_key?.trim() ?? '';
+      /* Превью и стандартный рендер ложатся туда же, где лежит исходник, — иначе строка укажет
+         на объект в другом бакете, и дверь доставки его не найдёт. */
+      const storageTarget = parseStorageTarget(row.storage_target);
       const hostedSourceUrl =
         row.usage_purpose === 'hosted_video_preview' &&
         !row.s3_key?.trim() &&
@@ -439,6 +441,7 @@ export async function processMediaPreviewBatch(
             outcome.bytes,
             smKey,
             mdKey,
+            storageTarget,
           );
         } else if (mime === 'image/heic' || mime === 'image/heif') {
           if (sizeBytes > MAX_PREVIEW_SOURCE_BYTES) {
@@ -451,7 +454,7 @@ export async function processMediaPreviewBatch(
               '[processMediaPreviewBatch] heic/heif too large for ffmpeg preview, skipped',
             );
           } else {
-            const decoded = await heicFullSizeJpeg(storedKey);
+            const decoded = await heicFullSizeJpeg(storedKey, storageTarget);
             supersededOriginalKey = await applyStandardImageRendition(
               db,
               row.id,
@@ -459,6 +462,7 @@ export async function processMediaPreviewBatch(
               decoded,
               smKey,
               mdKey,
+              storageTarget,
             );
           }
         } else if (mime.startsWith('image/') && sizeBytes > MAX_IMAGE_PREVIEW_BYTES) {
@@ -480,7 +484,7 @@ export async function processMediaPreviewBatch(
             '[processMediaPreviewBatch] video too large for ffmpeg preview, skipped',
           );
         } else if (mime.startsWith('image/')) {
-          const raw = await s3GetObjectBody(storedKey);
+          const raw = await s3GetObjectBody(storedKey, storageTarget);
           if (!raw) {
             throw new Error('s3_get_object_empty');
           }
@@ -491,9 +495,10 @@ export async function processMediaPreviewBatch(
             raw,
             smKey,
             mdKey,
+            storageTarget,
           );
         } else if (mime.startsWith('video/')) {
-          const presigned = await presignGetUrl(storedKey);
+          const presigned = await presignGetUrl(storedKey, undefined, storageTarget);
           let sw: number | null = null;
           let sh: number | null = null;
           try {
@@ -508,10 +513,10 @@ export async function processMediaPreviewBatch(
               '[mediaPreviewWorker] video dimension probe failed',
             );
           }
-          const rawPoster = await videoPosterJpegRaw(storedKey);
+          const rawPoster = await videoPosterJpegRaw(storedKey, storageTarget);
           const { sm: posterSm, md: posterMd } = await thumbnailsSmMd(rawPoster);
-          await s3PutObjectBody(smKey, posterSm, 'image/jpeg');
-          await s3PutObjectBody(mdKey, posterMd, 'image/jpeg');
+          await s3PutObjectBody(smKey, posterSm, 'image/jpeg', storageTarget);
+          await s3PutObjectBody(mdKey, posterMd, 'image/jpeg', storageTarget);
           await runWebappSql(
             db,
             sql`UPDATE media_files SET
@@ -573,16 +578,20 @@ export async function processMediaPreviewBatch(
         return { outcome: 'error' };
       }
 
-      return { outcome: 'processed', supersededOriginalKey };
+      return {
+        outcome: 'processed',
+        supersededOriginalKey,
+        supersededOriginalTarget: storageTarget,
+      };
     });
 
-    const { outcome, supersededOriginalKey } = result;
+    const { outcome, supersededOriginalKey, supersededOriginalTarget } = result;
 
     // Only now is the rendition durable AND the row committed to point at it, so the raw upload
     // is no longer the only copy. Best-effort: a failure here leaks bytes, never a patient photo.
     if (supersededOriginalKey) {
       try {
-        await s3DeleteObject(supersededOriginalKey);
+        await s3DeleteObject(supersededOriginalKey, supersededOriginalTarget);
         logger.info(
           { sourceKey: supersededOriginalKey },
           '[mediaPreviewWorker] original deleted after standard rendition',
