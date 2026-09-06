@@ -52,6 +52,7 @@ import { normalizeAdminIncidentAlertConfigForAdminPatch } from '@/modules/admin-
 import { normalizeOperatorHealthAlertConfigForAdminPatch } from '@/modules/operator-alerts/operatorHealthAlertConfig';
 import { normalizeOperatorAlertFallbackEmail } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
 import { parseSmtpOutboundPatchValue } from '@/modules/system-settings/smtpOutboundPatch';
+import { SERVER_RUNTIME_INTEGER_DEFINITIONS } from '@/modules/system-settings/runtimeConfig';
 import {
   hasStoredWebPushVapidPrivate,
   parseWebPushVapidPatchValue,
@@ -76,7 +77,8 @@ import {
 /** Owner-facing reasons for a rejected dedicated bot configuration. */
 const CLINIC_BOT_PATCH_MESSAGES: Readonly<Record<ClinicBotPatchError, string>> = {
   credential_required: 'Сначала сохраните credential бота.',
-  invalid_bot_public_id: 'Укажите публичный ник бота: латиница, цифры и подчёркивание, 3–64 символа.',
+  invalid_bot_public_id:
+    'Укажите публичный ник бота: латиница, цифры и подчёркивание, 3–64 символа.',
   invalid_destination_chat_id: 'Id чата для пересылки — целое число, как его выдаёт мессенджер.',
   forwarding_destination_required: 'Чтобы включить пересылку, укажите id чата, куда пересылать.',
 };
@@ -134,6 +136,7 @@ const ADMIN_SCOPE_KEYS = [
   'booking_calendar_show_working_hours',
   'booking_allow_doctor_unlink_past_package_sessions',
   'booking_min_notice_hours',
+  'booking_availability_horizon_days',
   'booking_payment_enabled',
   'booking_payment_providers',
   'saas_billing_payment_provider',
@@ -665,15 +668,25 @@ export async function PATCH(request: Request) {
     normalizedValue = checked.valueJson;
   }
 
-  if (parsed.data.key === 'booking_min_notice_hours') {
+  const bookingIntegerDefinition =
+    parsed.data.key === 'booking_min_notice_hours'
+      ? SERVER_RUNTIME_INTEGER_DEFINITIONS.booking_min_notice_hours
+      : parsed.data.key === 'booking_availability_horizon_days'
+        ? SERVER_RUNTIME_INTEGER_DEFINITIONS.booking_availability_horizon_days
+        : null;
+  if (bookingIntegerDefinition) {
     const inner = normalizedValue.value;
     const n =
-      typeof inner === 'number' && Number.isFinite(inner)
+      typeof inner === 'number' && Number.isInteger(inner)
         ? inner
         : typeof inner === 'string' && /^\d+$/.test(inner.trim())
           ? Number.parseInt(inner.trim(), 10)
           : NaN;
-    if (!Number.isFinite(n) || n < 0 || n > 168) {
+    if (
+      !Number.isFinite(n) ||
+      n < bookingIntegerDefinition.minValue ||
+      n > bookingIntegerDefinition.maxValue
+    ) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
     }
     normalizedValue = { value: n };

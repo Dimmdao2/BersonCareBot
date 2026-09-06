@@ -40,6 +40,7 @@ export function isCurrentPublicBookingPrincipal(): boolean {
 
 export type PublicBookingRuntimeSettings = {
   minNoticeHours: number;
+  availabilityHorizonDays: number;
   maxConsecutiveSlotHours: number;
 };
 
@@ -48,7 +49,7 @@ type PublicBookingScope = { settings: PublicBookingRuntimeSettings | null };
 const scopeStorage = new AsyncLocalStorage<PublicBookingScope>();
 
 /**
- * Обе настройки записи (`booking_min_notice_hours`, `booking_max_consecutive_slot_hours`) приходят
+ * Настройки записи приходят
  * ВНУТРИ снимка слотов — отдельной двери под них нет и заводить её незачем: за один шаг выбора
  * времени они читаются ровно один раз. Но порт спрашивает их отдельным вызовом, у которого на
  * входе только `organizationId`, — филиала и услуги, без которых снимок не прочитать, там уже нет.

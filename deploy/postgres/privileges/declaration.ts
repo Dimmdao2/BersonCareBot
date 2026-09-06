@@ -6567,6 +6567,21 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "UPDATE"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "organization_id",
+          "value_json",
+          "updated_at",
+          "updated_by"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],
     "invocation": "runtime"

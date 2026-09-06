@@ -170,6 +170,7 @@ export type BookingSchedulingPort = {
     minutes: number;
   }): Promise<void>;
   getMinNoticeHours(organizationId: string): Promise<number>;
+  getAvailabilityHorizonDays(organizationId: string): Promise<number>;
   getMaxConsecutiveSlotHours(organizationId: string): Promise<number>;
   /**
    * PAY-APPT-08: сколько минут клиника ждёт предоплату. Читается тем же настроечным путём, что и
@@ -346,6 +347,7 @@ export type BookingSchedulingService = {
     minutes: number;
   }): Promise<void>;
   getMinNoticeHours(organizationId: string): Promise<number>;
+  getAvailabilityHorizonDays(organizationId: string): Promise<number>;
   getMaxConsecutiveSlotHours(organizationId: string): Promise<number>;
   /**
    * PAY-APPT-08: сколько минут клиника ждёт предоплату. Читается тем же настроечным путём, что и
