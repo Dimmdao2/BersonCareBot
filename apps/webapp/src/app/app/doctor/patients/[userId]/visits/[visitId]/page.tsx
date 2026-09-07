@@ -60,6 +60,7 @@ export default async function EditEncounterPage({ params }: PageProps) {
         }}
         boundAppointmentId={null}
         initialVisit={visit}
+        medicalRecordEnabled={shell.workspaceModules.medical_record}
       />
     </PatientEncounterPageShell>
   );

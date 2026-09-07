@@ -1211,6 +1211,11 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
     exportName: 'GET',
     reason: 'read route including removed records for recovery',
   },
+  {
+    file: 'src/app/api/doctor/patients/[userId]/visits/route.ts',
+    exportName: 'GET',
+    reason: 'encounter history read remains independent from medical-record preference',
+  },
   // Patient card mutations are never tariff-gated: `patient_card` is a critical mechanic
   // (canon QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md §4, class "никогда") and has no key in
   // MECHANIC_REGISTRY — a tariff gate here would not compile. #1069, 31.07.
