@@ -1,0 +1,106 @@
+# Common on-demand TLS edge for automatic custom-domain HTTPS (B7/B8/C5a).
+#
+# Design (full rationale in docs/_TODO/CUSTOM_DOMAIN_TLS_EDGE_RUNBOOK_2026-09-07.md):
+#   - This process is the ONLY public listener on 80/443 on the new prod host (135.106.187.95)
+#     once the cutover script has run. The existing nginx blue-green frontend keeps doing exactly
+#     what it does today (TLS-free now, since Caddy owns TLS) on a loopback-only port and is
+#     reverse-proxied to unchanged — deploy-prod/rollback-prod colour switching is untouched.
+#   - Known platform hostnames get a classic managed certificate (automatic HTTPS, HTTP-01), issued
+#     once at Caddy startup, independent of any per-request check.
+#   - Every other Host — an arbitrary clinic custom domain, or a branded `<slug>.therapygo.ru`
+#     subdomain not already covered above — only gets a certificate after the application's `ask`
+#     endpoint answers 2xx for that exact hostname. Any non-2xx, timeout, or unreachable endpoint is
+#     a deny: this is Caddy's own default behaviour, not something configured here, so an
+#     unimplemented/unreachable ask endpoint fails this edge closed rather than open.
+#   - No per-tenant nginx edit, no per-tenant Certbot command, no reload in the clinic path: adding
+#     a clinic domain only ever means the clinic's DNS starts resolving here and the app's ask
+#     endpoint starts saying yes for that hostname.
+#
+# Values in {$...} come from the environment this process starts with — see
+# deploy/env/.env.caddy.prod.example for what each one means and where it is set on the host
+# (/opt/bersoncarebot/env/caddy.prod, loaded the same way api.prod/webapp.prod already are).
+#
+# NOT executed or validated live by this change — `caddy validate` against this file, and every
+# runtime behaviour it describes, is an explicit unexecuted gate named in the runbook.
+
+{
+	email {$CADDY_ACME_EMAIL}
+	acme_ca {$CADDY_ACME_CA:https://acme-v02.api.letsencrypt.org/directory}
+	storage file_system {
+		root {$CADDY_DATA_DIR:/opt/bersoncarebot/state/caddy}
+	}
+
+	# The permission-check module Caddy calls before ANY on-demand issuance. `ask` (the older,
+	# now-deprecated form of this same idea) is deliberately not used — see the runbook's Caddy
+	# 2.11 compatibility note. Only `?domain=<host>` is sent; no header/body/query extension point
+	# exists to carry a shared secret, so CADDY_ASK_URL must be safe to call unauthenticated and
+	# must reveal nothing beyond "is this exact hostname currently eligible".
+	on_demand_tls {
+		permission http {
+			endpoint {$CADDY_ASK_URL}
+		}
+	}
+
+	log default {
+		output file {$CADDY_DATA_DIR:/opt/bersoncarebot/state/caddy}/access.log {
+			roll_size 100mb
+			roll_keep 10
+		}
+		format json
+	}
+}
+
+# ---------------------------------------------------------------------------------------------
+# Known platform hostnames: normal automatic HTTPS, no on-demand/ask round-trip.
+# ---------------------------------------------------------------------------------------------
+{$CADDY_PLATFORM_DOMAINS} {
+	import edge_common
+}
+
+# ---------------------------------------------------------------------------------------------
+# Everything else that reaches this edge on 80/443: arbitrary clinic custom domains and any
+# `<slug>.therapygo.ru` not already listed above. Caddy only manages automatic HTTPS for site
+# blocks with an explicit host list by default; an address-only block like this one is exactly the
+# documented way to opt a catch-all into `on_demand_tls` instead.
+# ---------------------------------------------------------------------------------------------
+:443 {
+	tls {
+		on_demand
+	}
+	import edge_common
+}
+
+:80 {
+	# The platform-domain block above is a plain host list, so Caddy's own automatic-HTTPS redirect
+	# already covers it without any directive here. This block only exists because the catch-all
+	# block above used an explicit `:443` address (required to opt it into on_demand_tls) — doing so
+	# opts it OUT of that automatic redirect too, so the equivalent is spelled out once, for
+	# whatever Host did not match the platform list. ACME HTTP-01 challenge requests for both
+	# blocks are intercepted by Caddy before reaching this redirect regardless.
+	redir https://{host}{uri} permanent
+}
+
+(edge_common) {
+	encode gzip zstd
+
+	header {
+		# No `includeSubDomains`/`preload` here: this header goes out on tenant-controlled hostnames
+		# too, and forcing HSTS onto every subdomain of a domain a clinic merely pointed at us is not
+		# this edge's call to make (matches the documented world-practice caution against Vercel's
+		# stricter default on customer domains).
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	reverse_proxy {$CADDY_UPSTREAM} {
+		# Mandatory: without this, Caddy's default upstream Host rewrite would send every request as
+		# whatever {$CADDY_UPSTREAM} answers to, and the application's Host-based tenant resolution
+		# would see one host for every clinic instead of the one the client actually asked for.
+		header_up Host {hostport}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
