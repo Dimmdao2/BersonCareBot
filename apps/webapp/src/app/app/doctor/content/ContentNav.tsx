@@ -13,6 +13,7 @@ import {
 } from '@/modules/content-sections/types';
 import { setSectionVisibility } from './sections/sectionVisibilityActions';
 import toast from 'react-hot-toast';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 // ---------------------------------------------------------------------------
 // Pane key types
@@ -166,6 +167,7 @@ export function ContentNav({
   onCreateSection,
   className,
 }: ContentNavProps) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const baseUserSections: SectionVisState[] = useMemo(
     () =>
       articleSections
@@ -215,7 +217,7 @@ export function ContentNav({
           href="/app/doctor/patient-home"
           className="flex min-w-0 items-center rounded-md border-l-2 border-transparent py-1.5 pl-2.5 pr-2 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
         >
-          Главная пациента
+          Главная {patientGenitive}
         </Link>
       ) : null}
 

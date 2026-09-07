@@ -38,6 +38,7 @@ import type { TodayDashboardData } from './loadDoctorTodayDashboard';
 import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
 import { ON_SUPPORT_LIST_HREF, RECENT_VISITS_LIST_HREF } from './doctorTodayLinks';
 import { notifyDoctorTasksChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export type DoctorTodayCalendarSnapshot = {
   todayIso: string;

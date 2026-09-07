@@ -14,6 +14,7 @@ import { getDoctorMenuIcon } from '@/shared/ui/doctor/doctorNavIcons';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
 import { resolveSpecialistTaskAttentionTone } from '@/modules/specialist-tasks/taskPriority';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const items = [
   { id: 'today', label: 'Сегодня', href: routePaths.doctor },
@@ -35,6 +36,7 @@ export function DoctorBottomNav({
   menuAccess: DoctorMenuAccess;
   patientLabel?: string;
 }) {
+  const { patientPluralLabel } = useDoctorPatientTerms();
   const pathname = usePathname() ?? routePaths.doctor;
   const { messagesUnread, unreadExerciseComments, overdueTasks, todayTasks } =
     useOptionalDoctorShellBadgeCounts();
@@ -52,6 +54,7 @@ export function DoctorBottomNav({
     >
       <div className="flex h-12">
         {visibleItems.map((item) => {
+          const label = item.id === 'patients' ? patientPluralLabel : item.label;
           const active = isDoctorNavItemActive(
             'accessHref' in item ? item.accessHref : item.href,
             pathname,
@@ -75,13 +78,13 @@ export function DoctorBottomNav({
                 hasAttention
                   ? item.id === 'tasks'
                     ? overdueTasks > 0
-                      ? `${item.label}. Есть просроченные задачи.`
-                      : `${item.label}. Есть задачи на сегодня.`
-                    : `${item.label}. Есть непрочитанные.`
-                  : item.label
+                      ? `${label}. Есть просроченные задачи.`
+                      : `${label}. Есть задачи на сегодня.`
+                    : `${label}. Есть непрочитанные.`
+                  : label
               }
               aria-current={active ? 'page' : undefined}
-              title={item.label}
+              title={label}
               className={cn(
                 'flex h-full min-w-0 flex-1 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
                 active && 'bg-primary/10 text-primary',

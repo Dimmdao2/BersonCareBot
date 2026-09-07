@@ -29,10 +29,6 @@ export type DoctorClientTerms = PatientTerms & {
   supportGroupLabel: 'Избранные' | 'На сопровождении';
 };
 
-export type DoctorClientTerms = PatientTerms & {
-  supportGroupLabel: 'Избранные' | 'На сопровождении';
-};
-
 export const PATIENT_LABEL_VALUES = ['пациент', 'клиент'] as const;
 export type PatientLabelValue = (typeof PATIENT_LABEL_VALUES)[number];
 
@@ -97,17 +93,6 @@ export function resolvePatientTerms(value?: unknown): PatientTerms {
  * The sole terminology projection for specialist/client surfaces.  Both settings remain
  * organization-scoped, while the underlying membership stays the existing `onSupport` field.
  */
-export function resolveDoctorClientTerms(
-  patientLabel?: string | null,
-  supportGroupLabel?: string | null,
-): DoctorClientTerms {
-  return {
-    ...resolvePatientTerms(patientLabel),
-    supportGroupLabel: resolveSupportGroupLabel(supportGroupLabel),
-  };
-}
-
-/** The sole terminology projection for specialist/client surfaces. */
 export function resolveDoctorClientTerms(
   patientLabel?: string | null,
   supportGroupLabel?: string | null,

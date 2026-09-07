@@ -455,6 +455,7 @@ function PatientsContent({
   onSearchInput,
   onMobileFiltersOpenChange,
 }: PatientsContentProps) {
+  const { supportGroupLabel } = useDoctorPatientTerms();
   const router = useRouter();
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
