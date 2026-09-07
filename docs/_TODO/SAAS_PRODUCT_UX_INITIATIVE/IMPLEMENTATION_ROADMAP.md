@@ -797,9 +797,11 @@ public booking этой organization продолжает работать.
       исправление patient-principal path `2b2f7bb42`, land `f87c2b8d1`; canonical DEV preflight/execute PASS,
       patient-principal DB oracle `1/1` PASS и live DEV OFF desktop/mobile → кабинет `200`, упражнения `404`,
       ссылка отсутствует; OFF→ON → упражнения `200`, ссылка вернулась; исходное `rehabilitation=true` восстановлено.
-- [ ] **C3M-09 — communications slice.** Фильтровать Communications tabs и default tab; gate chat ensure/read/write,
+- [x] **C3M-09 — communications slice.** Фильтровать Communications tabs и default tab; gate chat ensure/read/write,
       unread-count, snapshots, payment-link-to-chat, comments/media and mailing read/write paths; отключить
-      соответствующие notifications/jobs, не только кнопки.
+      соответствующие notifications/jobs, не только кнопки. Доказательство: product `5283a3ff3`, независимые
+      behavior tests `b51bc98d2`, correction `016477803`, final audit `ee87395e3`, land `a0ee3903c`; все 12 классов
+      kill-set закрыты, targeted gates и isolated DEV desktop/mobile acceptance PASS, OFF→ON сохранил данные.
 - [ ] **C3M-10 — portal and symptom slice.** Gate invite issue и linked org-private patient routes/APIs client
       policy; отдельно добавить `patient_tracking_enabled` в create/edit symptom, patient list/read/write guards и
       compatibility backfill `true`; создание использует только snapshot текущего symptom default и `onSupport`.
