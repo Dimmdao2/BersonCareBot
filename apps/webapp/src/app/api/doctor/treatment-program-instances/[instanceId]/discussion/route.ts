@@ -39,6 +39,7 @@ async function resolveDoctorInstanceContext(
   const deps = buildAppDeps();
   const resolved = await resolveDoctorInstanceInWorkspace(deps, gateCtx, instanceId, {
     requireDoctorAssigned: true,
+    clientChannel: 'commentsAllowed',
   });
   if (!resolved.ok) return { error: resolved.response };
   const { instance } = resolved;

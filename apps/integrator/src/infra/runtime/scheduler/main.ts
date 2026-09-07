@@ -123,6 +123,18 @@ async function startResident(): Promise<void> {
         // recording its own cruder attempt too would duplicate the operator journal entry.
         dispatchOutgoing: (intent) =>
           workerDeps.dispatchPort.dispatchOutgoing(intent, { skipAttemptLog: true }),
+        resolveWorkspaceModuleEnabled: async ({ organizationId, module }) => {
+          const result = await workerDeps.webappEventsPort.getWorkspaceModuleStatus?.({
+            organizationId,
+            module,
+          });
+          if (!result?.ok || typeof result.enabled !== 'boolean') {
+            throw new Error(
+              `workspace_module_status_failed:${result?.status ?? 0}:${result?.error ?? 'unavailable'}`,
+            );
+          }
+          return result.enabled;
+        },
         batchSize,
         doctorBroadcastMenu: {
           templatePort: workerDeps.templatePort,

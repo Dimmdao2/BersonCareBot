@@ -73,9 +73,13 @@ function useModules(modules: WorkspaceModuleEffective) {
 describe('communications workspace projection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    fakes.buildAppDeps.mockReturnValue({});
+    fakes.buildAppDeps.mockReturnValue({
+      doctorClients: {
+        filterPatientUserIdsByClientChannel: async (ids: readonly string[]) => new Set(ids),
+      },
+    });
     fakes.loadAudience.mockResolvedValue({ excludedUserIds: [] });
-    fakes.loadComments.mockResolvedValue([]);
+    fakes.loadComments.mockResolvedValue({ items: [] });
     fakes.loadPatients.mockResolvedValue([]);
     fakes.loadBadges.mockResolvedValue({ chats: 2 });
     fakes.getMutationAvailability.mockResolvedValue({ available: true });

@@ -35,7 +35,9 @@ import {
   DOCTOR_WORKSPACE_COMPOSITION_KEY,
   normalizeDoctorWorkspaceClientDefaults,
   normalizeDoctorWorkspaceComposition,
+  parseDoctorWorkspaceClientDefaults,
   parseDoctorWorkspaceComposition,
+  type DoctorWorkspaceClientDefaults,
   type DoctorWorkspaceComposition,
 } from './doctorWorkspaceComposition';
 import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
@@ -336,6 +338,56 @@ export function createSystemSettingsService(
         throw new RuntimeSettingUnavailableError(DOCTOR_WORKSPACE_COMPOSITION_KEY);
       }
       return parseDoctorWorkspaceComposition(row?.valueJson ?? null);
+    },
+
+    async getDoctorWorkspaceClientDefaults(
+      options: SystemSettingsReadOptions = {},
+      preloadedRow?: SystemSetting | null,
+    ): Promise<DoctorWorkspaceClientDefaults> {
+      const organizationId = options.organizationId?.trim();
+      if (!organizationId) {
+        throw new SystemSettingsOrgContextRequiredError(DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY);
+      }
+      const row =
+        preloadedRow === undefined
+          ? await getSettingFromCanonicalRoot(DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY, 'doctor', {
+              ...options,
+              organizationId,
+            })
+          : preloadedRow;
+      if (row !== null && row.organizationId !== organizationId) {
+        throw new RuntimeSettingUnavailableError(DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY);
+      }
+      if (
+        row !== null &&
+        (row.valueJson === null ||
+          typeof row.valueJson !== 'object' ||
+          Array.isArray(row.valueJson) ||
+          !('value' in row.valueJson))
+      ) {
+        throw new RuntimeSettingUnavailableError(DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY);
+      }
+      if (row !== null) return parseDoctorWorkspaceClientDefaults(row.valueJson);
+      const [commentsLegacy, mediaLegacy] = await Promise.all([
+        getSettingFromCanonicalRoot(
+          'doctor_patient_support_comments_without_support_default_enabled',
+          'doctor',
+          { ...options, organizationId },
+        ),
+        getSettingFromCanonicalRoot(
+          'doctor_patient_support_media_without_support_default_enabled',
+          'doctor',
+          { ...options, organizationId },
+        ),
+      ]);
+      const enabled = (legacyRow: SystemSetting | null) =>
+        legacyRow?.valueJson !== null &&
+        typeof legacyRow?.valueJson === 'object' &&
+        (legacyRow.valueJson as Record<string, unknown>).value === true;
+      return parseDoctorWorkspaceClientDefaults(null, {
+        legacyCommentsWithoutSupportEnabled: enabled(commentsLegacy),
+        legacyMediaWithoutSupportEnabled: enabled(mediaLegacy),
+      });
     },
 
     async listSettingsByScope(

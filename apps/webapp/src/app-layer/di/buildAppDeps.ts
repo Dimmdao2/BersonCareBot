@@ -1679,7 +1679,8 @@ function _buildAppDeps() {
         phone: identity.phone,
         email: identity.email ?? null,
       }),
-    getDoctorSupportDefault: (key, context) => runtimeConfig.getBoolean(key, context),
+    getDoctorWorkspaceClientDefaults: (context) =>
+      systemSettingsService.getDoctorWorkspaceClientDefaults(context),
   });
   // Аудитория доставки интегратора — один объявленный корень, а не сборка из сырых чтений.
   // Стена участия, привязки, предпочтения и готовность каналов живут внутри

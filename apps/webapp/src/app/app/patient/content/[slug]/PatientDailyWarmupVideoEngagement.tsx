@@ -7,6 +7,7 @@ import {
   type PatientContentAdaptiveVideoProps,
 } from './PatientContentAdaptiveVideo';
 import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
+import { HostedVideoEmbed } from '@/shared/ui/patient/media/HostedVideoEmbed';
 import toast from 'react-hot-toast';
 
 type CatalogPlayerProps = Pick<
@@ -23,7 +24,7 @@ type Props =
   | {
       mode: 'hosted';
       contentPageId: string;
-      iframeSrc: string;
+      url: string;
       title: string;
     };
 
@@ -65,17 +66,7 @@ export function PatientDailyWarmupVideoEngagement(props: Props) {
   }, [props.contentPageId, router]);
 
   if (props.mode === 'hosted') {
-    return (
-      <div className="relative aspect-video" onPointerDown={reportOnce}>
-        <iframe
-          src={props.iframeSrc}
-          className="absolute inset-0 size-full border-0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          title={props.title}
-        />
-      </div>
-    );
+    return <HostedVideoEmbed url={props.url} title={props.title} onFirstPlaying={reportOnce} />;
   }
 
   return <PatientContentAdaptiveVideo {...props.player} onFirstPlaying={reportOnce} />;

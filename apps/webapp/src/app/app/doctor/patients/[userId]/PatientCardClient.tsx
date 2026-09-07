@@ -815,6 +815,7 @@ function PatientCardTabPanels({
               header={header}
               active={activeTab === 'program'}
               initialProgramInstances={unwrapBootstrapEnvelope(tab.initialProgramInstances)}
+              programCommentsEnabled={workspaceModules?.program_comments !== false}
             />
           )}
         </div>

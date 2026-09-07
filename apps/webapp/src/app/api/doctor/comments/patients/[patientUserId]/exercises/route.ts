@@ -40,6 +40,13 @@ export async function GET(
   if (!identity) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
+  if (
+    !(await deps.doctorClients.getClientChannelPolicy(identity.userId, {
+      organizationId: gate.ctx.organizationId,
+    })).commentsAllowed
+  ) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
 
   const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     loadDoctorPatientExercisesWithComments(

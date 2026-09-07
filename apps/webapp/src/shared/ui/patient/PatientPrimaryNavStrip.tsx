@@ -38,12 +38,14 @@ type Props = {
 export function PatientPrimaryNavStrip({ className, variant = 'bottom' }: Props) {
   const pathname = usePathname() ?? '';
   const activeId = getPatientPrimaryNavActiveId(pathname);
-  const chatUnread = usePatientSupportUnreadCount();
   const organizationContext = usePatientOrganizationContext();
-  const navItems =
-    organizationContext?.workspaceModules?.rehabilitation === false
-      ? PATIENT_PRIMARY_NAV_ITEMS.filter((item) => item.id !== 'plan')
-      : PATIENT_PRIMARY_NAV_ITEMS;
+  const directChatEnabled = organizationContext?.workspaceModules?.direct_chat !== false;
+  const chatUnread = usePatientSupportUnreadCount(directChatEnabled);
+  const navItems = PATIENT_PRIMARY_NAV_ITEMS.filter(
+    (item) =>
+      (item.id !== 'plan' || organizationContext?.workspaceModules?.rehabilitation !== false) &&
+      (item.id !== 'messages' || directChatEnabled),
+  );
 
   const renderNavLink = (item: PatientPrimaryNavItem) => {
     const Icon = NAV_ICONS[item.id];

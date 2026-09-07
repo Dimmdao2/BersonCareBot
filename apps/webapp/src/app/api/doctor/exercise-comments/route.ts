@@ -81,7 +81,13 @@ export async function GET(request: Request) {
     nameById = new Map(
       allClients.map((client) => [client.userId.trim(), client.displayName.trim() || '—']),
     );
-    const visiblePatientUserIds = [...nameById.keys()];
+    const visiblePatientUserIds = [
+      ...(await deps.doctorClients.filterPatientUserIdsByClientChannel(
+        [...nameById.keys()],
+        { organizationId },
+        'commentsAllowed',
+      )),
+    ];
     rows =
       visiblePatientUserIds.length === 0
         ? []
@@ -105,7 +111,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, items: [], hasMore: false, nextCursor: null });
     }
     nameById = new Map(onSupport.map((c) => [c.userId.trim(), c.displayName.trim() || '—']));
-    const patientUserIds = [...nameById.keys()];
+    const patientUserIds = [
+      ...(await deps.doctorClients.filterPatientUserIdsByClientChannel(
+        [...nameById.keys()],
+        { organizationId },
+        'commentsAllowed',
+      )),
+    ];
     rows = await withDoctorWorkspacePrincipal(gate.ctx, () =>
       deps.programItemDiscussion.listExerciseCommentsForDoctor({
         patientUserIds,

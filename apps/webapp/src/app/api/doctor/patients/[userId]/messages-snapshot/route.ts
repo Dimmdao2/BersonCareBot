@@ -32,6 +32,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   if (!identity) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
+  if (
+    !(await deps.doctorClients.getClientChannelPolicy(identity.userId, {
+      organizationId: gate.ctx.organizationId,
+    })).directChatAllowed
+  ) {
+    return NextResponse.json({ ok: true, messages: [], unreadFromUserCount: 0 });
+  }
 
   const snapshot = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     loadDoctorPatientMessagesSnapshot(deps, identity.userId, gate.ctx.organizationId, gate.ctx),

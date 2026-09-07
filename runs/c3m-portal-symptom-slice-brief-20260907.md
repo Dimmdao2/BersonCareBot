@@ -30,9 +30,13 @@ preflight for every migration, targeted validation and live acceptance.
 4. Add one boolean `patient_tracking_enabled` to each symptom tracking. Existing trackings backfill to `true`.
    This boolean is independent of `is_active`: disabling patient tracking leaves the symptom, its history and the
    specialist's create/edit/read path intact and does not archive it.
-5. In the existing specialist symptom create/edit settings, expose one control «разрешить отслеживание пациентом».
-   Create pre-fills it from the accepted organization default: `off=false`, `all=true`, `on_support=current
-   onSupport`. The specialist may change it before save and edit it later.
+5. In the specialist's client card, expose one control «разрешить отслеживание пациентом» in create/edit settings
+   of the existing diary `symptom_trackings` model. Current code has the staff create route but no connected
+   create/edit UI; connect that same model into the existing client card with the smallest coherent controls. Do not
+   attach the control to `patient_clinical_complaints` (the longitudinal medical-record symptom entity), do not add a
+   second symptom entity, and do not create a separate page. Create pre-fills it from the accepted organization
+   default: `off=false`, `all=true`, `on_support=current onSupport`. The specialist may change it before save and
+   edit it later.
 6. The create default is a one-time snapshot only. Changing the organization default or later changing `onSupport`
    never rewrites existing symptom trackings. Do not add a per-client symptom override, inheritance state, live
    symptom policy resolver, second group or favorite property.

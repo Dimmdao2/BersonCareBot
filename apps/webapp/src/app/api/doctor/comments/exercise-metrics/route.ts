@@ -56,7 +56,9 @@ export async function GET(request: Request) {
 
   try {
     const deps = buildAppDeps();
-    const resolved = await resolveDoctorInstanceInWorkspace(deps, gate.ctx, instanceId);
+    const resolved = await resolveDoctorInstanceInWorkspace(deps, gate.ctx, instanceId, {
+      clientChannel: 'commentsAllowed',
+    });
     if (!resolved.ok) return resolved.response;
 
     const itemBelongsToInstance = resolved.instance.stages.some((stage) =>

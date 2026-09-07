@@ -51,6 +51,7 @@ import {
   inMemoryDoctorClientsPort,
 } from '@/infra/repos/inMemoryDoctorClients';
 import { createDoctorClientsService } from './service';
+import { defaultDoctorWorkspaceComposition } from '@/modules/system-settings/doctorWorkspaceComposition';
 
 let activeOrganizationId: string;
 let stateByOrganization: Map<string, OrganizationState>;
@@ -208,6 +209,17 @@ beforeEach(() => {
   };
 
   fakes.buildAppDeps.mockReturnValue({
+    orgEntitlements: {
+      resolveMechanicAccess: async (_organizationId: string, mechanic: string) => ({
+        mechanic,
+        state: 'full_access',
+        policySource: 'system',
+        warning: null,
+      }),
+    },
+    systemSettings: {
+      getDoctorWorkspaceComposition: async () => defaultDoctorWorkspaceComposition(),
+    },
     doctorClientsPort: {
       getClientIdentityForOrganization: async () => ({ userId: ids.patient }),
     },

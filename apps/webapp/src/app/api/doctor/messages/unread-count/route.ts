@@ -32,15 +32,36 @@ export async function GET(request: Request) {
     if (!identity) {
       return NextResponse.json({ ok: false, error: 'patient_not_found' }, { status: 404 });
     }
-    unreadCount = await deps.messaging.doctorSupport.unreadFromPatient(
-      patientUserId,
-      auth.ctx.organizationId,
-    );
+    unreadCount = (await deps.doctorClients.getClientChannelPolicy(identity.userId, {
+      organizationId: auth.ctx.organizationId,
+    })).directChatAllowed
+      ? await deps.messaging.doctorSupport.unreadFromPatient(
+          patientUserId,
+          auth.ctx.organizationId,
+        )
+      : 0;
   } else {
-    unreadCount = await deps.messaging.doctorSupport.unreadFromUsers({
+    const conversations = await deps.messaging.doctorSupport.listOpenConversations({
+      limit: 100,
+      unreadOnly: true,
       organizationId: auth.ctx.organizationId,
       visibilityActor: auth.ctx,
     });
+    const patientUserIds = conversations.flatMap((conversation) =>
+      conversation.platformUserId ? [conversation.platformUserId] : [],
+    );
+    const allowed = await deps.doctorClients.filterPatientUserIdsByClientChannel(
+      patientUserIds,
+      { organizationId: auth.ctx.organizationId },
+      'directChatAllowed',
+    );
+    unreadCount = conversations.reduce(
+      (sum, conversation) =>
+        conversation.platformUserId && allowed.has(conversation.platformUserId)
+          ? sum + conversation.unreadFromUserCount
+          : sum,
+      0,
+    );
   }
   return NextResponse.json({ ok: true, unreadCount });
 }

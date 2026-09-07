@@ -58,7 +58,15 @@ export async function GET(request: Request) {
           ),
     );
 
-    return NextResponse.json({ ok: true, patients });
+    const allowed = await deps.doctorClients.filterPatientUserIdsByClientChannel(
+      patients.map((patient) => patient.patientUserId),
+      { organizationId: gate.ctx.organizationId },
+      'commentsAllowed',
+    );
+    return NextResponse.json({
+      ok: true,
+      patients: patients.filter((patient) => allowed.has(patient.patientUserId)),
+    });
   } catch (e) {
     return respondWithSafeApiError('api/doctor/comments/patients', e, {
       fallbackCode: 'comment_patients_load_failed',

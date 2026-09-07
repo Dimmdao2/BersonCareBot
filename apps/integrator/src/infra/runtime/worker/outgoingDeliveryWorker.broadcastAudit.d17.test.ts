@@ -201,6 +201,52 @@ describe('D17 — журнал рассылки врача: имя счётчи�
     expect(incidentRecorder).not.toHaveBeenCalled();
   });
 
+  it('дано: mailings выключены после enqueue → доставка терминируется до вызова провайдера', async () => {
+    const h = harness();
+    const dispatchOutgoing = vi.fn(async () => ({}));
+    const resolveWorkspaceModuleEnabled = vi.fn(async () => false);
+
+    await processClaimedOutgoingDeliveryRow(row(), {
+      db: h.db,
+      writePort: { writeDb: async () => undefined } as never,
+      dispatchOutgoing,
+      resolveWorkspaceModuleEnabled,
+    });
+
+    expect(resolveWorkspaceModuleEnabled).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      module: 'mailings',
+    });
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
+    expect(
+      h.executed.some(
+        (call) =>
+          call.text.includes("status = 'dead'") &&
+          call.params.includes('workspace_mailings_disabled') &&
+          call.params.includes('reminder_not_dispatched'),
+      ),
+    ).toBe(true);
+    expect(h.executed.filter((call) => call.text.includes(COUNTER_ROOT))).toHaveLength(0);
+  });
+
+  it('дано: status-resolver недоступен → провайдер не вызывается', async () => {
+    const h = harness();
+    const dispatchOutgoing = vi.fn(async () => ({}));
+
+    await expect(
+      processClaimedOutgoingDeliveryRow(row(), {
+        db: h.db,
+        writePort: { writeDb: async () => undefined } as never,
+        dispatchOutgoing,
+        resolveWorkspaceModuleEnabled: async () => {
+          throw new Error('workspace status unavailable');
+        },
+      }),
+    ).rejects.toThrow('workspace status unavailable');
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
+    expect(h.executed.filter((call) => call.text.includes(COUNTER_ROOT))).toHaveLength(0);
+  });
+
   it('дано: попытка не последняя и отказ повторяемый → когда обработка → тогда счётчик НЕ поднимается вовсе', async () => {
     incidentRecorder.mockClear();
     const h = harness();

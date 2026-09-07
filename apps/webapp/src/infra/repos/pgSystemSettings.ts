@@ -92,6 +92,9 @@ const PREAUTH_PROVIDER_SETTING_KEYS: ReadonlySet<string> = new Set([
 
 const CURRENT_PATIENT_UI_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
   'doctor_workspace_composition',
+  'doctor_workspace_client_defaults',
+  'doctor_patient_support_comments_without_support_default_enabled',
+  'doctor_patient_support_media_without_support_default_enabled',
   'patient_home_daily_warmup_repeat_cooldown_minutes',
   'patient_home_daily_warmup_rotation_enabled',
   'patient_home_daily_warmup_rotation_times',

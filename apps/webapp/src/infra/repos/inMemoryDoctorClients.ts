@@ -227,6 +227,10 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
           : (existing?.commentsEnabled ?? null),
       mediaEnabled:
         params.mediaEnabled !== undefined ? params.mediaEnabled : (existing?.mediaEnabled ?? null),
+      directChatEnabled:
+        params.directChatEnabled !== undefined
+          ? params.directChatEnabled
+          : (existing?.directChatEnabled ?? null),
       updatedAt: now,
       updatedBy: params.actorId,
     };

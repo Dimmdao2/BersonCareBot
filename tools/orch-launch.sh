@@ -134,20 +134,27 @@ $(ps -eo args | grep -E '^[^ ]*node[^ ]* +[^ ]*[a]gent-run\.mjs( |$)' | sed 's/.
 fi
 
 # 2. Клон: существует (обычный клон ИЛИ прилинкованный git worktree — у него .git файл, не
-#    каталог, отсюда -e а не -d), чистый, содержит текущую голову feat.
+#    каталог, отсюда -e а не -d) и чистый. Свежая голова feat — только worker-gate;
+#    auditor-live проверяет точный candidate и не меняет его автослиянием.
 [ -e "$CLONE/.git" ] || die "клон $CLONE не найден"
 [ -z "$(git -C "$CLONE" status --porcelain)" ] || die "в клоне $CLONE есть незакоммиченное — салважни или сбрось перед запуском"
 HEAD_MAIN=$(git -C "$MAIN" rev-parse "$FEAT")
 HEAD_CLONE=$(git -C "$CLONE" rev-parse HEAD)
-# Клон обязан СОДЕРЖАТЬ голову feat. Равенства требовать нельзя: клон с невлитым фиксом
-# опережает feat на свой коммит, и его как раз надо аудировать (гейт 28.07 это запрещал —
-# ошибка конструкции, найденная на первом же аудите фиксов).
-if ! git -C "$CLONE" merge-base --is-ancestor "$HEAD_MAIN" "$HEAD_CLONE" 2>/dev/null; then
-  die "клон $CLONE_NAME на ${HEAD_CLONE:0:9} НЕ содержит голову $FEAT ${HEAD_MAIN:0:9}. Сначала:
-    git -C $CLONE fetch $MAIN $FEAT && git -C $CLONE merge --no-edit FETCH_HEAD
-  (аудит на устаревшем клоне 28.07 проверял код, которого там не было)"
+# Новая worker-работа начинается от текущего feat. Аудитору этот гейт вреден: его предмет —
+# уже собранный candidate, а не все чужие коммиты, которые успели попасть в feat позже.
+if [ "$ROLE" = worker ] && ! git -C "$CLONE" merge-base --is-ancestor "$HEAD_MAIN" "$HEAD_CLONE" 2>/dev/null; then
+  die "worker-клон $CLONE_NAME на ${HEAD_CLONE:0:9} НЕ содержит голову $FEAT ${HEAD_MAIN:0:9}. Сначала:
+    git -C $CLONE fetch $MAIN $FEAT && git -C $CLONE merge --no-edit FETCH_HEAD"
 fi
+MERGE_BASE=$(git -C "$CLONE" merge-base "$HEAD_MAIN" "$HEAD_CLONE" 2>/dev/null) ||
+  die "у candidate $CLONE_NAME нет общей git-базы с $FEAT"
 AHEAD=$(git -C "$CLONE" rev-list --count "$HEAD_MAIN".."$HEAD_CLONE")
+if git -C "$CLONE" merge-base --is-ancestor "$HEAD_MAIN" "$HEAD_CLONE" 2>/dev/null; then
+  CANDIDATE_STATE="кандидат содержит feat ${HEAD_MAIN:0:9}"
+else
+  BEHIND=$(git -C "$CLONE" rev-list --count "$HEAD_CLONE".."$HEAD_MAIN")
+  CANDIDATE_STATE="аудит exact candidate ${HEAD_CLONE:0:9} от базы ${MERGE_BASE:0:9}; feat ушёл вперёд на $BEHIND"
+fi
 
 # 3. Бриф: есть, непустой. Для tracked workstream authority — существующий plan/checklist. Для цельного
 #    делегируемого bounded-этапа без plan-файла authority = сам brief, а ORCH_OPS фиксирует выбор.
@@ -250,7 +257,7 @@ if [ "$PROVIDER" = claude ]; then
   PORT_PROGRESS_ARGS=(--watchdog stream --progress-journal "$JOURNAL")
 fi
 echo "запуск: роль=$ROLE клон=$CLONE_NAME провайдер=$PROVIDER модель=$MODEL effort=$EFFORT scope=$SCOPE"
-echo "  клон содержит feat ${HEAD_MAIN:0:9}, своих коммитов сверху: $AHEAD; агентов было $LIVE из $CAP; лог $LOG"
+echo "  $CANDIDATE_STATE; candidate-only коммитов: $AHEAD; агентов было $LIVE из $CAP; лог $LOG"
 [ "$PROVIDER" != claude ] || echo "  прогрессивный журнал: $JOURNAL"
 [ -z "${ORCH_DRY:-}" ] || { echo "  ORCH_DRY=1 — все проверки пройдены, агент НЕ запущен"; exit 0; }
 # ORCH_JOB="worker|worker-hard|reviewer|reviewer-critical|explorer|mechanic" — канонический выбор модели и effort

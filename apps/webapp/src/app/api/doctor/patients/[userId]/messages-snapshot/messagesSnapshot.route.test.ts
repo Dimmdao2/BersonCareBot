@@ -14,6 +14,7 @@ const fakes = vi.hoisted(() => ({
   requireDoctorWorkspace: vi.fn<RequireDoctorWorkspace>(),
   withDoctorWorkspacePrincipal: vi.fn(),
   getClientIdentity: vi.fn<AppDeps['doctorClientsPort']['getClientIdentityForOrganization']>(),
+  getClientChannelPolicy: vi.fn(),
   listConversationsByUser: vi.fn(),
   listOpenConversations: vi.fn(),
   listMessagesSince: vi.fn(),
@@ -112,9 +113,15 @@ describe('GET /api/doctor/patients/[userId]/messages-snapshot', () => {
       fn(),
     );
     fakes.getClientIdentity.mockResolvedValue(clientIdentity);
+    fakes.getClientChannelPolicy.mockResolvedValue({
+      directChatAllowed: true,
+      commentsAllowed: true,
+      mediaAllowed: true,
+    });
     fakes.listOpenConversations.mockResolvedValue([permittedConversation()]);
     fakes.buildAppDeps.mockReturnValue({
       doctorClientsPort: { getClientIdentityForOrganization: fakes.getClientIdentity },
+      doctorClients: { getClientChannelPolicy: fakes.getClientChannelPolicy },
       supportCommunication: {
         listConversationsByUser: fakes.listConversationsByUser,
         listMessagesSince: fakes.listMessagesSince,
@@ -164,6 +171,31 @@ describe('GET /api/doctor/patients/[userId]/messages-snapshot', () => {
     await expect(response.json()).resolves.toEqual({ ok: false, error: 'not_found' });
     expect(fakes.listConversationsByUser).not.toHaveBeenCalled();
     expect(fakes.ensureConversation).not.toHaveBeenCalled();
+  });
+
+  it('returns an empty snapshot and performs no chat read when client direct chat is denied', async () => {
+    fakes.getClientChannelPolicy.mockResolvedValue({
+      directChatAllowed: false,
+      commentsAllowed: true,
+      mediaAllowed: true,
+    });
+
+    const response = await GET(new Request('http://test/messages-snapshot'), {
+      params: Promise.resolve({ userId: PATIENT_ID }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      messages: [],
+      unreadFromUserCount: 0,
+    });
+    expect(fakes.getClientChannelPolicy).toHaveBeenCalledWith(PATIENT_ID, {
+      organizationId: ORGANIZATION_ID,
+    });
+    expect(fakes.listConversationsByUser).not.toHaveBeenCalled();
+    expect(fakes.listOpenConversations).not.toHaveBeenCalled();
+    expect(fakes.listMessagesSince).not.toHaveBeenCalled();
   });
 
   it('returns existing messages without ensure when a webapp conversation is present', async () => {
