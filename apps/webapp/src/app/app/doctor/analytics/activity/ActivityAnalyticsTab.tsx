@@ -14,6 +14,7 @@ import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { MetricAccountsDialog } from '@/shared/ui/doctor/analytics/MetricAccountsDialog';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 import { AnalyticsPeriodToolbar } from '../clients/AnalyticsPeriodToolbar';
 import { DoctorStatCard } from '../clients/DoctorStatCard';
@@ -30,7 +31,6 @@ import { ProgramActivityDynamicsChart } from './ProgramActivityDynamicsChart';
 type Props = {
   calendarTodayYmd: string;
   displayIana: string;
-  patientGenPlural?: string;
 };
 
 type ApiResponse = {
@@ -44,11 +44,8 @@ function formatShare(share: number): string {
   return `${Math.round(share * 100)}%`;
 }
 
-export function ActivityAnalyticsTab({
-  calendarTodayYmd,
-  displayIana,
-  patientGenPlural = 'пациентов',
-}: Props) {
+export function ActivityAnalyticsTab({ calendarTodayYmd, displayIana }: Props) {
+  const { patientGenPlural } = useDoctorPatientTerms();
   const [preset, setPreset] = useState<AdminStatsTimePreset>('week');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
@@ -209,7 +206,7 @@ export function ActivityAnalyticsTab({
                 id="doctor-analytics-activity-share"
                 title="Доля активных"
                 value={formatShare(kpis.activePatientShare)}
-                hint="от пациентов с программой"
+                hint={`от ${patientGenPlural} с программой`}
               />
             </DoctorMetricList>
 
