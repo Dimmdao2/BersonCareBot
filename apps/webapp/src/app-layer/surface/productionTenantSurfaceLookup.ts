@@ -14,6 +14,7 @@
  * (Next's own choke point), so this module lives under `app-layer`, not `modules`.
  */
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolvePatientSubdomainOrganization } from '@/modules/clinic-directory/patientSubdomainOrganization';
 import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
@@ -57,10 +58,23 @@ async function resolveOrganizationForHost(
 
 export const productionTenantSurfaceLookup: TenantSurfaceLookup = async (
   normalizedHost,
+  purpose = 'surface',
 ): Promise<TenantSurfaceLookupResult> => {
   stampBootstrapPrincipal('proxy:resolve-tenant-surface');
   const deps = buildAppDeps();
   if (!deps.customDomainBinding && !deps.clinicDirectory) return { status: 'unknown' };
+
+  if (purpose === 'preactivation_probe') {
+    const authorized =
+      deps.customDomainBinding &&
+      (await runWithDbInfraPrincipal(
+        { source: 'proxy:custom-domain-probe' },
+        () => deps.customDomainBinding!.isHostnameAskAuthorized(normalizedHost),
+      ));
+    return authorized
+      ? { status: 'probe' }
+      : { status: 'unknown' };
+  }
 
   const organizationId = await resolveOrganizationForHost(normalizedHost, deps);
   if (!organizationId || !deps.customDomainBinding) return { status: 'unknown' };
@@ -83,6 +97,9 @@ export const productionTenantSurfaceLookup: TenantSurfaceLookup = async (
     },
     ...(projection.activeCustomDomainHostname
       ? { activeCustomDomainHostname: projection.activeCustomDomainHostname }
+      : {}),
+    ...(projection.clinicMessengerBots
+      ? { clinicMessengerBots: projection.clinicMessengerBots }
       : {}),
   };
 };

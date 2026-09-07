@@ -17190,18 +17190,13 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
-          "id",
           "organization_id",
           "base_domain",
           "placement",
           "subdomain_label",
           "hostname",
           "status",
-          "status_reason",
-          "created_by_platform_user_id",
-          "activated_at",
-          "created_at",
-          "updated_at"
+          "created_by_platform_user_id"
         ]
       },
       {
@@ -17210,13 +17205,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
-          "base_domain",
-          "placement",
-          "subdomain_label",
-          "hostname",
           "status",
           "status_reason",
-          "activated_at",
           "updated_at"
         ]
       }
@@ -27947,7 +27937,7 @@ const REV10_CONTEXT = {
       owner: 'app_seam_public_clinic_card_owner', security: 'DEFINER', returns: 'jsonb',
       returnsSet: false, execute: ['app_pre_session'],
       purpose: 'return one published clinic card, media ids included, or nothing',
-      typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE', language: 'plpgsql',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.organization_slug_claims', columns: ['organization_id', 'kind', 'slug'],
@@ -28000,6 +27990,8 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_organizations', columns: ['id', 'is_active'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_brand_revisions', columns: ['organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
       databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
     }),
@@ -28007,7 +27999,7 @@ const REV10_CONTEXT = {
       owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'record',
       returnsSet: true, execute: ['app_pre_session'],
       purpose: 'anonymous-safe brand/slug/redirect projection for an already-resolved organization id',
-      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'UNSAFE',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'UNSAFE', language: 'plpgsql',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.be_organizations', columns: ['id', 'is_active', 'title'],
@@ -28015,7 +28007,7 @@ const REV10_CONTEXT = {
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published', 'slug'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.org_brand_revisions',
-          columns: ['organization_id', 'status', 'display_name', 'patient_app_name', 'accent_token', 'logo_media_id'],
+          columns: ['id', 'organization_id', 'status', 'display_name', 'patient_app_name', 'accent_token', 'logo_media_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.media_files', columns: ['id', 'owner_kind', 'organization_id', 'status', 'mime_type'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -28030,10 +28022,14 @@ const REV10_CONTEXT = {
       owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'boolean',
       returnsSet: false, execute: ['app_worker'],
       purpose: 'Caddy on_demand_tls ask authorization only — no DNS probing, no certificate claim',
-      typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE', language: 'plpgsql',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.org_custom_domain_bindings', columns: ['hostname', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organizations', columns: ['id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_brand_revisions', columns: ['organization_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
       databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
@@ -28041,15 +28037,19 @@ const REV10_CONTEXT = {
     'app.custom_domain_apply_transition(text,text,text)': rev10Function({
       owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'jsonb',
       returnsSet: false, execute: ['app_worker'],
-      purpose: 'deterministic pending/dns_ready/active/failed/suspended transition door for a later verifier',
+      purpose: 'lifecycle transition door used only by the shared ordered domain verifier',
       typedArgs: ['text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.org_custom_domain_bindings',
-          columns: ['id', 'hostname', 'status', 'status_reason', 'activated_at', 'updated_at'],
+          columns: ['id', 'organization_id', 'hostname', 'status', 'status_reason', 'activated_at', 'updated_at'],
           operations: ['SELECT' as const, 'UPDATE' as const],
           operationColumns: { UPDATE: ['status', 'status_reason', 'activated_at', 'updated_at'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organizations', columns: ['id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_brand_revisions', columns: ['organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
       databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
     }),
@@ -28431,11 +28431,15 @@ const REV10_CONTEXT = {
     'app.list_configured_custom_domain_hostnames()': rev10Function({
       owner: 'app_seam_settings_runtime_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_worker'],
-      purpose: 'return only normalized non-empty custom-domain hostnames for the daily DNS/TLS check',
+      purpose: 'return canonical non-quarantined custom-domain targets for lifecycle verification',
       typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
-        { relation: 'public.system_settings',
-          columns: ['key', 'scope', 'organization_id', 'value_json'],
+        { relation: 'public.org_custom_domain_bindings',
+          columns: ['organization_id', 'base_domain', 'placement', 'hostname', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organizations', columns: ['id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_brand_revisions', columns: ['organization_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),

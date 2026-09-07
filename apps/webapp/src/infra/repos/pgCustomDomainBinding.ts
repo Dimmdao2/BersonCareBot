@@ -13,6 +13,7 @@ import type {
   CustomDomainBindingPort,
   CustomDomainBindingState,
 } from '@/modules/custom-domain-binding/ports';
+import type { ClinicMessengerBots } from '@/shared/lib/surface/requestSurface';
 import { orgCustomDomainBindings } from '../../../db/schema';
 
 function exactStaffOrganizationPrincipal(organizationId: string): string {
@@ -85,6 +86,7 @@ export function createPgCustomDomainBindingPort(): CustomDomainBindingPort {
         accent_token: string;
         logo_url: string | null;
         active_custom_domain_hostname: string | null;
+        clinic_messenger_bots: ClinicMessengerBots | null;
       }>(
         getWebappSqlDb(),
         'app.read_anonymous_patient_surface_projection(uuid)',
@@ -102,6 +104,9 @@ export function createPgCustomDomainBindingPort(): CustomDomainBindingPort {
         ...(row.logo_url ? { logoUrl: row.logo_url } : {}),
         ...(row.active_custom_domain_hostname
           ? { activeCustomDomainHostname: row.active_custom_domain_hostname }
+          : {}),
+        ...(row.clinic_messenger_bots && Object.keys(row.clinic_messenger_bots).length > 0
+          ? { clinicMessengerBots: row.clinic_messenger_bots }
           : {}),
       };
       return projection;

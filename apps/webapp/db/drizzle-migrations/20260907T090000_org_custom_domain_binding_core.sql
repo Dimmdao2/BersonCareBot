@@ -9,7 +9,7 @@
 -- transactions — the same pattern `organization_slug_claims` already uses
 -- (apps/webapp/src/infra/repos/pgClinicDirectory.ts). No DEFINER wrapper is needed for that path.
 --
--- Four narrow SECURITY DEFINER doors, all owned by the new `app_seam_custom_domain_owner` seam
+-- Four narrow custom-domain SECURITY DEFINER doors are owned by `app_seam_custom_domain_owner`
 -- (never combined with `app_seam_public_slug_owner`/`app_seam_public_clinic_card_owner` — a
 -- separate seam owner per README §Границы, so this door cannot widen an unrelated seam's reach):
 --
@@ -18,7 +18,8 @@
 --      `app.resolve_public_organization_by_slug` (deploy/postgres/public-clinic-slug-bootstrap-resolver.sql)
 --      is for the `<slug>.therapygo.ru` path. Only `status = 'active'` and an active organization
 --      ever match; pending/failed/suspended/quarantine rows are invisible to Host resolution by
---      construction of the WHERE clause, not by caller discipline (B2).
+--      construction of the WHERE clause, not by caller discipline (B2). The application then
+--      applies the current shared `custom_domain` entitlement decision.
 --   2. `read_anonymous_patient_surface_projection(uuid)` — the anonymous-safe brand projection for
 --      an ALREADY-resolved organization id (used by both the slug path and the custom-domain path).
 --      `app.read_org_brand_core_context` (0238) cannot be reused here: it requires a staff-of-org or
@@ -26,23 +27,15 @@
 --      (apps/webapp/src/infra/repos/pgOrgBranding.ts). A clinic with no published brand still
 --      resolves — `effective_display_name`/`patient_app_name` fall back to the core organization
 --      title — which is exactly B4a's "known clinic without paid branding remains a live surface"
---      requirement. KNOWN SIMPLIFICATION (documented, not silently claimed complete): this reads
---      `org_brand_revisions.status = 'published'` directly and does not re-check the organization's
---      current `branding` mechanic entitlement on every anonymous read the way
---      `app.resolve_organization_mechanic_access` does for principled sessions — publishing already
---      goes through that entitlement gate once, but a later tariff downgrade does not retroactively
---      unpublish a revision here. A follow-up reconciliation job (out of scope for #787) should
---      unpublish on downgrade if the owner wants that closed exactly.
+--      requirement. An active custom hostname is projected only with a published brand, and the
+--      application applies the current shared `custom_domain` entitlement before redirect/use.
 --   3. `custom_domain_ask_is_authorized(text)` — the ONLY question a Caddy `on_demand_tls` `ask`
 --      endpoint needs answered: "are we willing to request a certificate for this hostname at all".
---      It deliberately does NOT probe DNS or claim a certificate exists — that is exactly the "do not
---      claim a certificate exists from DNS alone" boundary from the reopening ruling. `pending` is
---      authorized on purpose: the very first issuance attempt happens while the clinic is still
---      pointing DNS at us.
---   4. `custom_domain_apply_transition(text,text,text)` — the narrow, deterministic
---      pending/dns_ready/active/failed/suspended transition door for a LATER verifier/edge
---      integration (not built in this slice). It never runs on its own; nothing in this migration
---      calls it automatically.
+--      It deliberately does NOT probe DNS or claim a certificate exists. Pending and eligible
+--      retries are authorized because the trusted handshake triggers approved Caddy issuance.
+--   4. `custom_domain_apply_transition(text,text,text)` — the narrow deterministic lifecycle door.
+--      Its only application caller is the shared verifier after ordered DNS, trusted TLS and exact
+--      edge->nginx->webapp proof.
 --
 -- Both infra doors (3, 4) run under `app_worker`/`contextClass: service`, the SAME generic
 -- infra-principal role every other `/api/internal/**` tick route already runs its named roots under
@@ -103,27 +96,154 @@ CREATE INDEX "idx_org_custom_domain_bindings_status"
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_object_owner
 
+-- Move the legacy setting once into the canonical store. `app.<base>` is the only subdomain form;
+-- every other valid hostname is an apex. Invalid, platform-owned or conflicting rows abort visibly.
+DO $migration$
+DECLARE
+  legacy record;
+  normalized_hostname text;
+  derived_base_domain text;
+  derived_placement text;
+BEGIN
+  FOR legacy IN
+    SELECT setting.organization_id, setting.value_json ->> 'value' AS hostname
+    FROM public.system_settings AS setting
+    WHERE setting.key = 'org_custom_domain_hostname'
+      AND setting.scope = 'admin'
+      AND setting.organization_id IS NOT NULL
+      AND jsonb_typeof(setting.value_json -> 'value') = 'string'
+      AND btrim(setting.value_json ->> 'value') <> ''
+    ORDER BY setting.organization_id
+  LOOP
+    normalized_hostname := lower(btrim(legacy.hostname));
+    IF normalized_hostname !~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$'
+      OR length(normalized_hostname) > 253
+      OR normalized_hostname = 'therapygo.ru'
+      OR normalized_hostname LIKE '%.therapygo.ru'
+      OR normalized_hostname = 'therapysto.ru'
+      OR normalized_hostname LIKE '%.therapysto.ru'
+    THEN
+      RAISE EXCEPTION 'legacy custom domain is invalid or platform-owned for organization %',
+        legacy.organization_id;
+    END IF;
+
+    IF normalized_hostname LIKE 'app.%' THEN
+      derived_placement := 'subdomain';
+      derived_base_domain := substring(normalized_hostname FROM 5);
+    ELSE
+      derived_placement := 'apex';
+      derived_base_domain := normalized_hostname;
+    END IF;
+
+    INSERT INTO public.org_custom_domain_bindings (
+      organization_id, base_domain, placement, subdomain_label, hostname, status, status_reason
+    ) VALUES (
+      legacy.organization_id,
+      derived_base_domain,
+      derived_placement,
+      CASE WHEN derived_placement = 'subdomain' THEN 'app' ELSE NULL END,
+      normalized_hostname,
+      'pending',
+      'migrated_from_legacy_setting_requires_verification'
+    );
+  END LOOP;
+
+  DELETE FROM public.system_settings
+  WHERE key = 'org_custom_domain_hostname'
+    AND scope = 'admin'
+    AND organization_id IS NOT NULL;
+END
+$migration$;
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_object_owner
+
+DROP INDEX IF EXISTS public.system_settings_org_custom_domain_hostname_uidx;
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_settings_runtime_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+
+-- Parameterize the existing scheduler root to return canonical lifecycle targets. Its identity,
+-- purpose and scheduled caller remain unchanged; no second monitor or settings store is created.
+CREATE OR REPLACE FUNCTION app.list_configured_custom_domain_hostnames()
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE SECURITY DEFINER PARALLEL RESTRICTED
+SET search_path TO 'pg_catalog'
+AS $function$
+DECLARE
+  targets jsonb;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_settings_runtime_owner'::name,
+    'app_worker'::name,
+    'service'::app.port_context_class,
+    'health.custom-domain.list',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),
+    'app.list_configured_custom_domain_hostnames()'::regprocedure
+  );
+
+  SELECT COALESCE(
+    jsonb_agg(
+      jsonb_build_object(
+        'organizationId', binding.organization_id::text,
+        'baseDomain', binding.base_domain,
+        'placement', binding.placement,
+        'hostname', binding.hostname,
+        'status', binding.status,
+        'organizationActive', COALESCE(organization.is_active, false),
+        'hasPublishedBrand', EXISTS (
+          SELECT 1 FROM public.org_brand_revisions AS brand
+          WHERE brand.organization_id = binding.organization_id
+            AND brand.status = 'published'
+        )
+      ) ORDER BY binding.hostname
+    ),
+    '[]'::jsonb
+  ) INTO targets
+  FROM public.org_custom_domain_bindings AS binding
+  LEFT JOIN public.be_organizations AS organization ON organization.id = binding.organization_id
+  WHERE binding.organization_id IS NOT NULL
+    AND binding.status <> 'quarantine';
+
+  RETURN targets;
+END
+$function$;
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+
 CREATE FUNCTION app.resolve_active_organization_by_custom_domain(p_hostname text)
 RETURNS uuid
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
-  SELECT binding.organization_id
-  FROM public.org_custom_domain_bindings AS binding
-  INNER JOIN public.be_organizations AS organization
-    ON organization.id = binding.organization_id
-    AND organization.is_active = true
-  WHERE binding.hostname = lower(btrim(p_hostname))
-    AND binding.status = 'active'
-  LIMIT 1
+BEGIN
+  RETURN (
+    SELECT binding.organization_id
+    FROM public.org_custom_domain_bindings AS binding
+    INNER JOIN public.be_organizations AS organization
+      ON organization.id = binding.organization_id
+      AND organization.is_active = true
+    INNER JOIN public.org_brand_revisions AS brand
+      ON brand.organization_id = binding.organization_id
+      AND brand.status = 'published'
+    WHERE binding.hostname = lower(btrim(p_hostname))
+      AND binding.status = 'active'
+    LIMIT 1
+  );
+END
 $$;
 
 COMMENT ON FUNCTION app.resolve_active_organization_by_custom_domain(text) IS
   'Pre-session hostname -> organization id for an ACTIVE custom-domain binding of an active organization only (B2).';
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
+-- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 
 CREATE FUNCTION app.read_anonymous_patient_surface_projection(p_organization_id uuid)
 RETURNS TABLE (
@@ -133,21 +253,35 @@ RETURNS TABLE (
   patient_app_name text,
   accent_token text,
   logo_url text,
-  active_custom_domain_hostname text
+  active_custom_domain_hostname text,
+  clinic_messenger_bots jsonb
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
-  SELECT
+BEGIN
+  RETURN QUERY SELECT
     directory.slug,
     COALESCE((skip_setting.value_json ->> 'value')::boolean, false),
     COALESCE(brand.display_name, organization.title),
     COALESCE(brand.patient_app_name, brand.display_name, organization.title),
     COALESCE(brand.accent_token, '#284da0'),
     CASE WHEN logo.id IS NOT NULL THEN '/api/media/' || brand.logo_media_id::text ELSE NULL END,
-    active_binding.hostname
+    active_binding.hostname,
+    jsonb_strip_nulls(jsonb_build_object(
+      'telegram', CASE WHEN telegram_bot.key IS NULL THEN NULL
+        WHEN telegram_bot.value_json #>> '{deliveryReadiness,status}' = 'enabled'
+          AND telegram_bot.value_json ->> 'botPublicId' ~ '^[A-Za-z0-9_]{3,64}$'
+        THEN jsonb_build_object('status', 'ready', 'publicId', telegram_bot.value_json ->> 'botPublicId')
+        ELSE jsonb_build_object('status', 'declared_invalid') END,
+      'max', CASE WHEN max_bot.key IS NULL THEN NULL
+        WHEN max_bot.value_json #>> '{deliveryReadiness,status}' = 'enabled'
+          AND max_bot.value_json ->> 'botPublicId' ~ '^[A-Za-z0-9_]{3,64}$'
+        THEN jsonb_build_object('status', 'ready', 'publicId', max_bot.value_json ->> 'botPublicId')
+        ELSE jsonb_build_object('status', 'declared_invalid') END
+    ))
   FROM public.be_organizations AS organization
   INNER JOIN public.clinic_public_directory_entries AS directory
     ON directory.organization_id = organization.id
@@ -168,35 +302,56 @@ AS $$
   LEFT JOIN public.org_custom_domain_bindings AS active_binding
     ON active_binding.organization_id = organization.id
     AND active_binding.status = 'active'
+    AND brand.id IS NOT NULL
+  LEFT JOIN public.system_settings AS telegram_bot
+    ON telegram_bot.key = 'clinic_telegram_bot_token'
+    AND telegram_bot.scope = 'admin'
+    AND telegram_bot.organization_id = organization.id
+  LEFT JOIN public.system_settings AS max_bot
+    ON max_bot.key = 'clinic_max_bot_api_key'
+    AND max_bot.scope = 'admin'
+    AND max_bot.organization_id = organization.id
   WHERE organization.id = p_organization_id
     AND organization.is_active = true
-  LIMIT 1
+  LIMIT 1;
+END
 $$;
 
 COMMENT ON FUNCTION app.read_anonymous_patient_surface_projection(uuid) IS
   'Anonymous-safe brand/slug/redirect projection for an already-resolved organization id (B4a/B2). No row for an unknown, inactive, or unpublished-slug organization.';
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
+-- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 
 CREATE FUNCTION app.custom_domain_ask_is_authorized(p_hostname text)
 RETURNS boolean
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
-  SELECT EXISTS (
+BEGIN
+  RETURN EXISTS (
     SELECT 1
-    FROM public.org_custom_domain_bindings
-    WHERE hostname = lower(btrim(p_hostname))
-      AND status IN ('pending', 'dns_ready', 'active')
-  )
+    FROM public.org_custom_domain_bindings AS binding
+    INNER JOIN public.be_organizations AS organization
+      ON organization.id = binding.organization_id
+      AND organization.is_active = true
+    INNER JOIN public.org_brand_revisions AS brand
+      ON brand.organization_id = binding.organization_id
+      AND brand.status = 'published'
+    WHERE binding.hostname = lower(btrim(p_hostname))
+      AND binding.status IN ('pending', 'dns_ready', 'active', 'suspended')
+  );
+END
 $$;
 
 COMMENT ON FUNCTION app.custom_domain_ask_is_authorized(text) IS
   'Caddy on_demand_tls ask authorization only: is this hostname one we are willing to request a certificate for. Never probes DNS and never claims a certificate exists (C5a).';
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
+-- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 
 CREATE FUNCTION app.custom_domain_apply_transition(p_hostname text, p_transition text, p_reason text)
@@ -208,21 +363,30 @@ SET search_path = pg_catalog
 AS $$
 DECLARE
   v_current text;
+  v_eligible boolean;
 BEGIN
-  SELECT status INTO v_current
-  FROM public.org_custom_domain_bindings
-  WHERE hostname = lower(btrim(p_hostname))
+  SELECT binding.status,
+    organization.is_active AND EXISTS (
+      SELECT 1 FROM public.org_brand_revisions AS brand
+      WHERE brand.organization_id = binding.organization_id
+        AND brand.status = 'published'
+    )
+  INTO v_current, v_eligible
+  FROM public.org_custom_domain_bindings AS binding
+  INNER JOIN public.be_organizations AS organization ON organization.id = binding.organization_id
+  WHERE binding.hostname = lower(btrim(p_hostname))
   FOR UPDATE;
 
   IF NOT FOUND THEN
     RETURN jsonb_build_object('ok', false, 'code', 'not_found');
   END IF;
 
-  IF NOT (
-    (p_transition = 'mark_dns_ready' AND v_current = 'pending')
-    OR (p_transition = 'mark_active' AND v_current IN ('dns_ready', 'suspended'))
-    OR (p_transition = 'mark_failed' AND v_current IN ('pending', 'dns_ready'))
-    OR (p_transition = 'mark_suspended' AND v_current = 'active')
+  IF (p_transition IN ('mark_dns_ready', 'mark_active') AND NOT v_eligible)
+    OR NOT (
+    (p_transition = 'mark_dns_ready' AND v_current IN ('pending', 'failed', 'suspended', 'dns_ready'))
+    OR (p_transition = 'mark_active' AND v_current IN ('dns_ready', 'active'))
+    OR (p_transition = 'mark_failed' AND v_current <> 'quarantine')
+    OR (p_transition = 'mark_suspended' AND v_current <> 'quarantine')
   ) THEN
     RETURN jsonb_build_object('ok', false, 'code', 'invalid_transition');
   END IF;
@@ -244,4 +408,4 @@ END;
 $$;
 
 COMMENT ON FUNCTION app.custom_domain_apply_transition(text, text, text) IS
-  'Deterministic pending/dns_ready/active/failed/suspended transition door for a later verifier/edge integration (C5a). Never called automatically by this migration; DNS alone never reaches mark_active through this door either — the caller must supply that assurance.';
+  'Lifecycle transition door called only by the shared DNS -> trusted TLS -> exact routing verifier (C5a).';

@@ -38,7 +38,8 @@
 	}
 
 	# The built-in module syntax takes the endpoint as its sole argument. A
-	# connection error, timeout, redirect, or non-2xx response denies issuance.
+	# connection error, timeout, redirect, or non-2xx response denies issuance. Production uses the
+	# stable, non-circular https://therapygo.ru/api/public/domains/ask endpoint.
 	on_demand_tls {
 		permission http {$CADDY_ASK_URL}
 	}

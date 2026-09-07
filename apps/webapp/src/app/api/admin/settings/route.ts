@@ -7,6 +7,7 @@
 import { redactSettingValueForAudit } from '@/modules/system-settings/auditRedaction';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   requireClinicManagementApiContext,
@@ -64,7 +65,7 @@ import {
   ORG_CUSTOM_DOMAIN_HOSTNAME_KEY,
 } from '@/modules/system-settings/orgCustomDomainHostname';
 import type { CustomDomainBindingState } from '@/modules/custom-domain-binding/ports';
-import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
+import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
 import { normalizeDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import {
   isPlatformIntegrationAvailable,
@@ -226,12 +227,21 @@ const DOCTOR_SCOPE_KEYS = [
 
 const PATCH_SCOPE_KEYS = [...ADMIN_SCOPE_KEYS, ...DOCTOR_SCOPE_KEYS] as const;
 
-const patchSchema = z.object({
-  key: z.enum(PATCH_SCOPE_KEYS),
-  value: z.unknown(),
-  placement: z.enum(['apex', 'subdomain']).optional(),
-  subdomainLabel: z.unknown().optional(),
-});
+const patchSchema = z
+  .object({
+    key: z.enum(PATCH_SCOPE_KEYS),
+    value: z.unknown().optional(),
+    placement: z.enum(['apex', 'subdomain']).optional(),
+    subdomainLabel: z.unknown().optional(),
+    action: z.literal('recheck').optional(),
+  })
+  .superRefine((value, ctx) => {
+    const isDomainRecheck =
+      value.key === ORG_CUSTOM_DOMAIN_HOSTNAME_KEY && value.action === 'recheck';
+    if (!isDomainRecheck && value.value === undefined) {
+      ctx.addIssue({ code: 'custom', message: 'value_required', path: ['value'] });
+    }
+  });
 const deleteSchema = z.object({ key: z.literal('operator_health_probe_config') });
 
 const modesBatchBodySchema = z.object({
@@ -381,6 +391,7 @@ function isPlatformOwnedCustomDomain(baseDomain: string): boolean {
   const platformHosts = [PLATFORM_PATIENT_HOSTNAME];
   try {
     platformHosts.push(new URL(PATIENT_DEFAULT_SURFACE.origin).hostname.toLowerCase());
+    platformHosts.push(new URL(STAFF_SURFACE.origin).hostname.toLowerCase());
   } catch {
     // TEST's one-host compatibility has no patient origin; the permanent platform namespace above
     // remains protected.
@@ -459,7 +470,15 @@ export async function GET() {
     gate.ctx.kind === 'platform'
       ? allSettings
       : allSettings.filter((setting) => isPerOrgSettingKey(setting.key));
-  return NextResponse.json({ ok: true, settings });
+  const domainBinding =
+    gate.ctx.kind === 'clinic' && deps.customDomainBinding
+      ? await deps.customDomainBinding.getBindingState(gate.ctx.organizationId)
+      : undefined;
+  return NextResponse.json({
+    ok: true,
+    settings,
+    ...(domainBinding !== undefined ? { domainBinding } : {}),
+  });
 }
 
 export async function PATCH(request: Request) {
@@ -775,6 +794,35 @@ export async function PATCH(request: Request) {
       { ok: false, error: 'forbidden_owner_setting', key: parsed.data.key },
       { status: 403 },
     );
+  }
+
+  if (
+    parsed.data.key === ORG_CUSTOM_DOMAIN_HOSTNAME_KEY &&
+    parsed.data.action === 'recheck'
+  ) {
+    if (gate.ctx.kind !== 'clinic' || !deps.customDomainBinding) {
+      return NextResponse.json(
+        { ok: false, error: 'organization_context_required' },
+        { status: 403 },
+      );
+    }
+    const binding = await deps.customDomainBinding.getBindingState(gate.ctx.organizationId);
+    if (!binding) {
+      return NextResponse.json({ ok: false, error: 'custom_domain_not_found' }, { status: 404 });
+    }
+    const { runDomainHealthTick } = await import('@/app-layer/health/runDomainHealthTick');
+    const verification = await runWithDbInfraPrincipal(
+      { source: 'api/admin/settings:custom-domain-recheck' },
+      () => runDomainHealthTick(undefined, { hostname: binding.hostname }),
+    );
+    if (verification.checked !== 1) {
+      return NextResponse.json(
+        { ok: false, error: 'custom_domain_verification_target_unavailable' },
+        { status: 503 },
+      );
+    }
+    const domainBinding = await deps.customDomainBinding.getBindingState(gate.ctx.organizationId);
+    return NextResponse.json({ ok: true, domainBinding, verification });
   }
 
   const settingScope = settingScopeForKey(parsed.data.key);

@@ -1,4 +1,5 @@
 import type { OrgCustomDomainPlacement, OrgCustomDomainStatus } from '../../../db/schema';
+import type { ClinicMessengerBots } from '@/shared/lib/surface/requestSurface';
 
 export type { OrgCustomDomainPlacement, OrgCustomDomainStatus };
 
@@ -19,6 +20,11 @@ export type CustomDomainBindingState = Readonly<{
   status: OrgCustomDomainStatus;
   statusReason: string | null;
   activatedAt: string | null;
+  dnsInstruction?: Readonly<{
+    recordType: 'A' | 'CNAME';
+    name: '@' | 'app';
+    value: string;
+  }> | null;
 }>;
 
 /**
@@ -31,7 +37,7 @@ export type SetCustomDomainIntentInput = Readonly<{
   organizationId: string;
   baseDomain: string;
   placement: OrgCustomDomainPlacement;
-  /** Required for `placement: 'subdomain'`, ignored for `placement: 'apex'`. */
+  /** Compatibility-only input. The service always replaces it with the server-owned `app`. */
   subdomainLabel?: string | null;
 }>;
 
@@ -59,6 +65,8 @@ export type AnonymousPatientSurfaceProjection = Readonly<{
   logoUrl?: string;
   /** Present only when this organization currently has an ACTIVE custom-domain binding. */
   activeCustomDomainHostname?: string;
+  /** Existing anonymous-safe clinic bot identities; credentials never enter this projection. */
+  clinicMessengerBots?: ClinicMessengerBots;
 }>;
 
 export type CustomDomainTransition = 'mark_dns_ready' | 'mark_active' | 'mark_failed' | 'mark_suspended';

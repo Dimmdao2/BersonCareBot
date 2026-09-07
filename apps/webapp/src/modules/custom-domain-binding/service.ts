@@ -8,7 +8,8 @@ import type {
   CustomDomainTransitionErrorCode,
   SetCustomDomainIntentInput,
 } from './ports';
-import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
+import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
+import type { DomainHealthTarget } from '@/modules/domain-health/ports';
 
 const HOSTNAME_LABEL_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
 const MAX_HOSTNAME_LENGTH = 253;
@@ -27,9 +28,13 @@ function isPlausibleBaseDomain(value: string): boolean {
 }
 
 function isPlatformOwnedHostname(hostname: string): boolean {
+  const platformHosts = new Set(['therapygo.ru']);
   try {
-    const platformHost = new URL(PATIENT_DEFAULT_SURFACE.origin).hostname.toLowerCase();
-    return hostname === platformHost || hostname.endsWith(`.${platformHost}`);
+    platformHosts.add(new URL(PATIENT_DEFAULT_SURFACE.origin).hostname.toLowerCase());
+    platformHosts.add(new URL(STAFF_SURFACE.origin).hostname.toLowerCase());
+    return [...platformHosts].some(
+      (platformHost) => hostname === platformHost || hostname.endsWith(`.${platformHost}`),
+    );
   } catch {
     // An invalid deploy origin must never make a custom-domain claim more permissive.
     return true;
@@ -48,6 +53,7 @@ export type CustomDomainBindingService = {
     reason?: string;
   }): Promise<{ ok: true } | { ok: false; code: CustomDomainTransitionErrorCode }>;
   isHostnameAskAuthorized(hostname: string): Promise<boolean>;
+  isBindingLifecycleEligible(organizationId: string): Promise<boolean>;
   /** Used only by the production tenant-surface lookup (`app-layer/surface`); never call directly from a route. */
   resolveActiveOrganizationByHostname(hostname: string): Promise<string | null>;
   readAnonymousPatientSurfaceProjection(
@@ -57,9 +63,32 @@ export type CustomDomainBindingService = {
 
 export function createCustomDomainBindingService(
   port: CustomDomainBindingPort,
+  deps?: Readonly<{
+    resolveCustomDomainEntitlement(organizationId: string): Promise<boolean>;
+    findVerificationTarget(hostname: string): Promise<DomainHealthTarget | null>;
+    edgeIp?: string;
+    cnameTarget?: string;
+  }>,
 ): CustomDomainBindingService {
+  const withDnsInstruction = (
+    state: CustomDomainBindingState | null,
+  ): CustomDomainBindingState | null => {
+    if (!state) return null;
+    const dnsInstruction =
+      state.placement === 'apex' && deps?.edgeIp
+        ? { recordType: 'A' as const, name: '@' as const, value: deps.edgeIp }
+        : state.placement === 'subdomain' && deps?.cnameTarget
+          ? { recordType: 'CNAME' as const, name: 'app' as const, value: deps.cnameTarget }
+          : null;
+    return { ...state, dnsInstruction };
+  };
+  const isBindingLifecycleEligible = (organizationId: string): Promise<boolean> =>
+    deps?.resolveCustomDomainEntitlement(organizationId) ?? Promise.resolve(true);
+
   return {
-    getBindingState: (organizationId) => port.getBindingState(organizationId),
+    async getBindingState(organizationId) {
+      return withDnsInstruction(await port.getBindingState(organizationId));
+    },
 
     async setCustomDomainIntent(input): Promise<CustomDomainIntentResult> {
       const baseDomain = normalizeDomainLabelInput(input.baseDomain);
@@ -71,28 +100,53 @@ export function createCustomDomainBindingService(
         return { ok: false, code: 'invalid_base_domain' };
       }
       if (input.placement === 'subdomain') {
-        return port.setCustomDomainIntent({
+        const result = await port.setCustomDomainIntent({
           organizationId: input.organizationId,
           baseDomain,
           placement: 'subdomain',
           subdomainLabel: 'app',
         });
+        return result.ok ? { ...result, state: withDnsInstruction(result.state) } : result;
       }
-      return port.setCustomDomainIntent({
+      const result = await port.setCustomDomainIntent({
         organizationId: input.organizationId,
         baseDomain,
         placement: 'apex',
         subdomainLabel: null,
       });
+      return result.ok ? { ...result, state: withDnsInstruction(result.state) } : result;
     },
 
-    clearCustomDomainIntent: (input) => port.clearCustomDomainIntent(input),
+    async clearCustomDomainIntent(input) {
+      const result = await port.clearCustomDomainIntent(input);
+      return result.ok ? { ...result, state: withDnsInstruction(result.state) } : result;
+    },
     transitionBindingStatus: (input) => port.transitionBindingStatus(input),
-    isHostnameAskAuthorized: (hostname) => port.isHostnameAskAuthorized(hostname),
-    resolveActiveOrganizationByHostname: (hostname) =>
-      port.resolveActiveOrganizationByHostname(hostname),
-    readAnonymousPatientSurfaceProjection: (organizationId) =>
-      port.readAnonymousPatientSurfaceProjection(organizationId),
+    async isHostnameAskAuthorized(hostname) {
+      if (!(await port.isHostnameAskAuthorized(hostname))) return false;
+      if (!deps) return true;
+      const target = await deps?.findVerificationTarget(hostname);
+      return Boolean(
+        target?.organizationId &&
+          target.organizationActive &&
+          target.hasPublishedBrand &&
+          (await isBindingLifecycleEligible(target.organizationId)),
+      );
+    },
+    isBindingLifecycleEligible,
+    async resolveActiveOrganizationByHostname(hostname) {
+      const organizationId = await port.resolveActiveOrganizationByHostname(hostname);
+      return organizationId && (await isBindingLifecycleEligible(organizationId))
+        ? organizationId
+        : null;
+    },
+    async readAnonymousPatientSurfaceProjection(organizationId) {
+      const projection = await port.readAnonymousPatientSurfaceProjection(organizationId);
+      if (!projection?.activeCustomDomainHostname) return projection;
+      if (await isBindingLifecycleEligible(organizationId)) return projection;
+      const { activeCustomDomainHostname: _inactiveCustomDomain, ...slugProjection } = projection;
+      return slugProjection;
+    },
   };
 }
 

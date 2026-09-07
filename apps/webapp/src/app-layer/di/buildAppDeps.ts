@@ -724,7 +724,26 @@ const clinicPublicCardService = !inMemoryRepos
   : null;
 /** B2/B8/C5a — custom-domain binding lifecycle; `null` only in Vitest without a DB (TPB-16). */
 const customDomainBindingService = !inMemoryRepos
-  ? createCustomDomainBindingService(createPgCustomDomainBindingPort())
+  ? createCustomDomainBindingService(createPgCustomDomainBindingPort(), {
+      edgeIp: env.CUSTOM_DOMAIN_EDGE_IP,
+      cnameTarget: env.CUSTOM_DOMAIN_CNAME_TARGET,
+      findVerificationTarget: async (hostname) =>
+        (await domainHealth.listConfiguredTargets()).find(
+          (target) => target.hostname === hostname.trim().toLowerCase(),
+        ) ?? null,
+      resolveCustomDomainEntitlement: (organizationId) =>
+        withExplicitOrganizationPrincipal(
+          { organizationId, source: 'custom-domain.current-entitlement' },
+          async () => {
+            const access = await resolveMechanicAccess(
+              orgEntitlementsPort,
+              organizationId,
+              'custom_domain',
+            );
+            return access.state === 'full_access' || access.state === 'grace';
+          },
+        ),
+    })
   : null;
 const bookingEngineCorePort = !inMemoryRepos ? createPgBookingEnginePort() : null;
 const doctorAppointmentsCanonicalPort =

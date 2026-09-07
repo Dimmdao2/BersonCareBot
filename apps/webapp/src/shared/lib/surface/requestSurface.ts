@@ -63,6 +63,8 @@ export type ResolvedSurface = Readonly<{
    * 308 to this hostname, preserving path and query, before anything else runs.
    */
   redirectToHostname?: string;
+  /** Internal proxy-only marker; never serialized to downstream application code. */
+  customDomainProbeOnly?: true;
   authPolicy: SurfaceAuthPolicy;
 }>;
 
@@ -90,15 +92,20 @@ export type TenantSurfaceLookupResult =
        */
       activeCustomDomainHostname?: string;
     }>
+  | Readonly<{ status: 'probe' }>
   | Readonly<{ status: 'unknown' | 'duplicate' | 'inactive' }>;
 
-export type TenantSurfaceLookup = (normalizedHost: string) => Promise<TenantSurfaceLookupResult>;
+export type TenantSurfaceLookup = (
+  normalizedHost: string,
+  purpose?: 'surface' | 'preactivation_probe',
+) => Promise<TenantSurfaceLookupResult>;
 
 export type RequestSurfaceResolver = (
   input: Readonly<{
     host: string | null;
     protocol: string;
     resolveTenantSurface: TenantSurfaceLookup;
+    tenantLookupPurpose?: 'surface' | 'preactivation_probe';
     authPolicyConfig?: SurfaceAuthPolicyConfig;
   }>,
 ) => Promise<ResolvedSurface | null>;
@@ -278,6 +285,7 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
   host,
   protocol,
   resolveTenantSurface,
+  tenantLookupPurpose,
   authPolicyConfig = DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
 }) => {
   const requestOrigin = normalizeRequestOrigin(host, protocol);
@@ -313,7 +321,15 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
   }
 
   // Persistence/domain seams store a hostname, never an HTTP authority with a development port.
-  const tenant = await resolveTenantSurface(requestOrigin.hostname.toLowerCase());
+  const tenant = tenantLookupPurpose
+    ? await resolveTenantSurface(requestOrigin.hostname.toLowerCase(), tenantLookupPurpose)
+    : await resolveTenantSurface(requestOrigin.hostname.toLowerCase());
+  if (tenant.status === 'probe' && tenantLookupPurpose === 'preactivation_probe') {
+    const authPolicy = policyFor('patient', authPolicyConfig);
+    return authPolicy
+      ? { surface: 'patient_default', publicOrigin, customDomainProbeOnly: true, authPolicy }
+      : null;
+  }
   if (
     tenant.status !== 'active' ||
     !tenant.organizationId ||
@@ -439,7 +455,8 @@ export function readResolvedSurface(headers: Pick<Headers, 'get'>): ResolvedSurf
       candidate.skipPublicCardAtRoot !== undefined ||
       candidate.effectivePatientBrand ||
       candidate.clinicMessengerBots ||
-      candidate.redirectToHostname
+      candidate.redirectToHostname ||
+      candidate.customDomainProbeOnly
     ) {
       return null;
     }

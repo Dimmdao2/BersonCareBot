@@ -34,6 +34,7 @@ import {
   serializeResolvedSurface,
 } from '@/shared/lib/surface/requestSurface';
 import { productionTenantSurfaceLookup } from '@/app-layer/surface/productionTenantSurfaceLookup';
+import { CUSTOM_DOMAIN_ROUTING_PROBE_PATH } from '@/modules/domain-health/domainCertificateProbe';
 
 function rebaseRedirectToPublicOrigin(response: NextResponse, publicOrigin: string): void {
   const location = response.headers.get('location');
@@ -62,12 +63,21 @@ export async function proxy(
       request.headers.get('x-bc-auth-correlation-id'),
   );
   const forwardedProtocol = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  const pathname = request.nextUrl.pathname;
   const resolvedSurface = await resolveRequestSurface({
     host: request.headers.get('host'),
     protocol: forwardedProtocol || request.nextUrl.protocol,
     resolveTenantSurface,
+    ...(pathname === CUSTOM_DOMAIN_ROUTING_PROBE_PATH
+      ? { tenantLookupPurpose: 'preactivation_probe' as const }
+      : {}),
   });
-  const pathname = request.nextUrl.pathname;
+  if (resolvedSurface?.customDomainProbeOnly) {
+    const response = NextResponse.next();
+    response.headers.set('Cache-Control', 'no-store');
+    response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
+    return response;
+  }
   const surfaceHostsAreDistinct = arePlatformSurfaceHostsDistinct();
   const patientRewritePath =
     resolvedSurface && surfaceHostsAreDistinct
