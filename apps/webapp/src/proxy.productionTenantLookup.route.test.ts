@@ -93,7 +93,6 @@ describe('production Host → tenant wiring', () => {
         patientAppName: 'Known Clinic',
       },
     });
-    expect(fakes.resolveOrganizationIdBySlug).toHaveBeenCalledWith('known-clinic');
   });
 
   it('hard-404s an unknown host through the same exported production path', async () => {

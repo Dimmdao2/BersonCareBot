@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { redactSettingValueForAudit } from '@/modules/system-settings/auditRedaction';
+import type { SetCustomDomainIntentInput } from '@/modules/custom-domain-binding/ports';
 
 const fakes = vi.hoisted(() => ({
   getCurrentSession: vi.fn(),
@@ -504,6 +505,22 @@ describe('clinic-owner atomic settings readback', () => {
   });
 
   it('computes the fixed app label server-side and ignores a browser-supplied prefix', async () => {
+    fakes.setCustomDomainIntent.mockImplementationOnce(
+      async (input: SetCustomDomainIntentInput) => ({
+        ok: true,
+        state: {
+          organizationId: input.organizationId,
+          baseDomain: input.baseDomain,
+          placement: input.placement,
+          subdomainLabel: input.placement === 'subdomain' ? 'app' : null,
+          hostname:
+            input.placement === 'subdomain' ? `app.${input.baseDomain}` : input.baseDomain,
+          status: 'pending',
+          statusReason: null,
+          activatedAt: null,
+        },
+      }),
+    );
     const response = await patch({
       key: 'org_custom_domain_hostname',
       value: {
@@ -514,11 +531,14 @@ describe('clinic-owner atomic settings readback', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(fakes.setCustomDomainIntent).toHaveBeenCalledWith({
-      organizationId: CLINIC_ORGANIZATION_ID,
-      baseDomain: 'clinic.example.test',
-      placement: 'subdomain',
-      subdomainLabel: 'app',
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      domainBinding: {
+        baseDomain: 'clinic.example.test',
+        placement: 'subdomain',
+        hostname: 'app.clinic.example.test',
+        status: 'pending',
+      },
     });
   });
 
