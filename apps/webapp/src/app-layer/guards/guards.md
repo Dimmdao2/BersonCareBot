@@ -22,10 +22,11 @@
 Используются в серверных компонентах и серверных действиях (actions).
 
 - **workspaceModuleAccess** (`workspaceModuleAccess.ts`) — C3M-01 замороженный typed disabled-route
-  outcome для модуля рабочего пространства, скрытого настройкой специалиста (не тарифом): `workspaceModuleDisabledResponse`
-  (403, тот же конверт, что у `entitlementMutationRefusalResponse`) и `requireWorkspaceModuleForPage` (`notFound()`).
-  На этом этапе ни один route их не вызывает — резолвер доступности лежит в
-  `modules/system-settings/doctorWorkspaceComposition.ts` (`resolveWorkspaceModuleEffective`).
+  outcome для модуля рабочего пространства, скрытого настройкой специалиста (не тарифом):
+  `requireWorkspaceModuleForApi` читает каноническую per-org composition после actor/organization gate,
+  вызывает единый `resolveWorkspaceModuleEffective` и при OFF возвращает `workspaceModuleDisabledResponse`
+  (403, тот же конверт, что у `entitlementMutationRefusalResponse`); RSC использует
+  `requireWorkspaceModuleForPage` (`notFound()`).
 
 ## Защита в глубину (пациент + телефон)
 

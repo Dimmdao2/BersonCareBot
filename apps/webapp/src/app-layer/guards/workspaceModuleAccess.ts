@@ -253,7 +253,6 @@ export async function requirePatientWorkspaceModuleForAction(
   if (!gate.ok) throw workspaceModuleDisabledError(module);
   return gate.modules;
 }
-
 /**
  * RSC/direct-page adapter: a workspace-disabled module renders as absent, the same fail-closed
  * outcome `requireEntitlementForPage` already uses for a tariff-disabled mechanic — a disabled

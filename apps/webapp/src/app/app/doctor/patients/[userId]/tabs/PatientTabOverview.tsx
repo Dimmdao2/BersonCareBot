@@ -96,6 +96,10 @@ interface ClinicalApiResponse {
   state: {
     complaints: ActiveComplaint[];
   };
+}
+
+interface VisitsApiResponse {
+  ok: boolean;
   visits: Array<{
     id: string;
     date: string;
@@ -373,7 +377,7 @@ function normalizeActivePackages(packages: PackageItem[] | null | undefined): Pa
 /** Build per-complaint dynamics series from clinical visits. */
 function buildSymptomSeries(
   complaints: ActiveComplaint[],
-  visits: ClinicalApiResponse['visits'],
+  visits: VisitsApiResponse['visits'],
 ): SymptomSeries[] {
   if (complaints.length === 0 || visits.length === 0) return [];
 
@@ -549,6 +553,8 @@ type Props = {
   canOpenKarta?: boolean;
   canOpenProgram?: boolean;
   canCreateEncounter?: boolean;
+  medicalRecordEnabled?: boolean;
+  encountersEnabled?: boolean;
   initialClinicalState?: BootstrapEnvelope<ClinicalState> | null;
   initialVisits?: BootstrapEnvelope<Visit[]> | null;
   initialNotes?: BootstrapEnvelope<DoctorNoteRow[]> | null;
@@ -699,8 +705,8 @@ function isOverviewBootstrapComplete(
 
 /** Derive the complete first-paint overview state from the server bootstrap envelopes. */
 function buildSsrSeedData(
-  initialClinicalState: BootstrapEnvelope<ClinicalState>,
-  initialVisits: BootstrapEnvelope<Visit[]>,
+  initialClinicalState: BootstrapEnvelope<ClinicalState> | null | undefined,
+  initialVisits: BootstrapEnvelope<Visit[]> | null | undefined,
   initialNotes: BootstrapEnvelope<DoctorNoteRow[]>,
   initialTasks: BootstrapEnvelope<SpecialistTaskRow[]>,
   initialProgramActivity: BootstrapEnvelope<DoctorPatientProgramActivity>,
@@ -710,8 +716,9 @@ function buildSsrSeedData(
   initialMessagesSnapshot?: BootstrapEnvelope<DoctorPatientMessagesSnapshot> | null,
   initialProgramInstances?: BootstrapEnvelope<TreatmentProgramInstanceSummary[]> | null,
   initialProgramInstanceDetail?: BootstrapEnvelope<TreatmentProgramInstanceDetail | null> | null,
+  medicalRecordEnabled = true,
 ): OverviewData {
-  const clinicalState = unwrapBootstrapEnvelope(initialClinicalState);
+  const clinicalState = medicalRecordEnabled ? unwrapBootstrapEnvelope(initialClinicalState) : null;
   const visits = unwrapBootstrapEnvelope(initialVisits) ?? [];
   const notes = unwrapBootstrapEnvelope(initialNotes) ?? [];
   const tasks = unwrapBootstrapEnvelope(initialTasks) ?? [];
@@ -719,30 +726,32 @@ function buildSsrSeedData(
   const appointments = unwrapBootstrapEnvelope(initialAppointments) ?? [];
   const complaints = clinicalState?.complaints ?? [];
   const clinicalFailed =
-    isBootstrapEnvelopeFailed(initialClinicalState) || isBootstrapEnvelopeFailed(initialVisits);
+    medicalRecordEnabled &&
+    (isBootstrapEnvelopeFailed(initialClinicalState) || isBootstrapEnvelopeFailed(initialVisits));
   const clinicalStatus: WidgetStatus = clinicalFailed
     ? 'error'
     : complaints.length === 0
       ? 'empty'
       : 'ok';
-  const symptomSeries = clinicalFailed
-    ? []
-    : buildSymptomSeries(
-        complaints,
-        visits.map((v) => ({
-          id: v.id,
-          date: v.date,
-          type: v.type,
-          dynamics: v.dynamics?.map((d) => ({
-            id: d.id,
-            label: d.label,
-            from: d.from,
-            to: d.to,
-            note: d.note,
-            priority: d.priority,
+  const symptomSeries =
+    clinicalFailed || !medicalRecordEnabled
+      ? []
+      : buildSymptomSeries(
+          complaints,
+          visits.map((v) => ({
+            id: v.id,
+            date: v.date,
+            type: v.type,
+            dynamics: v.dynamics?.map((d) => ({
+              id: d.id,
+              label: d.label,
+              from: d.from,
+              to: d.to,
+              note: d.note,
+              priority: d.priority,
+            })),
           })),
-        })),
-      );
+        );
 
   const upcomingAppts = appointments.filter((a) => a.status === 'upcoming');
   upcomingAppts.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
@@ -886,6 +895,8 @@ export function PatientTabOverview({
   canOpenKarta = true,
   canOpenProgram = true,
   canCreateEncounter = true,
+  medicalRecordEnabled = true,
+  encountersEnabled = true,
   initialClinicalState,
   initialVisits,
   initialNotes,
@@ -913,15 +924,15 @@ export function PatientTabOverview({
     : monthPartsFromIsoDate(new Date().toISOString().slice(0, 10));
   const [calYear, setCalYear] = useState(initialCalParts.year);
   const [calMonth, setCalMonth] = useState(initialCalParts.month);
+  const hasInitialOverviewData =
+    (!medicalRecordEnabled || initialClinicalState != null) &&
+    (!encountersEnabled || initialVisits != null) &&
+    initialNotes != null &&
+    initialTasks != null &&
+    initialProgramActivity != null &&
+    initialAppointments != null;
   const [data, setData] = useState<OverviewData | null>(() => {
-    if (
-      initialClinicalState != null &&
-      initialVisits != null &&
-      initialNotes != null &&
-      initialTasks != null &&
-      initialProgramActivity != null &&
-      initialAppointments != null
-    ) {
+    if (hasInitialOverviewData) {
       return buildSsrSeedData(
         initialClinicalState,
         initialVisits,
@@ -934,22 +945,13 @@ export function PatientTabOverview({
         initialMessagesSnapshot,
         initialProgramInstances,
         initialProgramInstanceDetail,
+        medicalRecordEnabled,
       );
     }
     return null;
   });
   const [loadedUserId, setLoadedUserId] = useState<string | null>(() => {
-    if (
-      initialClinicalState != null &&
-      initialVisits != null &&
-      initialNotes != null &&
-      initialTasks != null &&
-      initialProgramActivity != null &&
-      initialAppointments != null
-    ) {
-      return userId;
-    }
-    return null;
+    return hasInitialOverviewData ? userId : null;
   });
 
   const [notesModalOpen, setNotesModalOpen] = useState(false);
@@ -969,13 +971,7 @@ export function PatientTabOverview({
     setClientNowIso(new Date().toISOString());
   }, []);
 
-  const hasSsrData =
-    initialClinicalState != null &&
-    initialVisits != null &&
-    initialNotes != null &&
-    initialTasks != null &&
-    initialProgramActivity != null &&
-    initialAppointments != null;
+  const hasSsrData = hasInitialOverviewData;
 
   // Track whether we've seeded SSR data for the current userId to avoid
   // overwriting mutation-triggered setData calls on re-render.
@@ -1112,10 +1108,17 @@ export function PatientTabOverview({
 
     // Conditionally fetch SSR-covered data only when SSR props were not provided
     const fetchClinical =
-      hasSsrData && ssrSeedRef.current === userId
+      !medicalRecordEnabled || (hasSsrData && ssrSeedRef.current === userId)
         ? Promise.resolve(null as ClinicalApiResponse | null)
         : fetch(`/api/doctor/patients/${userId}/clinical`, { credentials: 'include' })
             .then((r) => (r.ok ? (r.json() as Promise<ClinicalApiResponse>) : null))
+            .catch(() => null);
+
+    const fetchVisits =
+      !encountersEnabled || (hasSsrData && ssrSeedRef.current === userId)
+        ? Promise.resolve(null as VisitsApiResponse | null)
+        : fetch(`/api/doctor/patients/${userId}/visits`, { credentials: 'include' })
+            .then((r) => (r.ok ? (r.json() as Promise<VisitsApiResponse>) : null))
             .catch(() => null);
 
     const fetchAppointments =
@@ -1148,6 +1151,7 @@ export function PatientTabOverview({
 
     Promise.all([
       fetchClinical,
+      fetchVisits,
       fetchAppointments,
       fetchPackages,
       fetchNotes,
@@ -1158,6 +1162,7 @@ export function PatientTabOverview({
     ]).then(
       async ([
         clinical,
+        visitsResponse,
         appointments,
         packages,
         notes,
@@ -1174,12 +1179,16 @@ export function PatientTabOverview({
         let complaints: ActiveComplaint[];
         let clinicalStatus: WidgetStatus;
         let symptomSeries: SymptomSeries[];
-        if (
+        if (!medicalRecordEnabled) {
+          complaints = [];
+          clinicalStatus = 'empty';
+          symptomSeries = [];
+        } else if (
           usingSsrForClinical &&
           unwrapBootstrapEnvelope(initialClinicalState) != null &&
-          unwrapBootstrapEnvelope(initialVisits) != null
+          (!encountersEnabled || unwrapBootstrapEnvelope(initialVisits) != null)
         ) {
-          const visits = unwrapBootstrapEnvelope(initialVisits)!;
+          const visits = unwrapBootstrapEnvelope(initialVisits) ?? [];
           complaints = unwrapBootstrapEnvelope(initialClinicalState)!.complaints;
           clinicalStatus = complaints.length === 0 ? 'empty' : 'ok';
           symptomSeries = buildSymptomSeries(
@@ -1201,7 +1210,9 @@ export function PatientTabOverview({
         } else {
           complaints = clinical?.state?.complaints ?? [];
           clinicalStatus = !clinical ? 'error' : complaints.length === 0 ? 'empty' : 'ok';
-          symptomSeries = clinical ? buildSymptomSeries(complaints, clinical.visits ?? []) : [];
+          symptomSeries = clinical
+            ? buildSymptomSeries(complaints, visitsResponse?.visits ?? [])
+            : [];
         }
 
         // --- Appointments → Control KPI (from SSR or fetch) ---
@@ -1391,7 +1402,7 @@ export function PatientTabOverview({
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, membershipsVisible, canOpenProgram]);
+  }, [userId, membershipsVisible, canOpenProgram, medicalRecordEnabled, encountersEnabled]);
 
   const messagesPollGenerationRef = useRef(0);
 
@@ -1780,70 +1791,73 @@ export function PatientTabOverview({
         </div>
 
         {/* Актуальные симптомы */}
-        <div className={cn(doctorSectionCardClass, isComposed && 'hidden')}>
-          <div className="flex items-center justify-between mb-1">
-            <span className={doctorSectionTitleClass}>Актуальные симптомы</span>
-            {canOpenKarta ? (
-              <Button
-                variant="ghost"
-                onClick={() => onTabSwitch?.('karta')}
-                className="h-auto rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 gap-0.5"
-              >
-                Открыть Карту →
-              </Button>
-            ) : null}
+        {medicalRecordEnabled ? (
+          <div className={cn(doctorSectionCardClass, isComposed && 'hidden')}>
+            <div className="flex items-center justify-between mb-1">
+              <span className={doctorSectionTitleClass}>Актуальные симптомы</span>
+              {canOpenKarta ? (
+                <Button
+                  variant="ghost"
+                  onClick={() => onTabSwitch?.('karta')}
+                  className="h-auto rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 gap-0.5"
+                >
+                  Открыть Карту →
+                </Button>
+              ) : null}
+            </div>
+
+            {isLoading && <DoctorPanelLoading className="py-3" />}
+            {!isLoading && data?.clinicalStatus === 'error' && (
+              <p className="text-xs text-destructive py-1">Не удалось загрузить симптомы.</p>
+            )}
+            {!isLoading && data?.clinicalStatus === 'empty' && (
+              <p className="text-xs text-muted-foreground py-2">Симптомы не зафиксированы.</p>
+            )}
+
+            {!isLoading && data?.clinicalStatus === 'ok' && (
+              <>
+                {data.complaints
+                  .filter((c) => c.priority)
+                  .map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex flex-wrap items-center gap-2 border border-[#ecd9d5] bg-[#fbf5f4] rounded-lg px-3 py-2"
+                    >
+                      <span className="flex-none text-base font-bold text-destructive">!</span>
+                      <span className="text-sm font-semibold text-foreground flex-1 min-w-0">
+                        {c.text}
+                      </span>
+                      <ScoreBadge score={c.currentSeverity} size="base" />
+                      <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
+                        {c.since}
+                        {c.trend.length >= 2 && ` · было ${c.trend[0]}/10`}
+                      </span>
+                    </div>
+                  ))}
+
+                {data.complaints
+                  .filter((c) => !c.priority)
+                  .map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center gap-2 mt-1 px-3 text-xs text-muted-foreground"
+                    >
+                      <span className="w-3.5 flex-none" />
+                      <span className="flex-1 min-w-0">{c.text}</span>
+                      <ScoreBadge score={c.currentSeverity} size="sm" />
+                      <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
+                        {c.since}
+                      </span>
+                    </div>
+                  ))}
+              </>
+            )}
           </div>
-
-          {isLoading && <DoctorPanelLoading className="py-3" />}
-          {!isLoading && data?.clinicalStatus === 'error' && (
-            <p className="text-xs text-destructive py-1">Не удалось загрузить симптомы.</p>
-          )}
-          {!isLoading && data?.clinicalStatus === 'empty' && (
-            <p className="text-xs text-muted-foreground py-2">Симптомы не зафиксированы.</p>
-          )}
-
-          {!isLoading && data?.clinicalStatus === 'ok' && (
-            <>
-              {data.complaints
-                .filter((c) => c.priority)
-                .map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex flex-wrap items-center gap-2 border border-[#ecd9d5] bg-[#fbf5f4] rounded-lg px-3 py-2"
-                  >
-                    <span className="flex-none text-base font-bold text-destructive">!</span>
-                    <span className="text-sm font-semibold text-foreground flex-1 min-w-0">
-                      {c.text}
-                    </span>
-                    <ScoreBadge score={c.currentSeverity} size="base" />
-                    <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
-                      {c.since}
-                      {c.trend.length >= 2 && ` · было ${c.trend[0]}/10`}
-                    </span>
-                  </div>
-                ))}
-
-              {data.complaints
-                .filter((c) => !c.priority)
-                .map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex items-center gap-2 mt-1 px-3 text-xs text-muted-foreground"
-                  >
-                    <span className="w-3.5 flex-none" />
-                    <span className="flex-1 min-w-0">{c.text}</span>
-                    <ScoreBadge score={c.currentSeverity} size="sm" />
-                    <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
-                      {c.since}
-                    </span>
-                  </div>
-                ))}
-            </>
-          )}
-        </div>
+        ) : null}
 
         {/* Динамика симптомов */}
-        {isLoading || data?.symptomSeries.some((series) => series.points.length >= 2) ? (
+        {medicalRecordEnabled &&
+        (isLoading || data?.symptomSeries.some((series) => series.points.length >= 2)) ? (
           <div
             className={cn(
               doctorSectionCardClass,

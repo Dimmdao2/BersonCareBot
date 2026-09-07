@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireDoctorWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 
 const bodySchema = z.object({
@@ -16,6 +17,9 @@ export async function POST(
 ) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const deps = buildAppDeps();
+  const moduleGate = await requireDoctorWorkspaceModuleForApi(deps, gate.ctx, 'medical_record');
+  if (!moduleGate.ok) return moduleGate.response;
   const { userId, complaintId } = await params;
   const uuid = z.string().uuid();
   if (!uuid.safeParse(userId).success || !uuid.safeParse(complaintId).success) {
@@ -25,7 +29,6 @@ export async function POST(
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
-  const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     gate.ctx.organizationId,

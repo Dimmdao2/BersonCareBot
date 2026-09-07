@@ -16,14 +16,27 @@
 #
 # Использование:
 #   tools/agent-direct.sh <worktree> <файл-брифа> <имя-прогона> [модель] [effort]
+# Для модели Claude перед запуском обязателен `AGENT_PROVIDER_REASON` с task-specific причиной.
 
 set -uo pipefail
 
 WORKTREE="${1:?worktree path required}"
 BRIEF="${2:?brief file required}"
 NAME="${3:?run name required}"
-MODEL="${4:-claude-sonnet-5}"
-EFFORT="${5:-high}"
+MODEL="${4:-gpt-5.6-terra}"
+EFFORT="${5:-medium}"
+
+case "$MODEL" in
+  gpt-*) PROVIDER=codex ;;
+  claude-*)
+    PROVIDER=claude
+    [ -n "${AGENT_PROVIDER_REASON:-}" ] || {
+      echo "AGENT_PROVIDER_REASON is required for a task-specific Claude choice" >&2
+      exit 1
+    }
+    ;;
+  *) echo "unsupported model family: $MODEL" >&2; exit 1 ;;
+esac
 
 [ -d "$WORKTREE" ] || { echo "no such worktree: $WORKTREE" >&2; exit 1; }
 [ -f "$BRIEF" ] || { echo "no such brief: $BRIEF" >&2; exit 1; }
@@ -36,11 +49,13 @@ ERR="$LOGDIR/$NAME.err"
 BRIEF_TEXT="$(cat "$BRIEF")"
 
 setsid nohup bash -c '
-  worktree="$1"; out="$2"; err="$3"; name="$4"; model="$5"; effort="$6"; brief="$7"
+  worktree="$1"; out="$2"; err="$3"; name="$4"; model="$5"; effort="$6"; brief="$7"; provider="$8"
 
   cd "$worktree" || exit 1
-  claude -p --dangerously-skip-permissions --output-format json \
-    --model "$model" --effort "$effort" "$brief" > "$out" 2> "$err"
+  printf "%s" "$brief" | node /home/dev/brain/host-orch/agent-run.mjs \
+    --provider "$provider" --model "$model" --effort "$effort" \
+    --role dev-lead --sandbox workspace-write --cwd "$worktree" --run-id "$name" \
+    > "$out" 2> "$err"
   rc=$?
 
   # Сторож: что бы ни вернул агент, его правки НЕ остаются несохранёнными.
@@ -52,13 +67,13 @@ setsid nohup bash -c '
 The agent process ended without making its own commit. This snapshot is whatever it had written at that
 moment — it is NOT a finished pass and must not be read as one. See $out / $err for how the turn ended.
 
-Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>" 2>/dev/null
+Executor-Model: $model ($provider)" 2>/dev/null
     echo "WATCHDOG=committed" >> "$out"
   else
     echo "WATCHDOG=clean" >> "$out"
   fi
   echo "EXIT=$rc" >> "$out"
-' _ "$WORKTREE" "$OUT" "$ERR" "$NAME" "$MODEL" "$EFFORT" "$BRIEF_TEXT" < /dev/null > /dev/null 2>&1 &
+' _ "$WORKTREE" "$OUT" "$ERR" "$NAME" "$MODEL" "$EFFORT" "$BRIEF_TEXT" "$PROVIDER" < /dev/null > /dev/null 2>&1 &
 
 echo "launched: $NAME  worktree=$WORKTREE"
 echo "  stdout: $OUT"

@@ -56,6 +56,7 @@ export default async function NewEncounterPage({ params, searchParams }: PagePro
           phone: identity.phone,
         }}
         boundAppointmentId={appointmentId ?? null}
+        medicalRecordEnabled={shell.workspaceModules.medical_record}
       />
     </PatientEncounterPageShell>
   );

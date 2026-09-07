@@ -11,7 +11,7 @@
  * Data: fetches from GET /api/doctor/patients/[userId]/files
  * Upload: POST /api/doctor/patients/[userId]/files → presigned PUT → PUT to S3 → confirm.
  * Link: PATCH /api/doctor/patients/[userId]/files/[fileId] { visitId }.
- * Visits: GET /api/doctor/patients/[userId]/clinical → visits[].
+ * Visits: GET /api/doctor/patients/[userId]/visits → visits[].
  *
  * «Единый источник с файлами визита»: files linked via visit_id are shown here too.
  */
@@ -297,7 +297,7 @@ function VisitSelector({
   useEffect(() => {
     if (!open || visits.length > 0) return;
     setLoadingVisits(true);
-    fetch(`/api/doctor/patients/${userId}/clinical`)
+    fetch(`/api/doctor/patients/${userId}/visits`)
       .then((r) => r.json().catch(() => null) as Promise<{ ok?: boolean; visits?: Visit[] } | null>)
       .then((data) => {
         if (data?.ok && Array.isArray(data.visits)) {

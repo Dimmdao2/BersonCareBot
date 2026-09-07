@@ -782,8 +782,11 @@ public booking этой organization продолжает работать.
       Доказательство: product `557f2caa4`, независимый audit/oracles `bd2ee567c`; `28/28` projection tests и после
       correction `3/3` patient-card hidden-module bootstrap tests, webapp typecheck, scoped ESLint, architecture
       checks, `git diff --check` и isolated DEV desktop/mobile PASS.
-- [ ] **C3M-07a — medical record slice.** Независимо скрыть/запретить продольную медкарту при OFF, сохранив clients,
+- [x] **C3M-07a — medical record slice.** Независимо скрыть/запретить продольную медкарту при OFF, сохранив clients,
       Overview notes, tasks, appointments, encounters, files/account и исторические данные для re-enable.
+      Доказательство: product `366f65f63`, независимый audit/oracles `c8974edac` + `d636eaef5`; route `14/14`,
+      bootstrap/registry `10/10`, webapp typecheck, scoped ESLint, architecture checks, `git diff --check` и isolated
+      DEV desktop/mobile matrix `medical_record × encounters` PASS; OFF→ON вернул те же симптомы/диагнозы/анамнез.
 - [ ] **C3M-07b — encounters slice.** Независимо скрыть/запретить старт/историю приёмов и visit-bound осмотр,
       интервенции и назначения при OFF, сохранив appointments, medical record и исторические данные для re-enable.
 - [ ] **C3M-08 — rehabilitation slice.** Скрыть/запретить ЛФК/program/catalog paths и зависимые comment/media
