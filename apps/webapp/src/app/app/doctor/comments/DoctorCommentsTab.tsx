@@ -25,7 +25,6 @@ import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { DoctorLfkCommentsModal } from './DoctorLfkCommentsModal';
-import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -115,7 +114,7 @@ function PatientRow({
  * комментариев ЛФК один путь на весь кабинет.
  */
 function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCommentsTabProps) {
-  const { supportGroupLabel } = useDoctorPatientTerms();
+  const { patientGenPlural, patientSingularLower, supportGroupLabel } = useDoctorPatientTerms();
   // ── View mode: «Непрочитанные» (unread) or «Все» (all) ──
   // Default: «Все» — показать всю историю комментариев; «Непрочитанные» — только непрочитанные.
   const [viewMode, setViewMode] = useState<'unread' | 'all'>('all');
@@ -208,7 +207,7 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
       if (data.ok && data.patients) {
         setAllModePatients(data.patients);
       } else {
-        setAllModePatientsError('Не удалось загрузить список пациентов.');
+        setAllModePatientsError(`Не удалось загрузить список ${patientGenPlural}.`);
         allModeFetchedRef.current = false; // allow retry
       }
     } catch {
@@ -217,7 +216,7 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
     } finally {
       setAllModePatientsLoading(false);
     }
-  }, []);
+  }, [patientGenPlural]);
 
   // Полная выборка пациентов грузится всегда — она нужна как активный датасет
   // в режиме «Все» и как стабильный источник счётчиков для обоих toggle-фильтров
@@ -300,7 +299,7 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="h-8 w-full"
-        aria-label="Поиск пациентов"
+        aria-label={`Поиск ${patientGenPlural}`}
       />
       {showFilters ? (
         <div className="flex flex-wrap gap-1.5">
@@ -365,8 +364,8 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
             {query.trim()
               ? 'Ничего не найдено'
               : viewMode === 'all'
-                ? 'Нет пациентов с комментариями'
-                : 'Нет пациентов с непрочитанными комментариями'}
+                ? `Нет ${patientGenPlural} с комментариями`
+                : `Нет ${patientGenPlural} с непрочитанными комментариями`}
           </DoctorEmptyState>
         ) : (
           <ul className={doctorDnaFlatListClass}>
@@ -389,7 +388,7 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
   const rightPane = (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
       <DoctorEmptyState size="sm" className="flex flex-1 items-center justify-center py-10">
-        Выберите клиента, чтобы открыть комментарии
+        Выберите {patientSingularLower}, чтобы открыть комментарии
       </DoctorEmptyState>
     </div>
   );

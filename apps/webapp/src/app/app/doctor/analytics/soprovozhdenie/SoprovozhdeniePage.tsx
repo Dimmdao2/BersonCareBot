@@ -16,9 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/pri
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export function SoprovozhdeniePage() {
-  const { patientGenPlural, supportGroupLabel } = useDoctorPatientTerms();
-  // Творительный падеж: «пациентами» / «клиентами».
-  const patientInstr = patientGenPlural === 'клиентов' ? 'клиентами' : 'пациентами';
+  const { patientGenPlural, patientInstrumentalPlural, supportGroupLabel } = useDoctorPatientTerms();
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -28,7 +26,7 @@ export function SoprovozhdeniePage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Данные о выполнении программ {patientInstr} появятся здесь.
+              Данные о выполнении программ {patientInstrumentalPlural} появятся здесь.
             </p>
           </CardContent>
         </Card>

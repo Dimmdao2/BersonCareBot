@@ -455,7 +455,7 @@ function PatientsContent({
   onSearchInput,
   onMobileFiltersOpenChange,
 }: PatientsContentProps) {
-  const { supportGroupLabel } = useDoctorPatientTerms();
+  const { patientGenPlural } = useDoctorPatientTerms();
   const router = useRouter();
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
@@ -721,8 +721,8 @@ function PatientsContent({
             {filtered.length === 0 ? (
               <p className="px-3 py-4 text-sm text-muted-foreground">
                 {searchQuery.trim()
-                  ? 'Нет пациентов по запросу.'
-                  : 'Нет пациентов по заданным фильтрам.'}
+                  ? `Нет ${patientGenPlural} по запросу.`
+                  : `Нет ${patientGenPlural} по заданным фильтрам.`}
               </p>
             ) : (
               <ul

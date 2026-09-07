@@ -20,8 +20,12 @@ export type PatientTerms = {
   patientGenitive: string;
   /** Дательный падеж ед.ч.: «пациенту» или «клиенту». */
   patientDative: string;
+  /** Дательный падеж мн.ч.: «пациентам» или «клиентам». */
+  patientDativePlural: string;
   /** Творительный падеж ед.ч.: «пациентом» или «клиентом». */
   patientInstrumental: string;
+  /** Творительный падеж мн.ч.: «пациентами» или «клиентами». */
+  patientInstrumentalPlural: string;
 };
 
 export type DoctorClientTerms = PatientTerms & {
@@ -75,7 +79,9 @@ export function resolvePatientTerms(value?: unknown): PatientTerms {
       patientSingularLower: 'клиент',
       patientGenitive: 'клиента',
       patientDative: 'клиенту',
+      patientDativePlural: 'клиентам',
       patientInstrumental: 'клиентом',
+      patientInstrumentalPlural: 'клиентами',
     };
   }
   return {
@@ -85,7 +91,9 @@ export function resolvePatientTerms(value?: unknown): PatientTerms {
     patientSingularLower: 'пациент',
     patientGenitive: 'пациента',
     patientDative: 'пациенту',
+    patientDativePlural: 'пациентам',
     patientInstrumental: 'пациентом',
+    patientInstrumentalPlural: 'пациентами',
   };
 }
 
