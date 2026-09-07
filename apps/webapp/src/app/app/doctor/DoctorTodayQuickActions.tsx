@@ -12,6 +12,7 @@ type DoctorTodayQuickActionsProps = {
   todayIso: string;
   displayIana: string;
   placement: 'header' | 'mobile-header';
+  appointmentsManageOwn: boolean;
 };
 
 /** Единый блок быстрых действий страницы «Сегодня». */
@@ -19,6 +20,7 @@ export function DoctorTodayQuickActions({
   todayIso,
   displayIana,
   placement,
+  appointmentsManageOwn,
 }: DoctorTodayQuickActionsProps) {
   const [appointmentOpen, setAppointmentOpen] = useState(false);
 
@@ -39,23 +41,25 @@ export function DoctorTodayQuickActions({
             : 'hidden grid-cols-2 items-center gap-2 md:grid',
         )}
       >
-        <Button
-          type="button"
-          variant={placement === 'mobile-header' ? 'ghost' : 'default'}
-          size={placement === 'mobile-header' ? 'icon' : 'sm'}
-          className={
-            placement === 'mobile-header' ? DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS : undefined
-          }
-          aria-label="Новая запись"
-          title="Новая запись"
-          onClick={openAppointment}
-        >
-          {placement === 'mobile-header' ? (
-            <CalendarPlus className="size-[22px]" aria-hidden />
-          ) : (
-            'Новая запись'
-          )}
-        </Button>
+        {appointmentsManageOwn ? (
+          <Button
+            type="button"
+            variant={placement === 'mobile-header' ? 'ghost' : 'default'}
+            size={placement === 'mobile-header' ? 'icon' : 'sm'}
+            className={
+              placement === 'mobile-header' ? DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS : undefined
+            }
+            aria-label="Новая запись"
+            title="Новая запись"
+            onClick={openAppointment}
+          >
+            {placement === 'mobile-header' ? (
+              <CalendarPlus className="size-[22px]" aria-hidden />
+            ) : (
+              'Новая запись'
+            )}
+          </Button>
+        ) : null}
         <DoctorNewClientAction
           patientSingularLabel="Клиент"
           className={
@@ -68,13 +72,16 @@ export function DoctorTodayQuickActions({
         />
       </div>
 
-      <DoctorNewAppointmentModal
-        open={appointmentOpen}
-        onClose={closeAppointment}
-        contextDate={todayIso}
-        fallbackTimeZone={displayIana}
-        title="Создать запись"
-      />
+      {appointmentsManageOwn ? (
+        <DoctorNewAppointmentModal
+          open={appointmentOpen}
+          onClose={closeAppointment}
+          contextDate={todayIso}
+          fallbackTimeZone={displayIana}
+          title="Создать запись"
+          appointmentsManageOwn={appointmentsManageOwn}
+        />
+      ) : null}
     </>
   );
 }

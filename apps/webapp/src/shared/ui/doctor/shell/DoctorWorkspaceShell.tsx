@@ -15,6 +15,7 @@ import { DoctorWorkspaceModeSwitch } from '@/shared/ui/doctor/shell/DoctorWorksp
 import { getDoctorShellHomeHref } from '@/shared/ui/doctor/doctorNavLinks';
 import type { UserRole } from '@/shared/types/session';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
+import type { DoctorWorkspaceComposition } from '@/modules/doctor-workspace/composition';
 import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
 
 type DoctorWorkspaceShellProps = {
@@ -26,6 +27,8 @@ type DoctorWorkspaceShellProps = {
   patientLabel?: string;
   /** Stable server-resolved org/member context for nested multi-specialist workspace controls. */
   workspaceContext?: DoctorWorkspaceContext;
+  /** Server-resolved solo/clinic composition; client chrome never infers it from capabilities. */
+  workspaceComposition?: DoctorWorkspaceComposition;
   /** Server-resolved organization entitlement; the client shell never infers it from role. */
   coursesEnabled?: boolean;
   promoEnabled?: boolean;
@@ -68,6 +71,7 @@ export function DoctorWorkspaceShell({
   userDisplayName,
   patientLabel,
   workspaceContext,
+  workspaceComposition,
   coursesEnabled = false,
   promoEnabled = false,
   cmsEnabled = false,
@@ -107,6 +111,7 @@ export function DoctorWorkspaceShell({
   const showClinicalShortcuts = capabilities.includes('clinical.workspace');
   const clinicalRuntimeEnabled = enableTenantRuntime && showClinicalShortcuts;
   const modeSwitch =
+    workspaceComposition === 'clinic' &&
     workspaceContext?.canManageOrganization &&
     workspaceContext.specialistId !== null &&
     workspaceContext.canAccessClinicalWorkspace ? (

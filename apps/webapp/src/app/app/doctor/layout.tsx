@@ -42,6 +42,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       userDisplayName={session.user.displayName}
       patientLabel={shell.patientLabel}
       workspaceContext={shell.workspaceContext}
+      workspaceComposition={shell.workspaceComposition}
       coursesEnabled={shell.coursesEnabled}
       promoEnabled={shell.promoEnabled}
       cmsEnabled={shell.cmsEnabled}
@@ -49,7 +50,12 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       specialistTasksEnabled={shell.specialistTasksEnabled}
       workspaceModules={shell.workspaceModules}
       brand={shell.shellBrand}
-      mobileHeaderActions={<DoctorGlobalQuickActions patientSingularLabel={shell.patientLabel} />}
+      mobileHeaderActions={
+        <DoctorGlobalQuickActions
+          patientSingularLabel={shell.patientLabel}
+          appointmentsManageOwn={shell.workspaceAccess.appointmentsManageOwn}
+        />
+      }
     >
       {shell.accessWarnings.length > 0 ? (
         <div

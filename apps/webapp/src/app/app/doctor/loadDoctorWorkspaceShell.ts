@@ -23,6 +23,11 @@ import { getPatientMaintenanceConfig } from '@/modules/system-settings/patientMa
 import { sessionMatchesTestAccountIdentifiers } from '@/config/testAccounts';
 import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
 import { resolveDoctorWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  resolveDoctorWorkspaceComposition,
+  type DoctorWorkspaceComposition,
+} from '@/modules/doctor-workspace/composition';
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (
@@ -51,6 +56,7 @@ export type DoctorWorkspaceShellData = {
   patientHomeTodayEnabled: boolean;
   specialistTasksEnabled: boolean;
   workspaceModules: WorkspaceModuleEffective;
+  workspaceComposition: DoctorWorkspaceComposition;
   canRenderClinicalChildren: boolean;
   maintenance: { enabled: boolean; message: string };
 };
@@ -87,6 +93,8 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     entitlementSnapshot,
     cabinetAccess,
     lifecycleAnchors,
+    clinicTeamEntitlement,
+    seats,
   ] = await Promise.all([
     getMechanicSurfaceVisibility(workspaceAccess, 'courses'),
     getMechanicSurfaceVisibility(workspaceAccess, 'promo'),
@@ -96,6 +104,8 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     deps.orgEntitlements.getSnapshot(organizationId).catch(() => null),
     resolveCabinetAccessRequestLocal(organizationId).catch(() => null),
     deps.orgEntitlements.prepareLifecycleNotificationContext(organizationId).catch(() => null),
+    requireEntitlementForReadAction(workspaceAccess, 'clinic_team'),
+    deps.clinicSeats.getSeatStatus(organizationId, session.user.userId),
   ]);
 
   const billingOverview = await runWithDbClinicBillingPrincipal(
@@ -182,6 +192,10 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     workspaceAccess,
     doctorSettings.find((setting) => setting.key === 'doctor_workspace_composition') ?? null,
   );
+  const workspaceComposition = resolveDoctorWorkspaceComposition({
+    clinicTeamEntitled: clinicTeamEntitlement.ok,
+    seats,
+  });
 
   const canRenderClinicalChildren =
     workspaceAccess.canAccessClinicalWorkspace ||
@@ -206,6 +220,7 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     patientHomeTodayEnabled: patientHomeTodayVisibility.specialistNavigation,
     specialistTasksEnabled: specialistTasksVisibility.specialistNavigation,
     workspaceModules,
+    workspaceComposition,
     canRenderClinicalChildren,
     maintenance: {
       enabled: maintenance.enabled && session.user.role !== 'admin' && !isTestAccount,

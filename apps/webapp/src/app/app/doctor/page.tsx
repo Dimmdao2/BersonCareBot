@@ -57,9 +57,7 @@ async function DoctorTodayDashboardSection({
     }),
     getMechanicMutationAvailability(workspace, 'specialist_tasks'),
     requireEntitlementForReadAction(workspace, 'specialist_tasks'),
-    withDoctorWorkspacePrincipal(workspace, () =>
-      resolveDoctorWorkspaceModules(deps, workspace),
-    ),
+    withDoctorWorkspacePrincipal(workspace, () => resolveDoctorWorkspaceModules(deps, workspace)),
   ]);
 
   const todayPreferences = parseDoctorTodayPreferences(todayPreferencesRow?.valueJson);
@@ -114,6 +112,7 @@ async function DoctorTodayDashboardSection({
       calendarSnapshot={calendarSnapshot}
       specialistTasksAvailable={specialistTasksAvailable}
       specialistTasksReadable={specialistTasksReadable}
+      appointmentsManageOwn={workspace.appointmentsManageOwn}
     />
   );
 }
@@ -142,12 +141,7 @@ export default async function DoctorPage() {
 
   const displayIana = await getAppDisplayTimeZone();
   return (
-    <DoctorAppShell
-      title="Сегодня"
-      user={session.user}
-      layout="full-height"
-      mobileBottomGutter
-    >
+    <DoctorAppShell title="Сегодня" user={session.user} layout="full-height" mobileBottomGutter>
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         {session.user.role === 'admin' ? <DoctorTodayAdminBannersSuspense /> : null}
         <Suspense fallback={<DoctorTodayDashboardFallback />}>

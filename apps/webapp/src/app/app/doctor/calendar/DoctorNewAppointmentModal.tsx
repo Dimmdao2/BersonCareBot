@@ -58,6 +58,7 @@ type Props = {
   title?: ReactNode;
   patientOnSupport?: boolean;
   patientVariant?: 'link' | 'context';
+  appointmentsManageOwn?: boolean;
   onChanged?: () => void;
 };
 
@@ -69,6 +70,7 @@ type CreatePanelProps = {
   onClose: () => void;
   onChanged?: () => void;
   onCreated?: (appointmentId: string) => void;
+  appointmentsManageOwn?: boolean;
 };
 
 /** Canonical fixed-patient appointment form without its own modal chrome. */
@@ -80,6 +82,7 @@ export function DoctorAppointmentCreatePanel({
   onClose,
   onChanged,
   onCreated,
+  appointmentsManageOwn = true,
 }: CreatePanelProps) {
   const router = useRouter();
   const [createContext, setCreateContext] = useState<CreateContext | null>(null);
@@ -140,6 +143,7 @@ export function DoctorAppointmentCreatePanel({
       filterMeta={createContext.filters}
       activeFilters={EMPTY_ACTIVE_FILTERS}
       ownSpecialistId={createContext.ownSpecialistId}
+      appointmentsManageOwn={appointmentsManageOwn}
       clinicSpecialists={createContext.clinicSpecialists}
       createInitialSpecialistId={createContext.ownSpecialistId}
       createInitialPatient={patient}
@@ -163,6 +167,7 @@ export function DoctorNewAppointmentModal({
   title = 'Новая запись',
   patientOnSupport = false,
   patientVariant = 'link',
+  appointmentsManageOwn = true,
   onChanged,
 }: Props) {
   function handleClose() {
@@ -205,6 +210,7 @@ export function DoctorNewAppointmentModal({
         patient={patient}
         contextDate={contextDate}
         fallbackTimeZone={fallbackTimeZone}
+        appointmentsManageOwn={appointmentsManageOwn}
         onClose={handleClose}
         onChanged={() => {
           handleClose();

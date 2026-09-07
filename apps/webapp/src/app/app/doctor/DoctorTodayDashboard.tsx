@@ -51,6 +51,7 @@ type Props = {
   calendarSnapshot: DoctorTodayCalendarSnapshot;
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
+  appointmentsManageOwn?: boolean;
 };
 
 function peopleItemName(client: TodayDashboardData['people'][number]): string {
@@ -193,6 +194,7 @@ export function DoctorTodayDashboard({
   calendarSnapshot,
   specialistTasksAvailable,
   specialistTasksReadable,
+  appointmentsManageOwn = true,
 }: Props) {
   const router = useRouter();
   const isMobile = useIsMobileViewport();
@@ -293,6 +295,7 @@ export function DoctorTodayDashboard({
             todayIso={calendarSnapshot.todayIso}
             displayIana={displayIana}
             placement="header"
+            appointmentsManageOwn={appointmentsManageOwn}
           />
         }
       />

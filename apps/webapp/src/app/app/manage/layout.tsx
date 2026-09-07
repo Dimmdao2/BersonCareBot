@@ -5,7 +5,7 @@ import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceSh
 import { loadManagementWorkspace } from './loadManagementWorkspace';
 
 export default async function ManagementLayout({ children }: { children: ReactNode }) {
-  const { workspace, organizationName } = await loadManagementWorkspace();
+  const { workspace, organizationName, workspaceComposition } = await loadManagementWorkspace();
   const workspaceContext: DoctorWorkspaceContext = {
     organizationId: workspace.organizationId,
     organizationName,
@@ -27,6 +27,7 @@ export default async function ManagementLayout({ children }: { children: ReactNo
       userRole={workspace.session.user.role}
       userDisplayName={workspace.session.user.displayName}
       workspaceContext={workspaceContext}
+      workspaceComposition={workspaceComposition}
       enableTenantRuntime={false}
       menuKind="management"
     >

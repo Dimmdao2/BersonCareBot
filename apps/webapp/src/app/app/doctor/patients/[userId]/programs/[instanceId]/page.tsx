@@ -97,6 +97,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
       embeddedProgramContent={embeddedEditor}
       patientListHref={routePaths.doctorPatients}
       workspaceModules={shell.workspaceModules}
+      appointmentsManageOwn={workspace.appointmentsManageOwn}
     />
   );
 }
