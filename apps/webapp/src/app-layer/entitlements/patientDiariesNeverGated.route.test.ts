@@ -66,8 +66,8 @@ describe('patient_diaries write paths ignore entitlement state (critical mechani
   beforeEach(() => {
     vi.clearAllMocks();
     fakes.getAppDisplayTimeZone.mockResolvedValue('Europe/Moscow');
-    fakes.withDoctorWorkspacePrincipal.mockImplementation(
-      <T>(...args: unknown[]): T => (args.at(-1) as () => T)(),
+    fakes.withDoctorWorkspacePrincipal.mockImplementation(<T>(...args: unknown[]): T =>
+      (args.at(-1) as () => T)(),
     );
   });
 
@@ -102,9 +102,7 @@ describe('patient_diaries write paths ignore entitlement state (critical mechani
     fakes.buildAppDeps.mockReturnValue({
       orgEntitlements: poisonedOrgEntitlements(),
       diaries: {
-        listSymptomTrackings: vi
-          .fn()
-          .mockResolvedValue([{ id: 'tracking-1', symptomKey: 'pain' }]),
+        listSymptomTrackings: vi.fn().mockResolvedValue([{ id: 'tracking-1', symptomKey: 'pain' }]),
         listSymptomEntriesForTrackingInRange: vi.fn().mockResolvedValue([]),
         addSymptomEntry: addSymptomEntryPort,
       },
@@ -129,11 +127,20 @@ describe('patient_diaries write paths ignore entitlement state (critical mechani
       id: 'tracking-1',
       symptomTitle: 'Боль',
       symptomKey: 'pain',
+      patientTrackingEnabled: true,
     });
     fakes.buildAppDeps.mockReturnValue({
       orgEntitlements: poisonedOrgEntitlements(),
       doctorClientsPort: {
         getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: PATIENT_ID }),
+      },
+      systemSettings: {
+        getDoctorWorkspaceClientDefaults: vi
+          .fn()
+          .mockResolvedValue({ patientSymptomTrackingDefault: 'all' }),
+      },
+      doctorClients: {
+        getClientSupport: vi.fn().mockResolvedValue(null),
       },
       diaries: { createSymptomTracking },
     });

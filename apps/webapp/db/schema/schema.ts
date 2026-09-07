@@ -1375,6 +1375,7 @@ export const symptomTrackings = pgTable(
     symptomKey: text('symptom_key'),
     symptomTitle: text('symptom_title').notNull(),
     isActive: boolean('is_active').default(true).notNull(),
+    patientTrackingEnabled: boolean('patient_tracking_enabled').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -1406,6 +1407,11 @@ export const symptomTrackings = pgTable(
       table.userId.asc().nullsLast().op('bool_ops'),
       table.isActive.asc().nullsLast().op('bool_ops'),
     ),
+    index('idx_symptom_trackings_patient_visible').using(
+      'btree',
+      table.platformUserId.asc().nullsLast().op('uuid_ops'),
+      table.updatedAt.desc().nullsLast().op('timestamptz_ops'),
+    ).where(sql`(deleted_at IS NULL AND is_active = true AND patient_tracking_enabled = true)`),
     foreignKey({
       columns: [table.diagnosisRefId],
       foreignColumns: [referenceItems.id],

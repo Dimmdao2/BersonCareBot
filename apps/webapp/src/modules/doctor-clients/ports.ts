@@ -372,6 +372,7 @@ export type DoctorClientsPort = {
     commentsEnabled?: boolean | null;
     mediaEnabled?: boolean | null;
     directChatEnabled?: boolean | null;
+    portalEnabled?: boolean | null;
     actorId: string;
   }): Promise<ClientSupportProfile>;
   /**

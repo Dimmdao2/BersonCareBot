@@ -24,6 +24,7 @@ type SymptomTrackingRow = {
   symptom_key: string | null;
   symptom_title: string;
   is_active: boolean;
+  patient_tracking_enabled: boolean;
   created_at: Date | string;
   updated_at: Date | string;
   symptom_type_ref_id?: string | null;
@@ -47,6 +48,8 @@ function rowToTracking(row: SymptomTrackingRow): SymptomTracking {
     symptomKey: row.symptom_key,
     symptomTitle: row.symptom_title,
     isActive: row.is_active,
+    patientTrackingEnabled: row.patient_tracking_enabled,
+    organizationId: row.organization_id ? String(row.organization_id) : null,
     createdAt: toIsoStringSafe(row.created_at),
     updatedAt: toIsoStringSafe(row.updated_at),
     symptomTypeRefId: row.symptom_type_ref_id ? String(row.symptom_type_ref_id) : null,
@@ -92,12 +95,16 @@ function rowToEntry(row: SymptomEntryRow): SymptomEntry {
   };
 }
 
-const TRACKING_SELECT = `id, user_id, platform_user_id, symptom_key, symptom_title, is_active, created_at, updated_at,
+const TRACKING_SELECT = `id, user_id, platform_user_id, symptom_key, symptom_title, is_active, patient_tracking_enabled, created_at, updated_at,
     symptom_type_ref_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id, stage_ref_id, deleted_at, organization_id`;
 
 /** Match legacy text user_id or canonical platform_user_id (post-merge / backfill). */
 function isPatientPrincipal(): boolean {
   return getCurrentDbPrincipal()?.kind === 'patient';
+}
+
+function patientTrackingVisibilitySql(alias: string): ReturnType<typeof sql.raw> {
+  return isPatientPrincipal() ? sql.raw(`AND ${alias}.patient_tracking_enabled = true`) : sql.raw('');
 }
 
 async function ensureCurrentPatientSystemTracking(params: {
@@ -144,10 +151,10 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     const result = await runWebappSql<SymptomTrackingRow>(
       getWebappSqlDb(),
       sql`INSERT INTO symptom_trackings (
-         user_id, platform_user_id, organization_id, symptom_key, symptom_title, is_active, updated_at,
+         user_id, platform_user_id, organization_id, symptom_key, symptom_title, is_active, patient_tracking_enabled, updated_at,
          symptom_type_ref_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id, stage_ref_id
        )
-       VALUES (${params.userId}::text, ${params.userId}::uuid, ${sql.param(organizationId)}::uuid, ${params.symptomKey ?? null}, ${params.symptomTitle}, true, ${now}, ${params.symptomTypeRefId ?? null}, ${params.regionRefId ?? null}, ${params.side ?? null}, ${params.diagnosisText ?? null}, ${params.diagnosisRefId ?? null}, ${params.stageRefId ?? null})
+       VALUES (${params.userId}::text, ${params.userId}::uuid, ${sql.param(organizationId)}::uuid, ${params.symptomKey ?? null}, ${params.symptomTitle}, true, ${params.patientTrackingEnabled ?? true}, ${now}, ${params.symptomTypeRefId ?? null}, ${params.regionRefId ?? null}, ${params.side ?? null}, ${params.diagnosisText ?? null}, ${params.diagnosisRefId ?? null}, ${params.stageRefId ?? null})
        RETURNING ${sql.raw(TRACKING_SELECT)}`,
     );
     return rowToTracking(result.rows[0]);
@@ -218,6 +225,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
        FROM symptom_trackings t
        WHERE ${platformUserMatchSql('t', userId)} AND deleted_at IS NULL
        ${sql.raw(activeOnly ? 'AND is_active = true' : '')}
+       ${patientTrackingVisibilitySql('t')}
        ORDER BY updated_at DESC`,
     );
     return result.rows.map(rowToTracking);
@@ -289,7 +297,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
               t.symptom_title
        FROM symptom_entries e
        JOIN symptom_trackings t ON t.id = e.tracking_id
-       WHERE ${platformUserMatchSql('e', userId)} AND t.deleted_at IS NULL
+       WHERE ${platformUserMatchSql('e', userId)} AND t.deleted_at IS NULL ${patientTrackingVisibilitySql('t')}
        ORDER BY e.recorded_at DESC
        LIMIT ${limit}`,
     );
@@ -301,7 +309,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
       getWebappSqlDb(),
       sql`SELECT ${sql.raw(TRACKING_SELECT)}
        FROM symptom_trackings
-       WHERE id = ${params.trackingId} AND ${platformUserMatchSql(null, params.userId)} AND deleted_at IS NULL`,
+       WHERE id = ${params.trackingId} AND ${platformUserMatchSql(null, params.userId)} AND deleted_at IS NULL ${patientTrackingVisibilitySql('symptom_trackings')}`,
     );
     return result.rows[0] ? rowToTracking(result.rows[0]) : null;
   },
@@ -315,7 +323,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
        JOIN symptom_trackings t ON t.id = e.tracking_id
        WHERE ${platformUserMatchSql('e', params.userId)} AND e.tracking_id = ${params.trackingId}
          AND e.recorded_at >= ${params.fromRecordedAt}::timestamptz AND e.recorded_at < ${params.toRecordedAtExclusive}::timestamptz
-         AND t.deleted_at IS NULL
+         AND t.deleted_at IS NULL ${patientTrackingVisibilitySql('t')}
        ORDER BY e.recorded_at ASC`,
     );
     return result.rows.map(rowToEntry);
@@ -332,7 +340,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
        JOIN symptom_trackings t ON t.id = e.tracking_id
        WHERE ${platformUserMatchSql('e', params.userId)}
          AND e.recorded_at >= ${params.fromRecordedAt}::timestamptz AND e.recorded_at < ${params.toRecordedAtExclusive}::timestamptz
-         AND t.deleted_at IS NULL
+         AND t.deleted_at IS NULL ${patientTrackingVisibilitySql('t')}
          ${tid ? sql`AND e.tracking_id = ${tid}::uuid` : sql``}
        ORDER BY e.recorded_at DESC
        LIMIT ${lim}`,
@@ -346,7 +354,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
       sql`SELECT MIN(e.recorded_at) AS m
        FROM symptom_entries e
        JOIN symptom_trackings t ON t.id = e.tracking_id
-       WHERE ${platformUserMatchSql('e', params.userId)} AND e.tracking_id = ${params.trackingId} AND t.deleted_at IS NULL`,
+       WHERE ${platformUserMatchSql('e', params.userId)} AND e.tracking_id = ${params.trackingId} AND t.deleted_at IS NULL ${patientTrackingVisibilitySql('t')}`,
     );
     const m = result.rows[0]?.m;
     return nullableToIsoStringSafe(m);
@@ -359,7 +367,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
               t.symptom_title
        FROM symptom_entries e
        JOIN symptom_trackings t ON t.id = e.tracking_id
-       WHERE e.id = ${params.entryId} AND ${platformUserMatchSql('e', params.userId)} AND t.deleted_at IS NULL`,
+       WHERE e.id = ${params.entryId} AND ${platformUserMatchSql('e', params.userId)} AND t.deleted_at IS NULL ${patientTrackingVisibilitySql('t')}`,
     );
     return result.rows[0] ? rowToEntry(result.rows[0]) : null;
   },
@@ -446,6 +454,15 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     await runWebappSql(
       getWebappSqlDb(),
       sql`UPDATE symptom_trackings SET is_active = ${params.isActive}, updated_at = now()
+       WHERE id = ${params.trackingId} AND ${platformUserMatchSql(null, params.userId)} AND deleted_at IS NULL`,
+    );
+  },
+
+  async setPatientTrackingEnabled(params) {
+    if (isPatientPrincipal()) throw new Error('patient_tracking_visibility_forbidden');
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`UPDATE symptom_trackings SET patient_tracking_enabled = ${params.patientTrackingEnabled}, updated_at = now()
        WHERE id = ${params.trackingId} AND ${platformUserMatchSql(null, params.userId)} AND deleted_at IS NULL`,
     );
   },

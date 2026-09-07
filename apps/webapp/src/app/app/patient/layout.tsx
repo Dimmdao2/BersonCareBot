@@ -42,6 +42,7 @@ import {
 
 function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boolean {
   return [
+    routePaths.diary,
     routePaths.profile,
     routePaths.patientOrganizations,
     routePaths.bindPhone,
@@ -146,6 +147,12 @@ export default async function PatientLayout({ children }: { children: ReactNode 
           }),
         ),
     );
+    if (
+      !workspaceModules.client_portal &&
+      !patientPathAllowsGlobalAccountWithoutCareContext(pathname)
+    ) {
+      notFound();
+    }
     if (
       !workspaceModules.rehabilitation &&
       (pathname === routePaths.patientTreatmentPrograms ||

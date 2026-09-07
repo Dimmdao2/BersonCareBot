@@ -8,6 +8,8 @@ export type ClientSupportProfile = {
   commentsEnabled: boolean | null;
   mediaEnabled: boolean | null;
   directChatEnabled?: boolean | null;
+  /** null = inherit the organization client-portal availability. */
+  portalEnabled?: boolean | null;
   updatedAt: string;
   updatedBy: string | null;
 };
@@ -20,6 +22,8 @@ export type PatientProgramInteractionPolicy = {
 };
 
 export type ClientChannelPolicy = Readonly<{
+  /** Omitted legacy fixture/profile shape inherits the portal. */
+  portalAllowed?: boolean;
   directChatAllowed: boolean;
   commentsAllowed: boolean;
   mediaAllowed: boolean;
@@ -29,6 +33,7 @@ export function isClientChannelAllowed(
   policy: ClientChannelPolicy,
   channel: keyof ClientChannelPolicy,
 ): boolean {
+  if (channel === 'portalAllowed') return policy.portalAllowed !== false;
   return channel === 'mediaAllowed'
     ? policy.mediaAllowed && policy.commentsAllowed
     : policy[channel];
@@ -47,6 +52,7 @@ export function resolveClientChannelPolicy(params: {
   const allows = (override: boolean | null | undefined, mode: 'off' | 'all' | 'on_support') =>
     override ?? (mode === 'all' || (mode === 'on_support' && params.profile?.onSupport === true));
   return {
+    portalAllowed: params.profile?.portalEnabled !== false,
     directChatAllowed: allows(params.profile?.directChatEnabled, params.defaults.direct_chat),
     commentsAllowed: allows(params.profile?.commentsEnabled, params.defaults.program_comments),
     mediaAllowed: allows(params.profile?.mediaEnabled, params.defaults.program_media),

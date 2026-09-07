@@ -25,6 +25,7 @@ export function createSymptomDiaryService(port: SymptomDiaryPort) {
       diagnosisText?: string | null;
       diagnosisRefId?: string | null;
       stageRefId?: string | null;
+      patientTrackingEnabled?: boolean;
     }): Promise<SymptomTracking> {
       const title = params.symptomTitle.trim() || '—';
       return port.createTracking({
@@ -37,6 +38,7 @@ export function createSymptomDiaryService(port: SymptomDiaryPort) {
         diagnosisText: params.diagnosisText ?? null,
         diagnosisRefId: params.diagnosisRefId ?? null,
         stageRefId: params.stageRefId ?? null,
+        patientTrackingEnabled: params.patientTrackingEnabled ?? true,
       });
     },
     async ensureGeneralWellbeingTracking(params: {
@@ -152,6 +154,13 @@ export function createSymptomDiaryService(port: SymptomDiaryPort) {
         trackingId: params.trackingId,
         isActive: false,
       });
+    },
+    async setPatientTrackingEnabled(params: {
+      userId: string;
+      trackingId: string;
+      patientTrackingEnabled: boolean;
+    }): Promise<void> {
+      await port.setPatientTrackingEnabled(params);
     },
     async deleteTracking(params: { userId: string; trackingId: string }): Promise<void> {
       await port.softDeleteTracking(params);
