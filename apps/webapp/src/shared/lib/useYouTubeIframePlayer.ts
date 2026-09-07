@@ -52,11 +52,12 @@ function loadYouTubeIframeApi(): Promise<YouTubeApi> {
 
   youtubeApiPromise = new Promise<YouTubeApi>((resolve, reject) => {
     const previousReady = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
+    const readyHandler = () => {
       previousReady?.();
       if (window.YT?.Player) resolve(window.YT);
       else reject(new Error('youtube_iframe_api_missing'));
     };
+    window.onYouTubeIframeAPIReady = readyHandler;
 
     const existingScript = document.getElementById('youtube-iframe-api');
     if (existingScript) return;
@@ -66,6 +67,10 @@ function loadYouTubeIframeApi(): Promise<YouTubeApi> {
     script.src = 'https://www.youtube.com/iframe_api';
     script.async = true;
     script.onerror = () => {
+      script.remove();
+      if (window.onYouTubeIframeAPIReady === readyHandler) {
+        window.onYouTubeIframeAPIReady = previousReady;
+      }
       youtubeApiPromise = null;
       reject(new Error('youtube_iframe_api_load_failed'));
     };

@@ -92,6 +92,45 @@ function installYouTubeApiMock() {
   });
 }
 
+it('повторно загружает YouTube API после ошибки первой загрузки', async () => {
+  delete window.YT;
+  delete window.onYouTubeIframeAPIReady;
+  document.getElementById('youtube-iframe-api')?.remove();
+
+  const first = render(
+    <PatientHostedVideoEmbed
+      url="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+      title="Приседания"
+    />,
+  );
+  const failedScript = document.getElementById('youtube-iframe-api');
+  expect(failedScript).not.toBeNull();
+  fireEvent.error(failedScript!);
+  await waitFor(() =>
+    expect(
+      first.container.querySelector('[data-player-kind="youtube_custom_controls"]'),
+    ).toBeNull(),
+  );
+  expect(document.getElementById('youtube-iframe-api')).toBeNull();
+  first.unmount();
+
+  const second = render(
+    <PatientHostedVideoEmbed
+      url="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+      title="Приседания"
+    />,
+  );
+  const retryScript = document.getElementById('youtube-iframe-api');
+  expect(retryScript).not.toBeNull();
+  expect(retryScript).not.toBe(failedScript);
+
+  installYouTubeApiMock();
+  const retryReady = Reflect.get(window, 'onYouTubeIframeAPIReady') as unknown;
+  expect(retryReady).toBeTypeOf('function');
+  if (typeof retryReady === 'function') retryReady();
+  await waitFor(() => expect(second.getByRole('button', { name: 'Воспроизвести' })).toBeEnabled());
+});
+
 describe.each([
   ['patient', PatientHostedVideoEmbed],
   ['doctor', DoctorHostedVideoEmbed],
