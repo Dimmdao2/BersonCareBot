@@ -12,14 +12,15 @@ import type {
   TreatmentProgramEventDoctorTimelineLabels,
 } from '@/modules/treatment-program/types';
 import { DoctorProgramInstanceTimelineEventRow } from './DoctorProgramInstanceTimelineEventRow';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 function doctorTimelineWhoRu(
   actorId: string | null,
-  opts: { currentUserId: string; patientUserId: string },
+  opts: { currentUserId: string; patientUserId: string; patientSingularLabel: string },
 ): string | null {
   if (!actorId) return null;
   if (actorId === opts.currentUserId) return 'Вы';
-  if (actorId === opts.patientUserId) return 'Пациент';
+  if (actorId === opts.patientUserId) return opts.patientSingularLabel;
   return 'Врач';
 }
 import { doctorHistoryRowClass } from '@/shared/ui/doctor/doctorVisual';
@@ -52,6 +53,7 @@ export function ProgramEditHistoryModal({
   expandedTimelineEventIds,
   onToggleExpandEvent,
 }: Props) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
@@ -79,6 +81,7 @@ export function ProgramEditHistoryModal({
               const who = doctorTimelineWhoRu(e.actorId, {
                 currentUserId,
                 patientUserId,
+                patientSingularLabel,
               });
               return (
                 <DoctorProgramInstanceTimelineEventRow

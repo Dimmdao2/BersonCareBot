@@ -277,11 +277,11 @@ export function DoctorSupportInbox({
 
   const renderListControls = () => (
     <DoctorSearchInput
-      placeholder="Поиск по клиенту и сообщению"
+      placeholder="Поиск по имени и сообщению"
       value={query}
       onValueChange={setQuery}
       onClear={() => setQuery('')}
-      aria-label="Поиск по клиенту и сообщению"
+      aria-label="Поиск по имени и сообщению"
     />
   );
 

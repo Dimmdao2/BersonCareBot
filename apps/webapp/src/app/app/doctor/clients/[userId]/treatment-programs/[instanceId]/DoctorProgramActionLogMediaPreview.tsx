@@ -38,7 +38,7 @@ export function DoctorProgramActionLogMediaPreview(props: { mediaFileId: string 
       <div className="mt-1 max-w-xs">
         <DoctorMediaPlaybackVideo
           mediaId={mediaFileId}
-          title="Видео пациента"
+          title="Видео из журнала"
           initialPlayback={playback}
           shellClassName="relative aspect-video w-full max-w-xs overflow-hidden rounded-md bg-muted/30"
         />

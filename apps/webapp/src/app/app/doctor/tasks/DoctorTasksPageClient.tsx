@@ -37,6 +37,7 @@ import {
   DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS,
   NAV_STRIP_ICON_STROKE,
 } from '@/shared/ui/doctor/navChrome';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Pane = { kind: 'details' | 'edit'; taskId: string } | null;
 type TaskView = 'open' | 'completed';
@@ -56,6 +57,7 @@ export function DoctorTasksPageClient({
   todayIso: string;
   canMutate: boolean;
 }) {
+  const { patientGenPlural } = useDoctorPatientTerms();
   const [tasks, setTasks] = useState(initialTasks);
   const [patientNames, setPatientNames] = useState(initialPatientNames);
   const [pane, setPane] = useState<Pane>(null);
@@ -108,7 +110,7 @@ export function DoctorTasksPageClient({
         onValueChange={setQuery}
         onClear={() => setQuery('')}
         placeholder="Поиск задач"
-        aria-label="Поиск по задачам и пациентам"
+        aria-label={`Поиск по задачам и ${patientGenPlural}`}
       />
       <div className="flex shrink-0 items-center gap-1" aria-label="Статус задач">
         <Button
