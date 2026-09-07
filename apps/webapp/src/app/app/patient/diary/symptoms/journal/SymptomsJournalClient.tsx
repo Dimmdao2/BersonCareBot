@@ -16,6 +16,8 @@ import {
 } from '@/shared/ui/patient/primitives/dropdown-menu';
 import { Input } from '@/shared/ui/patient/primitives/input';
 import { Textarea } from '@/shared/ui/patient/primitives/textarea';
+import { PatientField } from '@/shared/ui/patient/PatientField';
+import { patientFieldLabelClassName } from '@/shared/ui/patient/primitives/label';
 import {
   Select,
   SelectContent,
@@ -90,7 +92,7 @@ export function SymptomsJournalClient(props: {
             }}
             items={symptomJournalTrackingSelectItems}
           >
-            <SelectTrigger className="h-10 w-full min-w-[200px] rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
+            <SelectTrigger variant="journal">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -105,7 +107,7 @@ export function SymptomsJournalClient(props: {
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <span className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+        <span className={patientFieldLabelClassName}>
           Период (календарный месяц)
         </span>
         <JournalMonthNav
@@ -237,16 +239,9 @@ export function SymptomsJournalClient(props: {
                 });
               }}
             >
-              <label className="flex flex-col gap-1">
-                <span
-                  className={cn(
-                    patientMutedTextClass,
-                    'text-xs font-medium uppercase tracking-wide',
-                  )}
-                >
-                  Интенсивность (0–10)
-                </span>
+              <PatientField label="Интенсивность (0–10)" htmlFor="symptom-journal-value">
                 <Input
+                  id="symptom-journal-value"
                   type="number"
                   name="value"
                   min={0}
@@ -254,34 +249,25 @@ export function SymptomsJournalClient(props: {
                   required
                   defaultValue={editEntry.value0_10}
                 />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span
-                  className={cn(
-                    patientMutedTextClass,
-                    'text-xs font-medium uppercase tracking-wide',
-                  )}
-                >
-                  Дата и время
-                </span>
+              </PatientField>
+              <PatientField label="Дата и время" htmlFor="symptom-journal-recorded-at">
                 <Input
+                  id="symptom-journal-recorded-at"
                   type="datetime-local"
                   name="recordedAtLocal"
                   required
                   defaultValue={toDatetimeLocalValue(editEntry.recordedAt)}
                 />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span
-                  className={cn(
-                    patientMutedTextClass,
-                    'text-xs font-medium uppercase tracking-wide',
-                  )}
-                >
-                  Заметки
-                </span>
-                <Textarea name="notes" rows={3} defaultValue={editEntry.notes ?? ''} />
-              </label>
+              </PatientField>
+              <PatientField label="Заметки" htmlFor="symptom-journal-notes">
+                <Textarea
+                  id="symptom-journal-notes"
+                  name="notes"
+                  variant="journal"
+                  rows={3}
+                  defaultValue={editEntry.notes ?? ''}
+                />
+              </PatientField>
               <PatientModalFooter>
                 <Button type="button" variant="outline" onClick={() => setEditEntry(null)}>
                   Отмена

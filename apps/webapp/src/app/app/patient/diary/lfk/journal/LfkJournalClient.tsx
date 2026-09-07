@@ -17,6 +17,8 @@ import {
 } from '@/shared/ui/patient/primitives/dropdown-menu';
 import { Input } from '@/shared/ui/patient/primitives/input';
 import { Textarea } from '@/shared/ui/patient/primitives/textarea';
+import { PatientField } from '@/shared/ui/patient/PatientField';
+import { patientFieldLabelClassName } from '@/shared/ui/patient/primitives/label';
 import {
   Select,
   SelectContent,
@@ -90,7 +92,7 @@ export function LfkJournalClient(props: {
             }}
             items={lfkJournalComplexSelectItems}
           >
-            <SelectTrigger className="h-10 w-full min-w-[200px] rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
+            <SelectTrigger variant="journal">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -105,7 +107,7 @@ export function LfkJournalClient(props: {
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <span className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+        <span className={patientFieldLabelClassName}>
           Период (календарный месяц)
         </span>
         <JournalMonthNav
@@ -222,26 +224,18 @@ export function LfkJournalClient(props: {
               });
             }}
           >
-            <label className="flex flex-col gap-1">
-              <span
-                className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
-              >
-                Дата и время
-              </span>
+            <PatientField label="Дата и время" htmlFor="lfk-journal-completed-at">
               <Input
+                id="lfk-journal-completed-at"
                 type="datetime-local"
                 name="completedAtLocal"
                 required
                 defaultValue={toDatetimeLocalValue(editSession.completedAt)}
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span
-                className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
-              >
-                Длительность (мин)
-              </span>
+            </PatientField>
+            <PatientField label="Длительность (мин)" htmlFor="lfk-journal-duration">
               <Input
+                id="lfk-journal-duration"
                 type="number"
                 name="durationMinutes"
                 min={1}
@@ -249,14 +243,10 @@ export function LfkJournalClient(props: {
                 placeholder="—"
                 defaultValue={editSession.durationMinutes ?? ''}
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span
-                className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
-              >
-                Сложность 0–10
-              </span>
+            </PatientField>
+            <PatientField label="Сложность 0–10" htmlFor="lfk-journal-difficulty">
               <Input
+                id="lfk-journal-difficulty"
                 type="number"
                 name="difficulty0_10"
                 min={0}
@@ -264,14 +254,10 @@ export function LfkJournalClient(props: {
                 placeholder="—"
                 defaultValue={editSession.difficulty0_10 ?? ''}
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span
-                className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
-              >
-                Боль 0–10
-              </span>
+            </PatientField>
+            <PatientField label="Боль 0–10" htmlFor="lfk-journal-pain">
               <Input
+                id="lfk-journal-pain"
                 type="number"
                 name="pain0_10"
                 min={0}
@@ -279,21 +265,18 @@ export function LfkJournalClient(props: {
                 placeholder="—"
                 defaultValue={editSession.pain0_10 ?? ''}
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span
-                className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
-              >
-                Комментарий
-              </span>
+            </PatientField>
+            <PatientField label="Комментарий" htmlFor="lfk-journal-comment">
               <Textarea
+                id="lfk-journal-comment"
                 name="comment"
-                className="min-h-[4.5rem] rounded-xl"
+                variant="journal"
+                className="min-h-[4.5rem]"
                 rows={3}
                 maxLength={200}
                 defaultValue={editSession.comment ?? ''}
               />
-            </label>
+            </PatientField>
             <PatientModalFooter>
               <Button type="button" variant="outline" onClick={() => setEditSession(null)}>
                 Отмена
