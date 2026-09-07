@@ -21,7 +21,7 @@ export type SurfaceAuthPolicyConfig = Readonly<Record<SurfaceAuthPolicyName, Sur
 export const DEFAULT_SURFACE_AUTH_POLICY_CONFIG = {
   staff: {
     availableMethods: SURFACE_AUTH_METHODS,
-    enabledMethods: ['password', 'email_code', 'totp'],
+    enabledMethods: ['password', 'totp'],
   },
   platform_admin: {
     availableMethods: SURFACE_AUTH_METHODS,

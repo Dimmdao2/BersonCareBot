@@ -72,6 +72,68 @@ a session on another product surface (staff, platform-admin and patient audience
 surface still needs an independent behavior oracle. A bounded continuation audit must also finish the six live
 desktop/narrow views. Current verdict: **INCOMPLETE — NOT FOR LAND**.
 
+## Lead completion after the interrupted audit
+
+The owner instructed the lead to finish the candidate without another agent round. This continuation does not
+rewrite the interrupted independent verdict into an independent `PASS`; it records the correction and evidence
+performed directly by the lead.
+
+Corrections:
+
+- `LOGIN-F1` is fixed at both compiled-default and persisted-data seams. Staff starts with password/TOTP only;
+  migration `20260907T214444_disable_staff_passwordless_channel_defaults.sql` switches old persisted staff
+  email/SMS/Telegram/MAX login cells off. Clinic-wide email factor after a correct password is a separate
+  org-scoped setting and remains available.
+- `setSessionFromUser` now rejects a role that does not belong to proxy's trusted resolved product surface before
+  writing the cookie. The gate is central to password, OTP, messenger, passkey and OAuth session minting. It is
+  deliberately dormant only when staff and patient origins are the same, preserving the documented one-Host
+  DEV/TEST transition.
+- No patient OAuth/passkey value was changed. Those cells remain controlled by the owner through existing admin
+  settings.
+
+Behavior and static evidence on the corrected candidate:
+
+- Fault injection before the session gate existed: all `8` wrong-surface cases resolved instead of rejecting.
+  After the correction,
+  `pnpm --dir apps/webapp exec vitest run --project unit src/modules/auth/sessionColdComposition.unit.test.ts`
+  → `1` file, `13` tests, PASS; the four permitted role/surface combinations still write a session cookie.
+- `pnpm --dir apps/webapp exec vitest run --project route src/proxy.route.test.ts`
+  → `1` file, `97` tests, PASS.
+- `pnpm --dir apps/webapp exec vitest run --project route src/modules/auth/passwordAuth.route.test.ts
+  src/app/api/auth/specialist-signup/start/route.route.test.ts src/app/api/doctor/settings/route.route.test.ts
+  src/modules/auth/independentAuthMethodToggle.route.test.ts src/proxy.route.test.ts`
+  initially produced `125/126` with the sole failure being the old staff default expectation; after that
+  expectation was corrected, the changed proxy file passed `97/97`, while the other four files had already
+  passed on the same product SHA.
+- `pnpm --dir apps/webapp exec vitest run --project ui
+  src/shared/ui/patient/auth/PhoneMessengerAuthFlow.ui.test.tsx` → `1` file, `5` tests, PASS;
+  `pnpm --dir apps/webapp exec vitest run --project unit src/app/app/AppEntryRsc.unit.test.ts`
+  → `1` file, `2` tests, PASS after removal of implementation-shaped assertions.
+- `pnpm --dir apps/webapp typecheck` and scoped ESLint over the five changed TypeScript/test files → PASS.
+- `bash deploy/host/migrate-dev.sh --preflight --runtime-env-root /home/dev/dev-projects/BersonCareBot`
+  → PASS, `pending=2`, `total=141`, rollback complete. Rights analysis: this migration creates, changes and drops
+  no database objects or grants; it updates four existing `system_settings` rows, and the existing mirror trigger
+  updates their public runtime projection.
+
+Live candidate evidence on isolated `127.0.0.1:5211`:
+
+- staff login, specialist registration, platform-admin login and standard TherapyGo patient login returned 200
+  and were inspected at `1440×1000` and `390×844`; the products, purposes and layouts are distinct and have no
+  overflow or clipped controls;
+- admin hydration required the existing process-local `NEXT_ALLOWED_DEV_ORIGINS` seam with
+  `admin.staff.localhost`; after that the interactive login rendered normally;
+- the old DEV data still visibly offered staff passwordless email and phone login. This is the live defect that
+  expanded the pending correction from one setting to all four staff channel cells; candidate preflight proves
+  the forward migration, but it was not executed before landing;
+- `berson.patient.localhost` returned a hard 404 because named DEV currently exposes no active public brand
+  projection for that slug. The candidate did not mutate clinic data to manufacture a screenshot. Known active
+  slug and custom-domain resolution remain covered through the exported production proxy in
+  `proxy.productionTenantLookup.route.test.ts`.
+
+Lead disposition: **CODE-READY, HOLD BEFORE LAND.** The remaining acceptance is operational: owner-authorized
+landing, migration execution, and final live staff/branded checks against the resulting runtime. Full CI and
+landing were explicitly excluded until a separate owner command.
+
 ## Earlier login-surface audit evidence (`a3183f03e`)
 
 ## Classification before test reading
