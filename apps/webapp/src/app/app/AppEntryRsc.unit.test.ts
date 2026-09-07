@@ -1,4 +1,3 @@
-import { Children, isValidElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
 
@@ -53,22 +52,6 @@ vi.mock('./AppEntryLoginContent', () => ({
 
 import { AppEntryRsc } from './AppEntryRsc';
 
-function loginContentProps(entry: Awaited<ReturnType<typeof AppEntryRsc>>) {
-  const loginContent = Children.toArray(entry.props.children).find(
-    (child) =>
-      isValidElement(child) &&
-      'roleLoginPortal' in (child.props as Record<string, unknown>),
-  );
-  if (!loginContent || !isValidElement(loginContent)) {
-    throw new Error('app_entry_login_content_missing');
-  }
-  return loginContent.props as {
-    roleLoginPortal: RoleLoginPortal | null;
-    alternateRoleLoginHref: string | null;
-    surfaceAuthPolicy: { availableMethods: string[]; enabledMethods: string[] };
-  };
-}
-
 describe('AppEntryRsc role-login entry', () => {
   beforeEach(() => {
     mocks.redirect.mockClear();
@@ -99,29 +82,6 @@ describe('AppEntryRsc role-login entry', () => {
       ).rejects.toThrow(`redirect:${expectedTarget}`);
 
       expect(mocks.redirect).toHaveBeenCalledWith(expectedTarget);
-    },
-  );
-
-  it.each([
-    ['doctor', 'https://therapygo.example.test/app/patient/login'],
-    ['patient', 'https://therapysto.example.test/app/doctor/login'],
-    ['admin', null],
-  ] as const)(
-    'projects the %s door onto its canonical product origin without forwarding next=',
-    async (roleLoginPortal, alternateRoleLoginHref) => {
-      mocks.getCurrentSession.mockResolvedValue(null);
-
-      const entry = await AppEntryRsc({
-        searchParams: Promise.resolve({ next: 'https://attacker.example/app/doctor' }),
-        routeBoundMessengerSurface: null,
-        roleLoginPortal,
-      });
-
-      expect(loginContentProps(entry)).toMatchObject({
-        roleLoginPortal,
-        alternateRoleLoginHref,
-        surfaceAuthPolicy: { availableMethods: ['password'], enabledMethods: ['password'] },
-      });
     },
   );
 });

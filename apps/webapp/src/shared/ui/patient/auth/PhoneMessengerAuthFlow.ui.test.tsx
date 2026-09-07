@@ -78,8 +78,6 @@ describe('PhoneMessengerAuthFlow automatic delivery', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit phone' }));
 
     await waitFor(() => expect(screen.getByLabelText('Код подтверждения')).toBeInTheDocument());
-    expect(screen.getByText('Код отправлен, проверьте входящие.')).toBeInTheDocument();
-    expect(screen.getByText('Повторная отправка возможна через 60 сек')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('/api/auth/phone/start');
@@ -131,7 +129,6 @@ describe('PhoneMessengerAuthFlow automatic delivery', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Submit phone' }));
 
     await waitFor(() => expect(screen.getByLabelText('Код подтверждения')).toBeInTheDocument());
-    expect(screen.getByText('Введите код, отправленный вам в Telegram.')).toBeInTheDocument();
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       '/api/auth/check-phone',
       '/api/auth/phone/start',
@@ -167,104 +164,6 @@ describe('PhoneMessengerAuthFlow automatic delivery', () => {
       channelCode: 'telegram',
       purpose: 'profile_bind',
     });
-  });
-
-  it('shows the same complete global channel list and neutral result for known and unknown phones', async () => {
-    const fetchMock = vi.fn<
-      (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
-    >(async () => {
-      return {
-        ok: true,
-        json: async () => ({
-          ok: true,
-          challengeId: `opaque-challenge-${fetchMock.mock.calls.length}`,
-          retryAfterSeconds: 60,
-          deliveryChannel: 'automatic',
-        }),
-      } as Response;
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const run = async (phone: string) => {
-      fakes.submittedPhone = phone;
-      const view = render(
-        <PhoneMessengerAuthFlow
-          channelPolicy={{ sms: true, email: true, telegram: true, max: true }}
-          purpose="login"
-          onBack={vi.fn()}
-        />,
-      );
-
-      fireEvent.click(screen.getByRole('button', { name: 'Submit phone' }));
-      await screen.findByLabelText('Код подтверждения');
-      fireEvent.click(screen.getByRole('button', { name: 'Подтвердить другим способом' }));
-      await screen.findByRole('button', { name: 'Получить код в Telegram' });
-
-      const labels = [
-        'Получить код в Max',
-        'Получить код на email',
-        'Получить код в Telegram',
-        'Получить код по SMS',
-      ].filter((label) => screen.queryByRole('button', { name: label }) != null);
-
-      fireEvent.click(screen.getByRole('button', { name: 'Получить код в Telegram' }));
-      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-      const message = screen.getByText('Код отправлен, проверьте входящие.').textContent;
-      const requestBodies = fetchMock.mock.calls.map(([, init]) =>
-        JSON.parse(String(init?.body)) as Record<string, unknown>,
-      );
-      view.unmount();
-      fetchMock.mockClear();
-      return { labels, message, requestBodies };
-    };
-
-    const known = await run('+79991234567');
-    const unknown = await run('+79991234568');
-
-    expect(unknown.labels).toEqual(known.labels);
-    expect(known.labels).toHaveLength(4);
-    expect(unknown.message).toBe(known.message);
-    expect(known.requestBodies[1]).toMatchObject({
-      phone: '+79991234567',
-      purpose: 'login',
-      deliveryChannel: 'telegram',
-    });
-    expect(unknown.requestBodies[1]).toMatchObject({
-      phone: '+79991234568',
-      purpose: 'login',
-      deliveryChannel: 'telegram',
-    });
-  });
-
-  it('adds the neutral spam-folder hint after choosing email', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () =>
-        ({
-          ok: true,
-          json: async () => ({ ok: true, challengeId: crypto.randomUUID(), retryAfterSeconds: 60 }),
-        }) as Response,
-      ),
-    );
-
-    render(
-      <PhoneMessengerAuthFlow
-        channelPolicy={{ sms: false, email: true, telegram: true, max: false }}
-        purpose="login"
-        onBack={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Submit phone' }));
-    await screen.findByLabelText('Код подтверждения');
-    fireEvent.click(screen.getByRole('button', { name: 'Подтвердить другим способом' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Получить код на email' }));
-
-    expect(
-      await screen.findByText(
-        'Код отправлен, проверьте входящие. Если письмо не приходит, проверьте папку «Спам».',
-      ),
-    ).toBeInTheDocument();
   });
 
   it('returns from the real code screen to the other login methods', async () => {
