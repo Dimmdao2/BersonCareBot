@@ -1,15 +1,36 @@
 # Env-файлы для деплоя
 
-Этот файл описывает только текущие env-файлы `BersonCareBot`.
+Этот файл разделяет два production-контура `BersonCareBot`; их env-файлы и инструкции нельзя копировать друг в друга.
 
-> **HOST IDENTITY GATE:** `*.prod` ниже существуют только на PROD `135.106.162.170` (`adelaide`). Текущий
-> `151.241.228.122` — DEV/RELAY/TEST: на нём нельзя читать/source-ить `*.prod`, устанавливать или перезапускать
-> `bersoncarebot-*-prod.service`. Все production-команды требуют прямой команды владельца и подтверждения обоих
-> признаков хоста: hostname `adelaide` и локальный IPv4 `135.106.162.170`.
+> **HOST IDENTITY GATE:** `151.241.228.122` — DEV/RELAY/TEST; на нём нельзя читать/source-ить `*.prod`, устанавливать
+> или перезапускать production-службы. Любая работа на одном из production host требует прямой команды владельца и
+> соответствующего этому разделу target-host.
 
 ---
 
-## Production
+## Новый trial PROD — `135.106.187.95` (Therapysto / Therapygo, blue/green)
+
+Blue/green pipeline читает `/opt/bersoncarebot/env/webapp.prod`; его единственный repository copy-source —
+`deploy/env/.env.webapp.prod.example`. Он задаёт уже утверждённое разделение поверхностей:
+
+- `APP_BASE_URL=https://therapysto.ru` — staff/admin;
+- `PATIENT_APP_ORIGIN=https://therapygo.ru` — patient;
+- `CUSTOM_DOMAIN_EDGE_IP=135.106.187.95` — apex-инструкция для домена клиники;
+- `CUSTOM_DOMAIN_CNAME_TARGET=edge.therapygo.ru` — subdomain-инструкция для домена клиники.
+
+Если `PATIENT_APP_ORIGIN` или обе custom-edge переменные не заданы в DEV/TEST, код сохраняет однохостовый fallback;
+не добавлять туда split-domain значения. `bersoncare.ru` остаётся внешним landing первого tenant, а
+`app.bersoncare.ru` подключается через generic custom-domain lifecycle. Caddy platform-host list уже отделён от
+этих app-facing DNS values: `therapygo.ru` и `*.therapygo.ru` имеют отдельный DNS-01 certificate, остальные
+platform hosts идут через `CADDY_PLATFORM_DOMAINS`.
+
+Не применять этот template к legacy host ниже. Live DNS, firewall/443 exposure, certificate, Caddy cutover,
+rollback, issuance and renewal are owner-authorized host gates, не repository stage.
+
+## Legacy PROD — `135.106.162.170` (`adelaide`, BersonCare)
+
+Ниже зафиксировано текущее legacy runtime state, включая `APP_BASE_URL=https://bersoncare.ru`. Это не copy-source
+для нового trial PROD и не разрешение менять legacy host.
 
 ### `api.prod` (integrator API + resident scheduler+worker process)
 
@@ -88,7 +109,7 @@ TLS DB credential или principal context. Обязательны `MEDIA_WORKER
 
 ---
 
-### `webapp.prod`
+### `webapp.prod` (legacy)
 
 **Путь на хосте:** `/opt/env/bersoncarebot/webapp.prod`
 
@@ -111,9 +132,8 @@ TLS DB credential или principal context. Обязательны `MEDIA_WORKER
 - `ADMIN_TELEGRAM_ID=...`
 - `TELEGRAM_BOT_TOKEN=...`
 
-Шаблон:
-
-- `deploy/env/.env.webapp.prod.example`
+Repository template `deploy/env/.env.webapp.prod.example` принадлежит новому trial PROD выше; legacy env не
+пересоздаётся этим template.
 
 Важно:
 

@@ -832,17 +832,16 @@ Integrator:
 cp .env.example /opt/env/bersoncarebot/api.prod
 ```
 
-Webapp:
-
-```bash
-cp deploy/env/.env.webapp.prod.example /opt/env/bersoncarebot/webapp.prod
-```
+Webapp legacy state is already present on this host. Do not copy
+`deploy/env/.env.webapp.prod.example` here: that repository template belongs to the new blue/green trial PROD
+`135.106.187.95`, not this legacy `135.106.162.170` host.
 
 Важно:
 
 - в репозитории **нет** `deploy/env/.env.prod.example`
 - для integrator production сейчас ориентир — root `.env.example`
-- для webapp production ориентир — `deploy/env/.env.webapp.prod.example`
+- `deploy/env/.env.webapp.prod.example` — copy-source только для нового blue/green trial PROD; legacy webapp env
+  им не пересоздаётся
 
 ### 3. Установить systemd units
 
