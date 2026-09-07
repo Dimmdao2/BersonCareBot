@@ -815,6 +815,10 @@ public booking этой organization продолжает работать.
       наборы доступности, стартовую конфигурацию, OFF/ON/re-enable, direct/API bypass, two-org isolation,
       desktop/mobile и live DEV.
 
+Owner execution instruction 07.09.2026: после приёмки всех C3M-веток свести их в `feat/doctor-ui-rebuild`, один
+раз запустить full CI на итоговом SHA и при зелёном результате сразу выполнить обычный code-only deploy на TEST
+через `deploy/host/deploy-test.sh`. Full reset и PROD в эту команду не входят.
+
 ##### C3M.8 Минимальная acceptance matrix
 
 - preference никогда не расширяет уже вычисленную доступность функции;
