@@ -17172,6 +17172,48 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       }
     ]
   },
+  "public.org_custom_domain_bindings": {
+    "kind": "direct",
+    "purpose": "привязка личного домена клиники — без неё клиника не может задать/снять свой домен (B2/B8)",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgCustomDomainBinding.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "organization_id",
+          "base_domain",
+          "placement",
+          "subdomain_label",
+          "hostname",
+          "status",
+          "created_by_platform_user_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "status",
+          "status_reason",
+          "updated_at"
+        ]
+      }
+    ]
+  },
   "public.patient_bookings": {
     "kind": "direct",
     "purpose": "старые записи на приём — легаси-таблица записей; без неё теряется история бронирований до перехода на `be_appointments`",
@@ -23898,6 +23940,8 @@ const TABLE_ROWS: TableRow[] = [
     defect: ['I10-slug-uniqueness'] },
   { t: 'public.organization_slug_rename_events', cls: 'C', org: true, why: 'журнал переименований — без неё нет '
     + 'аудита смены публичного адреса' },
+  { t: 'public.org_custom_domain_bindings', cls: 'C', org: true, why: 'привязка личного домена клиники (B2/B8/C5a) '
+    + '— без неё нет self-service своего домена и нечему резолвить Host на прод-edge' },
   { t: 'public.outgoing_delivery_queue', cls: 'S', org: true, why: 'очередь исходящих сообщений — без неё не уходит '
     + 'ни одно сообщение пациенту',
     revoke: { app_staff: 'D18: 812 строк с payload_json (тела сообщений пациентам) читает терминал персонала любой '
@@ -24498,6 +24542,10 @@ const REV10_SEAM_OWNERS = [
   'app_seam_login_token_owner', 'app_seam_oauth_owner', 'app_seam_phone_otp_owner',
   'app_seam_staff_security_owner', 'app_seam_patient_lfk_media_owner',
   'app_seam_retention_sweep_owner', 'app_seam_platform_analytics_owner',
+  // Custom-domain binding lifecycle (B2/B8/C5a, reopened #787). Own seam, never combined with
+  // `app_seam_public_slug_owner`/`app_seam_public_clinic_card_owner` (README §Границы) — this door
+  // must not widen an unrelated seam's reach.
+  'app_seam_custom_domain_owner',
   // Снятие этой роли 19.08 (`cfa4e45df`) было выполнено только в декларации: в кластере TEST
   // роль осталась, её DROP держат 54 зависимости, и любая выкатка из дерева с тем коммитом
   // валилась на reconcile и останавливала службы теста. Карантин `legacyRoles` тоже не
@@ -26347,6 +26395,23 @@ const REV10_CONTEXT = {
     resolve_public_organization_by_slug: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-organization.resolve',
       functionIdentity: 'app.resolve_public_organization_by_slug(text)' },
+    custom_domain_resolve_by_hostname: { port: 'webapp', runtimeName: 'custom_domain_resolve_by_hostname',
+      sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'branding.custom-domain.resolve',
+      functionIdentity: 'app.resolve_active_organization_by_custom_domain(text)' },
+    custom_domain_anonymous_surface_projection: { port: 'webapp',
+      runtimeName: 'custom_domain_anonymous_surface_projection', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'branding.anonymous-surface.read',
+      functionIdentity: 'app.read_anonymous_patient_surface_projection(uuid)' },
+    custom_domain_ask_authorized: { port: 'webapp', runtimeName: 'custom_domain_ask_authorized',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'branding.custom-domain.ask',
+      functionIdentity: 'app.custom_domain_ask_is_authorized(text)' },
+    custom_domain_apply_transition: { port: 'webapp', runtimeName: 'custom_domain_apply_transition',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'branding.custom-domain.transition',
+      functionIdentity: 'app.custom_domain_apply_transition(text,text,text)' },
     resolve_public_organization_slug: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-slug.resolve',
       functionIdentity: 'app.resolve_public_organization_slug(text)' },
@@ -27874,7 +27939,7 @@ const REV10_CONTEXT = {
       owner: 'app_seam_public_clinic_card_owner', security: 'DEFINER', returns: 'jsonb',
       returnsSet: false, execute: ['app_pre_session'],
       purpose: 'return one published clinic card, media ids included, or nothing',
-      typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE', language: 'plpgsql',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.organization_slug_claims', columns: ['organization_id', 'kind', 'slug'],
@@ -27910,6 +27975,83 @@ const REV10_CONTEXT = {
             'public_contact_email', 'public_website_url', 'logo_media_id', 'photo_media_ids',
             'locations_json', 'card_is_published', 'updated_at'],
           operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    }),
+    // Custom-domain binding lifecycle (B2/B8/C5a, reopened #787). Own seam
+    // `app_seam_custom_domain_owner` — never combined with `app_seam_public_slug_owner` /
+    // `app_seam_public_clinic_card_owner` (README §Границы: a separate seam per narrow concern).
+    'app.resolve_active_organization_by_custom_domain(text)': rev10Function({
+      owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'uuid',
+      returnsSet: false, execute: ['app_pre_session'],
+      purpose: 'pre-session hostname -> organization id for an ACTIVE custom-domain binding only',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_custom_domain_bindings', columns: ['organization_id', 'hostname', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organizations', columns: ['id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_brand_revisions', columns: ['organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    }),
+    'app.read_anonymous_patient_surface_projection(uuid)': rev10Function({
+      owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'record',
+      returnsSet: true, execute: ['app_pre_session'],
+      purpose: 'anonymous-safe brand/slug/redirect projection for an already-resolved organization id',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'UNSAFE', language: 'plpgsql',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_organizations', columns: ['id', 'is_active', 'title'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published', 'slug'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_brand_revisions',
+          columns: ['id', 'organization_id', 'status', 'display_name', 'patient_app_name', 'accent_token', 'logo_media_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files', columns: ['id', 'owner_kind', 'organization_id', 'status', 'mime_type'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id', 'value_json'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_custom_domain_bindings', columns: ['organization_id', 'status', 'hostname'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    }),
+    'app.custom_domain_ask_is_authorized(text)': rev10Function({
+      owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'boolean',
+      returnsSet: false, execute: ['app_worker'],
+      purpose: 'Caddy on_demand_tls ask authorization only — no DNS probing, no certificate claim',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE', language: 'plpgsql',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_custom_domain_bindings', columns: ['hostname', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organizations', columns: ['id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_brand_revisions', columns: ['organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    }),
+    'app.custom_domain_apply_transition(text,text,text)': rev10Function({
+      owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_worker'],
+      purpose: 'lifecycle transition door used only by the shared ordered domain verifier',
+      typedArgs: ['text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_custom_domain_bindings',
+          columns: ['id', 'organization_id', 'hostname', 'status', 'status_reason', 'activated_at', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: { UPDATE: ['status', 'status_reason', 'activated_at', 'updated_at'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organizations', columns: ['id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_brand_revisions', columns: ['organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
       databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
     }),
@@ -28291,11 +28433,15 @@ const REV10_CONTEXT = {
     'app.list_configured_custom_domain_hostnames()': rev10Function({
       owner: 'app_seam_settings_runtime_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_worker'],
-      purpose: 'return only normalized non-empty custom-domain hostnames for the daily DNS/TLS check',
+      purpose: 'return canonical non-quarantined custom-domain targets for lifecycle verification',
       typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
-        { relation: 'public.system_settings',
-          columns: ['key', 'scope', 'organization_id', 'value_json'],
+        { relation: 'public.org_custom_domain_bindings',
+          columns: ['organization_id', 'base_domain', 'placement', 'hostname', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organizations', columns: ['id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_brand_revisions', columns: ['organization_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),

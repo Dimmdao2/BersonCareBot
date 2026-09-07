@@ -1,8 +1,8 @@
 # Custom-domain TLS edge — repository-managed infrastructure (B7/B8/C5a)
 
-Status: **correction ready in the repository; no host, DNS, firewall, service, TEST, or PROD operation
-was performed.** This is the edge half of #787. It does not implement the application-side hostname
-binding, readiness, API/UI, or permission endpoint.
+Status: **repository correction ready; no host, DNS, firewall, service, TEST, or PROD operation was
+performed.** The application now owns the binding/readiness/verifier/permission path; React UI and
+owner-authorized live edge cutover remain separate gates.
 
 ## Delivered contract
 
@@ -33,10 +33,11 @@ Caddy is not used because it lacks the required DNS module.
   HTTP-01 certificates.
 - **Platform hosts other than Therapygo's pair:** ordinary automatic HTTP-01/TLS-ALPN certificates.
 - **Every clinic custom hostname, including `app.bersoncare.ru`:** the one address-only on-demand
-  block. Before issuance Caddy calls `GET CADDY_ASK_URL?domain=<host>` using built-in
+  block. Before issuance Caddy calls
+  `GET https://therapygo.ru/api/public/domains/ask?domain=<host>` using built-in
   `on_demand_tls { permission http <endpoint> }`. A timeout, unavailable endpoint, redirect, or
-  non-2xx response denies issuance. The app endpoint is intentionally absent from this correction,
-  so issuance is fail-closed until the API stream provides it.
+  non-2xx response denies issuance. The stable Therapygo origin makes this permission check
+  independent of the candidate hostname's not-yet-issued certificate.
 
 There is no per-clinic nginx edit, Certbot work, reload, or static Caddy hostname registration.
 Clinic domains stay on approved on-demand HTTP-01/TLS-ALPN; DNS-01 is reserved for the Therapygo
@@ -52,14 +53,13 @@ do not print them or place them in repository files.
 
 ## DNS instructions source
 
-The later B8 API/UI reads its public values from the webapp runtime template:
+The B8 settings lifecycle reads its public values from the webapp runtime template:
 
 - `CUSTOM_DOMAIN_EDGE_IP=135.106.187.95` renders `A @ → 135.106.187.95` for an apex app domain.
 - `CUSTOM_DOMAIN_CNAME_TARGET=edge.therapygo.ru` renders `CNAME app → edge.therapygo.ru` when a
   clinic already has a site at its apex.
 
-They are intentionally absent from Caddy's env: the edge does not consume them. The application
-binding module that reads them remains out of scope here.
+They are intentionally absent from Caddy's env: the edge does not consume them.
 
 ## Installed pipeline and scheduler
 
@@ -96,5 +96,5 @@ is available on the validation host. This only proves template syntax; it is not
 
 With explicit owner authorization on `135.106.187.95`: install the root-owned env after the REG.RU
 prerequisite, execute cutover, verify the installed timer, issue the B7 certificate, prove one
-approved custom hostname after the app permission endpoint exists, run rollback once, and observe
-renewal. No such live gate is claimed complete by this repository correction.
+approved custom hostname through DNS → trusted TLS → exact application routing, run rollback once,
+and observe renewal. No such live gate is claimed complete by this repository correction.

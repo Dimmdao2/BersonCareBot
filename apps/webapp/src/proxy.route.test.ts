@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { config, proxy } from '@/proxy';
+import { config, proxy as productionProxy } from '@/proxy';
 import { encodeSessionCookie } from '@/modules/auth/sessionCookie';
 import { SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
 import type { AppSession, UserRole } from '@/shared/types/session';
@@ -20,6 +20,23 @@ import {
 import type { OrgBrandRevision, OrgBrandingPort } from '@/modules/org-branding/ports';
 import type { MechanicAccessState } from '@/modules/org-entitlements/types';
 import { resolvePatientSubdomainOrganization } from '@/modules/clinic-directory/patientSubdomainOrganization';
+
+const tenantLookupRuntime = vi.hoisted(() => ({
+  current: undefined as TenantSurfaceLookup | undefined,
+}));
+
+vi.mock('@/app-layer/surface/productionTenantSurfaceLookup', () => ({
+  productionTenantSurfaceLookup: (hostname: string) =>
+    (tenantLookupRuntime.current ?? (async () => ({ status: 'unknown' as const })))(hostname),
+}));
+
+function proxy(request: NextRequest, tenantLookup?: TenantSurfaceLookup) {
+  tenantLookupRuntime.current = tenantLookup;
+  return productionProxy(request, {
+    waitUntil: vi.fn(),
+    passThroughOnException: vi.fn(),
+  });
+}
 
 const STAFF_ORIGIN = new URL(STAFF_SURFACE.origin);
 
@@ -116,7 +133,13 @@ async function loadProxyForSurfaceConfiguration({
   ]);
 
   return {
-    proxy: proxyModule.proxy,
+    proxy: (request: NextRequest, tenantLookup?: TenantSurfaceLookup) => {
+      tenantLookupRuntime.current = tenantLookup;
+      return proxyModule.proxy(request, {
+        waitUntil: vi.fn(),
+        passThroughOnException: vi.fn(),
+      });
+    },
     staffOrigin: new URL(productSurfaces.STAFF_SURFACE.origin),
     patientOrigin: new URL(productSurfaces.PATIENT_DEFAULT_SURFACE.origin),
     readResolvedSurface: requestSurface.readResolvedSurface,
