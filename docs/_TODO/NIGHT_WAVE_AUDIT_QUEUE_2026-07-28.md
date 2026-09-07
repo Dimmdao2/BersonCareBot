@@ -12,6 +12,12 @@
 |---|---|---|
 | Настройка и независимая desktop/mobile-приёмка | product `062eb52eb`, acceptance `b48ae835a`, live audit `a6a3dfe83`, queue registration `c01e44176` (`wt/branding-domain-ui-20260907`) | **INDEPENDENT LIVE-VIEW PASS — FOR LAND.** На изолированном candidate `58cdd83c1` владелец клиники видит существующую карточку собственного домена с выбором корневого домена или `app.`; desktop `1440×1100` и mobile `390×844` без обрезки и горизонтального переполнения. Route-acceptance подтверждает, что управляемая браузером метка поддомена не проходит в каноническую запись. Данные клиники, DNS, TLS, TEST и PROD не менялись; общий `:5200` не затронут. Артефакт: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_CUSTOM_DOMAIN_UI_2026-09-07.md`. |
 
+## Patient absolute links #787 — 07.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Независимый аудит и сохранённые acceptance-oracle | tests/audit salvage `01c57e717`, completed audit `ef98778bb` (`wt/branding-domain-absolute-links-20260907`) | **FAIL — SAME-BRANCH FIXER REQUIRED, DO NOT LAND.** Пациентские payment/booking/notification/reminder URL используют staff `APP_BASE_URL`; Yandex callback отбрасывает доверенный patient `ResolvedSurface.publicOrigin`; reminder organization может быть заменена браузерным параметром. Два дорогих молчаливых эффекта закреплены падающими внешними oracle: acquiring `returnUrl` и HTTP `Location`. Требуется один общий `organizationId → patient public origin` seam, сохранение request surface в Yandex и доверенная организация напоминания; product code аудитор не менял. Артефакт: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_PATIENT_ABSOLUTE_LINKS_2026-09-07.md`. |
+
 ## Booking acquiring webhook MONEY-13 — 05.09
 
 | слой | коммит | вердикт |
