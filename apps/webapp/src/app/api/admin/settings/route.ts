@@ -7,6 +7,7 @@
 import { redactSettingValueForAudit } from '@/modules/system-settings/auditRedaction';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   requireClinicManagementApiContext,
@@ -63,6 +64,8 @@ import {
   normalizeOrgCustomDomainHostnamePatch,
   ORG_CUSTOM_DOMAIN_HOSTNAME_KEY,
 } from '@/modules/system-settings/orgCustomDomainHostname';
+import type { CustomDomainBindingState } from '@/modules/custom-domain-binding/ports';
+import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
 import { normalizeDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import {
   isPlatformIntegrationAvailable,
@@ -224,10 +227,21 @@ const DOCTOR_SCOPE_KEYS = [
 
 const PATCH_SCOPE_KEYS = [...ADMIN_SCOPE_KEYS, ...DOCTOR_SCOPE_KEYS] as const;
 
-const patchSchema = z.object({
-  key: z.enum(PATCH_SCOPE_KEYS),
-  value: z.unknown(),
-});
+const patchSchema = z
+  .object({
+    key: z.enum(PATCH_SCOPE_KEYS),
+    value: z.unknown().optional(),
+    placement: z.enum(['apex', 'subdomain']).optional(),
+    subdomainLabel: z.unknown().optional(),
+    action: z.literal('recheck').optional(),
+  })
+  .superRefine((value, ctx) => {
+    const isDomainRecheck =
+      value.key === ORG_CUSTOM_DOMAIN_HOSTNAME_KEY && value.action === 'recheck';
+    if (!isDomainRecheck && value.value === undefined) {
+      ctx.addIssue({ code: 'custom', message: 'value_required', path: ['value'] });
+    }
+  });
 const deleteSchema = z.object({ key: z.literal('operator_health_probe_config') });
 
 const modesBatchBodySchema = z.object({
@@ -371,6 +385,19 @@ const PROMO_ENTITLEMENT_SETTING_KEYS = new Set([
 ]);
 
 const CUSTOM_DOMAIN_ENTITLEMENT_SETTING_KEYS = new Set<string>([ORG_CUSTOM_DOMAIN_HOSTNAME_KEY]);
+const PLATFORM_PATIENT_HOSTNAME = 'therapygo.ru';
+
+function isPlatformOwnedCustomDomain(baseDomain: string): boolean {
+  const platformHosts = [PLATFORM_PATIENT_HOSTNAME];
+  try {
+    platformHosts.push(new URL(PATIENT_DEFAULT_SURFACE.origin).hostname.toLowerCase());
+    platformHosts.push(new URL(STAFF_SURFACE.origin).hostname.toLowerCase());
+  } catch {
+    // TEST's one-host compatibility has no patient origin; the permanent platform namespace above
+    // remains protected.
+  }
+  return platformHosts.some((host) => baseDomain === host || baseDomain.endsWith(`.${host}`));
+}
 
 type SettingsApiContext =
   | {
@@ -443,7 +470,15 @@ export async function GET() {
     gate.ctx.kind === 'platform'
       ? allSettings
       : allSettings.filter((setting) => isPerOrgSettingKey(setting.key));
-  return NextResponse.json({ ok: true, settings });
+  const domainBinding =
+    gate.ctx.kind === 'clinic' && deps.customDomainBinding
+      ? await deps.customDomainBinding.getBindingState(gate.ctx.organizationId)
+      : undefined;
+  return NextResponse.json({
+    ok: true,
+    settings,
+    ...(domainBinding !== undefined ? { domainBinding } : {}),
+  });
 }
 
 export async function PATCH(request: Request) {
@@ -761,6 +796,35 @@ export async function PATCH(request: Request) {
     );
   }
 
+  if (
+    parsed.data.key === ORG_CUSTOM_DOMAIN_HOSTNAME_KEY &&
+    parsed.data.action === 'recheck'
+  ) {
+    if (gate.ctx.kind !== 'clinic' || !deps.customDomainBinding) {
+      return NextResponse.json(
+        { ok: false, error: 'organization_context_required' },
+        { status: 403 },
+      );
+    }
+    const binding = await deps.customDomainBinding.getBindingState(gate.ctx.organizationId);
+    if (!binding) {
+      return NextResponse.json({ ok: false, error: 'custom_domain_not_found' }, { status: 404 });
+    }
+    const { runDomainHealthTick } = await import('@/app-layer/health/runDomainHealthTick');
+    const verification = await runWithDbInfraPrincipal(
+      { source: 'api/admin/settings:custom-domain-recheck' },
+      () => runDomainHealthTick(undefined, { hostname: binding.hostname }),
+    );
+    if (verification.checked !== 1) {
+      return NextResponse.json(
+        { ok: false, error: 'custom_domain_verification_target_unavailable' },
+        { status: 503 },
+      );
+    }
+    const domainBinding = await deps.customDomainBinding.getBindingState(gate.ctx.organizationId);
+    return NextResponse.json({ ok: true, domainBinding, verification });
+  }
+
   const settingScope = settingScopeForKey(parsed.data.key);
 
   let normalizedValue = normalizeValueJson(parsed.data.value);
@@ -947,12 +1011,41 @@ export async function PATCH(request: Request) {
     normalizedValue = checked.valueJson;
   }
 
+  /** The browser sends a base domain plus placement; server derives the only allowed prefix. */
+  let orgCustomDomainIntentPatch:
+    | { kind: 'clear' }
+    | { kind: 'set'; baseDomain: string; placement: 'apex' | 'subdomain'; subdomainLabel?: unknown }
+    | null = null;
   if (parsed.data.key === ORG_CUSTOM_DOMAIN_HOSTNAME_KEY) {
-    const checked = normalizeOrgCustomDomainHostnamePatch(normalizedValue);
+    // Accept the prior nested envelope for HTTP compatibility, but never pass its label on.
+    const legacyEnvelope =
+      normalizedValue.value !== null && typeof normalizedValue.value === 'object'
+        ? (normalizedValue.value as Record<string, unknown>)
+        : null;
+    const baseDomain = legacyEnvelope?.value ?? normalizedValue.value;
+    const placement =
+      parsed.data.placement ??
+      (legacyEnvelope?.placement === 'subdomain' ||
+      (normalizedValue as Record<string, unknown>).placement === 'subdomain'
+        ? 'subdomain'
+        : 'apex');
+    const checked = normalizeOrgCustomDomainHostnamePatch({ value: baseDomain });
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: checked.error }, { status: 400 });
     }
     normalizedValue = checked.valueJson;
+    const hostnameValue = checked.valueJson.value;
+    if (hostnameValue !== '' && isPlatformOwnedCustomDomain(hostnameValue)) {
+      return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
+    }
+    orgCustomDomainIntentPatch =
+      hostnameValue === ''
+        ? { kind: 'clear' }
+        : {
+            kind: 'set',
+            baseDomain: hostnameValue,
+            placement,
+          };
   }
 
   if (parsed.data.key === 'notifications_topics') {
@@ -1069,8 +1162,38 @@ export async function PATCH(request: Request) {
     timestamp: new Date().toISOString(),
   });
 
+  // The binding is canonical. Do not persist a settings value before its globally-unique claim
+  // succeeds, otherwise a rejected hostname becomes a durable lie.
+  let domainBinding: CustomDomainBindingState | null | undefined;
+  if (orgCustomDomainIntentPatch && deps.customDomainBinding && organizationId) {
+    const intentResult =
+      orgCustomDomainIntentPatch.kind === 'clear'
+        ? await deps.customDomainBinding.clearCustomDomainIntent({ organizationId })
+        : await deps.customDomainBinding.setCustomDomainIntent({
+            organizationId,
+            baseDomain: orgCustomDomainIntentPatch.baseDomain,
+            placement: orgCustomDomainIntentPatch.placement,
+          });
+    if (!intentResult.ok && intentResult.code !== 'nothing_to_clear') {
+      return NextResponse.json(
+        { ok: false, error: `custom_domain_${intentResult.code}` },
+        { status: 409 },
+      );
+    }
+    domainBinding = intentResult.ok ? intentResult.state : null;
+  }
+
   let setting: SystemSetting;
-  try {
+  if (orgCustomDomainIntentPatch) {
+    setting = {
+      key: ORG_CUSTOM_DOMAIN_HOSTNAME_KEY,
+      scope: settingScope,
+      organizationId,
+      valueJson: { value: domainBinding?.baseDomain ?? '' },
+      updatedAt: new Date().toISOString(),
+      updatedBy: session.user.userId,
+    };
+  } else try {
     setting = await deps.systemSettings.updateSetting(
       parsed.data.key,
       settingScope,
@@ -1092,7 +1215,7 @@ export async function PATCH(request: Request) {
   }
 
   const clientSetting = redactAdminSettingsForClient([setting])[0]!;
-  return NextResponse.json({ ok: true, setting: clientSetting });
+  return NextResponse.json({ ok: true, setting: clientSetting, ...(domainBinding !== undefined ? { domainBinding } : {}) });
 }
 
 export async function DELETE(request: Request) {

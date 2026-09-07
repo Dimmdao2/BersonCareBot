@@ -1,8 +1,15 @@
 export type DomainHealthTarget = {
   hostname: string;
+  /** Present for canonical binding rows; omitted only by legacy/test adapters. */
+  organizationId?: string;
+  baseDomain?: string;
+  placement?: 'apex' | 'subdomain';
+  status?: 'pending' | 'dns_ready' | 'active' | 'failed' | 'suspended';
+  organizationActive?: boolean;
+  hasPublishedBrand?: boolean;
 };
 
 export type DomainHealthCandidatePort = {
-  /** Every normalized non-empty `org_custom_domain_hostname`; no tenant data leaves the DB root. */
+  /** Canonical non-quarantined binding targets used by the single lifecycle verifier. */
   listConfiguredTargets(): Promise<DomainHealthTarget[]>;
 };

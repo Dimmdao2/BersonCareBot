@@ -28,6 +28,7 @@ export * from './broadcastAuditRecipients';
 export * from './productAnalytics';
 export * from './bookingEngine';
 export * from './clinicDirectory';
+export * from './customDomainBinding';
 export * from './bookingPolicies';
 export * from './bookingPayments';
 export * from './bookingMemberships';
