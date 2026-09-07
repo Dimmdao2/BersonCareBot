@@ -42,6 +42,7 @@ import { formatDoctorFio } from '@/shared/lib/fio';
 import { formatTelegramUsernameMention } from '@/modules/messaging/patientTelegramUsernameMention';
 import { AdminMergeAccountsPanel } from '@/app/app/doctor/clients/AdminMergeAccountsPanel';
 import { AdminClientAuditHistorySection } from '@/app/app/doctor/clients/AdminClientAuditHistorySection';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -109,6 +110,7 @@ function SectionCard({
   children: React.ReactNode;
   className?: string;
 }) {
+  const { patientInstrumental } = useDoctorPatientTerms();
   return (
     <div className={cn(doctorSectionCardClass, className)}>
       {title || titleRight ? (
@@ -177,7 +179,7 @@ function ChannelRow({
           ) : confirmed === false ? (
             <span className="text-muted-foreground">{unconfirmedLabel}</span>
           ) : null}
-          {blocked ? <span className="text-destructive">· бот заблокирован пациентом</span> : null}
+          {blocked ? <span className="text-destructive">· бот заблокирован {patientInstrumental}</span> : null}
         </div>
       </div>
       {actionLabel && (
@@ -392,6 +394,7 @@ function SecondaryPhones({
  * Родитель уже знает роль из SSR и монтирует компонент только для admin на активной вкладке.
  */
 function EmailChange({ userId }: { userId: string }) {
+  const { patientInstrumental, patientGenitive } = useDoctorPatientTerms();
   const [pending, setPending] = useState<{ email: string; expiresAt: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState('');
@@ -461,10 +464,10 @@ function EmailChange({ userId }: { userId: string }) {
           <div className={cn(doctorBodyTextClass, 'leading-tight')}>Смена email (админ)</div>
           {pending ? (
             <div className={doctorMetaTextClass}>
-              ожидает подтверждения пациентом: <span className="font-mono">{pending.email}</span>
+              ожидает подтверждения {patientInstrumental}: <span className="font-mono">{pending.email}</span>
             </div>
           ) : (
-            <div className={doctorMetaTextClass}>применится после подтверждения кодом пациентом</div>
+            <div className={doctorMetaTextClass}>применится после подтверждения кодом {patientInstrumental}</div>
           )}
         </div>
         {!editing && (
@@ -492,7 +495,7 @@ function EmailChange({ userId }: { userId: string }) {
                 void submit();
               } else if (e.key === 'Escape') setEditing(false);
             }}
-            placeholder="новый email пациента"
+            placeholder={`новый email ${patientGenitive}`}
             className="flex-1 text-sm"
           />
           <Button type="button" variant="default" onClick={() => void submit()} disabled={saving}>
@@ -685,6 +688,7 @@ export function PatientTabAccount({
   initialSupplementaryContacts,
   isAdmin = false,
 }: Props) {
+  const { patientSingularLabel, patientGenitive } = useDoctorPatientTerms();
   const router = useRouter();
   const identity = header?.identity;
 
@@ -897,7 +901,7 @@ export function PatientTabAccount({
             <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-2.5 py-2">
               <span className="text-destructive flex-none font-bold">✕</span>
               <span className={cn(doctorBodyTextClass, 'text-destructive font-medium')}>
-                Пациент заблокирован
+                {patientSingularLabel} заблокирован
               </span>
             </div>
           )}
@@ -963,7 +967,7 @@ export function PatientTabAccount({
           <SectionCard title="Администрирование">
             <table className="w-full border-separate border-spacing-0 mb-1">
               <tbody>
-                <KVRow label="ID пациента">
+                <KVRow label={`ID ${patientGenitive}`}>
                   <span className="font-mono text-xs">
                     {userId.slice(0, 12)}…{userId.slice(-4)}{' '}
                     <Button

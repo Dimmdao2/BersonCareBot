@@ -76,6 +76,7 @@ import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { formatDoctorFioShort } from '@/shared/lib/fio';
 import { SpecialistTaskFormDialog } from '@/app/app/doctor/clients/SpecialistTaskFormDialog';
 import { SpecialistTaskRow as TaskRow } from '@/app/app/doctor/clients/SpecialistTaskRow';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import {
   isSpecialistTaskDueOnDate,
   isSpecialistTaskOverdue,
@@ -917,7 +918,7 @@ export function PatientTabOverview({
   tasksTodayIso,
   compositionMode,
 }: Props) {
-  const { supportGroupLabel } = useDoctorPatientTerms();
+  const { supportGroupLabel, patientSingularLabel } = useDoctorPatientTerms();
   const isComposed = compositionMode != null;
   const isOverviewComposition = compositionMode === 'overview';
   const seededExerciseCalendar = unwrapBootstrapEnvelope(initialExerciseCalendarSnapshot);
@@ -2293,7 +2294,7 @@ export function PatientTabOverview({
                         )}
                       >
                         <span className="flex-1 min-w-0">
-                          <strong>{isPatient ? 'Пациент' : 'Вы'}:</strong> {msg.text}
+                          <strong>{isPatient ? patientSingularLabel : 'Вы'}:</strong> {msg.text}
                         </span>
                         <span
                           className={cn(doctorMetaTextClass, 'whitespace-nowrap ml-auto pl-1.5')}

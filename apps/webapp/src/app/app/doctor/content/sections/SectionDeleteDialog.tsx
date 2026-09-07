@@ -1,5 +1,7 @@
 'use client';
 
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+
 import { useRouter } from 'next/navigation';
 import { useActionState, useCallback, useId, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -36,6 +38,7 @@ export function SectionDeleteDialog({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: Props) {
+  const { patientDativePlural } = useDoctorPatientTerms();
   const router = useRouter();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isControlled = controlledOpen !== undefined && controlledOnOpenChange !== undefined;
@@ -87,7 +90,7 @@ export function SectionDeleteDialog({
                 {' '}
                 Страниц в разделе:{' '}
                 <span className="font-medium text-foreground">{pagesInSection}</span> — они будут
-                перенесены в служебный раздел «Без раздела» (не виден пациентам). При совпадении
+                перенесены в служебный раздел «Без раздела» (не виден {patientDativePlural}). При совпадении
                 slug страница получит суффикс в адресе.
               </>
             ) : (

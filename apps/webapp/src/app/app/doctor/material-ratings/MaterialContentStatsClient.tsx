@@ -1,5 +1,7 @@
 'use client';
 
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+
 import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -84,6 +86,7 @@ function TopPagesHorizontalBarChart({
 
 
 export function MaterialContentStatsClient() {
+  const { patientGenPlural } = useDoctorPatientTerms();
   const [windowHours, setWindowHours] = useState<number>(168);
   const [data, setData] = useState<ContentEngagementStatsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -137,7 +140,7 @@ export function MaterialContentStatsClient() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Платформа за выбранный период (не фильтр по вашим пациентам).
+        Платформа за выбранный период (не фильтр по вашим {patientGenPlural}).
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <Select

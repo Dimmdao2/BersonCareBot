@@ -1,5 +1,7 @@
 'use client';
 
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
@@ -95,6 +97,7 @@ export function DoctorCourseEditForm({
   introPageOptions,
   externalUsageSnapshot,
 }: Props) {
+  const { patientGenPlural } = useDoctorPatientTerms();
   const router = useRouter();
   const [title, setTitle] = useState(initial.title);
   const [description, setDescription] = useState(initial.description ?? '');
@@ -445,9 +448,9 @@ export function DoctorCourseEditForm({
           <DialogHeader>
             <DialogTitle>Отправить курс в архив?</DialogTitle>
             <DialogDescription>
-              Есть активные программы у пациентов по шаблону этого курса или опубликованные страницы
+              Есть активные программы у {patientGenPlural} по шаблону этого курса или опубликованные страницы
               контента с привязкой к курсу. В архиве курс не показывается в каталоге; связи шаблона
-              и записи пациентов в базе не удаляются.
+              и записи {patientGenPlural} в базе не удаляются.
             </DialogDescription>
           </DialogHeader>
           <CourseUsageSectionsView sections={warnSections} />
