@@ -9,6 +9,15 @@ Taskdb workstream: `#1098`. Binding authority/checklist:
 Candidate product is `5283a3ff3` on `wt/c3m-communications-slice-20260907`. Exact scope:
 `apps/webapp/**,apps/integrator/**,deploy/postgres/**`.
 
+## Тест или взгляд
+
+- Client-policy precedence, route/action denial, hidden work, queued-delivery denial and tenant isolation are
+  repeatable behavior and require blind tests plus fault injection.
+- Migration ownership/backfill, central privilege declaration/generated parity and one-resolver architecture are
+  direct inspection/static-check facts; never create source/SQL wording tests for them.
+- Responsive tabs, controls and layout require live inspection, but are explicitly deferred to the following
+  bounded live pass and are not claimed by this run.
+
 The preceding run `c3m-communications-audit-20260907` ended at the runner system boundary with a clean tree: it
 left no tests, artifact, commit or verdict. Its narrative is not acceptance. This run must complete the independent
 behavior/static audit. Live responsive UI and named-DEV rollback preflight are deliberately a later bounded audit
