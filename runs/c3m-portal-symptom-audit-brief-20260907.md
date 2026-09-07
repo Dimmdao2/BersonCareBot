@@ -19,6 +19,11 @@ create-time-only default snapshot.
 - Migration/backfill/index/privileges and absence of a parallel symptom policy are inspection plus owner-aware
   preflight facts.
 
+The specialist checkbox belongs to the existing diary `symptom_trackings` model in the existing client card. The
+candidate must not attach it to the separate longitudinal medical-record `patient_clinical_complaints` entity, add a
+second symptom model, or create a separate page. Current base has a staff create route but no connected create/edit
+UI, so live acceptance must prove the candidate actually supplies both create and edit controls in the card.
+
 Before existing tests, define faults for: portal OFF only hiding buttons; identity/enrollment/data deletion; other-org
 portal damage; public booking gated by portal/support; `is_active` reused for patient visibility; disabled tracking
 still listed/read/writable by crafted request; specialist losing the tracking/history; existing tracking backfill not
