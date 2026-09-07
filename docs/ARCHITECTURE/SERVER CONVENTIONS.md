@@ -192,8 +192,9 @@ bash tools/deploy-prod-from-dev.sh          # выложить текущую в
 bash tools/deploy-prod-from-dev.sh <ref>    # выложить конкретную ветку, тег или коммит
 ```
 
-Скрипт доставляет коммит в репозиторий прода и запускает там штатный конвейер; своей логики выкладки не
-несёт. На самом хосте те же операции доступны как `deploy-prod`, `rollback-prod`, `prod-status`.
+Скрипт доставляет коммит в репозиторий прода, обновляет из этого же коммита сам конвейер
+(`/opt/bersoncarebot/pipeline`: compose, Dockerfile, blue/green-скрипты) и запускает его; своей логики
+выкладки не несёт. На самом хосте те же операции доступны как `deploy-prod`, `rollback-prod`, `prod-status`.
 
 **Ключ доступа:** `~/.ssh/bcb_prod_build_20260817` (root). **Каталоги:** `/opt/bersoncarebot/{src,git,env,pipeline,state,releases}`,
 env-файлы `env/{api.prod,webapp.prod}`, пароли рантайм-логинов — `env/reconcile.env` (600, root).
@@ -201,8 +202,22 @@ env-файлы `env/{api.prod,webapp.prod}`, пароли рантайм-лог�
 **База.** Пробная база называется `bersoncarebot_test`, логины `bcb_test_*` — не по недосмотру: декларация
 прав знает ровно два имени баз (`bcb_webapp_dev`, `bersoncarebot_test`), и третьего в ней нет. Настоящее
 прод-имя заводится в декларации при переезде, одним проходом с переименованием ролей — чтобы не делать эту
-работу дважды. Сертификаты mTLS: CA и клиентские — `/etc/bersoncarebot/postgres-mtls/`, серверный выписан на
-имя `db.host`, под которым оба цвета видят хост (`extra_hosts: host-gateway`).
+работу дважды. Права раскладывает та же единственная сверка, что на dev и test, — без неё логины есть, а
+доступа у них нет:
+
+```bash
+cd /opt/bersoncarebot/src && set -a && . /opt/bersoncarebot/env/reconcile.env && set +a && \
+  node deploy/postgres/privileges/reconcile-access.mjs \
+    --env test --db bersoncarebot_test --admin-socket /var/run/postgresql
+```
+
+**mTLS.** Приватный ключ CA лежит в `/etc/bersoncarebot/postgres-mtls/authority/private/` (0700) и в
+контейнеры не попадает; приложению монтируется только `/etc/bersoncarebot/postgres-mtls/prod/` — публичная
+часть CA и четыре клиентские пары. Ключи ролей открыты группе `bcb-app-prod`, и контейнер получает её
+дополнительной (`group_add` в compose): это ровно тот же канон, что на dev/test, где группа ключа равна
+учётке сервиса. Серверный сертификат выписан на имя `db.host`, под которым оба цвета видят хост; имя
+указывает на шлюз своего моста, а не на docker-псевдоним `host-gateway` (тот ведёт на `172.17.0.1`, где
+базы нет).
 
 ### Источник истины по топологии
 
