@@ -302,6 +302,8 @@ export type DoctorWorkspaceAccessContext = {
   canManageAllSpecialists: boolean;
   canAccessClinicalWorkspace: boolean;
   doctorScreensDisabled: boolean;
+  appointmentsManageOwn: boolean;
+  availabilityManageOwn: boolean;
   capabilities: readonly LaunchCapability[];
 };
 
@@ -403,6 +405,8 @@ async function resolveDoctorWorkspaceAccessContext(
       canManageAllSpecialists: context.canManageAllSpecialists,
       canAccessClinicalWorkspace,
       doctorScreensDisabled: context.doctorScreensDisabled,
+      appointmentsManageOwn: context.appointmentsManageOwn,
+      availabilityManageOwn: context.availabilityManageOwn,
       capabilities: Array.from(
         resolveLaunchCapabilities({
           sessionRole: session.user.role,
@@ -784,12 +788,9 @@ export async function requireDoctorWorkspaceApiContext(
     }
   }
   if (requestedModule) {
-    return requireDoctorWorkspaceModuleForApi(
-      buildAppDeps(),
-      resolved.ctx,
-      requestedModule,
-    ).then((moduleGate) =>
-      moduleGate.ok ? resolved : { ok: false as const, response: moduleGate.response },
+    return requireDoctorWorkspaceModuleForApi(buildAppDeps(), resolved.ctx, requestedModule).then(
+      (moduleGate) =>
+        moduleGate.ok ? resolved : { ok: false as const, response: moduleGate.response },
     );
   }
   return resolved;

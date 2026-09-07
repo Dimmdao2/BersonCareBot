@@ -16,6 +16,7 @@ import {
   type DoctorMenuLinkItem,
 } from '@/shared/ui/doctor/doctorNavLinks';
 import { getPlatformMenuItems } from '@/shared/ui/doctor/platformNavLinks';
+import { getManagementMenuItems } from '@/shared/ui/doctor/managementNavLinks';
 import { DOCTOR_MENU_ITEM_RADIUS_CLASS, NAV_STRIP_ICON_STROKE } from '@/shared/ui/doctor/navChrome';
 import { getDoctorMenuIcon } from '@/shared/ui/doctor/doctorNavIcons';
 import {
@@ -142,7 +143,7 @@ export type DoctorMenuAccordionProps = {
    * (`platformNavLinks.ts`) — it never carries nested `.items`, so it renders as plain links in
    * both variants without any accordion/group behavior.
    */
-  menuKind?: 'doctor' | 'platform';
+  menuKind?: 'doctor' | 'platform' | 'management';
   /** Whether the tablet sidebar rail is expanded over the page. */
   tabletExpanded?: boolean;
 };
@@ -472,7 +473,9 @@ export function DoctorMenuAccordion({
     const menuItems =
       menuKind === 'platform'
         ? getPlatformMenuItems(menuAccess)
-        : getDoctorMenuItems(menuAccess, patientLabel);
+        : menuKind === 'management'
+          ? getManagementMenuItems(menuAccess)
+          : getDoctorMenuItems(menuAccess, patientLabel);
 
     if (variant === 'sidebar') return menuItems.filter((item) => item.id !== 'account');
     if (menuKind !== 'doctor') return menuItems;

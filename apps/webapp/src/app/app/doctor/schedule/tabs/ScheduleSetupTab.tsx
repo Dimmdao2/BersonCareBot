@@ -84,9 +84,7 @@ function resolveSectionId(
 // ---------------------------------------------------------------------------
 
 type RulesSettingsState =
-  | { phase: 'loading' }
-  | { phase: 'error' }
-  | { phase: 'ready'; availabilityHorizonDays: number };
+  { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; availabilityHorizonDays: number };
 
 const BOOKING_AVAILABILITY_HORIZON_DEFAULT_DAYS = Number(
   SYSTEM_SETTING_REGISTRY.booking_availability_horizon_days.defaultValue,
@@ -553,6 +551,7 @@ export function ScheduleSetupTab({
   notificationTemplatesVisible = true,
   packagesVisible = true,
   packagesReadOnly = false,
+  setupPackagesOnly = false,
 }: ScheduleTabProps) {
   const sectionVisibility: SetupSectionVisibility = useMemo(
     () => ({
@@ -562,12 +561,17 @@ export function ScheduleSetupTab({
     [notificationTemplatesVisible, packagesVisible],
   );
   const [activeSection, setActiveSectionState] = useState<SetupSectionId>(() =>
-    resolveSectionId(deepLinkParams.section, sectionVisibility),
+    setupPackagesOnly ? 'packages' : resolveSectionId(deepLinkParams.section, sectionVisibility),
   );
 
   const visibleSections = useMemo(
-    () => SETUP_SECTIONS.filter((section) => sectionIsVisible(section, sectionVisibility)),
-    [sectionVisibility],
+    () =>
+      SETUP_SECTIONS.filter(
+        (section) =>
+          sectionIsVisible(section, sectionVisibility) &&
+          (!setupPackagesOnly || section.id === 'packages'),
+      ),
+    [sectionVisibility, setupPackagesOnly],
   );
 
   const setActiveSection = useCallback(
@@ -602,24 +606,26 @@ export function ScheduleSetupTab({
     >
       <DoctorShellMobileSubsectionTabsRegistration content={mobileSubsectionTabs} />
       {/* Sub-navigation */}
-      <nav
-        className="hidden flex-wrap gap-1 md:flex"
-        aria-label="Разделы настройки записи"
-        data-testid="setup-subnav"
-      >
-        {visibleSections.map((sec) => (
-          <Button
-            key={sec.id}
-            type="button"
-            size="sm"
-            variant={activeSection === sec.id ? 'default' : 'outline'}
-            onClick={() => setActiveSection(sec.id)}
-            data-testid={`setup-nav-${sec.id}`}
-          >
-            {sec.label}
-          </Button>
-        ))}
-      </nav>
+      {!setupPackagesOnly ? (
+        <nav
+          className="hidden flex-wrap gap-1 md:flex"
+          aria-label="Разделы настройки записи"
+          data-testid="setup-subnav"
+        >
+          {visibleSections.map((sec) => (
+            <Button
+              key={sec.id}
+              type="button"
+              size="sm"
+              variant={activeSection === sec.id ? 'default' : 'outline'}
+              onClick={() => setActiveSection(sec.id)}
+              data-testid={`setup-nav-${sec.id}`}
+            >
+              {sec.label}
+            </Button>
+          ))}
+        </nav>
+      ) : null}
 
       {/* Active section content */}
       <div data-testid={`setup-section-${activeSection}`}>

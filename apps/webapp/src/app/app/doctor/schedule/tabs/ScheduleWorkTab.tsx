@@ -849,7 +849,12 @@ function ScheduleFieldsForm({
 // ---------------------------------------------------------------------------
 
 /** Таб «График работы» раздела «Расписание» — per-date редактор. E1–E5. */
-export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: ScheduleTabProps) {
+export function ScheduleWorkTab({
+  deepLinkParams,
+  onDeepLinkChange,
+  isActive,
+  availabilityManageOwn = true,
+}: ScheduleTabProps) {
   // ── State ─────────────────────────────────────────────────────────────────
 
   const [selectionMode, setSelectionMode] = useState<'dates' | 'weekday'>('dates');
@@ -1126,6 +1131,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   const toggleDay = useCallback(
     (date: string, shift: boolean, meta: boolean) => {
+      if (!availabilityManageOwn) return;
       setSelected((prev) => {
         const next = new Set(prev);
         let nextPrimaryDate = selectedPrimaryDate;
@@ -1164,11 +1170,12 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       setSelectionMode('dates');
       setSelectedWeekday(null);
     },
-    [gridDates, multiSelectEnabled, selectedPrimaryDate],
+    [availabilityManageOwn, gridDates, multiSelectEnabled, selectedPrimaryDate],
   );
 
   const handleWeekdayHeaderClick = useCallback(
     (colIndex: number) => {
+      if (!availabilityManageOwn) return;
       const wd = [1, 2, 3, 4, 5, 6, 0][colIndex]!;
       if (selectedWeekday === wd && selectionMode === 'weekday') {
         // Re-click same weekday → deselect
@@ -1194,7 +1201,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       setSelectedWeekday(wd);
       lastClickedRef.current = null;
     },
-    [selectedWeekday, selectionMode, viewYear, viewMonth],
+    [availabilityManageOwn, selectedWeekday, selectionMode, viewYear, viewMonth],
   );
 
   const closeWeekdayModal = useCallback(() => {
@@ -1222,6 +1229,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   // SCH-R-04: save weekday template → POST /working-hours replace=true
   function handleSaveWeekdayTemplate() {
+    if (!availabilityManageOwn) return;
     if (selectedWeekday === null) return;
     let startMinute: number;
     let endMinute: number;
@@ -1266,6 +1274,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   // SCH-R-04: clear weekday template → DELETE each active be_working_hours row for this weekday
   // #233: после очистки сразу сбрасываем выделение и скрываем блок настроек
   function handleClearWeekdayTemplate() {
+    if (!availabilityManageOwn) return;
     if (selectedWeekday === null) return;
     const toDeactivate = visibleWorkingHours.filter(
       (r) => r.weekday === selectedWeekday && r.isActive,
@@ -1297,6 +1306,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   }
 
   function handleSave() {
+    if (!availabilityManageOwn) return;
     // SCH-R-04: weekday mode → всегда сохраняем как постоянный шаблон (#232)
     if (selectionMode === 'weekday') {
       handleSaveWeekdayTemplate();
@@ -1352,11 +1362,13 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   // A cleared concrete date is an explicit day off. Deleting its override would expose the
   // weekday fallback again and make «Очистить» appear broken for permanent schedules.
   function handleClearSchedule() {
+    if (!availabilityManageOwn) return;
     if (selected.size === 0) return;
     setClearConfirmOpen(true);
   }
 
   function confirmClearSchedule() {
+    if (!availabilityManageOwn) return;
     if (selectionMode === 'weekday') {
       setClearConfirmOpen(false);
       handleClearWeekdayTemplate();
@@ -1388,6 +1400,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   }
 
   function handleApplyTemplate(templateId: string) {
+    if (!availabilityManageOwn) return;
     const dates = [...selected];
     if (!dates.length) {
       setActionError('Выберите дни для применения шаблона');
@@ -1735,7 +1748,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
             {/* RIGHT: selection summary; the editor itself lives in a standard modal. */}
             <div>
-              {selectedCount > 0 ? (
+              {availabilityManageOwn && selectedCount > 0 ? (
                 <DoctorSection className="bg-card" data-testid="hours-panel">
                   <h3 className={doctorSectionTitleClass}>
                     {selectionMode === 'weekday' && selectedWeekday !== null
@@ -1772,7 +1785,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                     </Button>
                   </div>
                 </DoctorSection>
-              ) : (
+              ) : availabilityManageOwn ? (
                 <DoctorSection className="border-dashed">
                   <div className="flex flex-col gap-2 text-sm text-muted-foreground">
                     <p>
@@ -1789,7 +1802,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                     </div>
                   </div>
                 </DoctorSection>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -1797,19 +1810,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           <DoctorSection data-testid="templates-panel">
             <div className="flex items-center justify-between gap-2">
               <h3 className={doctorSectionTitleClass}>Шаблоны расписаний</h3>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className={DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS}
-                onClick={() => {
-                  setTplBranchId(panelBranchId);
-                  setTplDialogOpen(true);
-                }}
-                data-testid="btn-create-template"
-              >
-                + Создать
-              </Button>
             </div>
 
             {templates.length === 0 ? (
@@ -1842,41 +1842,34 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                             </span>
                           )}
                         </div>
-                        <div className="flex shrink-0 gap-1">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className={cn(
-                              'h-7 px-2 text-xs',
-                              DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
-                            )}
-                            disabled={pending || selectedCount === 0}
-                            title={selectedCount === 0 ? 'Выберите дни для применения' : undefined}
-                            onClick={() => handleApplyTemplate(tpl.id)}
-                            data-testid={`btn-apply-template-${tpl.id}`}
-                          >
-                            Применить
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            disabled={pending}
-                            onClick={() => handleDeleteTemplate(tpl.id)}
-                            data-testid={`btn-delete-template-${tpl.id}`}
-                          >
-                            ×
-                          </Button>
-                        </div>
+                        {availabilityManageOwn ? (
+                          <div className="flex shrink-0 gap-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className={cn(
+                                'h-7 px-2 text-xs',
+                                DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
+                              )}
+                              disabled={pending || selectedCount === 0}
+                              title={
+                                selectedCount === 0 ? 'Выберите дни для применения' : undefined
+                              }
+                              onClick={() => handleApplyTemplate(tpl.id)}
+                              data-testid={`btn-apply-template-${tpl.id}`}
+                            >
+                              Применить
+                            </Button>
+                          </div>
+                        ) : null}
                       </li>
                     );
                   })}
               </ul>
             )}
 
-            {selectedCount === 0 && templates.length > 0 && (
+            {availabilityManageOwn && selectedCount === 0 && templates.length > 0 && (
               <p className="text-[10px] text-muted-foreground">
                 Выберите дни для применения шаблона.
               </p>

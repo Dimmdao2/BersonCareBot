@@ -105,6 +105,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
       isAdmin={session.user.role === 'admin'}
       patientListHref={patientListHref}
       workspaceModules={workspaceModules}
+      appointmentsManageOwn={workspace.appointmentsManageOwn}
     />
   );
 }

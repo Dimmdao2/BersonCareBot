@@ -12,12 +12,12 @@ import { mergePatientTimezoneSelectLabels } from '@/shared/timezone/patientTimez
 export const doctorTimezoneSelectStyles: StylesConfig<ITimezone, false> = {
   control: (base, state) => ({
     ...base,
-    minHeight: 36,
-    borderRadius: 'calc(var(--radius) - 2px)',
+    minHeight: 32,
+    borderRadius: 'var(--doctor-control-radius, calc(var(--radius) - 2px))',
     borderColor: state.isFocused ? 'var(--ring)' : 'var(--border)',
     backgroundColor: 'var(--background)',
     boxShadow: state.isFocused
-      ? '0 0 0 2px color-mix(in oklch, var(--ring), transparent 80%)'
+      ? '0 0 0 3px color-mix(in oklch, var(--ring), transparent 80%)'
       : 'none',
     cursor: 'pointer',
     opacity: state.isDisabled ? 0.5 : 1,

@@ -1,8 +1,8 @@
 # Рабочее место специалиста и управление клиникой
 
-**Статус:** независимый архитектурный аудит выполнен; обязательные корректировки внесены. К реализации допущены
-M1–M4 и M6. M5 отложен владельцем 07.09.2026 до появления подтверждённого спроса на работу нескольких
-специалистов; отсутствие resource-view больше не блокирует стартовый solo-запуск.
+**Статус:** M1–M4 и M6 реализованы, независимо проверены и по команде владельца 07.09.2026 приземлены в
+`feat/doctor-ui-rebuild`; M5 отложен владельцем до появления подтверждённого спроса на работу нескольких
+специалистов и не блокирует стартовый solo-запуск.
 
 **Карточка:** `#1099`.
 
@@ -302,42 +302,47 @@ FullCalendar Premium и DayPilot Lite на одном и том же сущес�
 
 ### M1. Composition и capability projection
 
-- [ ] Зафиксировать единый typed `solo|clinic` resolver по §3.1, включая unconfigured и downgrade state.
-- [ ] Добавить server-resolved `appointments.manage_own` и `availability.manage_own` с `true` default/backfill и
-  единым membership write/read path.
-- [ ] Провести поля через обе SECURITY DEFINER functions, typed mapping, обе function `relationSurfaces` и
-  column-level UPDATE declaration по §5.
-- [ ] Провести permissions через существующие schedule/appointment guards; UI не является enforcement.
-- [ ] Добавить admin editor этих двух разрешений в карточку участника команды, без custom-role builder.
+- [x] Зафиксировать единый typed `solo|clinic` resolver по §3.1, включая unconfigured и downgrade state. Evidence: `resolveDoctorWorkspaceComposition`; targeted composition/scope oracle 9/9 PASS.
+- [x] Добавить server-resolved `appointments.manage_own` и `availability.manage_own` с `true` default/backfill и
+  единым membership write/read path. Evidence: migration `20260907T141500_clinic_membership_clinical_permissions`,
+  organization-membership ports/service/repos and workspace mapping in candidate `48a1a13c1`.
+- [x] Провести поля через обе SECURITY DEFINER functions, typed mapping, обе function `relationSurfaces` и
+  column-level UPDATE declaration по §5. Evidence: migration/declaration audit in
+  `CLINIC_MANAGEMENT_WORKSPACE_AUDIT_2026-09-07.md` and generated privilege parity.
+- [x] Провести permissions через существующие schedule/appointment guards; UI не является enforcement. Evidence:
+  retained composition/scope oracle `3` files / `9` tests PASS on candidate and integrated tree.
+- [x] Добавить admin editor этих двух разрешений в карточку участника команды, без custom-role builder. Evidence:
+  existing `TeamSection` member editor consumes the two typed membership fields.
 
 ### M2. Разделение shell и навигации
 
-- [ ] Превратить `/app/manage` из redirect в отдельный management mode с собственным nav registry.
-- [ ] Переиспользовать существующий doctor viewport/sidebar/mobile shell chrome и визуальные primitives;
+- [x] Превратить `/app/manage` из redirect в отдельный management mode с собственным nav registry. Evidence: `managementNavLinks` is rendered by the reused workspace shell; root opens the catalog writer and online booking has its own route.
+- [x] Переиспользовать существующий doctor viewport/sidebar/mobile shell chrome и визуальные primitives;
   не создавать визуально эквивалентный shell с нуля.
-- [ ] Добавить capability-gated mode switch для owner/admin со specialist binding и корректные landing rules для
+- [x] Добавить capability-gated mode switch для owner/admin со specialist binding и корректные landing rules для
   management-only пользователя.
-- [ ] Ограничить `/app/doctor/**` scope `mine` для всех clinic memberships; clinic/specialist scope разрешать
+- [x] Ограничить `/app/doctor/**` scope `mine` для всех clinic memberships; clinic/specialist scope разрешать
   только management routes через параметризованный resolver `#1028`.
-- [ ] Убрать clinic-management links из specialist menu в clinic composition; solo сохраняет единый Settings.
+- [x] Убрать clinic-management links из specialist menu в clinic composition; solo сохраняет единый Settings.
 
 ### M3. Перекомпоновка Settings и существующих booking sections
 
-- [ ] Собрать solo Settings в целевую структуру §3.1 и скрыть Team.
-- [ ] В management mode подключить существующие Team, branches, services, specialists, public form, rules,
-  notifications, payments, integrations, branding и billing components к их новым разделам.
-- [ ] Один компонент/один API path обслуживает одинаковую настройку в solo и clinic composition; не оставлять
-  второй writer в Schedule Setup.
-- [ ] Разместить существующее specialist description по правилам §4.
+- [x] Собрать solo Settings в целевую структуру §3.1 и скрыть Team. Evidence: solo exposes `Профиль специалиста` beside existing clinic and billing sections; Team stays capability/composition-gated.
+- [x] В management mode подключить существующие Team, branches, services, specialists, public form, rules,
+  notifications, payments, integrations, branding и billing components к их новым разделам. Evidence:
+  `MANAGEMENT_NAV` + `ManagementBookingSections` reuse existing writers.
+- [x] Один компонент/один API path обслуживает одинаковую настройку в solo и clinic composition; не оставлять
+  второй writer в Schedule Setup. Evidence: management renders the existing `ScheduleSetupTab`, no copied writer.
+- [x] Разместить существующее specialist description по правилам §4. Evidence: solo uses `BookingSoloSpecialistsSection`; clinic management reaches the same entity writer through Team.
 
 ### M4. Schedule и packages
 
-- [ ] Заменить Schedule Setup на `Абонементы` для solo.
-- [ ] Для clinic specialist оставить `Записи / График работы`; mutation actions зависят от M1 capabilities.
-- [ ] Ограничить `availability.manage_own` собственным графиком/исключениями и применением готового шаблона;
+- [x] Заменить Schedule Setup на `Абонементы` для solo.
+- [x] Для clinic specialist оставить `Записи / График работы`; mutation actions зависят от M1 capabilities.
+- [x] Ограничить `availability.manage_own` собственным графиком/исключениями и применением готового шаблона;
   общий template CRUD оставить management authority.
-- [ ] Перенести clinic package-template management в management Catalog без копии package business logic.
-- [ ] Сохранить полезные старые deep links через redirect/normalization и удалить только мёртвую композицию.
+- [x] Перенести clinic package-template management в management Catalog без копии package business logic.
+- [x] Сохранить полезные старые deep links через redirect/normalization и удалить только мёртвую композицию.
 
 ### M5. Management appointments — отложено владельцем 07.09.2026
 
@@ -353,28 +358,35 @@ FullCalendar Premium и DayPilot Lite на одном и том же сущес�
 
 ### M6. Timezone и архитектурная чистота
 
-- [ ] Диагностировать и исправить regression существующего `DoctorTimezoneSelect`/его placement по §7, не
+- [x] Диагностировать и исправить regression существующего `DoctorTimezoneSelect`/его placement по §7, не
   заменяя компонент и timezone dataset.
-- [ ] Удалить/не допустить дубли timezone options, labels, formatting и styles.
-- [ ] Проверить doctor/patient UI isolation, Select display labels, shared primitives и отсутствие новых локальных
+- [x] Удалить/не допустить дубли timezone options, labels, formatting и styles.
+- [x] Проверить doctor/patient UI isolation, Select display labels, shared primitives и отсутствие новых локальных
   page-level containers.
-- [ ] Обновить только действующую документацию затронутых route/module boundaries.
+- [x] Обновить только действующую документацию затронутых route/module boundaries. Evidence:
+  `apps/webapp/src/app/app/settings/settings.md` and this active plan; no parallel implementation document added.
 
 ### M7. Проверки и независимый аудит
 
-- [ ] Воркер не создаёт и не изменяет тесты. Он выполняет formatter для своих файлов, webapp typecheck и scoped
+- [x] Воркер не создаёт и не изменяет тесты. Он выполняет formatter для своих файлов, webapp typecheck и scoped
   ESLint; существующие targeted tests запускает только если они остаются релевантными и не требуют переписывания.
-- [ ] Первый `auditor-live` до чтения тестов составляет blind kill-set по §§3–7 и классифицирует каждый пункт как
-  `тест или взгляд` по `AGENTS.md` §10a/§10b/§24.4.
-- [ ] Аудитор не пишет UI/markup/count/text/source-shape tests. Допустимы только необходимые unit/route tests для
-  дорогих молчаливых permission/tenant/mutation failures, если их не защищает существующий набор.
-- [ ] Для каждого нового acceptance-test аудитор выполняет один fault injection и записывает
-  `поломка → покрасневшее утверждение`; временный product diff откатывает.
-- [ ] Нетестовые layout/reuse/migration findings проверяются чтением diff, AST/rg и candidate preflight, не
-  постоянными тестами.
-- [ ] Оркестратор принимает diff, SHA и evidence, но не выполняет live visual UI проход.
-- [ ] Candidate остаётся в `wt/*` до отчёта оркестратора. В `feat/doctor-ui-rebuild` не land, dev-server не
-  переключать и DEV migration не применять до отдельной команды владельца.
+  Evidence: worker/correction commits and both audit artifacts; UI correction `48a1a13c1` changed no tests.
+- [x] Первый `auditor-live` до чтения тестов составляет blind kill-set по §§3–7 и классифицирует каждый пункт как
+  `тест или взгляд` по `AGENTS.md` §10a/§10b/§24.4. Evidence:
+  `CLINIC_MANAGEMENT_WORKSPACE_AUDIT_2026-09-07.md`.
+- [x] Аудитор не пишет UI/markup/count/text/source-shape tests. Допустимы только необходимые unit/route tests для
+  дорогих молчаливых permission/tenant/mutation failures, если их не защищает существующий набор. Evidence: UI
+  audit explicitly retained no UI/DOM/text assertion.
+- [x] Для каждого нового acceptance-test аудитор выполняет один fault injection и записывает
+  `поломка → покрасневшее утверждение`; временный product diff откатывает. Evidence: backend audit records three
+  red scope assertions and restoration; UI findings were correctly classified as view-only.
+- [x] Нетестовые layout/reuse/migration findings проверяются чтением diff, AST/rg и candidate preflight, не
+  постоянными тестами. Evidence: both audit artifacts and queue verdicts for `39271e811` / `8fee45039`.
+- [x] Оркестратор принимает diff, SHA и evidence, но не выполняет live visual UI проход. Evidence: lead acceptance
+  queue verdict for `48a1a13c1`; no live UI run.
+- [x] Candidate остаётся в `wt/*` до отчёта оркестратора. В `feat/doctor-ui-rebuild` не land, dev-server не
+  переключать и DEV migration не применять до отдельной команды владельца. Evidence: candidate stayed isolated
+  through audit/correction and landing began only after the owner's «вливай» command on 07.09.2026.
 
 ## 9. File scope реализации
 
@@ -401,19 +413,29 @@ FullCalendar Premium и DayPilot Lite на одном и том же сущес�
 
 ## 10. Definition of Done текущего candidate до landing
 
-- [ ] Solo не видит Team/admin mode и получает целевые Settings и три Schedule tabs.
-- [ ] Clinic specialist не видит clinic catalog/settings/package templates и работает только со своим
-  расписанием; два mutation-permissions enforce read-only сервером и UI.
-- [ ] Owner/admin получает отдельный management mode; management-only участник не попадает в doctor UI.
-- [ ] Clinic services, branches, specialist profiles, packages, online booking, payments and organization settings
-  имеют по одному writer path в management mode.
-- [ ] Specialist description редактируется из одного specialist source в правильном solo/clinic context.
-- [ ] Doctor routes в clinic composition всегда ограничены own scope; management authority не достижима через
-  прямой doctor URL.
-- [ ] Branch timezone picker восстанавливает поиск по offset, UTC hint и русские города без второй реализации.
-- [ ] Worker checks и независимый audit завершены; audit findings исправлены тем же candidate workstream.
-- [ ] Candidate закоммичен в `wt/*`, не приземлён и не подвергался живой визуальной приёмке агентом.
-- [ ] M5 явно остаётся незавершённым owner-blocked этапом и не подменён другим календарём.
+- [x] Solo не видит Team/admin mode и получает целевые Settings и три Schedule tabs. Evidence: UI audit findings
+  closed by `48a1a13c1`, lead verdict «убито 2 / непойманных 0».
+- [x] Clinic specialist не видит clinic catalog/settings/package templates и работает только со своим
+  расписанием; два mutation-permissions enforce read-only сервером и UI. Evidence: retained scope oracle `9/9`
+  PASS and accepted UI correction across global/Today/patient-card/encounter creation entries.
+- [x] Owner/admin получает отдельный management mode; management-only участник не попадает в doctor UI. Evidence:
+  composition-gated management loader/mode switch and accepted route scope oracle.
+- [x] Clinic services, branches, specialist profiles, packages, online booking, payments and organization settings
+  имеют по одному writer path в management mode. Evidence: accepted `ManagementBookingSections` reuse of existing
+  writers; no copied booking/settings engine.
+- [x] Specialist description редактируется из одного specialist source в правильном solo/clinic context. Evidence:
+  accepted reuse of `BookingSoloSpecialistsSection` in solo and management contexts.
+- [x] Doctor routes в clinic composition всегда ограничены own scope; management authority не достижима через
+  прямой doctor URL. Evidence: independently fault-injected route/scope oracle, `9/9` PASS after correction and on
+  the integrated tree.
+- [x] Branch timezone picker восстанавливает поиск по offset, UTC hint и русские города без второй реализации.
+  Evidence: audit confirmed the shared picker/data path; candidate changes only doctor-control geometry.
+- [x] Worker checks и независимый audit завершены; audit findings исправлены тем же candidate workstream. Evidence:
+  audit commits `39271e811` / `8fee45039`, accepted correction `48a1a13c1`, integrated typecheck and `9/9` oracle.
+- [x] Candidate закоммичен в `wt/*`, не приземлён и не подвергался живой визуальной приёмке агентом. Evidence:
+  candidate `48a1a13c1` remained isolated until the owner's 07.09.2026 landing command; no agent live walkthrough.
+- [x] M5 явно остаётся незавершённым owner-deferred этапом и не подменён другим календарём. Evidence: §6.2 and
+  M5 remain open; no package dependency or management appointment implementation was added.
 
 ## 11. Landing и owner walkthrough
 

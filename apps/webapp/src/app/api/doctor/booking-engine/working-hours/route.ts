@@ -6,6 +6,7 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 import { resolveDoctorOwnSpecialistId } from '../_resolveDoctorSpecialistId';
+import { canMutateOwnAvailability } from '../_resolveDoctorAppointmentAccess';
 
 // Doctor-self-scoped weekly schedule endpoint. The server resolves
 // that specialist and FORCES it on every read/write — a client-supplied specialistId
@@ -95,6 +96,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  if (!canMutateOwnAvailability(gate.ctx)) {
+    return NextResponse.json(
+      { ok: false, error: 'availability_mutation_forbidden' },
+      { status: 403 },
+    );
+  }
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
   if (!entitlement.ok) return entitlement.response;
   const parsed = upsertBody.safeParse(await request.json().catch(() => null));
@@ -146,6 +153,12 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  if (!canMutateOwnAvailability(gate.ctx)) {
+    return NextResponse.json(
+      { ok: false, error: 'availability_mutation_forbidden' },
+      { status: 403 },
+    );
+  }
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
   if (!entitlement.ok) return entitlement.response;
   const parsed = patchBody.safeParse(await request.json().catch(() => null));
@@ -194,6 +207,12 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  if (!canMutateOwnAvailability(gate.ctx)) {
+    return NextResponse.json(
+      { ok: false, error: 'availability_mutation_forbidden' },
+      { status: 403 },
+    );
+  }
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
   if (!entitlement.ok) return entitlement.response;
   const id = new URL(request.url).searchParams.get('id');

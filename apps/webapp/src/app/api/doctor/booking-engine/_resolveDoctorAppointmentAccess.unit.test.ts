@@ -66,6 +66,8 @@ function context(
     specialistId: OWN_ID,
     canManageOrganization: canManageAllSpecialists,
     canManageAllSpecialists,
+    appointmentsManageOwn: true,
+    availabilityManageOwn: true,
   };
 }
 

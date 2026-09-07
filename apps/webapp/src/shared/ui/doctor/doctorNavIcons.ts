@@ -42,6 +42,7 @@ export function getDoctorMenuIcon(id: string): ElementType | null {
       return Users;
     case 'schedule':
     case 'admin-booking':
+    case 'online-booking':
       return Calendar;
     case 'communications':
       return MessageCircle;
@@ -62,6 +63,19 @@ export function getDoctorMenuIcon(id: string): ElementType | null {
     case 'settings':
     case 'admin-app-settings':
       return Settings;
+    case 'team':
+    case 'members':
+    case 'specialists':
+      return Users;
+    case 'catalog':
+    case 'services':
+      return BookOpen;
+    case 'locations':
+      return Building2;
+    case 'packages':
+      return Wallet;
+    case 'billing':
+      return Wallet;
     case 'system':
       return Server;
     case 'account-security':

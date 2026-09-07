@@ -3,13 +3,22 @@ import { staffPurgeCancelledAppointment } from '@/app-layer/booking/staffPurgeCa
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
-import { resolveDoctorAppointmentAccess } from '../../../_resolveDoctorAppointmentAccess';
+import {
+  canMutateOwnAppointments,
+  resolveDoctorAppointmentAccess,
+} from '../../../_resolveDoctorAppointmentAccess';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function POST(_request: Request, context: RouteContext) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  if (!canMutateOwnAppointments(gate.ctx)) {
+    return NextResponse.json(
+      { ok: false, error: 'appointment_mutation_forbidden' },
+      { status: 403 },
+    );
+  }
   const { id: appointmentId } = await context.params;
   const appointment = await resolveDoctorAppointmentAccess(gate.ctx, appointmentId, 'own');
   if (!appointment) {

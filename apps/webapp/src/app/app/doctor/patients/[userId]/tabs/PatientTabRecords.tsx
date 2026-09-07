@@ -238,6 +238,7 @@ type Props = {
   onOpenMembershipConfiguration?: () => void;
   displayIana?: string;
   encountersEnabled?: boolean;
+  appointmentsManageOwn?: boolean;
 };
 
 export function PatientTabRecords({
@@ -254,6 +255,7 @@ export function PatientTabRecords({
   onOpenMembershipConfiguration,
   displayIana = 'Europe/Moscow',
   encountersEnabled = true,
+  appointmentsManageOwn = true,
 }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
   const [highlightedPackageId, setHighlightedPackageId] = useState<string | null>(null);
@@ -440,9 +442,13 @@ export function PatientTabRecords({
             hintClassName={cn(doctorMetaTextClass, 'text-primary')}
             valuePlacement="side-center"
             onClick={recordsCount > 0 ? () => setVisitsModalOpen(true) : undefined}
-            actionIcon={<CalendarPlus className="size-5" aria-hidden />}
-            actionLabel="Добавить запись"
-            onActionClick={() => setNewAppointmentModalOpen(true)}
+            actionIcon={
+              appointmentsManageOwn ? <CalendarPlus className="size-5" aria-hidden /> : undefined
+            }
+            actionLabel={appointmentsManageOwn ? 'Добавить запись' : undefined}
+            onActionClick={
+              appointmentsManageOwn ? () => setNewAppointmentModalOpen(true) : undefined
+            }
           />
           <DoctorStatCard
             id="patient-overview-membership"
@@ -467,23 +473,26 @@ export function PatientTabRecords({
           />
         </div>
 
-        <DoctorNewAppointmentModal
-          open={newAppointmentModalOpen}
-          onClose={() => setNewAppointmentModalOpen(false)}
-          patient={{
-            id: header?.identity.userId ?? userId,
-            displayName: header?.identity.displayName ?? '',
-            firstName: header?.identity.firstName ?? null,
-            lastName: header?.identity.lastName ?? null,
-            patronymic: header?.identity.patronymic ?? null,
-            phone: header?.identity.phone ?? null,
-            email: header?.identity.email ?? null,
-          }}
-          patientOnSupport={header?.support.isOnSupport === true}
-          patientVariant="context"
-          fallbackTimeZone={displayIana}
-          onChanged={() => setAppointmentsRefreshToken((value) => value + 1)}
-        />
+        {appointmentsManageOwn ? (
+          <DoctorNewAppointmentModal
+            open={newAppointmentModalOpen}
+            onClose={() => setNewAppointmentModalOpen(false)}
+            patient={{
+              id: header?.identity.userId ?? userId,
+              displayName: header?.identity.displayName ?? '',
+              firstName: header?.identity.firstName ?? null,
+              lastName: header?.identity.lastName ?? null,
+              patronymic: header?.identity.patronymic ?? null,
+              phone: header?.identity.phone ?? null,
+              email: header?.identity.email ?? null,
+            }}
+            patientOnSupport={header?.support.isOnSupport === true}
+            patientVariant="context"
+            fallbackTimeZone={displayIana}
+            appointmentsManageOwn={appointmentsManageOwn}
+            onChanged={() => setAppointmentsRefreshToken((value) => value + 1)}
+          />
+        ) : null}
 
         <DoctorModal
           open={visitsModalOpen}
@@ -526,16 +535,18 @@ export function PatientTabRecords({
               >
                 <FunnelX className="size-4" aria-hidden />
               </Button>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="text-primary hover:text-primary"
-                aria-label="Добавить запись"
-                onClick={() => setNewAppointmentModalOpen(true)}
-              >
-                <CalendarPlus className="size-5" aria-hidden />
-              </Button>
+              {appointmentsManageOwn ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="text-primary hover:text-primary"
+                  aria-label="Добавить запись"
+                  onClick={() => setNewAppointmentModalOpen(true)}
+                >
+                  <CalendarPlus className="size-5" aria-hidden />
+                </Button>
+              ) : null}
             </span>
           </DoctorModalSummaryBar>
           {isLoading ? (

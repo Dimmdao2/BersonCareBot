@@ -63,6 +63,7 @@ export function PatientEncounterStartModal({
   displayIana,
   todayIso,
   initialAppointmentId,
+  appointmentsManageOwn = true,
   onClose,
 }: {
   open: boolean;
@@ -71,6 +72,7 @@ export function PatientEncounterStartModal({
   displayIana: string;
   todayIso: string;
   initialAppointmentId: string | null;
+  appointmentsManageOwn?: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -159,7 +161,10 @@ export function PatientEncounterStartModal({
     phone: header.identity.phone,
     email: header.identity.email,
   };
-  const selectedModeLabel = MODE_OPTIONS.find((option) => option.value === mode)?.label;
+  const modeOptions = appointmentsManageOwn
+    ? MODE_OPTIONS
+    : MODE_OPTIONS.filter((option) => option.value !== 'create');
+  const selectedModeLabel = modeOptions.find((option) => option.value === mode)?.label;
 
   const openEncounter = (appointmentId?: string) => {
     const params = new URLSearchParams();
@@ -178,7 +183,9 @@ export function PatientEncounterStartModal({
         <Button
           type="button"
           disabled={mode === 'select' && !selectedAppointmentId}
-          onClick={() => openEncounter(mode === 'select' ? selectedAppointmentId ?? undefined : undefined)}
+          onClick={() =>
+            openEncounter(mode === 'select' ? (selectedAppointmentId ?? undefined) : undefined)
+          }
         >
           Начать приём
         </Button>
@@ -207,7 +214,7 @@ export function PatientEncounterStartModal({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {MODE_OPTIONS.map((option) => (
+              {modeOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
@@ -256,11 +263,12 @@ export function PatientEncounterStartModal({
             ) : null}
           </div>
         )
-      ) : mode === 'create' ? (
+      ) : mode === 'create' && appointmentsManageOwn ? (
         <DoctorAppointmentCreatePanel
           active={open}
           patient={patient}
           fallbackTimeZone={displayIana}
+          appointmentsManageOwn={appointmentsManageOwn}
           onClose={onClose}
           onCreated={openEncounter}
         />

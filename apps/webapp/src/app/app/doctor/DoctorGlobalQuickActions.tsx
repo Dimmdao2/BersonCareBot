@@ -12,25 +12,29 @@ import { DoctorNewAppointmentModal } from './calendar/DoctorNewAppointmentModal'
 
 export function DoctorGlobalQuickActions({
   patientSingularLabel,
+  appointmentsManageOwn,
 }: {
   patientSingularLabel: string;
+  appointmentsManageOwn: boolean;
 }) {
   const [appointmentOpen, setAppointmentOpen] = useState(false);
 
   return (
     <>
       <div className="flex items-center">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className={DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS}
-          aria-label="Новая запись"
-          title="Новая запись"
-          onClick={() => setAppointmentOpen(true)}
-        >
-          <CalendarPlus className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-        </Button>
+        {appointmentsManageOwn ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS}
+            aria-label="Новая запись"
+            title="Новая запись"
+            onClick={() => setAppointmentOpen(true)}
+          >
+            <CalendarPlus className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+          </Button>
+        ) : null}
         <DoctorNewClientAction
           patientSingularLabel={patientSingularLabel}
           className={DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS}
@@ -43,7 +47,13 @@ export function DoctorGlobalQuickActions({
         />
       </div>
 
-      <DoctorNewAppointmentModal open={appointmentOpen} onClose={() => setAppointmentOpen(false)} />
+      {appointmentsManageOwn ? (
+        <DoctorNewAppointmentModal
+          open={appointmentOpen}
+          onClose={() => setAppointmentOpen(false)}
+          appointmentsManageOwn={appointmentsManageOwn}
+        />
+      ) : null}
     </>
   );
 }
