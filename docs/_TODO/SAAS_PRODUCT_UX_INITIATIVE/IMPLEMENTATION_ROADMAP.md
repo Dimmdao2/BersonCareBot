@@ -792,8 +792,11 @@ public booking этой organization продолжает работать.
       Доказательство: product `ba3152029`, independent audit/oracles `50c993146`; `4 files / 28 tests`, пять из
       пяти fault injections, webapp typecheck, scoped ESLint, architecture checks и isolated DEV desktop/mobile
       matrix `medical_record × encounters` PASS; OFF→ON вернул ту же историю приёмов.
-- [ ] **C3M-08 — rehabilitation slice.** Скрыть/запретить ЛФК/program/catalog paths и зависимые comment/media
-      surfaces.
+- [x] **C3M-08 — rehabilitation slice.** Скрыть/запретить ЛФК/program/catalog paths и зависимые comment/media
+      surfaces. Доказательство: product `a0f5641df` + `d77f7dbaf`, independent audit/oracles `7c80e59e3`,
+      исправление patient-principal path `2b2f7bb42`, land `f87c2b8d1`; canonical DEV preflight/execute PASS,
+      patient-principal DB oracle `1/1` PASS и live DEV OFF desktop/mobile → кабинет `200`, упражнения `404`,
+      ссылка отсутствует; OFF→ON → упражнения `200`, ссылка вернулась; исходное `rehabilitation=true` восстановлено.
 - [ ] **C3M-09 — communications slice.** Фильтровать Communications tabs и default tab; gate chat ensure/read/write,
       unread-count, snapshots, payment-link-to-chat, comments/media and mailing read/write paths; отключить
       соответствующие notifications/jobs, не только кнопки.

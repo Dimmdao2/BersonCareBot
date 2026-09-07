@@ -9,8 +9,8 @@ import { logger } from '@/app-layer/logging/logger';
  * lookup behind the binding port; this route intentionally reveals no tenant state.
  *
  * This endpoint answers exactly one question: "are we willing to request a TLS certificate for this
- * hostname". It never probes DNS and never claims a certificate exists — that boundary belongs to a
- * later verifier/edge integration, not this request path (reopening ruling, #787).
+ * hostname". It never probes DNS and never claims a certificate exists — the scheduled/owner-triggered
+ * readiness verifier owns those checks, not this request path.
  *
  */
 export async function GET(request: Request) {
