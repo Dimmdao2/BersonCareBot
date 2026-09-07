@@ -10,7 +10,6 @@ import {
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
-import { publicBookPaths } from '@/shared/publicBook/paths';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
@@ -27,7 +26,7 @@ import { Input } from '@/shared/ui/doctor/primitives/input';
 
 type ClinicSlugSectionProps = {
   initialState: OrganizationSlugManagementState;
-  appBaseUrl: string;
+  patientOrigin: string;
 };
 
 type SlugApiResponse =
@@ -63,7 +62,7 @@ export function clinicSlugErrorMessage(error: SlugApiErrorCode) {
   }
 }
 
-export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectionProps) {
+export function ClinicSlugSection({ initialState, patientOrigin }: ClinicSlugSectionProps) {
   const fieldId = useId();
   const confirmId = useId();
   const [state, setState] = useState(initialState);
@@ -76,9 +75,9 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
   const publicUrl = useMemo(
     () =>
       state.currentSlug
-        ? `${appBaseUrl.replace(/\/$/, '')}${publicBookPaths.forSlug(state.currentSlug)}`
+        ? new URL(`/book/${encodeURIComponent(state.currentSlug)}`, patientOrigin).toString()
         : null,
-    [appBaseUrl, state.currentSlug],
+    [patientOrigin, state.currentSlug],
   );
 
   async function saveSlug(irreversibleRenameConfirmed: boolean) {
@@ -170,62 +169,62 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
           ) : null}
 
           {state.selfRenameAllowed ? (
-          <Dialog
-            open={renameOpen}
-            onOpenChange={(open) => {
-              setRenameOpen(open);
-              setError(null);
-              if (!open) setConfirmed(false);
-            }}
-          >
-            <DialogTrigger
-              render={<Button type="button" size="sm" variant="outline" className="self-start" />}
+            <Dialog
+              open={renameOpen}
+              onOpenChange={(open) => {
+                setRenameOpen(open);
+                setError(null);
+                if (!open) setConfirmed(false);
+              }}
             >
-              Изменить адрес
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md" showCloseButton>
-              <DialogHeader>
-                <DialogTitle>Изменить адрес публичной записи</DialogTitle>
-                <DialogDescription>
-                  Старый адрес продолжит работать и навсегда останется за вашей клиникой — другой
-                  клинике он не достанется никогда. Самостоятельно адрес меняют один раз за всё
-                  время работы клиники: после этой смены любую следующую, включая возврат на
-                  прежний адрес, делает поддержка.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="flex flex-col gap-3">
-                {slugField}
-                <label className="flex items-start gap-2 text-sm" htmlFor={confirmId}>
-                  <Checkbox
-                    id={confirmId}
-                    checked={confirmed}
-                    onCheckedChange={(checked) => setConfirmed(checked === true)}
-                    disabled={pending}
-                    className="mt-0.5"
-                  />
-                  <span>
-                    Я понимаю: старый адрес останется за моей клиникой, а самостоятельная смена
-                    у клиники одна.
-                  </span>
-                </label>
-                {error ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {error}
-                  </p>
-                ) : null}
-                <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => void saveSlug(true)}
-                    disabled={pending || !confirmed}
-                  >
-                    {pending ? 'Сохранение…' : 'Переименовать'}
-                  </Button>
-                </DialogFooter>
-              </div>
-            </DialogContent>
-          </Dialog>
+              <DialogTrigger
+                render={<Button type="button" size="sm" variant="outline" className="self-start" />}
+              >
+                Изменить адрес
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md" showCloseButton>
+                <DialogHeader>
+                  <DialogTitle>Изменить адрес публичной записи</DialogTitle>
+                  <DialogDescription>
+                    Старый адрес продолжит работать и навсегда останется за вашей клиникой — другой
+                    клинике он не достанется никогда. Самостоятельно адрес меняют один раз за всё
+                    время работы клиники: после этой смены любую следующую, включая возврат на
+                    прежний адрес, делает поддержка.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col gap-3">
+                  {slugField}
+                  <label className="flex items-start gap-2 text-sm" htmlFor={confirmId}>
+                    <Checkbox
+                      id={confirmId}
+                      checked={confirmed}
+                      onCheckedChange={(checked) => setConfirmed(checked === true)}
+                      disabled={pending}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      Я понимаю: старый адрес останется за моей клиникой, а самостоятельная смена у
+                      клиники одна.
+                    </span>
+                  </label>
+                  {error ? (
+                    <p role="alert" className="text-sm text-destructive">
+                      {error}
+                    </p>
+                  ) : null}
+                  <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void saveSlug(true)}
+                      disabled={pending || !confirmed}
+                    >
+                      {pending ? 'Сохранение…' : 'Переименовать'}
+                    </Button>
+                  </DialogFooter>
+                </div>
+              </DialogContent>
+            </Dialog>
           ) : (
             // Владелец 19.08: «уведомлять об этом специально нигде не надо» — поэтому здесь ровно
             // одна строка на месте кнопки, без баннера, письма и записи в журнале кабинета.
