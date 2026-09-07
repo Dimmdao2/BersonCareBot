@@ -334,7 +334,11 @@ test('migrate-dev preflight stops on rollback validation failure without execute
   assert.match(calls, /migrate-local\.mjs.*--rollback-only/su);
   assert.doesNotMatch(
     calls,
-    /migrate-integrator-local|reconcile-access|update-dev-port-context-env|--shared-role-baseline/u,
+    /migrate-integrator-local|reconcile-access|update-dev-port-context-env/u,
+  );
+  assert.ok(
+    calls.indexOf('--shared-role-baseline') < calls.indexOf('--rollback-only'),
+    'the declaration-generated shared-role baseline must precede owner-marked rollback-only DDL',
   );
 });
 

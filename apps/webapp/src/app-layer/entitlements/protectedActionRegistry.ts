@@ -1056,6 +1056,16 @@ export const PROTECTED_ACTION_MAPPINGS = [
       'deps.organizationMembership.listOrganizationMembers/deps.clinicSeats.getSeatStatus',
   },
   {
+    id: 'clinic-team.members.permissions.update',
+    mechanic: 'clinic_team',
+    file: 'src/app/api/clinic/members/route.ts',
+    exportName: 'PATCH',
+    method: 'PATCH',
+    authContext: 'requireClinicManagementApiContext',
+    guard: 'requireEntitlementForRead',
+    serviceBoundary: 'deps.organizationMembership.getMemberByOrganization/setClinicalPermissions',
+  },
+  {
     id: 'branding.save',
     mechanic: 'branding',
     file: 'src/app/app/settings/brandingActions.ts',
@@ -1305,6 +1315,16 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
   {
     file: 'src/app/api/doctor/clients/[userId]/symptom-trackings/route.ts',
     exportName: 'POST',
+    reason: 'critical mechanic (patient_diaries) — never tariff-gated',
+  },
+  {
+    file: 'src/app/api/doctor/clients/[userId]/symptom-trackings/route.ts',
+    exportName: 'GET',
+    reason: 'critical mechanic (patient_diaries) — never tariff-gated',
+  },
+  {
+    file: 'src/app/api/doctor/clients/[userId]/symptom-trackings/route.ts',
+    exportName: 'PATCH',
     reason: 'critical mechanic (patient_diaries) — never tariff-gated',
   },
   {
