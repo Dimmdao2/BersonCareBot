@@ -56,11 +56,9 @@ export function createContentCatalogResolver(options: {
               imageUrl: row.imageUrl ?? undefined,
             };
             /*
-             * Всё, что не файл медиатеки (`api`), — внешняя ссылка. Перечислять здесь хосты
-             * поимённо нельзя: `video_type` теперь называет хост (`youtube`/`rutube`/`vk`/
-             * `vimeo`), а исторические строки несут ещё и `url`. Дверь показа одна и allowlist
-             * держит она — `toHostedVideoEmbedSrc`; ссылка, которую та не признала, просто не
-             * превратится в iframe.
+             * Всё, что не файл медиатеки (`api`), — внешняя ссылка. Дверь показа одна и
+             * allowlist держит она — `toHostedVideoEmbedSrc`; ссылка, которую та не признала,
+             * просто не превратится в iframe.
              */
             if (row.videoUrl && row.videoType !== 'api') {
               item.videoSource = { type: 'url', url: row.videoUrl };

@@ -152,6 +152,29 @@ describe('saveContentSection entitlement boundary', () => {
     );
   });
 
+  it('stores an external CMS video as a URL without persisting its provider', async () => {
+    const data = pageFormData();
+    data.set('video_url', 'https://youtu.be/dQw4w9WgXcQ?t=30');
+    const upsert = vi.fn().mockResolvedValue('page-id');
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: {
+        resolveMechanicAccess: async () => ({
+          mechanic: 'cms_pages', state: 'full_access', policySource: 'system', warning: null,
+        }),
+      },
+      contentSections: { getBySlug: async () => ({ systemParentCode: null }) },
+      contentPages: { listAll: async () => [], upsert },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    await expect(saveContentPage(null, data)).resolves.toEqual({ ok: true });
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        videoType: 'url',
+        videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      }),
+    );
+  });
+
   it('does not attach an overlong library video through the CMS Markdown editor', async () => {
     const data = pageFormData();
     data.set(
