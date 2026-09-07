@@ -288,6 +288,7 @@ export function AuthFlowV2({
   const [passwordAltchaGeneration, setPasswordAltchaGeneration] = useState(0);
   const [staffFactorCode, setStaffFactorCode] = useState('');
   const [staffFactorUseRecovery, setStaffFactorUseRecovery] = useState(false);
+  const [staffFactorMethod, setStaffFactorMethod] = useState<'totp' | 'email'>('totp');
   const [emailRegPassword, setEmailRegPassword] = useState('');
   const [emailAuthMode, setEmailAuthMode] = useState<
     | 'login'
@@ -348,7 +349,7 @@ export function AuthFlowV2({
   const passkeyEnabled =
     surfaceAllows('passkey') && prefetchedAuthConfig?.passkeyEnabled === true;
   const patientRegistrationEnabled = roleLoginPortal !== 'doctor' && roleLoginPortal !== 'admin';
-  const specialistSignupEntryEnabled = roleLoginPortal == null;
+  const specialistSignupEntryEnabled = roleLoginPortal !== 'patient' && roleLoginPortal !== 'admin';
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -799,9 +800,10 @@ export function AuthFlowV2({
     }
   };
 
-  const openStaffFactorMode = () => {
+  const openStaffFactorMode = (method: 'totp' | 'email' = 'totp') => {
     setEmailLoginPassword('');
     setStaffFactorCode('');
+    setStaffFactorMethod(method);
     setStaffFactorUseRecovery(false);
     setEmailAuthMode('staff_factor');
   };
@@ -842,6 +844,7 @@ export function AuthFlowV2({
         redirectTo?: string;
         role?: 'client' | 'doctor' | 'admin';
         factorRequired?: boolean;
+        factorMethod?: 'totp' | 'email';
         message?: string;
       }>('/api/auth/passkey/login/verify', {
         method: 'POST',
@@ -889,6 +892,7 @@ export function AuthFlowV2({
         redirectTo?: string;
         role?: 'client' | 'doctor' | 'admin';
         factorRequired?: boolean;
+        factorMethod?: 'totp' | 'email';
         error?: string;
         message?: string;
         captchaRequired?: boolean;
@@ -908,7 +912,7 @@ export function AuthFlowV2({
       }
       const { response: res, data } = loginResult;
       if (data.ok && data.factorRequired) {
-        openStaffFactorMode();
+        openStaffFactorMode(data.factorMethod);
         return;
       }
       if (data.ok && data.redirectTo) {
@@ -1737,7 +1741,9 @@ export function AuthFlowV2({
                 <p className={authStepMutedParagraphClass}>
                   {staffFactorUseRecovery
                     ? 'Введите один из сохранённых резервных кодов.'
-                    : 'Введите код из приложения-аутентификатора.'}
+                    : staffFactorMethod === 'email'
+                      ? 'Введите код, отправленный на подтверждённый email.'
+                      : 'Введите код из приложения-аутентификатора.'}
                 </p>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="auth-staff-factor-code" className={authFormFieldLabelClass}>
@@ -1762,20 +1768,22 @@ export function AuthFlowV2({
                 >
                   Продолжить
                 </Button>
-                <Button
-                  type="button"
-                  variant="link"
-                  className={authLinkButtonClass}
-                  disabled={loading}
-                  onClick={() => {
-                    setStaffFactorUseRecovery((current) => !current);
-                    setStaffFactorCode('');
-                  }}
-                >
-                  {staffFactorUseRecovery
-                    ? 'Использовать приложение'
-                    : 'Использовать резервный код'}
-                </Button>
+                {staffFactorMethod === 'totp' ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className={authLinkButtonClass}
+                    disabled={loading}
+                    onClick={() => {
+                      setStaffFactorUseRecovery((current) => !current);
+                      setStaffFactorCode('');
+                    }}
+                  >
+                    {staffFactorUseRecovery
+                      ? 'Использовать приложение'
+                      : 'Использовать резервный код'}
+                  </Button>
+                ) : null}
                 {supportContactHref ? (
                   <SupportContactLink
                     href={

@@ -165,12 +165,15 @@ export function AuthBootstrap({
   const rawToken = searchParams.get('t') ?? searchParams.get('token');
   const nextParam = searchParams.get('next');
   const initialSpecialistSignupView =
-    roleLoginPortal == null &&
+    roleLoginPortal !== 'patient' &&
+    roleLoginPortal !== 'admin' &&
     (searchParams.get('intent') === 'specialist' || searchParams.get('devView') === 'registration')
       ? 'registration'
       : undefined;
   const specialistSignupRequested =
-    roleLoginPortal == null && searchParams.get('intent') === 'specialist';
+    roleLoginPortal !== 'patient' &&
+    roleLoginPortal !== 'admin' &&
+    searchParams.get('intent') === 'specialist';
   const debug = searchParams.get('debug') === '1';
   const [effectiveEntryClassification, setEffectiveEntryClassification] =
     useState<UnauthenticatedAppEntryClassification>(entryClassification);

@@ -17,8 +17,8 @@ const portalCopy: Record<
     className: 'border-sky-200 bg-sky-50/70',
   },
   patient: {
-    title: 'Вход для пациентов',
-    description: 'Продолжите в приложении пациента выбранной клиники.',
+    title: 'Войти в личный кабинет',
+    description: 'Продолжите в приложении выбранной клиники.',
     alternateLabel: 'Открыть кабинет специалистов',
     className: 'border-emerald-200 bg-emerald-50/70',
   },
