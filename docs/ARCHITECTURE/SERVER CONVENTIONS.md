@@ -195,16 +195,6 @@ bash tools/deploy-prod-from-dev.sh <ref>    # выложить конкретн�
 Скрипт доставляет коммит в репозиторий прода и запускает там штатный конвейер; своей логики выкладки не
 несёт. На самом хосте те же операции доступны как `deploy-prod`, `rollback-prod`, `prod-status`.
 
-**Firewall и docker: почему в правилах не `flush ruleset`.** Docker пишет свои цепочки через iptables-nft
-в тот же движок nftables, поэтому `flush ruleset` в начале `/etc/nftables.conf` уносил бы их вместе с нашими
-правилами — а восстанавливает их docker только при старте демона. Симптом при этом не похож на причину:
-сборка образа падает на `E: Unable to locate package ffmpeg`, а `docker network create` — на
-`iptables: No chain/target/match by that name`, то есть выглядит как сломанный apt или пропавший интернет.
-Поэтому `deploy/host/harden-network-and-ssh.sh` сносит **только свою таблицу** (`table inet filter` +
-`delete table inet filter` — пара идемпотентна и на чистом хосте), и применение firewall больше не задевает
-docker. Проверять после любой правки правил — изнутри контейнера, а не с хоста:
-`docker run --rm alpine wget -qO/dev/null https://deb.debian.org/`.
-
 **Ключ доступа:** `~/.ssh/bcb_prod_build_20260817` (root). **Каталоги:** `/opt/bersoncarebot/{src,git,env,pipeline,state,releases}`,
 env-файлы `env/{api.prod,webapp.prod}`, пароли рантайм-логинов — `env/reconcile.env` (600, root).
 
