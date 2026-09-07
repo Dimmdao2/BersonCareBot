@@ -21,6 +21,7 @@ import {
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 
 type Props = {
   warmup: ResolvedPatientHomeBlockItem | null;
@@ -64,6 +65,7 @@ export function PatientHomeDailyWarmupCard({
   warmupRecentlyCompletedHero = false,
   warmupCooldownCaption = null,
 }: Props) {
+  const { patientGenitive } = usePatientTerms();
   const page = warmup?.page;
 
   if (!page) {
@@ -150,7 +152,7 @@ export function PatientHomeDailyWarmupCard({
                   </p>
                 ) : !personalTierOk ? (
                   <p className={patientHomeCardSubtitleClampXsClass}>
-                    Активируйте профиль пациента, чтобы отмечать прогресс выполнения.
+                    Активируйте профиль {patientGenitive}, чтобы отмечать прогресс выполнения.
                   </p>
                 ) : null}
               </div>

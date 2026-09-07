@@ -14,6 +14,14 @@ export type PatientTerms = {
   patientGenPlural: string;
   /** Именительный падеж ед.ч.: «Пациент» или «Клиент». */
   patientSingularLabel: string;
+  /** Именительный падеж ед.ч. со строчной буквы: «пациент» или «клиент». */
+  patientSingularLower: string;
+  /** Родительный падеж ед.ч.: «пациента» или «клиента». */
+  patientGenitive: string;
+  /** Дательный падеж ед.ч.: «пациенту» или «клиенту». */
+  patientDative: string;
+  /** Творительный падеж ед.ч.: «пациентом» или «клиентом». */
+  patientInstrumental: string;
 };
 
 export type DoctorClientTerms = PatientTerms & {
@@ -50,22 +58,34 @@ export function resolveSupportGroupLabel(value: unknown): 'Избранные' |
 /**
  * Резолвит {именительный мн.ч., родительный мн.ч., именительный ед.ч.} из значения настройки `patient_label`.
  *
- * @param singular — необработанное значение из БД (например «пациент», «клиент», «Клиент»).
- *                   Если не передано или `undefined/null`, используется дефолт «пациент».
+ * @param value — необработанное значение либо стандартный `{ value }` envelope из БД.
+ *                Если не передано или не распознано, используется дефолт «пациент».
  */
-export function resolvePatientTerms(singular?: string | null): PatientTerms {
-  const normalized = (singular ?? 'пациент').trim().toLowerCase();
+export function resolvePatientTerms(value?: unknown): PatientTerms {
+  const singular =
+    value !== null && typeof value === 'object' && 'value' in value
+      ? (value as { value?: unknown }).value
+      : value;
+  const normalized = normalizePatientLabel(singular);
   if (normalized === 'клиент') {
     return {
       patientPluralLabel: 'Клиенты',
       patientGenPlural: 'клиентов',
       patientSingularLabel: 'Клиент',
+      patientSingularLower: 'клиент',
+      patientGenitive: 'клиента',
+      patientDative: 'клиенту',
+      patientInstrumental: 'клиентом',
     };
   }
   return {
     patientPluralLabel: 'Пациенты',
     patientGenPlural: 'пациентов',
     patientSingularLabel: 'Пациент',
+    patientSingularLower: 'пациент',
+    patientGenitive: 'пациента',
+    patientDative: 'пациенту',
+    patientInstrumental: 'пациентом',
   };
 }
 

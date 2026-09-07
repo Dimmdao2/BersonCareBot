@@ -19,6 +19,7 @@ export function PatientClientLayout({
   children,
   organizationContext,
   workspaceModules,
+  patientLabel,
   rememberOrganizationOnMount = false,
   authChannelPolicy,
   materialRatingsEnabled,
@@ -29,6 +30,7 @@ export function PatientClientLayout({
     organizations: PatientOrganizationSummary[];
   } | null;
   workspaceModules?: WorkspaceModuleEffective;
+  patientLabel?: unknown;
   rememberOrganizationOnMount?: boolean;
   authChannelPolicy: AuthChannelUiPolicy;
   materialRatingsEnabled: boolean;
@@ -38,6 +40,7 @@ export function PatientClientLayout({
       organization={organizationContext.organization}
       organizations={organizationContext.organizations}
       workspaceModules={workspaceModules}
+      patientLabel={patientLabel}
       rememberOrganizationOnMount={rememberOrganizationOnMount}
     >
       {children}

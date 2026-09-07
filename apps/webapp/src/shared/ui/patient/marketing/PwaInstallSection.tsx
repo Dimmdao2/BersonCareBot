@@ -6,6 +6,7 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
 import { isStandalonePwa } from '@/shared/lib/webPush/pwaDisplay';
 import { useSurfaceName } from '@/shared/ui/PlatformProvider';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 
 /** Chromium install prompt (не все конфигурации `tsc` подтягивают тип из DOM lib). */
 type BeforeInstallPromptEventLike = Event & {
@@ -32,6 +33,7 @@ function isLikelySafariNotChromium(): boolean {
 /** Блок установки PWA: Chrome (`beforeinstallprompt`), iOS (текст), без SW в Mini App. */
 export function PwaInstallSection() {
   const surfaceName = useSurfaceName();
+  const { patientGenitive } = usePatientTerms();
   const [mounted, setMounted] = useState(false);
   const [isIos, setIsIos] = useState(false);
   const [isSafari, setIsSafari] = useState(false);
@@ -106,7 +108,7 @@ export function PwaInstallSection() {
             Меню <strong>Поделиться</strong> → <strong>На экран «Домой»</strong> (в Safari шаги
             такие; в Chrome на iOS названия могут отличаться — ищите добавление на домашний экран).
           </p>
-          <p className="text-muted-foreground">После установки ярлык откроет кабинет пациента.</p>
+          <p className="text-muted-foreground">После установки ярлык откроет кабинет {patientGenitive}.</p>
         </div>
       ) : null}
 

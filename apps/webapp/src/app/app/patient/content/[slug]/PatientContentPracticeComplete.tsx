@@ -12,6 +12,7 @@ import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import type { PracticeSource } from '@/modules/patient-practice/types';
 import { cn } from '@/lib/utils';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import {
   patientButtonPrimaryClass,
   patientButtonSuccessClass,
@@ -37,6 +38,7 @@ export function PatientContentPracticeComplete({
   guest,
   needsActivation,
 }: Props) {
+  const { patientGenitive } = usePatientTerms();
   const router = useRouter();
   const isWarmup = practiceSource === 'daily_warmup';
   const warmupSubmittedRef = useRef(false);
@@ -80,7 +82,7 @@ export function PatientContentPracticeComplete({
       }
       if (res.status === 403 && data.error === 'patient_activation_required') {
         warmupPostGuardRef.current = false;
-        toast.error('Подтвердите профиль пациента, чтобы сохранять прогресс.');
+        toast.error(`Подтвердите профиль ${patientGenitive}, чтобы сохранять прогресс.`);
         return;
       }
       if (!res.ok || !data.ok || !data.id) {
@@ -159,7 +161,7 @@ export function PatientContentPracticeComplete({
       }
       if (res.status === 403 && data.error === 'patient_activation_required') {
         setPickedMoodScore(null);
-        toast.error('Подтвердите профиль пациента, чтобы сохранять прогресс.');
+        toast.error(`Подтвердите профиль ${patientGenitive}, чтобы сохранять прогресс.`);
         return;
       }
       if (!res.ok || !data.ok) {
@@ -213,7 +215,7 @@ export function PatientContentPracticeComplete({
     return (
       <section id="patient-content-practice-complete" className={patientCardClass}>
         <p className={patientMutedTextClass}>
-          Активируйте профиль пациента, чтобы отмечать прогресс.{' '}
+          Активируйте профиль {patientGenitive}, чтобы отмечать прогресс.{' '}
           <Link
             href={`${routePaths.bindPhone}?next=${encodeURIComponent(contentPath)}`}
             className={patientInlineLinkClass}

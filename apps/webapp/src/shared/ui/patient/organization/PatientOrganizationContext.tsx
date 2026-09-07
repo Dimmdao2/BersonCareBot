@@ -14,6 +14,7 @@ import { usePathname } from 'next/navigation';
 import { routePaths } from '@/app-layer/routes/paths';
 import type { PatientOrganizationSummary } from '@/modules/patient-organization/service';
 import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
+import { resolvePatientTerms, type PatientTerms } from '@/modules/system-settings/patientTerms';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import {
   Select,
@@ -30,6 +31,7 @@ export type PatientOrganizationClientContext = {
   switching: boolean;
   contextChangeNotice: boolean;
   workspaceModules: WorkspaceModuleEffective | null;
+  patientTerms: PatientTerms;
 };
 
 const Context = createContext<PatientOrganizationClientContext | null>(null);
@@ -55,11 +57,17 @@ export function usePatientOrganizationContext(): PatientOrganizationClientContex
   return useContext(Context);
 }
 
+/** Terms for the exact active organization; tenantless patient surfaces retain the medical default. */
+export function usePatientTerms(): PatientTerms {
+  return usePatientOrganizationContext()?.patientTerms ?? resolvePatientTerms();
+}
+
 export function PatientOrganizationContextProvider({
   organization,
   organizations,
   rememberOrganizationOnMount = false,
   workspaceModules = null,
+  patientLabel,
   checkContextChangeReceipt = true,
   navigate = replacePatientLocation,
   children,
@@ -68,6 +76,7 @@ export function PatientOrganizationContextProvider({
   organizations: PatientOrganizationSummary[];
   rememberOrganizationOnMount?: boolean;
   workspaceModules?: WorkspaceModuleEffective | null;
+  patientLabel?: unknown;
   checkContextChangeReceipt?: boolean;
   navigate?: PatientOrganizationNavigate;
   children: ReactNode;
@@ -116,6 +125,7 @@ export function PatientOrganizationContextProvider({
       switching,
       contextChangeNotice,
       workspaceModules,
+      patientTerms: resolvePatientTerms(patientLabel),
       async switchOrganization(organizationId) {
         if (switchingRef.current || organizationId === organization.organizationId) return;
         switchingRef.current = true;
@@ -135,7 +145,7 @@ export function PatientOrganizationContextProvider({
         }
       },
     }),
-    [contextChangeNotice, navigate, organization, organizations, switching, workspaceModules],
+    [contextChangeNotice, navigate, organization, organizations, patientLabel, switching, workspaceModules],
   );
 
   return (

@@ -9,6 +9,7 @@ import { Label } from '@/shared/ui/patient/primitives/label';
 import { SmsCodeForm } from '@/shared/ui/patient/auth/SmsCodeForm';
 import { cn } from '@/lib/utils';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 
 type Props = {
   phoneMasked: string | null;
@@ -18,6 +19,7 @@ type Props = {
  * Удаление всех дневниковых данных: явное согласие → код на телефон.
  */
 export function DiaryDataPurgeSection({ phoneMasked }: Props) {
+  const { patientGenitive } = usePatientTerms();
   const router = useRouter();
   const [step, setStep] = useState<'intro' | 'otp'>('intro');
   const [accepted, setAccepted] = useState(false);
@@ -70,7 +72,7 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
       {step === 'intro' ? (
         <>
           <p className={patientMutedTextClass}>
-            Будут удалены все отслеживания симптомов, записи и данные ЛФК. Профиль и карта клиента у
+            Будут удалены все отслеживания симптомов, записи и данные ЛФК. Профиль и карта {patientGenitive} у
             врача сохранятся.
           </p>
           <div className="flex items-start gap-3 text-sm">
