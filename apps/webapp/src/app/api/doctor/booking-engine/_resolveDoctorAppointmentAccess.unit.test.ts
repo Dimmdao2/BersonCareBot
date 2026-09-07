@@ -89,7 +89,7 @@ describe('resolveDoctorAppointmentAccess', () => {
   it('allows a clinic manager to read another current-clinic appointment', async () => {
     const other = appointment(OTHER_ID);
     await expect(
-      resolveDoctorAppointmentAccess(context(other, true), other.id, 'clinic'),
+      resolveDoctorAppointmentAccess(context(other, true), other.id, 'clinic', 'management'),
     ).resolves.toBe(other);
   });
 
@@ -115,7 +115,9 @@ describe('resolveDoctorCreateSpecialist', () => {
   });
 
   it('allows a clinic manager to target one validated active specialist', async () => {
-    await expect(resolveDoctorCreateSpecialist(context(null, true), OTHER_ID)).resolves.toEqual({
+    await expect(
+      resolveDoctorCreateSpecialist(context(null, true), OTHER_ID, 'management'),
+    ).resolves.toEqual({
       ok: true,
       specialistId: OTHER_ID,
     });
@@ -126,6 +128,7 @@ describe('resolveDoctorCreateSpecialist', () => {
       resolveDoctorCreateSpecialist(
         context(null, true),
         '10000000-0000-4000-8000-000000000099',
+        'management',
       ),
     ).resolves.toEqual({ ok: false, error: 'schedule_specialist_not_available' });
   });
