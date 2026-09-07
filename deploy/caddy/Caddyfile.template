@@ -1,0 +1,85 @@
+# Common Caddy edge for automatic custom-domain HTTPS (B7/B8/C5a).
+#
+# This file is validated and run only with the reproducible custom binary built by
+# deploy/caddy/build-caddy-edge.sh: Caddy v2.11.2 plus
+# github.com/heinwol/caddy-dns-regru v0.1.10. A stock apt Caddy does not contain
+# the REG.RU DNS module and is deliberately not a supported runtime.
+#
+# Caddy is the only public listener on 80/443. Nginx remains a loopback-only,
+# trusted downstream for the existing blue/green bcb_webapp upstream switch.
+
+(edge_common) {
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	reverse_proxy {$CADDY_UPSTREAM} {
+		# The downstream listener accepts only this Caddy process over loopback, so
+		# these are trusted edge assertions, not client-controlled proxy headers.
+		header_up Host {hostport}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Host {hostport}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+{
+	email {$CADDY_ACME_EMAIL}
+	acme_ca {$CADDY_ACME_CA:https://acme-v02.api.letsencrypt.org/directory}
+	storage file_system {
+		root {$CADDY_DATA_DIR:/opt/bersoncarebot/state/caddy}
+	}
+
+	# The built-in module syntax takes the endpoint as its sole argument. A
+	# connection error, timeout, redirect, or non-2xx response denies issuance.
+	on_demand_tls {
+		permission http {$CADDY_ASK_URL}
+	}
+
+	log default {
+		output file {$CADDY_DATA_DIR:/opt/bersoncarebot/state/caddy}/access.log {
+			roll_size 100mb
+			roll_keep 10
+		}
+		format json
+	}
+}
+
+# Literal B7: this single automatic DNS-01 certificate contains both the apex
+# and wildcard SAN. REG.RU credentials stay only in root-owned caddy.prod.
+therapygo.ru, *.therapygo.ru {
+	tls {
+		dns regru {
+			username {$CADDY_REGRU_USERNAME}
+			password {$CADDY_REGRU_PASSWORD}
+		}
+	}
+	import edge_common
+}
+
+# Other platform names use normal automatic HTTP-01/TLS-ALPN. Do not add a
+# clinic hostname here: app.bersoncare.ru and every clinic domain use the
+# approved on-demand route below.
+{$CADDY_PLATFORM_DOMAINS} {
+	import edge_common
+}
+
+# Arbitrary clinic domains only. The unavailable app permission endpoint is a
+# deny, so no certificate is issued until the API stream supplies it.
+:443 {
+	tls {
+		on_demand
+	}
+	import edge_common
+}
+
+:80 {
+	redir https://{host}{uri} permanent
+}
