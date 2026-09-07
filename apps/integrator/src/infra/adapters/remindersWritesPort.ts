@@ -5,12 +5,50 @@
  * public schema. The integrator only supplies callback facts under the already-installed
  * messenger principal and turns their ready result into channel UX.
  */
+import { createHmac } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { DbPort, RemindersWebappWritesPort } from '../../kernel/contracts/index.js';
+import { env, integratorWebhookSecret } from '../../config/env.js';
 import { runIntegratorSql } from '../db/runIntegratorSql.js';
 
 function failure(error: unknown): { ok: false; error: string } {
   return { ok: false, error: error instanceof Error ? error.message : String(error) };
+}
+
+async function resolvePatientPublicOriginFromWebapp(input: {
+  platformUserId: string;
+  organizationId: string;
+}): Promise<string | null> {
+  const baseUrl = env.APP_BASE_URL;
+  const secret = integratorWebhookSecret();
+  if (!baseUrl || !secret) return null;
+
+  const pathname = '/api/integrator/reminders/patient-origin';
+  const search = new URLSearchParams(input).toString();
+  const canonicalGet = `GET ${pathname}?${search}`;
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const signature = createHmac('sha256', secret)
+    .update(`${timestamp}.${canonicalGet}`)
+    .digest('base64url');
+
+  try {
+    const response = await fetch(`${baseUrl.replace(/\/$/, '')}${pathname}?${search}`, {
+      method: 'GET',
+      headers: {
+        'X-Bersoncare-Timestamp': timestamp,
+        'X-Bersoncare-Signature': signature,
+      },
+    });
+    const data = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      patientPublicOrigin?: unknown;
+    };
+    if (!response.ok || data.ok !== true || typeof data.patientPublicOrigin !== 'string') return null;
+    const origin = new URL(data.patientPublicOrigin).origin;
+    return origin.startsWith('http://') || origin.startsWith('https://') ? origin : null;
+  } catch {
+    return null;
+  }
 }
 
 export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebappWritesPort {
@@ -98,9 +136,13 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
 
     async postMessengerTopicDisable(input) {
       try {
-        const result = await runIntegratorSql<{ persisted: boolean; paragraphs: unknown }>(
+        const result = await runIntegratorSql<{
+          persisted: boolean;
+          paragraphs: unknown;
+          organization_id: string | null;
+        }>(
           db,
-          sql`SELECT persisted, paragraphs
+          sql`SELECT persisted, paragraphs, organization_id::text AS organization_id
               FROM app.patient_disable_reminder_messenger_topic(
                 ${input.platformUserId}::uuid, ${input.occurrenceId}::text,
                 ${input.messengerChannel}::text
@@ -110,9 +152,18 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
         const paragraphs = Array.isArray(row?.paragraphs)
           ? row.paragraphs.filter((value): value is string => typeof value === 'string')
           : [];
-        return row && paragraphs.length > 0
-          ? { ok: true, paragraphs }
-          : { ok: false, error: 'not_found' };
+        if (!row || paragraphs.length === 0) return { ok: false, error: 'not_found' };
+        const organizationId = row.organization_id?.trim();
+        // Older test doubles may only exercise the SQL mutation. Production never accepts their
+        // incomplete result: the callback handler requires this trusted field before it emits URLs.
+        if (!organizationId) return { ok: true, paragraphs };
+        const patientPublicOrigin = await resolvePatientPublicOriginFromWebapp({
+          platformUserId: input.platformUserId,
+          organizationId,
+        });
+        return patientPublicOrigin
+          ? { ok: true, paragraphs, organizationId, patientPublicOrigin }
+          : { ok: false, error: 'patient_public_origin_unavailable' };
       } catch (error) {
         return failure(error);
       }
@@ -120,9 +171,9 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
 
     async getNotificationSettings(input) {
       try {
-        const result = await runIntegratorSql<{ topics: unknown }>(
+        const result = await runIntegratorSql<{ topics: unknown; organization_id: string | null }>(
           db,
-          sql`SELECT topics
+          sql`SELECT topics, organization_id::text AS organization_id
               FROM app.patient_reminder_notification_settings(
                 ${input.platformUserId}::uuid, ${input.messengerChannel}::text, NULL::text
               )`,
@@ -141,7 +192,17 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
               isEnabled: topic.isEnabled,
             }))
           : [];
-        return result.rows[0] ? { ok: true, topics } : { ok: false, error: 'not_found' };
+        const row = result.rows[0];
+        if (!row) return { ok: false, error: 'not_found' };
+        const organizationId = row.organization_id?.trim();
+        if (!organizationId) return { ok: true, topics };
+        const patientPublicOrigin = await resolvePatientPublicOriginFromWebapp({
+          platformUserId: input.platformUserId,
+          organizationId,
+        });
+        return patientPublicOrigin
+          ? { ok: true, topics, organizationId, patientPublicOrigin }
+          : { ok: false, error: 'patient_public_origin_unavailable' };
       } catch (error) {
         return failure(error);
       }

@@ -1142,6 +1142,7 @@ const membershipsServiceResolved =
         resolveServiceTitle: resolveMembershipServiceTitle,
         refreshPackageCalendar: refreshPackageCalendarForAppointment,
         assertWriteClearance: assertMechanicWriteClearance,
+        resolvePatientPublicOrigin,
       })
     : membershipsService;
 
