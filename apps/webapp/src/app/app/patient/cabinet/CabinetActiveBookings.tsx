@@ -12,9 +12,7 @@ import { bookingProvenancePrefix, nativeBookingSubtitle } from './patientBooking
 import { CabinetBookingActions } from './CabinetBookingActions';
 import { cn } from '@/lib/utils';
 import {
-  patientCardClass,
   patientInlineLinkClass,
-  patientListItemClass,
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
 
@@ -106,7 +104,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
   const surfaceName = useSurfaceName();
   if (bookings.length === 0) {
     return (
-      <Card className={cn(patientCardClass, 'ring-0')}>
+      <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Активные записи</CardTitle>
         </CardHeader>
@@ -118,7 +116,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
   }
 
   return (
-    <Card className={cn(patientCardClass, 'ring-0')}>
+    <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Активные записи</CardTitle>
       </CardHeader>
@@ -127,11 +125,11 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
           const branchTimeZone = row.canonicalInPersonContext?.timezone;
           const displayTimeZone = resolveAppointmentTimeZone(branchTimeZone, appDisplayTimeZone);
           return (
-            <div
+            <Card
               key={row.id}
+              variant="list"
               className={cn(
-                patientListItemClass,
-                'flex flex-col gap-2 !px-3 !py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3',
+                'flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3',
               )}
             >
               <div className="min-w-0 flex-1">
@@ -169,7 +167,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
                   </>
                 ) : null}
               </div>
-            </div>
+            </Card>
           );
         })}
       </CardContent>
