@@ -51,11 +51,12 @@ failing acceptance test. Findings require a reachable scenario, impact and viola
 style or alternative architecture is not a finding. Commit only auditor-created acceptance tests and one audit
 artifact, never product fixes.
 
-Run the integration-level checks required by §9 only once on the final candidate SHA, under the host lock. If long
-candidate migration/full-CI work must survive the agent turn, launch it detached with `setsid`, name the log and let
-the lead perform the separate short result check; do not claim PASS while it is still running. For live UI, use an
-isolated port and ordinary DEV login documented in §1a; do not occupy the shared dev server. Commit explicit paths
-only with `#1098`, candidate SHA, exact commands/evidence and C3M-12 result. Never `git add -A`, never push.
+Run the targeted integration checks needed for this acceptance, but do not run full CI: the owner requires one full
+CI only after this independent acceptance passes. For long candidate migration work that must survive the agent
+turn, launch it detached with `setsid`, name the log and let the lead perform the separate short result check; do not
+claim PASS while it is still running. For live UI, use an isolated port and ordinary DEV login documented in §1a;
+do not occupy the shared dev server. Commit explicit paths only with `#1098`, candidate SHA, exact commands/evidence
+and C3M-12 result. Never `git add -A`, never push.
 
 The auditor does not deploy. After its PASS, the lead follows the owner instruction recorded beside C3M-12: one
 full CI on the integrated SHA, then the ordinary code-only TEST deploy. No full reset and no PROD action.

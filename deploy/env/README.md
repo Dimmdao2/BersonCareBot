@@ -53,7 +53,6 @@ rollback, issuance and renewal are owner-authorized host gates, не repository 
 - `DATABASE_URL_DIAGNOSTIC='...'` — отдельный NOINHERIT/NOBYPASSRLS login только для read-only projection health
 - `DATABASE_URL_DELIVERY_WORKER='...'` — отдельный login integrator worker; только claim/bookkeeping очередей
 - `DATABASE_URL_SCHEDULER='...'` — отдельный login scheduler; advisory lock + idempotency bookkeeping
-- `BOOKING_URL=https://...`
 - `INTEGRATOR_SHARED_SECRET=...`
 - глобальная DB-настройка `app_base_url` должна быть заполнена; integrator читает её через закрытый server-runtime accessor и не использует env fallback; TEST deploy нормализует точный API base-login и его PostgreSQL 16 membership edges в `NOINHERIT` / `INHERIT FALSE, SET TRUE`, оставляя classified `SET ROLE`, запрещая ambient table ACL и выдавая напрямую только закрытый config accessor плюс idempotent principal-context release для bootstrap/infra cleanup
 - `TELEGRAM_BOT_TOKEN=...`

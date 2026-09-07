@@ -68,7 +68,7 @@ Tier **patient** для закрытого кабинета PWA может вк�
 - подтверждение OTP (`apps/webapp/src/modules/auth/phoneAuth.ts`, `createOrBind` в `pgUserByPhone.ts`);
 - доверенные обновления из интегратора по событиям `user.upserted` / `contact.linked` (`upsertFromProjection` в `pgUserProjection.ts`, маршрутизация в `apps/webapp/src/modules/integrator/events.ts`).
 
-Телефон из внешней системы записи (Rubitime / `appointment.record.upserted` → `ensureClientFromAppointmentProjection`) **не** является таким источником: канон может получить `phone_normalized` как данные записи, но **`patient_phone_trust_at`** из этого пути **не** выставляется — подтверждение номера для tier и для native-записи остаётся на OTP / мессенджер / явные доверенные пути из enum.
+Телефон из исторического внешнего импорта записи (`appointment.record.upserted` → `ensureClientFromAppointmentProjection`) **не** является таким источником: канон мог получить `phone_normalized` как данные записи, но **`patient_phone_trust_at`** из этого пути **не** выставлялся — подтверждение номера для tier и для native-записи остаётся на OTP / мессенджер / явные доверенные пути из enum.
 
 ---
 

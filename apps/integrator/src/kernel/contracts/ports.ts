@@ -487,13 +487,30 @@ export type RemindersWebappWritesPort = {
     platformUserId: string;
     occurrenceId: string;
     messengerChannel: 'telegram' | 'max';
-  }): Promise<{ ok: true; paragraphs: string[] } | { ok: false; error: string }>;
+  }): Promise<
+    | {
+        ok: true;
+        paragraphs: string[];
+        /** Returned by the same principal-bound mutation that authorized the callback. */
+        organizationId?: string;
+        /** Resolved by webapp's sole organization-to-patient-origin service seam. */
+        patientPublicOrigin?: string;
+      }
+    | { ok: false; error: string }
+  >;
   /** Fetch per-channel notification topic settings for a user. */
   getNotificationSettings(input: {
     platformUserId: string;
     messengerChannel: 'telegram' | 'max';
   }): Promise<
-    | { ok: true; topics: Array<{ code: string; title: string; isEnabled: boolean }> }
+    | {
+        ok: true;
+        topics: Array<{ code: string; title: string; isEnabled: boolean }>;
+        /** Returned by the same principal-bound capability that supplied the settings. */
+        organizationId?: string;
+        /** Resolved by webapp's sole organization-to-patient-origin service seam. */
+        patientPublicOrigin?: string;
+      }
     | { ok: false; error: string }
   >;
   /** Toggle a notification topic on/off for a specific channel. Returns new state. */

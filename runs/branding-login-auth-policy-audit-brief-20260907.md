@@ -1,0 +1,20 @@
+# #787 — final independent audit of split login and staff 2FA policy
+
+Audit committed candidate `33d01514a` in `/home/dev/dev-projects/bcb-wt-branding-login-split-20260907`. This is a gate, not a source of new scope. Do not merge, push, deploy, mutate DEV/TEST/PROD, DNS, TLS, services, migrations, or product code. You may add/adjust only durable behavior acceptance tests and the audit artifact, and must commit those before ending. Temporary fault-injection changes to product code must be fully reverted.
+
+Before every action follow the repository header-map rule. Read `AGENTS.md` route and §§1a, 1b, 5, 7, 9, 10, 10a, 10b, 11, 15–17, 21 and 24 in full, plus `docs/ORCHESTRATION_BINDINGS.md` and `/home/dev/brain/docs/MODEL_TIERS.md`. In particular: classify every acceptance item as test or view before reading tests; write tests only for observable repeatable behavior; never assert source text, function/call shape, formatting, DOM/layout/copy details, or element/table counts; delete any harmful scoped test you find and record why. Use code-search before exact grep.
+
+Authority: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md` §1.6 and TPB-17..TPB-23; `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_LOGIN_SURFACE_SPLIT_2026-09-07.md`; the owner policy below. Reuse the earlier kill-set and tests; extend it only for the new policy surface.
+
+Required result:
+
+- Therapysto has distinct staff login and specialist registration, no role chooser; signup uses existing fields/confirmation.
+- Staff first launch exposes email+password only. Correct password completes login directly unless personal TOTP is enrolled or clinic owner enabled org-wide staff 2FA.
+- Personal TOTP always wins. With org-wide staff 2FA on and no personal TOTP, verified-email code is required. The switch is owner-only, org-scoped, off by default, and lives in clinic settings without browser-selected tenant trust.
+- Transactional email for signup and password recovery remains available even when passwordless staff email login is disabled.
+- TherapyGo login says `Войти в личный кабинет`, with no patient/client role chooser. Email code and verified TherapyGo bot contact remain supported. OAuth/passkey remain implemented and become visible/authorized according to the existing global patient-policy switches without code changes. The audit must not prescribe or migrate those stored switch values: the owner manages them in admin settings.
+- Host selects both presentation and the allowed account audience. A valid staff credential on patient/admin Host, a platform-admin credential on staff/patient Host, or a patient credential/contact proof on staff/admin Host must not create a session. This audience gate does not replace account/membership authorization. Cross-product links use canonical origins, do not forward hostile `next`, and unknown hosts fail closed.
+
+Inspect the complete candidate diff from its recorded base, then existing tests. Record the blind kill-set before test reading. Run only the minimal targeted/phase suites needed, webapp typecheck, scoped ESLint and `git diff --check`; do not run full CI. For UI presentation use live view on an isolated free port in `5211..5219`, never a DOM/copy/layout test. Use process-local DEV-safe env, the canonical DEV database and published DEV login contract; no fixture users/data and no external delivery. Verify staff login, specialist registration, platform-admin separation and TherapyGo patient login at desktop and narrow widths insofar as the candidate can actually render. Stop the exact process and prove listener cleanup.
+
+Update/create `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_LOGIN_SURFACE_SPLIT_2026-09-07.md` with one binary line per TPB item, commands/results, harmful-test cleanup, fault injection and a final `PASS` or concrete reachable `FAIL`. If tests/artifact change, stage exact paths and commit with `#787`; do not use `git add -A`. Do not finish while a foreground command is running.

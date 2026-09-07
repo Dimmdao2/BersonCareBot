@@ -15,16 +15,9 @@ import {
   reminderLinkKeyboardButton,
 } from '../../reminders/reminderInlineKeyboard.js';
 import type { InlineKeyboardButton } from '../../reminders/reminderInlineKeyboard.js';
-import { env } from '../../../../config/env.js';
 
 function escapeReminderHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function trimTrailingSlash(s: string): string {
-  const t = s.trim();
-  if (t.length === 0) return '';
-  return t.replace(/\/+$/, '');
 }
 
 function buildReminderCallbackAckIntents(
@@ -554,19 +547,21 @@ export async function handleReminders(
         error: `reminders.messengerTopic.disable.callback: ${web.error}`,
       };
     }
+    if (!web.patientPublicOrigin) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.messengerTopic.disable.callback: patient public origin unavailable',
+      };
+    }
 
     const src = messengerChannel === 'max' ? 'max' : 'telegram';
     const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
     const callbackQueryId =
       asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
 
-    const baseHttpRaw = trimTrailingSlash(env.APP_BASE_URL);
-    const appBaseUrl =
-      baseHttpRaw.startsWith('http://') || baseHttpRaw.startsWith('https://') ? baseHttpRaw : '';
-    const profileUrl = appBaseUrl
-      ? `${appBaseUrl}/app/patient/profile#patient-profile-notifications`
-      : '/app/patient/profile#patient-profile-notifications';
-    const mobileUrl = appBaseUrl ? `${appBaseUrl}/app/patient` : '/app/patient';
+    const profileUrl = `${web.patientPublicOrigin}/app/patient/profile#patient-profile-notifications`;
+    const mobileUrl = `${web.patientPublicOrigin}/app/patient`;
 
     const ackText = web.paragraphs.map((p) => escapeReminderHtml(p)).join('\n\n');
 
@@ -700,15 +695,24 @@ export async function handleReminders(
       platformUserId: userId,
       messengerChannel,
     });
-    const topics = settingsResult.ok ? settingsResult.topics : [];
+    if (!settingsResult.ok) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.notifSettings.open.callback: patient public origin unavailable',
+      };
+    }
+    const topics = settingsResult.topics;
     const notifKb = buildReminderNotifSettingsInlineKeyboard(topics);
     const src = messengerChannel;
     const messageId =
       asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
     const callbackQueryId =
       asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
-    const settingsText =
-      'Выберите, какие уведомления вы хотите видеть в боте.\n\nНастройки пуш-уведомлений и почты можно поменять в приложении bersoncare.ru';
+    const settingsDestination = settingsResult.patientPublicOrigin
+      ? `в приложении ${settingsResult.patientPublicOrigin}`
+      : 'в приложении';
+    const settingsText = `Выберите, какие уведомления вы хотите видеть в боте.\n\nНастройки пуш-уведомлений и почты можно поменять ${settingsDestination}`;
     const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
     if (callbackQueryId) {
       intents.push({
@@ -796,15 +800,24 @@ export async function handleReminders(
       platformUserId: userId,
       messengerChannel,
     });
-    const topics = settingsResult.ok ? settingsResult.topics : [];
+    if (!settingsResult.ok) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.notifSettings.toggle.callback: patient public origin unavailable',
+      };
+    }
+    const topics = settingsResult.topics;
     const notifKb = buildReminderNotifSettingsInlineKeyboard(topics);
     const src = messengerChannel;
     const messageId =
       asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
     const callbackQueryId =
       asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
-    const settingsText =
-      'Выберите, какие уведомления вы хотите видеть в боте.\n\nНастройки пуш-уведомлений и почты можно поменять в приложении bersoncare.ru';
+    const settingsDestination = settingsResult.patientPublicOrigin
+      ? `в приложении ${settingsResult.patientPublicOrigin}`
+      : 'в приложении';
+    const settingsText = `Выберите, какие уведомления вы хотите видеть в боте.\n\nНастройки пуш-уведомлений и почты можно поменять ${settingsDestination}`;
     const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
     if (callbackQueryId) {
       intents.push({

@@ -53,7 +53,7 @@ function buildActorFromBody(body: TelegramWebhookBodyValidated): Record<string, 
   return displayName ? { actor: { displayName } } : {};
 }
 
-/** Exported for tests: resolves booking deep-link (native cabinet vs BOOKING_URL fallback). */
+/** Exported for tests: resolves canonical internal booking deep-links. */
 export async function buildLinksFromBody(
   body: TelegramWebhookBodyValidated,
   getAppBaseUrl?: () => Promise<string>,
@@ -88,9 +88,6 @@ export async function buildLinksFromBody(
       links.webappAddressUrl = `${baseWebappUrl}&next=${enc('/app/patient/address')}`;
       links.bookingUrl = `${baseWebappUrl}&next=${enc('/app/patient/booking')}`;
     }
-  }
-  if (typeof links.bookingUrl !== 'string' && env.BOOKING_URL) {
-    links.bookingUrl = env.BOOKING_URL;
   }
   return Object.keys(links).length > 0 ? { links } : {};
 }

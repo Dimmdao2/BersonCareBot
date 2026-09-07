@@ -609,7 +609,6 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
 - `PORT=3200`
 - `LOG_LEVEL=info`
 - `DATABASE_URL=...`
-- `BOOKING_URL=...`
 - `INTEGRATOR_SHARED_SECRET=...`
 - `TELEGRAM_BOT_TOKEN=...`
 - `TELEGRAM_ADMIN_ID=364943522`
