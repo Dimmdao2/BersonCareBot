@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { resolveMechanicSurfaceVisibility } from '@/app-layer/guards/requireEntitlement';
+import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
 import { getDoctorMenuItems } from './doctorNavLinks';
+
+const ALL_MODULES_OFF = {
+  medical_record: false,
+  encounters: false,
+  rehabilitation: false,
+  direct_chat: false,
+  program_comments: false,
+  program_media: false,
+  mailings: false,
+  analytics: false,
+  client_portal: false,
+} satisfies WorkspaceModuleEffective;
 
 describe('doctor navigation schedule access', () => {
   it('shows schedule, but no other clinical links, to an organization manager', () => {
@@ -118,5 +131,25 @@ describe('doctor navigation schedule access', () => {
     expect(readOnlyIds).toContain('patient-home');
     expect(readOnlyIds).not.toContain('content');
     expect(disabledIds).not.toContain('patient-home');
+  });
+
+  it('projects one effective module map without removing always-on specialist destinations', () => {
+    const capabilities = ['account.self', 'clinical.workspace'] as const;
+    const hiddenIds = getDoctorMenuItems({
+      capabilities,
+      specialistTasksEnabled: true,
+      workspaceModules: ALL_MODULES_OFF,
+    }).map((item) => item.id);
+    const communicationsOnlyIds = getDoctorMenuItems({
+      capabilities,
+      specialistTasksEnabled: true,
+      workspaceModules: { ...ALL_MODULES_OFF, program_comments: true },
+    }).map((item) => item.id);
+
+    expect(hiddenIds).toEqual(expect.arrayContaining(['today', 'schedule', 'patients', 'tasks']));
+    expect(hiddenIds).not.toContain('communications');
+    expect(hiddenIds).not.toContain('analytics');
+    expect(hiddenIds).not.toContain('library');
+    expect(communicationsOnlyIds).toContain('communications');
   });
 });
