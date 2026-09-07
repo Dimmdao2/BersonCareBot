@@ -4,7 +4,6 @@ import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRol
 import type { ClientIdentity } from '@/modules/doctor-clients/ports';
 import type { PatientPayment } from '@/modules/patient-payments/ports';
 import type { PaymentProviderPort } from '@/modules/payments/providerPort';
-import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 
 type AppDeps = ReturnType<typeof import('@/app-layer/di/buildAppDeps').buildAppDeps>;
@@ -26,6 +25,9 @@ const fakes = vi.hoisted(() => ({
   handleWebhook: vi.fn<AppDeps['patientPayments']['handleAcquiringWebhookEvent']>(),
   getPaymentProviderAdapter:
     vi.fn<typeof import('@/infra/payments/paymentProviderRegistry').getPaymentProviderAdapter>(),
+  readAnonymousPatientSurfaceProjection: vi.fn<
+    NonNullable<AppDeps['customDomainBinding']>['readAnonymousPatientSurfaceProjection']
+  >(),
 }));
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
@@ -136,6 +138,9 @@ const fakeDeps = {
   payments: {
     getSettings: fakes.getPaymentSettings,
   },
+  customDomainBinding: {
+    readAnonymousPatientSurfaceProjection: fakes.readAnonymousPatientSurfaceProjection,
+  },
 } as unknown as AppDeps;
 
 function chargeRequest(idempotencyKey?: string): Request {
@@ -212,6 +217,14 @@ beforeEach(() => {
   });
   fakes.resolveAcquiringWebhookOrganization.mockResolvedValue(ORGANIZATION_ID);
   fakes.handleWebhook.mockResolvedValue({ ok: true });
+  fakes.readAnonymousPatientSurfaceProjection.mockResolvedValue({
+    clinicSlug: 'clinic-1074',
+    skipPublicCardAtRoot: false,
+    effectiveDisplayName: 'Clinic 1074',
+    patientAppName: 'Clinic 1074',
+    accentToken: '#284da0',
+    activeCustomDomainHostname: 'patient.clinic-1074.example.test',
+  });
 });
 
 describe('patient acquiring charge HTTP boundary', () => {
@@ -248,17 +261,31 @@ describe('patient acquiring charge HTTP boundary', () => {
     const response = await invokeCharge(chargeRequest('charge-1074-stable'));
 
     expect(response.status).toBe(201);
-    expect(fakes.createCharge).toHaveBeenCalledWith({
-      organizationId: ORGANIZATION_ID,
-      patientUserId: PATIENT_ID,
-      customerEmail: 'patient@example.test',
-      amountMinor: 12_345,
-      currency: 'RUB',
-      idempotencyKey: 'charge-1074-stable',
-      description: 'Test charge',
-      returnUrl: `${env.APP_BASE_URL}${routePaths.purchases}`,
-    });
+    expect(fakes.createCharge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: ORGANIZATION_ID,
+        patientUserId: PATIENT_ID,
+        customerEmail: 'patient@example.test',
+        amountMinor: 12_345,
+        currency: 'RUB',
+        idempotencyKey: 'charge-1074-stable',
+        description: 'Test charge',
+      }),
+    );
     expect(fakes.getPaymentSettings).not.toHaveBeenCalled();
+  });
+
+  it('returns the patient from checkout to the active organization surface', async () => {
+    const response = await invokeCharge(chargeRequest('charge-1074-patient-surface'));
+
+    expect(response.status).toBe(201);
+    expect(fakes.createCharge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: ORGANIZATION_ID,
+        patientUserId: PATIENT_ID,
+        returnUrl: `https://patient.clinic-1074.example.test${routePaths.purchases}`,
+      }),
+    );
   });
 
   it('keeps the provider selected for the external intent when the clinic default changes', async () => {
