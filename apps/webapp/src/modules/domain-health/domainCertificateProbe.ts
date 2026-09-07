@@ -57,7 +57,9 @@ export async function checkDomainCertificateHealth(
     if (resolved.length === 0) {
       issues.push({ code: 'resolution_failed', detail: 'empty_answer' });
     } else if (lifecycleExpectation?.placement === 'apex') {
-      if (!resolved.includes(lifecycleExpectation.edgeIp)) {
+      const exactEdgeAnswer =
+        resolved.length === 1 && resolved[0] === lifecycleExpectation.edgeIp;
+      if (!exactEdgeAnswer) {
         issues.push({ code: 'dns_mismatch', detail: resolved.join(',') });
       } else {
         dnsReady = true;

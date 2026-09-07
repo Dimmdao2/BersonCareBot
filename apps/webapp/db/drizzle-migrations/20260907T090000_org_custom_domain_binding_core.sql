@@ -343,7 +343,7 @@ BEGIN
       ON brand.organization_id = binding.organization_id
       AND brand.status = 'published'
     WHERE binding.hostname = lower(btrim(p_hostname))
-      AND binding.status IN ('pending', 'dns_ready', 'active', 'suspended')
+      AND binding.status IN ('pending', 'dns_ready', 'active', 'failed', 'suspended')
   );
 END
 $$;
