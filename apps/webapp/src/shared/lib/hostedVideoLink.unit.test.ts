@@ -5,6 +5,7 @@ import {
   isHostedVideoEmbedSrc,
   parseHostedVideoLink,
   toHostedVideoEmbedSrc,
+  toYouTubeCustomControlsEmbedSrc,
 } from '@/shared/lib/hostingEmbedUrls';
 
 /**
@@ -19,6 +20,7 @@ describe('вставленная ссылка на видеохостинг', ()
       'https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL12345&t=42s&utm_source=vk',
     );
     expect(link?.provider).toBe('youtube');
+    expect(link?.playerKind).toBe('youtube_custom_controls');
     expect(link?.canonicalUrl).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
   });
 
@@ -26,15 +28,16 @@ describe('вставленная ссылка на видеохостинг', ()
     expect(parseHostedVideoLink('https://youtu.be/dQw4w9WgXcQ?si=abc')?.canonicalUrl).toBe(
       'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     );
-    expect(
-      parseHostedVideoLink('https://www.youtube.com/shorts/dQw4w9WgXcQ')?.canonicalUrl,
-    ).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    expect(parseHostedVideoLink('https://www.youtube.com/shorts/dQw4w9WgXcQ')?.canonicalUrl).toBe(
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    );
   });
 
   it('принимает RuTube и сохраняет ключ доступа к приватному ролику', () => {
     const id = 'a'.repeat(32);
     const link = parseHostedVideoLink(`https://rutube.ru/video/${id}/?p=SeCrEt&utm_medium=mail`);
     expect(link?.provider).toBe('rutube');
+    expect(link?.playerKind).toBe('rutube_custom_controls');
     expect(link?.canonicalUrl).toBe(`https://rutube.ru/video/${id}/?p=SeCrEt`);
     expect(link?.embedSrc).toBe(`https://rutube.ru/play/embed/${id}?p=SeCrEt`);
   });
@@ -79,6 +82,15 @@ describe('вложение чужого плеера', () => {
   it('YouTube отдаётся в варианте без куки', () => {
     const src = toHostedVideoEmbedSrc('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
     expect(src).toBe('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
+  });
+
+  it('для своих YouTube-controls включает официальный IFrame API и скрывает штатную панель', () => {
+    const link = parseHostedVideoLink('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    expect(link).not.toBeNull();
+    const src = toYouTubeCustomControlsEmbedSrc(link!);
+    expect(src).toContain('controls=0');
+    expect(src).toContain('enablejsapi=1');
+    expect(src).toContain('playsinline=1');
   });
 
   it('Vimeo отдаётся в режиме «не отслеживать»', () => {

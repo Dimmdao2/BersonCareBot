@@ -321,12 +321,29 @@ describe('tariff refusal UI', () => {
       <PatientDailyWarmupVideoEngagement
         mode="hosted"
         contentPageId="22222222-2222-4222-8222-222222222222"
-        iframeSrc="https://video.example.test/embed"
+        url={`https://rutube.ru/video/${'a'.repeat(32)}/`}
         title="Разминка"
       />,
     );
 
-    fireEvent.pointerDown(screen.getByTitle('Разминка').parentElement!);
+    const iframeWindow = (screen.getByTitle('Разминка') as HTMLIFrameElement).contentWindow;
+    expect(iframeWindow).not.toBeNull();
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        origin: 'https://rutube.ru',
+        source: iframeWindow,
+        data: JSON.stringify({ type: 'player:ready', data: {} }),
+      }),
+    );
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        origin: 'https://rutube.ru',
+        source: iframeWindow,
+        data: JSON.stringify({ type: 'player:changeState', data: { state: 'playing' } }),
+      }),
+    );
     await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith(REFUSAL));
   });
 

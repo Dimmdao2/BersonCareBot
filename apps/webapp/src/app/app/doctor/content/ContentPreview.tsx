@@ -1,9 +1,10 @@
 'use client';
 
 import { MarkdownContent } from '@/shared/ui/doctor/markdown/MarkdownContent';
-import { toHostedVideoEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
+import { parseHostedVideoLink } from '@/shared/lib/hostingEmbedUrls';
 import { ContentHeroImage } from '@/shared/ui/doctor/media/ContentHeroImage';
 import { NoContextMenuVideo } from '@/shared/ui/doctor/media/NoContextMenuVideo';
+import { HostedVideoEmbed } from '@/shared/ui/doctor/media/HostedVideoEmbed';
 import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 
 type Props = {
@@ -15,7 +16,7 @@ type Props = {
 };
 
 export function ContentPreview({ title, summary, bodyMd, imageUrl, videoUrl }: Props) {
-  const hostedVideoIframeSrc = videoUrl ? toHostedVideoEmbedSrc(videoUrl) : null;
+  const hostedVideo = videoUrl ? parseHostedVideoLink(videoUrl) : null;
   return (
     <section className="rounded-xl border border-border bg-muted/10 p-4">
       <h3 className={`m-0 ${doctorSectionTitleClass}`}>Предпросмотр для пациента</h3>
@@ -34,16 +35,8 @@ export function ContentPreview({ title, summary, bodyMd, imageUrl, videoUrl }: P
         ) : null}
         <MarkdownContent text={bodyMd} bodyFormat="markdown" />
         {videoUrl.trim() ? (
-          hostedVideoIframeSrc ? (
-            <div className="relative aspect-video overflow-hidden rounded-lg">
-              <iframe
-                src={hostedVideoIframeSrc}
-                className="absolute inset-0 size-full border-0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                title={title || 'preview-video'}
-              />
-            </div>
+          hostedVideo ? (
+            <HostedVideoEmbed url={hostedVideo.canonicalUrl} title={title || 'preview-video'} />
           ) : (
             <NoContextMenuVideo controls preload="metadata" className="max-w-full rounded-lg">
               <source src={videoUrl.trim()} />

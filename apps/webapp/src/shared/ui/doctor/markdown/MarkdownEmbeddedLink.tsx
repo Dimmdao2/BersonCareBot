@@ -2,9 +2,10 @@
 
 import { cn } from '@/lib/utils';
 import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
-import { isHostedVideoEmbedSrc, toHostedVideoEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
+import { parseHostedVideoLink } from '@/shared/lib/hostingEmbedUrls';
 import { parseApiMediaIdFromMarkdownHref } from '@/shared/lib/parseApiMediaIdFromPlayableUrl';
 import { DoctorMediaPlaybackVideo } from '@/shared/ui/doctor/media/DoctorMediaPlaybackVideo';
+import { HostedVideoEmbed } from '@/shared/ui/doctor/media/HostedVideoEmbed';
 import { type AnchorHTMLAttributes, type ReactNode, useEffect, useState } from 'react';
 import type { Components } from 'react-markdown';
 
@@ -152,20 +153,10 @@ export const MarkdownEmbeddedLink: Components['a'] = ({
     );
   }
 
-  const hostedEmbedSrc = toHostedVideoEmbedSrc(href);
-  if (hostedEmbedSrc && isHostedVideoEmbedSrc(hostedEmbedSrc)) {
+  if (parseHostedVideoLink(href)) {
     return (
       <span className={cn('markdown-host-embed my-3 block w-full max-w-full', className)}>
-        <div className="relative aspect-video w-full overflow-hidden rounded-lg">
-          <iframe
-            src={hostedEmbedSrc}
-            className="absolute inset-0 size-full border-0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            title={anchorTitle(children)}
-            loading="lazy"
-          />
-        </div>
+        <HostedVideoEmbed url={href} title={anchorTitle(children)} />
       </span>
     );
   }
