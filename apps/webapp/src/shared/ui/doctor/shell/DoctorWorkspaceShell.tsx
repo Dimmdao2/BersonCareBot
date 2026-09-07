@@ -138,47 +138,47 @@ export function DoctorWorkspaceShell({
       <StaffWebPushBootstrap />
       <StaffCalendarTimezoneBootstrap />
       <DoctorShellChromeProvider>
-        <DoctorWorkspaceViewport
-          header={{
-            userDisplayName,
-            isPlatformOperator,
-            menuAccess,
-            patientLabel,
-            hideMenuOnDesktop: showDoctorDesktopNav,
-            menuKind,
-            globalActions: (
-              <>
-                {modeSwitch}
-                {mobileHeaderActions}
-              </>
-            ),
-          }}
-          sidebar={
-            showDoctorDesktopNav ? (
-              <DoctorAdminSidebar
-                userDisplayName={userDisplayName}
-                menuAccess={menuAccess}
-                patientLabel={patientLabel}
-                homeHref={homeHref}
-                brand={brand}
-                menuKind={menuKind}
-                modeSwitch={modeSwitch}
-              />
-            ) : undefined
-          }
-          bottomNav={
-            menuKind === 'doctor' && showClinicalShortcuts
-              ? { menuAccess, patientLabel }
-              : undefined
-          }
+        <DoctorPatientTermsProvider
+          patientLabel={patientLabel}
+          supportGroupLabel={supportGroupLabel}
         >
-          <DoctorPatientTermsProvider
-            patientLabel={patientLabel}
-            supportGroupLabel={supportGroupLabel}
+          <DoctorWorkspaceViewport
+            header={{
+              userDisplayName,
+              isPlatformOperator,
+              menuAccess,
+              patientLabel,
+              hideMenuOnDesktop: showDoctorDesktopNav,
+              menuKind,
+              globalActions: (
+                <>
+                  {modeSwitch}
+                  {mobileHeaderActions}
+                </>
+              ),
+            }}
+            sidebar={
+              showDoctorDesktopNav ? (
+                <DoctorAdminSidebar
+                  userDisplayName={userDisplayName}
+                  menuAccess={menuAccess}
+                  patientLabel={patientLabel}
+                  homeHref={homeHref}
+                  brand={brand}
+                  menuKind={menuKind}
+                  modeSwitch={modeSwitch}
+                />
+              ) : undefined
+            }
+            bottomNav={
+              menuKind === 'doctor' && showClinicalShortcuts
+                ? { menuAccess, patientLabel }
+                : undefined
+            }
           >
             {children}
-          </DoctorPatientTermsProvider>
-        </DoctorWorkspaceViewport>
+          </DoctorWorkspaceViewport>
+        </DoctorPatientTermsProvider>
       </DoctorShellChromeProvider>
     </DoctorSupportUnreadProvider>
   );

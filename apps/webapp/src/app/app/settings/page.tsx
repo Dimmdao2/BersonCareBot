@@ -65,6 +65,7 @@ import {
   normalizeSupportGroupLabel,
   SUPPORT_GROUP_LABEL_KEY,
 } from '@/modules/system-settings/patientTerms';
+import { DoctorPatientTermsProvider } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type LegacySettingsTab = 'specialist' | 'organization' | 'team' | 'billing' | 'install';
 
@@ -471,10 +472,15 @@ export default async function SettingsPage({
           supportGroupLabel={supportGroupLabel}
           showSupportDefaults={false}
         />
-        <DoctorTodayPreferencesSection
-          initialPreferences={todayPreferences}
-          settingsEndpoint="/api/admin/settings"
-        />
+        <DoctorPatientTermsProvider
+          patientLabel={String(patientLabel)}
+          supportGroupLabel={supportGroupLabel}
+        >
+          <DoctorTodayPreferencesSection
+            initialPreferences={todayPreferences}
+            settingsEndpoint="/api/admin/settings"
+          />
+        </DoctorPatientTermsProvider>
         {workspace.specialistId ? (
           <AppointmentReminderSettingsSection initialSettings={appointmentReminderSettings} />
         ) : null}

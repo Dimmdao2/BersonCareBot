@@ -113,7 +113,7 @@ function DoctorTodayPeopleSection({
             href={peopleListIsOnSupport ? ON_SUPPORT_LIST_HREF : RECENT_VISITS_LIST_HREF}
             className={`${doctorInlineLinkClass} w-fit`}
           >
-            Список клиентов
+            Список {patientPluralLabel.toLowerCase()}
           </Link>
         </DoctorEmptyState>
       ) : (
@@ -154,7 +154,9 @@ function DoctorTodayPeopleSection({
                 className={`${doctorInlineLinkClass} text-sm`}
                 id="doctor-today-people-all"
               >
-                {peopleListIsOnSupport ? 'Все на сопровождении' : 'Открыть клиентов'}
+                {peopleListIsOnSupport
+                  ? `Все ${supportGroupLabel.toLowerCase()}`
+                  : `Открыть ${patientPluralLabel.toLowerCase()}`}
               </Link>
             </p>
           ) : null}

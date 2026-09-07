@@ -8,7 +8,7 @@ import {
 /**
  * Заголовки экранов кабинета врача по pathname (сервер и клиент).
  */
-export function getDoctorScreenTitle(pathname: string): string {
+export function getDoctorScreenTitle(pathname: string, patientPluralLabel = 'Пациенты'): string {
   const p = pathname.replace(/\/$/, '') || '/app/doctor';
   if (p === '/app/doctor') return 'Сегодня';
 
@@ -28,7 +28,7 @@ export function getDoctorScreenTitle(pathname: string): string {
     '/app/admin/booking': 'Настройки записи',
     '/app/admin/technical': 'Технические режимы',
     '/app/doctor/clinic/settings': 'Настройки клиники',
-    '/app/doctor/patients': 'Пациенты',
+    '/app/doctor/patients': patientPluralLabel,
     '/app/doctor/schedule': 'Расписание',
     '/app/doctor/communications': 'Коммуникации',
     '/app/doctor/appointments': 'Записи',

@@ -35,10 +35,7 @@ import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
-import {
-  DoctorPatientName,
-  DoctorSupportStar,
-} from '@/shared/ui/doctor/DoctorSupportStar';
+import { DoctorPatientName, DoctorSupportStar } from '@/shared/ui/doctor/DoctorSupportStar';
 import { TooltipProvider } from '@/shared/ui/doctor/primitives/tooltip';
 import {
   doctorDnaFlatListClass,
@@ -617,7 +614,9 @@ function PatientsContent({
                   tooltip={
                     seg.key === 'all'
                       ? `Все ${patientPluralLabelLower} этой организации.`
-                      : seg.tooltip
+                      : seg.key === 'on_support'
+                        ? `Сейчас в группе «${supportGroupLabel}».`
+                        : seg.tooltip
                   }
                   selected={
                     seg.key === 'all'
@@ -666,7 +665,7 @@ function PatientsContent({
                   supportFilterActive && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
                 )}
                 onClick={() => onSegmentToggle('on_support')}
-                aria-label="Только на сопровождении"
+                aria-label={`Только: ${supportGroupLabel}`}
                 aria-pressed={supportFilterActive}
               >
                 <DoctorSupportStar

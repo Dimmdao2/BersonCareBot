@@ -72,6 +72,7 @@ import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorW
 import { PatientEncounterStartModal } from './PatientEncounterStartModal';
 import { EncounterHistoryModal } from './tabs/karta/EncounterHistoryModal';
 import { EncounterViewModal } from './tabs/karta/EncounterViewModal';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 function formatSupportStartedAt(value: string): string {
   const date = new Date(value);
@@ -364,6 +365,7 @@ export function PatientCardClient({
   workspaceModules,
   appointmentsManageOwn = true,
 }: Props) {
+  const { supportGroupLabel } = useDoctorPatientTerms();
   const header = shellMeta.cardHeader;
   const availableTabs = useMemo(
     () => getEffectivePatientCardTabs(workspaceModules),
@@ -592,7 +594,7 @@ export function PatientCardClient({
                 <div className="mt-2">
                   <span className="inline-flex flex-wrap items-center gap-x-1.5 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                     <span>
-                      ★ На сопровождении с{' '}
+                      ★ {supportGroupLabel} с{' '}
                       {supportStartedAt ? formatSupportStartedAt(supportStartedAt) : '—'}
                     </span>
                     {supportDuration ? (

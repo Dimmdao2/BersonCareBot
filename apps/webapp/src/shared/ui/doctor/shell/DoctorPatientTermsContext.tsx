@@ -17,6 +17,7 @@ const DoctorPatientTermsContext = createContext<DoctorClientTerms>(resolveDoctor
 
 export function DoctorPatientTermsProvider({
   patientLabel,
+  supportGroupLabel,
   children,
 }: {
   patientLabel?: string;

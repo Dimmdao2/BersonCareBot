@@ -18,6 +18,7 @@ import { getDoctorScreenTitle } from '@/shared/ui/doctorScreenTitles';
 import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import type { DoctorMenuAccess } from '@/shared/ui/doctor/doctorNavLinks';
 import { useDoctorShellChrome } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { routePaths } from '@/app-layer/routes/paths';
 
 type DoctorHeaderProps = {
@@ -51,7 +52,8 @@ export function DoctorHeader({
   const router = useRouter();
   const pathname = usePathname() ?? '/app/doctor';
   const shellChrome = useDoctorShellChrome();
-  const title = shellChrome?.title ?? getDoctorScreenTitle(pathname);
+  const { patientPluralLabel } = useDoctorPatientTerms();
+  const title = shellChrome?.title ?? getDoctorScreenTitle(pathname, patientPluralLabel);
   const [menuOpen, setMenuOpen] = useState(false);
   const backHref = shellChrome?.backHref;
   const showBack = Boolean(backHref);
