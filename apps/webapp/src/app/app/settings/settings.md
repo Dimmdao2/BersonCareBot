@@ -4,7 +4,7 @@
 `organization.management`. Канонический личный раздел staff-account — `/app/account`:
 
 - default → guarded organization settings; binding специалиста для этого не требуется;
-- explicit legacy `?tab=specialist` → `/app/account`;
+- `?tab=specialist` — единственный writer публичного профиля существующей specialist entity в solo;
 - `?tab=install` → `/app/account?tab=install`;
 - `?tab=organization` сохраняет единственный guarded writer терминологии и organization reminders и является
   канонической поверхностью **«Настройки»** для владельца кабинета/организации; legacy owner без `specialist_id`
@@ -25,7 +25,9 @@ Legacy `/app/doctor/install` ведёт в account install, `/app/doctor/clinic/
 `/app/doctor/clinic/members` — в entitlement-guarded Team compatibility entry. Legacy `/app/manage` не является
 отдельной продуктовой страницей и только перенаправляет на `/app/settings?tab=organization`.
 
-Booking settings остаются в `/app/doctor/schedule?tab=setup`: owner запретил переносить или копировать их в U2.
+В clinic composition shell `/app/settings` использует navigation management mode: Team, clinic settings and billing
+stay on their established writer routes without returning the user to clinical navigation. Booking settings остаются
+в `/app/doctor/schedule?tab=setup`: owner запретил переносить или копировать их в U2.
 Коммерческие действия остаются недоступными до C5, security/2FA/sessions — до U3S.
 
 Секреты и операционные значения интеграций по правилам репозитория хранятся в `system_settings`, а не в новых

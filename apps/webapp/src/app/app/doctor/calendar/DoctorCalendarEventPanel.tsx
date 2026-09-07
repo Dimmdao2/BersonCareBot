@@ -75,6 +75,8 @@ type Props = {
   filterMeta: CalendarFilterMeta;
   activeFilters: CalendarCreateActiveFilters;
   ownSpecialistId: string | null;
+  /** Server-resolved scheduling mutation capability. Omitted only on legacy hosts. */
+  appointmentsManageOwn?: boolean;
   /**
    * Каталог специалистов клиники из `resolvedScope` — единственное доказательство того,
    * что специалист в клинике ровно один (APPT-FORM-07). `filterMeta.specialists` сужен
@@ -297,6 +299,7 @@ function DoctorCalendarEventPanelInner({
   filterMeta,
   activeFilters,
   ownSpecialistId,
+  appointmentsManageOwn = true,
   clinicSpecialists = null,
   onClose,
   onChanged,
@@ -314,7 +317,9 @@ function DoctorCalendarEventPanelInner({
   flushChrome = false,
 }: Props) {
   // §3.6: если startInCreate=true — сразу в режиме создания, минуя плейсхолдер
-  const [mode, setMode] = useState<'view' | 'create' | 'edit'>(startInCreate ? 'create' : 'view');
+  const [mode, setMode] = useState<'view' | 'create' | 'edit'>(
+    startInCreate && appointmentsManageOwn ? 'create' : 'view',
+  );
   const [draft, setDraft] = useState<AppointmentFormDraft>({
     ...EMPTY_DRAFT,
     patient: createInitialPatient,
@@ -1054,7 +1059,8 @@ function DoctorCalendarEventPanelInner({
       <DoctorModalFooter>
         {cancelled ? (
           <>
-            {canUseOwnSpecialistAppointmentActions(ownSpecialistId, selected.specialistId) &&
+            {appointmentsManageOwn &&
+            canUseOwnSpecialistAppointmentActions(ownSpecialistId, selected.specialistId) &&
             isStaffDeletableCancelledStatus(selected.status) ? (
               <Button
                 type="button"
@@ -1078,18 +1084,22 @@ function DoctorCalendarEventPanelInner({
           </>
         ) : (
           <>
-            <Button type="button" variant="outline" disabled={pending} onClick={openEditForm}>
-              Изменить
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="text-destructive"
-              disabled={pending}
-              onClick={() => setCancelOpen(true)}
-            >
-              Отменить
-            </Button>
+            {appointmentsManageOwn ? (
+              <>
+                <Button type="button" variant="outline" disabled={pending} onClick={openEditForm}>
+                  Изменить
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="text-destructive"
+                  disabled={pending}
+                  onClick={() => setCancelOpen(true)}
+                >
+                  Отменить
+                </Button>
+              </>
+            ) : null}
             {visitHref ? (
               <Link href={visitHref} className={buttonVariants()}>
                 Начать приём

@@ -48,6 +48,8 @@ function doctorContext(): DoctorBookingEngineContext {
     specialistId: OWN_ID,
     canManageOrganization: false,
     canManageAllSpecialists: false,
+    appointmentsManageOwn: true,
+    availabilityManageOwn: true,
   };
 }
 

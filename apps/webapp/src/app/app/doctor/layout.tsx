@@ -22,6 +22,12 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     );
   }
 
+  // A management-only membership has no clinical workspace to render.  Its landing is the
+  // separately guarded management mode; the mode switch is only shown when both modes exist.
+  if (!workspaceAccess.canAccessClinicalWorkspace && workspaceAccess.canManageOrganization) {
+    redirect('/app/manage');
+  }
+
   if (!workspaceAccess.canAccessClinicalWorkspace && !workspaceAccess.canManageOrganization) {
     if (shell.canRenderClinicalChildren) {
       return children;
@@ -36,6 +42,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       userDisplayName={session.user.displayName}
       patientLabel={shell.patientLabel}
       workspaceContext={shell.workspaceContext}
+      workspaceComposition={shell.workspaceComposition}
       coursesEnabled={shell.coursesEnabled}
       promoEnabled={shell.promoEnabled}
       cmsEnabled={shell.cmsEnabled}
@@ -43,7 +50,12 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       specialistTasksEnabled={shell.specialistTasksEnabled}
       workspaceModules={shell.workspaceModules}
       brand={shell.shellBrand}
-      mobileHeaderActions={<DoctorGlobalQuickActions patientSingularLabel={shell.patientLabel} />}
+      mobileHeaderActions={
+        <DoctorGlobalQuickActions
+          patientSingularLabel={shell.patientLabel}
+          appointmentsManageOwn={shell.workspaceAccess.appointmentsManageOwn}
+        />
+      }
     >
       {shell.accessWarnings.length > 0 ? (
         <div

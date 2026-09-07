@@ -13,7 +13,7 @@ type DoctorWorkspaceViewportProps = {
     menuAccess: DoctorMenuAccess;
     patientLabel?: string;
     hideMenuOnDesktop: boolean;
-    menuKind: 'doctor' | 'platform';
+    menuKind: 'doctor' | 'platform' | 'management';
     globalActions?: ReactNode;
   };
   sidebar?: ReactNode;

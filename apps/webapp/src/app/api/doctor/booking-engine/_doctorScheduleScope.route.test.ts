@@ -75,6 +75,8 @@ function doctorContext(): DoctorBookingEngineContext {
     specialistId: OWN_ID,
     canManageOrganization: false,
     canManageAllSpecialists: false,
+    appointmentsManageOwn: true,
+    availabilityManageOwn: true,
   };
 }
 
@@ -207,7 +209,7 @@ describe('doctor schedule route scope', () => {
     ]);
   });
 
-  it('applies a clinic admin selected specialist consistently without losing clinic switch options', async () => {
+  it('forces a bound clinic admin to own scope on every doctor schedule endpoint', async () => {
     mocks.requireDoctorBookingEngine.mockResolvedValue({ ok: true, ctx: clinicAdminContext() });
     const selectedScope = `scope=specialist&specialistId=${OTHER_ID}`;
 
@@ -242,14 +244,14 @@ describe('doctor schedule route scope', () => {
     );
 
     expect(mocks.getCalendar).toHaveBeenCalledWith(
-      expect.objectContaining({ specialistId: OTHER_ID }),
+      expect.objectContaining({ specialistId: OWN_ID }),
     );
     expect(mocks.getScheduleKpis).toHaveBeenCalledWith(
-      expect.objectContaining({ specialistId: OTHER_ID }),
+      expect.objectContaining({ specialistId: OWN_ID }),
       expect.anything(),
     );
     expect(mocks.nearestFreeWindow).toHaveBeenCalledWith(
-      expect.objectContaining({ specialistId: OTHER_ID }),
+      expect.objectContaining({ specialistId: OWN_ID }),
     );
     expect(workingDaysResponse.status).toBe(200);
     expect(mocks.upsertWorkingDays).toHaveBeenCalledWith(
@@ -270,14 +272,14 @@ describe('doctor schedule route scope', () => {
         specialists: { id: string }[];
       };
     };
-    expect(calendarBody.filters.specialists).toEqual([expect.objectContaining({ id: OTHER_ID })]);
+    expect(calendarBody.filters.specialists).toEqual([expect.objectContaining({ id: OWN_ID })]);
     expect(calendarBody.filters.services[0]?.availability).toEqual([
-      expect.objectContaining({ specialistId: OTHER_ID }),
+      expect.objectContaining({ specialistId: OWN_ID }),
     ]);
     expect(calendarBody.resolvedScope).toMatchObject({
-      scope: 'specialist',
-      specialistId: OTHER_ID,
-      specialists: [{ id: OWN_ID }, { id: OTHER_ID }],
+      scope: 'mine',
+      specialistId: OWN_ID,
+      specialists: [{ id: OWN_ID }],
     });
   });
 });

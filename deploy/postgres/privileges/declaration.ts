@@ -4259,7 +4259,9 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "status",
           "created_at",
           "updated_at",
-          "doctor_screens_disabled"
+          "doctor_screens_disabled",
+          "appointments_manage_own",
+          "availability_manage_own"
         ],
         "operations": [
           "SELECT"
@@ -12772,6 +12774,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "doctor_screens_disabled",
+          "appointments_manage_own",
+          "availability_manage_own",
           "role",
           "specialist_id",
           "status",
@@ -30465,7 +30469,7 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [{ relation: 'public.be_organization_members',
         columns: ['id', 'organization_id', 'platform_user_id', 'role', 'specialist_id', 'status',
-          'doctor_screens_disabled', 'created_at', 'updated_at'],
+          'doctor_screens_disabled', 'appointments_manage_own', 'availability_manage_own', 'created_at', 'updated_at'],
         operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.set_platform_organization_is_active(uuid,boolean)': rev10Function({

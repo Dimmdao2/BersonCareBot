@@ -6,6 +6,7 @@ import { apiJson } from '@/shared/lib/apiJson';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import {
   Select,
   SelectContent,
@@ -64,6 +65,9 @@ export type TeamMemberRow = {
   role: string;
   status: string;
   seatConsuming: boolean;
+  specialistLinked: boolean;
+  appointmentsManageOwn: boolean;
+  availabilityManageOwn: boolean;
 };
 
 export type TeamInviteRow = {
@@ -96,6 +100,7 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [permissionsPendingId, setPermissionsPendingId] = useState<string | null>(null);
   const [seatOverageConfirm, setSeatOverageConfirm] = useState<{
     priceMinor: number;
     currency: string;
@@ -172,6 +177,30 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
     }
   }
 
+  async function updateClinicalPermissions(
+    member: TeamMemberRow,
+    key: 'appointmentsManageOwn' | 'availabilityManageOwn',
+    checked: boolean,
+  ) {
+    setPermissionsPendingId(member.id);
+    try {
+      await apiJson('/api/clinic/members', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          membershipId: member.id,
+          appointmentsManageOwn:
+            key === 'appointmentsManageOwn' ? checked : member.appointmentsManageOwn,
+          availabilityManageOwn:
+            key === 'availabilityManageOwn' ? checked : member.availabilityManageOwn,
+        }),
+      });
+      router.refresh();
+    } finally {
+      setPermissionsPendingId(null);
+    }
+  }
+
   /**
    * Р-15 в действующей редакции: место открывается СРАЗУ, счёт уходит в оплату отдельно. Поэтому
    * подтверждение цены больше не ведёт на checkout и не ждёт денег — оно открывает место, после
@@ -200,7 +229,11 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
         | { ok: false; error: string; quote?: string; priceMinor?: number; currency?: string }
         | null;
       if (body?.ok && (body.outcome === 'seat_available' || body.outcome === 'seat_opened')) {
-        if (body.outcome === 'seat_opened' && typeof body.amountMinor === 'number' && body.currency) {
+        if (
+          body.outcome === 'seat_opened' &&
+          typeof body.amountMinor === 'number' &&
+          body.currency
+        ) {
           setSeatInvoiceNotice({
             priceMinor: body.amountMinor,
             currency: body.currency,
@@ -275,6 +308,30 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
                   <Badge variant="outline">{ROLE_LABELS[member.role] ?? member.role}</Badge>
                   {member.seatConsuming ? <Badge variant="secondary">Место</Badge> : null}
                 </span>
+                {member.specialistLinked ? (
+                  <div className="flex w-full flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                    <label className="flex items-center gap-2">
+                      <Switch
+                        checked={member.appointmentsManageOwn}
+                        disabled={!canMutateTeam || permissionsPendingId === member.id}
+                        onCheckedChange={(checked) =>
+                          void updateClinicalPermissions(member, 'appointmentsManageOwn', checked)
+                        }
+                      />
+                      Записи
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <Switch
+                        checked={member.availabilityManageOwn}
+                        disabled={!canMutateTeam || permissionsPendingId === member.id}
+                        onCheckedChange={(checked) =>
+                          void updateClinicalPermissions(member, 'availabilityManageOwn', checked)
+                        }
+                      />
+                      График работы
+                    </label>
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -334,8 +391,8 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
                       seatOverageConfirm.currency,
                     )}
                   </strong>
-                  . Место откроется сразу, приглашение уйдёт тем же действием, а счёт на эту
-                  сумму придёт в раздел оплаты.
+                  . Место откроется сразу, приглашение уйдёт тем же действием, а счёт на эту сумму
+                  придёт в раздел оплаты.
                 </p>
                 <div className="flex gap-2">
                   <Button

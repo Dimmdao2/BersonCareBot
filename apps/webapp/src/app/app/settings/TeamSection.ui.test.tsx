@@ -261,6 +261,9 @@ describe('TeamSection read-only access', () => {
             role: 'doctor',
             status: 'active',
             seatConsuming: true,
+            specialistLinked: true,
+            appointmentsManageOwn: true,
+            availabilityManageOwn: true,
           },
         ]}
         invites={[

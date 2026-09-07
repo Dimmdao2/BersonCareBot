@@ -37,7 +37,10 @@ import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { resolveStaffAppointmentFinancials } from '@/app-layer/booking/staffAppointmentFinancials';
 import { initialAppointmentStatusForSnapshot } from '@/modules/payments/appointmentFinancialSnapshot';
 import { requireDoctorBookingEngine } from '../../_requireDoctorBookingEngine';
-import { resolveDoctorCreateSpecialist } from '../../_resolveDoctorAppointmentAccess';
+import {
+  canMutateOwnAppointments,
+  resolveDoctorCreateSpecialist,
+} from '../../_resolveDoctorAppointmentAccess';
 
 /**
  * PAY-APPT-02/03: врач переопределяет стоимость и условие предоплаты ДЛЯ КОНКРЕТНОЙ записи.
@@ -82,6 +85,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const { ctx } = gate;
+  if (!canMutateOwnAppointments(ctx)) {
+    return NextResponse.json(
+      { ok: false, error: 'appointment_mutation_forbidden' },
+      { status: 403 },
+    );
+  }
   const specialistResolution = await resolveDoctorCreateSpecialist(ctx, parsed.data.specialistId);
   if (!specialistResolution.ok) {
     const status = specialistResolution.error === 'schedule_specialist_not_available' ? 404 : 403;
@@ -120,7 +129,10 @@ export async function POST(request: Request) {
               durationMinutes: parsed.data.durationMinutes,
             });
           } catch (err) {
-            if (!parsed.data.allowOverlap || !(err instanceof Error && err.message === 'slot_overlap')) {
+            if (
+              !parsed.data.allowOverlap ||
+              !(err instanceof Error && err.message === 'slot_overlap')
+            ) {
               throw err;
             }
             overlapConfirmed = true;

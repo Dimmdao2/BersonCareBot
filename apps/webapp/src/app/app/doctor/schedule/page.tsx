@@ -3,10 +3,12 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import {
   getMechanicMutationAvailability,
   getMechanicSurfaceVisibility,
+  requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getDoctorEffectiveCalendarIana } from '@/modules/doctor-calendar-timezone/doctorCalendarTimezone';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
+import { resolveDoctorWorkspaceComposition } from '@/modules/doctor-workspace/composition';
 import { resolveActiveOwnSpecialistId } from '@/modules/doctor-schedule/scope';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { scheduleTabFromQuery, type ScheduleTabId } from './doctorScheduleTabs';
@@ -52,6 +54,8 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     notificationTemplatesVisibility,
     packagesVisibility,
     packagesMutation,
+    clinicTeamEntitlement,
+    seats,
   ] = await Promise.all([
     getMechanicSurfaceVisibility(workspace, 'payments'),
     getAppDisplayTimeZone(),
@@ -59,7 +63,14 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     getMechanicSurfaceVisibility(workspace, 'branding'),
     getMechanicSurfaceVisibility(workspace, 'subscriptions'),
     getMechanicMutationAvailability(workspace, 'subscriptions'),
+    requireEntitlementForReadAction(workspace, 'clinic_team'),
+    deps.clinicSeats.getSeatStatus(workspace.organizationId, workspace.session.user.userId),
   ]);
+
+  const composition = resolveDoctorWorkspaceComposition({
+    clinicTeamEntitled: clinicTeamEntitlement.ok,
+    seats,
+  });
 
   const initialTimeZone = await getDoctorEffectiveCalendarIana(
     workspace.session.user.userId,
@@ -76,13 +87,15 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     canManageAllSpecialists: workspace.canManageAllSpecialists,
     canAccessClinicalWorkspace: workspace.canAccessClinicalWorkspace,
     doctorScreensDisabled: workspace.doctorScreensDisabled,
+    appointmentsManageOwn: workspace.appointmentsManageOwn,
+    availabilityManageOwn: workspace.availabilityManageOwn,
     selectedSpecialistId: workspace.canManageAllSpecialists ? null : workspace.specialistId,
   };
 
   const directory = await deps.doctorWorkspace.listDirectory(directoryContext);
   const scheduleScopeBootstrap = {
     ownSpecialistId: resolveActiveOwnSpecialistId(workspace.specialistId, directory.specialists),
-    canManageAllSpecialists: workspace.canManageAllSpecialists,
+    canManageAllSpecialists: false,
     specialists: directory.specialists.map((specialist) => ({
       id: specialist.id,
       displayLabel: specialist.fullName,
@@ -115,9 +128,12 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
       canManageOrganization={workspace.canManageOrganization}
       paymentsVisible={paymentsVisibility.specialistNavigation}
       notificationTemplatesVisible={notificationTemplatesVisibility.specialistNavigation}
-      packagesVisible={packagesVisibility.specialistNavigation}
+      packagesVisible={packagesVisibility.specialistNavigation && composition === 'solo'}
       packagesReadOnly={!packagesMutation.available}
+      showPackagesTab={packagesVisibility.specialistNavigation && composition === 'solo'}
       scheduleScopeBootstrap={scheduleScopeBootstrap}
+      appointmentsManageOwn={workspace.appointmentsManageOwn}
+      availabilityManageOwn={workspace.availabilityManageOwn}
       doctorStatisticsEnabled={doctorStatisticsEnabled}
       initialTabData={initialTabData}
     />

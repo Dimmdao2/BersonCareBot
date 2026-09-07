@@ -26,6 +26,8 @@ function makeContext(input: {
     specialistId: input.ownSpecialistId,
     canManageOrganization: input.canManageAllSpecialists,
     canManageAllSpecialists: input.canManageAllSpecialists,
+    appointmentsManageOwn: true,
+    availabilityManageOwn: true,
   };
 }
 
@@ -57,19 +59,33 @@ describe('resolveDoctorScheduleScope', () => {
     expect(result).toEqual({ ok: false, error: 'schedule_specialist_not_configured' });
   });
 
-  it('lets a clinic admin select clinic, own, or one active specialist in the organization', async () => {
+  it('forces a clinic admin with a specialist binding to own scope on the doctor surface', async () => {
     const ctx = makeContext({ ownSpecialistId: OWN_ID, canManageAllSpecialists: true });
 
     await expect(resolveDoctorScheduleScope(ctx, { scope: 'clinic' })).resolves.toMatchObject({
       ok: true,
-      value: { scope: 'clinic', specialistId: null },
-    });
-    await expect(resolveDoctorScheduleScope(ctx, { scope: 'mine' })).resolves.toMatchObject({
-      ok: true,
-      value: { scope: 'mine', specialistId: OWN_ID },
+      value: { scope: 'mine', specialistId: OWN_ID, canManageAllSpecialists: false },
     });
     await expect(
       resolveDoctorScheduleScope(ctx, { scope: 'specialist', specialistId: OTHER_ID }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { scope: 'mine', specialistId: OWN_ID, canManageAllSpecialists: false },
+    });
+  });
+
+  it('keeps clinic and selected-specialist scope available only on the management surface', async () => {
+    const ctx = makeContext({ ownSpecialistId: OWN_ID, canManageAllSpecialists: true });
+
+    await expect(
+      resolveDoctorScheduleScope(ctx, { scope: 'clinic' }, 'management'),
+    ).resolves.toMatchObject({ ok: true, value: { scope: 'clinic', specialistId: null } });
+    await expect(
+      resolveDoctorScheduleScope(
+        ctx,
+        { scope: 'specialist', specialistId: OTHER_ID },
+        'management',
+      ),
     ).resolves.toMatchObject({
       ok: true,
       value: { scope: 'specialist', specialistId: OTHER_ID },
@@ -80,20 +96,25 @@ describe('resolveDoctorScheduleScope', () => {
     const ctx = makeContext({ ownSpecialistId: OWN_ID, canManageAllSpecialists: true });
 
     await expect(
-      resolveDoctorScheduleScope(ctx, { scope: 'specialist', specialistId: INACTIVE_ID }),
+      resolveDoctorScheduleScope(
+        ctx,
+        { scope: 'specialist', specialistId: INACTIVE_ID },
+        'management',
+      ),
     ).resolves.toEqual({ ok: false, error: 'schedule_specialist_not_available' });
     await expect(
-      resolveDoctorScheduleScope(ctx, { scope: 'specialist', specialistId: null }),
+      resolveDoctorScheduleScope(ctx, { scope: 'specialist', specialistId: null }, 'management'),
     ).resolves.toEqual({ ok: false, error: 'schedule_specialist_not_available' });
   });
 
-  it('defaults a clinic admin without an own specialist to the authorized clinic scope', async () => {
-    const result = await resolveDoctorScheduleScope(
-      makeContext({ ownSpecialistId: null, canManageAllSpecialists: true }),
-      {},
-    );
+  it('keeps a management-only admin out of doctor scope while defaulting management to clinic', async () => {
+    const ctx = makeContext({ ownSpecialistId: null, canManageAllSpecialists: true });
 
-    expect(result).toMatchObject({
+    await expect(resolveDoctorScheduleScope(ctx, {})).resolves.toEqual({
+      ok: false,
+      error: 'schedule_specialist_not_configured',
+    });
+    await expect(resolveDoctorScheduleScope(ctx, {}, 'management')).resolves.toMatchObject({
       ok: true,
       value: {
         scope: 'clinic',

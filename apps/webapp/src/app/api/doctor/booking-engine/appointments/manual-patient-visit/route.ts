@@ -36,7 +36,10 @@ import {
 import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { requireDoctorBookingEngine } from '../../_requireDoctorBookingEngine';
-import { resolveDoctorCreateSpecialist } from '../../_resolveDoctorAppointmentAccess';
+import {
+  canMutateOwnAppointments,
+  resolveDoctorCreateSpecialist,
+} from '../../_resolveDoctorAppointmentAccess';
 import {
   FIO_LATIN_REJECTED_MESSAGE,
   FIO_LATIN_REJECTED_TEXT,
@@ -102,6 +105,12 @@ function pgCode(error: unknown): { code: string; constraint: string } {
 export async function POST(request: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  if (!canMutateOwnAppointments(gate.ctx)) {
+    return NextResponse.json(
+      { ok: false, error: 'appointment_mutation_forbidden' },
+      { status: 403 },
+    );
+  }
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(

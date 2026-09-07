@@ -15,18 +15,24 @@ export type ScheduleTabProps = {
   /** IANA-таймзона из system_settings (от серверной страницы). */
   initialTimeZone?: string;
   /**
-    * Tariff-backed visibility of the booking money section. Mutability is no longer plumbed here:
-    * since PAY-APPT-21/23 the acquiring credentials live in clinic settings and this section only
-    * holds prepayment policy.
-    */
+   * Tariff-backed visibility of the booking money section. Mutability is no longer plumbed here:
+   * since PAY-APPT-21/23 the acquiring credentials live in clinic settings and this section only
+   * holds prepayment policy.
+   */
   paymentsVisible?: boolean;
   /** Tariff-backed visibility of organization notification-template controls. */
   notificationTemplatesVisible?: boolean;
   /** Tariff-backed visibility and mutability of patient membership package controls. */
   packagesVisible?: boolean;
   packagesReadOnly?: boolean;
+  /** The only remaining solo Schedule setup section is the existing package writer. */
+  setupPackagesOnly?: boolean;
   /** Server-resolved role/specialist capabilities shared by calendar/KPI/create. */
   scheduleScopeBootstrap?: DoctorScheduleScopeBootstrap;
+  /** Server-resolved own-appointment mutation capability; components never infer it from role. */
+  appointmentsManageOwn?: boolean;
+  /** Server-resolved own-availability mutation capability; components never infer it from role. */
+  availabilityManageOwn?: boolean;
   /** The single doctor_statistics mechanic controls clinic statistics and booking attribution. */
   doctorStatisticsEnabled: boolean;
   /** Monotonic request from mobile chrome to open a blank appointment form. */

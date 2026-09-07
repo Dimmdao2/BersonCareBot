@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
@@ -29,7 +29,8 @@ type DoctorAdminSidebarProps = {
   /** Server-resolved effective organization brand used by the account entry. */
   brand?: { displayName: string; logoUrl: string | null };
   /** Which item source `DoctorMenuAccordion` renders. */
-  menuKind?: 'doctor' | 'platform';
+  menuKind?: 'doctor' | 'platform' | 'management';
+  modeSwitch?: ReactNode;
 };
 
 /**
@@ -45,6 +46,7 @@ export function DoctorAdminSidebar({
   homeHref = routePaths.doctor,
   brand,
   menuKind = 'doctor',
+  modeSwitch,
 }: DoctorAdminSidebarProps) {
   const pathname = usePathname() ?? '/app/doctor';
   const [tabletExpanded, setTabletExpanded] = useState(false);
@@ -68,6 +70,7 @@ export function DoctorAdminSidebar({
           'lg:w-56 lg:shadow-none',
         )}
       >
+        {modeSwitch ? <div className="mt-3 hidden lg:block">{modeSwitch}</div> : null}
         <Link
           href={homeHref}
           prefetch={false}

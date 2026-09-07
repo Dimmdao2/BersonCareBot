@@ -67,5 +67,13 @@ export function createInMemoryOrganizationMembershipPort(): OrganizationMembersh
       const row = rows.find((candidate) => candidate.id === membershipId);
       if (row) row.doctorScreensDisabled = disabled;
     },
+
+    async setClinicalPermissions({ membershipId, appointmentsManageOwn, availabilityManageOwn }) {
+      const row = rows.find((candidate) => candidate.id === membershipId);
+      if (row) {
+        row.appointmentsManageOwn = appointmentsManageOwn;
+        row.availabilityManageOwn = availabilityManageOwn;
+      }
+    },
   };
 }

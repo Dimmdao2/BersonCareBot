@@ -65,7 +65,7 @@ export function getDoctorShellHomeHref(access: DoctorMenuAccess): string {
     return '/app/admin/system-health';
   if (hasLaunchCapability(access.capabilities, 'clinical.workspace')) return routePaths.doctor;
   if (hasLaunchCapability(access.capabilities, 'organization.management')) {
-    return routePaths.settings;
+    return '/app/manage';
   }
   if (hasLaunchCapability(access.capabilities, 'account.self')) return routePaths.account;
   return routePaths.root;
@@ -183,12 +183,6 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     label: 'Главная пациента',
     href: '/app/doctor/patient-home',
     requiresPatientHomeTodayEntitlement: true,
-  },
-  {
-    id: 'settings',
-    label: 'Настройки',
-    href: routePaths.settings,
-    accessTier: 'clinic_admin',
   },
   // NOTE: the platform operator's own destinations (analytics + the former "system" cluster)
   // moved out to `platformNavLinks.ts` — the platform shell has its own dedicated, flat

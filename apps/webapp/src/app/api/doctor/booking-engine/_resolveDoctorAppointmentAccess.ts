@@ -1,6 +1,7 @@
 import type { BeAppointment } from '@/modules/booking-engine/types';
 import type { DoctorBookingEngineContext } from './_requireDoctorBookingEngine';
 import { resolveDoctorScheduleScope } from './_resolveDoctorScheduleScope';
+import type { DoctorScheduleScopeSurface } from './_resolveDoctorScheduleScope';
 
 export type DoctorAppointmentAccessMode = 'own' | 'clinic';
 
@@ -19,11 +20,13 @@ export async function resolveDoctorAppointmentAccess(
   ctx: DoctorBookingEngineContext,
   appointmentId: string,
   mode: DoctorAppointmentAccessMode,
+  surface: DoctorScheduleScopeSurface = 'doctor',
 ): Promise<BeAppointment | null> {
   const appointment = await ctx.service.getAppointment(appointmentId);
   if (!appointment || appointment.organizationId !== ctx.organizationId) return null;
   if (ctx.specialistId && appointment.specialistId === ctx.specialistId) return appointment;
-  if (mode === 'clinic' && ctx.canManageAllSpecialists) return appointment;
+  if (mode === 'clinic' && surface === 'management' && ctx.canManageAllSpecialists)
+    return appointment;
   return null;
 }
 
@@ -31,16 +34,26 @@ export async function resolveDoctorAppointmentAccess(
 export async function resolveDoctorCreateSpecialist(
   ctx: DoctorBookingEngineContext,
   requestedSpecialistId: string | null | undefined,
+  surface: DoctorScheduleScopeSurface = 'doctor',
 ): Promise<DoctorCreateSpecialistResolution> {
   const resolution = await resolveDoctorScheduleScope(
     ctx,
     requestedSpecialistId
       ? { scope: 'specialist', specialistId: requestedSpecialistId }
       : { scope: 'mine' },
+    surface,
   );
   if (!resolution.ok) return resolution;
   if (!resolution.value.specialistId) {
     return { ok: false, error: 'schedule_specialist_not_configured' };
   }
   return { ok: true, specialistId: resolution.value.specialistId };
+}
+
+export function canMutateOwnAppointments(ctx: DoctorBookingEngineContext): boolean {
+  return ctx.appointmentsManageOwn !== false;
+}
+
+export function canMutateOwnAvailability(ctx: DoctorBookingEngineContext): boolean {
+  return ctx.availabilityManageOwn !== false;
 }

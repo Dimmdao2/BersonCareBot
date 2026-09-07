@@ -1,6 +1,11 @@
-import { redirect } from 'next/navigation';
-import { routePaths } from '@/app-layer/routes/paths';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { ManagementBookingSections } from './ManagementBookingSections';
 
 export default async function ManagementPage() {
-  redirect(`${routePaths.settings}?tab=organization`);
+  return (
+    <>
+      <DoctorPageHeader title="Управление клиникой" />
+      <ManagementBookingSections />
+    </>
+  );
 }

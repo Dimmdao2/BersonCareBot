@@ -11,9 +11,11 @@ import { DoctorWorkspaceViewport } from '@/shared/ui/doctor/shell/DoctorWorkspac
 import { DoctorShellChromeProvider } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { DoctorPatientTermsProvider } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { DoctorSupportUnreadProvider } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
+import { DoctorWorkspaceModeSwitch } from '@/shared/ui/doctor/shell/DoctorWorkspaceModeSwitch';
 import { getDoctorShellHomeHref } from '@/shared/ui/doctor/doctorNavLinks';
 import type { UserRole } from '@/shared/types/session';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
+import type { DoctorWorkspaceComposition } from '@/modules/doctor-workspace/composition';
 import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
 
 type DoctorWorkspaceShellProps = {
@@ -25,6 +27,8 @@ type DoctorWorkspaceShellProps = {
   patientLabel?: string;
   /** Stable server-resolved org/member context for nested multi-specialist workspace controls. */
   workspaceContext?: DoctorWorkspaceContext;
+  /** Server-resolved solo/clinic composition; client chrome never infers it from capabilities. */
+  workspaceComposition?: DoctorWorkspaceComposition;
   /** Server-resolved organization entitlement; the client shell never infers it from role. */
   coursesEnabled?: boolean;
   promoEnabled?: boolean;
@@ -47,7 +51,7 @@ type DoctorWorkspaceShellProps = {
    * admin is not a doctor, so its shell instances (`(global-admin)/doctor/layout.tsx`, the new
    * `app/platform/layout.tsx`) pass `"platform"` explicitly.
    */
-  menuKind?: 'doctor' | 'platform';
+  menuKind?: 'doctor' | 'platform' | 'management';
   mobileHeaderActions?: ReactNode;
   children: ReactNode;
 };
@@ -67,6 +71,7 @@ export function DoctorWorkspaceShell({
   userDisplayName,
   patientLabel,
   workspaceContext,
+  workspaceComposition,
   coursesEnabled = false,
   promoEnabled = false,
   cmsEnabled = false,
@@ -105,6 +110,13 @@ export function DoctorWorkspaceShell({
   const homeHref = getDoctorShellHomeHref(menuAccess);
   const showClinicalShortcuts = capabilities.includes('clinical.workspace');
   const clinicalRuntimeEnabled = enableTenantRuntime && showClinicalShortcuts;
+  const modeSwitch =
+    workspaceComposition === 'clinic' &&
+    workspaceContext?.canManageOrganization &&
+    workspaceContext.specialistId !== null &&
+    workspaceContext.canAccessClinicalWorkspace ? (
+      <DoctorWorkspaceModeSwitch />
+    ) : null;
 
   return (
     <DoctorSupportUnreadProvider
@@ -131,7 +143,12 @@ export function DoctorWorkspaceShell({
             patientLabel,
             hideMenuOnDesktop: showDoctorDesktopNav,
             menuKind,
-            globalActions: mobileHeaderActions,
+            globalActions: (
+              <>
+                {modeSwitch}
+                {mobileHeaderActions}
+              </>
+            ),
           }}
           sidebar={
             showDoctorDesktopNav ? (
@@ -142,10 +159,15 @@ export function DoctorWorkspaceShell({
                 homeHref={homeHref}
                 brand={brand}
                 menuKind={menuKind}
+                modeSwitch={modeSwitch}
               />
             ) : undefined
           }
-          bottomNav={showClinicalShortcuts ? { menuAccess, patientLabel } : undefined}
+          bottomNav={
+            menuKind === 'doctor' && showClinicalShortcuts
+              ? { menuAccess, patientLabel }
+              : undefined
+          }
         >
           <DoctorPatientTermsProvider patientLabel={patientLabel}>
             {children}
