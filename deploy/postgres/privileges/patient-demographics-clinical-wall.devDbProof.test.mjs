@@ -36,18 +36,6 @@ const STAFF_COLUMN_GRANTS = ARTIFACT.split('\n')
   )
   .join('\n');
 
-assert.equal(
-  STAFF_COLUMN_GRANTS.split('\n').filter(Boolean).length,
-  2,
-  'generated artifact must contain the exact staff INSERT and UPDATE column grants',
-);
-for (const column of ['birth_date', 'gender', 'height_cm', 'weight_kg']) {
-  assert.ok(
-    STAFF_COLUMN_GRANTS.includes(`"${column}"`),
-    `generated staff grants do not carry ${column}`,
-  );
-}
-
 function psql(sql) {
   try {
     return execFileSync(

@@ -13,6 +13,14 @@ import {
 
 describe('C3M-08 rehabilitation API closure', () => {
   it.each([
+    ['/api/doctor/messages', 'direct_chat'],
+    ['/api/doctor/messages/conversations/ensure', 'direct_chat'],
+    ['/api/doctor/messages/conversations/unread-by-patient', 'direct_chat'],
+    ['/api/doctor/messages/unread-count', 'direct_chat'],
+    ['/api/doctor/messages/conversation-17/read', 'direct_chat'],
+    ['/api/patient/messages', 'direct_chat'],
+    ['/api/patient/messages/conversation-17/read', 'direct_chat'],
+    ['/api/doctor/patients/patient-17/messages-snapshot', 'direct_chat'],
     ['/api/patient/treatment-program-instances/current', 'rehabilitation'],
     ['/api/patient/treatment-program-promo/current', 'rehabilitation'],
     ['/api/patient/courses/active', 'rehabilitation'],
