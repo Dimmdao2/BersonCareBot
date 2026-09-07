@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { runWithDbPatientPrincipal } from '@bersoncare/db-principal';
 import { env, isS3MediaEnabled } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
 import { createPendingProgramSubmissionMediaFile } from '@/app-layer/media/s3MediaStorage';
@@ -20,6 +21,7 @@ import {
 } from '@/modules/media/programSubmissionUploadLimits';
 
 const bodySchema = z.object({
+  instanceId: z.string().uuid(),
   filename: z.string().min(1).max(255),
   mimeType: z.string().min(1),
   size: z.number().int().positive(),
@@ -34,27 +36,6 @@ export async function POST(request: Request) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patient });
   if (!gate.ok) return gate.response;
 
-  const deps = buildAppDeps();
-  const supportGate = await assertPatientProgramMediaAllowed(deps, gate.session.user.userId);
-  if (!supportGate.ok) {
-    return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
-  }
-  const organizationId = supportGate.policy.organizationId;
-  if (!organizationId) {
-    return NextResponse.json(
-      { ok: false, error: 'organization_context_required' },
-      { status: 403 },
-    );
-  }
-  if (
-    !(await isPatientProgramDiscussionMediaFlowEnabled(deps, {
-      patientUserId: gate.session.user.userId,
-      organizationId,
-    }))
-  ) {
-    return NextResponse.json({ ok: false, error: 'feature_disabled' }, { status: 403 });
-  }
-
   let json: unknown;
   try {
     json = await request.json();
@@ -66,12 +47,41 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
+
+  const deps = buildAppDeps();
+  const detail = await deps.treatmentProgramInstance.getInstanceForPatient(
+    gate.session.user.userId,
+    parsed.data.instanceId,
+  );
+  if (!detail) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+  const organizationId = detail.organizationId;
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: 'organization_context_missing' }, { status: 500 });
+  }
+  const supportGate = await runWithDbPatientPrincipal(
+    {
+      platformUserId: gate.session.user.userId,
+      organizationId,
+      source: 'patient.program-submission.presign.support-policy',
+    },
+    () => assertPatientProgramMediaAllowed(deps, gate.session.user.userId, { organizationId }),
+  );
+  if (!supportGate.ok) {
+    return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
+  }
+  if (
+    !(await isPatientProgramDiscussionMediaFlowEnabled(deps, {
+      patientUserId: gate.session.user.userId,
+      organizationId,
+    }))
+  ) {
+    return NextResponse.json({ ok: false, error: 'feature_disabled' }, { status: 403 });
+  }
   if (isProgramSubmissionVideoMime(parsed.data.mimeType)) {
     if (parsed.data.durationSeconds === undefined) {
-      return NextResponse.json(
-        { ok: false, error: 'video_metadata_unavailable' },
-        { status: 400 },
-      );
+      return NextResponse.json({ ok: false, error: 'video_metadata_unavailable' }, { status: 400 });
     }
     if (parsed.data.durationSeconds < MIN_PROGRAM_SUBMISSION_VIDEO_DURATION_SECONDS) {
       return NextResponse.json({ ok: false, error: 'video_too_short' }, { status: 400 });

@@ -32,14 +32,17 @@ export async function GET(_request: Request, context: { params: Promise<{ userId
 
   const [profile, policy] = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     Promise.all([
-      deps.doctorClients.getClientSupport(identity.userId),
-      deps.doctorClients.getPatientProgramInteractionPolicy(identity.userId),
+      deps.doctorClients.getClientSupport(identity.userId, gate.ctx.organizationId),
+      deps.doctorClients.getPatientProgramInteractionPolicy(identity.userId, {
+        organizationId: gate.ctx.organizationId,
+      }),
     ]),
   );
 
   return NextResponse.json({
     ok: true,
     profile: profile ?? {
+      organizationId: gate.ctx.organizationId,
       patientUserId: identity.userId,
       onSupport: false,
       commentsEnabled: null,
@@ -78,12 +81,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
   const profile = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     deps.doctorClients.updateClientSupport({
       patientUserId: identity.userId,
+      organizationId: gate.ctx.organizationId,
       ...parsed.data,
       actorId: session.user.userId,
     }),
   );
   const effectivePolicy = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    deps.doctorClients.getPatientProgramInteractionPolicy(identity.userId),
+    deps.doctorClients.getPatientProgramInteractionPolicy(identity.userId, {
+      organizationId: gate.ctx.organizationId,
+    }),
   );
 
   return NextResponse.json({ ok: true, profile, effectivePolicy });

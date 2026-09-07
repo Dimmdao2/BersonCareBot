@@ -4,7 +4,7 @@ export type PatientProgramInteractionPolicyDeps = {
   doctorClients: {
     getPatientProgramInteractionPolicy: (
       patientUserId: string,
-      context?: { organizationId: string },
+      context: { organizationId: string },
     ) => Promise<PatientProgramInteractionPolicy>;
   };
 };
@@ -12,7 +12,7 @@ export type PatientProgramInteractionPolicyDeps = {
 export async function assertPatientProgramCommentsAllowed(
   deps: PatientProgramInteractionPolicyDeps,
   patientUserId: string,
-  context?: { organizationId: string },
+  context: { organizationId: string },
 ): Promise<
   | { ok: true; policy: PatientProgramInteractionPolicy }
   | { ok: false; error: 'patient_support_comments_disabled' }
@@ -30,7 +30,7 @@ export async function assertPatientProgramCommentsAllowed(
 export async function assertPatientProgramMediaAllowed(
   deps: PatientProgramInteractionPolicyDeps,
   patientUserId: string,
-  context?: { organizationId: string },
+  context: { organizationId: string },
 ): Promise<
   | { ok: true; policy: PatientProgramInteractionPolicy }
   | { ok: false; error: 'patient_support_media_disabled' }

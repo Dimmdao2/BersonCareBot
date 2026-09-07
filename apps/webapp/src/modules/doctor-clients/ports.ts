@@ -285,7 +285,7 @@ export type DoctorClientsPort = {
    * Агрегат шапки карточки пациента (для нового раздела «Пациенты»).
    * Возвращает null, если пользователь не найден или не является клиентом.
    */
-  getPatientCardHeader(userId: string): Promise<PatientCardHeader | null>;
+  getPatientCardHeader(userId: string, organizationId: string): Promise<PatientCardHeader | null>;
   /** Сегменты контактов для аналитики `/app/doctor/analytics/clients`. */
   getClientContactBreakdown(audience?: {
     excludedUserIds?: string[];
@@ -303,9 +303,9 @@ export type DoctorClientsPort = {
   ): Promise<ClientIdentity | null>;
   /** Patient-scoped doctor APIs — `role = 'client'` only; otherwise `null`. */
   getPatientClientIdentity(userId: string): Promise<ClientIdentity | null>;
-  getDashboardPatientMetrics(audience?: {
+  getDashboardPatientMetrics(audience: {
     excludedUserIds?: string[];
-    organizationId?: string;
+    organizationId: string;
     visibilityActor?: PatientVisibilityActor;
   }): Promise<DoctorDashboardPatientMetrics>;
   /** Блокировка исходящих сообщений пациента (проверка в patient messaging). */
@@ -351,9 +351,13 @@ export type DoctorClientsPort = {
     organizationId: string;
     archived: boolean;
   }): Promise<void>;
-  getClientSupport(patientUserId: string): Promise<ClientSupportProfile | null>;
+  getClientSupport(
+    patientUserId: string,
+    organizationId: string,
+  ): Promise<ClientSupportProfile | null>;
   updateClientSupport(params: {
     patientUserId: string;
+    organizationId: string;
     onSupport?: boolean;
     commentsEnabled?: boolean | null;
     mediaEnabled?: boolean | null;
@@ -364,12 +368,20 @@ export type DoctorClientsPort = {
    * Принимает ISO yyyy-mm-dd или null (сброс).
    * Работает только для клиентов (role='client').
    */
-  setPatientBirthDate(userId: string, birthDate: string | null): Promise<void>;
+  setPatientBirthDate(
+    userId: string,
+    organizationId: string,
+    birthDate: string | null,
+  ): Promise<void>;
   /**
    * Устанавливает пол в клиническом профиле: 'male' | 'female' | null (сброс).
    * Работает только для клиентов (role='client').
    */
-  setPatientGender(userId: string, gender: 'male' | 'female' | null): Promise<void>;
+  setPatientGender(
+    userId: string,
+    organizationId: string,
+    gender: 'male' | 'female' | null,
+  ): Promise<void>;
   /**
    * Обновляет structured FIO клиента. Compatibility display_name derives from the resulting fields.
    * Обновляются только переданные поля; structured parts допускают null (сброс).
@@ -385,6 +397,7 @@ export type DoctorClientsPort = {
    */
   getPatientPhysical(
     userId: string,
+    organizationId: string,
   ): Promise<{ heightCm: number | null; weightKg: number | null } | null>;
   /**
    * Устанавливает рост и/или вес в клиническом профиле пациента.
@@ -393,6 +406,7 @@ export type DoctorClientsPort = {
    */
   setPatientPhysical(
     userId: string,
+    organizationId: string,
     params: { heightCm?: number | null; weightKg?: number | null },
   ): Promise<void>;
 };

@@ -115,11 +115,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
     }
 
     if (hasBirthDate) {
-      await deps.doctorClients.setPatientBirthDate(patientUserId, data.birthDate ?? null);
+      await deps.doctorClients.setPatientBirthDate(
+        patientUserId,
+        gate.ctx.organizationId,
+        data.birthDate ?? null,
+      );
     }
 
     if (hasGender) {
-      await deps.doctorClients.setPatientGender(patientUserId, data.gender ?? null);
+      await deps.doctorClients.setPatientGender(
+        patientUserId,
+        gate.ctx.organizationId,
+        data.gender ?? null,
+      );
     }
   });
 
