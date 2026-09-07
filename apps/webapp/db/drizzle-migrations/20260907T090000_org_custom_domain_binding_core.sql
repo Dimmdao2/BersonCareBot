@@ -162,6 +162,7 @@ DROP INDEX IF EXISTS public.system_settings_org_custom_domain_hostname_uidx;
 -- BCB-MIGRATION-OWNER: app_seam_settings_runtime_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- BCB-MIGRATION-REHOME-FUNCTION: app.list_configured_custom_domain_hostnames()
 
 -- Parameterize the existing scheduler root to return canonical lifecycle targets. Its identity,
 -- purpose and scheduled caller remain unchanged; no second monitor or settings store is created.
@@ -375,7 +376,7 @@ BEGIN
   FROM public.org_custom_domain_bindings AS binding
   INNER JOIN public.be_organizations AS organization ON organization.id = binding.organization_id
   WHERE binding.hostname = lower(btrim(p_hostname))
-  FOR UPDATE;
+  FOR UPDATE OF binding;
 
   IF NOT FOUND THEN
     RETURN jsonb_build_object('ok', false, 'code', 'not_found');
