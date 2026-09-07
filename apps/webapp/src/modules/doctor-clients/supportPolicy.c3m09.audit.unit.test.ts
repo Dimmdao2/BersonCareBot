@@ -91,4 +91,32 @@ describe('C3M-09 client communication policy', () => {
       program_media: false,
     });
   });
+
+  it('keeps the client portal out of the support-group channel defaults', () => {
+    const groupDefaults = {
+      direct_chat: 'on_support',
+      program_comments: 'on_support',
+      program_media: 'on_support',
+    } as const;
+    const inheriting = { ...profile, directChatEnabled: null, commentsEnabled: null, mediaEnabled: null };
+
+    // Outside the group every group-driven channel closes, but the portal is not a group channel.
+    expect(
+      resolveClientChannelPolicy({ profile: inheriting, defaults: groupDefaults }).portalAllowed,
+    ).toBe(true);
+    // Joining the group opens the group channels and still does not decide the portal.
+    expect(
+      resolveClientChannelPolicy({
+        profile: { ...inheriting, onSupport: true },
+        defaults: groupDefaults,
+      }).portalAllowed,
+    ).toBe(true);
+    // Only the client's own portal exception closes it, group membership notwithstanding.
+    expect(
+      resolveClientChannelPolicy({
+        profile: { ...inheriting, onSupport: true, portalEnabled: false },
+        defaults: groupDefaults,
+      }).portalAllowed,
+    ).toBe(false);
+  });
 });
