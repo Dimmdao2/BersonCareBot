@@ -412,6 +412,7 @@ type PatientsContentProps = {
   metricsPromise: Promise<DoctorDashboardPatientMetrics>;
   patientPluralLabel: string;
   patientSingularLabel: string;
+  supportGroupLabel: string;
   activeSegments: SegmentKey[];
   activeChannel: PatientListChannel | null;
   archivedOnly: boolean;
@@ -437,6 +438,7 @@ function PatientsContent({
   metricsPromise,
   patientPluralLabel,
   patientSingularLabel,
+  supportGroupLabel,
   activeSegments,
   activeChannel,
   archivedOnly,
@@ -1042,6 +1044,7 @@ export function PatientsPageClient({
         metricsPromise={metricsPromise}
         patientPluralLabel={patientPluralLabel}
         patientSingularLabel={patientSingularLabel}
+        supportGroupLabel={supportGroupLabel}
         activeSegments={activeSegments}
         activeChannel={activeChannel}
         archivedOnly={archivedOnly}
