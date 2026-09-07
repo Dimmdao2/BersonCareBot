@@ -14,8 +14,12 @@ import type {
   PatientCardHeader,
 } from './ports';
 import type { ClientIdentity, ClientListItem, PatientProgramInteractionPolicy } from './ports';
-import type { ClientSupportProfile } from './supportPolicy';
-import { resolvePatientProgramInteractionPolicy } from './supportPolicy';
+import type { ClientChannelPolicy, ClientSupportProfile } from './supportPolicy';
+import { resolveClientChannelPolicy } from './supportPolicy';
+import {
+  defaultDoctorWorkspaceClientDefaults,
+  type DoctorWorkspaceClientDefaults,
+} from '@/modules/system-settings/doctorWorkspaceComposition';
 import { countCancellations30d, lastVisitLabelFromHistory } from './appointmentStatsFromHistory';
 import { clientChannelDeliveryContext } from './clientChannelDeliveryContext';
 
@@ -70,7 +74,11 @@ export type DoctorClientsServiceDeps = {
     userId: string,
     identity: ClientIdentity,
   ) => Promise<DoctorSupplementaryContact[]>;
-  getDoctorSupportDefault: (
+  getDoctorWorkspaceClientDefaults?: (
+    context: { organizationId: string },
+  ) => Promise<DoctorWorkspaceClientDefaults>;
+  /** Compatibility seam for older service consumers while the structured row is absent. */
+  getDoctorSupportDefault?: (
     key:
       | 'doctor_patient_support_comments_without_support_default_enabled'
       | 'doctor_patient_support_media_without_support_default_enabled',
@@ -79,6 +87,30 @@ export type DoctorClientsServiceDeps = {
 };
 
 export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
+  async function getClientDefaults(
+    patientUserId: string | null,
+    context: { organizationId: string },
+  ): Promise<DoctorWorkspaceClientDefaults> {
+    if (deps.getDoctorWorkspaceClientDefaults) {
+      return deps.getDoctorWorkspaceClientDefaults(context);
+    }
+    const runtimeContext = { patientUserId: patientUserId ?? '', ...context };
+    const [commentsEnabled, mediaEnabled] = await Promise.all([
+      deps.getDoctorSupportDefault?.(
+        'doctor_patient_support_comments_without_support_default_enabled',
+        runtimeContext,
+      ) ?? false,
+      deps.getDoctorSupportDefault?.(
+        'doctor_patient_support_media_without_support_default_enabled',
+        runtimeContext,
+      ) ?? false,
+    ]);
+    return defaultDoctorWorkspaceClientDefaults({
+      legacyCommentsWithoutSupportEnabled: commentsEnabled,
+      legacyMediaWithoutSupportEnabled: mediaEnabled,
+    });
+  }
+
   return {
     async listClients(
       filters: DoctorClientsFilters,
@@ -147,6 +179,7 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
       onSupport?: boolean;
       commentsEnabled?: boolean | null;
       mediaEnabled?: boolean | null;
+      directChatEnabled?: boolean | null;
       actorId: string;
     }): Promise<ClientSupportProfile> {
       return deps.clientsPort.updateClientSupport(params);
@@ -198,41 +231,59 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
       return deps.clientsPort.setPatientPhysical(userId, organizationId, params);
     },
 
+    async getClientChannelPolicy(
+      patientUserId: string | null,
+      context: { organizationId: string },
+    ): Promise<ClientChannelPolicy> {
+      const [profile, defaults] = await Promise.all([
+        patientUserId
+          ? deps.clientsPort.getClientSupport(patientUserId, context.organizationId)
+          : Promise.resolve(null),
+        getClientDefaults(patientUserId, context),
+      ]);
+      if (profile && profile.organizationId !== context.organizationId) {
+        throw new Error('support_profile_organization_mismatch');
+      }
+      return resolveClientChannelPolicy({ profile, defaults: defaults.channelDefaults });
+    },
+
+    async filterPatientUserIdsByClientChannel(
+      patientUserIds: readonly string[],
+      context: { organizationId: string },
+      channel: keyof ClientChannelPolicy,
+    ): Promise<Set<string>> {
+      const defaults = await getClientDefaults(null, context);
+      const uniquePatientUserIds = Array.from(new Set(patientUserIds));
+      const profiles = await Promise.all(
+        uniquePatientUserIds.map((patientUserId) =>
+          deps.clientsPort.getClientSupport(patientUserId, context.organizationId),
+        ),
+      );
+      return new Set(
+        uniquePatientUserIds.filter((patientUserId, index) => {
+          const profile = profiles[index] ?? null;
+          if (profile && profile.organizationId !== context.organizationId) {
+            throw new Error('support_profile_organization_mismatch');
+          }
+          return resolveClientChannelPolicy({ profile, defaults: defaults.channelDefaults })[channel];
+        }),
+      );
+    },
+
     async getPatientProgramInteractionPolicy(
       patientUserId: string,
       context: { organizationId: string },
     ): Promise<PatientProgramInteractionPolicy> {
-      const profile = await deps.clientsPort.getClientSupport(
-        patientUserId,
-        context.organizationId,
-      );
-      if (profile?.onSupport) {
-        return resolvePatientProgramInteractionPolicy({
-          organizationId: context.organizationId,
-          profile,
-          defaultsWithoutSupport: { commentsEnabled: false, mediaEnabled: false },
-        });
-      }
-      const organizationId = context.organizationId;
-      const runtimeContext = { patientUserId, organizationId };
-      const [commentsDefault, mediaDefault] = await Promise.all([
-        deps.getDoctorSupportDefault(
-          'doctor_patient_support_comments_without_support_default_enabled',
-          runtimeContext,
-        ),
-        deps.getDoctorSupportDefault(
-          'doctor_patient_support_media_without_support_default_enabled',
-          runtimeContext,
-        ),
+      const [profile, channelPolicy] = await Promise.all([
+        deps.clientsPort.getClientSupport(patientUserId, context.organizationId),
+        this.getClientChannelPolicy(patientUserId, context),
       ]);
-      return resolvePatientProgramInteractionPolicy({
-        organizationId,
-        profile,
-        defaultsWithoutSupport: {
-          commentsEnabled: commentsDefault,
-          mediaEnabled: mediaDefault,
-        },
-      });
+      return {
+        organizationId: context.organizationId,
+        onSupport: profile?.onSupport ?? false,
+        commentsAllowed: channelPolicy.commentsAllowed,
+        mediaAllowed: channelPolicy.mediaAllowed,
+      };
     },
   };
 }

@@ -31,6 +31,8 @@ export const doctorPatientSupport = pgTable(
     commentsEnabled: boolean('comments_enabled'),
     /** null = use doctor default for patients without support */
     mediaEnabled: boolean('media_enabled'),
+    /** null = inherit the organization direct-chat default (C3M-09). */
+    directChatEnabled: boolean('direct_chat_enabled'),
     /** Patient-subject demographics; deliberately not stored on the actor account root. */
     birthDate: date('birth_date'),
     gender: text('gender'),

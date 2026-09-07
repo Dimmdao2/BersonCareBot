@@ -51,6 +51,9 @@ export async function loadDoctorPatientProgramEditorBootstrap(
     workspace,
   );
   if (!identity) return null;
+  const channelPolicy = await deps.doctorClients.getClientChannelPolicy(identity.userId, {
+    organizationId: workspace.organizationId,
+  });
 
   let initial: TreatmentProgramInstanceDetail;
   try {
@@ -79,10 +82,12 @@ export async function loadDoctorPatientProgramEditorBootstrap(
     Promise.all([
       deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
       deps.treatmentProgramProgress.getDoctorAttemptAcceptMap(instanceId),
-      deps.programItemDiscussion.listUnreadCountsForViewerByStageItems({
-        stageItemIds: initial.stages.flatMap((stage) => stage.items.map((item) => item.id)),
-        viewerUserId: workspace.session.user.userId,
-      }),
+      channelPolicy.commentsAllowed
+        ? deps.programItemDiscussion.listUnreadCountsForViewerByStageItems({
+            stageItemIds: initial.stages.flatMap((stage) => stage.items.map((item) => item.id)),
+            viewerUserId: workspace.session.user.userId,
+          })
+        : Promise.resolve([]),
       getAppDisplayTimeZone(),
       deps.lfkExercises.listExercises({ includeArchived: false, includePlatformBase }),
       deps.lfkTemplates.listTemplates({

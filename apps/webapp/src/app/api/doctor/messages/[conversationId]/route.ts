@@ -71,6 +71,13 @@ export async function GET(
   ) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
+  if (
+    !(await deps.doctorClients.getClientChannelPolicy(conversation.platformUserId, {
+      organizationId: gate.ctx.organizationId,
+    })).directChatAllowed
+  ) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
 
   const data = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     deps.messaging.doctorSupport.getMessages(conversationId, {
@@ -119,6 +126,13 @@ export async function POST(
       gate.ctx.organizationId,
       gate.ctx,
     ))
+  ) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+  if (
+    !(await deps.doctorClients.getClientChannelPolicy(conversation.platformUserId, {
+      organizationId: gate.ctx.organizationId,
+    })).directChatAllowed
   ) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }

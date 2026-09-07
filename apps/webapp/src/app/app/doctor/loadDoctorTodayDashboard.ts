@@ -86,6 +86,12 @@ export type DoctorTodayDashboardDeps = {
       audience?: { excludedUserIds?: string[] },
     ): Promise<ClientListItem[]>;
   };
+  filterPatientUserIdsByClientChannel?: (
+    patientUserIds: readonly string[],
+    context: { organizationId: string },
+    channel: 'directChatAllowed' | 'commentsAllowed',
+  ) => Promise<Set<string>>;
+  directChatEnabled?: boolean;
   specialistTasks?: SpecialistTasksService;
   specialistOwnerUserId?: string;
   doctorUserId?: string;
@@ -593,7 +599,16 @@ async function loadPeopleRealtimeStats(
             0);
 
       try {
-        unreadMessagesCount = deps.messaging.doctorSupport.unreadFromPatient
+        const chatAllowed = deps.filterPatientUserIdsByClientChannel
+          ? (
+              await deps.filterPatientUserIdsByClientChannel(
+                [patientUserId],
+                { organizationId: deps.organizationId },
+                'directChatAllowed',
+              )
+            ).has(patientUserId)
+          : true;
+        unreadMessagesCount = deps.directChatEnabled !== false && chatAllowed && deps.messaging.doctorSupport.unreadFromPatient
           ? await deps.messaging.doctorSupport.unreadFromPatient(patientUserId, deps.organizationId)
           : 0;
       } catch {
@@ -693,16 +708,20 @@ export async function loadDoctorTodayDashboard(
     ),
     deps.doctorAppointments.listAppointmentsForSpecialist({ kind: 'futureActive' }, scopedAudience),
     deps.doctorAppointments.listAppointmentsForSpecialist({ kind: 'timeline' }, scopedAudience),
-    deps.messaging.doctorSupport.listOpenConversations({
-      unreadOnly: true,
-      limit: 3,
-      organizationId: deps.organizationId,
-      visibilityActor: deps.visibilityActor,
-    }),
-    deps.messaging.doctorSupport.unreadFromUsers({
-      organizationId: deps.organizationId,
-      visibilityActor: deps.visibilityActor,
-    }),
+    deps.directChatEnabled === false
+      ? Promise.resolve([])
+      : deps.messaging.doctorSupport.listOpenConversations({
+          unreadOnly: true,
+          limit: 50,
+          organizationId: deps.organizationId,
+          visibilityActor: deps.visibilityActor,
+        }),
+    deps.directChatEnabled === false
+      ? Promise.resolve(0)
+      : deps.messaging.doctorSupport.unreadFromUsers({
+          organizationId: deps.organizationId,
+          visibilityActor: deps.visibilityActor,
+        }),
     deps.doctorClients.listClients(
       {
         supportStatus: 'on',
@@ -721,6 +740,39 @@ export async function loadDoctorTodayDashboard(
       clientAudience,
     ),
   ]);
+  const allowedChatPatientIds = deps.filterPatientUserIdsByClientChannel
+    ? await deps.filterPatientUserIdsByClientChannel(
+        unreadConversations.flatMap((conversation) =>
+          conversation.platformUserId ? [conversation.platformUserId] : [],
+        ),
+        { organizationId: deps.organizationId },
+        'directChatAllowed',
+      )
+    : new Set(unreadConversations.flatMap((conversation) =>
+        conversation.platformUserId ? [conversation.platformUserId] : [],
+      ));
+  const effectiveUnreadConversations = unreadConversations
+    .filter(
+      (conversation) =>
+        typeof conversation.platformUserId === 'string' &&
+        allowedChatPatientIds.has(conversation.platformUserId),
+    )
+    .slice(0, 3);
+  const effectiveUnreadTotal = effectiveUnreadConversations.reduce(
+    (sum, conversation) => sum + conversation.unreadFromUserCount,
+    0,
+  );
+  const allowedCommentPatientIds =
+    deps.programItemDiscussion && deps.filterPatientUserIdsByClientChannel
+      ? await deps.filterPatientUserIdsByClientChannel(
+          commentClientsRaw.map((client) => client.userId),
+          { organizationId: deps.organizationId },
+          'commentsAllowed',
+        )
+      : null;
+  const effectiveCommentClientsRaw = allowedCommentPatientIds
+    ? commentClientsRaw.filter((client) => allowedCommentPatientIds.has(client.userId))
+    : commentClientsRaw;
 
   const activeTodayRaw = todayRaw.filter(
     (row) => !isCancelledAppointmentStatus(row.rawStatus ?? row.status),
@@ -793,7 +845,7 @@ export async function loadDoctorTodayDashboard(
             ),
           ])
         : Promise.resolve([0, []] as const),
-      loadDoctorExerciseCommentAttention(deps, commentClientsRaw),
+      loadDoctorExerciseCommentAttention(deps, effectiveCommentClientsRaw),
       loadCurrentOrNextAppointment(deps, futureRaw, scopedAudience.excludedUserIds ?? []),
     ]);
 
@@ -839,14 +891,14 @@ export async function loadDoctorTodayDashboard(
     nextAppointment,
     weekAppointments: weekRaw.map(mapAppointmentToTodayItem),
     monthAppointments: monthRaw.map(mapAppointmentToTodayItem),
-    unreadConversations: unreadConversations.map((row) =>
+    unreadConversations: effectiveUnreadConversations.map((row) =>
       mapConversationToTodayItem(
         row,
         appDisplayTimeZone,
         row.platformUserId ? onSupportPatientUserIds.has(row.platformUserId) : false,
       ),
     ),
-    unreadTotal,
+    unreadTotal: deps.filterPatientUserIdsByClientChannel ? effectiveUnreadTotal : unreadTotal,
     upcomingAppointments: getUpcomingAppointments(activeTodayRaw, weekRaw, 5),
     peopleListMode: preferences.peopleListMode,
     peopleCount,

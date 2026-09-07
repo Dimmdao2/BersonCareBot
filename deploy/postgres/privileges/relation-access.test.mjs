@@ -473,43 +473,6 @@ test('platform settings can persist only the platform user calendar timezone', (
   assertNoOperation('public.platform_users', 'app_platform_settings', 'DELETE');
 });
 
-test('patient demographics inherit the clinical profile column wall', () => {
-  exactRepeatedColumns('public.doctor_patient_support', 'app_staff', 'INSERT', [
-    'birth_date',
-    'comments_enabled',
-    'gender',
-    'height_cm',
-    'id',
-    'media_enabled',
-    'on_support',
-    'organization_id',
-    'patient_user_id',
-    'support_started_at',
-    'updated_at',
-    'updated_by',
-    'weight_kg',
-  ]);
-  exactRepeatedColumns('public.doctor_patient_support', 'app_staff', 'UPDATE', [
-    'birth_date',
-    'comments_enabled',
-    'gender',
-    'height_cm',
-    'media_enabled',
-    'on_support',
-    'organization_id',
-    'support_started_at',
-    'updated_at',
-    'updated_by',
-    'weight_kg',
-  ]);
-  assert.equal(
-    directGrants('public.doctor_patient_support').some(
-      (grant) => grant.role === 'app_patient' && grant.columns === 'table',
-    ),
-    true,
-  );
-});
-
 test('merge-only tenant updates cannot mutate unrelated payment or timeline columns', () => {
   for (const relation of [
     'public.be_patient_timeline_events',

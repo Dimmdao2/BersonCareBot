@@ -35,7 +35,10 @@ import { PatientOrganizationRecoveryScreen } from '@/shared/ui/patient/organizat
 import { getAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
 import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
-import { resolveOrganizationWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
+import {
+  applyClientChannelPolicyToWorkspaceModules,
+  resolveOrganizationWorkspaceModules,
+} from '@/app-layer/guards/workspaceModuleAccess';
 
 function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boolean {
   return [
@@ -135,7 +138,13 @@ export default async function PatientLayout({ children }: { children: ReactNode 
         platformUserId: session.user.userId,
         source: 'app.patient.layout.workspace-modules',
       },
-      () => resolveOrganizationWorkspaceModules(deps, patientOrganizationId),
+      async () =>
+        applyClientChannelPolicyToWorkspaceModules(
+          await resolveOrganizationWorkspaceModules(deps, patientOrganizationId),
+          await deps.doctorClients.getClientChannelPolicy(session.user.userId, {
+            organizationId: patientOrganizationId,
+          }),
+        ),
     );
     if (
       !workspaceModules.rehabilitation &&
@@ -145,6 +154,13 @@ export default async function PatientLayout({ children }: { children: ReactNode 
         pathname.startsWith(`${routePaths.patientCourses}/`) ||
         pathname === '/app/patient/go/plan-start-lesson' ||
         pathname.startsWith(`${routePaths.diary}/lfk`))
+    ) {
+      notFound();
+    }
+    if (
+      !workspaceModules.direct_chat &&
+      (pathname === routePaths.patientMessages ||
+        pathname.startsWith(`${routePaths.patientMessages}/`))
     ) {
       notFound();
     }

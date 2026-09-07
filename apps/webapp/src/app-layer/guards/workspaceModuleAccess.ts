@@ -15,6 +15,10 @@ import {
   type WorkspaceModuleEffective,
   type WorkspaceModuleKey,
 } from '@/modules/system-settings/doctorWorkspaceComposition';
+import {
+  isClientChannelAllowed,
+  type ClientChannelPolicy,
+} from '@/modules/doctor-clients/supportPolicy';
 
 type AppDeps = ReturnType<typeof buildAppDeps>;
 
@@ -44,6 +48,13 @@ export type WorkspaceModuleDisabledReason = 'workspace_module_disabled';
  * before their rehabilitation parent and therefore retain their own stored preference as well.
  */
 export function workspaceModuleForApiPath(pathname: string): WorkspaceModuleKey | null {
+  if (
+    pathname.startsWith('/api/doctor/messages') ||
+    pathname.startsWith('/api/patient/messages') ||
+    /^\/api\/doctor\/patients\/[^/]+\/messages-snapshot(?:\/|$)/.test(pathname)
+  ) {
+    return 'direct_chat';
+  }
   if (pathname.startsWith('/api/patient/media/program-submission')) return 'program_media';
   if (
     /^\/api\/patient\/treatment-program-instances\/[^/]+\/(?:discussion|items\/[^/]+\/discussion)(?:\/|$)/.test(
@@ -51,6 +62,13 @@ export function workspaceModuleForApiPath(pathname: string): WorkspaceModuleKey 
     )
   ) {
     return pathname.includes('/discussion/media') ? 'program_media' : 'program_comments';
+  }
+  if (
+    /^\/api\/patient\/treatment-program-instances\/[^/]+\/items\/[^/]+\/progress\/observation-note(?:\/|$)/.test(
+      pathname,
+    )
+  ) {
+    return 'program_comments';
   }
   if (
     pathname.startsWith('/api/patient/treatment-program-instances') ||
@@ -61,9 +79,20 @@ export function workspaceModuleForApiPath(pathname: string): WorkspaceModuleKey 
     return 'rehabilitation';
   }
   if (
+    /^\/api\/doctor\/treatment-program-instances\/[^/]+\/discussion\/messages\/[^/]+(?:\/|$)/.test(
+      pathname,
+    )
+  ) {
+    return 'program_media';
+  }
+  if (
     pathname.startsWith('/api/doctor/comments') ||
     pathname.startsWith('/api/doctor/exercise-comments') ||
-    /^\/api\/doctor\/patients\/[^/]+\/program-activity(?:\/|$)/.test(pathname) ||
+    /^\/api\/doctor\/patients\/[^/]+\/program-activity(?:\/|$)/.test(pathname)
+  ) {
+    return 'program_comments';
+  }
+  if (
     /^\/api\/doctor\/treatment-program-instances\/[^/]+\/(?:discussion|items\/[^/]+\/(?:discussion|program-note-reply))(?:\/|$)/.test(
       pathname,
     )
@@ -177,6 +206,19 @@ export async function resolveOrganizationWorkspaceModules(
   return resolveWorkspaceModuleEffective(composition, ALL_WORKSPACE_MODULES_AVAILABLE);
 }
 
+/** Client policy is a final narrowing projection; it never recreates an unavailable parent. */
+export function applyClientChannelPolicyToWorkspaceModules(
+  modules: WorkspaceModuleEffective,
+  policy: ClientChannelPolicy,
+): WorkspaceModuleEffective {
+  return {
+    ...modules,
+    direct_chat: modules.direct_chat && isClientChannelAllowed(policy, 'directChatAllowed'),
+    program_comments: modules.program_comments && isClientChannelAllowed(policy, 'commentsAllowed'),
+    program_media: modules.program_media && isClientChannelAllowed(policy, 'mediaAllowed'),
+  };
+}
+
 export async function requireDoctorWorkspaceModuleForApi(
   deps: Pick<AppDeps, 'orgEntitlements' | 'systemSettings'>,
   workspace: DoctorWorkspaceAccessContext,
@@ -200,7 +242,7 @@ export async function requireOrganizationWorkspaceModuleForApi(
 }
 
 export async function requirePatientWorkspaceModuleForApi(
-  deps: Pick<AppDeps, 'patientOrganization' | 'systemSettings'>,
+  deps: Pick<AppDeps, 'patientOrganization' | 'systemSettings' | 'doctorClients'>,
   patientUserId: string,
   module: WorkspaceModuleKey,
 ): Promise<
@@ -235,12 +277,21 @@ export async function requirePatientWorkspaceModuleForApi(
       organizationId: resolved.organizationId,
       source: 'patient-workspace-module-guard',
     },
-    () =>
-      requireOrganizationWorkspaceModuleForApi(
+    async () => {
+      const workspaceModules = await resolveOrganizationWorkspaceModules(
         deps,
         resolved.organizationId,
-        module,
-      ),
+      );
+      const modules = applyClientChannelPolicyToWorkspaceModules(
+        workspaceModules,
+        await deps.doctorClients.getClientChannelPolicy(patientUserId, {
+          organizationId: resolved.organizationId,
+        }),
+      );
+      return modules[module]
+        ? { ok: true as const, modules }
+        : { ok: false as const, response: workspaceModuleDisabledResponse(module) };
+    },
   );
   return moduleGate.ok
     ? { ok: true, modules: moduleGate.modules, organizationId: resolved.organizationId }
@@ -258,7 +309,7 @@ export async function requireDoctorWorkspaceModuleForAction(
 }
 
 export async function requirePatientWorkspaceModuleForAction(
-  deps: Pick<AppDeps, 'patientOrganization' | 'systemSettings'>,
+  deps: Pick<AppDeps, 'patientOrganization' | 'systemSettings' | 'doctorClients'>,
   patientUserId: string,
   module: WorkspaceModuleKey,
 ): Promise<WorkspaceModuleEffective> {

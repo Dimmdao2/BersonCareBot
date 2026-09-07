@@ -321,6 +321,11 @@ export type SupportQuestionCanonicalWrite = {
 
 /** Port for signed integrator-to-webapp operations. */
 export type WebappEventsPort = {
+  /** Canonical webapp-owned workspace preference read used by delivery-time gates. */
+  getWorkspaceModuleStatus?(input: {
+    organizationId: string;
+    module: 'mailings';
+  }): Promise<{ ok: boolean; status: number; enabled?: boolean; error?: string }>;
   wakeOperatorHealthDigest?(input: {
     wakeId: string;
   }): Promise<{ ok: boolean; status: number; error?: string }>;

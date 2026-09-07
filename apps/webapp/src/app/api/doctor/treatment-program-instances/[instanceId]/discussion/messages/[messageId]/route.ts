@@ -4,6 +4,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
+import { resolveDoctorInstanceInWorkspace } from '../../../../_doctorInstanceWorkspace';
 
 export async function DELETE(
   _request: Request,
@@ -21,22 +22,19 @@ export async function DELETE(
   }
 
   const deps = buildAppDeps();
-  const instance = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-  if (!instance || instance.organizationId !== gate.ctx.organizationId)
-    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
-
-  const identity = await deps.doctorClientsPort.getClientIdentity(instance.patientUserId);
-  if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
-
-  if (instance.assignmentSource !== 'doctor') {
-    return NextResponse.json({ ok: false, error: 'program_not_doctor_assigned' }, { status: 400 });
-  }
+  const resolved = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    resolveDoctorInstanceInWorkspace(deps, gate.ctx, instanceId, {
+      requireDoctorAssigned: true,
+      clientChannel: 'mediaAllowed',
+    }),
+  );
+  if (!resolved.ok) return resolved.response;
 
   try {
     await withDoctorWorkspacePrincipal(gate.ctx, () =>
       deps.programItemDiscussion.deletePatientMediaMessage({
         messageId,
-        patientUserId: instance.patientUserId,
+        patientUserId: resolved.instance.patientUserId,
       }),
     );
     return NextResponse.json({ ok: true, deleted: true });

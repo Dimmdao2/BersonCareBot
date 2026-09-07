@@ -31,6 +31,15 @@ export async function POST(request: Request) {
   if (!identity) {
     return NextResponse.json({ ok: false, error: 'patient_not_found' }, { status: 404 });
   }
+  const policy = await deps.doctorClients.getClientChannelPolicy(identity.userId, {
+    organizationId: gate.ctx.organizationId,
+  });
+  if (!policy.directChatAllowed) {
+    return NextResponse.json(
+      { ok: false, error: 'workspace_module_disabled', module: 'direct_chat' },
+      { status: 403 },
+    );
+  }
 
   let data: Awaited<ReturnType<typeof deps.messaging.doctorSupport.ensureConversationForPatient>>;
   try {

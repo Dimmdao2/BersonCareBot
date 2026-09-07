@@ -41,7 +41,10 @@ async function ensureDoctorCommentTargetInWorkspace(
   // left no trace. A failure now propagates and the route answers 500 instead of a confident 404.
   const instance = await deps.treatmentProgramInstance.getInstanceById(targetId);
   if (!instance) return false;
-  return instance.organizationId === organizationId;
+  if (instance.organizationId !== organizationId) return false;
+  return (
+    await deps.doctorClients.getClientChannelPolicy(instance.patientUserId, { organizationId })
+  ).commentsAllowed;
 }
 
 export async function GET(request: Request) {

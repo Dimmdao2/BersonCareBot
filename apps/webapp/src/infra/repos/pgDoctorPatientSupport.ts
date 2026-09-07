@@ -21,6 +21,7 @@ function mapRow(row: typeof doctorPatientSupport.$inferSelect): ClientSupportPro
     supportStartedAt: row.supportStartedAt,
     commentsEnabled: row.commentsEnabled,
     mediaEnabled: row.mediaEnabled,
+    directChatEnabled: row.directChatEnabled,
     updatedAt: row.updatedAt,
     updatedBy: row.updatedBy,
   };
@@ -135,6 +136,7 @@ export async function upsertClientSupportProfile(params: {
   onSupport?: boolean;
   commentsEnabled?: boolean | null;
   mediaEnabled?: boolean | null;
+  directChatEnabled?: boolean | null;
   updatedBy: string;
 }): Promise<ClientSupportProfile> {
   requireOrganizationPrincipal(params.organizationId);
@@ -154,6 +156,7 @@ export async function upsertClientSupportProfile(params: {
           supportStartedAt: startingOnSupport ? now : null,
           commentsEnabled: params.commentsEnabled ?? null,
           mediaEnabled: params.mediaEnabled ?? null,
+          directChatEnabled: params.directChatEnabled ?? null,
           updatedAt: now,
           updatedBy: params.updatedBy,
         })
@@ -180,6 +183,7 @@ export async function upsertClientSupportProfile(params: {
   }
   if (params.commentsEnabled !== undefined) patch.commentsEnabled = params.commentsEnabled;
   if (params.mediaEnabled !== undefined) patch.mediaEnabled = params.mediaEnabled;
+  if (params.directChatEnabled !== undefined) patch.directChatEnabled = params.directChatEnabled;
 
   return runDrizzleMutationTransaction(async (tx) => {
     const updated = await tx

@@ -58,6 +58,13 @@ export async function POST(
   ) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
+  if (
+    !(await deps.doctorClients.getClientChannelPolicy(conversation.platformUserId, {
+      organizationId: gate.ctx.organizationId,
+    })).directChatAllowed
+  ) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
   await withDoctorWorkspacePrincipal(gate.ctx, () =>
     deps.messaging.doctorSupport.markUserMessagesRead(conversationId, gate.ctx.organizationId),
   );

@@ -6,12 +6,16 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorAccess: vi.fn(),
   requireDoctorWorkspaceContext: vi.fn(),
 }));
+vi.mock('@/app-layer/guards/workspaceModuleAccess', () => ({
+  requireDoctorWorkspaceModuleForAction: vi.fn(),
+}));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: vi.fn(),
 }));
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorAccess, requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireDoctorWorkspaceModuleForAction } from '@/app-layer/guards/workspaceModuleAccess';
 import type { MechanicAccessState } from '@/modules/org-entitlements/types';
 import { executeBroadcastAction, listBroadcastAuditAction, saveDraftAction } from './actions';
 
@@ -47,6 +51,40 @@ describe('mailing mutation entitlement boundary', () => {
     vi.clearAllMocks();
     vi.mocked(requireDoctorWorkspaceContext).mockResolvedValue(workspace as never);
     vi.mocked(requireDoctorAccess).mockResolvedValue(workspace.session as never);
+    vi.mocked(requireDoctorWorkspaceModuleForAction).mockResolvedValue({} as never);
+  });
+
+  it('refuses a queued mailing action before any delivery work when workspace mailings are off', async () => {
+    const execute = vi.fn();
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorBroadcasts: { execute },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+    vi.mocked(requireDoctorWorkspaceModuleForAction).mockRejectedValueOnce(
+      new Error('workspace_module_disabled'),
+    );
+
+    await expect(executeBroadcastAction({ channels: ['telegram'] } as never)).rejects.toThrow(
+      'workspace_module_disabled',
+    );
+    expect(requireDoctorWorkspaceModuleForAction).toHaveBeenCalledWith(
+      expect.anything(),
+      workspace,
+      'mailings',
+    );
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('refuses mailing history reads when workspace mailings are off', async () => {
+    const listAudit = vi.fn();
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorBroadcasts: { listAudit },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+    vi.mocked(requireDoctorWorkspaceModuleForAction).mockRejectedValueOnce(
+      new Error('workspace_module_disabled'),
+    );
+
+    await expect(listBroadcastAuditAction()).rejects.toThrow('workspace_module_disabled');
+    expect(listAudit).not.toHaveBeenCalled();
   });
 
   it.each(['disabled', 'read_only'] as const)(

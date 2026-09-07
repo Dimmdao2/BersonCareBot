@@ -7,7 +7,8 @@ import {
   entitlementMutationRefusalMessage,
   requireEntitlementForMutationAction,
 } from '@/app-layer/guards/requireEntitlement';
-import { requireDoctorAccess, requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireDoctorWorkspaceModuleForAction } from '@/app-layer/guards/workspaceModuleAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import type {
   BroadcastAuditEntry,
@@ -73,6 +74,7 @@ export async function previewBroadcastAction(
 ): Promise<BroadcastPreviewResult> {
   const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
+  await requireDoctorWorkspaceModuleForAction(deps, workspace, 'mailings');
   return deps.doctorBroadcasts.preview(
     { ...command, actorId: workspace.session.user.userId },
     { organizationId: workspace.organizationId, visibilityActor: workspace },
@@ -83,9 +85,10 @@ export async function executeBroadcastAction(
   command: Omit<BroadcastCommand, 'actorId'>,
 ): Promise<{ auditEntry: BroadcastAuditEntry }> {
   const workspace = await requireDoctorWorkspaceContext();
+  const deps = buildAppDeps();
+  await requireDoctorWorkspaceModuleForAction(deps, workspace, 'mailings');
   await requireBrandedMailingMutation(workspace, 'отправить рассылку');
   await assertClinicBroadcastChannels(workspace, command.channels);
-  const deps = buildAppDeps();
   const result = await deps.doctorBroadcasts.execute(
     {
       ...command,
@@ -155,6 +158,7 @@ async function assertClinicBroadcastChannels(
 export async function listBroadcastAuditAction(limit?: number): Promise<BroadcastAuditEntry[]> {
   const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
+  await requireDoctorWorkspaceModuleForAction(deps, workspace, 'mailings');
   return deps.doctorBroadcasts.listAudit(
     {
       organizationId: workspace.organizationId,
@@ -166,19 +170,21 @@ export async function listBroadcastAuditAction(limit?: number): Promise<Broadcas
 }
 
 export async function loadDraftAction(): Promise<BroadcastDraft | null> {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
-  return deps.doctorBroadcastComposer.loadDraft(session.user.userId);
+  await requireDoctorWorkspaceModuleForAction(deps, workspace, 'mailings');
+  return deps.doctorBroadcastComposer.loadDraft(workspace.session.user.userId);
 }
 
 export async function saveDraftAction(draft: BroadcastDraft): Promise<void> {
   const workspace = await requireDoctorWorkspaceContext();
+  const deps = buildAppDeps();
+  await requireDoctorWorkspaceModuleForAction(deps, workspace, 'mailings');
   await requireBrandedMailingMutation(workspace, 'сохранить черновик рассылки');
   const parsed = draftSchema.safeParse(draft);
   if (!parsed.success) {
     throw new Error('draft_validation_error');
   }
-  const deps = buildAppDeps();
   await withDoctorWorkspacePrincipal(workspace, 'doctor.broadcasts.draft.save', () =>
     deps.doctorBroadcastComposer.saveDraft(
       workspace.session.user.userId,
@@ -202,6 +208,7 @@ async function requireBrandedMailingMutation(
 export async function getChannelCountsAction(): Promise<BroadcastChannelCounts> {
   const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
+  await requireDoctorWorkspaceModuleForAction(deps, workspace, 'mailings');
   return deps.doctorBroadcastComposer.getChannelCounts({
     organizationId: workspace.organizationId,
     visibilityActor: workspace,
@@ -223,9 +230,10 @@ export async function getChannelCountsByAudienceAction(
   audience: string,
 ): Promise<BroadcastChannelCounts> {
   const workspace = await requireDoctorWorkspaceContext();
+  const deps = buildAppDeps();
+  await requireDoctorWorkspaceModuleForAction(deps, workspace, 'mailings');
   const parsed = audienceFilterSchema.safeParse(audience);
   if (!parsed.success) throw new Error('invalid_audience_filter');
-  const deps = buildAppDeps();
   return deps.doctorBroadcastComposer.getChannelCountsByAudience(parsed.data, {
     organizationId: workspace.organizationId,
     visibilityActor: workspace,

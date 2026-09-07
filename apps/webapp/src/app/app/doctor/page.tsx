@@ -84,6 +84,9 @@ async function DoctorTodayDashboardSection({
         bookingCalendar: deps.bookingCalendar ?? undefined,
         clientHistory: deps.clientHistory,
         doctorClients: deps.doctorClientsPort,
+        filterPatientUserIdsByClientChannel:
+          deps.doctorClients.filterPatientUserIdsByClientChannel,
+        directChatEnabled: workspaceModules.direct_chat,
         messaging: deps.messaging,
         specialistTasks: specialistTasksReadable ? deps.specialistTasks : undefined,
         specialistOwnerUserId: specialistTasksReadable ? session.user.userId : undefined,

@@ -25,6 +25,20 @@ function commentBelongsToWorkspace(comment: EntityComment, organizationId: strin
   return comment.organizationId === organizationId;
 }
 
+async function commentIsAllowed(
+  deps: ReturnType<typeof buildAppDeps>,
+  comment: EntityComment,
+  organizationId: string,
+): Promise<boolean> {
+  if (!commentBelongsToWorkspace(comment, organizationId)) return false;
+  if (comment.targetType !== 'program_instance') return false;
+  const instance = await deps.treatmentProgramInstance.getInstanceById(comment.targetId);
+  if (!instance || instance.organizationId !== organizationId) return false;
+  return (
+    await deps.doctorClients.getClientChannelPolicy(instance.patientUserId, { organizationId })
+  ).commentsAllowed;
+}
+
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
@@ -37,7 +51,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const deps = buildAppDeps();
   try {
     const item = await deps.comments.getById(id);
-    if (!commentBelongsToWorkspace(item, gate.ctx.organizationId)) {
+    if (!(await commentIsAllowed(deps, item, gate.ctx.organizationId))) {
       return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
     return NextResponse.json({ ok: true, item });
@@ -68,7 +82,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   } catch {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
-  if (!commentBelongsToWorkspace(existing, gate.ctx.organizationId)) {
+  if (!(await commentIsAllowed(deps, existing, gate.ctx.organizationId))) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   if (!canMutateComment(existing.authorId, gate.ctx)) {
@@ -107,7 +121,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   } catch {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
-  if (!commentBelongsToWorkspace(existing, gate.ctx.organizationId)) {
+  if (!(await commentIsAllowed(deps, existing, gate.ctx.organizationId))) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   if (!canMutateComment(existing.authorId, gate.ctx)) {

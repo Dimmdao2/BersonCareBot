@@ -18,6 +18,7 @@ import { PatientNavCountBadge } from '@/shared/ui/patient/PatientNavCountBadge';
 import { PatientNotificationInboxButton } from '@/shared/ui/patient/shell/PatientNotificationInboxButton';
 import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/patient/navChrome';
 import { shareCabinetLink } from '@/shared/lib/shareCabinetLink';
+import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 
 /** Единый стиль пунктов бокового меню (Sheet). */
 const SHEET_NAV_LINK_CLASS = cn(
@@ -60,9 +61,13 @@ export function PatientHeader({
   const router = useRouter();
   const platform = usePlatform();
   const nav = patientNavByPlatform[platform];
+  const organizationContext = usePatientOrganizationContext();
+  const directChatEnabled = organizationContext?.workspaceModules?.direct_chat !== false;
   const [menuOpen, setMenuOpen] = useState(false);
-  const headerRightIds = hideRightIcons ? [] : nav.headerRightIcons;
-  const chatUnread = usePatientSupportUnreadCount(!hideHome);
+  const headerRightIds = hideRightIcons
+    ? []
+    : nav.headerRightIcons.filter((id) => id !== 'messages' || directChatEnabled);
+  const chatUnread = usePatientSupportUnreadCount(!hideHome && directChatEnabled);
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
