@@ -7,7 +7,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { logger, serializeError } from '@/infra/logging/logger';
-import { isGeneralWellbeingTracking } from '@/modules/patient-mood/wellbeingConstants';
+import { isSystemWellbeingTracking } from '@/modules/patient-mood/wellbeingConstants';
 
 const postBodySchema = z.object({
   symptomTitle: z.string().min(1).max(200),
@@ -29,7 +29,10 @@ function patientTrackingDefault(mode: 'off' | 'all' | 'on_support', onSupport: b
   return mode === 'all' || (mode === 'on_support' && onSupport);
 }
 
-async function resolvePatient(gate: Awaited<ReturnType<typeof requireDoctorWorkspaceApiContext>>, userId: string) {
+async function resolvePatient(
+  gate: Awaited<ReturnType<typeof requireDoctorWorkspaceApiContext>>,
+  userId: string,
+) {
   if (!gate.ok) return null;
   const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
@@ -52,14 +55,20 @@ export async function GET(_request: Request, context: { params: Promise<{ userId
   const [trackings, defaults, support] = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     Promise.all([
       patient.deps.diaries.listSymptomTrackings(userId, false),
-      patient.deps.systemSettings.getDoctorWorkspaceClientDefaults({ organizationId: gate.ctx.organizationId }),
+      patient.deps.systemSettings.getDoctorWorkspaceClientDefaults({
+        organizationId: gate.ctx.organizationId,
+      }),
       patient.deps.doctorClients.getClientSupport(userId, gate.ctx.organizationId),
     ]),
   );
   return NextResponse.json({
     ok: true,
     trackings: trackings
-      .filter((tracking) => tracking.organizationId === gate.ctx.organizationId)
+      .filter(
+        (tracking) =>
+          tracking.organizationId === gate.ctx.organizationId &&
+          !isSystemWellbeingTracking(tracking.symptomKey),
+      )
       .map((tracking) => ({
         id: tracking.id,
         symptomTitle: tracking.symptomTitle,
@@ -94,7 +103,9 @@ export async function POST(request: Request, context: { params: Promise<{ userId
   }
 
   const defaults = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    patient.deps.systemSettings.getDoctorWorkspaceClientDefaults({ organizationId: gate.ctx.organizationId }),
+    patient.deps.systemSettings.getDoctorWorkspaceClientDefaults({
+      organizationId: gate.ctx.organizationId,
+    }),
   );
   const support = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     patient.deps.doctorClients.getClientSupport(userId, gate.ctx.organizationId),
@@ -140,13 +151,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     return NextResponse.json({ ok: false, error: 'invalid_user' }, { status: 400 });
   }
   const parsed = patchBodySchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   const patient = await resolvePatient(gate, userId);
   if (!patient) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   const tracking = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     patient.deps.diaries.getSymptomTrackingForUser({ userId, trackingId: parsed.data.trackingId }),
   );
-  if (!tracking || tracking.organizationId !== gate.ctx.organizationId || isGeneralWellbeingTracking(tracking.symptomKey)) {
+  if (
+    !tracking ||
+    tracking.organizationId !== gate.ctx.organizationId ||
+    isSystemWellbeingTracking(tracking.symptomKey)
+  ) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   await withDoctorWorkspacePrincipal(gate.ctx, () =>

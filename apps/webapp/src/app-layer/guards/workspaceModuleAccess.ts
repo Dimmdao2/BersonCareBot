@@ -49,17 +49,6 @@ export type WorkspaceModuleDisabledReason = 'workspace_module_disabled';
  */
 export function workspaceModuleForApiPath(pathname: string): WorkspaceModuleKey | null {
   if (
-    pathname.startsWith('/api/patient/diary/') ||
-    pathname.startsWith('/api/patient/profile/') ||
-    pathname.startsWith('/api/patient/email-change/') ||
-    pathname.startsWith('/api/patient/organization-context') ||
-    pathname.startsWith('/api/patient/pwa/') ||
-    pathname.startsWith('/api/patient/web-push/') ||
-    pathname.startsWith('/api/patient/analytics/')
-  ) {
-    return null;
-  }
-  if (
     pathname.startsWith('/api/doctor/messages') ||
     pathname.startsWith('/api/patient/messages') ||
     /^\/api\/doctor\/patients\/[^/]+\/messages-snapshot(?:\/|$)/.test(pathname)
@@ -89,7 +78,25 @@ export function workspaceModuleForApiPath(pathname: string): WorkspaceModuleKey 
   ) {
     return 'rehabilitation';
   }
-  if (pathname.startsWith('/api/patient/')) return 'client_portal';
+  if (
+    pathname.startsWith('/api/patient/diary/') ||
+    pathname.startsWith('/api/patient/profile/') ||
+    pathname.startsWith('/api/patient/email-change/') ||
+    pathname.startsWith('/api/patient/organization-context') ||
+    pathname.startsWith('/api/patient/pwa/') ||
+    pathname.startsWith('/api/patient/web-push/') ||
+    pathname.startsWith('/api/patient/analytics/')
+  ) {
+    return null;
+  }
+  if (
+    pathname.startsWith('/api/patient/daily-warmup/') ||
+    pathname.startsWith('/api/patient/material-ratings') ||
+    pathname.startsWith('/api/patient/practice/') ||
+    pathname.startsWith('/api/patient/reminders/')
+  ) {
+    return 'client_portal';
+  }
   if (
     /^\/api\/doctor\/treatment-program-instances\/[^/]+\/discussion\/messages\/[^/]+(?:\/|$)/.test(
       pathname,
@@ -111,9 +118,7 @@ export function workspaceModuleForApiPath(pathname: string): WorkspaceModuleKey 
   ) {
     return 'program_comments';
   }
-  if (
-    /^\/api\/doctor\/treatment-program-instances\/[^/]+\/media-presign(?:\/|$)/.test(pathname)
-  ) {
+  if (/^\/api\/doctor\/treatment-program-instances\/[^/]+\/media-presign(?:\/|$)/.test(pathname)) {
     return 'program_media';
   }
   if (
@@ -167,16 +172,21 @@ export function workspaceModuleDisabledError(module: WorkspaceModuleKey): TypedA
 export async function resolveDoctorWorkspaceModules(
   deps: Pick<AppDeps, 'orgEntitlements' | 'systemSettings'>,
   workspace: DoctorWorkspaceAccessContext,
-  preloadedCompositionRow?: Parameters<AppDeps['systemSettings']['getDoctorWorkspaceComposition']>[1],
+  preloadedCompositionRow?: Parameters<
+    AppDeps['systemSettings']['getDoctorWorkspaceComposition']
+  >[1],
 ): Promise<WorkspaceModuleEffective> {
   const [exerciseCatalog, mailings, analytics, patientApp, composition] = await Promise.all([
     resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'exercise_catalog'),
     resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'mailings'),
     resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'doctor_statistics'),
     resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'patient_app'),
-    deps.systemSettings.getDoctorWorkspaceComposition({
-      organizationId: workspace.organizationId,
-    }, preloadedCompositionRow),
+    deps.systemSettings.getDoctorWorkspaceComposition(
+      {
+        organizationId: workspace.organizationId,
+      },
+      preloadedCompositionRow,
+    ),
   ]);
   const clinical = workspace.canAccessClinicalWorkspace;
   return resolveWorkspaceModuleEffective(composition, {
@@ -227,10 +237,12 @@ export function applyClientChannelPolicyToWorkspaceModules(
   return {
     ...modules,
     client_portal: clientPortal,
-    direct_chat: clientPortal && modules.direct_chat && isClientChannelAllowed(policy, 'directChatAllowed'),
+    direct_chat:
+      clientPortal && modules.direct_chat && isClientChannelAllowed(policy, 'directChatAllowed'),
     program_comments:
       clientPortal && modules.program_comments && isClientChannelAllowed(policy, 'commentsAllowed'),
-    program_media: clientPortal && modules.program_media && isClientChannelAllowed(policy, 'mediaAllowed'),
+    program_media:
+      clientPortal && modules.program_media && isClientChannelAllowed(policy, 'mediaAllowed'),
   };
 }
 
@@ -238,7 +250,9 @@ export async function requireDoctorWorkspaceModuleForApi(
   deps: Pick<AppDeps, 'orgEntitlements' | 'systemSettings'>,
   workspace: DoctorWorkspaceAccessContext,
   module: WorkspaceModuleKey,
-): Promise<{ ok: true; modules: WorkspaceModuleEffective } | { ok: false; response: NextResponse }> {
+): Promise<
+  { ok: true; modules: WorkspaceModuleEffective } | { ok: false; response: NextResponse }
+> {
   const modules = await resolveDoctorWorkspaceModules(deps, workspace);
   return modules[module]
     ? { ok: true, modules }
@@ -249,7 +263,9 @@ export async function requireOrganizationWorkspaceModuleForApi(
   deps: Pick<AppDeps, 'systemSettings'>,
   organizationId: string,
   module: WorkspaceModuleKey,
-): Promise<{ ok: true; modules: WorkspaceModuleEffective } | { ok: false; response: NextResponse }> {
+): Promise<
+  { ok: true; modules: WorkspaceModuleEffective } | { ok: false; response: NextResponse }
+> {
   const modules = await resolveOrganizationWorkspaceModules(deps, organizationId);
   return modules[module]
     ? { ok: true, modules }
