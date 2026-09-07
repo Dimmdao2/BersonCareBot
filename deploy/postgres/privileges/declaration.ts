@@ -25408,6 +25408,12 @@ const WEBAPP_WORKER_SOURCES = [
   'api/integrator/system-health/guard-wake:POST',
   'api/internal/operator-health-critical/tick:POST',
   'api/internal/domain-health/tick:POST',
+  // Custom-domain lifecycle doors use the same narrow worker relation capability as the other
+  // locked infra callers; their named-root capabilities remain separate below.
+  'api/internal/domains/ask:GET',
+  'api/internal/domains/activate:POST',
+  'api/admin/settings:custom-domain-recheck',
+  'proxy:custom-domain-probe',
   // Часовой тик продления подписок: до 19.08 он входил платформенным принципалом с выдуманным
   // актором и падал на установке контекста — здесь его не было, потому что и класс был не тот.
   'api/internal/saas-billing/renewal/tick:POST',
