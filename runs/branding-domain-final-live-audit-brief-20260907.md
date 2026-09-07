@@ -16,8 +16,9 @@ You are the independent final auditor on `wt/branding-domain-absolute-links-2026
 ## Exact acceptance
 
 - Inspect the worker diff and prove there is one shared organization-to-patient-public-origin seam, not per-producer copies or a second Host resolver. Active custom hostname wins; otherwise the permanent normal address is `https://<slug>.therapygo.ru`. Pending/failed/suspended/quarantined custom bindings never win. `therapysto.ru` remains staff.
+- Preserve the explicit transitional DEV/TEST contract: the permanent platform-alias host is derived from the typed `PATIENT_APP_ORIGIN` deployment surface, not hardcoded to the new production domain. Under the current one-host TEST-style env no generated patient link may escape to `therapygo.ru` before cutover. A route must not carry an inline projection-to-origin fallback merely to satisfy an old mock; the test double should implement the same public service seam as production.
 - Reconcile every call site in the patient-link audit: payment returns; memberships; booking pay/confirmation/ICS; broadcasts/replies/web push; webapp and integrator reminder callbacks. Confirm the audit's staff/admin/operator/protocol PASS list stays staff-bound.
-- Run the existing payment-return and Yandex callback acceptance oracles. Verify F-3 by the real request path: changing browser query/cookie cannot switch a reminder to a different clinic; authority comes from trusted request surface/resource relationship; legacy/unscoped links fail or recover honestly.
+- Run the existing payment-return and Yandex callback acceptance oracles. Verify F-3 by the real request path, not only by filtering a materialization snapshot: changing browser query/cookie after delivery cannot switch a reminder to a different enrolled clinic; authority comes from trusted request surface/resource relationship; legacy/unscoped links fail or recover honestly.
 - Inspect every touched test under §§10a/10b. Remove any harmful source/format/function-spelling/call-shape/UI-copy/layout/count/DOM/table-count oracle found in touched scope. Do not create UI shape/copy tests.
 
 ## Named-DEV DB proof for B2
