@@ -50,7 +50,8 @@ export type WorkspaceModuleDisabledReason = 'workspace_module_disabled';
 export function workspaceModuleForApiPath(pathname: string): WorkspaceModuleKey | null {
   if (
     pathname.startsWith('/api/doctor/messages') ||
-    pathname.startsWith('/api/patient/messages')
+    pathname.startsWith('/api/patient/messages') ||
+    /^\/api\/doctor\/patients\/[^/]+\/messages-snapshot(?:\/|$)/.test(pathname)
   ) {
     return 'direct_chat';
   }
