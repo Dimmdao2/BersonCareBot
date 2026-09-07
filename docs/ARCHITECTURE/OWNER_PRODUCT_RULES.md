@@ -951,7 +951,7 @@ Telegram `bot was blocked by the user`, и MAX `dialog.suspended`), помеча
 **Состояние на 27.07, проверено в коде, а не по документации:**
 
 - `runOperatorHealthProbes` (`apps/integrator/src/app/operatorHealthProbeRunner.ts`) уже щупает **MAX**
-  (`getMyInfo`), **Telegram**, **Rubitime** и **Google Calendar**, заводит операторский инцидент на провал и
+  (`getMyInfo`), **Telegram** и **Google Calendar**, заводит операторский инцидент на провал и
   закрывает открытый на успех. Ручка `POST /internal/operator-health-probe` подписана, скрипт вызова с хоста
   лежит в `deploy/host/operator-health-probe.sh`, в `HOST_DEPLOY_README.md` предложено «раз в час».
 - **Расписания нет нигде: ни в cron, ни systemd-таймером, ни в планировщике приложения.** Проба выполняется

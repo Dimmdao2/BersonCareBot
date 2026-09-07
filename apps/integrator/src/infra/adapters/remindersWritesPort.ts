@@ -16,7 +16,6 @@ function failure(error: unknown): { ok: false; error: string } {
 }
 
 async function resolvePatientPublicOriginFromWebapp(input: {
-  platformUserId: string;
   organizationId: string;
 }): Promise<string | null> {
   const baseUrl = env.APP_BASE_URL;
@@ -43,7 +42,8 @@ async function resolvePatientPublicOriginFromWebapp(input: {
       ok?: boolean;
       patientPublicOrigin?: unknown;
     };
-    if (!response.ok || data.ok !== true || typeof data.patientPublicOrigin !== 'string') return null;
+    if (!response.ok || data.ok !== true || typeof data.patientPublicOrigin !== 'string')
+      return null;
     const origin = new URL(data.patientPublicOrigin).origin;
     return origin.startsWith('http://') || origin.startsWith('https://') ? origin : null;
   } catch {
@@ -158,7 +158,6 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
         // incomplete result: the callback handler requires this trusted field before it emits URLs.
         if (!organizationId) return { ok: true, paragraphs };
         const patientPublicOrigin = await resolvePatientPublicOriginFromWebapp({
-          platformUserId: input.platformUserId,
           organizationId,
         });
         return patientPublicOrigin
@@ -197,7 +196,6 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
         const organizationId = row.organization_id?.trim();
         if (!organizationId) return { ok: true, topics };
         const patientPublicOrigin = await resolvePatientPublicOriginFromWebapp({
-          platformUserId: input.platformUserId,
           organizationId,
         });
         return patientPublicOrigin

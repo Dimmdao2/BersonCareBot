@@ -3,7 +3,7 @@
  * mocks Telegram API by patching globalThis.fetch (grammy uses fetch).
  *
  * Run: pnpm run scenarios
- * Requires: .env with DATABASE_URL and BOOKING_URL.
+ * Requires: .env with DATABASE_URL.
  * Telegram keys are read from src/integrations/telegram/config.ts.
  *
  * Фикстуры без бот-уведомлений (см. content); уведомления настраиваются в вебаппе.
@@ -284,7 +284,7 @@ async function main(): Promise<void> {
 
 main().catch((err: unknown) => {
   if (err != null && typeof err === 'object' && 'issues' in err) {
-    console.error('Env validation failed. Add .env with DATABASE_URL and BOOKING_URL.');
+    console.error('Env validation failed. Add .env with DATABASE_URL.');
   }
   console.error(err);
   process.exit(1);
