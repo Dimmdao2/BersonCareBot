@@ -28,6 +28,7 @@ describe('C3M-09 client communication policy', () => {
     });
 
     expect(policy).toEqual({
+      portalAllowed: true,
       directChatAllowed: true,
       commentsAllowed: false,
       mediaAllowed: true,
@@ -53,6 +54,7 @@ describe('C3M-09 client communication policy', () => {
         defaults,
       }),
     ).toEqual({
+      portalAllowed: true,
       directChatAllowed: false,
       commentsAllowed: false,
       mediaAllowed: false,
@@ -69,6 +71,7 @@ describe('C3M-09 client communication policy', () => {
         defaults,
       }),
     ).toEqual({
+      portalAllowed: true,
       directChatAllowed: true,
       commentsAllowed: true,
       mediaAllowed: true,

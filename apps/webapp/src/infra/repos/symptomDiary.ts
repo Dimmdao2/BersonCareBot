@@ -26,6 +26,7 @@ async function ensureWarmupFeelingTrackingMem(params: {
     symptomKey: 'warmup_feeling',
     symptomTitle: params.symptomTitle,
     isActive: true,
+    patientTrackingEnabled: true,
     createdAt: now,
     updatedAt: now,
     symptomTypeRefId: params.symptomTypeRefId,
@@ -49,6 +50,7 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
       symptomKey: params.symptomKey ?? null,
       symptomTitle: params.symptomTitle,
       isActive: true,
+      patientTrackingEnabled: params.patientTrackingEnabled ?? true,
       createdAt: now,
       updatedAt: now,
       symptomTypeRefId: params.symptomTypeRefId ?? null,
@@ -72,9 +74,10 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
     const tracking: SymptomTracking = {
       id: `tr-${trackingIdCounter++}`,
       userId: params.userId,
-      symptomKey: 'general_wellbeing',
-      symptomTitle: params.symptomTitle,
-      isActive: true,
+    symptomKey: 'general_wellbeing',
+    symptomTitle: params.symptomTitle,
+    isActive: true,
+    patientTrackingEnabled: true,
       createdAt: now,
       updatedAt: now,
       symptomTypeRefId: params.symptomTypeRefId,
@@ -234,6 +237,12 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
       t.isActive = params.isActive;
       t.updatedAt = new Date().toISOString();
     }
+  },
+  async setPatientTrackingEnabled(params) {
+    const tracking = trackings.find((item) => item.id === params.trackingId);
+    if (!tracking || tracking.userId !== params.userId) return;
+    tracking.patientTrackingEnabled = params.patientTrackingEnabled;
+    tracking.updatedAt = new Date().toISOString();
   },
 
   async softDeleteTracking(params) {

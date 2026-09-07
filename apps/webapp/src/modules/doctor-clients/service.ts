@@ -180,6 +180,7 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
       commentsEnabled?: boolean | null;
       mediaEnabled?: boolean | null;
       directChatEnabled?: boolean | null;
+      portalEnabled?: boolean | null;
       actorId: string;
     }): Promise<ClientSupportProfile> {
       return deps.clientsPort.updateClientSupport(params);

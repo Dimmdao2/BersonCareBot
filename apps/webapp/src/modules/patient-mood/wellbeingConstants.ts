@@ -1,10 +1,17 @@
 /** Canonical `symptom_trackings.symptom_key` for home check-in / wellbeing diary row. */
 export const GENERAL_WELLBEING_SYMPTOM_KEY = 'general_wellbeing';
 
+export const WARMUP_FEELING_SYMPTOM_KEY = 'warmup_feeling';
+
 export const GENERAL_WELLBEING_TITLE = 'Общее самочувствие';
 
 export function isGeneralWellbeingTracking(symptomKey: string | null | undefined): boolean {
   return symptomKey === GENERAL_WELLBEING_SYMPTOM_KEY;
+}
+
+/** System diary rows are not configurable as ordinary patient symptom trackings. */
+export function isSystemWellbeingTracking(symptomKey: string | null | undefined): boolean {
+  return symptomKey === GENERAL_WELLBEING_SYMPTOM_KEY || symptomKey === WARMUP_FEELING_SYMPTOM_KEY;
 }
 
 /** Inclusive upper bound for silent replace / «недавняя разминка» lookback: возраст последней записи ≤ 5 мин. */
