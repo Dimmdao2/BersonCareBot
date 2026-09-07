@@ -202,20 +202,10 @@ describe('doctor appointment mutation scope', () => {
     expect(mocks.runPackageDetach).not.toHaveBeenCalled();
   });
 
-  it('lets a clinic manager reschedule and cancel another current-clinic appointment', async () => {
+  it('keeps another specialist appointment unavailable through the doctor mutation routes', async () => {
     const other = appointment(OTHER_ID);
     mocks.requireDoctorBookingEngine.mockResolvedValue({ ok: true, ctx: context(true) });
     mocks.getAppointment.mockResolvedValue(other);
-    mocks.staffReschedule.mockResolvedValue({
-      ok: true,
-      appointment: other,
-      reschedulePolicy: {},
-    });
-    mocks.staffCancel.mockResolvedValue({
-      ok: true,
-      appointment: other,
-      cancelPolicy: {},
-    });
     const routeContext = { params: Promise.resolve({ id: APPOINTMENT_ID }) };
     const base = `/api/doctor/booking-engine/appointments/${APPOINTMENT_ID}`;
 
@@ -233,26 +223,22 @@ describe('doctor appointment mutation scope', () => {
       routeContext,
     );
 
-    expect(rescheduleResponse.status).toBe(200);
-    expect(cancelResponse.status).toBe(200);
-    expect(mocks.staffReschedule).toHaveBeenCalledWith(
-      expect.objectContaining({ appointmentId: APPOINTMENT_ID, specialistId: OTHER_ID }),
-    );
-    expect(mocks.staffCancel).toHaveBeenCalledWith(
-      expect.objectContaining({ appointmentId: APPOINTMENT_ID }),
-    );
+    expect(rescheduleResponse.status).toBe(404);
+    expect(cancelResponse.status).toBe(404);
+    expect(mocks.staffReschedule).not.toHaveBeenCalled();
+    expect(mocks.staffCancel).not.toHaveBeenCalled();
   });
 
   it('rejects specialist reassignment during reschedule before the lifecycle mutation', async () => {
     mocks.requireDoctorBookingEngine.mockResolvedValue({ ok: true, ctx: context(true) });
-    mocks.getAppointment.mockResolvedValue(appointment(OTHER_ID));
+    mocks.getAppointment.mockResolvedValue(appointment(OWN_ID));
 
     const response = await rescheduleAppointment(
       request(`/api/doctor/booking-engine/appointments/${APPOINTMENT_ID}/manual-reschedule`, {
         newStartAt: '2026-07-30T11:00:00.000Z',
         newEndAt: '2026-07-30T11:30:00.000Z',
         durationMinutes: 30,
-        specialistId: OWN_ID,
+        specialistId: OTHER_ID,
       }),
       { params: Promise.resolve({ id: APPOINTMENT_ID }) },
     );
