@@ -47,9 +47,7 @@ import type { SettingsTabId } from './settingsTabs';
 import { TeamSection } from './TeamSection';
 import { env } from '@/config/env';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
-import {
-  isPlatformIntegrationAvailable,
-} from '@/modules/system-settings/platformIntegrationAvailability';
+import { isPlatformIntegrationAvailable } from '@/modules/system-settings/platformIntegrationAvailability';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
 import { shouldShowGoogleCalendarSettings } from './googleCalendarVisibility';
 import { type AppointmentReminderSpecialistSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
@@ -57,6 +55,15 @@ import { parseClinicDeliveryReadiness } from '@/modules/system-settings/clinicDe
 import { parseClinicBotPublicConfig } from '@/modules/system-settings/clinicBotConfig';
 import { parseBookingPaymentSettingsValue } from '@/modules/payments/bookingPaymentSettings';
 import { redactAdminSettingsForClient } from '@/modules/system-settings/webPushVapidRuntime';
+import {
+  parseDoctorWorkspaceClientDefaults,
+  parseDoctorWorkspaceComposition,
+  type WorkspaceModuleAvailability,
+} from '@/modules/system-settings/doctorWorkspaceComposition';
+import {
+  normalizeSupportGroupLabel,
+  SUPPORT_GROUP_LABEL_KEY,
+} from '@/modules/system-settings/patientTerms';
 
 type LegacySettingsTab = 'specialist' | 'organization' | 'team' | 'billing' | 'install';
 
@@ -158,6 +165,8 @@ export default async function SettingsPage({
       customDomainMutation,
       paymentsVisibility,
       paymentsMutation,
+      mailingsVisibility,
+      analyticsVisibility,
     ] = await Promise.all([
       deps.systemSettings.listSettingsByScope('doctor', {
         organizationId: workspace.organizationId,
@@ -201,6 +210,8 @@ export default async function SettingsPage({
         : Promise.resolve(null),
       getMechanicSurfaceVisibility(workspace, 'payments'),
       getMechanicMutationAvailability(workspace, 'payments'),
+      getMechanicSurfaceVisibility(workspace, 'mailings'),
+      getMechanicSurfaceVisibility(workspace, 'doctor_statistics'),
     ]);
     const publishedBrand = brandingState.published;
     const publishedLogoUrl =
@@ -211,6 +222,47 @@ export default async function SettingsPage({
       doctorSettings.find((setting) => setting.key === 'patient_label')?.valueJson,
       'пациент',
     );
+    const supportGroupLabel =
+      normalizeSupportGroupLabel(
+        valueOf(
+          doctorSettings.find((setting) => setting.key === SUPPORT_GROUP_LABEL_KEY)?.valueJson,
+          'on_support',
+        ),
+      ) ?? 'on_support';
+    const workspaceComposition = parseDoctorWorkspaceComposition(
+      doctorSettings.find((setting) => setting.key === 'doctor_workspace_composition')?.valueJson,
+    );
+    const workspaceClientDefaults = parseDoctorWorkspaceClientDefaults(
+      doctorSettings.find((setting) => setting.key === 'doctor_workspace_client_defaults')
+        ?.valueJson,
+      {
+        legacyCommentsWithoutSupportEnabled: valueOf(
+          doctorSettings.find(
+            (setting) =>
+              setting.key === 'doctor_patient_support_comments_without_support_default_enabled',
+          )?.valueJson,
+          false,
+        ),
+        legacyMediaWithoutSupportEnabled: valueOf(
+          doctorSettings.find(
+            (setting) =>
+              setting.key === 'doctor_patient_support_media_without_support_default_enabled',
+          )?.valueJson,
+          false,
+        ),
+      },
+    );
+    const workspaceModuleAvailability: WorkspaceModuleAvailability = {
+      medical_record: true,
+      encounters: true,
+      rehabilitation: true,
+      direct_chat: true,
+      program_comments: true,
+      program_media: true,
+      mailings: mailingsVisibility.directUrl,
+      analytics: analyticsVisibility.directUrl,
+      client_portal: true,
+    };
     const appointmentReminderSettings: AppointmentReminderSpecialistSettings =
       workspace.specialistId
         ? ((await deps.bookingEngine?.getSpecialistAppointmentReminderSettings({
@@ -372,6 +424,10 @@ export default async function SettingsPage({
           supportCommentsWithoutSupportDefault={false}
           supportMediaWithoutSupportDefault={false}
           settingsEndpoint="/api/admin/settings"
+          workspaceComposition={workspaceComposition}
+          workspaceClientDefaults={workspaceClientDefaults}
+          workspaceModuleAvailability={workspaceModuleAvailability}
+          supportGroupLabel={supportGroupLabel}
           showSupportDefaults={false}
         />
         <DoctorTodayPreferencesSection

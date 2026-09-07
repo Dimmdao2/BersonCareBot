@@ -2,8 +2,8 @@
 
 Канонический личный раздел сотрудника: `/app/account`.
 
-- `profile` (default): существующие account email и timezone; исторические specialist defaults показываются только
-  при наличии clinical workspace и сохраняют прежний write-path.
+- `profile` (default): существующие account email и SMS fallback; organization workspace composition,
+  channel defaults и терминология принадлежат только `/app/settings`.
 - `notifications`: существующая персональная матрица каналов/тем; organization-specific task projection читается
   только при наличии clinical workspace.
 - `install`: существующий `StaffPwaInstallSection` без копии PWA-механики.

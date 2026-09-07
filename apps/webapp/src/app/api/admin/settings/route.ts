@@ -73,6 +73,17 @@ import {
   parseClinicBotPatchValue,
   type ClinicBotPatchError,
 } from '@/modules/system-settings/clinicBotPatch';
+import {
+  DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY,
+  DOCTOR_WORKSPACE_COMPOSITION_KEY,
+  normalizeDoctorWorkspaceClientDefaults,
+  normalizeDoctorWorkspaceComposition,
+} from '@/modules/system-settings/doctorWorkspaceComposition';
+import {
+  normalizePatientLabel,
+  normalizeSupportGroupLabel,
+  SUPPORT_GROUP_LABEL_KEY,
+} from '@/modules/system-settings/patientTerms';
 
 /** Owner-facing reasons for a rejected dedicated bot configuration. */
 const CLINIC_BOT_PATCH_MESSAGES: Readonly<Record<ClinicBotPatchError, string>> = {
@@ -198,6 +209,9 @@ const ADMIN_SCOPE_KEYS = [
 
 const DOCTOR_SCOPE_KEYS = [
   'patient_label',
+  SUPPORT_GROUP_LABEL_KEY,
+  DOCTOR_WORKSPACE_COMPOSITION_KEY,
+  DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY,
   'doctor_patient_support_comments_without_support_default_enabled',
   'doctor_patient_support_media_without_support_default_enabled',
   'doctor_specialist_task_reminder_channels',
@@ -216,7 +230,7 @@ const patchSchema = z.object({
 });
 const deleteSchema = z.object({ key: z.literal('operator_health_probe_config') });
 
-const batchBodySchema = z.object({
+const modesBatchBodySchema = z.object({
   items: z
     .array(
       z.object({
@@ -226,6 +240,28 @@ const batchBodySchema = z.object({
     )
     .min(1),
 });
+
+const WORKSPACE_SETTINGS_BATCH_KEYS = [
+  DOCTOR_WORKSPACE_COMPOSITION_KEY,
+  DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY,
+  'patient_label',
+  SUPPORT_GROUP_LABEL_KEY,
+] as const;
+
+const workspaceSettingsBatchSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            key: z.enum(WORKSPACE_SETTINGS_BATCH_KEYS),
+            value: z.unknown(),
+          })
+          .strict(),
+      )
+      .length(WORKSPACE_SETTINGS_BATCH_KEYS.length),
+  })
+  .strict();
 
 // Redaction policy (что считается секретом и как его прятать) живёт в одном месте —
 // `SYSTEM_SETTING_REGISTRY[key].secretAudit` (`modules/system-settings/registry.ts`), которую читает
@@ -432,7 +468,94 @@ export async function PATCH(request: Request) {
       if (itemsRaw.length === 0) {
         return NextResponse.json({ ok: false, error: 'empty_batch' }, { status: 400 });
       }
-      const batchParsed = batchBodySchema.safeParse(raw);
+      const hasWorkspaceSetting = itemsRaw.some(
+        (item) =>
+          item !== null &&
+          typeof item === 'object' &&
+          'key' in item &&
+          typeof item.key === 'string' &&
+          (WORKSPACE_SETTINGS_BATCH_KEYS as readonly string[]).includes(item.key),
+      );
+      if (hasWorkspaceSetting) {
+        const workspaceBatch = workspaceSettingsBatchSchema.safeParse(raw);
+        if (!workspaceBatch.success) {
+          return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+        }
+        if (gate.ctx.kind !== 'clinic') {
+          return NextResponse.json(
+            { ok: false, error: 'organization_context_required' },
+            { status: 403 },
+          );
+        }
+        const seen = new Set<string>();
+        for (let i = 0; i < workspaceBatch.data.items.length; i++) {
+          const key = workspaceBatch.data.items[i]!.key;
+          if (seen.has(key)) {
+            return NextResponse.json(
+              { ok: false, error: 'duplicate_key_in_batch', atIndex: i, key },
+              { status: 400 },
+            );
+          }
+          seen.add(key);
+        }
+        const rows: Array<{
+          key: (typeof WORKSPACE_SETTINGS_BATCH_KEYS)[number];
+          scope: 'doctor';
+          value: { value: unknown };
+        }> = [];
+        for (let i = 0; i < workspaceBatch.data.items.length; i++) {
+          const item = workspaceBatch.data.items[i]!;
+          const inner = normalizeValueJson(item.value).value;
+          const normalized =
+            item.key === DOCTOR_WORKSPACE_COMPOSITION_KEY
+              ? normalizeDoctorWorkspaceComposition(inner)
+              : item.key === DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY
+                ? normalizeDoctorWorkspaceClientDefaults(inner)
+                : item.key === 'patient_label'
+                  ? normalizePatientLabel(inner)
+                  : normalizeSupportGroupLabel(inner);
+          if (normalized === null) {
+            return NextResponse.json(
+              { ok: false, error: 'invalid_value', atIndex: i, key: item.key },
+              { status: 400 },
+            );
+          }
+          rows.push({ key: item.key, scope: 'doctor', value: { value: normalized } });
+        }
+        const deps = buildAppDeps();
+        for (const row of rows) {
+          const oldSetting = await deps.systemSettings.getSetting(row.key, 'doctor', {
+            organizationId,
+          });
+          console.info('[admin-settings audit]', {
+            key: row.key,
+            oldValue: redactSettingValueForAudit(row.key, oldSetting?.valueJson ?? null),
+            newValue: redactSettingValueForAudit(row.key, row.value),
+            updatedBy: session.user.userId,
+            timestamp: new Date().toISOString(),
+          });
+        }
+        try {
+          const settings = await deps.systemSettings.persistSettingsBatch(
+            rows,
+            session.user.userId,
+            { organizationId },
+          );
+          return NextResponse.json({ ok: true, settings });
+        } catch (error) {
+          const errResponse = systemSettingsOrgContextErrorResponse(error);
+          if (errResponse) return errResponse;
+          console.error('[admin-settings] atomic batch failed', {
+            operation: 'doctor-workspace',
+            errorClass: error instanceof Error ? error.name : 'unknown',
+          });
+          return NextResponse.json(
+            { ok: false, error: 'settings_write_unavailable' },
+            { status: 503 },
+          );
+        }
+      }
+      const batchParsed = modesBatchBodySchema.safeParse(raw);
       if (!batchParsed.success) {
         return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
       }
@@ -643,12 +766,35 @@ export async function PATCH(request: Request) {
   let normalizedValue = normalizeValueJson(parsed.data.value);
 
   if (parsed.data.key === 'patient_label') {
-    const inner = normalizedValue.value;
-    const label = typeof inner === 'string' ? inner.trim().toLowerCase() : '';
-    if (label !== 'пациент' && label !== 'клиент') {
+    const label = normalizePatientLabel(normalizedValue.value);
+    if (label === null) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
     }
     normalizedValue = { value: label };
+  }
+
+  if (parsed.data.key === SUPPORT_GROUP_LABEL_KEY) {
+    const label = normalizeSupportGroupLabel(normalizedValue.value);
+    if (label === null) {
+      return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
+    }
+    normalizedValue = { value: label };
+  }
+
+  if (parsed.data.key === DOCTOR_WORKSPACE_COMPOSITION_KEY) {
+    const composition = normalizeDoctorWorkspaceComposition(normalizedValue.value);
+    if (composition === null) {
+      return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
+    }
+    normalizedValue = { value: composition };
+  }
+
+  if (parsed.data.key === DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY) {
+    const defaults = normalizeDoctorWorkspaceClientDefaults(normalizedValue.value);
+    if (defaults === null) {
+      return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
+    }
+    normalizedValue = { value: defaults };
   }
 
   if (

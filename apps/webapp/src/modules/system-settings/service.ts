@@ -31,11 +31,19 @@ import {
   type PlatformIntegrationAvailability,
 } from './platformIntegrationAvailability';
 import {
+  DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY,
   DOCTOR_WORKSPACE_COMPOSITION_KEY,
+  normalizeDoctorWorkspaceClientDefaults,
+  normalizeDoctorWorkspaceComposition,
   parseDoctorWorkspaceComposition,
   type DoctorWorkspaceComposition,
 } from './doctorWorkspaceComposition';
 import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
+import {
+  normalizePatientLabel,
+  normalizeSupportGroupLabel,
+  SUPPORT_GROUP_LABEL_KEY,
+} from './patientTerms';
 
 type SystemSettingsServiceDependencies = {
   runtimeRepository?: RuntimeSettingsRepository;
@@ -205,6 +213,27 @@ export function createSystemSettingsService(
     value: unknown,
     options: SystemSettingsWriteOptions,
   ): Promise<unknown> {
+    const normalizedEnvelope = normalizeValueJson(value);
+    if (key === DOCTOR_WORKSPACE_COMPOSITION_KEY) {
+      const normalized = normalizeDoctorWorkspaceComposition(normalizedEnvelope.value);
+      if (normalized === null) throw new Error(`invalid_setting_value: ${key}`);
+      return { value: normalized };
+    }
+    if (key === DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY) {
+      const normalized = normalizeDoctorWorkspaceClientDefaults(normalizedEnvelope.value);
+      if (normalized === null) throw new Error(`invalid_setting_value: ${key}`);
+      return { value: normalized };
+    }
+    if (key === 'patient_label') {
+      const normalized = normalizePatientLabel(normalizedEnvelope.value);
+      if (normalized === null) throw new Error(`invalid_setting_value: ${key}`);
+      return { value: normalized };
+    }
+    if (key === SUPPORT_GROUP_LABEL_KEY) {
+      const normalized = normalizeSupportGroupLabel(normalizedEnvelope.value);
+      if (normalized === null) throw new Error(`invalid_setting_value: ${key}`);
+      return { value: normalized };
+    }
     if (key === 'operator_health_imap' && scope === 'admin') {
       const env = normalizeValueJson(value);
       const inner = env.value;

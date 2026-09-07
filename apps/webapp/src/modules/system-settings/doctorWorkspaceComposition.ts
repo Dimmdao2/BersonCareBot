@@ -49,6 +49,24 @@ export const WORKSPACE_MODULE_DEPENDENCIES: Readonly<
 export const DOCTOR_WORKSPACE_COMPOSITION_KEY = 'doctor_workspace_composition' as const;
 export const DOCTOR_WORKSPACE_COMPOSITION_VERSION = 1 as const;
 
+export const DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY = 'doctor_workspace_client_defaults' as const;
+export const DOCTOR_WORKSPACE_CLIENT_DEFAULTS_VERSION = 1 as const;
+export const WORKSPACE_CLIENT_CHANNEL_KEYS = [
+  'direct_chat',
+  'program_comments',
+  'program_media',
+] as const;
+export const WORKSPACE_CLIENT_DEFAULT_MODES = ['off', 'all', 'on_support'] as const;
+
+export type WorkspaceClientChannelKey = (typeof WORKSPACE_CLIENT_CHANNEL_KEYS)[number];
+export type WorkspaceClientDefaultMode = (typeof WORKSPACE_CLIENT_DEFAULT_MODES)[number];
+
+export type DoctorWorkspaceClientDefaults = Readonly<{
+  version: typeof DOCTOR_WORKSPACE_CLIENT_DEFAULTS_VERSION;
+  channelDefaults: Readonly<Record<WorkspaceClientChannelKey, WorkspaceClientDefaultMode>>;
+  patientSymptomTrackingDefault: WorkspaceClientDefaultMode;
+}>;
+
 export type DoctorWorkspaceComposition = Readonly<{
   version: typeof DOCTOR_WORKSPACE_COMPOSITION_VERSION;
   modules: Readonly<Record<WorkspaceModuleKey, boolean>>;
@@ -67,6 +85,75 @@ export function defaultDoctorWorkspaceComposition(): DoctorWorkspaceComposition 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isWorkspaceClientDefaultMode(value: unknown): value is WorkspaceClientDefaultMode {
+  return (
+    typeof value === 'string' &&
+    (WORKSPACE_CLIENT_DEFAULT_MODES as readonly string[]).includes(value)
+  );
+}
+
+/** C3M-04 compatibility projection when the structured row has not been stored yet. */
+export function defaultDoctorWorkspaceClientDefaults(
+  input: {
+    legacyCommentsWithoutSupportEnabled?: boolean;
+    legacyMediaWithoutSupportEnabled?: boolean;
+  } = {},
+): DoctorWorkspaceClientDefaults {
+  return {
+    version: DOCTOR_WORKSPACE_CLIENT_DEFAULTS_VERSION,
+    channelDefaults: {
+      direct_chat: 'all',
+      program_comments: input.legacyCommentsWithoutSupportEnabled === true ? 'all' : 'on_support',
+      program_media: input.legacyMediaWithoutSupportEnabled === true ? 'all' : 'on_support',
+    },
+    patientSymptomTrackingDefault: 'all',
+  };
+}
+
+/** Strict validator used by both the settings UI read and the canonical write boundary. */
+export function normalizeDoctorWorkspaceClientDefaults(
+  value: unknown,
+): DoctorWorkspaceClientDefaults | null {
+  if (!isRecord(value)) return null;
+  if (value.version !== DOCTOR_WORKSPACE_CLIENT_DEFAULTS_VERSION) return null;
+  if (!isRecord(value.channelDefaults)) return null;
+  const channelKeys = Object.keys(value.channelDefaults);
+  if (
+    channelKeys.length !== WORKSPACE_CLIENT_CHANNEL_KEYS.length ||
+    channelKeys.some((key) => !(WORKSPACE_CLIENT_CHANNEL_KEYS as readonly string[]).includes(key))
+  ) {
+    return null;
+  }
+  const channelDefaults = {} as Record<WorkspaceClientChannelKey, WorkspaceClientDefaultMode>;
+  for (const key of WORKSPACE_CLIENT_CHANNEL_KEYS) {
+    const mode = value.channelDefaults[key];
+    if (!isWorkspaceClientDefaultMode(mode)) return null;
+    channelDefaults[key] = mode;
+  }
+  if (!isWorkspaceClientDefaultMode(value.patientSymptomTrackingDefault)) return null;
+  return {
+    version: DOCTOR_WORKSPACE_CLIENT_DEFAULTS_VERSION,
+    channelDefaults,
+    patientSymptomTrackingDefault: value.patientSymptomTrackingDefault,
+  };
+}
+
+export function parseDoctorWorkspaceClientDefaults(
+  valueJson: unknown,
+  legacy: {
+    legacyCommentsWithoutSupportEnabled?: boolean;
+    legacyMediaWithoutSupportEnabled?: boolean;
+  } = {},
+): DoctorWorkspaceClientDefaults {
+  if (!isRecord(valueJson) || !('value' in valueJson)) {
+    return defaultDoctorWorkspaceClientDefaults(legacy);
+  }
+  const parsed = normalizeDoctorWorkspaceClientDefaults(valueJson.value);
+  if (parsed === null)
+    throw new RuntimeSettingUnavailableError(DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY);
+  return parsed;
 }
 
 /**
