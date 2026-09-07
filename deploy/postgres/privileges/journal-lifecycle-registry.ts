@@ -1539,6 +1539,15 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
     userPurge: { kind: 'staff-authored', column: 'archived_by_platform_user_id, created_by_platform_user_id, published_by_platform_user_id', basis: 'brand revisions are published by clinic staff; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
     orgPurge: { kind: 'organization_id' },
   },
+  'public.org_custom_domain_bindings': {
+    reason: 'live custom-domain claim, updated through its lifecycle rather than appended as a journal',
+    userPurge: { kind: 'staff-authored', column: 'created_by_platform_user_id', basis: 'the binding is created by clinic staff; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: {
+      kind: 'org-anonymised',
+      column: 'organization_id',
+      basis: 'org_custom_domain_bindings_organization_id_fkey ON DELETE SET NULL; the hostname tombstone survives so another clinic cannot claim it',
+    },
+  },
   'public.org_enrollments': {
     reason: 'live attachment of a person to a clinic — the tenant wall itself depends on it',
     userPurge: { kind: 'cascade', column: 'platform_user_id' },
