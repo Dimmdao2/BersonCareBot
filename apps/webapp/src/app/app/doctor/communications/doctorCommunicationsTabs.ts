@@ -7,6 +7,8 @@
  * через `doctorRouteRedirects.ts`. Schedule-rewrite и его REWRITE_MARKER_HEADER не затронуты.
  */
 
+import type { WorkspaceModuleKey } from '@/modules/system-settings/doctorWorkspaceComposition';
+
 export const COMMUNICATIONS_BASE = '/app/doctor/communications';
 
 export type CommunicationsTabId = 'chats' | 'comments' | 'broadcasts';
@@ -15,12 +17,28 @@ export type CommunicationsTab = {
   id: CommunicationsTabId;
   label: string;
   href: string;
+  workspaceModule: Extract<WorkspaceModuleKey, 'direct_chat' | 'program_comments' | 'mailings'>;
 };
 
 export const COMMUNICATIONS_TABS: CommunicationsTab[] = [
-  { id: 'chats', label: 'Чаты', href: `${COMMUNICATIONS_BASE}?tab=chats` },
-  { id: 'comments', label: 'Комментарии', href: `${COMMUNICATIONS_BASE}?tab=comments` },
-  { id: 'broadcasts', label: 'Рассылки', href: `${COMMUNICATIONS_BASE}?tab=broadcasts` },
+  {
+    id: 'chats',
+    label: 'Чаты',
+    href: `${COMMUNICATIONS_BASE}?tab=chats`,
+    workspaceModule: 'direct_chat',
+  },
+  {
+    id: 'comments',
+    label: 'Комментарии',
+    href: `${COMMUNICATIONS_BASE}?tab=comments`,
+    workspaceModule: 'program_comments',
+  },
+  {
+    id: 'broadcasts',
+    label: 'Рассылки',
+    href: `${COMMUNICATIONS_BASE}?tab=broadcasts`,
+    workspaceModule: 'mailings',
+  },
 ];
 
 export const COMMUNICATIONS_DEFAULT_TAB: CommunicationsTabId = 'chats';
@@ -38,15 +56,13 @@ export function communicationsChatHref(conversationId: string): string {
 }
 
 /** Нормализует значение `?tab=` к валидному id вкладки (fallback — chats). */
-export function communicationsTabFromQuery(tab: string | null | undefined): CommunicationsTabId {
-  switch (tab) {
-    case 'comments':
-      return 'comments';
-    case 'broadcasts':
-      return 'broadcasts';
-    case 'chats':
-      return 'chats';
-    default:
-      return COMMUNICATIONS_DEFAULT_TAB;
-  }
+export function communicationsTabFromQuery(
+  tab: string | null | undefined,
+  availableTabs: readonly CommunicationsTab[] = COMMUNICATIONS_TABS,
+): CommunicationsTabId {
+  return (
+    availableTabs.find((candidate) => candidate.id === tab)?.id ??
+    availableTabs[0]?.id ??
+    COMMUNICATIONS_DEFAULT_TAB
+  );
 }

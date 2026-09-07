@@ -62,11 +62,12 @@ import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorM
 import { DoctorClientMembershipsPanel } from '@/app/app/doctor/clients/DoctorClientMembershipsPanel';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import {
-  PATIENT_CARD_TABS,
   PatientCardDesktopTabs,
   PatientCardMobileTabs,
   type PatientCardTabId,
 } from './PatientCardSectionTabs';
+import { getEffectivePatientCardTabs } from './patientCardTabRegistry';
+import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
 import { PatientEncounterStartModal } from './PatientEncounterStartModal';
 import { EncounterHistoryModal } from './tabs/karta/EncounterHistoryModal';
 import { EncounterViewModal } from './tabs/karta/EncounterViewModal';
@@ -150,6 +151,8 @@ type Props = {
   isAdmin?: boolean;
   /** Sanitized return href to the clients list — «К клиентам» link in the page header. */
   patientListHref: string;
+  /** The same request-local effective map used by shell navigation and route guards. */
+  workspaceModules?: WorkspaceModuleEffective;
 };
 
 type TabPanelsProps = Props & {
@@ -207,6 +210,7 @@ function PatientContactActions({
   chatUnreadCount,
   onChatUnreadChange,
   patientOnSupport,
+  directChatEnabled,
   className,
 }: {
   identity: PatientCardHeader['identity'];
@@ -217,6 +221,7 @@ function PatientContactActions({
   chatUnreadCount: number;
   onChatUnreadChange: (count: number) => void;
   patientOnSupport: boolean;
+  directChatEnabled: boolean;
   className?: string;
 }) {
   const actionClass = 'h-[34px] w-[34px] rounded-md border text-xs md:h-6 md:w-6';
@@ -260,28 +265,30 @@ function PatientContactActions({
         ) : null}
       </DropdownMenu>
 
-      <DoctorOpenChatButton
-        patientUserId={identity.userId}
-        patientName={identity.displayName ?? undefined}
-        patientOnSupport={patientOnSupport}
-        variant="ghost"
-        size="icon"
-        title={chatUnreadCount > 0 ? `Открыть чат · ${chatUnreadCount}` : 'Открыть чат'}
-        onUnreadChange={onChatUnreadChange}
-        className={cn(
-          actionClass,
-          chatUnreadCount > 0
-            ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:text-destructive'
-            : chatButtonHighlighted
-              ? doctorClientPrimaryOutlineActionClass
-              : 'border-transparent bg-muted/30 text-muted-foreground/40 hover:bg-primary/15 hover:text-primary',
-        )}
-      >
-        <span className="relative inline-flex">
-          <MessageCircle className="h-3.5 w-3.5" />
-          <DoctorAttentionBadge count={chatUnreadCount} dot />
-        </span>
-      </DoctorOpenChatButton>
+      {directChatEnabled ? (
+        <DoctorOpenChatButton
+          patientUserId={identity.userId}
+          patientName={identity.displayName ?? undefined}
+          patientOnSupport={patientOnSupport}
+          variant="ghost"
+          size="icon"
+          title={chatUnreadCount > 0 ? `Открыть чат · ${chatUnreadCount}` : 'Открыть чат'}
+          onUnreadChange={onChatUnreadChange}
+          className={cn(
+            actionClass,
+            chatUnreadCount > 0
+              ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:text-destructive'
+              : chatButtonHighlighted
+                ? doctorClientPrimaryOutlineActionClass
+                : 'border-transparent bg-muted/30 text-muted-foreground/40 hover:bg-primary/15 hover:text-primary',
+          )}
+        >
+          <span className="relative inline-flex">
+            <MessageCircle className="h-3.5 w-3.5" />
+            <DoctorAttentionBadge count={chatUnreadCount} dot />
+          </span>
+        </DoctorOpenChatButton>
+      ) : null}
       <Button
         type="button"
         variant="ghost"
@@ -351,37 +358,54 @@ export function PatientCardClient({
   embeddedProgramContent,
   isAdmin = false,
   patientListHref,
+  workspaceModules,
 }: Props) {
   const header = shellMeta.cardHeader;
+  const availableTabs = useMemo(
+    () => getEffectivePatientCardTabs(workspaceModules),
+    [workspaceModules],
+  );
+  const availableTabIds = useMemo(
+    () => new Set(availableTabs.map((tab) => tab.id)),
+    [availableTabs],
+  );
   const resolvedInitialTab: TabId =
-    initialTab && PATIENT_CARD_TABS.some((t) => t.id === initialTab)
-      ? (initialTab as TabId)
-      : 'overview';
+    initialTab && availableTabIds.has(initialTab as TabId) ? (initialTab as TabId) : 'overview';
   const [activeTab, setActiveTab] = useState<TabId>(resolvedInitialTab);
   const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<TabId>>(
     () => new Set<TabId>([resolvedInitialTab]),
   );
   const [encounterHistoryOpen, setEncounterHistoryOpen] = useState(false);
-  const [encounterStartOpen, setEncounterStartOpen] = useState(Boolean(createVisitFrom));
+  const [encounterStartOpen, setEncounterStartOpen] = useState(
+    Boolean(createVisitFrom) && (workspaceModules?.encounters ?? true),
+  );
   const [encounterStartAppointmentId, setEncounterStartAppointmentId] = useState<string | null>(
     createVisitFrom ?? null,
   );
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
-  const selectTab = useCallback((tab: TabId) => {
-    setActiveTab(tab);
-    setVisitedTabs((prev) => {
-      if (prev.has(tab)) return prev;
-      const next = new Set(prev);
-      next.add(tab);
-      return next;
-    });
-  }, []);
+  const selectTab = useCallback(
+    (tab: TabId) => {
+      if (!availableTabIds.has(tab)) return;
+      setActiveTab(tab);
+      setVisitedTabs((prev) => {
+        if (prev.has(tab)) return prev;
+        const next = new Set(prev);
+        next.add(tab);
+        return next;
+      });
+    },
+    [availableTabIds],
+  );
 
-  const openEncounterStart = useCallback((appointmentId?: string) => {
-    setEncounterStartAppointmentId(appointmentId ?? null);
-    setEncounterStartOpen(true);
-  }, []);
+  const openEncounterStart = useCallback(
+    (appointmentId?: string) => {
+      if (workspaceModules?.encounters === false) return;
+      setEncounterStartAppointmentId(appointmentId ?? null);
+      setEncounterStartOpen(true);
+    },
+    [workspaceModules?.encounters],
+  );
 
   // A trusted appointment coming from Today/calendar opens the same common start flow.
   useEffect(() => {
@@ -392,17 +416,17 @@ export function PatientCardClient({
   useEffect(() => {
     function handleOpenTab(e: Event) {
       const tab = (e as CustomEvent<{ tab: string }>).detail?.tab as TabId | undefined;
-      if (tab && PATIENT_CARD_TABS.some((t) => t.id === tab)) {
+      if (tab && availableTabIds.has(tab)) {
         selectTab(tab);
       }
     }
     window.addEventListener('patient:open-tab', handleOpenTab);
     return () => window.removeEventListener('patient:open-tab', handleOpenTab);
-  }, [selectTab]);
+  }, [availableTabIds, selectTab]);
 
   useEffect(() => {
     const patientUserId = header?.identity.userId;
-    if (!patientUserId) {
+    if (!patientUserId || workspaceModules?.direct_chat === false) {
       setChatUnreadCount(0);
       return;
     }
@@ -426,14 +450,18 @@ export function PatientCardClient({
     return () => {
       cancelled = true;
     };
-  }, [header?.identity.userId]);
+  }, [header?.identity.userId, workspaceModules?.direct_chat]);
 
   const mobileBottomTabs = useMemo(
     () =>
       header ? (
-        <PatientCardMobileTabs activeTab={activeTab} onTabChange={selectTab} />
+        <PatientCardMobileTabs
+          activeTab={activeTab}
+          onTabChange={selectTab}
+          workspaceModules={workspaceModules}
+        />
       ) : null,
-    [activeTab, header, selectTab],
+    [activeTab, header, selectTab, workspaceModules],
   );
 
   if (!header) {
@@ -511,7 +539,11 @@ export function PatientCardClient({
             >
               К клиентам
             </Link>
-            <PatientCardDesktopTabs activeTab={activeTab} onTabChange={selectTab} />
+            <PatientCardDesktopTabs
+              activeTab={activeTab}
+              onTabChange={selectTab}
+              workspaceModules={workspaceModules}
+            />
           </div>
         }
       />
@@ -566,30 +598,34 @@ export function PatientCardClient({
                 </div>
               ) : null}
 
-              <PatientPortalInviteControls
-                patientUserId={identity.userId}
-                initialState={
-                  shellMeta.portalState ?? {
-                    status: 'not_activated',
-                    inviteId: null,
-                    expiresAt: null,
+              {workspaceModules?.client_portal !== false ? (
+                <PatientPortalInviteControls
+                  patientUserId={identity.userId}
+                  initialState={
+                    shellMeta.portalState ?? {
+                      status: 'not_activated',
+                      inviteId: null,
+                      expiresAt: null,
+                    }
                   }
-                }
-              />
+                />
+              ) : null}
 
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEncounterHistoryOpen(true)}
-                >
-                  История приёмов
-                </Button>
-                <Button type="button" size="sm" onClick={() => openEncounterStart()}>
-                  Начать приём
-                </Button>
-              </div>
+              {workspaceModules?.encounters !== false ? (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEncounterHistoryOpen(true)}
+                  >
+                    История приёмов
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => openEncounterStart()}>
+                    Начать приём
+                  </Button>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -605,6 +641,7 @@ export function PatientCardClient({
               chatUnreadCount={chatUnreadCount}
               onChatUnreadChange={setChatUnreadCount}
               patientOnSupport={support.isOnSupport}
+              directChatEnabled={workspaceModules?.direct_chat !== false}
             />
           </div>
         ) : null}
@@ -632,11 +669,12 @@ export function PatientCardClient({
               onHistoryClose={() => setEncounterHistoryOpen(false)}
               onStartEncounter={openEncounterStart}
               header={header}
+              workspaceModules={workspaceModules}
             />
           </div>
         </Suspense>
       </section>
-      {encounterStartOpen ? (
+      {encounterStartOpen && workspaceModules?.encounters !== false ? (
         <PatientEncounterStartModal
           open
           userId={identity.userId}
@@ -644,7 +682,9 @@ export function PatientCardClient({
           displayIana={shellMeta.displayIana ?? 'Europe/Moscow'}
           todayIso={
             shellMeta.todayIso ??
-            DateTime.now().setZone(shellMeta.displayIana ?? 'Europe/Moscow').toISODate() ??
+            DateTime.now()
+              .setZone(shellMeta.displayIana ?? 'Europe/Moscow')
+              .toISODate() ??
             ''
           }
           initialAppointmentId={encounterStartAppointmentId}
@@ -667,8 +707,12 @@ function PatientCardTabPanels({
   onHistoryClose,
   onStartEncounter,
   header,
+  workspaceModules,
 }: TabPanelsProps) {
   const tab = use(tabPromise);
+  const availableTabIds = new Set(
+    getEffectivePatientCardTabs(workspaceModules).map((availableTab) => availableTab.id),
+  );
   const { identity } = header;
   const membershipsVisible = shellMeta.membershipsVisible;
   const membershipMutationsAllowed = shellMeta.membershipMutationAllowed;
@@ -715,6 +759,9 @@ function PatientCardTabPanels({
               if (tabId === 'program') selectTab('program');
               if (tabId === 'karta') selectTab('karta');
             }}
+            canOpenKarta={availableTabIds.has('karta')}
+            canOpenProgram={availableTabIds.has('program')}
+            canCreateEncounter={workspaceModules?.encounters !== false}
             initialClinicalState={tab.initialClinicalState}
             initialVisits={tab.initialVisits}
             initialNotes={tab.initialNotes}
@@ -801,12 +848,12 @@ function PatientCardTabPanels({
         onOpenVisit={setHistoryVisitId}
       />
       <EncounterViewModal
-        visit={historyVisitId ? (visits.find((visit) => visit.id === historyVisitId) ?? null) : null}
+        visit={
+          historyVisitId ? (visits.find((visit) => visit.id === historyVisitId) ?? null) : null
+        }
         nested={historyOpen}
         editHref={
-          historyVisitId
-            ? `/app/doctor/patients/${identity.userId}/visits/${historyVisitId}`
-            : ''
+          historyVisitId ? `/app/doctor/patients/${identity.userId}/visits/${historyVisitId}` : ''
         }
         patientName={formatDoctorFioShort(identity, identity.displayName)}
         patientOnSupport={header.support.isOnSupport}

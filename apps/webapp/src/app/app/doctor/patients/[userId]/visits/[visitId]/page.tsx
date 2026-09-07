@@ -6,11 +6,12 @@
  */
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
-import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireWorkspaceModuleForPage } from '@/app-layer/guards/workspaceModuleAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { EncounterPageClient } from '../EncounterPageClient';
 import { PatientEncounterPageShell } from '../PatientEncounterPageShell';
+import { loadDoctorWorkspaceShell } from '../../../../loadDoctorWorkspaceShell';
 
 type PageProps = {
   params: Promise<{ userId: string; visitId: string }>;
@@ -25,7 +26,9 @@ export default async function EditEncounterPage({ params }: PageProps) {
     notFound();
   }
 
-  const workspace = await requireDoctorWorkspaceContext();
+  const shell = await loadDoctorWorkspaceShell();
+  requireWorkspaceModuleForPage(shell.workspaceModules.encounters);
+  const workspace = shell.workspaceAccess;
   const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
@@ -41,7 +44,11 @@ export default async function EditEncounterPage({ params }: PageProps) {
   if (!visit) notFound();
 
   return (
-    <PatientEncounterPageShell userId={userId} title="Приём">
+    <PatientEncounterPageShell
+      userId={userId}
+      title="Приём"
+      workspaceModules={shell.workspaceModules}
+    >
       <EncounterPageClient
         mode="edit"
         userId={identity.userId}

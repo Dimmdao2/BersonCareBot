@@ -5,31 +5,29 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import { patientCardHref } from '../patientCardHref';
+import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
+import { getEffectivePatientCardTabs, type PatientCardTabId } from './patientCardTabRegistry';
 
-export type PatientCardTabId = 'overview' | 'karta' | 'program' | 'files' | 'account';
-
-export const PATIENT_CARD_TABS: ReadonlyArray<{ id: PatientCardTabId; label: string }> = [
-  { id: 'overview', label: 'Обзор' },
-  { id: 'karta', label: 'Карта' },
-  { id: 'program', label: 'ЛФК' },
-  { id: 'files', label: 'Файлы' },
-  { id: 'account', label: 'Учётка' },
-];
+export { PATIENT_CARD_TABS } from './patientCardTabRegistry';
+export type { PatientCardTabId } from './patientCardTabRegistry';
 
 export function PatientCardDesktopTabs({
   activeTab,
   onTabChange,
+  workspaceModules,
 }: {
   activeTab: PatientCardTabId | null;
   onTabChange: (tab: PatientCardTabId) => void;
+  workspaceModules?: WorkspaceModuleEffective;
 }) {
+  const tabs = getEffectivePatientCardTabs(workspaceModules);
   return (
     <nav
       id="doctor-patient-card-tabs"
       aria-label="Разделы карточки пациента"
       className="hidden gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden"
     >
-      {PATIENT_CARD_TABS.map((tab) => (
+      {tabs.map((tab) => (
         <Button
           key={tab.id}
           type="button"
@@ -48,13 +46,15 @@ export function PatientCardDesktopTabs({
 export function PatientCardMobileTabs({
   activeTab,
   onTabChange,
+  workspaceModules,
 }: {
   activeTab: PatientCardTabId | null;
   onTabChange: (tab: PatientCardTabId) => void;
+  workspaceModules?: WorkspaceModuleEffective;
 }) {
   return (
     <DoctorMobileSectionTabs
-      tabs={PATIENT_CARD_TABS}
+      tabs={getEffectivePatientCardTabs(workspaceModules)}
       activeTab={activeTab}
       onTabChange={onTabChange}
       ariaLabel="Разделы карточки пациента"
@@ -65,16 +65,26 @@ export function PatientCardMobileTabs({
 export function PatientCardRouteTabs({
   userId,
   variant,
+  workspaceModules,
 }: {
   userId: string;
   variant: 'desktop' | 'mobile';
+  workspaceModules?: WorkspaceModuleEffective;
 }) {
   const router = useRouter();
   const goToTab = (tab: PatientCardTabId) => router.push(patientCardHref(userId, { tab }));
 
   return variant === 'desktop' ? (
-    <PatientCardDesktopTabs activeTab={null} onTabChange={goToTab} />
+    <PatientCardDesktopTabs
+      activeTab={null}
+      onTabChange={goToTab}
+      workspaceModules={workspaceModules}
+    />
   ) : (
-    <PatientCardMobileTabs activeTab={null} onTabChange={goToTab} />
+    <PatientCardMobileTabs
+      activeTab={null}
+      onTabChange={goToTab}
+      workspaceModules={workspaceModules}
+    />
   );
 }

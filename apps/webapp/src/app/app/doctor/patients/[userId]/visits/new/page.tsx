@@ -7,10 +7,11 @@
  */
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
-import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireWorkspaceModuleForPage } from '@/app-layer/guards/workspaceModuleAccess';
 import { EncounterPageClient } from '../EncounterPageClient';
 import { PatientEncounterPageShell } from '../PatientEncounterPageShell';
+import { loadDoctorWorkspaceShell } from '../../../../loadDoctorWorkspaceShell';
 
 type PageProps = {
   params: Promise<{ userId: string }>;
@@ -22,7 +23,9 @@ export default async function NewEncounterPage({ params, searchParams }: PagePro
   const sp = await searchParams;
   if (!z.string().uuid().safeParse(userId).success) notFound();
 
-  const workspace = await requireDoctorWorkspaceContext();
+  const shell = await loadDoctorWorkspaceShell();
+  requireWorkspaceModuleForPage(shell.workspaceModules.encounters);
+  const workspace = shell.workspaceAccess;
   const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
@@ -38,7 +41,11 @@ export default async function NewEncounterPage({ params, searchParams }: PagePro
       : undefined;
 
   return (
-    <PatientEncounterPageShell userId={userId} title="Новый приём">
+    <PatientEncounterPageShell
+      userId={userId}
+      title="Новый приём"
+      workspaceModules={shell.workspaceModules}
+    >
       <EncounterPageClient
         mode="create"
         userId={identity.userId}

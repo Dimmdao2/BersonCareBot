@@ -7,42 +7,28 @@
  * Platform-wide analytics lives at `/app/admin/analytics`.
  */
 import { DateTime } from 'luxon';
-import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
+import { requireWorkspaceModuleForPage } from '@/app-layer/guards/workspaceModuleAccess';
 import { DoctorAnalyticsShell } from './DoctorAnalyticsShell';
 import { analyticsTabFromQuery } from './doctorAnalyticsTabs';
-
-function getValueJson<T>(v: unknown, fallback: T): T {
-  if (v !== null && typeof v === 'object' && 'value' in (v as Record<string, unknown>)) {
-    return (v as Record<string, unknown>).value as T;
-  }
-  return fallback;
-}
+import { loadDoctorWorkspaceShell } from '../loadDoctorWorkspaceShell';
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function DoctorAnalyticsPage({ searchParams }: PageProps) {
-  const workspace = await requireDoctorWorkspaceContext();
+  const shell = await loadDoctorWorkspaceShell();
+  requireWorkspaceModuleForPage(shell.workspaceModules.analytics);
   const sp = (await searchParams) ?? {};
   const initialTab = analyticsTabFromQuery(typeof sp.tab === 'string' ? sp.tab : undefined);
 
-  const deps = buildAppDeps();
   const displayIana = await getAppDisplayTimeZone();
   const calendarTodayYmd =
     DateTime.now().setZone(displayIana).toISODate() ?? DateTime.now().toUTC().toISODate() ?? '';
 
-  const doctorSettings = await deps.systemSettings.listSettingsByScope('doctor', {
-    organizationId: workspace.organizationId,
-  });
-  const patientSingular = getValueJson(
-    doctorSettings.find((x) => x.key === 'patient_label')?.valueJson,
-    'пациент',
-  );
-  const { patientGenPlural } = resolvePatientTerms(String(patientSingular));
+  const { patientGenPlural } = resolvePatientTerms(shell.patientLabel);
 
   return (
     <DoctorAnalyticsShell

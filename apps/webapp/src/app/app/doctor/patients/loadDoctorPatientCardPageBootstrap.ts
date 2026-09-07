@@ -20,22 +20,11 @@ import { pickOpenTreatmentProgramInstance } from './treatmentProgramInstanceOpen
 import { envelopeFromSettled, type BootstrapEnvelope } from './doctorPatientCardBootstrapShared';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { DateTime } from 'luxon';
+import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
+import type { PatientCardTabId } from './[userId]/patientCardTabRegistry';
 
-export type PatientCardTabId = 'overview' | 'karta' | 'program' | 'files' | 'account';
-
-const PATIENT_CARD_TABS: PatientCardTabId[] = ['overview', 'karta', 'program', 'files', 'account'];
-
-const LEGACY_PATIENT_CARD_TABS = new Set(['records', 'comms', 'finances']);
-
-export function resolvePatientCardTab(tab: string | undefined): PatientCardTabId {
-  if (tab && PATIENT_CARD_TABS.includes(tab as PatientCardTabId)) {
-    return tab as PatientCardTabId;
-  }
-  // Removed top-level tabs remain sections of «Карта». Keep old direct URLs
-  // working without retaining the legacy navigation vocabulary.
-  if (tab && LEGACY_PATIENT_CARD_TABS.has(tab)) return 'karta';
-  return 'overview';
-}
+export { resolvePatientCardTab } from './[userId]/patientCardTabRegistry';
+export type { PatientCardTabId } from './[userId]/patientCardTabRegistry';
 
 type Deps = ReturnType<typeof buildAppDeps>;
 
@@ -314,6 +303,7 @@ export async function loadDoctorPatientCardShellMeta(
   patientUserId: string,
   activeTab: PatientCardTabId,
   programInstancesPromise = loadDoctorPatientProgramInstances(deps, workspace, patientUserId),
+  workspaceModules?: WorkspaceModuleEffective,
 ): Promise<DoctorPatientCardShellMeta> {
   const [membershipMeta, cardHeader, portalState, currentProgramStartedAt, displayIana] =
     await Promise.all([
@@ -321,12 +311,16 @@ export async function loadDoctorPatientCardShellMeta(
       withDoctorWorkspacePrincipal(workspace, () =>
         deps.doctorClients.getPatientCardHeader(patientUserId, workspace.organizationId),
       ),
-      withDoctorWorkspacePrincipal(workspace, () =>
-        deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
-      ).catch(() => null),
-      programInstancesPromise
-        .then((instances) => pickOpenTreatmentProgramInstance(instances)?.createdAt ?? null)
-        .catch(() => null),
+      workspaceModules?.client_portal === false
+        ? Promise.resolve(null)
+        : withDoctorWorkspacePrincipal(workspace, () =>
+            deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
+          ).catch(() => null),
+      workspaceModules?.rehabilitation === false
+        ? Promise.resolve(null)
+        : programInstancesPromise
+            .then((instances) => pickOpenTreatmentProgramInstance(instances)?.createdAt ?? null)
+            .catch(() => null),
       getAppDisplayTimeZone(),
     ]);
 
@@ -350,6 +344,7 @@ export async function loadDoctorPatientCardTabBootstrap(
   patientUserId: string,
   activeTab: PatientCardTabId,
   sharedProgramInstancesPromise?: ReturnType<typeof loadDoctorPatientProgramInstances>,
+  workspaceModules?: WorkspaceModuleEffective,
 ): Promise<DoctorPatientCardTabBootstrap> {
   const session = workspace.session;
   const membershipMeta = await loadMembershipMeta(workspace, activeTab);
@@ -399,30 +394,38 @@ export async function loadDoctorPatientCardTabBootstrap(
       specialistTasksReadable
         ? deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false)
         : Promise.resolve([]),
-      loadDoctorPatientProgramActivity(
-        { programItemDiscussion: deps.programItemDiscussion },
-        {
-          patientUserId,
-          viewerUserId: session.user.userId,
-          organizationId: workspace.organizationId,
-        },
-      ),
+      workspaceModules?.program_comments === false
+        ? Promise.resolve({ unreadCount: 0, unreadByStageItemId: {}, lastMark: null })
+        : loadDoctorPatientProgramActivity(
+            { programItemDiscussion: deps.programItemDiscussion },
+            {
+              patientUserId,
+              viewerUserId: session.user.userId,
+              organizationId: workspace.organizationId,
+            },
+          ),
       deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
       programInstancesPromise,
       loadProgramInstanceDetail(programInstancesPromise),
       membershipAccess.specialistNavigation && deps.memberships
         ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId)
         : Promise.resolve(null),
-      (async () => {
-        const patientIana =
-          (await deps.patientCalendarTimezone.getIanaForUser(patientUserId)) ?? 'UTC';
-        return loadDoctorPatientExerciseCalendar(
-          deps,
-          workspace,
-          patientUserId,
-          currentPatientExerciseCalendarMonthRangeInIana(patientIana),
-        );
-      })(),
+      workspaceModules?.rehabilitation === false
+        ? Promise.resolve({
+            iana: 'UTC',
+            ...currentPatientExerciseCalendarMonthRangeInIana('UTC'),
+            days: [],
+          })
+        : (async () => {
+            const patientIana =
+              (await deps.patientCalendarTimezone.getIanaForUser(patientUserId)) ?? 'UTC';
+            return loadDoctorPatientExerciseCalendar(
+              deps,
+              workspace,
+              patientUserId,
+              currentPatientExerciseCalendarMonthRangeInIana(patientIana),
+            );
+          })(),
     ]);
 
     const packagesValue =

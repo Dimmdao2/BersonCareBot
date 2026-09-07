@@ -281,12 +281,12 @@ export function createSystemSettingsService(
      */
     async getDoctorWorkspaceComposition(
       options: SystemSettingsReadOptions = {},
+      preloadedRow?: SystemSetting | null,
     ): Promise<DoctorWorkspaceComposition> {
-      const row = await getSettingFromCanonicalRoot(
-        DOCTOR_WORKSPACE_COMPOSITION_KEY,
-        'doctor',
-        options,
-      );
+      const row =
+        preloadedRow === undefined
+          ? await getSettingFromCanonicalRoot(DOCTOR_WORKSPACE_COMPOSITION_KEY, 'doctor', options)
+          : preloadedRow;
       if (
         row !== null &&
         (row.valueJson === null ||
