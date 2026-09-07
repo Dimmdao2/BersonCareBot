@@ -37,6 +37,37 @@ function echoingPort(): CustomDomainBindingPort {
   };
 }
 
+function entitledPort(): CustomDomainBindingPort {
+  return {
+    async resolveActiveOrganizationByHostname() {
+      return '11111111-1111-4111-8111-111111111111';
+    },
+    async readAnonymousPatientSurfaceProjection() {
+      return {
+        clinicSlug: 'northstar',
+        skipPublicCardAtRoot: false,
+        effectiveDisplayName: 'Northstar Clinic',
+        patientAppName: 'Northstar Care',
+        accentToken: 'teal',
+        activeCustomDomainHostname: 'care.example.test',
+        clinicMessengerBots: {
+          telegram: {
+            username: 'northstar_bot',
+            deepLink: 'https://t.me/northstar_bot',
+          },
+        },
+      };
+    },
+    getBindingState: unused,
+    setCustomDomainIntent: unused,
+    clearCustomDomainIntent: unused,
+    transitionBindingStatus: unused,
+    async isHostnameAskAuthorized() {
+      return true;
+    },
+  };
+}
+
 describe('custom-domain intent', () => {
   it('stores the fixed app hostname instead of a browser-supplied subdomain label', async () => {
     const service = createCustomDomainBindingService(echoingPort());
@@ -55,6 +86,36 @@ describe('custom-domain intent', () => {
         placement: 'subdomain',
         subdomainLabel: 'app',
         hostname: 'app.clinic.example.test',
+      },
+    });
+  });
+
+  it('revokes custom-host behavior when the current entitlement is absent without dropping patient bots', async () => {
+    const service = createCustomDomainBindingService(entitledPort(), {
+      resolveCustomDomainEntitlement: async () => false,
+      findVerificationTarget: async () => ({
+        organizationId: '11111111-1111-4111-8111-111111111111',
+        hostname: 'care.example.test',
+        organizationActive: true,
+        hasPublishedBrand: true,
+      }),
+    });
+
+    await expect(service.isHostnameAskAuthorized('care.example.test')).resolves.toBe(false);
+    await expect(service.resolveActiveOrganizationByHostname('care.example.test')).resolves.toBeNull();
+    await expect(
+      service.readAnonymousPatientSurfaceProjection('11111111-1111-4111-8111-111111111111'),
+    ).resolves.toEqual({
+      clinicSlug: 'northstar',
+      skipPublicCardAtRoot: false,
+      effectiveDisplayName: 'Northstar Clinic',
+      patientAppName: 'Northstar Care',
+      accentToken: 'teal',
+      clinicMessengerBots: {
+        telegram: {
+          username: 'northstar_bot',
+          deepLink: 'https://t.me/northstar_bot',
+        },
       },
     });
   });

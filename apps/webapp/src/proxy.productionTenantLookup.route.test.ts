@@ -6,6 +6,7 @@ const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const fakes = vi.hoisted(() => ({
   resolveActiveOrganizationByHostname: vi.fn(),
   readAnonymousPatientSurfaceProjection: vi.fn(),
+  isHostnameAskAuthorized: vi.fn(),
   resolveOrganizationIdBySlug: vi.fn(),
 }));
 
@@ -14,6 +15,7 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
     customDomainBinding: {
       resolveActiveOrganizationByHostname: fakes.resolveActiveOrganizationByHostname,
       readAnonymousPatientSurfaceProjection: fakes.readAnonymousPatientSurfaceProjection,
+      isHostnameAskAuthorized: fakes.isHostnameAskAuthorized,
     },
     clinicDirectory: {
       resolveOrganizationIdBySlug: fakes.resolveOrganizationIdBySlug,
@@ -63,6 +65,7 @@ beforeEach(() => {
   fakes.resolveActiveOrganizationByHostname.mockResolvedValue(null);
   fakes.resolveOrganizationIdBySlug.mockResolvedValue(null);
   fakes.readAnonymousPatientSurfaceProjection.mockResolvedValue(null);
+  fakes.isHostnameAskAuthorized.mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -106,6 +109,29 @@ describe('production Host → tenant wiring', () => {
     expect(response.status).toBe(404);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(resolvedSurfaceFrom(response, runtime.readResolvedSurface)).toBeNull();
+  });
+
+  it('admits only the anonymous probe on an authorized pre-activation hostname', async () => {
+    fakes.isHostnameAskAuthorized.mockImplementation(
+      async (hostname: string) => hostname === 'pending.known-clinic.test',
+    );
+    const runtime = await loadRuntime();
+
+    const probe = await runtime.proxy(
+      requestFor('https://pending.known-clinic.test', '/api/public/domains/probe'),
+    );
+    const patientRoute = await runtime.proxy(
+      requestFor('https://pending.known-clinic.test', '/app/patient/login'),
+    );
+    const unknownProbe = await runtime.proxy(
+      requestFor('https://unknown.example.test', '/api/public/domains/probe'),
+    );
+
+    expect(probe.status).toBe(200);
+    expect(probe.headers.get('cache-control')).toBe('no-store');
+    expect(resolvedSurfaceFrom(probe, runtime.readResolvedSurface)).toBeNull();
+    expect(patientRoute.status).toBe(404);
+    expect(unknownProbe.status).toBe(404);
   });
 
   it('hard-404s a known slug when the production projection rejects an inactive organization', async () => {
