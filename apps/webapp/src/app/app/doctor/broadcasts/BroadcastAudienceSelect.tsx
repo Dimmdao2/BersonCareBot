@@ -1,9 +1,11 @@
 'use client';
 
+import { useMemo } from 'react';
 import type { BroadcastAudienceFilter } from '@/modules/doctor-broadcasts/ports';
 import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
 import { BROADCAST_AUDIENCE_FILTERS_ORDER, getAudienceOptionLabel } from './labels';
 import type { ReferenceItemDto } from '@/modules/references/referenceCache';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Props = {
   value: BroadcastAudienceFilter | '';
@@ -12,19 +14,22 @@ type Props = {
   id?: string;
 };
 
-/** Список сегментов аудитории как псевдо-справочник для ReferenceSelect. */
-const AUDIENCE_ITEMS: ReferenceItemDto[] = BROADCAST_AUDIENCE_FILTERS_ORDER.map((filter, idx) => ({
-  id: filter,
-  code: filter,
-  title: getAudienceOptionLabel(filter),
-  sortOrder: idx,
-}));
-
 export function BroadcastAudienceSelect({ value, onChange, disabled, id }: Props) {
+  const { patientPluralLabel } = useDoctorPatientTerms();
+  const audienceItems = useMemo<ReferenceItemDto[]>(
+    () =>
+      BROADCAST_AUDIENCE_FILTERS_ORDER.map((filter, idx) => ({
+        id: filter,
+        code: filter,
+        title: getAudienceOptionLabel(filter, patientPluralLabel),
+        sortOrder: idx,
+      })),
+    [patientPluralLabel],
+  );
   return (
     <ReferenceSelect
       id={id}
-      prefetchedItems={AUDIENCE_ITEMS}
+      prefetchedItems={audienceItems}
       valueMatch="id"
       value={value || null}
       onChange={(nextValue) => {

@@ -11,9 +11,13 @@ import { resolvePatientTerms, type PatientTerms } from '@/modules/system-setting
  */
 export function getDoctorScreenTitle(
   pathname: string,
-  terms: Pick<PatientTerms, 'patientPluralLabel' | 'patientSingularLabel'> = resolvePatientTerms(),
+  terms: Pick<
+    PatientTerms,
+    'patientPluralLabel' | 'patientSingularLabel' | 'patientSingularLower' | 'patientDativePlural'
+  > = resolvePatientTerms(),
 ): string {
-  const { patientPluralLabel, patientSingularLabel } = terms;
+  const { patientPluralLabel, patientSingularLabel, patientSingularLower, patientDativePlural } =
+    terms;
   const p = pathname.replace(/\/$/, '') || '/app/doctor';
   if (p === '/app/doctor') return 'Сегодня';
 
@@ -22,7 +26,7 @@ export function getDoctorScreenTitle(
     [routePaths.doctorTasks]: 'Задачи',
     '/app/settings': 'Настройки',
     '/app/doctor/analytics': 'Аналитика',
-    '/app/doctor/analytics/clients': 'По клиентам',
+    '/app/doctor/analytics/clients': `По ${patientDativePlural}`,
     '/app/doctor/analytics/notifications': 'По уведомлениям',
     '/app/admin/system-health': 'Здоровье системы',
     '/app/admin/health-archive': 'Архив сбоев',
@@ -40,7 +44,7 @@ export function getDoctorScreenTitle(
     '/app/doctor/calendar': 'Календарь',
     '/app/doctor/messages': 'Сообщения',
     '/app/doctor/broadcasts': 'Рассылки',
-    '/app/doctor/stats': 'По клиентам',
+    '/app/doctor/stats': `По ${patientDativePlural}`,
     '/app/doctor/material-ratings': 'По контенту',
     '/app/doctor/usage': 'Использование',
     '/app/doctor/content': 'Материалы',
@@ -78,7 +82,7 @@ export function getDoctorScreenTitle(
   if (p === '/app/doctor/subscribers') return patientPluralLabel;
   if (p.startsWith('/app/doctor/subscribers/')) return patientSingularLabel;
   if (/\/treatment-programs\//.test(p) && p.startsWith('/app/doctor/clients/'))
-    return `Программа ${patientSingularLabel.toLowerCase()}`;
+    return `Программа ${patientSingularLower}`;
   if (p.startsWith('/app/doctor/clients/') && p !== '/app/doctor/clients')
     return patientSingularLabel;
   if (p.startsWith('/app/doctor/exercises/') && p !== '/app/doctor/exercises/new')
