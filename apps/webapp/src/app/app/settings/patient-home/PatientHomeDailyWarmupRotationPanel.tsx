@@ -12,6 +12,7 @@ import {
   MAX_DAILY_WARMUP_ROTATION_TIMES,
 } from '@/modules/patient-home/patientHomeDailyWarmupRotationSettings';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Props = {
   initialEnabled: boolean;
@@ -19,6 +20,7 @@ type Props = {
 };
 
 export function PatientHomeDailyWarmupRotationPanel(props: Props) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const [enabled, setEnabled] = useState(props.initialEnabled);
   const [times, setTimes] = useState<string[]>(
     props.initialTimes.length > 0
@@ -80,7 +82,7 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
         Автосмена разминок на главной
       </h2>
       <p className="text-sm text-muted-foreground">
-        Какая разминка дня на главной пациента. До 3 времён в календарной таймзоне пациента (не
+        Какая разминка дня на главной {patientGenitive}. До 3 времён в календарной таймзоне {patientGenitive} (не
         путать с исходящим сообщением бота ниже).
       </p>
       <div className="flex flex-col gap-3">

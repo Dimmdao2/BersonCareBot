@@ -13,7 +13,10 @@ import { cn } from '@/lib/utils';
 import { usePatientSupportUnreadCount } from '@/modules/messaging/hooks/useSupportUnreadPolling';
 import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/patient/navChrome';
 import { PatientNavCountBadge } from '@/shared/ui/patient/PatientNavCountBadge';
-import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/PatientOrganizationContext';
+import {
+  usePatientOrganizationContext,
+  usePatientTerms,
+} from '@/shared/ui/patient/organization/PatientOrganizationContext';
 
 const NAV_ICONS: Record<PatientPrimaryNavItemId, typeof Home> = {
   today: Home,
@@ -39,6 +42,7 @@ export function PatientPrimaryNavStrip({ className, variant = 'bottom' }: Props)
   const pathname = usePathname() ?? '';
   const activeId = getPatientPrimaryNavActiveId(pathname);
   const organizationContext = usePatientOrganizationContext();
+  const { patientGenitive } = usePatientTerms();
   const directChatEnabled = organizationContext?.workspaceModules?.direct_chat !== false;
   const chatUnread = usePatientSupportUnreadCount(directChatEnabled);
   const navItems = PATIENT_PRIMARY_NAV_ITEMS.filter(
@@ -115,7 +119,7 @@ export function PatientPrimaryNavStrip({ className, variant = 'bottom' }: Props)
 
   return (
     <nav
-      aria-label="Основная навигация пациента"
+      aria-label={`Основная навигация ${patientGenitive}`}
       data-nav-count={navItems.length}
       className={cn(
         variant === 'bottom'

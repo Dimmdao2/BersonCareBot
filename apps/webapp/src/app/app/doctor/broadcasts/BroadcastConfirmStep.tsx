@@ -3,6 +3,7 @@
 import type { BroadcastCommand, BroadcastPreviewResult } from '@/modules/doctor-broadcasts/ports';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { MarkdownPreview } from '@/shared/ui/doctor/markdown/MarkdownPreview';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import {
   formatAudienceLabel,
   formatCategoryLabel,
@@ -20,6 +21,7 @@ type Props = {
 };
 
 export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, isLoading }: Props) {
+  const { patientPluralLabel } = useDoctorPatientTerms();
   return (
     <div
       id="broadcast-confirm-step"
@@ -31,7 +33,7 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
         <dt className="text-muted-foreground">Категория</dt>
         <dd>{formatCategoryLabel(command.category)}</dd>
         <dt className="text-muted-foreground">Аудитория</dt>
-        <dd>{formatAudienceLabel(command.audienceFilter)}</dd>
+        <dd>{formatAudienceLabel(command.audienceFilter, patientPluralLabel)}</dd>
         <dt className="text-muted-foreground">Получателей</dt>
         <dd id="broadcast-audience-size" className="font-semibold">
           {preview.audienceSize}
@@ -79,7 +81,8 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
           id="broadcast-preview-estimate-warning"
           className="text-xs text-amber-700 dark:text-amber-500"
         >
-          Число получателей — грубая оценка (все клиенты); точный сегмент будет доступен позже.
+          Число получателей — грубая оценка (все {patientPluralLabel.toLowerCase()}); точный сегмент
+          будет доступен позже.
         </p>
       ) : null}
 

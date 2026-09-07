@@ -41,6 +41,7 @@ import {
 import { PATIENT_HOME_USEFUL_POST_BADGE_LABEL } from '@/modules/patient-home/usefulPostPresentation';
 import type { ActionFailureFields } from '@/shared/http/apiResponse';
 import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import {
   deletePatientHomeItem,
   reorderPatientHomeItems,
@@ -70,6 +71,7 @@ function SortableItemRow({
   onBadgeChange(itemId: string, badgeLabel: string | null): void;
   onShowTitleChange(itemId: string, showTitle: boolean): void;
 }) {
+  const { patientDativePlural } = useDoctorPatientTerms();
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id });
   const usefulPost = blockCode === 'useful_post';
   const badgeOn = normalizeUsefulPostBadge(item.badgeLabel) !== null;
@@ -277,7 +279,7 @@ export function PatientHomeBlockItemsDialog({
               : 'Порядок и карточки блока'}
           </DialogTitle>
           <DialogDescription>
-            Перетащите за ручку слева, скройте элемент для пациентов или удалите лишний. Кнопка
+            Перетащите за ручку слева, скройте элемент для {patientDativePlural} или удалите лишний. Кнопка
             «Сохранить» записывает порядок и удаления.
             {blockCode === 'useful_post'
               ? ' Для «Полезного поста»: порядок сверху вниз — приоритет показа карточки; доступны бейдж «Новый пост» и подпись заголовка на обложке.'

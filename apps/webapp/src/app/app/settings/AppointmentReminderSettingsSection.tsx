@@ -23,12 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export function AppointmentReminderSettingsSection({
   initialSettings,
 }: {
   initialSettings: AppointmentReminderSpecialistSettings;
 }) {
+  const { patientSingularLower } = useDoctorPatientTerms();
   const [settings, setSettings] = useState(initialSettings);
   const [pending, startTransition] = useTransition();
   const save = (next: AppointmentReminderSpecialistSettings) => {
@@ -53,7 +55,7 @@ export function AppointmentReminderSettingsSection({
       </DoctorSectionHeader>
       <div className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">
-          Выберите варианты, которые клиент сможет изменить для своей подтверждённой записи.
+          Выберите варианты, которые {patientSingularLower} сможет изменить для своей подтверждённой записи.
         </p>
         {REMINDER_SCHEDULE_PRESETS.map((preset) => {
           const checked = settings.allowedPresetIds.includes(preset.id);

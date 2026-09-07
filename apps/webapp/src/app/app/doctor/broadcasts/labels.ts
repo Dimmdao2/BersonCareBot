@@ -78,7 +78,12 @@ export function getAudienceOptionLabel(filter: BroadcastAudienceFilter): string 
   return isAudienceEstimateApproximate(filter) ? `${base}${APPROXIMATE_AUDIENCE_SUFFIX}` : base;
 }
 
-export function formatAudienceLabel(filter: BroadcastAudienceFilter): string {
+export function formatAudienceLabel(
+  filter: BroadcastAudienceFilter,
+  patientPluralLabel = 'Клиенты',
+): string {
+  if (filter === 'all') return `Все ${patientPluralLabel}`;
+  if (filter === 'active_clients') return `Активные ${patientPluralLabel.toLowerCase()}`;
   return AUDIENCE_LABELS[filter] ?? filter;
 }
 

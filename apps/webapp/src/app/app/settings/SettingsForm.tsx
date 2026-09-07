@@ -43,6 +43,7 @@ import {
   type PatientLabelValue,
   type SupportGroupLabelValue,
 } from '@/modules/system-settings/patientTerms';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const WORKSPACE_MODULE_LABELS: Readonly<Record<WorkspaceModuleKey, string>> = {
   medical_record: 'Медкарта',
@@ -53,7 +54,7 @@ const WORKSPACE_MODULE_LABELS: Readonly<Record<WorkspaceModuleKey, string>> = {
   program_media: 'Медиа в программе',
   mailings: 'Рассылки',
   analytics: 'Аналитика',
-  client_portal: 'Кабинет клиента',
+  client_portal: 'Кабинет',
 };
 
 const WORKSPACE_CHANNEL_LABELS: Readonly<Record<WorkspaceClientChannelKey, string>> = {
@@ -98,6 +99,8 @@ export function SettingsForm({
   workspaceModuleAvailability,
   supportGroupLabel = 'on_support',
 }: SettingsFormProps) {
+  const { patientGenitive, patientPluralLabel, supportGroupLabel: currentSupportGroupLabel } =
+    useDoctorPatientTerms();
   const [label, setLabel] = useState<PatientLabelValue>(
     normalizePatientLabel(patientLabel) ?? 'пациент',
   );
@@ -244,7 +247,9 @@ export function SettingsForm({
                 return (
                   <div key={key} className="flex items-center justify-between gap-3">
                     <Label htmlFor={`workspace-module-${key}`}>
-                      {WORKSPACE_MODULE_LABELS[key]}
+                      {key === 'client_portal'
+                        ? `${WORKSPACE_MODULE_LABELS[key]} ${patientGenitive}`
+                        : WORKSPACE_MODULE_LABELS[key]}
                     </Label>
                     <Switch
                       id={`workspace-module-${key}`}
@@ -346,7 +351,7 @@ export function SettingsForm({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="patient-label-select">Клиенты</Label>
+                <Label htmlFor="patient-label-select">{patientPluralLabel}</Label>
                 <Select
                   value={label}
                   onValueChange={(value) => {
@@ -373,7 +378,9 @@ export function SettingsForm({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="support-group-label-select">Группа сопровождения</Label>
+                <Label htmlFor="support-group-label-select">
+                  Группа «{currentSupportGroupLabel}»
+                </Label>
                 <Select
                   value={supportLabel}
                   onValueChange={(value) => {
@@ -404,7 +411,9 @@ export function SettingsForm({
           <>
             {showPatientLabel ? (
               <div className="flex flex-col gap-2">
-                <Label htmlFor="patient-label-select">Как называть клиента: Клиент / Пациент</Label>
+                <Label htmlFor="patient-label-select">
+                  Как называть {patientGenitive}: Клиент / Пациент
+                </Label>
                 <Select
                   value={label}
                   onValueChange={(value) => {
@@ -441,7 +450,9 @@ export function SettingsForm({
 
             {showSupportDefaults ? (
               <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="comments-without-support">Комментарии без сопровождения</Label>
+                <Label htmlFor="comments-without-support">
+                  Комментарии без группы «{currentSupportGroupLabel}»
+                </Label>
                 <Switch
                   id="comments-without-support"
                   checked={supportCommentsDefault}
@@ -453,7 +464,9 @@ export function SettingsForm({
 
             {showSupportDefaults ? (
               <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="media-without-support">Медиа без сопровождения</Label>
+                <Label htmlFor="media-without-support">
+                  Медиа без группы «{currentSupportGroupLabel}»
+                </Label>
                 <Switch
                   id="media-without-support"
                   checked={supportMediaDefault}

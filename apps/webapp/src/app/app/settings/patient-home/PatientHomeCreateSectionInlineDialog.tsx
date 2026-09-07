@@ -20,6 +20,7 @@ import type { PatientHomeBlockCode } from '@/modules/patient-home/ports';
 import type { ActionFailureFields } from '@/shared/http/apiResponse';
 import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
 import { fallbackSlug, slugFromTitle } from '@/shared/lib/slugify';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { createContentSectionForPatientHomeBlock } from './actions';
 
 export function PatientHomeCreateSectionInlineDialog({
@@ -33,6 +34,7 @@ export function PatientHomeCreateSectionInlineDialog({
   blockCode: PatientHomeBlockCode;
   onSaved(): void;
 }) {
+  const { patientDativePlural, patientGenitive } = useDoctorPatientTerms();
   const meta = getPatientHomeBlockEditorMetadata(blockCode);
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
@@ -80,7 +82,7 @@ export function PatientHomeCreateSectionInlineDialog({
         <DialogHeader>
           <DialogTitle>Новый раздел в блок «{meta.displayTitle}»</DialogTitle>
           <DialogDescription>
-            Раздел сохраняется в CMS и сразу добавляется в этот блок главной пациента как видимый
+            Раздел сохраняется в CMS и сразу добавляется в этот блок главной {patientGenitive} как видимый
             элемент.
           </DialogDescription>
         </DialogHeader>
@@ -161,9 +163,9 @@ export function PatientHomeCreateSectionInlineDialog({
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
             <div>
               <Label htmlFor="ph-inline-sec-vis" className="text-sm">
-                Виден пациентам
+                Виден {patientDativePlural}
               </Label>
-              <p className="text-xs text-muted-foreground">Раздел в меню и навигации пациента.</p>
+              <p className="text-xs text-muted-foreground">Раздел в меню и навигации {patientGenitive}.</p>
             </div>
             <Switch
               id="ph-inline-sec-vis"
@@ -176,7 +178,7 @@ export function PatientHomeCreateSectionInlineDialog({
               <Label htmlFor="ph-inline-sec-auth" className="text-sm">
                 Только для залогиненных
               </Label>
-              <p className="text-xs text-muted-foreground">Требует авторизации пациента.</p>
+              <p className="text-xs text-muted-foreground">Требует авторизации {patientGenitive}.</p>
             </div>
             <Switch
               id="ph-inline-sec-auth"
