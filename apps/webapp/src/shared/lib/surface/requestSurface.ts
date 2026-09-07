@@ -57,6 +57,12 @@ export type ResolvedSurface = Readonly<{
   effectivePatientBrand?: EffectivePatientBrand;
   /** Branded surface only: the clinic's own bot identity per platform (see the type doc). */
   clinicMessengerBots?: ClinicMessengerBots;
+  /**
+   * Set only when this organization has an ACTIVE custom-domain binding AND the current request
+   * did not already arrive on that hostname (B2/B8). `proxy.ts` is the sole consumer: it issues a
+   * 308 to this hostname, preserving path and query, before anything else runs.
+   */
+  redirectToHostname?: string;
   authPolicy: SurfaceAuthPolicy;
 }>;
 
@@ -76,6 +82,13 @@ export type TenantSurfaceLookupResult =
        * resolver only sanitizes and forwards it.
        */
       clinicMessengerBots?: ClinicMessengerBots;
+      /**
+       * The organization's current ACTIVE custom-domain hostname, if any — regardless of which
+       * hostname the visitor actually used to arrive. `resolveRequestSurface` turns this into
+       * `ResolvedSurface.redirectToHostname` only when it differs from the request's own host, so
+       * a visitor already on the custom domain never redirects to itself.
+       */
+      activeCustomDomainHostname?: string;
     }>
   | Readonly<{ status: 'unknown' | 'duplicate' | 'inactive' }>;
 
@@ -212,6 +225,17 @@ function sanitizeClinicMessengerBots(value: unknown): ClinicMessengerBots | unde
   return { ...(telegram ? { telegram } : {}), ...(max ? { max } : {}) };
 }
 
+/**
+ * Fails closed to "no redirect": a malformed value never becomes a redirect target, it just skips
+ * the redirect. `requestHostname` is already lower-cased by the caller.
+ */
+function sanitizeRedirectToHostname(value: unknown, requestHostname: string): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const candidate = value.trim().toLowerCase();
+  if (!candidate || candidate === requestHostname) return undefined;
+  return normalizedOrigin(`https://${candidate}`)?.hostname === candidate ? candidate : undefined;
+}
+
 function sanitizeEffectivePatientBrand(value: unknown): EffectivePatientBrand | null {
   if (!value || typeof value !== 'object') return null;
   const candidate = value as Partial<EffectivePatientBrand>;
@@ -310,6 +334,10 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
   }
 
   const clinicMessengerBots = sanitizeClinicMessengerBots(tenant.clinicMessengerBots);
+  const redirectToHostname = sanitizeRedirectToHostname(
+    tenant.activeCustomDomainHostname,
+    requestOrigin.hostname.toLowerCase(),
+  );
   return {
     surface: 'patient_branded',
     publicOrigin,
@@ -318,6 +346,7 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
     skipPublicCardAtRoot: tenant.skipPublicCardAtRoot === true,
     effectivePatientBrand,
     ...(clinicMessengerBots ? { clinicMessengerBots } : {}),
+    ...(redirectToHostname ? { redirectToHostname } : {}),
     authPolicy,
   };
 };
@@ -387,7 +416,14 @@ export function readResolvedSurface(headers: Pick<Headers, 'get'>): ResolvedSurf
       ) {
         return null;
       }
-      const { clinicMessengerBots: rawClinicMessengerBots, ...withoutBots } = candidate;
+      const {
+        clinicMessengerBots: rawClinicMessengerBots,
+        // `redirectToHostname` is a one-shot proxy.ts instruction, never a fact about the resolved
+        // surface itself: the request that would have redirected never reaches a header consumer.
+        // A downstream reader must never be able to forge a redirect through this header.
+        redirectToHostname: _ignoredRedirectToHostname,
+        ...withoutBots
+      } = candidate;
       const clinicMessengerBots = sanitizeClinicMessengerBots(rawClinicMessengerBots);
       return {
         ...withoutBots,
@@ -402,7 +438,8 @@ export function readResolvedSurface(headers: Pick<Headers, 'get'>): ResolvedSurf
       candidate.clinicSlug ||
       candidate.skipPublicCardAtRoot !== undefined ||
       candidate.effectivePatientBrand ||
-      candidate.clinicMessengerBots
+      candidate.clinicMessengerBots ||
+      candidate.redirectToHostname
     ) {
       return null;
     }

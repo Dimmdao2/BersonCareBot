@@ -32,10 +32,8 @@ import {
   RESOLVED_SURFACE_HEADER,
   resolveRequestSurface,
   serializeResolvedSurface,
-  type TenantSurfaceLookup,
 } from '@/shared/lib/surface/requestSurface';
-
-const NO_TENANT_SURFACE: TenantSurfaceLookup = async () => ({ status: 'unknown' });
+import { productionTenantSurfaceLookup } from '@/app-layer/surface/productionTenantSurfaceLookup';
 
 function rebaseRedirectToPublicOrigin(response: NextResponse, publicOrigin: string): void {
   const location = response.headers.get('location');
@@ -49,14 +47,14 @@ function rebaseRedirectToPublicOrigin(response: NextResponse, publicOrigin: stri
 
 export async function proxy(
   request: NextRequest,
-  nextContextOrTenantLookup?: unknown,
+  // Next always supplies a `NextFetchEvent` here in production. It is deliberately typed `unknown`
+  // and never inspected: before this reopening (#787), a `typeof === 'function'` check on this
+  // argument let a test-only tenant-lookup seam substitute for the real production resolver — the
+  // production request path is required to resolve Host through `productionTenantSurfaceLookup`
+  // unconditionally, so this argument can never again become a dependency-injection seam.
+  _nextFetchEvent?: unknown,
 ) {
-  // Next supplies a NextFetchEvent as argument two. Tests and the B1 composition seam may instead
-  // inject the Host lookup function without making this resolver depend on its persistence module.
-  const resolveTenantSurface =
-    typeof nextContextOrTenantLookup === 'function'
-      ? (nextContextOrTenantLookup as TenantSurfaceLookup)
-      : NO_TENANT_SURFACE;
+  const resolveTenantSurface = productionTenantSurfaceLookup;
   // Only UUID-shaped values cross the trust boundary. Free-form/oversized caller text is replaced,
   // so it can never become a log field or an internal header value.
   const correlationId = resolveCorrelationId(
@@ -82,6 +80,18 @@ export async function proxy(
   ) {
     const response = new NextResponse(null, { status: 404 });
     response.headers.set('Cache-Control', 'no-store');
+    response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
+    return response;
+  }
+  // B2/B8: once a custom domain is ACTIVE, the technical `<slug>.therapygo.ru` subdomain becomes a
+  // 308 to it, preserving path and query — before CSRF/auth/session work, which belongs to the
+  // final hostname, not this one. `resolvedSurface.redirectToHostname` is already `undefined` when
+  // the request arrived on that hostname itself (`resolveRequestSurface`'s own comparison), so an
+  // active custom domain never redirects to itself.
+  if (resolvedSurface.redirectToHostname) {
+    const target = request.nextUrl.clone();
+    target.host = resolvedSurface.redirectToHostname;
+    const response = NextResponse.redirect(target, 308);
     response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
     return response;
   }

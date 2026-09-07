@@ -384,6 +384,8 @@ import { createPgClinicDirectoryPort } from '@/infra/repos/pgClinicDirectory';
 import { createClinicPublicCardService } from '@/modules/clinic-public-card/service';
 import { createPgClinicPublicCardPort } from '@/infra/repos/pgClinicPublicCard';
 import { createClinicDirectoryService } from '@/modules/clinic-directory/service';
+import { createPgCustomDomainBindingPort } from '@/infra/repos/pgCustomDomainBinding';
+import { createCustomDomainBindingService } from '@/modules/custom-domain-binding/service';
 import { createPgOrganizationMembershipPort } from '@/infra/repos/pgOrganizationMembership';
 import { createInMemoryOrganizationMembershipPort } from '@/infra/repos/inMemoryOrganizationMembership';
 import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
@@ -719,6 +721,10 @@ const clinicDirectoryService = !inMemoryRepos
   : null;
 const clinicPublicCardService = !inMemoryRepos
   ? createClinicPublicCardService(createPgClinicPublicCardPort())
+  : null;
+/** B2/B8/C5a — custom-domain binding lifecycle; `null` only in Vitest without a DB (TPB-16). */
+const customDomainBindingService = !inMemoryRepos
+  ? createCustomDomainBindingService(createPgCustomDomainBindingPort())
   : null;
 const bookingEngineCorePort = !inMemoryRepos ? createPgBookingEnginePort() : null;
 const doctorAppointmentsCanonicalPort =
@@ -2105,6 +2111,8 @@ function _buildAppDeps() {
     /** `/book/{publicSlug}` bootstrap resolver (owner canon OWNER_RULINGS_2026-07-17.md §1). */
     clinicDirectory: clinicDirectoryService,
     clinicPublicCard: clinicPublicCardService,
+    /** B2/B8/C5a custom-domain binding lifecycle (`null` only in Vitest without a DB). */
+    customDomainBinding: customDomainBindingService,
     bookingEngine: bookingEngineService,
     bookingSync: bookingSyncPortForPayments,
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */

@@ -947,12 +947,44 @@ export async function PATCH(request: Request) {
     normalizedValue = checked.valueJson;
   }
 
+  /**
+   * `placement`/`subdomainLabel` are optional, forward-compatible sibling fields the React settings
+   * UI does not send today (this worker does not touch that UI) — `normalizeValueJson`'s
+   * pass-through preserves them if a future UI ever does. Read from `normalizedValue` BEFORE
+   * `normalizeOrgCustomDomainHostnamePatch` overwrites it: that normalizer's own stored contract is
+   * `{ value: string }` only, same as before this change, so these two fields never reach
+   * `system_settings`. B2's "exact hostname computed server-side" is enforced by
+   * `CustomDomainBindingService.setCustomDomainIntent`, not by trusting this hostname string as the
+   * final hostname when `placement === 'subdomain'`.
+   */
+  let orgCustomDomainIntentPatch:
+    | { kind: 'clear' }
+    | { kind: 'set'; baseDomain: string; placement: 'apex' | 'subdomain'; subdomainLabel?: unknown }
+    | null = null;
   if (parsed.data.key === ORG_CUSTOM_DOMAIN_HOSTNAME_KEY) {
+    const rawPlacement =
+      normalizedValue.value !== null && typeof normalizedValue.value === 'object'
+        ? (normalizedValue.value as Record<string, unknown>).placement
+        : undefined;
+    const rawSubdomainLabel =
+      normalizedValue.value !== null && typeof normalizedValue.value === 'object'
+        ? (normalizedValue.value as Record<string, unknown>).subdomainLabel
+        : undefined;
     const checked = normalizeOrgCustomDomainHostnamePatch(normalizedValue);
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: checked.error }, { status: 400 });
     }
     normalizedValue = checked.valueJson;
+    const hostnameValue = checked.valueJson.value;
+    orgCustomDomainIntentPatch =
+      hostnameValue === ''
+        ? { kind: 'clear' }
+        : {
+            kind: 'set',
+            baseDomain: hostnameValue,
+            placement: rawPlacement === 'subdomain' ? 'subdomain' : 'apex',
+            subdomainLabel: rawSubdomainLabel,
+          };
   }
 
   if (parsed.data.key === 'notifications_topics') {
@@ -1089,6 +1121,32 @@ export async function PATCH(request: Request) {
     if (error instanceof OperatorHealthProbeConfigInvalidError)
       return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
     throw error;
+  }
+
+  // B2/B8/C5a (reopened #787): the custom-domain binding side-effect of the SAME PATCH, extending
+  // this one settings choke point rather than adding a second store for the same intent. Runs AFTER
+  // `system_settings` is durably written; a failure here is surfaced loudly (not swallowed) so the
+  // admin knows the domain binding itself did not take — the setting value and the binding table are
+  // two separate stores with no shared transaction in this slice.
+  if (orgCustomDomainIntentPatch && deps.customDomainBinding && organizationId) {
+    const intentResult =
+      orgCustomDomainIntentPatch.kind === 'clear'
+        ? await deps.customDomainBinding.clearCustomDomainIntent({ organizationId })
+        : await deps.customDomainBinding.setCustomDomainIntent({
+            organizationId,
+            baseDomain: orgCustomDomainIntentPatch.baseDomain,
+            placement: orgCustomDomainIntentPatch.placement,
+            subdomainLabel:
+              typeof orgCustomDomainIntentPatch.subdomainLabel === 'string'
+                ? orgCustomDomainIntentPatch.subdomainLabel
+                : undefined,
+          });
+    if (!intentResult.ok && intentResult.code !== 'nothing_to_clear') {
+      return NextResponse.json(
+        { ok: false, error: `custom_domain_${intentResult.code}` },
+        { status: 409 },
+      );
+    }
   }
 
   const clientSetting = redactAdminSettingsForClient([setting])[0]!;
