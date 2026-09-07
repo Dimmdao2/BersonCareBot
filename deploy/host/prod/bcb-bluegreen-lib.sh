@@ -95,6 +95,16 @@ surface_host() {
     die "cannot derive the surface host from APP_BASE_URL in webapp.prod"
 }
 
+# Группа, которой на хосте открыты клиентские ключи порт-контекста. Спрашивается у хоста, а не
+# записывается числом: GID выдаёт groupadd, и зашитая копия разошлась бы с реальностью молча —
+# контейнер тогда не прочитал бы ключ, а сообщение было бы про «нечитаемый PEM».
+app_key_gid() {
+  local gid
+  gid=$(getent group bcb-app-prod | cut -d: -f3)
+  [ -n "$gid" ] || die "host group bcb-app-prod is missing; the port-context keys have no readable group"
+  printf '%s\n' "$gid"
+}
+
 # Every compose invocation goes through here so the project name, file and variables can never drift
 # between the deploy path and the rollback path.
 compose() {
@@ -107,6 +117,7 @@ compose() {
   BCB_NETWORK_SUBNET="$(colour_subnet "$colour")" \
   BCB_NETWORK_GATEWAY="$(colour_gateway "$colour")" \
   BCB_SURFACE_HOST="$(surface_host)" \
+  BCB_APP_KEY_GID="$(app_key_gid)" \
   docker compose -p "bcb-$colour" -f "$BCB_PIPELINE/docker-compose.yml" "$@"
 }
 

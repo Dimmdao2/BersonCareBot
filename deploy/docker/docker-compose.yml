@@ -33,7 +33,9 @@ x-app: &app
     - /var/run/postgresql:/var/run/postgresql
     # Клиентские сертификаты порт-контекста. Приложение открывает пул на каждую роль по TCP с mTLS,
     # значит файлы обязаны быть видны ВНУТРИ контейнера; смонтированы только на чтение.
-    - /etc/bersoncarebot/postgres-mtls:/etc/bersoncarebot/postgres-mtls:ro
+    # Монтируется ИМЕННО подкаталог клиентского материала, а не весь postgres-mtls: выше по дереву
+    # лежат приватный ключ удостоверяющего центра и ключ сервера, которым в приложении делать нечего.
+    - /etc/bersoncarebot/postgres-mtls/prod:/etc/bersoncarebot/postgres-mtls/prod:ro
   # Nothing here writes to its own filesystem; uploads go to S3 and logs go to stdout.
   read_only: true
   tmpfs:
@@ -43,6 +45,11 @@ x-app: &app
   # входит в SAN серверного сертификата, поэтому проверка идёт по verify-full, а не в обход.
   extra_hosts:
     - "db.host:host-gateway"
+  # Ключи ролей лежат на хосте как root:bcb-app-prod 0640 — тот же канон, что на dev/test, где группа
+  # ключа равна учётке сервиса. Процесс в контейнере ходит под своим uid, поэтому читать их он может
+  # только получив эту группу дополнительной; иначе пришлось бы открывать ключи всем подряд.
+  group_add:
+    - "${BCB_APP_KEY_GID:?BCB_APP_KEY_GID is required}"
   security_opt:
     - no-new-privileges:true
   cap_drop:
