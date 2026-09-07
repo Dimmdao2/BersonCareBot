@@ -233,6 +233,8 @@ export const beOrganizationMembers = pgTable(
     specialistId: uuid('specialist_id'),
     status: text().default('active').notNull(),
     doctorScreensDisabled: boolean('doctor_screens_disabled').default(false).notNull(),
+    appointmentsManageOwn: boolean('appointments_manage_own').default(true).notNull(),
+    availabilityManageOwn: boolean('availability_manage_own').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),

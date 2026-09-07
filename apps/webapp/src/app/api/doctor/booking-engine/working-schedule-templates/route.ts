@@ -16,6 +16,7 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 import { resolveDoctorOwnSpecialistId } from '../_resolveDoctorSpecialistId';
+import { canMutateOwnAvailability } from '../_resolveDoctorAppointmentAccess';
 
 // Doctor workspace schedule templates. Templates are org-level named presets (no specialist
 // column), so list/create/
@@ -81,6 +82,12 @@ export async function POST(request: Request) {
   const bookingScheduling = deps.bookingScheduling;
 
   if (action === 'apply') {
+    if (!canMutateOwnAvailability(gate.ctx)) {
+      return NextResponse.json(
+        { ok: false, error: 'availability_mutation_forbidden' },
+        { status: 403 },
+      );
+    }
     const parsed = applyBody.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
@@ -113,6 +120,10 @@ export async function POST(request: Request) {
     }
   }
 
+  // Shared templates belong to management; a clinician may only apply one to themselves.
+  if (!gate.ctx.canManageOrganization) {
+    return NextResponse.json({ ok: false, error: 'management_required' }, { status: 403 });
+  }
   // Default: create new (org-level) template.
   const parsed = createBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success || parsed.data.startMinute >= parsed.data.endMinute) {
@@ -147,6 +158,9 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  if (!gate.ctx.canManageOrganization) {
+    return NextResponse.json({ ok: false, error: 'management_required' }, { status: 403 });
+  }
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
   if (!entitlement.ok) return entitlement.response;
   const id = new URL(request.url).searchParams.get('id');

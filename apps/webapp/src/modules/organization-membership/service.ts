@@ -19,6 +19,8 @@ export type OrganizationMembershipContext = {
   canManageAllSpecialists: boolean;
   canAccessClinicalWorkspace?: boolean;
   doctorScreensDisabled: boolean;
+  appointmentsManageOwn: boolean;
+  availabilityManageOwn: boolean;
 };
 
 export type OrganizationResolution =
@@ -49,6 +51,8 @@ function toMembershipContext(membership: OrganizationMembership): OrganizationMe
     canManageAllSpecialists: canManage,
     canAccessClinicalWorkspace: canAccessClinicalWorkspace(membership),
     doctorScreensDisabled: membership.doctorScreensDisabled,
+    appointmentsManageOwn: membership.appointmentsManageOwn,
+    availabilityManageOwn: membership.availabilityManageOwn,
   };
 }
 
@@ -88,6 +92,10 @@ export function createOrganizationMembershipService(deps: {
       return deps.membershipPort.listPlatformDirectoryByOrganization(organizationId);
     },
 
+    async getMemberByOrganization(params: { organizationId: string; membershipId: string }) {
+      return deps.membershipPort.getMemberByOrganization(params);
+    },
+
     async hasActiveMembership(platformUserId: string, organizationId: string): Promise<boolean> {
       const memberships = await deps.membershipPort.listActiveByPlatformUser(platformUserId);
       return memberships.some((membership) => membership.organizationId === organizationId);
@@ -103,6 +111,13 @@ export function createOrganizationMembershipService(deps: {
       disabled: boolean;
     }): Promise<void> {
       await deps.membershipPort.setDoctorScreensDisabled(params);
+    },
+    async setClinicalPermissions(params: {
+      membershipId: string;
+      appointmentsManageOwn: boolean;
+      availabilityManageOwn: boolean;
+    }): Promise<void> {
+      await deps.membershipPort.setClinicalPermissions(params);
     },
   };
 }

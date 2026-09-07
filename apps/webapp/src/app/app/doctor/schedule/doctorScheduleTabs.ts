@@ -20,7 +20,7 @@ export type ScheduleTab = {
 export const SCHEDULE_TABS: ScheduleTab[] = [
   { id: 'cal', label: 'Записи', href: `${SCHEDULE_BASE}?tab=cal` },
   { id: 'work', label: 'График работы', href: `${SCHEDULE_BASE}?tab=work` },
-  { id: 'setup', label: 'Настройки', href: `${SCHEDULE_BASE}?tab=setup` },
+  { id: 'setup', label: 'Абонементы', href: `${SCHEDULE_BASE}?tab=setup&section=packages` },
 ];
 
 export const SCHEDULE_DEFAULT_TAB: ScheduleTabId = 'cal';

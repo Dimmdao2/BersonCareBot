@@ -112,6 +112,7 @@ export type DoctorScheduleShellProps = {
   /** Tariff-backed visibility and mutability of membership packages. */
   packagesVisible: boolean;
   packagesReadOnly: boolean;
+  showPackagesTab: boolean;
   /** Server-resolved schedule permissions and active specialists. */
   scheduleScopeBootstrap: DoctorScheduleScopeBootstrap;
   /** Server-resolved visibility of clinic statistics and booking attribution. */
@@ -141,21 +142,20 @@ export function DoctorScheduleShell({
   notificationTemplatesVisible,
   packagesVisible,
   packagesReadOnly,
+  showPackagesTab,
   scheduleScopeBootstrap,
   doctorStatisticsEnabled,
   initialTabData,
 }: DoctorScheduleShellProps) {
   const resolvedInit: ScheduleTabId = (() => {
     if (initialTab) {
-      return initialTab === 'setup' && !canManageOrganization ? SCHEDULE_DEFAULT_TAB : initialTab;
+      return initialTab === 'setup' && !showPackagesTab ? SCHEDULE_DEFAULT_TAB : initialTab;
     }
     if (typeof window !== 'undefined') {
       const fromLocation = scheduleTabFromQuery(
         new URLSearchParams(window.location.search).get('tab'),
       );
-      return fromLocation === 'setup' && !canManageOrganization
-        ? SCHEDULE_DEFAULT_TAB
-        : fromLocation;
+      return fromLocation === 'setup' && !showPackagesTab ? SCHEDULE_DEFAULT_TAB : fromLocation;
     }
     return SCHEDULE_DEFAULT_TAB;
   })();
@@ -193,14 +193,14 @@ export function DoctorScheduleShell({
       const params = new URLSearchParams(window.location.search);
       const requestedTab = scheduleTabFromQuery(params.get('tab'));
       const tab =
-        requestedTab === 'setup' && !canManageOrganization ? SCHEDULE_DEFAULT_TAB : requestedTab;
+        requestedTab === 'setup' && !showPackagesTab ? SCHEDULE_DEFAULT_TAB : requestedTab;
       setActiveTab(tab);
       setVisitedTabs((prev) => new Set([...prev, tab]));
       setDeepLinks(readDeepLinksFromSearchParams(params));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [canManageOrganization]);
+  }, [showPackagesTab]);
 
   // ── URL builder ───────────────────────────────────────────────────────────
 
@@ -251,21 +251,17 @@ export function DoctorScheduleShell({
   const mobileBottomTabs = useMemo(
     () => (
       <DoctorMobileSectionTabs
-        tabs={SCHEDULE_TABS.filter((tab) => tab.id !== 'setup' || canManageOrganization)}
+        tabs={SCHEDULE_TABS.filter((tab) => tab.id !== 'setup' || showPackagesTab)}
         activeTab={activeTab}
         onTabChange={handleTabChange}
         ariaLabel="Разделы расписания"
       />
     ),
-    [activeTab, canManageOrganization, handleTabChange],
+    [activeTab, handleTabChange, showPackagesTab],
   );
 
   return (
-    <DoctorAppShell
-      title="Расписание"
-      layout="full-height"
-      mobileBottomTabs={mobileBottomTabs}
-    >
+    <DoctorAppShell title="Расписание" layout="full-height" mobileBottomTabs={mobileBottomTabs}>
       <DoctorPageHeader
         id="doctor-schedule-header"
         title="Расписание"
@@ -273,13 +269,13 @@ export function DoctorScheduleShell({
         tabs={
           <ScheduleTabsNav
             activeTab={activeTab}
-            canManageOrganization={canManageOrganization}
+            canManageOrganization={showPackagesTab}
             onTabClick={handleTabChange}
           />
         }
       />
       {SCHEDULE_TAB_REGISTRY.map((entry) => {
-        if (entry.id === 'setup' && !canManageOrganization) return null;
+        if (entry.id === 'setup' && !showPackagesTab) return null;
         if (!visitedTabs.has(entry.id)) return null;
         const TabComponent = DYNAMIC_TABS.get(entry.id)!;
         const tabId = entry.id;
@@ -303,6 +299,7 @@ export function DoctorScheduleShell({
               notificationTemplatesVisible={notificationTemplatesVisible}
               packagesVisible={packagesVisible}
               packagesReadOnly={packagesReadOnly}
+              setupPackagesOnly={entry.id === 'setup'}
               scheduleScopeBootstrap={scheduleScopeBootstrap}
               doctorStatisticsEnabled={doctorStatisticsEnabled}
             />

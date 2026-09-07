@@ -16,6 +16,8 @@ export type DoctorBookingEngineContext = {
   specialistId: string | null;
   canManageOrganization: boolean;
   canManageAllSpecialists: boolean;
+  appointmentsManageOwn: boolean;
+  availabilityManageOwn: boolean;
 };
 
 export async function requireDoctorBookingEngine(): Promise<
@@ -44,6 +46,8 @@ export async function requireDoctorBookingEngine(): Promise<
       specialistId: gate.ctx.specialistId,
       canManageOrganization: gate.ctx.canManageOrganization,
       canManageAllSpecialists: gate.ctx.canManageAllSpecialists,
+      appointmentsManageOwn: gate.ctx.appointmentsManageOwn,
+      availabilityManageOwn: gate.ctx.availabilityManageOwn,
     },
   };
 }

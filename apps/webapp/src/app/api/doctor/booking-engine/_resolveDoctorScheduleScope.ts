@@ -40,6 +40,9 @@ export type DoctorScheduleScopeResolution =
       error: 'schedule_specialist_not_configured' | 'schedule_specialist_not_available';
     };
 
+/** A route declares its surface instead of getting clinic scope from the caller's role alone. */
+export type DoctorScheduleScopeSurface = 'doctor' | 'management';
+
 /**
  * Resolves the schedule audience exclusively from the authenticated workspace and
  * the current organization's active specialist catalog.
@@ -51,6 +54,7 @@ export type DoctorScheduleScopeResolution =
 export async function resolveDoctorScheduleScope(
   ctx: DoctorBookingEngineContext,
   input: DoctorScheduleScopeInput,
+  surface: DoctorScheduleScopeSurface = 'doctor',
 ): Promise<DoctorScheduleScopeResolution> {
   const activeSpecialists = (await ctx.service.catalog.listSpecialists(ctx.organizationId)).filter(
     (specialist) => specialist.isActive,
@@ -59,7 +63,7 @@ export async function resolveDoctorScheduleScope(
     ? (activeSpecialists.find((specialist) => specialist.id === ctx.specialistId) ?? null)
     : null;
 
-  if (!ctx.canManageAllSpecialists) {
+  if (surface === 'doctor' || !ctx.canManageAllSpecialists) {
     if (!ownSpecialist) {
       return { ok: false, error: 'schedule_specialist_not_configured' };
     }

@@ -165,6 +165,8 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     canManageAllSpecialists: workspaceAccess.canManageAllSpecialists,
     canAccessClinicalWorkspace: workspaceAccess.canAccessClinicalWorkspace,
     doctorScreensDisabled: workspaceAccess.doctorScreensDisabled,
+    appointmentsManageOwn: workspaceAccess.appointmentsManageOwn,
+    availabilityManageOwn: workspaceAccess.availabilityManageOwn,
     selectedSpecialistId: workspaceAccess.canManageAllSpecialists
       ? null
       : workspaceAccess.specialistId,
