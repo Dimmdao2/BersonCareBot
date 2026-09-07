@@ -15667,6 +15667,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "birth_date",
           "comments_enabled",
+          "direct_chat_enabled",
           "gender",
           "height_cm",
           "id",
@@ -15688,6 +15689,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "birth_date",
           "comments_enabled",
+          "direct_chat_enabled",
           "gender",
           "height_cm",
           "media_enabled",

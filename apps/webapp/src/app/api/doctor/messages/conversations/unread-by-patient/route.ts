@@ -29,6 +29,13 @@ export async function POST(request: Request) {
   if (!identity) {
     return NextResponse.json({ ok: false, error: 'patient_not_found' }, { status: 404 });
   }
+  if (
+    !(await deps.doctorClients.getClientChannelPolicy(identity.userId, {
+      organizationId: auth.ctx.organizationId,
+    })).directChatAllowed
+  ) {
+    return NextResponse.json({ ok: true, unreadCount: 0 });
+  }
   const unreadCount = await deps.messaging.doctorSupport.unreadFromPatient(
     parsed.data.patientUserId,
     auth.ctx.organizationId,

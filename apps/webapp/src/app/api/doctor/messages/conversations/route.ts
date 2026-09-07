@@ -33,6 +33,18 @@ export async function GET(request: Request) {
       ),
     ),
   );
+  const allowedPatientUserIds = await withDoctorWorkspacePrincipal(auth.ctx, () =>
+    deps.doctorClients.filterPatientUserIdsByClientChannel(
+      patientUserIds,
+      { organizationId: auth.ctx.organizationId },
+      'directChatAllowed',
+    ),
+  );
+  const filteredList = list.filter(
+    (conversation) =>
+      conversation.platformUserId !== null &&
+      allowedPatientUserIds.has(conversation.platformUserId),
+  );
   const scopedClients =
     patientUserIds.length > 0
       ? await withDoctorWorkspacePrincipal(auth.ctx, () =>
@@ -56,7 +68,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    conversations: list.map((c) => {
+    conversations: filteredList.map((c) => {
       const clientInfo = c.platformUserId ? clientInfoMap.get(c.platformUserId) : null;
       return {
         conversationId: c.conversationId,

@@ -27,6 +27,7 @@ import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/patient/navChrome';
 import { usePatientShellScrollCompact } from '@/shared/hooks/usePatientShellScrollCompact';
 import { PatientNavCountBadge } from '@/shared/ui/patient/PatientNavCountBadge';
 import { PatientNotificationInboxButton } from '@/shared/ui/patient/shell/PatientNotificationInboxButton';
+import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import {
   PATIENT_DESKTOP_INNER_MAX_CLASS,
   PATIENT_TOP_NAV_FIXED_MOBILE_CLASS,
@@ -91,7 +92,14 @@ export function PatientTopNav(_props: PatientTopNavProps) {
   const surfaceName = useSurfaceName();
   const pathname = usePathname() ?? '';
   const activeId = getPatientPrimaryNavActiveId(pathname);
-  const chatUnread = usePatientSupportUnreadCount();
+  const organizationContext = usePatientOrganizationContext();
+  const directChatEnabled = organizationContext?.workspaceModules?.direct_chat !== false;
+  const chatUnread = usePatientSupportUnreadCount(directChatEnabled);
+  const navItems = PATIENT_PRIMARY_NAV_ITEMS.filter(
+    (item) =>
+      (item.id !== 'plan' || organizationContext?.workspaceModules?.rehabilitation !== false) &&
+      (item.id !== 'messages' || directChatEnabled),
+  );
   const compact = usePatientShellScrollCompact();
   const navRootRef = useRef<HTMLDivElement>(null);
   useReportPatientTopNavHeight(navRootRef);
@@ -217,7 +225,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
           data-testid="patient-mobile-top-nav"
           className="safe-padding-patient-horiz flex w-full min-w-0 items-stretch justify-around py-1 patient-desktop:hidden"
         >
-          {PATIENT_PRIMARY_NAV_ITEMS.map(renderMobileNavLink)}
+          {navItems.map(renderMobileNavLink)}
         </nav>
 
         <div
@@ -259,31 +267,33 @@ export function PatientTopNav(_props: PatientTopNavProps) {
             </Link>
           </div>
           <nav aria-label="Основная навигация" className="flex min-w-0 flex-1 justify-center gap-1">
-            {PATIENT_PRIMARY_NAV_ITEMS.map(renderDesktopNavLink)}
+            {navItems.map(renderDesktopNavLink)}
           </nav>
           <div className="flex shrink-0 items-center gap-1">
             <PatientNotificationInboxButton
               className={TOP_ICON_BTN}
               badgeClassName="ring-2 ring-[rgba(255,255,255,0.96)]"
             />
-            <Link
-              href={routePaths.patientMessages}
-              prefetch={false}
-              aria-label="Сообщения"
-              className={cn(TOP_ICON_BTN, 'relative')}
-            >
-              <MessageCircle
-                className="size-[22px]"
-                strokeWidth={NAV_STRIP_ICON_STROKE}
-                aria-hidden
-              />
-              {chatUnread > 0 ? (
-                <PatientNavCountBadge
-                  count={chatUnread}
-                  className="ring-2 ring-[rgba(255,255,255,0.96)]"
+            {directChatEnabled ? (
+              <Link
+                href={routePaths.patientMessages}
+                prefetch={false}
+                aria-label="Сообщения"
+                className={cn(TOP_ICON_BTN, 'relative')}
+              >
+                <MessageCircle
+                  className="size-[22px]"
+                  strokeWidth={NAV_STRIP_ICON_STROKE}
+                  aria-hidden
                 />
-              ) : null}
-            </Link>
+                {chatUnread > 0 ? (
+                  <PatientNavCountBadge
+                    count={chatUnread}
+                    className="ring-2 ring-[rgba(255,255,255,0.96)]"
+                  />
+                ) : null}
+              </Link>
+            ) : null}
           </div>
         </div>
       </div>

@@ -51,7 +51,9 @@ export async function POST(request: Request, context: { params: Promise<{ instan
 
   const deps = buildAppDeps();
   const resolved = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    resolveDoctorInstanceInWorkspace(deps, gate.ctx, instanceId),
+    resolveDoctorInstanceInWorkspace(deps, gate.ctx, instanceId, {
+      clientChannel: 'mediaAllowed',
+    }),
   );
   if (!resolved.ok) return resolved.response;
 

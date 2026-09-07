@@ -8,7 +8,10 @@
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireWorkspaceModuleForPage } from '@/app-layer/guards/workspaceModuleAccess';
+import {
+  applyClientChannelPolicyToWorkspaceModules,
+  requireWorkspaceModuleForPage,
+} from '@/app-layer/guards/workspaceModuleAccess';
 import { routePaths } from '@/app-layer/routes/paths';
 import { TreatmentProgramInstanceDetailClient } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient';
 import { PatientCardClient } from '../../PatientCardClient';
@@ -46,6 +49,12 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
   const deps = buildAppDeps();
   const editorBootstrap = await loadDoctorPatientProgramEditorBootstrap(userId, instanceId);
   if (!editorBootstrap) notFound();
+  const workspaceModules = applyClientChannelPolicyToWorkspaceModules(
+    shell.workspaceModules,
+    await deps.doctorClients.getClientChannelPolicy(userId, {
+      organizationId: workspace.organizationId,
+    }),
+  );
 
   const discussionItemRaw = discussionItemParam?.trim();
   const initialOpenDiscussionItemId =
@@ -66,7 +75,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     userId,
     'program',
     programInstancesPromise,
-    shell.workspaceModules,
+    workspaceModules,
   );
   const shellMeta = await loadDoctorPatientCardShellMeta(
     deps,
@@ -74,7 +83,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     userId,
     'program',
     programInstancesPromise,
-    shell.workspaceModules,
+    workspaceModules,
   );
 
   const embeddedEditor = (
@@ -83,6 +92,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
       patientOnSupport={shellMeta.cardHeader?.support.isOnSupport === true}
       initialOpenDiscussionItemId={initialOpenDiscussionItemId}
       initialFocusTestResultId={initialFocusTestResultId}
+      programCommentsEnabled={workspaceModules.program_comments}
     />
   );
 
@@ -96,7 +106,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
       initialTab="program"
       embeddedProgramContent={embeddedEditor}
       patientListHref={routePaths.doctorPatients}
-      workspaceModules={shell.workspaceModules}
+      workspaceModules={workspaceModules}
     />
   );
 }

@@ -719,6 +719,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
   appDisplayTimeZone: string;
   treatmentProgramLibrary: TreatmentProgramLibraryPickers;
   initialDiscussionUnreadCountByStageItemId: Record<string, number>;
+  programCommentsEnabled?: boolean;
   initialOpenDiscussionItemId?: string | null;
   initialFocusTestResultId?: string | null;
 }) {
@@ -763,6 +764,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   appDisplayTimeZone: string;
   treatmentProgramLibrary: TreatmentProgramLibraryPickers;
   initialDiscussionUnreadCountByStageItemId: Record<string, number>;
+  programCommentsEnabled?: boolean;
   initialOpenDiscussionItemId?: string | null;
   initialFocusTestResultId?: string | null;
   baseline: TreatmentProgramInstanceDetail;
@@ -778,6 +780,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     appDisplayTimeZone,
     treatmentProgramLibrary,
     initialDiscussionUnreadCountByStageItemId,
+    programCommentsEnabled = true,
     baseline,
     refreshBaseline,
   } = props;
@@ -948,22 +951,24 @@ function TreatmentProgramInstanceDetailClientBody(props: {
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="relative h-9 min-w-0"
-            onClick={() => setInstanceDiscussionOpen(true)}
-            data-testid="instance-editor-comments"
-          >
-            <MessageSquare className="size-3.5" aria-hidden />
-            Комментарии
-            {discussionUnreadCount > 0 ? (
-              <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1.5">
-                {discussionUnreadCount}
-              </Badge>
-            ) : null}
-          </Button>
+          {programCommentsEnabled ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="relative h-9 min-w-0"
+              onClick={() => setInstanceDiscussionOpen(true)}
+              data-testid="instance-editor-comments"
+            >
+              <MessageSquare className="size-3.5" aria-hidden />
+              Комментарии
+              {discussionUnreadCount > 0 ? (
+                <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1.5">
+                  {discussionUnreadCount}
+                </Badge>
+              ) : null}
+            </Button>
+          ) : null}
           <ProgramInstanceCompleteControl
             instanceId={detail.id}
             status={detail.status}
@@ -991,15 +996,17 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         stageZeroId={stageZero?.id ?? null}
         pipelineStages={pipelineStages.map((s) => ({ id: s.id, title: s.title }))}
       />
-      <DoctorLfkCommentsModal
-        open={instanceDiscussionOpen}
-        onClose={() => setInstanceDiscussionOpen(false)}
-        patientUserId={detail.patientUserId}
-        patientName={patientName ?? ''}
-        patientOnSupport={patientOnSupport}
-        stageTitle={currentStage?.title ?? null}
-        onUnreadCleared={({ stageItemId }) => handleDiscussionRead([stageItemId])}
-      />
+      {programCommentsEnabled ? (
+        <DoctorLfkCommentsModal
+          open={instanceDiscussionOpen}
+          onClose={() => setInstanceDiscussionOpen(false)}
+          patientUserId={detail.patientUserId}
+          patientName={patientName ?? ''}
+          patientOnSupport={patientOnSupport}
+          stageTitle={currentStage?.title ?? null}
+          onUnreadCleared={({ stageItemId }) => handleDiscussionRead([stageItemId])}
+        />
+      ) : null}
       <DoctorSection
         className="overflow-hidden p-0"
         id="doctor-program-instance-phase0-recommendations"
@@ -1184,7 +1191,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         library={treatmentProgramLibrary}
         editLocked={isProgramInstanceEditLocked(detail.status)}
       />
-      {discussionTarget ? (
+      {programCommentsEnabled && discussionTarget ? (
         <DoctorProgramItemDiscussionDialog
           instanceId={detail.id}
           itemId={discussionTarget.itemId}

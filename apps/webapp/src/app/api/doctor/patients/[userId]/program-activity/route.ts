@@ -29,6 +29,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   if (!identity) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
+  if (
+    !(await deps.doctorClients.getClientChannelPolicy(identity.userId, {
+      organizationId: gate.ctx.organizationId,
+    })).commentsAllowed
+  ) {
+    return NextResponse.json({ ok: true, activity: null });
+  }
   const activity = await loadDoctorPatientProgramActivity(
     { programItemDiscussion: deps.programItemDiscussion },
     {

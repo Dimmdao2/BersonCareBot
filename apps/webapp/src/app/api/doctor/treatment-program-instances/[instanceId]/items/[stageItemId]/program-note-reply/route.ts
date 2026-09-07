@@ -45,6 +45,13 @@ export async function POST(
   const instance = await deps.treatmentProgramInstance.getInstanceById(instanceId);
   if (!instance || instance.organizationId !== gate.ctx.organizationId)
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  if (
+    !(await deps.doctorClients.getClientChannelPolicy(instance.patientUserId, {
+      organizationId: gate.ctx.organizationId,
+    })).commentsAllowed
+  ) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
 
   const hasItem = instance.stages.some((stage) =>
     stage.items.some((item) => item.id === stageItemId),

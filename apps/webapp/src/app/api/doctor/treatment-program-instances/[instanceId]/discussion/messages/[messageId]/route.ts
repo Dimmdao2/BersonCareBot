@@ -31,6 +31,13 @@ export async function DELETE(
   if (instance.assignmentSource !== 'doctor') {
     return NextResponse.json({ ok: false, error: 'program_not_doctor_assigned' }, { status: 400 });
   }
+  if (
+    !(await deps.doctorClients.getClientChannelPolicy(instance.patientUserId, {
+      organizationId: gate.ctx.organizationId,
+    })).mediaAllowed
+  ) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
 
   try {
     await withDoctorWorkspacePrincipal(gate.ctx, () =>

@@ -67,7 +67,23 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
               ),
             ),
           ]);
-          return { commentsData, patients };
+          const allowed = await withDoctorWorkspacePrincipal(workspace, () =>
+            deps.doctorClients.filterPatientUserIdsByClientChannel(
+              [
+                ...commentsData.items.map((item) => item.patientUserId),
+                ...patients.map((patient) => patient.patientUserId),
+              ],
+              { organizationId: workspace.organizationId },
+              'commentsAllowed',
+            ),
+          );
+          return {
+            commentsData: {
+              ...commentsData,
+              items: commentsData.items.filter((item) => allowed.has(item.patientUserId)),
+            },
+            patients: patients.filter((patient) => allowed.has(patient.patientUserId)),
+          };
         })()
       : Promise.resolve(null),
   ]);

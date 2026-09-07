@@ -29,6 +29,7 @@ export async function GET(request: Request, context: { params: Promise<{ instanc
   const deps = buildAppDeps();
   const resolved = await resolveDoctorInstanceInWorkspace(deps, gate.ctx, instanceId, {
     requireDoctorAssigned: true,
+    clientChannel: 'commentsAllowed',
   });
   if (!resolved.ok) return resolved.response;
   const { instance } = resolved;

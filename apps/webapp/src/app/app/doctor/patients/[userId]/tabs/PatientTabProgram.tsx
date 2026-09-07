@@ -21,6 +21,7 @@ type Props = {
   header?: PatientCardHeader;
   active?: boolean;
   initialProgramInstances?: TreatmentProgramInstanceSummary[] | null;
+  programCommentsEnabled: boolean;
 };
 
 export function PatientTabProgram({
@@ -28,6 +29,7 @@ export function PatientTabProgram({
   header,
   active,
   initialProgramInstances,
+  programCommentsEnabled,
 }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [failedProgramRequestKey, setFailedProgramRequestKey] = useState<string | null>(null);
@@ -102,6 +104,7 @@ export function PatientTabProgram({
       <TreatmentProgramInstanceDetailClient
         {...activeEditorBootstrap}
         patientOnSupport={header?.support.isOnSupport === true}
+        programCommentsEnabled={programCommentsEnabled}
       />
     );
   }

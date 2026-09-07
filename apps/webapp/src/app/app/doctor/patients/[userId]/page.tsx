@@ -5,7 +5,10 @@
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireWorkspaceModuleForPage } from '@/app-layer/guards/workspaceModuleAccess';
+import {
+  applyClientChannelPolicyToWorkspaceModules,
+  requireWorkspaceModuleForPage,
+} from '@/app-layer/guards/workspaceModuleAccess';
 import { PatientCardClient } from './PatientCardClient';
 import { sanitizePatientListReturnHref } from '../patientListWorkspaceState';
 import {
@@ -31,14 +34,6 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
 
   const shell = await loadDoctorWorkspaceShell();
   const workspace = shell.workspaceAccess;
-  const workspaceModules = shell.workspaceModules;
-  const requestedTab = typeof sp.tab === 'string' ? sp.tab : undefined;
-  const resolvedTab = resolvePatientCardTab(requestedTab, workspaceModules);
-  requireWorkspaceModuleForPage(resolvedTab !== null);
-  const activeTab = resolvedTab ?? 'overview';
-  if (typeof sp.createVisitFrom === 'string') {
-    requireWorkspaceModuleForPage(workspaceModules.encounters);
-  }
   const session = workspace.session;
   const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
@@ -48,6 +43,19 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   );
   if (!identity) {
     notFound();
+  }
+  const workspaceModules = applyClientChannelPolicyToWorkspaceModules(
+    shell.workspaceModules,
+    await deps.doctorClients.getClientChannelPolicy(identity.userId, {
+      organizationId: workspace.organizationId,
+    }),
+  );
+  const requestedTab = typeof sp.tab === 'string' ? sp.tab : undefined;
+  const resolvedTab = resolvePatientCardTab(requestedTab, workspaceModules);
+  requireWorkspaceModuleForPage(resolvedTab !== null);
+  const activeTab = resolvedTab ?? 'overview';
+  if (typeof sp.createVisitFrom === 'string') {
+    requireWorkspaceModuleForPage(workspaceModules.encounters);
   }
 
   const programInstancesPromise = workspaceModules.rehabilitation
