@@ -1934,6 +1934,7 @@ function _buildAppDeps() {
       listSymptomTrackings: symptomDiaryService.listTrackings,
       addSymptomEntry: symptomDiaryService.addEntry,
       renameSymptomTracking: symptomDiaryService.renameTracking,
+      setPatientTrackingEnabled: symptomDiaryService.setPatientTrackingEnabled,
       archiveSymptomTracking: symptomDiaryService.archiveTracking,
       deleteSymptomTracking: symptomDiaryService.deleteTracking,
       getSymptomTrackingForUser: symptomDiaryService.getSymptomTrackingForUser,

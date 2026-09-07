@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
   const deps = buildAppDeps();
   const trackings = (await deps.diaries.listSymptomTrackings(userId.trim(), true)).filter(
-    (t) => !isGeneralWellbeingTracking(t.symptomKey),
+    (t) => t.patientTrackingEnabled && !isGeneralWellbeingTracking(t.symptomKey),
   );
   return NextResponse.json({ ok: true, trackings });
 }

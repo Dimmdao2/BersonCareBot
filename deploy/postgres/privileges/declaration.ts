@@ -15672,6 +15672,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "height_cm",
           "id",
           "media_enabled",
+          "portal_enabled",
           "on_support",
           "organization_id",
           "patient_user_id",
@@ -15693,6 +15694,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "gender",
           "height_cm",
           "media_enabled",
+          "portal_enabled",
           "on_support",
           "organization_id",
           "support_started_at",
@@ -20983,6 +20985,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "diagnosis_ref_id",
           "diagnosis_text",
           "is_active",
+          "patient_tracking_enabled",
           "organization_id",
           "platform_user_id",
           "region_ref_id",
@@ -21003,6 +21006,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "deleted_at",
           "is_active",
+          "patient_tracking_enabled",
           "symptom_title",
           "updated_at"
         ]
@@ -25136,6 +25140,7 @@ const PATIENT_SYMPTOM_CORE_SURFACES = [
   patientSurface('public.reference_items', ['id', 'category_id', 'organization_id', 'is_active'], ['SELECT']),
   patientSurface('public.symptom_trackings', [
     'id', 'organization_id', 'user_id', 'platform_user_id', 'symptom_key', 'symptom_title', 'is_active',
+    'patient_tracking_enabled',
     'created_at', 'updated_at', 'symptom_type_ref_id', 'region_ref_id', 'side', 'diagnosis_text',
     'diagnosis_ref_id', 'stage_ref_id', 'deleted_at',
   ], ['SELECT', 'INSERT', 'UPDATE']),

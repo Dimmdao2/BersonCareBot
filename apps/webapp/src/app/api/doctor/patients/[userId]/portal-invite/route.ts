@@ -4,6 +4,7 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
+import { requireDoctorWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
 
 const paramsSchema = z.object({ userId: z.string().uuid() });
 const revokeSchema = z.object({ inviteId: z.string().uuid() }).strict();
@@ -41,11 +42,28 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
 export async function POST(_request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const moduleGate = await requireDoctorWorkspaceModuleForApi(
+    buildAppDeps(),
+    gate.ctx,
+    'client_portal',
+  );
+  if (!moduleGate.ok) return moduleGate.response;
   const parsed = paramsSchema.safeParse(await params);
   if (!parsed.success)
     return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
   const patient = await resolvePatient(parsed.data.userId, gate.ctx.organizationId, gate.ctx);
   if (!patient) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  const policy = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    patient.deps.doctorClients.getClientChannelPolicy(patient.patientUserId, {
+      organizationId: gate.ctx.organizationId,
+    }),
+  );
+  if (!policy.portalAllowed) {
+    return NextResponse.json(
+      { ok: false, error: 'workspace_module_disabled', module: 'client_portal' },
+      { status: 403 },
+    );
+  }
   const result = await withDoctorWorkspacePrincipal(
     gate.ctx,
     'doctor.patient-portal-invite.issue',

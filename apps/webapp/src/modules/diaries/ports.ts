@@ -27,6 +27,7 @@ export type SymptomDiaryPort = {
     diagnosisText?: string | null;
     diagnosisRefId?: string | null;
     stageRefId?: string | null;
+    patientTrackingEnabled?: boolean;
   }): Promise<SymptomTracking>;
   /**
    * Idempotent row for home wellbeing (`symptom_key = general_wellbeing`): one active tracking per
@@ -105,6 +106,11 @@ export type SymptomDiaryPort = {
     userId: string;
     trackingId: string;
     isActive: boolean;
+  }): Promise<void>;
+  setPatientTrackingEnabled(params: {
+    userId: string;
+    trackingId: string;
+    patientTrackingEnabled: boolean;
   }): Promise<void>;
   softDeleteTracking(params: { userId: string; trackingId: string }): Promise<void>;
 };

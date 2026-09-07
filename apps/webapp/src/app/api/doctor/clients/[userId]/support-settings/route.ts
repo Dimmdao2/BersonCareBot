@@ -11,6 +11,7 @@ const patchBodySchema = z.object({
   onSupport: z.boolean().optional(),
   commentsEnabled: z.boolean().nullable().optional(),
   mediaEnabled: z.boolean().nullable().optional(),
+  portalEnabled: z.boolean().nullable().optional(),
 });
 
 export async function GET(_request: Request, context: { params: Promise<{ userId: string }> }) {
@@ -47,6 +48,7 @@ export async function GET(_request: Request, context: { params: Promise<{ userId
       onSupport: false,
       commentsEnabled: null,
       mediaEnabled: null,
+      portalEnabled: null,
       updatedAt: null,
       updatedBy: null,
     },

@@ -8,6 +8,8 @@ export type SymptomTracking = {
   symptomKey: string | null;
   symptomTitle: string;
   isActive: boolean;
+  patientTrackingEnabled: boolean;
+  organizationId?: string | null;
   createdAt: string;
   updatedAt: string;
   symptomTypeRefId?: string | null;

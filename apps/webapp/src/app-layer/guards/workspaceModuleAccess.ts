@@ -49,6 +49,17 @@ export type WorkspaceModuleDisabledReason = 'workspace_module_disabled';
  */
 export function workspaceModuleForApiPath(pathname: string): WorkspaceModuleKey | null {
   if (
+    pathname.startsWith('/api/patient/diary/') ||
+    pathname.startsWith('/api/patient/profile/') ||
+    pathname.startsWith('/api/patient/email-change/') ||
+    pathname.startsWith('/api/patient/organization-context') ||
+    pathname.startsWith('/api/patient/pwa/') ||
+    pathname.startsWith('/api/patient/web-push/') ||
+    pathname.startsWith('/api/patient/analytics/')
+  ) {
+    return null;
+  }
+  if (
     pathname.startsWith('/api/doctor/messages') ||
     pathname.startsWith('/api/patient/messages') ||
     /^\/api\/doctor\/patients\/[^/]+\/messages-snapshot(?:\/|$)/.test(pathname)
@@ -78,6 +89,7 @@ export function workspaceModuleForApiPath(pathname: string): WorkspaceModuleKey 
   ) {
     return 'rehabilitation';
   }
+  if (pathname.startsWith('/api/patient/')) return 'client_portal';
   if (
     /^\/api\/doctor\/treatment-program-instances\/[^/]+\/discussion\/messages\/[^/]+(?:\/|$)/.test(
       pathname,
@@ -211,11 +223,14 @@ export function applyClientChannelPolicyToWorkspaceModules(
   modules: WorkspaceModuleEffective,
   policy: ClientChannelPolicy,
 ): WorkspaceModuleEffective {
+  const clientPortal = modules.client_portal && policy.portalAllowed !== false;
   return {
     ...modules,
-    direct_chat: modules.direct_chat && isClientChannelAllowed(policy, 'directChatAllowed'),
-    program_comments: modules.program_comments && isClientChannelAllowed(policy, 'commentsAllowed'),
-    program_media: modules.program_media && isClientChannelAllowed(policy, 'mediaAllowed'),
+    client_portal: clientPortal,
+    direct_chat: clientPortal && modules.direct_chat && isClientChannelAllowed(policy, 'directChatAllowed'),
+    program_comments:
+      clientPortal && modules.program_comments && isClientChannelAllowed(policy, 'commentsAllowed'),
+    program_media: clientPortal && modules.program_media && isClientChannelAllowed(policy, 'mediaAllowed'),
   };
 }
 
