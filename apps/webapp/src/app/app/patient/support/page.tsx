@@ -30,7 +30,7 @@ export default async function PatientSupportPage() {
           <h2 className="text-base font-semibold">Связаться с поддержкой</h2>
           <p className={cn(patientMutedTextClass, 'mt-1')}>
             Здесь помогают пользоваться приложением. Вопросы о здоровье, симптомах и лечении
-            задавайте врачу в кабинете пациента.
+            задавайте врачу в кабинете.
           </p>
         </div>
         <PatientSupportForm defaultEmail={defaultEmail} />

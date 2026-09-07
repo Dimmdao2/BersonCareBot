@@ -8,6 +8,7 @@ import { Suspense } from 'react';
 import { AuthBootstrap } from '@/shared/ui/patient/AuthBootstrap';
 import { LegalFooterLinks } from '@/shared/ui/patient/LegalFooterLinks';
 import type { MessengerSurfaceHint } from '@/shared/lib/platform';
+import type { SurfaceAuthPolicy } from '@/shared/lib/surface/requestSurface';
 import type { PrefetchedPublicAuthConfig } from '@/shared/ui/patient/auth/AuthFlowV2';
 import type { UnauthenticatedAppEntryClassification } from '@/modules/auth/appEntryClassification';
 import { CLIENT_BOOT_ACTIVE_CONTENT_ID } from '@/modules/auth/clientBootWatchdog';
@@ -29,6 +30,12 @@ type AppEntryLoginContentProps = {
   routeBoundMiniappEntry?: boolean;
   /** A role-specific browser door; the auth mechanics remain shared. */
   roleLoginPortal?: RoleLoginPortal | null;
+  /** Resolved server-side product identity for the role-login presentation. */
+  roleLoginSurfaceName?: string;
+  /** Canonical cross-product login URL, never a role path on the current origin. */
+  alternateRoleLoginHref?: string | null;
+  /** Auth methods allowed by proxy's already-resolved surface. */
+  surfaceAuthPolicy?: SurfaceAuthPolicy;
 };
 
 export function AppEntryLoginContent({
@@ -39,11 +46,20 @@ export function AppEntryLoginContent({
   entryClassification,
   routeBoundMiniappEntry = false,
   roleLoginPortal = null,
+  roleLoginSurfaceName,
+  alternateRoleLoginHref = null,
+  surfaceAuthPolicy,
 }: AppEntryLoginContentProps) {
   return (
     <div id={CLIENT_BOOT_ACTIVE_CONTENT_ID}>
       <div id="app-entry-content" className="flex flex-col gap-6">
-        {roleLoginPortal ? <RoleLoginPortalHeader portal={roleLoginPortal} /> : null}
+        {roleLoginPortal ? (
+          <RoleLoginPortalHeader
+            portal={roleLoginPortal}
+            surfaceName={roleLoginSurfaceName ?? ''}
+            alternateHref={alternateRoleLoginHref}
+          />
+        ) : null}
       </div>
       <Suspense fallback={<AppContentLoading className="py-6" />}>
         <AuthBootstrap
@@ -54,6 +70,7 @@ export function AppEntryLoginContent({
           entryClassification={entryClassification}
           routeBoundMiniappEntry={routeBoundMiniappEntry}
           roleLoginPortal={roleLoginPortal}
+          surfaceAuthPolicy={surfaceAuthPolicy}
         />
       </Suspense>
       <LegalFooterLinks className="mt-8" supportHref={supportContactHref} />

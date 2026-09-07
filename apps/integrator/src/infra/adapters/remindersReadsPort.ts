@@ -176,8 +176,12 @@ export function createRemindersReadsPort(deps?: {
       return rows.map((row) => mapRule(row, fallbackTz));
     },
 
-    async getRuleForUserAndCategory(platformUserId: string, category: string) {
-      const search = new URLSearchParams({ platformUserId, category });
+    async getRuleForUserAndCategory(
+      platformUserId: string,
+      category: string,
+      organizationId: string,
+    ) {
+      const search = new URLSearchParams({ platformUserId, category, organizationId });
       const result = await fetchRemindersGet<{ rule?: WebappRuleRow | null }>(
         db,
         '/api/integrator/reminders/rules/by-category',

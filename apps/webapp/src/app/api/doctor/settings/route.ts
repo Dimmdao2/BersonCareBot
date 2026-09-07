@@ -15,6 +15,7 @@ const DOCTOR_SCOPE_KEYS = [
   'sms_fallback_enabled',
   'doctor_patient_support_comments_without_support_default_enabled',
   'doctor_patient_support_media_without_support_default_enabled',
+  'doctor_staff_second_factor_required',
   'doctor_specialist_task_reminder_channels',
   'booking_calendar_default_branch_id',
   'booking_calendar_default_service_id',
@@ -26,6 +27,8 @@ const CABINET_BOOLEAN_KEYS = [
   'doctor_patient_support_comments_without_support_default_enabled',
   'doctor_patient_support_media_without_support_default_enabled',
 ] as const;
+
+const CLINIC_SECURITY_BOOLEAN_KEYS = ['doctor_staff_second_factor_required'] as const;
 
 const patchSchema = z.object({
   key: z.enum(DOCTOR_SCOPE_KEYS),
@@ -111,6 +114,13 @@ export async function PATCH(request: Request) {
   const parsed = patchSchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+  }
+
+  if (
+    (CLINIC_SECURITY_BOOLEAN_KEYS as readonly string[]).includes(parsed.data.key) &&
+    gate.ctx.membershipRole !== 'owner'
+  ) {
+    return NextResponse.json({ ok: false, error: 'owner_required' }, { status: 403 });
   }
 
   // Проверка что ключ входит в глобальный whitelist

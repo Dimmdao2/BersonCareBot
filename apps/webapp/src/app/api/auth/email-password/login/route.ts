@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipa
 import { logger } from '@/app-layer/logging/logger';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import { normalizeEmail } from '@/modules/auth/emailAuth';
@@ -24,6 +25,8 @@ import {
   type TestAccountIdentifiers,
 } from '@/config/testAccounts';
 import type { SessionUser } from '@/shared/types/session';
+import { startEmailChallenge } from '@/modules/auth/emailAuth';
+import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 
 const bodySchema = z.object({
   email: z.string().email().max(320),
@@ -53,6 +56,32 @@ function isConfiguredTestPatientPasswordLogin(
       identifiers,
     )
   );
+}
+
+function settingIsEnabled(valueJson: unknown): boolean {
+  return (
+    valueJson !== null &&
+    typeof valueJson === 'object' &&
+    !Array.isArray(valueJson) &&
+    (valueJson as Record<string, unknown>).value === true
+  );
+}
+
+async function clinicRequiresStaffSecondFactor(
+  deps: ReturnType<typeof buildAppDeps>,
+  userId: string,
+): Promise<boolean> {
+  if (!deps.organizationMembership) return false;
+  const membership = await deps.organizationMembership.resolveOrganizationForUser({
+    platformUserId: userId,
+  });
+  if (!membership.ok) return false;
+  const setting = await deps.systemSettings.getSetting(
+    'doctor_staff_second_factor_required',
+    'doctor',
+    { organizationId: membership.context.organizationId },
+  );
+  return settingIsEnabled(setting?.valueJson ?? null);
 }
 
 export async function POST(request: Request) {
@@ -214,13 +243,47 @@ export async function POST(request: Request) {
     const authenticatedUser = recoveringSpecialistSignup
       ? { ...sessionUser, role: 'doctor' as const }
       : sessionUser;
+    const needsClinicEmailFactor =
+      !security?.enrolled &&
+      (await clinicRequiresStaffSecondFactor(deps, authenticatedUser.userId));
+    let emailFactorChallenge:
+      | { challengeId: string; token: string; expiresAt: string }
+      | undefined;
+    if (needsClinicEmailFactor) {
+      const challenge = await startEmailChallenge(
+        authenticatedUser.userId,
+        emailNorm,
+        'staff_login_factor',
+        platformMailProfileForRecipientRole(authenticatedUser.role),
+      );
+      if (!challenge.ok) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'email_factor_unavailable',
+            message: 'Не удалось отправить код подтверждения. Повторите попытку позже.',
+          },
+          { status: 503 },
+        );
+      }
+      emailFactorChallenge = {
+        challengeId: challenge.challengeId,
+        token: randomUUID(),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      };
+    }
     const prepared = await prepareVerifiedPrimaryLoginWithStatus({
       user: authenticatedUser,
       security,
       staffSecurity: deps.staffSecurity,
+      emailFactorChallenge,
     });
     if (prepared.factorRequired) {
-      return NextResponse.json({ ok: true, factorRequired: true });
+      return NextResponse.json({
+        ok: true,
+        factorRequired: true,
+        factorMethod: prepared.factorMethod,
+      });
     }
 
     await setSessionFromUser(authenticatedUser, prepared.sessionOptions);

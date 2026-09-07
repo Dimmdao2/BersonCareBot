@@ -572,8 +572,8 @@ function ProgramInstanceCompleteControl(props: {
             </DialogTitle>
             <DialogDescription>
               {completing
-                ? 'У пациента программа будет отмечена как завершённая.'
-                : 'Программа снова станет активной для пациента.'}
+                ? 'Программа будет отмечена как завершённая.'
+                : 'Программа снова станет активной.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1305,8 +1305,8 @@ function InstanceStageGroupsPanel(props: {
     if (editLocked) return;
     const merged =
       programStatus === 'active'
-        ? 'Применить к активной программе пациента? Элементы группы будут скрыты у пациента, группа удалена. Продолжить?'
-        : 'Элементы группы будут скрыты у пациента, сама группа удалена. Продолжить?';
+        ? 'Применить к активной программе? Элементы группы будут скрыты, группа удалена. Продолжить?'
+        : 'Элементы группы будут скрыты, сама группа удалена. Продолжить?';
     if (!globalThis.confirm(merged)) return;
     hideGroup(groupEdit.id);
     setGroupEdit(null);
@@ -1907,7 +1907,7 @@ function InstanceStageItemDoctorRow(props: {
           <DialogHeader>
             <DialogTitle>Отключить элемент?</DialogTitle>
             <DialogDescription>
-              У элемента уже есть выполнение или результат теста. Он будет скрыт у пациента, история
+              У элемента уже есть выполнение или результат теста. Он будет скрыт, история
               сохранится.
             </DialogDescription>
           </DialogHeader>
@@ -1932,7 +1932,7 @@ function InstanceStageItemDoctorRow(props: {
           <DialogHeader>
             <DialogTitle>Удалить элемент?</DialogTitle>
             <DialogDescription>
-              Строка будет удалена из программы пациента без возможности восстановления. Если у
+              Строка будет удалена из программы без возможности восстановления. Если у
               элемента есть выполнение или попытка теста, удаление будет отклонено.
             </DialogDescription>
           </DialogHeader>
@@ -2184,8 +2184,8 @@ function StageDoctorControls(props: {
           <DialogHeader>
             <DialogTitle>Настройки этапа</DialogTitle>
             <DialogDescription>
-              Название, описание, цели и сроки этапа программы пациента. Значения скопированы из
-              шаблона при назначении; изменения для этого пациента.
+              Название, описание, цели и сроки этапа программы. Значения скопированы из
+              шаблона при назначении; изменения относятся только к этой программе.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3">

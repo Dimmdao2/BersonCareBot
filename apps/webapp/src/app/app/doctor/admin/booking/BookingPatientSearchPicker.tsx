@@ -5,6 +5,7 @@ import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { BOOKING_FORM_MAX_WIDTH_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export type BookingPatientPick = {
   id: string;
@@ -18,6 +19,7 @@ type Props = {
 };
 
 export function BookingPatientSearchPicker({ value, onChange }: Props) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<BookingPatientPick[]>([]);
   const [pending, startTransition] = useTransition();
@@ -48,7 +50,7 @@ export function BookingPatientSearchPicker({ value, onChange }: Props) {
 
   return (
     <div className={`space-y-2 ${BOOKING_FORM_MAX_WIDTH_CLASS}`}>
-      <Label>Пациент</Label>
+      <Label>{patientSingularLabel}</Label>
       {value ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
           <span className="font-medium">{value.displayName}</span>

@@ -14,6 +14,20 @@ export type PatientTerms = {
   patientGenPlural: string;
   /** Именительный падеж ед.ч.: «Пациент» или «Клиент». */
   patientSingularLabel: string;
+  /** Именительный падеж ед.ч. со строчной буквы: «пациент» или «клиент». */
+  patientSingularLower: string;
+  /** Родительный падеж ед.ч.: «пациента» или «клиента». */
+  patientGenitive: string;
+  /** Дательный падеж ед.ч.: «пациенту» или «клиенту». */
+  patientDative: string;
+  /** Дательный падеж мн.ч.: «пациентам» или «клиентам». */
+  patientDativePlural: string;
+  /** Творительный падеж ед.ч.: «пациентом» или «клиентом». */
+  patientInstrumental: string;
+  /** Творительный падеж мн.ч.: «пациентами» или «клиентами». */
+  patientInstrumentalPlural: string;
+  /** Chosen display name for the one `doctor_patient_support.on_support` group. */
+  supportGroupLabel: 'Избранные' | 'На сопровождении';
 };
 
 export const PATIENT_LABEL_VALUES = ['пациент', 'клиент'] as const;
@@ -38,28 +52,46 @@ export function normalizeSupportGroupLabel(value: unknown): SupportGroupLabelVal
     : null;
 }
 
-export function resolveSupportGroupLabel(value: unknown): 'Избранные' | 'На сопровождении' {
-  return normalizeSupportGroupLabel(value) === 'favorites' ? 'Избранные' : 'На сопровождении';
-}
-
 /**
  * Резолвит {именительный мн.ч., родительный мн.ч., именительный ед.ч.} из значения настройки `patient_label`.
  *
- * @param singular — необработанное значение из БД (например «пациент», «клиент», «Клиент»).
- *                   Если не передано или `undefined/null`, используется дефолт «пациент».
+ * @param value — необработанное значение либо стандартный `{ value }` envelope из БД.
+ *                Если не передано или не распознано, используется дефолт «пациент».
  */
-export function resolvePatientTerms(singular?: string | null): PatientTerms {
-  const normalized = (singular ?? 'пациент').trim().toLowerCase();
+export function resolvePatientTerms(value?: unknown, supportGroupValue?: unknown): PatientTerms {
+  const singular =
+    value !== null && typeof value === 'object' && 'value' in value
+      ? (value as { value?: unknown }).value
+      : value;
+  const normalized = normalizePatientLabel(singular);
+  const supportGroupLabel =
+    normalizeSupportGroupLabel(supportGroupValue) === 'favorites'
+      ? 'Избранные'
+      : 'На сопровождении';
   if (normalized === 'клиент') {
     return {
       patientPluralLabel: 'Клиенты',
       patientGenPlural: 'клиентов',
       patientSingularLabel: 'Клиент',
+      patientSingularLower: 'клиент',
+      patientGenitive: 'клиента',
+      patientDative: 'клиенту',
+      patientDativePlural: 'клиентам',
+      patientInstrumental: 'клиентом',
+      patientInstrumentalPlural: 'клиентами',
+      supportGroupLabel,
     };
   }
   return {
     patientPluralLabel: 'Пациенты',
     patientGenPlural: 'пациентов',
     patientSingularLabel: 'Пациент',
+    patientSingularLower: 'пациент',
+    patientGenitive: 'пациента',
+    patientDative: 'пациенту',
+    patientDativePlural: 'пациентам',
+    patientInstrumental: 'пациентом',
+    patientInstrumentalPlural: 'пациентами',
+    supportGroupLabel,
   };
 }

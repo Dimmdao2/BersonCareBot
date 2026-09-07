@@ -17,6 +17,7 @@ import { PatientPackageCard, type PatientPackageCardRow } from './PatientPackage
 import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 import { localQrCodeDataUri } from '@/app/app/doctor/calendar/localQrCode';
 import { sendPaymentLinkToPatientChat } from '@/app/app/doctor/sendPaymentLinkToPatientChat';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 import { DateTime } from 'luxon';
 
@@ -111,7 +112,6 @@ const ERROR_LABELS: Record<string, string> = {
   sale_link_requires_price: 'Ссылку на оплату нельзя выставить на нулевую цену.',
   sale_cash_requires_price: 'Для наличной продажи нужна цена больше нуля.',
   sale_free_requires_zero_price: 'Бесплатная выдача возможна только при нулевой цене.',
-  chat_send_failed: 'Не удалось отправить ссылку в чат пациента.',
   appointment_already_linked_to_package:
     'Запись уже связана с абонементом. Откройте абонемент и выполните действие в списке записей.',
   appointment_has_consumed_package_session:
@@ -172,6 +172,7 @@ export function DoctorClientMembershipsPanel({
   onCreated,
 }: Props) {
   const router = useRouter();
+  const { patientGenitive } = useDoctorPatientTerms();
   const [packages, setPackages] = useState<PatientPackageCardRow[]>([]);
   const [onlinePaymentAvailable, setOnlinePaymentAvailable] = useState(false);
   const [patientChatAvailable, setPatientChatAvailable] = useState(false);
@@ -208,13 +209,17 @@ export function DoctorClientMembershipsPanel({
   const catalogApi = '/api/doctor/booking-engine/packages';
   const today = DateTime.now().toFormat('yyyy-MM-dd');
 
-  function showError(code: string | null) {
+  const showError = useCallback((code: string | null) => {
     if (!code) {
       setError(null);
       return;
     }
-    setError(ERROR_LABELS[code] ?? code);
-  }
+    setError(
+      code === 'chat_send_failed'
+        ? `Не удалось отправить ссылку в чат ${patientGenitive}.`
+        : (ERROR_LABELS[code] ?? code),
+    );
+  }, [patientGenitive]);
 
   const loadPackages = useCallback(async () => {
     try {
@@ -237,7 +242,7 @@ export function DoctorClientMembershipsPanel({
     } catch {
       showError('load_failed');
     }
-  }, [platformUserId]);
+  }, [platformUserId, showError]);
 
   useEffect(() => {
     queueMicrotask(() => {

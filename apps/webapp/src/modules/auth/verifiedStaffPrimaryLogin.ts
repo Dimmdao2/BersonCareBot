@@ -9,7 +9,7 @@ type SessionOptions = {
 };
 
 export type VerifiedStaffPrimaryLoginPreparation =
-  | { factorRequired: true }
+  | { factorRequired: true; factorMethod?: 'email' }
   | { factorRequired: false; sessionOptions: SessionOptions };
 
 export function isStaff(user: SessionUser): boolean {
@@ -20,6 +20,8 @@ export async function prepareVerifiedPrimaryLoginWithStatus(input: {
   user: SessionUser;
   security: StaffSecurityStatus | null;
   staffSecurity: Pick<StaffSecurityService, 'beginLogin'>;
+  /** A clinic-wide requirement for a user who has not personally enrolled TOTP. */
+  emailFactorChallenge?: { challengeId: string; token: string; expiresAt: string };
   postLoginHints?: AppSession['postLoginHints'];
 }): Promise<VerifiedStaffPrimaryLoginPreparation> {
   const baseOptions: SessionOptions = input.postLoginHints
@@ -42,6 +44,18 @@ export async function prepareVerifiedPrimaryLoginWithStatus(input: {
       ...(input.postLoginHints ? { postLoginHints: input.postLoginHints } : {}),
     });
     return { factorRequired: true };
+  }
+
+  if (input.emailFactorChallenge) {
+    await issueStaffLoginContinuation({
+      userId: input.user.userId,
+      token: input.emailFactorChallenge.token,
+      expiresAt: input.emailFactorChallenge.expiresAt,
+      factorMethod: 'email',
+      emailChallengeId: input.emailFactorChallenge.challengeId,
+      ...(input.postLoginHints ? { postLoginHints: input.postLoginHints } : {}),
+    });
+    return { factorRequired: true, factorMethod: 'email' };
   }
 
   return {

@@ -7,6 +7,7 @@ import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSize
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 import { DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import { Card, CardContent, CardHeader } from '@/shared/ui/doctor/primitives/card';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const WEEK_WIDTH = 72;
 
@@ -20,6 +21,7 @@ export function DoctorTodayWeeklyAppointmentsChart({
 }: {
   points: TodayWeeklyTimelinePoint[];
 }) {
+  const { patientGenPlural } = useDoctorPatientTerms();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const currentIndex = points.findIndex((point) => point.isCurrent);
   const firstFutureIndex = points.findIndex((point) => point.period === 'future');
@@ -188,7 +190,7 @@ export function DoctorTodayWeeklyAppointmentsChart({
                 />
                 <Bar
                   dataKey="firstAppointments"
-                  name="Новых пациентов"
+                  name={`Новых ${patientGenPlural}`}
                   fill="#8fb1dd"
                   radius={[4, 4, 0, 0]}
                   maxBarSize={24}

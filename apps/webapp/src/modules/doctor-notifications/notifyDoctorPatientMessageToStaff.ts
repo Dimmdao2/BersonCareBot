@@ -20,6 +20,7 @@ import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports
 import { buildPersonalChatNotificationText } from '@/modules/messaging/notifyPatientDoctorReply';
 import { relayOutbound, type RelayInlineButton } from '@/modules/messaging/relayOutbound';
 import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 import type { SystemSettingsService } from '@/modules/system-settings/service';
 import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
 import { defaultDoctorTopicFallbackChannels } from './doctorTopicChannelDefaults';
@@ -34,7 +35,7 @@ export type NotifyDoctorPatientMessageToStaffDeps = {
   topicChannelPrefs: TopicChannelPrefsPort;
   channelPreferences: ChannelPreferencesPort;
   webPushSubscriptions: WebPushSubscriptionsPort;
-  /** Kept for call-site compat. No longer used; VAPID is read by the integrator adapter. */
+  /** Reads organization-scoped patient terminology; VAPID is read by the integrator adapter. */
   systemSettings: Pick<SystemSettingsService, 'getSetting'>;
   getChannelBindings: (
     platformUserId: string,
@@ -70,9 +71,16 @@ export async function notifyDoctorPatientMessageToStaff(
   const staffIds = patientProfiles
     ? patientProfiles.map((profile) => profile.userId)
     : await deps.staffUsers.listActiveStaffUserIds();
+  const patientLabelSetting = await deps.systemSettings.getSetting('patient_label', 'doctor', {
+    organizationId: input.organizationId,
+  });
   const globalFallback = defaultDoctorTopicFallbackChannels(input.topicCode);
   const replyMarkup = input.replyMarkup;
-  const notificationText = buildPersonalChatNotificationText(input.senderDisplayName, 'patient');
+  const notificationText = buildPersonalChatNotificationText(
+    input.senderDisplayName,
+    'patient',
+    resolvePatientTerms(patientLabelSetting?.valueJson),
+  );
   const messengerText = `${notificationText}\n\n${input.notificationUrl}`;
 
   let telegramDelivered = 0;

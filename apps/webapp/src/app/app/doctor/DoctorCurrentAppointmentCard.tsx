@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
@@ -8,6 +10,7 @@ import {
 } from '@/shared/ui/doctor/doctorVisual';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 /** Парсит "HH:MM" → минуты с полуночи. Возвращает -1 при ошибке. */
 function parseTimeToMinutes(time: string): number {
@@ -66,6 +69,7 @@ type Props = {
 };
 
 export function DoctorCurrentAppointmentCard({ appointments, nowMinutes }: Props) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const { primary, isOngoing, next } = findCurrentOrNext(appointments, nowMinutes);
 
   return (
@@ -125,7 +129,7 @@ export function DoctorCurrentAppointmentCard({ appointments, nowMinutes }: Props
                 href={primary.href}
                 className={buttonVariants({ size: 'sm', variant: 'outline' })}
               >
-                Открыть карточку пациента
+                Открыть карточку {patientGenitive}
               </Link>
             </div>
           ) : null}

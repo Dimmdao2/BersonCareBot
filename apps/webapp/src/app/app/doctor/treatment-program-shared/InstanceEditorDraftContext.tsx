@@ -37,6 +37,7 @@ import {
   type InstanceEditorStageMetadataPatch,
 } from './instanceEditorDraft';
 import { flushInstanceEditorDraft } from './flushInstanceEditorDraft';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import {
   formatInstanceEditorSaveError,
   isStaleInstanceEditorSaveError,
@@ -86,6 +87,7 @@ export function InstanceEditorDraftProvider(props: {
   onBaselineSynced: () => Promise<TreatmentProgramInstanceDetail | void>;
   children: ReactNode;
 }) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const { baseline, programStatus, onBaselineSynced, children } = props;
   const [draft, setDraft] = useState<InstanceEditorDraft>(() => createEmptyInstanceEditorDraft());
   const [saving, setSaving] = useState(false);
@@ -331,6 +333,7 @@ export function InstanceEditorDraftProvider(props: {
         programStatus,
         draft: saveDraft,
         baseline: saveBaseline,
+        terms: { patientGenitive },
       });
       if (!result.ok) {
         if (result.cancelled) return { ok: false, cancelled: true };
@@ -354,7 +357,7 @@ export function InstanceEditorDraftProvider(props: {
     } finally {
       setSaving(false);
     }
-  }, [baseline, draft, onBaselineSynced, programStatus]);
+  }, [baseline, draft, onBaselineSynced, patientGenitive, programStatus]);
 
   const value = useMemo(
     (): InstanceEditorDraftContextValue => ({

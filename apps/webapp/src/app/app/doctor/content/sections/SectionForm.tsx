@@ -30,6 +30,7 @@ import { MediaLibraryPickerDialog } from '../MediaLibraryPickerDialog';
 import { saveContentSection, type SaveContentSectionState } from './actions';
 import { SectionDeleteDialog } from './SectionDeleteDialog';
 import { SectionSlugRenameDialog } from './SectionSlugRenameDialog';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const FOLDER_LABELS: Record<SystemParentCode, string> = {
   situations: 'Ситуации',
@@ -80,6 +81,7 @@ export function SectionForm({
   patientHomeContext?: PatientHomeCmsReturnQuery;
   onSaved?: () => void;
 }) {
+  const { patientGenPlural, patientGenitive } = useDoctorPatientTerms();
   const [state, formAction, pending] = useActionState(
     saveContentSection,
     null as SaveContentSectionState | null,
@@ -132,14 +134,14 @@ export function SectionForm({
           >
             <p className="font-medium">Раздел сохранён</p>
             <p className="mt-1 text-muted-foreground">
-              Вернитесь на экран главной пациента и добавьте раздел в блок «
+              Вернитесь на экран главной {patientGenitive} и добавьте раздел в блок «
               {patientHomeContext.patientHomeBlock}».
             </p>
             <Link
               href={patientHomeContext.returnTo}
               className="mt-2 inline-flex text-primary underline"
             >
-              Открыть экран «Главная пациента»
+              Открыть экран «Главная {patientGenitive}»
             </Link>
           </div>
         ) : (
@@ -357,7 +359,7 @@ export function SectionForm({
           key={`vis-${section?.slug ?? 'new'}`}
         />
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Виден пациентам
+          Виден {patientGenPlural}
         </span>
       </label>
 

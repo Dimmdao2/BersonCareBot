@@ -50,6 +50,7 @@ export type DoctorWorkspaceShellData = {
     logoUrl: string | null;
   };
   patientLabel: string;
+  supportGroupLabel: string;
   coursesEnabled: boolean;
   promoEnabled: boolean;
   cmsEnabled: boolean;
@@ -186,6 +187,10 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     doctorSettings.find((x) => x.key === 'patient_label')?.valueJson,
     'пациент',
   );
+  const supportGroupLabel = getValueJson(
+    doctorSettings.find((x) => x.key === 'support_group_label')?.valueJson,
+    'on_support',
+  );
 
   const workspaceModules = await resolveDoctorWorkspaceModules(
     deps,
@@ -214,6 +219,7 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     accessWarnings,
     shellBrand,
     patientLabel: String(patientLabel),
+    supportGroupLabel: String(supportGroupLabel),
     coursesEnabled: coursesVisibility.specialistNavigation,
     promoEnabled: promoVisibility.specialistNavigation,
     cmsEnabled: cmsVisibility.specialistNavigation,

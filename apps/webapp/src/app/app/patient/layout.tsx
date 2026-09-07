@@ -20,6 +20,7 @@ import {
   patientMaintenanceReplacesPatientShell,
   patientMaintenanceSkipsPath,
 } from '@/modules/system-settings/patientMaintenance';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 import {
   PatientMaintenanceScreen,
   selectMaintenanceUpcomingBookings,
@@ -133,6 +134,17 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       source: 'app.patient.layout',
     });
     const patientOrganizationId = patientContext.organizationId;
+    const patientSettings = await withPatientOrganizationPrincipal(
+      {
+        organizationId: patientOrganizationId,
+        platformUserId: session.user.userId,
+        source: 'app.patient.layout.patient-terms',
+      },
+      () => deps.systemSettings.listSettingsByScope('doctor', { organizationId: patientOrganizationId }),
+    );
+    const patientLabel = patientSettings.find(
+      (setting) => setting.key === 'patient_label',
+    )?.valueJson;
     const workspaceModules = await withPatientOrganizationPrincipal(
       {
         organizationId: patientOrganizationId,
@@ -249,6 +261,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
         <PatientClientLayout
           organizationContext={patientBrandingContext}
           workspaceModules={workspaceModules}
+          patientLabel={patientLabel}
           authChannelPolicy={authChannelPolicy}
           materialRatingsEnabled={materialRatingsEnabled}
         >
@@ -258,6 +271,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
             bookingUrl={maintenance.bookingUrl}
             bookings={upcoming}
             appDisplayTimeZone={appDisplayTimeZone}
+            patientSingularLabel={resolvePatientTerms(patientLabel).patientSingularLabel}
           />
         </PatientClientLayout>
       );
@@ -266,6 +280,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       <PatientClientLayout
         organizationContext={patientBrandingContext}
         workspaceModules={workspaceModules}
+        patientLabel={patientLabel}
         rememberOrganizationOnMount={patientContext.selectedBy === 'only_active'}
         authChannelPolicy={authChannelPolicy}
         materialRatingsEnabled={materialRatingsEnabled}

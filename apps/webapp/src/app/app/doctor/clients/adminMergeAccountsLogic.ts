@@ -2,6 +2,7 @@
  * Pure helpers for admin manual merge UI — aligned with merge-preview JSON and ManualMergeResolution.
  */
 import type { ManualMergeResolution } from '@/infra/repos/manualMergeResolution';
+import type { PatientTerms } from '@/modules/system-settings/patientTerms';
 
 export type MergePreviewApiProfile = {
   id: string;
@@ -275,7 +276,16 @@ const BLOCKER_RU: Record<string, { title: string; detail: string }> = {
   },
 };
 
-export function hardBlockerUi(code: string): { title: string; detail: string } {
+export function hardBlockerUi(
+  code: string,
+  terms: Pick<PatientTerms, 'patientGenitive'>,
+): { title: string; detail: string } {
+  if (code === 'active_treatment_program_conflict') {
+    return {
+      title: 'Конфликт активных программ лечения',
+      detail: `На обоих пользователях есть активная treatment_program_instances (допускается только одна active на ${terms.patientGenitive}).`,
+    };
+  }
   return (
     BLOCKER_RU[code] ?? {
       title: code,

@@ -18,7 +18,6 @@
  */
 import { z } from 'zod';
 import { routePaths } from '@/app-layer/routes/paths';
-import { env } from '@/config/env';
 import { logger } from '@/infra/logging/logger';
 import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
 import type { PatientInboundChatPort } from '@/modules/messaging/ports';
@@ -86,6 +85,7 @@ type PatientWebPushNotifyCommonDeps = {
   systemSettings: Pick<SystemSettingsService, 'getSetting'>;
   recordDeliveryAttempt?: (input: RecordNotificationDeliveryAttemptInput) => Promise<void>;
   patientInboundChatPort?: PatientInboundChatPort;
+  resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
 };
 
 type PatientWebPushNotifyLegacyDeps = PatientWebPushNotifyCommonDeps & {
@@ -262,10 +262,19 @@ export async function runPatientWebPushNotify(
     return { ok: true, skipped: 'push_copy_empty' };
   }
 
-  const pushOpenUrl =
+  const patientOrigin = deps.resolvePatientPublicOrigin
+    ? await deps.resolvePatientPublicOrigin(body.organizationId)
+    : '';
+  const requestedOpenUrl =
     body.intentType === 'appointment_lifecycle'
-      ? buildPatientNotificationsOpenUrl(env.APP_BASE_URL)
+      ? buildPatientNotificationsOpenUrl(patientOrigin)
       : body.openUrl;
+  const pushOpenUrl = patientOrigin
+    ? (() => {
+        const requested = new URL(requestedOpenUrl, patientOrigin);
+        return new URL(`${requested.pathname}${requested.search}`, patientOrigin).toString();
+      })()
+    : requestedOpenUrl;
 
   const pushKind =
     body.intentType === 'news'

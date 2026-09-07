@@ -10,6 +10,7 @@ import {
   type KnownPatientHomeRefs,
   isPatientHomeItemResolved,
 } from '@/modules/patient-home/patientHomeUnresolvedRefs';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export function PatientHomeBlockPreview({
   items,
@@ -25,6 +26,7 @@ export function PatientHomeBlockPreview({
   emptyPreviewText: string;
   onRepairClick?: () => void;
 }) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const visibleItems = items
     .filter((item) => item.isVisible)
     .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -52,7 +54,7 @@ export function PatientHomeBlockPreview({
             ) : null}
             {!resolved ? (
               <div className="mt-2 flex flex-col gap-2 text-xs text-amber-700 dark:text-amber-400">
-                <span>Цель не найдена в CMS и не будет показана на главной пациента.</span>
+                <span>Цель не найдена в CMS и не будет показана на главной {patientGenitive}.</span>
                 {onRepairClick ? (
                   <div>
                     <Button

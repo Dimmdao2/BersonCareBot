@@ -3,6 +3,7 @@ import type {
   BroadcastCategory,
   BroadcastChannel,
 } from '@/modules/doctor-broadcasts/ports';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 
 /** Порядок опций в селекте аудитории (совпадает с `BroadcastAudienceSelect`). */
 export const BROADCAST_AUDIENCE_FILTERS_ORDER: readonly BroadcastAudienceFilter[] = [
@@ -28,7 +29,7 @@ export const BROADCAST_FORM_CATEGORIES: readonly { value: BroadcastCategory; lab
   { value: 'marketing', label: 'Рекламное' },
 ] as const;
 
-export const AUDIENCE_LABELS: Record<BroadcastAudienceFilter, string> = {
+const AUDIENCE_LABELS: Record<BroadcastAudienceFilter, string> = {
   all: 'Все клиенты',
   active_clients: 'Активные клиенты',
   with_upcoming_appointment: 'С будущей записью',
@@ -73,12 +74,20 @@ export function isAudienceEstimateApproximate(filter: BroadcastAudienceFilter): 
 const APPROXIMATE_AUDIENCE_SUFFIX = ' (оценка, фильтр в разработке)';
 
 /** Подпись опции в селекте аудитории (с пометкой для неполных сегментов). */
-export function getAudienceOptionLabel(filter: BroadcastAudienceFilter): string {
-  const base = AUDIENCE_LABELS[filter];
+export function getAudienceOptionLabel(
+  filter: BroadcastAudienceFilter,
+  patientPluralLabel = resolvePatientTerms().patientPluralLabel,
+): string {
+  const base = formatAudienceLabel(filter, patientPluralLabel);
   return isAudienceEstimateApproximate(filter) ? `${base}${APPROXIMATE_AUDIENCE_SUFFIX}` : base;
 }
 
-export function formatAudienceLabel(filter: BroadcastAudienceFilter): string {
+export function formatAudienceLabel(
+  filter: BroadcastAudienceFilter,
+  patientPluralLabel = resolvePatientTerms().patientPluralLabel,
+): string {
+  if (filter === 'all') return `Все ${patientPluralLabel}`;
+  if (filter === 'active_clients') return `Активные ${patientPluralLabel.toLowerCase()}`;
   return AUDIENCE_LABELS[filter] ?? filter;
 }
 

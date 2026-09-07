@@ -82,6 +82,7 @@ import { exerciseMediaToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewU
 import { PickerSearchField } from '@/shared/ui/doctor/PickerSearchField';
 import { LfkTemplateStatusBadge } from './LfkTemplateStatusBadge';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type ExerciseOption = { id: string; title: string; firstMedia: ExerciseMedia | null };
 
@@ -347,6 +348,7 @@ export function TemplateEditor({
   listPreserveQuery = '',
   onCreated,
 }: TemplateEditorProps) {
+  const terms = useDoctorPatientTerms();
   const router = useRouter();
   const recordKey = template?.id ?? '__new__';
   const [title, setTitle] = useState(template?.title ?? 'Новый комплекс');
@@ -429,8 +431,8 @@ export function TemplateEditor({
 
   const usageSections = useMemo(() => {
     if (!usage || !lfkTemplateUsageHasAnyReference(usage)) return [];
-    return lfkTemplateUsageSections(usage);
-  }, [usage]);
+    return lfkTemplateUsageSections(usage, terms);
+  }, [terms, usage]);
 
   const warnSections = useMemo(() => {
     if (
@@ -440,10 +442,10 @@ export function TemplateEditor({
     ) {
       const u = archiveState.usage;
       if (!lfkTemplateUsageHasAnyReference(u)) return [];
-      return lfkTemplateUsageSections(u);
+      return lfkTemplateUsageSections(u, terms);
     }
     return [];
-  }, [archiveState]);
+  }, [archiveState, terms]);
 
   const archiveError =
     archiveState?.ok === false && 'error' in archiveState ? archiveState.error : null;

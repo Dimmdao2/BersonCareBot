@@ -20,18 +20,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Props = {
   initialPreferences: DoctorTodayPreferences;
   settingsEndpoint: '/api/admin/settings';
 };
 
-const PEOPLE_LIST_LABELS: Record<DoctorTodayPeopleListMode, string> = {
-  on_support: 'На сопровождении',
-  recent_visits: 'Недавние с визитами',
-};
-
 export function DoctorTodayPreferencesSection({ initialPreferences, settingsEndpoint }: Props) {
+  const { patientPluralLabel, supportGroupLabel } = useDoctorPatientTerms();
   const [preferences, setPreferences] = useState(initialPreferences);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -57,13 +54,21 @@ export function DoctorTodayPreferencesSection({ initialPreferences, settingsEndp
     save({ ...preferences, peopleListMode: value });
   }
 
+  const peopleListLabels: Record<DoctorTodayPeopleListMode, string> = {
+    on_support: supportGroupLabel,
+    recent_visits: 'Недавние с визитами',
+  };
+
   return (
     <DoctorSection id="doctor-today-preferences">
       <DoctorSectionHeader>
         <DoctorSectionTitle>Сегодня</DoctorSectionTitle>
       </DoctorSectionHeader>
       <div className="flex flex-col gap-4">
-        <DoctorField label="Список клиентов" htmlFor="doctor-today-people-list">
+        <DoctorField
+          label={`Список ${patientPluralLabel.toLowerCase()}`}
+          htmlFor="doctor-today-people-list"
+        >
           <Select
             value={preferences.peopleListMode}
             onValueChange={setPeopleListMode}
@@ -71,12 +76,12 @@ export function DoctorTodayPreferencesSection({ initialPreferences, settingsEndp
           >
             <SelectTrigger
               id="doctor-today-people-list"
-              displayLabel={PEOPLE_LIST_LABELS[preferences.peopleListMode]}
+              displayLabel={peopleListLabels[preferences.peopleListMode]}
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="on_support">На сопровождении</SelectItem>
+              <SelectItem value="on_support">{supportGroupLabel}</SelectItem>
               <SelectItem value="recent_visits">Недавние с визитами</SelectItem>
             </SelectContent>
           </Select>

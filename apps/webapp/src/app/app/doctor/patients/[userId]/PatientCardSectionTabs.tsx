@@ -7,6 +7,7 @@ import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSe
 import { patientCardHref } from '../patientCardHref';
 import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
 import { getEffectivePatientCardTabs, type PatientCardTabId } from './patientCardTabRegistry';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export { PATIENT_CARD_TABS } from './patientCardTabRegistry';
 export type { PatientCardTabId } from './patientCardTabRegistry';
@@ -20,11 +21,12 @@ export function PatientCardDesktopTabs({
   onTabChange: (tab: PatientCardTabId) => void;
   workspaceModules?: WorkspaceModuleEffective;
 }) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const tabs = getEffectivePatientCardTabs(workspaceModules);
   return (
     <nav
       id="doctor-patient-card-tabs"
-      aria-label="Разделы карточки пациента"
+      aria-label={`Разделы карточки ${patientGenitive}`}
       className="hidden gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden"
     >
       {tabs.map((tab) => (
@@ -52,12 +54,13 @@ export function PatientCardMobileTabs({
   onTabChange: (tab: PatientCardTabId) => void;
   workspaceModules?: WorkspaceModuleEffective;
 }) {
+  const { patientGenitive } = useDoctorPatientTerms();
   return (
     <DoctorMobileSectionTabs
       tabs={getEffectivePatientCardTabs(workspaceModules)}
       activeTab={activeTab}
       onTabChange={onTabChange}
-      ariaLabel="Разделы карточки пациента"
+      ariaLabel={`Разделы карточки ${patientGenitive}`}
     />
   );
 }

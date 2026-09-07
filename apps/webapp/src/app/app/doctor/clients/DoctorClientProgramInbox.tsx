@@ -7,6 +7,7 @@ import type { DoctorClientProgramInboxRow } from '@/modules/doctor-client-card/t
 import { doctorClientTreatmentProgramInstanceHref } from './doctorClientInstanceHref';
 import { doctorClientStackedCardClass } from './doctorClientCardChrome';
 import { cn } from '@/lib/utils';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Props = {
   userId: string;
@@ -23,9 +24,10 @@ const KIND_META: Record<
 };
 
 export function DoctorClientProgramInbox({ userId, profileListScope, rows }: Props) {
+  const { patientGenitive } = useDoctorPatientTerms();
   if (rows.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">Нет новых комментариев и медиа от пациента.</p>
+      <p className="text-sm text-muted-foreground">Нет новых комментариев и медиа от {patientGenitive}.</p>
     );
   }
 
@@ -42,7 +44,7 @@ export function DoctorClientProgramInbox({ userId, profileListScope, rows }: Pro
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium leading-snug">{row.title}</p>
-                <p className="text-xs text-muted-foreground">{meta.label} от пациента</p>
+                <p className="text-xs text-muted-foreground">{meta.label} от {patientGenitive}</p>
               </div>
             </div>
             <Link

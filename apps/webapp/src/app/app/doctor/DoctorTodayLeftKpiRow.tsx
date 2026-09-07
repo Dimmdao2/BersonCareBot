@@ -35,6 +35,7 @@ import { SpecialistTaskDetailsDialog } from './clients/SpecialistTaskDetailsDial
 import { SpecialistTaskFormDialog } from './clients/SpecialistTaskFormDialog';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Props = Pick<
   TodayDashboardData,
@@ -135,6 +136,7 @@ export function DoctorTodayLeftKpiRow({
   onTaskSaved,
   onTaskDeleted,
 }: Props) {
+  const { patientGenPlural } = useDoctorPatientTerms();
   const [kpiModal, setKpiModal] = useState<KpiModal>(null);
   const shellBadges = useOptionalDoctorShellBadgeCounts();
   const [selectedConversation, setSelectedConversation] =
@@ -212,7 +214,7 @@ export function DoctorTodayLeftKpiRow({
           id="doctor-today-left-kpi-messages"
           title="Сообщения"
           value={messageTotal}
-          tooltip="Непрочитанные сообщения от клиентов."
+          tooltip={`Непрочитанные сообщения от ${patientGenPlural}.`}
           tone={messageTotal > 0 ? 'warning' : 'neutral'}
           className={messageTotal > 0 ? attentionKpiBackgroundClass : undefined}
           valueClassName={messageTotal > 0 ? attentionKpiValueClass : undefined}
@@ -223,7 +225,7 @@ export function DoctorTodayLeftKpiRow({
           id="doctor-today-left-kpi-comments"
           title="Комментарии"
           value={displayTotal}
-          tooltip="Новые комментарии клиентов к упражнениям."
+          tooltip={`Новые комментарии ${patientGenPlural} к упражнениям.`}
           tone={displayTotal > 0 ? 'warning' : 'neutral'}
           className={displayTotal > 0 ? attentionKpiBackgroundClass : undefined}
           valueClassName={displayTotal > 0 ? attentionKpiValueClass : undefined}

@@ -9,6 +9,7 @@ import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
 } from './doctorClientCardChrome';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Props = {
   userId: string;
@@ -16,13 +17,14 @@ type Props = {
 };
 
 export function DoctorClientLifecycleActions({ userId, isArchived }: Props) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const router = useRouter();
   const [busy, setBusy] = useState<'archive' | 'unarchive' | null>(null);
 
   async function archiveClient() {
     if (
       !window.confirm(
-        'Переместить клиента в архив?\n\n' +
+        `Переместить ${patientGenitive} в архив?\n\n` +
           'Карточка исчезнет из обычных списков, но её можно будет вернуть из архива.',
       )
     ) {
@@ -47,7 +49,7 @@ export function DoctorClientLifecycleActions({ userId, isArchived }: Props) {
   }
 
   async function unarchiveClient() {
-    if (!window.confirm('Вернуть клиента из архива в обычные списки?')) return;
+    if (!window.confirm(`Вернуть ${patientGenitive} из архива в обычные списки?`)) return;
     setBusy('unarchive');
     try {
       const res = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/archive`, {
@@ -75,7 +77,7 @@ export function DoctorClientLifecycleActions({ userId, isArchived }: Props) {
         Учётная запись
       </h2>
       <p className="text-muted-foreground text-sm">
-        Архивирование скрывает карточку из обычных списков и не удаляет данные клиента.
+        Архивирование скрывает карточку из обычных списков и не удаляет данные {patientGenitive}.
       </p>
       <div className="flex flex-wrap gap-2">
         {!isArchived ? (

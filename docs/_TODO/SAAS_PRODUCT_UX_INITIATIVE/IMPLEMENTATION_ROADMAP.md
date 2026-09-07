@@ -812,10 +812,13 @@ public booking этой organization продолжает работать.
       tests/audit `d14fd91b6`, correction `1598b7a4a`; четыре подтверждённых дефекта закрыты, сохранённый oracle
       `6 files / 62 tests`, webapp typecheck, scoped lint/format, architecture и diff checks PASS; migration/backfill,
       privilege и isolated DEV desktop/mobile evidence — в `runs/c3m-portal-symptom-audit-e82c4a43a.md`.
-- [ ] **C3M-11 — support group, terminology и per-client UI.** Представить существующий `onSupport` звездой,
+- [x] **C3M-11 — support group, terminology и per-client UI.** Представить существующий `onSupport` звездой,
       фильтром и выбранным названием одной группы; подключить `Клиенты / Пациенты` и `Избранные / На сопровождении`
       ко всем inventoried UI surfaces через общий resolver; развить support panel в tri-state overrides
-      chat/comments/media и portal с явным reset-to-default. Не создавать вторую механику и не добавлять booking policy.
+      chat/comments/media и portal с явным reset-to-default. Не создавать вторую механику и не добавлять booking
+      policy. Доказательство: единый `resolvePatientTerms`, organization-scoped `onSupport`, per-client panel и
+      проекция терминов во врачебном UI; behavioral support-policy tests `2 files / 9 tests`, webapp typecheck,
+      scoped ESLint и `git diff --check` — PASS.
 - [ ] **C3M-12 — compatibility and acceptance.** Existing orgs сохраняют текущие surfaces; existing linked clients,
       chats, comments/media overrides, symptoms, visits and programs не теряются. Проверить разные уже вычисленные
       наборы доступности, стартовую конфигурацию, OFF/ON/re-enable, direct/API bypass, two-org isolation,

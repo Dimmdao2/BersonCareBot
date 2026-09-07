@@ -60,10 +60,6 @@ export async function handleYandexOAuthCallbackGet(
   request: Request,
   deps: YandexOAuthCallbackDeps,
 ): Promise<NextResponse> {
-  const appBase = env.APP_BASE_URL;
-  const redirectToAppQuery = (reason: string): URL =>
-    new URL(`/app?oauth=error&reason=${encodeURIComponent(reason)}`, appBase);
-
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get('state') ?? '';
 
@@ -78,6 +74,11 @@ export async function handleYandexOAuthCallbackGet(
   }
 
   const surface = await getResolvedSurface();
+  const appBase = surface.surface === 'patient_default' || surface.surface === 'patient_branded'
+    ? surface.publicOrigin
+    : env.APP_BASE_URL;
+  const redirectToAppQuery = (reason: string): URL =>
+    new URL(`/app?oauth=error&reason=${encodeURIComponent(reason)}`, appBase);
   const config = await resolveYandexOAuthConfig(surface);
   if (
     !config ||

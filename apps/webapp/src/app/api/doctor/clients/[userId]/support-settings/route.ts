@@ -6,11 +6,13 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { resolveWorkspaceModulesForApi } from '@/app-layer/guards/workspaceModuleAccess';
 
 const patchBodySchema = z.object({
   onSupport: z.boolean().optional(),
   commentsEnabled: z.boolean().nullable().optional(),
   mediaEnabled: z.boolean().nullable().optional(),
+  directChatEnabled: z.boolean().nullable().optional(),
   portalEnabled: z.boolean().nullable().optional(),
 });
 
@@ -31,12 +33,19 @@ export async function GET(_request: Request, context: { params: Promise<{ userId
   );
   if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
 
-  const [profile, policy] = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+  const [profile, policy, channelPolicy, defaults, workspaceModules] = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     Promise.all([
       deps.doctorClients.getClientSupport(identity.userId, gate.ctx.organizationId),
       deps.doctorClients.getPatientProgramInteractionPolicy(identity.userId, {
         organizationId: gate.ctx.organizationId,
       }),
+      deps.doctorClients.getClientChannelPolicy(identity.userId, {
+        organizationId: gate.ctx.organizationId,
+      }),
+      deps.systemSettings.getDoctorWorkspaceClientDefaults({
+        organizationId: gate.ctx.organizationId,
+      }),
+      resolveWorkspaceModulesForApi(gate.ctx, deps),
     ]),
   );
 
@@ -48,11 +57,15 @@ export async function GET(_request: Request, context: { params: Promise<{ userId
       onSupport: false,
       commentsEnabled: null,
       mediaEnabled: null,
+      directChatEnabled: null,
       portalEnabled: null,
       updatedAt: null,
       updatedBy: null,
     },
     effectivePolicy: policy,
+    channelPolicy,
+    channelDefaults: defaults.channelDefaults,
+    workspaceModules,
   });
 }
 

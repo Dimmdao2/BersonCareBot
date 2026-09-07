@@ -17,7 +17,6 @@ import {
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
-import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
 import { resolveDoctorAppointmentAccess } from '../../../_resolveDoctorAppointmentAccess';
@@ -105,7 +104,7 @@ export async function POST(request: Request, context: RouteContext) {
           organizationId: gate.ctx.organizationId,
           platformUserId,
           createdBy: gate.ctx.session.user.userId,
-          returnUrl: `${env.APP_BASE_URL}${routePaths.purchases}`,
+          returnUrl: routePaths.purchases,
         }),
     );
     if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 409 });

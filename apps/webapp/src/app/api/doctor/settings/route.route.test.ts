@@ -19,6 +19,7 @@ const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const SMS_KEY = 'sms_fallback_enabled';
 const COMMENTS_KEY = 'doctor_patient_support_comments_without_support_default_enabled';
 const MEDIA_KEY = 'doctor_patient_support_media_without_support_default_enabled';
+const SECURITY_KEY = 'doctor_staff_second_factor_required';
 
 describe('/api/doctor/settings clinic-safe settings', () => {
   beforeEach(() => {
@@ -27,6 +28,7 @@ describe('/api/doctor/settings clinic-safe settings', () => {
       ok: true,
       ctx: {
         organizationId: ORGANIZATION_ID,
+        membershipRole: 'owner',
         session: { user: { userId: 'clinic-owner' } },
       },
     });
@@ -116,5 +118,58 @@ describe('/api/doctor/settings clinic-safe settings', () => {
         { key: COMMENTS_KEY, valueJson: { value: true }, organizationId: ORGANIZATION_ID },
       ],
     });
+  });
+
+  it('lets only the clinic owner save staff 2FA under the resolved organization', async () => {
+    const saved = {
+      key: SECURITY_KEY,
+      valueJson: { value: true },
+      organizationId: ORGANIZATION_ID,
+    };
+    fakes.updateSetting.mockResolvedValue(saved);
+
+    const response = await PATCH(
+      new Request('http://test/api/doctor/settings', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          key: SECURITY_KEY,
+          value: { value: true },
+          organizationId: 'attacker-selected-organization',
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fakes.updateSetting).toHaveBeenCalledWith(
+      SECURITY_KEY,
+      'doctor',
+      { value: true },
+      'clinic-owner',
+      { organizationId: ORGANIZATION_ID },
+    );
+  });
+
+  it('rejects a non-owner before changing the clinic staff 2FA policy', async () => {
+    fakes.requireDoctorWorkspaceApiContext.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: ORGANIZATION_ID,
+        membershipRole: 'admin',
+        session: { user: { userId: 'clinic-admin' } },
+      },
+    });
+
+    const response = await PATCH(
+      new Request('http://test/api/doctor/settings', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ key: SECURITY_KEY, value: { value: true } }),
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: 'owner_required' });
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
   });
 });

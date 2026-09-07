@@ -213,9 +213,8 @@ sudo systemctl is-active bersoncarebot-api-prod.service \
   bersoncarebot-media-worker-prod.service
 ```
 
-`BOOKING_URL` приходит из prod env. Для rehearsal скрипт по умолчанию ставит
-`BOOKING_URL=http://localhost:3000` и оба env-path в `/nonexistent`; это предотвращает случайное чтение
-prod env. На prod env загружается блоком выше, а повторное sourcing отключается специально, чтобы
+Оба env-path для rehearsal задаются как `/nonexistent`; это предотвращает случайное чтение prod env.
+На prod env загружается блоком выше, а повторное sourcing отключается специально, чтобы
 `DATABASE_URL` runtime-owner мигратора не был заменён другим env-файлом во время chain.
 `P2_B_OWNER_ROLE` можно переопределить, если app-owner роль уже выбрана оператором; по умолчанию скрипт
 использует `app_owner`, создаёт её как `NOLOGIN BYPASSRLS`, выдаёт membership мигратору только внутри

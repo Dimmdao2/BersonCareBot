@@ -8,6 +8,7 @@ import { isDoctorClientSearchQueryAllowed } from '@/modules/doctor-clients/clien
 import { cn } from '@/lib/utils';
 import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
 import { formatDoctorFio } from '@/shared/lib/fio';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export type CalendarPatientOption = {
   id: string | null;
@@ -51,6 +52,7 @@ export function DoctorCalendarPatientSearch({
   disabled,
   deferNewPatientCreation = false,
 }: Props) {
+  const { patientSingularLabel, patientGenitive } = useDoctorPatientTerms();
   const inputId = useId();
   const listboxId = `${inputId}-listbox`;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -247,7 +249,11 @@ export function DoctorCalendarPatientSearch({
   return (
     <div ref={rootRef} className="relative min-w-0 space-y-2">
       <div className="flex items-center justify-between gap-2">
-        {createOpen ? <Label>Новый пациент</Label> : <Label htmlFor={inputId}>Пациент</Label>}
+        {createOpen ? (
+          <Label>Новый {patientSingularLabel.toLowerCase()}</Label>
+        ) : (
+          <Label htmlFor={inputId}>{patientSingularLabel}</Label>
+        )}
         {!createOpen ? (
           <Button
             type="button"
@@ -256,7 +262,7 @@ export function DoctorCalendarPatientSearch({
             disabled={disabled || creating}
             onClick={openCreate}
           >
-            Новый пациент
+            Новый {patientSingularLabel.toLowerCase()}
           </Button>
         ) : null}
       </div>
@@ -330,7 +336,7 @@ export function DoctorCalendarPatientSearch({
                   onMouseDown={(ev) => ev.preventDefault()}
                   onClick={openCreate}
                 >
-                  Новый пациент…
+                  Новый {patientSingularLabel.toLowerCase()}…
                 </Button>
               ) : null}
               {!loading && minQueryHint && !value ? (
@@ -366,28 +372,28 @@ export function DoctorCalendarPatientSearch({
             value={newLastName}
             onChange={(e) => setNewLastName(e.target.value)}
             disabled={disabled || creating}
-            aria-label="Фамилия пациента"
+            aria-label={`Фамилия ${patientGenitive}`}
           />
           <Input
             placeholder="Имя *"
             value={newFirstName}
             onChange={(e) => setNewFirstName(e.target.value)}
             disabled={disabled || creating}
-            aria-label="Имя пациента"
+            aria-label={`Имя ${patientGenitive}`}
           />
           <Input
             placeholder="Отчество"
             value={newPatronymic}
             onChange={(e) => setNewPatronymic(e.target.value)}
             disabled={disabled || creating}
-            aria-label="Отчество пациента"
+            aria-label={`Отчество ${patientGenitive}`}
           />
           <Input
             placeholder="Телефон"
             value={newPhone}
             onChange={(e) => setNewPhone(e.target.value)}
             disabled={disabled || creating}
-            aria-label="Телефон пациента"
+            aria-label={`Телефон ${patientGenitive}`}
           />
           <Input
             type="email"
@@ -395,7 +401,7 @@ export function DoctorCalendarPatientSearch({
             value={newEmail}
             onChange={(e) => setNewEmail(e.target.value)}
             disabled={disabled || creating}
-            aria-label="Email пациента"
+            aria-label={`Email ${patientGenitive}`}
           />
           {createError ? <p className="text-xs text-destructive">{createError}</p> : null}
           {/* APPT-FORM-06: «Отмена» слева, «Сохранить и выбрать» справа, равной ширины. */}

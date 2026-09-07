@@ -9,7 +9,7 @@ ensure переиспользует видимый legacy webapp-thread свое
 пациент, зачисленный в две клиники, получает два изолированных диалога, а не одну конфликтующую строку.
 
 Связанные документы: [`DOCTOR_BROADCASTS.md`](DOCTOR_BROADCASTS.md) (рассылки врача),
-исторический [`RUBITIME_BOOKING_PIPELINE.md`](../archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
+исторический pipeline внешней системы записи в архиве инициатив
 (интеграция выведена 2026-07-27), [`NOTIFICATION_CHANNELS.md`](NOTIFICATION_CHANNELS.md) (**Web Push — основной канал**),
 [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) §patient Web Push.
 
@@ -100,7 +100,6 @@ ensure переиспользует видимый legacy webapp-thread свое
 
 ## Код (integrator)
 
-- [`recordM2mRoute.ts`](../../apps/integrator/src/integrations/rubitime/recordM2mRoute.ts) — webapp `runPatientWebPushNotify`: для `appointment_lifecycle` итоговый `openUrl` = `{appBase}/app/patient?notifications=1`.
 - Program note: integrator доставляет уведомление врачу и входящие сообщения пациента; ответ врача выполняется webapp — см. [`DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
 
 ## Тесты (ориентир)
@@ -110,7 +109,6 @@ ensure переиспользует видимый legacy webapp-thread свое
 - `patientWebPushNotify.test.ts`
 - `useSupportUnreadPolling.test.ts`, `PatientTopNav.test.tsx`
 - `pgSupportCommunication.test.ts` (mark read, legacy + canonical)
-- integrator: `recordM2mRoute.test.ts` — `booking.created patient web push uses messages openUrl`
 
 ## Ограничения
 

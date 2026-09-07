@@ -32,6 +32,7 @@ import {
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorSortableSettingsRow } from '@/shared/ui/doctor/DoctorSortableSettingsRow';
 import { apiJson } from '@/app/app/settings/bookingSoloAdminApi';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const BASE = '/api/admin/booking-engine';
 
@@ -304,6 +305,7 @@ function SpecialistModal({
   onClose: () => void;
   onSubmit: () => void;
 }) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const prefix = mode === 'create' ? 'specialist-create' : 'specialist-edit';
   return (
     <DoctorModal
@@ -333,7 +335,7 @@ function SpecialistModal({
           />
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-1">
-          <Label htmlFor={`${prefix}-description`}>Описание для пациента</Label>
+          <Label htmlFor={`${prefix}-description`}>Описание для {patientGenitive}</Label>
           <Textarea
             id={`${prefix}-description`}
             rows={4}

@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { env } from '@/config/env';
+import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
 import {
   classifyUnauthenticatedAppEntry,
   shouldAllowStandaloneTokenExchange,
@@ -79,7 +80,14 @@ export async function AppEntryRsc({
       : routeBoundMessengerSurface === 'max' || entryClassification === 'max_miniapp'
         ? 'max'
         : 'browser';
-  const shellTitle = surfaceDisplayName(await getResolvedSurface());
+  const resolvedSurface = await getResolvedSurface();
+  const shellTitle = surfaceDisplayName(resolvedSurface);
+  const alternateRoleLoginHref =
+    roleLoginPortal === 'doctor'
+      ? new URL('/app/patient/login', PATIENT_DEFAULT_SURFACE.origin).toString()
+      : roleLoginPortal === 'patient'
+        ? new URL('/app/doctor/login', STAFF_SURFACE.origin).toString()
+        : null;
 
   return (
     <PatientAppShell
@@ -98,6 +106,9 @@ export async function AppEntryRsc({
         entryClassification={entryClassification}
         routeBoundMiniappEntry={routeBoundMessengerSurface != null}
         roleLoginPortal={roleLoginPortal}
+        roleLoginSurfaceName={shellTitle}
+        alternateRoleLoginHref={alternateRoleLoginHref}
+        surfaceAuthPolicy={resolvedSurface.authPolicy}
       />
       {clientEnvironment ? (
         <PatientUnsupportedClientFallback

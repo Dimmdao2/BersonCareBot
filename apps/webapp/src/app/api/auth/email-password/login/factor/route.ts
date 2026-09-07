@@ -10,6 +10,7 @@ import {
 import { setSessionFromUser } from '@/modules/auth/service';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
+import { consumeEmailChallengeCode } from '@/modules/auth/emailAuth';
 import {
   AUTH_CONFIRM_RATE_LIMIT_SEC,
   checkAuthConfirmRateLimit,
@@ -57,6 +58,38 @@ export async function POST(request: Request) {
     'api/auth/email-password/login/factor:primary-verified',
   );
   const deps = buildAppDeps();
+  if (continuation.factorMethod === 'email') {
+    if (!continuation.emailChallengeId || !parsed.data.code || parsed.data.recoveryCode) {
+      return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+    }
+    const emailFactor = await consumeEmailChallengeCode(
+      continuation.userId,
+      continuation.emailChallengeId,
+      parsed.data.code,
+      'staff_login_factor',
+    );
+    if (!emailFactor.ok) {
+      if (emailFactor.code === 'expired_code') await clearStaffLoginContinuation();
+      return NextResponse.json(
+        { ok: false, error: emailFactor.code, retryAfterSeconds: emailFactor.retryAfterSeconds },
+        { status: emailFactor.code === 'too_many_attempts' ? 429 : 401 },
+      );
+    }
+    const user = await deps.userByPhone.findByUserId(continuation.userId);
+    if (!user)
+      return NextResponse.json({ ok: false, error: 'invalid_credentials' }, { status: 401 });
+    await setSessionFromUser(user, {
+      ...(continuation.postLoginHints ? { postLoginHints: continuation.postLoginHints } : {}),
+      staffSecurity: { assurance: 'factor_verified', verifiedAt: Math.floor(Date.now() / 1000) },
+    });
+    await clearStaffLoginContinuation();
+    return NextResponse.json({
+      ok: true,
+      redirectTo: getRedirectPathForRole(user.role),
+      recoveryMode: false,
+      role: user.role,
+    });
+  }
   const result = await deps.staffSecurity.completeLogin({
     token: continuation.token,
     code: parsed.data.code,

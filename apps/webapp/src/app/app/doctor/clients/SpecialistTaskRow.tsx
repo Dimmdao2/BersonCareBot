@@ -15,6 +15,7 @@ import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export function formatSpecialistTaskWhen(
   iso: string | null,
@@ -62,6 +63,7 @@ export function SpecialistTaskRow({
   active = false,
   mobileFlat = false,
 }: Props) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const overdue = !dueToday && isSpecialistTaskOverdue(task);
   const completed = Boolean(task.completedAt);
   const dueLabel = formatSpecialistTaskWhen(task.dueAt, displayIana, task.dueHasTime !== false);
@@ -91,7 +93,7 @@ export function SpecialistTaskRow({
                 isOnSupport={patientOnSupport}
                 className="truncate text-sm leading-5 font-medium text-foreground"
               >
-                {patientDisplayName?.trim() || 'Пациент'}
+                {patientDisplayName?.trim() || patientSingularLabel}
               </DoctorPatientName>
             ) : null}
             <span className="truncate text-base font-normal text-foreground">{task.title}</span>
@@ -158,9 +160,9 @@ export function SpecialistTaskRow({
             <Link
               href={patientCardHref(task.patientUserId)}
               className={doctorInlineLinkClass}
-              title="Открыть карточку пациента"
+              title={`Открыть карточку: ${patientSingularLabel}`}
             >
-              Пациент
+              {patientSingularLabel}
             </Link>
           </p>
         ) : null}

@@ -43,6 +43,7 @@ import {
 } from '@/modules/content-sections/types';
 import { SectionDeleteDialog } from './SectionDeleteDialog';
 import toast from 'react-hot-toast';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export type SectionListRow = {
   id: string;
@@ -101,6 +102,7 @@ function SortableSectionRow({
   onRequestDelete: (row: SectionListRow) => void;
   canManageCms: boolean;
 }) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: row.slug,
@@ -211,8 +213,8 @@ function SortableSectionRow({
             size="icon"
             className="size-9 shrink-0 rounded-full border border-border/80"
             disabled={visPending}
-            title={row.isVisible ? 'Виден пациенту' : 'Скрыт'}
-            aria-label={row.isVisible ? 'Виден пациенту' : 'Скрыт'}
+            title={row.isVisible ? `Виден ${patientSingularLabel.toLowerCase()}` : 'Скрыт'}
+            aria-label={row.isVisible ? `Виден ${patientSingularLabel.toLowerCase()}` : 'Скрыт'}
             onClick={() => onToggleVisible(row.slug, !row.isVisible)}
           >
             {row.isVisible ? (

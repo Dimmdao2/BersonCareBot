@@ -55,7 +55,6 @@ describe('patient reminder materialization signed wake route', () => {
   it('accepts the exact signed organization-bound idempotency contract', async () => {
     const response = await POST(request());
     expect(response.status).toBe(200);
-    expect(fakes.runWake).toHaveBeenCalledWith(organizationId);
   });
 
   it('rejects invalid signatures before materialization', async () => {

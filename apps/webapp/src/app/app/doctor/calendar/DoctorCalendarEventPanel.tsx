@@ -65,6 +65,7 @@ import {
   DoctorAppointmentCancelModal,
   type AppointmentCancelDraft,
 } from './DoctorAppointmentCancelModal';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const FORM_START_FORMAT = "yyyy-MM-dd'T'HH:mm";
 
@@ -316,6 +317,7 @@ function DoctorCalendarEventPanelInner({
   onCreateDirtyChange,
   flushChrome = false,
 }: Props) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   // §3.6: если startInCreate=true — сразу в режиме создания, минуя плейсхолдер
   const [mode, setMode] = useState<'view' | 'create' | 'edit'>(
     startInCreate && appointmentsManageOwn ? 'create' : 'view',
@@ -499,7 +501,7 @@ function DoctorCalendarEventPanelInner({
     const endAt = start.plus({ minutes: submission.durationMinutes }).toUTC().toISO()!;
     const patient = draft.patient;
     if (patient?.isNew === true && !patient.firstName?.trim()) {
-      setMessage('Укажите имя пациента.');
+      setMessage(`Укажите имя ${patientSingularLabel.toLowerCase()}.`);
       return;
     }
     let financials;
@@ -715,7 +717,7 @@ function DoctorCalendarEventPanelInner({
       serviceId: selected.serviceId,
       patient: {
         id: selected.platformUserId,
-        displayName: selected.patientName ?? 'Пациент',
+        displayName: selected.patientName ?? patientSingularLabel,
         phone: selected.patientPhone,
       },
       comment: primaryComment,
@@ -904,7 +906,7 @@ function DoctorCalendarEventPanelInner({
 
   const deleteCancelled = () => {
     // R22: удаление уже отменённой записи — пациенту не уведомляем (purge без side-effects).
-    if (!window.confirm('Удалить запись из календаря и кабинета пациента?')) return;
+    if (!window.confirm(`Удалить запись из календаря и кабинета ${patientSingularLabel.toLowerCase()}?`)) return;
     startTransition(async () => {
       const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/delete`, {
         method: 'POST',
@@ -925,7 +927,7 @@ function DoctorCalendarEventPanelInner({
     selected.originalStartAt &&
     isDifferentCalendarMinute(selected.originalStartAt, selected.startAt, timeZone),
   );
-  const patientName = selected.patientName ?? 'Пациент';
+  const patientName = selected.patientName ?? patientSingularLabel;
   const visitHref = selected.platformUserId
     ? patientCardHref(selected.platformUserId, {
         tab: 'karta',

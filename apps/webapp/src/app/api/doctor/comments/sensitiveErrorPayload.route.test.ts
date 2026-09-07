@@ -59,6 +59,13 @@ beforeEach(() => {
   fakes.getInstanceById.mockResolvedValue({ id: TARGET_ID, organizationId: ORGANIZATION_ID });
   fakes.buildAppDeps.mockReturnValue({
     comments: { listByTarget: fakes.listByTarget },
+    doctorClients: {
+      getClientChannelPolicy: vi.fn(async () => ({
+        directChatAllowed: true,
+        commentsAllowed: true,
+        mediaAllowed: true,
+      })),
+    },
     treatmentProgramInstance: { getInstanceById: fakes.getInstanceById },
   });
 });

@@ -3,6 +3,7 @@ import type {
   TreatmentProgramTemplateUsageSnapshot,
 } from '@/modules/treatment-program/types';
 import { vNaForm } from '@/app/app/doctor/exercises/exerciseUsageSummaryText';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 
 export function treatmentProgramTemplateUsageHasAnyReference(
   u: TreatmentProgramTemplateUsageSnapshot,
@@ -25,6 +26,7 @@ export type TreatmentProgramTemplateUsageSection = {
 
 export function treatmentProgramTemplateUsageSections(
   u: TreatmentProgramTemplateUsageSnapshot,
+  patientGenPlural = resolvePatientTerms().patientGenPlural,
 ): TreatmentProgramTemplateUsageSection[] {
   const sections: TreatmentProgramTemplateUsageSection[] = [];
   if (u.activeTreatmentProgramInstanceCount > 0) {
@@ -32,9 +34,9 @@ export function treatmentProgramTemplateUsageSections(
       key: 'active_inst',
       summary: vNaForm(
         u.activeTreatmentProgramInstanceCount,
-        'активной программе у пациентов',
-        'активных программах у пациентов',
-        'активных программах у пациентов',
+        `активной программе у ${patientGenPlural}`,
+        `активных программах у ${patientGenPlural}`,
+        `активных программах у ${patientGenPlural}`,
       ),
       refs: u.activeTreatmentProgramInstanceRefs,
       total: u.activeTreatmentProgramInstanceCount,
@@ -45,9 +47,9 @@ export function treatmentProgramTemplateUsageSections(
       key: 'completed_inst',
       summary: vNaForm(
         u.completedTreatmentProgramInstanceCount,
-        'завершённой программе у пациентов (история)',
-        'завершённых программах у пациентов (история)',
-        'завершённых программах у пациентов (история)',
+        `завершённой программе у ${patientGenPlural} (история)`,
+        `завершённых программах у ${patientGenPlural} (история)`,
+        `завершённых программах у ${patientGenPlural} (история)`,
       ),
       refs: u.completedTreatmentProgramInstanceRefs,
       total: u.completedTreatmentProgramInstanceCount,

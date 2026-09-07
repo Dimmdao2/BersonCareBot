@@ -1,8 +1,12 @@
+'use client';
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import type { BookingAdminOverviewData } from '@/app/app/doctor/admin/booking/loadBookingAdminOverview';
 import { BOOKING_CARD_GRID_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export function BookingOverviewPanel({ data }: { data: BookingAdminOverviewData }) {
+  const { patientDativePlural } = useDoctorPatientTerms();
   if (data.unavailable) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -38,7 +42,9 @@ export function BookingOverviewPanel({ data }: { data: BookingAdminOverviewData 
           <CardContent className="space-y-1 text-sm">
             <p>Активных локаций: {stats.activeLocations}</p>
             <p>Активных услуг: {stats.activeServices}</p>
-            <p>Доступно пациентам: {stats.patientVisibleServices}</p>
+            <p>
+              Доступно {patientDativePlural}: {stats.patientVisibleServices}
+            </p>
             <p>
               Расписание:{' '}
               {stats.hasUpcomingSchedule

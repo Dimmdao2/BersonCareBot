@@ -26,7 +26,6 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 
 const postBodySchema = z.object({
@@ -82,6 +81,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     return NextResponse.json({ ok: false, error: 'invalid_idempotency_key' }, { status: 400 });
   }
 
+  if (!deps.customDomainBinding) {
+    return NextResponse.json({ ok: false, reason: 'patient_public_origin_unavailable' }, { status: 503 });
+  }
+  let patientOrigin: string;
+  try {
+    patientOrigin = await deps.customDomainBinding.resolvePatientPublicOrigin(gate.ctx.organizationId);
+  } catch {
+    return NextResponse.json({ ok: false, reason: 'patient_public_origin_unavailable' }, { status: 503 });
+  }
   // Initiate the charge via the acquiring gateway. This link is handed to the patient (copied or
   // shown as a QR at the counter), so it returns to their own purchases screen, not the doctor's.
   const chargeResult = await deps.acquiringGateway.createCharge({
@@ -92,7 +100,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     currency,
     idempotencyKey,
     description,
-    returnUrl: `${env.APP_BASE_URL}${routePaths.purchases}`,
+    returnUrl: `${patientOrigin}${routePaths.purchases}`,
   });
 
   if (!chargeResult.ok) {

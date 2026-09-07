@@ -11,6 +11,7 @@ import type {
 import { CLIENT_CONTACT_PIE_SEGMENT_LABELS } from '@/modules/doctor-clients/clientContactSegments';
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const SEGMENT_COLORS: Record<ClientContactPieSegment, string> = {
   telegram_only: 'hsl(200 70% 48%)',
@@ -63,6 +64,7 @@ export function ClientContactPieChart({
   breakdown: ClientContactBreakdown;
   onSegmentClick?: (segment: ClientContactPieSegment, label: string) => void;
 }) {
+  const { patientGenPlural } = useDoctorPatientTerms();
   const slices = useMemo(
     () =>
       PIE_ORDER.map((segment) => ({
@@ -74,7 +76,9 @@ export function ClientContactPieChart({
   );
 
   if (slices.length === 0) {
-    return <p className="text-sm text-muted-foreground">Нет клиентов в сегментах диаграммы.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">Нет {patientGenPlural} в сегментах диаграммы.</p>
+    );
   }
 
   const innerRadius = Math.round(CHART_SIZE * 0.28);

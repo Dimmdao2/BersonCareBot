@@ -177,6 +177,8 @@ export const SYSTEM_SETTING_REGISTRY = {
     'boolean',
     'false',
   ),
+  /** Clinic-owner policy for a second step after a staff password login. */
+  doctor_staff_second_factor_required: runtime('doctor', 'per_org', 'server', 'boolean', 'false'),
   doctor_specialist_task_reminder_channels: runtime(
     'doctor',
     'per_org',

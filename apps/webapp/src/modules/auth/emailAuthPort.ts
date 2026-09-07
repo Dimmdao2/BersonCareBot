@@ -17,7 +17,9 @@ export type EmailChallengePurpose =
   | 'password_setup'
   | 'password_register'
   | 'email_verify'
-  | 'patient_email_change';
+  | 'patient_email_change'
+  /** Email possession factor for a clinic policy after the password has been verified. */
+  | 'staff_login_factor';
 
 export type EmailChallengeRow = {
   id: string;

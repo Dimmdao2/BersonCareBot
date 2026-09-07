@@ -29,6 +29,10 @@ type StartEmailChallenge = typeof import('@/modules/auth/emailAuth').startEmailC
 type HashPin = typeof import('@/modules/auth/pinHash').hashPin;
 type IssueStaffLoginContinuation =
   typeof import('@/modules/auth/staffLoginContinuation').issueStaffLoginContinuation;
+type ReadStaffLoginContinuation =
+  typeof import('@/modules/auth/staffLoginContinuation').readStaffLoginContinuation;
+type ClearStaffLoginContinuation =
+  typeof import('@/modules/auth/staffLoginContinuation').clearStaffLoginContinuation;
 type RequireStaffSession =
   typeof import('@/app-layer/guards/requireRole').requireStaffSecurityApiSession;
 type SetSession = typeof import('@/modules/auth/service').setSessionFromUser;
@@ -54,8 +58,13 @@ const fakes = vi.hoisted(() => ({
   startEmailChallenge: vi.fn<StartEmailChallenge>(),
   hashPassword: vi.fn<HashPin>(),
   issueStaffLoginContinuation: vi.fn<IssueStaffLoginContinuation>(),
+  readStaffLoginContinuation: vi.fn<ReadStaffLoginContinuation>(),
+  clearStaffLoginContinuation: vi.fn<ClearStaffLoginContinuation>(),
   requireStaffSession: vi.fn<RequireStaffSession>(),
   setSession: vi.fn<SetSession>(),
+  isAuthChannelEnabled: vi.fn(),
+  resolveOrganizationForUser: vi.fn(),
+  getSetting: vi.fn(),
   getStructuredSetting: vi.fn(),
   enterSelfPrincipal: vi.fn(),
 }));
@@ -71,7 +80,7 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
 vi.mock('@/app-layer/logging/logger', () => ({ logger: { error: vi.fn() } }));
 vi.mock('@/modules/auth/authChannelPolicy', () => ({
   AUTH_CHANNEL_DISABLED_ERROR: 'auth_channel_disabled',
-  isAuthChannelEnabled: vi.fn().mockResolvedValue(true),
+  isAuthChannelEnabled: fakes.isAuthChannelEnabled,
 }));
 vi.mock('@/modules/auth/authConfirmRateLimit', () => ({
   AUTH_CONFIRM_RATE_LIMIT_SEC: 600,
@@ -86,6 +95,8 @@ vi.mock('@/modules/auth/emailAuth', () => ({
 vi.mock('@/modules/auth/pinHash', () => ({ hashPin: fakes.hashPassword }));
 vi.mock('@/modules/auth/staffLoginContinuation', () => ({
   issueStaffLoginContinuation: fakes.issueStaffLoginContinuation,
+  readStaffLoginContinuation: fakes.readStaffLoginContinuation,
+  clearStaffLoginContinuation: fakes.clearStaffLoginContinuation,
 }));
 vi.mock('@/modules/auth/service', () => ({ setSessionFromUser: fakes.setSession }));
 vi.mock('@/modules/system-settings/configAdapter', () => ({
@@ -113,10 +124,15 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
       revokeSessions: fakes.revokeStaffSessions,
     },
     passwordChange: { changePassword: fakes.changePassword },
+    organizationMembership: {
+      resolveOrganizationForUser: fakes.resolveOrganizationForUser,
+    },
+    systemSettings: { getSetting: fakes.getSetting },
   }),
 }));
 
 import { POST as login } from '@/app/api/auth/email-password/login/route';
+import { POST as completeLoginFactor } from '@/app/api/auth/email-password/login/factor/route';
 import { POST as forgotPassword } from '@/app/api/auth/email-password/forgot/route';
 import { POST as resetPassword } from '@/app/api/auth/email-password/reset/route';
 import { POST as changePassword } from '@/app/api/account/security/password/change/route';
@@ -174,10 +190,19 @@ beforeEach(() => {
     ok: true,
     challengeId: '00000000-0000-4000-8000-000000000209',
   });
+  fakes.isAuthChannelEnabled.mockResolvedValue(true);
+  fakes.resolveOrganizationForUser.mockResolvedValue({
+    ok: true,
+    context: { organizationId: '00000000-0000-4000-8000-000000000301' },
+  });
+  fakes.getSetting.mockResolvedValue(null);
+  fakes.readStaffLoginContinuation.mockResolvedValue(null);
+  fakes.clearStaffLoginContinuation.mockResolvedValue(undefined);
 });
 
 describe('email/password forgot HTTP boundary', () => {
-  it('sends a patient password-reset code with the Therapygo surface', async () => {
+  it('keeps password recovery email available when passwordless email login is disabled', async () => {
+    fakes.isAuthChannelEnabled.mockResolvedValue(false);
     fakes.findPasswordUser.mockResolvedValue(userId);
     fakes.findUser.mockResolvedValue({ ...user, role: 'client' });
 
@@ -264,6 +289,11 @@ describe('email/password login HTTP boundary', () => {
       redirectTo: '/app/doctor',
     });
     expect(fakes.setSession).toHaveBeenCalledOnce();
+    expect(fakes.getSetting).toHaveBeenCalledWith(
+      'doctor_staff_second_factor_required',
+      'doctor',
+      { organizationId: '00000000-0000-4000-8000-000000000301' },
+    );
   });
 
   it('sends a global admin without an enrolled factor to the admin cabinet', async () => {
@@ -285,7 +315,7 @@ describe('email/password login HTTP boundary', () => {
     expect(fakes.setSession).toHaveBeenCalledOnce();
   });
 
-  it('requires the already-enrolled staff factor before issuing a session', async () => {
+  it('keeps a personally enrolled TOTP as the required factor', async () => {
     fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
     fakes.findUser.mockResolvedValue({ ...user, securityFactorRequired: true });
     fakes.getSecurityStatus.mockResolvedValue({
@@ -300,6 +330,94 @@ describe('email/password login HTTP boundary', () => {
       ok: true,
       factorRequired: true,
     });
+    expect(fakes.setSession).not.toHaveBeenCalled();
+    expect(fakes.startEmailChallenge).not.toHaveBeenCalled();
+    expect(fakes.issueStaffLoginContinuation).toHaveBeenCalledWith({
+      userId,
+      token: 'factor-challenge-token',
+      expiresAt: '2026-08-01T21:00:00.000Z',
+    });
+  });
+
+  it('requires and completes a verified-email factor from the resolved clinic policy', async () => {
+    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
+    fakes.findUser.mockResolvedValue(user);
+    fakes.getSecurityStatus.mockResolvedValue({
+      enrolled: false,
+      recoveryConfirmed: false,
+      replacementRequired: false,
+      lockedUntil: null,
+      sessionVersion: 1,
+    });
+    fakes.getSetting.mockResolvedValue({ valueJson: { value: true } });
+
+    const passwordResponse = await login(request());
+
+    expect(passwordResponse.status).toBe(200);
+    await expect(passwordResponse.json()).resolves.toEqual({
+      ok: true,
+      factorRequired: true,
+      factorMethod: 'email',
+    });
+    expect(fakes.startEmailChallenge).toHaveBeenCalledWith(
+      userId,
+      'person@example.test',
+      'staff_login_factor',
+      { kind: 'platform', senderDisplayName: 'Therapysto' },
+    );
+    expect(fakes.issueStaffLoginContinuation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId,
+        factorMethod: 'email',
+        emailChallengeId: '00000000-0000-4000-8000-000000000209',
+      }),
+    );
+    expect(fakes.setSession).not.toHaveBeenCalled();
+
+    fakes.readStaffLoginContinuation.mockResolvedValue({
+      purpose: 'staff_factor',
+      factorMethod: 'email',
+      userId,
+      token: 'opaque-email-factor-token',
+      emailChallengeId: '00000000-0000-4000-8000-000000000209',
+      expiresAt: Math.floor(Date.now() / 1000) + 300,
+    });
+    fakes.consumeChallenge.mockResolvedValue({ ok: true });
+
+    const factorResponse = await completeLoginFactor(
+      jsonRequest('/api/auth/email-password/login/factor', { code: '123456' }),
+    );
+
+    expect(factorResponse.status).toBe(200);
+    await expect(factorResponse.json()).resolves.toMatchObject({
+      ok: true,
+      redirectTo: '/app/doctor',
+      role: 'doctor',
+    });
+    expect(fakes.consumeChallenge).toHaveBeenCalledWith(
+      userId,
+      '00000000-0000-4000-8000-000000000209',
+      '123456',
+      'staff_login_factor',
+    );
+    expect(fakes.setSession).toHaveBeenCalledWith(
+      user,
+      expect.objectContaining({
+        staffSecurity: expect.objectContaining({ assurance: 'factor_verified' }),
+      }),
+    );
+    expect(fakes.clearStaffLoginContinuation).toHaveBeenCalledOnce();
+  });
+
+  it('never starts a clinic email factor for an unverified address', async () => {
+    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: false });
+    fakes.getSetting.mockResolvedValue({ valueJson: { value: true } });
+
+    const response = await login(request());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ error: 'email_not_verified' });
+    expect(fakes.startEmailChallenge).not.toHaveBeenCalled();
     expect(fakes.setSession).not.toHaveBeenCalled();
   });
 

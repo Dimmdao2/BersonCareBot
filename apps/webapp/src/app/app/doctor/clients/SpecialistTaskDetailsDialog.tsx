@@ -26,6 +26,7 @@ import {
 } from '@/shared/ui/doctor/doctorVisual';
 import { SpecialistTaskFormDialog } from './SpecialistTaskFormDialog';
 import { formatSpecialistTaskWhen } from './SpecialistTaskRow';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Props = {
   open: boolean;
@@ -78,6 +79,7 @@ export function SpecialistTaskDetailsContent({
   displayIana,
   error,
 }: SpecialistTaskDetailsContentProps) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const [nowMs] = useState(() => Date.now());
   const zone = displayIana ?? DEFAULT_APP_DISPLAY_TIMEZONE;
   const todayIso = DateTime.fromMillis(nowMs).setZone(zone).toISODate();
@@ -94,12 +96,12 @@ export function SpecialistTaskDetailsContent({
     <div className="flex flex-col gap-3">
       {showPatient && task.patientUserId ? (
         <div>
-          <p className={doctorSecondaryListTextClass}>Пациент</p>
+          <p className={doctorSecondaryListTextClass}>{patientSingularLabel}</p>
           <Link
             href={patientCardHref(task.patientUserId)}
             className={cn(doctorPageTitleClass, 'font-normal', doctorInlineLinkClass)}
           >
-            {patientDisplayName?.trim() || 'Пациент'}
+            {patientDisplayName?.trim() || patientSingularLabel}
           </Link>
         </div>
       ) : null}
@@ -172,6 +174,7 @@ export function SpecialistTaskDetailsDialog({
   onTaskSaved,
   onTaskDeleted,
 }: Props) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const [editOpen, setEditOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -200,7 +203,9 @@ export function SpecialistTaskDetailsDialog({
       title={
         <DoctorModalStackedTitle
           label="Задача"
-          patientName={task?.patientUserId ? patientDisplayName?.trim() || 'Пациент' : undefined}
+          patientName={
+            task?.patientUserId ? patientDisplayName?.trim() || patientSingularLabel : undefined
+          }
           patientHref={task?.patientUserId ? patientCardHref(task.patientUserId) : null}
           patientOnSupport={patientOnSupport}
         />

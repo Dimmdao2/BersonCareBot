@@ -26,6 +26,7 @@ import type {
   Visit,
 } from '@/modules/patient-clinical/ports';
 import type { PatientAppointmentItem } from '@/modules/doctor-clients/ports';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -174,6 +175,7 @@ export function EncounterPageClient({
   initialVisit,
   medicalRecordEnabled = true,
 }: Props) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const router = useRouter();
 
   // ── Clinical state (симптомы/диагнозы/история визитов) ───────────────────
@@ -485,7 +487,7 @@ export function EncounterPageClient({
       {/* Контекст пациента и записи — ENCOUNTER-PAGE-01 */}
       <section className={doctorSectionCardClass}>
         <div className="flex items-center justify-between gap-3">
-          <h2 className={doctorSectionTitleClass}>Пациент</h2>
+          <h2 className={doctorSectionTitleClass}>{patientSingularLabel}</h2>
           <span className="text-sm font-medium text-foreground">{patientFio}</span>
         </div>
         {mode === 'edit' && initialVisit ? (

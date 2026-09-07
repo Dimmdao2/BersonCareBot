@@ -2,6 +2,7 @@ import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStatus,
 } from '@/modules/treatment-program/types';
+import type { PatientTerms } from '@/modules/system-settings/patientTerms';
 import { confirmActiveProgramInstanceBatchSave } from './programInstanceMutationGuard';
 import {
   isInstanceEditorDraftDirty,
@@ -18,6 +19,7 @@ export async function flushInstanceEditorDraft(input: {
   programStatus: TreatmentProgramInstanceStatus;
   draft: InstanceEditorDraft;
   baseline: TreatmentProgramInstanceDetail;
+  terms: Pick<PatientTerms, 'patientGenitive'>;
 }): Promise<{ ok: true } | { ok: false; error: string; cancelled?: boolean }> {
   const normalized = normalizeInstanceEditorDraft(input.draft, input.baseline);
   if (!isInstanceEditorDraftDirty(normalized, input.baseline)) {
@@ -31,7 +33,7 @@ export async function flushInstanceEditorDraft(input: {
     return { ok: false, error: loadError };
   }
 
-  if (!confirmActiveProgramInstanceBatchSave(input.programStatus)) {
+  if (!confirmActiveProgramInstanceBatchSave(input.programStatus, input.terms)) {
     return { ok: false, error: 'cancelled', cancelled: true };
   }
 

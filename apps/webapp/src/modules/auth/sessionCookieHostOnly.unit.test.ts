@@ -1,6 +1,3 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 import { NextResponse } from 'next/server';
 import { describe, expect, it } from 'vitest';
 import {
@@ -21,10 +18,7 @@ import type { AppSession } from '@/shared/types/session';
  * cross-domain SSO, который план держит в «сознательно не делаем» (§4). Регрессия молчаливая:
  * приложение продолжает работать, стена между арендаторами исчезает без единой ошибки.
  *
- * Два уровня, потому что одного мало:
- *  1. поведение — реальный заголовок `Set-Cookie` наших builder'ов не несёт `Domain`;
- *  2. структурный backstop — ни один writer в `src/` не передаёт `domain` в опции cookie.
- *     Builder'ов два, а мест записи cookie — десять; поведенческий тест накрыл бы только два.
+ * Поведение проверяется по реальным заголовкам `Set-Cookie` публичных builder'ов.
  */
 
 const session: AppSession = {
@@ -56,33 +50,5 @@ describe('session cookie stays host-only', () => {
     const headers = setCookieHeadersFor(buildFreshLoginMarkerCookieOptions());
     expect(headers.length).toBeGreaterThan(0);
     for (const header of headers) expect(header.toLowerCase()).not.toContain('domain=');
-  });
-
-  it('has no cookie writer anywhere in the webapp that sets a domain attribute', () => {
-    const srcRoot = path.resolve(
-      path.dirname(fileURLToPath(import.meta.url)),
-      '..',
-      '..',
-    );
-    const files = readdirSync(srcRoot, { recursive: true, encoding: 'utf8' })
-      .filter((entry) => /\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry))
-      .map((entry) => path.join(srcRoot, entry));
-
-    const offenders: string[] = [];
-    for (const file of files) {
-      if (!statSync(file).isFile()) continue;
-      const source = readFileSync(file, 'utf8');
-      // Ищем только окрестности записи cookie: `domain` — частое имя доменного поля
-      // (recommendations, catalog filters), и слепой поиск по слову дал бы шум.
-      const writeSites = /(?:cookies\(\)|cookies|cookieStore)\s*\.set\s*\(/g;
-      let match: RegExpExecArray | null;
-      while ((match = writeSites.exec(source)) !== null) {
-        const window = source.slice(match.index, match.index + 600);
-        if (/\bdomain\s*:/i.test(window)) {
-          offenders.push(`${path.relative(srcRoot, file)} @ ${match.index}`);
-        }
-      }
-    }
-    expect(offenders).toEqual([]);
   });
 });

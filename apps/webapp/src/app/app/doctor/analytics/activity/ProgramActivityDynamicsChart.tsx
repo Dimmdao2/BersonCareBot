@@ -6,9 +6,13 @@ import { useState } from 'react';
 import { CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from 'recharts';
 
 import type { StatsPeriod } from '@/modules/diaries/stats/periodWindow';
-import { diaryChartFormatTickLabel, diaryChartShowTick } from '@/modules/diaries/stats/formatDiaryChartTick';
+import {
+  diaryChartFormatTickLabel,
+  diaryChartShowTick,
+} from '@/modules/diaries/stats/formatDiaryChartTick';
 import type { ProgramActivityDayPoint } from '@/modules/doctor-program-activity/ports';
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const STROKE_DONE = 'hsl(142 45% 42%)';
 const STROKE_PATIENTS = 'hsl(215 65% 38%)';
@@ -21,13 +25,13 @@ function chartPeriodForPointCount(n: number): StatsPeriod {
   return 'all';
 }
 
-const LINE_LABELS: Record<LineKey, string> = {
-  doneCount: 'Отметок',
-  activePatientsCount: 'Активных пациентов',
-};
-
 /** Тот же паттерн, что `AppointmentsDynamicsChart` — своя пара серий, общие recharts-примитивы. */
 export function ProgramActivityDynamicsChart({ series }: { series: ProgramActivityDayPoint[] }) {
+  const { patientGenPlural } = useDoctorPatientTerms();
+  const lineLabels: Record<LineKey, string> = {
+    doneCount: 'Отметок',
+    activePatientsCount: `Активных ${patientGenPlural}`,
+  };
   const [visible, setVisible] = useState<Record<LineKey, boolean>>({
     doneCount: true,
     activePatientsCount: true,
@@ -74,7 +78,7 @@ export function ProgramActivityDynamicsChart({ series }: { series: ProgramActivi
           <DoctorRechartsTooltip
             formatter={(value, name) => {
               const v = typeof value === 'number' ? value : Number(value);
-              const label = LINE_LABELS[name as LineKey] ?? String(name);
+              const label = lineLabels[name as LineKey] ?? String(name);
               return [`${Number.isFinite(v) ? v : '—'}`, label];
             }}
             labelFormatter={(_, payload) => {
@@ -88,7 +92,7 @@ export function ProgramActivityDynamicsChart({ series }: { series: ProgramActivi
             formatter={(value) => {
               const key = value as LineKey;
               return (
-                <span style={{ opacity: visible[key] ? 1 : 0.35 }}>{LINE_LABELS[key] ?? value}</span>
+                <span style={{ opacity: visible[key] ? 1 : 0.35 }}>{lineLabels[key] ?? value}</span>
               );
             }}
             onClick={handleLegendClick}

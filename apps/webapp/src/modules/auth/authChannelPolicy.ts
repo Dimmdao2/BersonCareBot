@@ -42,7 +42,11 @@ async function getSurfaceAwareToggle(
 export async function isAuthChannelEnabled(
   channel: AuthChannel,
   surface?: SurfaceAuthPolicyName,
+  use: 'login' | 'transactional' = 'login',
 ): Promise<boolean> {
+  if (channel === 'email' && use === 'transactional') {
+    return getPublicAuthChannelConfigured('email');
+  }
   return getSurfaceAwareToggle(channel, surface);
 }
 

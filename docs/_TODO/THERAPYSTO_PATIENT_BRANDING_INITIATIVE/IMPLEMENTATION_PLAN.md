@@ -461,6 +461,11 @@ Jane, Cliniko, Fresha считают цвета и логотип космети
 - **Значения первого запуска для докторов (владелец, 07.09.2026):** email + пароль. Добровольно подключённый
   TOTP проверяется после пароля. Клиника может отдельно включить обязательный второй фактор для всего персонала:
   подключившие TOTP используют его, остальные получают код на email. По умолчанию org-scoped требование выключено.
+- **Host ограничивает допустимый класс аккаунта при входе** (владелец, 07.09.2026): `therapysto.ru` принимает
+  только специалистов и персонал клиник, `admin.therapysto.ru` — только платформенного администратора,
+  `therapygo.ru`, tenant-поддомены и custom domains — только patient/client account. Верные credentials на чужой
+  поверхности не создают сессию; это серверный auth-gate, а не только разная форма. Host при этом не выдаёт
+  membership или доступ к данным — после входа остаются обычные role/membership/enrollment guards.
 - **Служебная email-доставка и passwordless email-login — разные механики.** Подтверждение почты при регистрации,
   восстановление пароля и подключение фактора должны работать независимо от переключателя входа одноразовым
   кодом. Текущий общий `email`-toggle смешивает эти два смысла и должен быть развязан до включения staff surface.
@@ -473,9 +478,10 @@ Jane, Cliniko, Fresha считают цвета и логотип космети
 - **Patient (стандартное приложение и branded clinic): без пароля — код на email или подтверждение контакта
   через TherapyGo-бота.** Публичная запись не требует заранее созданного кабинета, но подтверждает контакт и
   затем ведёт в тот же аккаунт.
-- **OAuth-код не удаляем, но на первом запуске patient OAuth выключен значениями в админке** (владелец,
-  07.09.2026). Яндекс/Google/VK/Apple и passkey остаются настраиваемыми возможностями общей матрицы; включённая
-  ячейка появляется на patient login без правки экрана, выключенная недоступна и в UI, и прямым route-вызовом.
+- **Patient OAuth/passkey управляются только значениями в админке; этап не меняет их за владельца** (уточнение
+  владельца 07.09.2026). Яндекс/Google/VK/Apple и passkey остаются настраиваемыми возможностями общей матрицы:
+  включённая ячейка появляется на patient login без правки экрана, выключенная недоступна и в UI, и прямым
+  route-вызовом. Миграция не должна принудительно включать или выключать существующие patient-значения.
 - **Следствие, которое и есть работа:** поверхностей теперь две с РАЗНОЙ политикой входа, а в global admin сегодня
   один переключатель входа на всю платформу. Нужна политика входа per-surface: staff и patient настраиваются
   раздельно, OAuth у staff выключен значением по умолчанию и включается настройкой без правки типа или кода
@@ -539,13 +545,16 @@ Checkbox закрывается только доказательством, у�
   > `modules/system-settings/orgCustomDomainHostname.unit.test.ts`. Открытый вопрос владельцу (работой не
   > становится): статический дубликат `'Therapygo'` в `public/sw.js:64` — сегодня недостижим, интегратор
   > отбивает пустой заголовок push как `WEB_PUSH_PAYLOAD_INVALID`. Живая проверка имени на TEST — гейт `D`.
-- [x] `TPB-10` **Переписан 21.08.2026 под §1.6.** Прежняя редакция требовала Yandex OAuth на Therapysto — это
+- [x] `TPB-10` **Переписан 07.09.2026 под §1.6.** Прежняя редакция требовала Yandex OAuth на Therapysto — это
   противоречит более позднему решению о матрице. Требование теперь: на staff surface OAuth выключен по умолчанию,
-  но включается настройкой; на patient surfaces Яндекс остаётся включённым одной глобальной регистрацией
-  (`OG-4` закрыт 22.08.2026).
+  но включается настройкой; на patient surfaces Яндекс использует одну глобальную регистрацию, а текущее значение
+  его переключателя выставляет владелец в админке и этап не меняет его за владельца.
   Отдельная consent identity на клинику НЕ делается (`W4`). Доказательство: config-selection/state/callback
   tests и operator smoke единственной зарегистрированной app identity.
-  **Закрыт 24.08.2026:** `20260824T064008_apply_surface_auth_owner_defaults.sql` оставляет включённым patient Yandex и выключает patient Google; `yandexOAuthConfig.unit.test.ts` подтверждает global config только на patient surface.
+  **Доказательство механики 24.08.2026:** `yandexOAuthConfig.unit.test.ts` подтверждает одну global config только
+  на patient surface и следование surface-переключателю. Историческое значение, записанное миграцией
+  `20260824T064008_apply_surface_auth_owner_defaults.sql`, не является новым product-default и не переписывается
+  этим этапом.
 
   Происхождение прежней редакции: owner-требование брифа №10 звучало как «OAuth доступен, без утечки чужой
   identity в consent». Формулировки «обязателен и не отключается» владелец не давал — она возникла при
@@ -621,23 +630,40 @@ Checkbox закрывается только доказательством, у�
 - [ ] `TPB-20` На `therapysto.ru` регистрация и вход специалиста — самостоятельные staff-экраны без выбора роли.
   Регистрация требует email, пароль и профиль специалиста/клиники и подтверждает email; первый вход предлагает
   только email + пароль. Телефон, SMS, мессенджеры и OAuth у staff на первом запуске выключены политикой, а не
-  удалены из общей системы. Доказательство: живой проход регистрации и входа на staff Host плюс route-проверки
-  выключенных методов.
-- [ ] `TPB-21` Обычный staff-вход не требует кода из письма после верного пароля. Если пользователь сам подключил
+  удалены из общей системы. Staff credentials на admin/patient Host и platform-admin credentials на staff Host
+  не создают сессию. Доказательство: живой проход регистрации и входа на staff Host плюс route-проверки
+  выключенных методов и cross-surface role denial.
+  **Кандидат 07.09.2026:** экран регистрации и отдельные wide/narrow staff views проверены на изолированном
+  candidate-порту; session-mint matrix запрещает staff/admin/patient credentials на чужой поверхности. Галочка
+  остаётся открытой до применения pending migration, которая выключает старые persisted email/phone/messenger
+  значения, и повторного живого входа уже на итоговом runtime.
+- [x] `TPB-21` Обычный staff-вход не требует кода из письма после верного пароля. Если пользователь сам подключил
   TOTP, существующий factor-step обязателен. Служебная email-доставка подтверждения регистрации и восстановления
   доступа работает независимо от выключенного passwordless email-code login. Доказательство: behavior-тесты трёх
   путей — password-only без TOTP, password→TOTP при подключённом факторе, signup/recovery email при выключенном
   email-code login.
+  **Закрыт 07.09.2026:** `passwordAuth.route.test.ts` проходит password-only и personal-TOTP ветки;
+  `specialist-signup/start/route.route.test.ts` доказывает служебную отправку при выключенном passwordless
+  email-code; migration `20260907T214444_disable_staff_passwordless_channel_defaults.sql` прошла owner-aware
+  rollback-preflight на именованной DEV.
 - [ ] `TPB-22` Patient login на `therapygo.ru`, `<slug>.therapygo.ru` и собственном домене клиники называется
   «Войти в личный кабинет» и не предлагает выбрать роль или называет человека пациентом/клиентом. На первом
-  запуске доступны passwordless-код на email и подтверждение телефона через TherapyGo-бота; OAuth/passkey и остальные сохранённые механики
-  появляются только когда включены в patient policy. Доказательство: живой просмотр standard/branded экранов и
-  behavior-тест доступности методов по policy.
-- [ ] `TPB-23` Владелец клиники может включить для всего персонала обязательный второй фактор после email + пароль.
+  запуске доступны passwordless-код на email и подтверждение телефона через TherapyGo-бота; OAuth/passkey и
+  остальные сохранённые механики появляются только когда владелец включил их в patient policy. Этап не меняет
+  значения этих переключателей. Patient credentials/contact proof на staff/admin Host не создают сессию.
+  Доказательство: живой просмотр standard/branded экранов и behavior-тест доступности методов по policy и
+  cross-surface role denial.
+  **Кандидат 07.09.2026:** standard patient view проверен wide/narrow; policy-toggle и cross-surface session denial
+  зелёные. Галочка остаётся открытой: текущая DEV не имеет активной публичной brand projection для `berson`, поэтому
+  production Host seam честно вернул 404 и branded live view нельзя засчитать до runtime-активации клиники.
+- [x] `TPB-23` Владелец клиники может включить для всего персонала обязательный второй фактор после email + пароль.
   Сотрудник с подключённым TOTP проходит существующий TOTP factor-step; сотруднику без TOTP отправляется код на
   подтверждённый email. Политика org-scoped, по умолчанию выключена, не управляется пациентской auth-матрицей и не
   ослабляет личный TOTP. Доказательство: owner-only настройка и behavior-тесты четырёх путей — policy off без TOTP,
   личный TOTP, policy on с TOTP, policy on без TOTP → email-code factor.
+  **Закрыт 07.09.2026:** `passwordAuth.route.test.ts` проходит все четыре factor paths;
+  `doctor/settings/route.route.test.ts` доказывает owner-only org setting и запрет non-owner; настройка использует
+  существующий password/factor flow без второго auth-движка.
 
   **`OG-5` ЗАКРЫТ владельцем 22.08.2026: вариант (б).** OAuth присутствует в списке механик и выключен по
   умолчанию у докторов — так же, как passkey. Ничего не удаляется и не блокируется архитектурно. Прежняя
@@ -984,12 +1010,17 @@ tests; проверка, что секреты не попадают в public r
   выключенную у докторов. Код и маршруты сохраняются; выключённая механика недоступна на входе, но включается
   настройкой без правки кода. PIN заново не вводить (вырезан 04.08.2026).
   **Доказательство 24.08.2026:** `auth_surface_staff_passkey_enabled=false`; `independentAuthMethodToggle.route.test.ts` and `passkey/login/verify/route.test.ts` → PASS.
-- [ ] `F2c` Реализовать обновлённое решение `TPB-21`: обычный staff-вход — email + пароль без обязательного
+- [x] `F2c` Реализовать обновлённое решение `TPB-21`: обычный staff-вход — email + пароль без обязательного
   email-кода; подключённый пользователем TOTP сохраняет обязательный factor-step. Развязать служебные письма
   регистрации/восстановления и переключатель passwordless email-code login.
-- [ ] `F2d` Реализовать `TPB-23` через существующий password-login/factor flow и org-scoped settings seam: один
+  **Закрыт 07.09.2026:** targeted password/signup behavior tests PASS; compiled staff policy оставляет
+  `password`/`totp`, а owner-aware migration preflight проверил выключение старых persisted passwordless/phone
+  значений без затрагивания служебной email-доставки.
+- [x] `F2d` Реализовать `TPB-23` через существующий password-login/factor flow и org-scoped settings seam: один
   owner-only переключатель «обязательный второй фактор для персонала», TOTP для уже подключивших его и email-code
   factor для остальных. Отдельный auth-движок или второй staff-login не создавать.
+  **Закрыт 07.09.2026:** `passwordAuth.route.test.ts` и `doctor/settings/route.route.test.ts` → PASS для
+  default-off, personal TOTP, org-required TOTP/email-factor и owner-only mutation.
 - [x] `F3` Свести patient-вход к email и телефону с подтверждением через бота на обеих patient-поверхностях,
   переиспользуя существующие pre-session seams канонических контактов; второго пути входа не создавать.
   **Доказательство 24.08.2026:** migration enables patient email + Telegram proof and disables patient passkey;
@@ -1007,9 +1038,14 @@ tests; проверка, что секреты не попадают в public r
   поверхности: `email`, `passkey`. Исторический конфликт pre-session gate
   `app.email_auth_find_email_challenge_for_confirm` устранён последующими forward-правками; разбор причины сохранён
   в `docs/_TODO/runs/PRE_SESSION_GATE_CONFLICT_2026-08-23.md`.
-- [ ] `F5` Применить обновлённое решение `TPB-22`: на первом запуске patient OAuth выключен значениями политики,
-  но код и настройка Яндекс/Google/VK/Apple не удаляются. Отдельных OAuth-регистраций на клинику не заводить
-  (`W4`); включение конкретного provider в админке возвращает его на patient login и открывает его route.
+- [x] `F5` Проверить обновлённое решение `TPB-22`: patient OAuth/passkey полностью следуют значениям политики,
+  которые выставляет владелец в админке; этот этап не перезаписывает их миграцией или compiled-default. Код и
+  настройки Яндекс/Google/VK/Apple не удаляются. Отдельных OAuth-регистраций на клинику не заводить (`W4`):
+  включение provider показывает его на patient login и открывает route, выключение скрывает кнопку и закрывает
+  прямой route-вызов.
+  **Закрыт 07.09.2026:** `independentAuthMethodToggle.route.test.ts` и `publicAuthPolicy.unit.test.ts` проверяют
+  управление существующими patient cells; новая migration меняет только staff email/SMS/Telegram/MAX и не
+  переписывает ни один patient OAuth/passkey setting.
 
 **Gate F:** targeted auth/settings tests, fault injection «staff + OAuth» отвечает отказом, lint+typecheck.
 

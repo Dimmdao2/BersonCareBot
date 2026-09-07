@@ -2,6 +2,7 @@ import type {
   RecommendationUsageRef,
   RecommendationUsageSnapshot,
 } from '@/modules/recommendations/types';
+import type { PatientTerms } from '@/modules/system-settings/patientTerms';
 import { vNaForm } from '@/app/app/doctor/exercises/exerciseUsageSummaryText';
 
 export function recommendationUsageHasAnyReference(u: RecommendationUsageSnapshot): boolean {
@@ -23,6 +24,7 @@ export type RecommendationUsageSection = {
 
 export function recommendationUsageSections(
   u: RecommendationUsageSnapshot,
+  terms: Pick<PatientTerms, 'patientGenPlural'>,
 ): RecommendationUsageSection[] {
   const sections: RecommendationUsageSection[] = [];
   if (u.publishedTreatmentProgramTemplateCount > 0) {
@@ -69,9 +71,9 @@ export function recommendationUsageSections(
       key: 'active_tp_inst',
       summary: vNaForm(
         u.activeTreatmentProgramInstanceCount,
-        'активной программе у пациентов',
-        'активных программах у пациентов',
-        'активных программах у пациентов',
+        `активной программе у ${terms.patientGenPlural}`,
+        `активных программах у ${terms.patientGenPlural}`,
+        `активных программах у ${terms.patientGenPlural}`,
       ),
       refs: u.activeTreatmentProgramInstanceRefs,
       total: u.activeTreatmentProgramInstanceCount,
@@ -82,9 +84,9 @@ export function recommendationUsageSections(
       key: 'completed_tp_inst',
       summary: vNaForm(
         u.completedTreatmentProgramInstanceCount,
-        'завершённой программе у пациентов (история)',
-        'завершённых программах у пациентов (история)',
-        'завершённых программах у пациентов (история)',
+        `завершённой программе у ${terms.patientGenPlural} (история)`,
+        `завершённых программах у ${terms.patientGenPlural} (история)`,
+        `завершённых программах у ${terms.patientGenPlural} (история)`,
       ),
       refs: u.completedTreatmentProgramInstanceRefs,
       total: u.completedTreatmentProgramInstanceCount,

@@ -86,6 +86,7 @@ import type {
 } from '@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes';
 import { TreatmentProgramLibraryPickerToolbar } from '@/app/app/doctor/treatment-program-shared/TreatmentProgramLibraryPickerToolbar';
 import { useTreatmentProgramLibraryPickerList } from '@/app/app/doctor/treatment-program-shared/useTreatmentProgramLibraryPickerList';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const ITEM_TYPE_LABEL: Record<TreatmentProgramLibraryPickType, string> = {
   exercise: 'Упражнение ЛФК',
@@ -151,7 +152,7 @@ function TemplateUsageSectionsView({
   if (sections.length === 0) {
     return (
       <p className="mt-1 text-sm text-muted-foreground">
-        Пока не используется в программах пациентов и курсах.
+        Пока не используется в программах и курсах.
       </p>
     );
   }
@@ -365,7 +366,7 @@ function TemplateStageItemCommentBlock({
   return (
     <div className="mt-2 w-full min-w-0 border-t border-border/30 pt-2">
       <Label className="text-xs text-muted-foreground" htmlFor={`tpl-item-c-${itemId}`}>
-        Комментарий для пациента (шаблон)
+        Комментарий к элементу (шаблон)
       </Label>
       <Textarea
         id={`tpl-item-c-${itemId}`}
@@ -418,6 +419,7 @@ export function TreatmentProgramConstructorClient({
   externalUsageSnapshot,
   onArchived,
 }: Props) {
+  const { patientGenPlural } = useDoctorPatientTerms();
   const router = useRouter();
   const [detail, setDetail] = useState<TreatmentProgramTemplateDetail>(initialDetail);
   const [itemDialogStageId, setItemDialogStageId] = useState<string | null>(null);
@@ -517,8 +519,8 @@ export function TreatmentProgramConstructorClient({
 
   const usageSections = useMemo(() => {
     if (!usage || !treatmentProgramTemplateUsageHasAnyReference(usage)) return [];
-    return treatmentProgramTemplateUsageSections(usage);
-  }, [usage]);
+    return treatmentProgramTemplateUsageSections(usage, patientGenPlural);
+  }, [patientGenPlural, usage]);
 
   const reload = useCallback(async () => {
     const res = await fetch(`/api/doctor/treatment-program-templates/${templateId}`);
@@ -1435,8 +1437,8 @@ export function TreatmentProgramConstructorClient({
   const archiveWarnSections = useMemo(() => {
     if (!archiveWarnUsage || !treatmentProgramTemplateUsageHasAnyReference(archiveWarnUsage))
       return [];
-    return treatmentProgramTemplateUsageSections(archiveWarnUsage);
-  }, [archiveWarnUsage]);
+    return treatmentProgramTemplateUsageSections(archiveWarnUsage, patientGenPlural);
+  }, [archiveWarnUsage, patientGenPlural]);
 
   const editLocked = busy || isArchived;
 
@@ -2475,7 +2477,7 @@ export function TreatmentProgramConstructorClient({
           <DialogHeader>
             <DialogTitle>Отправить шаблон в архив?</DialogTitle>
             <DialogDescription>
-              Есть активные программы у пациентов или опубликованные курсы, ссылающиеся на этот
+              Есть активные программы или опубликованные курсы, ссылающиеся на этот
               шаблон. В архиве шаблон нельзя назначать заново; уже запущенные программы и история
               сохраняются.
             </DialogDescription>

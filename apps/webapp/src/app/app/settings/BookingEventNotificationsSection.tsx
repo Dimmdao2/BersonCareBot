@@ -12,6 +12,7 @@ import {
 } from '@/modules/booking-notifications/settings';
 import { patchAdminSetting } from './patchAdminSetting';
 import { apiJson } from '@/shared/lib/apiJson';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const EVENT_LABELS: Record<BookingLifecycleNotificationEventKey, string> = {
   'booking.created': 'Новая запись',
@@ -25,6 +26,7 @@ export function BookingEventNotificationsSection({
 }: {
   layout?: 'cards' | 'compact';
 }) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const [settings, setSettings] = useState<BookingLifecycleNotificationsSettings>(
     defaultBookingLifecycleNotificationsSettings(),
   );
@@ -95,7 +97,7 @@ export function BookingEventNotificationsSection({
                 <tr className="border-b bg-muted/40 text-left">
                   <th className="px-3 py-2 font-medium">Событие</th>
                   <th className="px-3 py-2 font-medium">Вкл.</th>
-                  <th className="px-3 py-2 font-medium">Пациент</th>
+                  <th className="px-3 py-2 font-medium">{patientSingularLabel}</th>
                   <th className="px-3 py-2 font-medium">Персонал</th>
                 </tr>
               </thead>
@@ -155,7 +157,7 @@ export function BookingEventNotificationsSection({
                     disabled={!row.enabled}
                     onCheckedChange={(v) => updateEvent(key, { notifyPatient: v })}
                   />
-                  <Label>Пациент</Label>
+                  <Label>{patientSingularLabel}</Label>
                 </div>
                 <div className="flex items-center gap-2">
                   <Switch

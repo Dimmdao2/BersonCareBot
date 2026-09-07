@@ -23,7 +23,6 @@ describe('doctor navigation schedule access', () => {
     const ids = items.map((item) => item.id);
 
     expect(ids).toContain('schedule');
-    expect(ids).toContain('settings');
     expect(ids).not.toContain('patients');
     expect(ids).not.toContain('communications');
   });

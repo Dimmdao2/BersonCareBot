@@ -19,6 +19,7 @@ import {
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { notifyDoctorTasksChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 function toLocalInput(iso: string | null, includeTime = true): string {
   if (!iso) return '';
@@ -363,6 +364,7 @@ export function SpecialistTaskFormDialog({
   patientDisplayName,
   patientOnSupport = false,
 }: Props) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const formId = useId();
   const [resolvedPatientDisplayName, setResolvedPatientDisplayName] = useState(
     patientDisplayName?.trim() || '',
@@ -397,13 +399,13 @@ export function SpecialistTaskFormDialog({
               firstName: identity.firstName ?? null,
               patronymic: identity.patronymic ?? null,
             },
-            identity.displayName?.trim() || 'Пациент',
+            identity.displayName?.trim() || patientSingularLabel,
           ),
         );
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [editing?.patientUserId, patientDisplayName]);
+  }, [editing?.patientUserId, patientDisplayName, patientSingularLabel]);
 
   return (
     <DoctorModal
@@ -413,7 +415,9 @@ export function SpecialistTaskFormDialog({
         editing ? (
           <DoctorModalStackedTitle
             label="Изменить задачу"
-            patientName={editing.patientUserId ? resolvedPatientDisplayName || 'Пациент' : undefined}
+            patientName={
+              editing.patientUserId ? resolvedPatientDisplayName || patientSingularLabel : undefined
+            }
             patientHref={editing.patientUserId ? patientCardHref(editing.patientUserId) : null}
             patientOnSupport={patientOnSupport}
           />

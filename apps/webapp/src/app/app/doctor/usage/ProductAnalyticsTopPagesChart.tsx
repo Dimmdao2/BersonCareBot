@@ -5,6 +5,7 @@ import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSize
 import { Bar, BarChart, CartesianGrid, Legend, XAxis, YAxis } from 'recharts';
 import type { ProductAnalyticsTopPageRow } from '@/modules/product-analytics/types';
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const FILL_VIEWS = 'hsl(215 55% 52% / 0.9)';
 const FILL_UNIQUE = 'hsl(142 45% 42% / 0.9)';
@@ -14,6 +15,7 @@ function chartHeightForRows(rowCount: number): number {
 }
 
 export function ProductAnalyticsTopPagesChart({ rows }: { rows: ProductAnalyticsTopPageRow[] }) {
+  const { patientPluralLabel } = useDoctorPatientTerms();
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">Нет данных</p>;
   }
@@ -40,7 +42,12 @@ export function ProductAnalyticsTopPagesChart({ rows }: { rows: ProductAnalytics
           <DoctorRechartsTooltip />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Bar dataKey="views" name="Просмотры" fill={FILL_VIEWS} radius={[0, 4, 4, 0]} />
-          <Bar dataKey="uniqueUsers" name="Клиенты" fill={FILL_UNIQUE} radius={[0, 4, 4, 0]} />
+          <Bar
+            dataKey="uniqueUsers"
+            name={patientPluralLabel}
+            fill={FILL_UNIQUE}
+            radius={[0, 4, 4, 0]}
+          />
         </BarChart>
       </PositiveSizeResponsiveContainer>
     </div>

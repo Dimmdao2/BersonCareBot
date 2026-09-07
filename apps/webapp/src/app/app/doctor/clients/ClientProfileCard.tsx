@@ -3,6 +3,8 @@
  */
 'use client';
 
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
@@ -104,6 +106,7 @@ function ClientProfileCardInner({
   taskSummary = null,
   focusPendingProgramAttemptId,
 }: ClientProfileCardProps) {
+  const { patientPluralLabel } = useDoctorPatientTerms();
   const { identity, upcomingAppointments, appointmentHistory } = profile;
   const { activeTab, setActiveTab, applyAnchor } = useDoctorClientAnchorTab(
     autoOpenChat ? 'communications' : 'overview',
@@ -116,7 +119,7 @@ function ClientProfileCardInner({
       ? 'К списку подписчиков'
       : listBasePath.includes('scope=archived')
         ? 'К архиву'
-        : 'К списку клиентов';
+        : `К списку ${patientPluralLabel.toLowerCase()}`;
 
   const firstUpcoming = upcomingAppointments[0];
   const pendingTestsCount = pendingProgramTestEvaluations.length;

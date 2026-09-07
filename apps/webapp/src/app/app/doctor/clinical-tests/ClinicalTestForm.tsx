@@ -60,6 +60,7 @@ import {
   ClinicalTestMeasureRowsEditor,
   type ClinicalTestMeasureRowModel,
 } from './ClinicalTestMeasureRowsEditor';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export type ClinicalTestFormValues = {
   title: string;
@@ -274,6 +275,8 @@ export function ClinicalTestForm({
   unarchiveAction = unarchiveClinicalTest,
   externalUsageSnapshot,
 }: ClinicalTestFormProps) {
+  const terms = useDoctorPatientTerms();
+  const { patientSingularLabel } = terms;
   const recordKey = test?.id ?? 'create';
   const [values, setValues] = useState<ClinicalTestFormValues>(() =>
     clinicalTestToFormValues(test),
@@ -361,8 +364,8 @@ export function ClinicalTestForm({
 
   const usageSections = useMemo(() => {
     if (!usage || !clinicalTestUsageHasAnyReference(usage)) return [];
-    return clinicalTestUsageSections(usage);
-  }, [usage]);
+    return clinicalTestUsageSections(usage, terms);
+  }, [terms, usage]);
 
   const assessmentKindSelectOptions = useMemo(
     () =>
@@ -379,10 +382,10 @@ export function ClinicalTestForm({
     ) {
       const u = archiveState.usage;
       if (!clinicalTestUsageHasAnyReference(u)) return [];
-      return clinicalTestUsageSections(u);
+      return clinicalTestUsageSections(u, terms);
     }
     return [];
-  }, [archiveState]);
+  }, [archiveState, terms]);
 
   const archiveError =
     archiveState?.ok === false && 'error' in archiveState ? archiveState.error : null;
@@ -560,7 +563,7 @@ export function ClinicalTestForm({
                   </Select>
                   {values.schemaType === 'numeric' ? (
                     <p className="text-xs text-muted-foreground leading-snug">
-                      Пациент вводит одно число между min и max ниже. Примеры: боль 0–10, угол в
+                      {patientSingularLabel} вводит одно число между min и max ниже. Примеры: боль 0–10, угол в
                       градусах 0–180, процент выполнения 0–100.
                     </p>
                   ) : null}

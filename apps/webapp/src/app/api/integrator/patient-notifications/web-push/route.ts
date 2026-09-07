@@ -100,6 +100,9 @@ export async function POST(request: Request) {
       },
       systemSettings: deps.systemSettings,
       patientInboundChatPort: deps.supportCommunication,
+      resolvePatientPublicOrigin: deps.customDomainBinding
+        ? (organizationId) => deps.customDomainBinding!.resolvePatientPublicOrigin(organizationId)
+        : undefined,
     });
 
     const status = 200;

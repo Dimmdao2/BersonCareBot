@@ -121,9 +121,6 @@ async function buildWebappLinkFactsForRecipient(input: {
     }
   }
 
-  if (typeof links.bookingUrl !== 'string' && env.BOOKING_URL) {
-    links.bookingUrl = env.BOOKING_URL;
-  }
   return links;
 }
 

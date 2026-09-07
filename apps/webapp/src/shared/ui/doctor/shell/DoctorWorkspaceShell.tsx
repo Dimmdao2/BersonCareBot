@@ -25,6 +25,8 @@ type DoctorWorkspaceShellProps = {
   userDisplayName?: string;
   /** Если `"клиент"`, пункт «Пациенты» в сайдбаре отображается как «Клиенты». */
   patientLabel?: string;
+  /** Chosen display name for the existing `onSupport` group. */
+  supportGroupLabel?: string;
   /** Stable server-resolved org/member context for nested multi-specialist workspace controls. */
   workspaceContext?: DoctorWorkspaceContext;
   /** Server-resolved solo/clinic composition; client chrome never infers it from capabilities. */
@@ -70,6 +72,7 @@ export function DoctorWorkspaceShell({
   userRole,
   userDisplayName,
   patientLabel,
+  supportGroupLabel,
   workspaceContext,
   workspaceComposition,
   coursesEnabled = false,
@@ -135,44 +138,47 @@ export function DoctorWorkspaceShell({
       <StaffWebPushBootstrap />
       <StaffCalendarTimezoneBootstrap />
       <DoctorShellChromeProvider>
-        <DoctorWorkspaceViewport
-          header={{
-            userDisplayName,
-            isPlatformOperator,
-            menuAccess,
-            patientLabel,
-            hideMenuOnDesktop: showDoctorDesktopNav,
-            menuKind,
-            globalActions: (
-              <>
-                {modeSwitch}
-                {mobileHeaderActions}
-              </>
-            ),
-          }}
-          sidebar={
-            showDoctorDesktopNav ? (
-              <DoctorAdminSidebar
-                userDisplayName={userDisplayName}
-                menuAccess={menuAccess}
-                patientLabel={patientLabel}
-                homeHref={homeHref}
-                brand={brand}
-                menuKind={menuKind}
-                modeSwitch={modeSwitch}
-              />
-            ) : undefined
-          }
-          bottomNav={
-            menuKind === 'doctor' && showClinicalShortcuts
-              ? { menuAccess, patientLabel }
-              : undefined
-          }
+        <DoctorPatientTermsProvider
+          patientLabel={patientLabel}
+          supportGroupLabel={supportGroupLabel}
         >
-          <DoctorPatientTermsProvider patientLabel={patientLabel}>
+          <DoctorWorkspaceViewport
+            header={{
+              userDisplayName,
+              isPlatformOperator,
+              menuAccess,
+              patientLabel,
+              hideMenuOnDesktop: showDoctorDesktopNav,
+              menuKind,
+              globalActions: (
+                <>
+                  {modeSwitch}
+                  {mobileHeaderActions}
+                </>
+              ),
+            }}
+            sidebar={
+              showDoctorDesktopNav ? (
+                <DoctorAdminSidebar
+                  userDisplayName={userDisplayName}
+                  menuAccess={menuAccess}
+                  patientLabel={patientLabel}
+                  homeHref={homeHref}
+                  brand={brand}
+                  menuKind={menuKind}
+                  modeSwitch={modeSwitch}
+                />
+              ) : undefined
+            }
+            bottomNav={
+              menuKind === 'doctor' && showClinicalShortcuts
+                ? { menuAccess, patientLabel }
+                : undefined
+            }
+          >
             {children}
-          </DoctorPatientTermsProvider>
-        </DoctorWorkspaceViewport>
+          </DoctorWorkspaceViewport>
+        </DoctorPatientTermsProvider>
       </DoctorShellChromeProvider>
     </DoctorSupportUnreadProvider>
   );

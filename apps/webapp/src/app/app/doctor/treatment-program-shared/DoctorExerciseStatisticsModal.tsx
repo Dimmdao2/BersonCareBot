@@ -9,6 +9,7 @@ import {
 } from '@/shared/ui/doctor/DoctorExerciseActivityCalendar';
 import { ExerciseExecutionGraph } from '@/shared/ui/doctor/ExerciseExecutionGraph';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 
 type MetricsResponse = {
@@ -76,6 +77,7 @@ export function DoctorExerciseStatisticsModal({
   instanceId: string;
   itemId: string;
 }) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const now = new Date();
   const [metricsState, setMetricsState] = useState<MetricsState>({
     requestKey: '',
@@ -211,7 +213,7 @@ export function DoctorExerciseStatisticsModal({
       bodyClassName="space-y-4"
     >
       <section className="space-y-3">
-        <p className="text-center text-sm leading-5 font-medium text-foreground">Отметки клиента</p>
+        <p className="text-center text-sm leading-5 font-medium text-foreground">Отметки {patientGenitive}</p>
         <DoctorExerciseActivityCalendar
           days={calendarDays}
           year={calendarYear}

@@ -24,9 +24,13 @@ import {
   computePatientHomeBlockRuntimeStatus,
   type PatientHomeBlockRuntimeStatus,
 } from '@/modules/patient-home/patientHomeRuntimeStatus';
+import { loadDoctorWorkspaceShell } from '../loadDoctorWorkspaceShell';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 
 export default async function DoctorPatientHomeSettingsPage() {
   const workspace = await requireDoctorWorkspaceContext();
+  const shell = await loadDoctorWorkspaceShell();
+  const { patientGenitive } = resolvePatientTerms(shell.patientLabel);
   const todayEntitlement = await requireEntitlementForReadAction(workspace, 'patient_home_today');
   if (!todayEntitlement.ok) notFound();
   const session = workspace.session;
@@ -137,8 +141,8 @@ export default async function DoctorPatientHomeSettingsPage() {
   }
 
   return (
-    <DoctorAppShell title="Главная пациента">
-      <DoctorPageHeader title="Главная пациента" />
+    <DoctorAppShell title={`Главная ${patientGenitive}`}>
+      <DoctorPageHeader title={`Главная ${patientGenitive}`} />
       {canManagePatientHome ? (
         <PatientHomePracticeTargetPanel initialTarget={initialPracticeTarget} />
       ) : null}

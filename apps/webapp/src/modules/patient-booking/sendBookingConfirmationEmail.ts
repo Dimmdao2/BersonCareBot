@@ -61,6 +61,7 @@ export type BookingConfirmationEmailDeps = {
    * а видимая ошибка в логе через общий catch ниже.
    */
   outboundMessageQueue: OutboundMessageQueuePort;
+  resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
 };
 
 /**
@@ -79,7 +80,9 @@ export async function sendBookingConfirmationEmail(
   }
 
   try {
-    const appBaseUrl = env.APP_BASE_URL;
+    const appBaseUrl = deps.resolvePatientPublicOrigin
+      ? await deps.resolvePatientPublicOrigin(input.organizationId)
+      : env.APP_BASE_URL;
     const icsText = buildIcsContent(
       {
         startAt: input.slotStart,

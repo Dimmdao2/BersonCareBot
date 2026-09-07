@@ -24,6 +24,7 @@ vi.mock('../../../_requireDoctorBookingEngine', () => ({
   requireDoctorBookingEngine: fakes.requireDoctorBookingEngine,
 }));
 vi.mock('../../../_resolveDoctorAppointmentAccess', () => ({
+  canMutateOwnAppointments: () => true,
   resolveDoctorAppointmentAccess: fakes.resolveDoctorAppointmentAccess,
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({

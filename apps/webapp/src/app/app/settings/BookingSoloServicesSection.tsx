@@ -43,6 +43,7 @@ import {
   rublesToMinor,
   type SoloOverview,
 } from '@/app/app/settings/bookingSoloAdminApi';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const BASE = '/api/admin/booking-engine';
 const PREPAYMENT_API = `${BASE}/prepayment-policies`;
@@ -546,6 +547,7 @@ function ServiceModal({
   onClose,
   onSubmit,
 }: ServiceModalProps) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const prefix = mode === 'create' ? 'service-create' : 'service-edit';
   return (
     <DoctorModal
@@ -617,7 +619,7 @@ function ServiceModal({
           />
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-1">
-          <Label htmlFor={`${prefix}-description`}>Описание для пациента</Label>
+          <Label htmlFor={`${prefix}-description`}>Описание для {patientGenitive}</Label>
           <Textarea
             id={`${prefix}-description`}
             rows={4}

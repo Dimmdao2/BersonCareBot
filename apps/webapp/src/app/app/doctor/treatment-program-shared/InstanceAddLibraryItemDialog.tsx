@@ -1,5 +1,7 @@
 'use client';
 
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+
 import {
   Activity,
   BookOpen,
@@ -185,6 +187,7 @@ export function InstanceAddLibraryItemDialog(props: {
   library: TreatmentProgramLibraryPickers;
   editLocked: boolean;
 }) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const { open, onOpenChange, spec, library, editLocked } = props;
   const { addItemCreate, deleteItem, displayDetail } = useInstanceEditorDraft();
   const [itemSearch, setItemSearch] = useState('');
@@ -540,7 +543,7 @@ export function InstanceAddLibraryItemDialog(props: {
           <DialogTitle>{isPhaseZero ? 'Рекомендация' : 'Элемент из библиотеки'}</DialogTitle>
           {!isPhaseZero ? (
             <DialogDescription>
-              Выберите позицию каталога для добавления в программу пациента.
+              Выберите позицию каталога для добавления в программу {patientGenitive}.
             </DialogDescription>
           ) : null}
         </DialogHeader>

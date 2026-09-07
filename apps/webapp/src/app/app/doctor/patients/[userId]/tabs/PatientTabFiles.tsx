@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Camera, FilePlus, Image as ImageIcon } from 'lucide-react';
 import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import type { PatientFileCategory } from '@/modules/patient-files/ports';
 import type { Visit } from '@/modules/patient-clinical/ports';
 import { cn } from '@/lib/utils';
@@ -538,6 +539,7 @@ export function PatientTabFiles({
   initialFiles?: FileRecord[];
   encountersEnabled?: boolean;
 }) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const [files, setFiles] = useState<FileRecord[]>(() => initialFiles ?? []);
   const [loading, setLoading] = useState(initialFiles == null);
   const [error, setError] = useState<string | null>(null);
@@ -754,7 +756,7 @@ export function PatientTabFiles({
             <DialogDescription>
               {deleteUsageCount > 0
                 ? `Найдено использований: ${deleteUsageCount}. После удаления связанные материалы перестанут показывать этот файл.`
-                : `Файл «${filePendingDelete?.fileName ?? ''}» исчезнет из карты пациента, а удаление из хранилища будет безопасно завершено в фоне.`}
+                : `Файл «${filePendingDelete?.fileName ?? ''}» исчезнет из карты ${patientGenitive}, а удаление из хранилища будет безопасно завершено в фоне.`}
             </DialogDescription>
           </DialogHeader>
           {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}

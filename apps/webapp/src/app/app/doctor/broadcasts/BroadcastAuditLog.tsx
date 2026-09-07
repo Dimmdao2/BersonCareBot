@@ -11,6 +11,7 @@ import {
   formatCategoryLabel,
   formatChannelsSummary,
 } from './labels';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type LogProps = {
   entries: BroadcastAuditEntry[];
@@ -47,6 +48,7 @@ function pendingDeliveryCount(entry: BroadcastAuditEntry): number {
 }
 
 export function BroadcastAuditLog({ entries, selectedId = null, onSelect }: LogProps) {
+  const { patientPluralLabel } = useDoctorPatientTerms();
   if (entries.length === 0) {
     return (
       <p id="broadcast-audit-empty" className="text-sm text-muted-foreground">
@@ -86,7 +88,7 @@ export function BroadcastAuditLog({ entries, selectedId = null, onSelect }: LogP
                 {entry.messageTitle}
               </span>
               <span className="mt-0.5 block break-words text-xs text-muted-foreground">
-                {formatAudienceLabel(entry.audienceFilter)}
+                {formatAudienceLabel(entry.audienceFilter, patientPluralLabel)}
                 {' · '}
                 {formatChannelsSummary(entry.channels)}
               </span>
@@ -104,6 +106,7 @@ export function BroadcastAuditEntryDetail({
   onOpenErrors,
   onCreateFrom,
 }: DetailProps) {
+  const { patientPluralLabel } = useDoctorPatientTerms();
   const pendingCount = pendingDeliveryCount(entry);
 
   return (
@@ -138,7 +141,7 @@ export function BroadcastAuditEntryDetail({
         <div className="min-w-0 rounded-[var(--doctor-kpi-radius,8px)] border border-border bg-muted/15 p-3">
           <dt className="text-xs text-muted-foreground">Кому</dt>
           <dd className="mt-1 break-words font-medium">
-            {formatAudienceLabel(entry.audienceFilter)} · {entry.audienceSize}
+            {formatAudienceLabel(entry.audienceFilter, patientPluralLabel)} · {entry.audienceSize}
           </dd>
         </div>
         <div className="min-w-0 rounded-[var(--doctor-kpi-radius,8px)] border border-border bg-muted/15 p-3">

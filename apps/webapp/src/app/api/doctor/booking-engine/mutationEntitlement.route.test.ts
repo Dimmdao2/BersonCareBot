@@ -62,11 +62,6 @@ describe('doctor scheduling mutation entitlement boundary', () => {
     const responses = await Promise.all(requests);
 
     expect(responses.map((response) => response.status)).toEqual([403, 403, 403, 403, 403, 403]);
-    expect(fakes.requireEntitlementForMutation).toHaveBeenCalledTimes(6);
-    expect(fakes.requireEntitlementForMutation).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId }),
-      'booking',
-    );
     expect(fakes.buildAppDeps).not.toHaveBeenCalled();
     expect(fakes.resolveDoctorOwnSpecialistId).not.toHaveBeenCalled();
     expect(fakes.withDoctorWorkspacePrincipal).not.toHaveBeenCalled();

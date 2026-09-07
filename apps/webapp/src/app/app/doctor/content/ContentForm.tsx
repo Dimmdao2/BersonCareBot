@@ -33,6 +33,7 @@ import { ruRatingCountLabel } from '@/shared/lib/ruRatingCountLabel';
 import { MediaLibraryPickerDialog } from './MediaLibraryPickerDialog';
 import { ContentPreview } from './ContentPreview';
 import { saveContentPage, type SaveContentPageState } from './actions';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type ContentPage = {
   id: string;
@@ -90,6 +91,7 @@ export function ContentForm({
   onBack?: () => void;
   compact?: boolean;
 }) {
+  const { patientGenPlural, patientGenitive, patientPluralLabel } = useDoctorPatientTerms();
   const [state, formAction, pending] = useActionState(
     saveContentPage,
     null as SaveContentPageState | null,
@@ -357,8 +359,8 @@ export function ContentForm({
           {page && materialRatingSummary ? (
             <p className="text-xs text-muted-foreground tabular-nums">
               {materialRatingSummary.count === 0
-                ? 'Пациенты ещё не оценили материал.'
-                : `Оценки пациентов: средняя ${materialRatingSummary.avg != null ? materialRatingSummary.avg.toFixed(1) : '—'}, ${materialRatingSummary.count} ${ruRatingCountLabel(materialRatingSummary.count)}.`}
+                ? `${patientPluralLabel} ещё не оценили материал.`
+                : `Оценки ${patientGenPlural}: средняя ${materialRatingSummary.avg != null ? materialRatingSummary.avg.toFixed(1) : '—'}, ${materialRatingSummary.count} ${ruRatingCountLabel(materialRatingSummary.count)}.`}
             </p>
           ) : null}
 
@@ -606,14 +608,14 @@ export function ContentForm({
                   >
                     <p className="font-medium">Страница сохранена</p>
                     <p className="mt-1 text-muted-foreground">
-                      Вернитесь на экран главной пациента и добавьте материал в блок «
+                      Вернитесь на экран главной {patientGenitive} и добавьте материал в блок «
                       {patientHomeContext.patientHomeBlock}».
                     </p>
                     <Link
                       href={patientHomeContext.returnTo}
                       className="mt-2 inline-flex text-primary underline"
                     >
-                      Открыть экран «Главная пациента»
+                      Открыть экран «Главная {patientGenitive}»
                     </Link>
                   </div>
                 ) : (
