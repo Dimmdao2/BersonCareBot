@@ -16,7 +16,7 @@ export CADDY_DATA_DIR="$work_dir/data"
 export CADDY_PLATFORM_DOMAINS='therapysto.ru www.therapysto.ru admin.therapysto.ru www.therapygo.ru'
 export CADDY_REGRU_USERNAME=placeholder-reg-ru-user
 export CADDY_REGRU_PASSWORD=placeholder-reg-ru-password
-export CADDY_ASK_URL=https://app.bersoncare.ru/api/public/domains/ask
+export CADDY_ASK_URL=https://therapygo.ru/api/public/domains/ask
 export CADDY_UPSTREAM=127.0.0.1:8080
 
 "$script_dir/build-caddy-edge.sh" --output "$work_dir/caddy"

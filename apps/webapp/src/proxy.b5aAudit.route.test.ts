@@ -14,6 +14,15 @@ import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TenantSurfaceLookup } from '@/shared/lib/surface/requestSurface';
 
+const tenantLookupRuntime = vi.hoisted(() => ({
+  current: undefined as TenantSurfaceLookup | undefined,
+}));
+
+vi.mock('@/app-layer/surface/productionTenantSurfaceLookup', () => ({
+  productionTenantSurfaceLookup: (hostname: string) =>
+    (tenantLookupRuntime.current ?? (async () => ({ status: 'unknown' as const })))(hostname),
+}));
+
 const STAFF_ORIGIN = 'https://kabinet.b5a-audit.test';
 const PATIENT_ORIGIN = 'https://priem.b5a-audit.test';
 const CLINIC_KEEPS_CARD = 'ozero-clinic';
@@ -31,7 +40,13 @@ async function loadRuntime() {
     import('@/shared/publicBook/paths'),
   ]);
   return {
-    proxy: proxyModule.proxy,
+    proxy: (request: NextRequest, tenantLookup?: TenantSurfaceLookup) => {
+      tenantLookupRuntime.current = tenantLookup;
+      return proxyModule.proxy(request, {
+        waitUntil: vi.fn(),
+        passThroughOnException: vi.fn(),
+      });
+    },
     readResolvedSurface: requestSurface.readResolvedSurface,
     serializeResolvedSurface: requestSurface.serializeResolvedSurface,
     RESOLVED_SURFACE_HEADER: requestSurface.RESOLVED_SURFACE_HEADER,

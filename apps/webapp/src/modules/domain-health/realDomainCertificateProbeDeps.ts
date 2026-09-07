@@ -5,7 +5,11 @@
  */
 import { promises as dns } from 'node:dns';
 import { connect as tlsConnect } from 'node:tls';
-import type { DomainCertificateProbeDeps } from '@/modules/domain-health/domainCertificateProbe';
+import {
+  CUSTOM_DOMAIN_ROUTING_PROBE_ID,
+  CUSTOM_DOMAIN_ROUTING_PROBE_PATH,
+  type DomainCertificateProbeDeps,
+} from '@/modules/domain-health/domainCertificateProbe';
 
 const DNS_TIMEOUT_MS = 8_000;
 const TLS_TIMEOUT_MS = 8_000;
@@ -39,6 +43,10 @@ export async function resolveHostnameIps(hostname: string): Promise<string[]> {
   return ips;
 }
 
+export async function resolveHostnameCnames(hostname: string): Promise<string[]> {
+  return withTimeout(dns.resolveCname(hostname), DNS_TIMEOUT_MS, 'dns_cname');
+}
+
 /** Normal validated handshake (`rejectUnauthorized: true`) — an untrusted/self-signed cert fails here. */
 export function connectTlsAndReadCertificate(hostname: string): Promise<{ notAfter: Date }> {
   return new Promise<{ notAfter: Date }>((resolve, reject) => {
@@ -64,8 +72,32 @@ export function connectTlsAndReadCertificate(hostname: string): Promise<{ notAft
   });
 }
 
+export async function probeExactWebappRoute(hostname: string): Promise<void> {
+  const response = await withTimeout(
+    fetch(`https://${hostname}${CUSTOM_DOMAIN_ROUTING_PROBE_PATH}`, {
+      redirect: 'manual',
+      headers: { accept: 'application/json' },
+    }),
+    TLS_TIMEOUT_MS,
+    'routing_probe',
+  );
+  if (response.status !== 200) throw new Error(`unexpected_status_${response.status}`);
+  const body = (await response.json()) as unknown;
+  if (
+    body === null ||
+    typeof body !== 'object' ||
+    Array.isArray(body) ||
+    (body as Record<string, unknown>).probe !== CUSTOM_DOMAIN_ROUTING_PROBE_ID ||
+    (body as Record<string, unknown>).host !== hostname
+  ) {
+    throw new Error('unexpected_probe_response');
+  }
+}
+
 export const realDomainCertificateProbeDeps: DomainCertificateProbeDeps = {
   resolveDns: resolveHostnameIps,
+  resolveCname: resolveHostnameCnames,
   connectTls: connectTlsAndReadCertificate,
+  probeRouting: probeExactWebappRoute,
   now: () => new Date(),
 };

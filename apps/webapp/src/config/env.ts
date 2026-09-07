@@ -41,6 +41,12 @@ const envSchema = z.object({
    * the patient app shares the staff origin; an explicit value enables separate Hosts.
    */
   PATIENT_APP_ORIGIN: z.string().url().optional(),
+  /** Stable edge facts used by custom-domain verification; empty keeps one-host TEST fail-closed. */
+  CUSTOM_DOMAIN_EDGE_IP: z
+    .string()
+    .regex(/^(?:\d{1,3}\.){3}\d{1,3}$/u)
+    .optional(),
+  CUSTOM_DOMAIN_CNAME_TARGET: z.string().min(1).optional(),
   /** In test env use "" unless USE_REAL_DATABASE=1 (then use .env / dev DB for e2e). */
   DATABASE_URL: z
     .string()
@@ -278,6 +284,8 @@ const parsed = parseWebappEnv({
   APP_BASE_URL: process.env.APP_BASE_URL,
   PATIENT_APP_NAME: process.env.PATIENT_APP_NAME,
   PATIENT_APP_ORIGIN: process.env.PATIENT_APP_ORIGIN,
+  CUSTOM_DOMAIN_EDGE_IP: process.env.CUSTOM_DOMAIN_EDGE_IP,
+  CUSTOM_DOMAIN_CNAME_TARGET: process.env.CUSTOM_DOMAIN_CNAME_TARGET,
   DATABASE_URL: process.env.DATABASE_URL,
   DB_PRINCIPAL_CONTEXT_MODE: process.env.DB_PRINCIPAL_CONTEXT_MODE,
   DB_PRINCIPAL_SIGNING_SECRET: process.env.DB_PRINCIPAL_SIGNING_SECRET,

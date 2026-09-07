@@ -12,6 +12,15 @@ import { encodeSessionCookie } from '@/modules/auth/sessionCookie';
 import type { AppSession, UserRole } from '@/shared/types/session';
 import type { TenantSurfaceLookup } from '@/shared/lib/surface/requestSurface';
 
+const tenantLookupRuntime = vi.hoisted(() => ({
+  current: undefined as TenantSurfaceLookup | undefined,
+}));
+
+vi.mock('@/app-layer/surface/productionTenantSurfaceLookup', () => ({
+  productionTenantSurfaceLookup: (hostname: string) =>
+    (tenantLookupRuntime.current ?? (async () => ({ status: 'unknown' as const })))(hostname),
+}));
+
 const STAFF_ORIGIN = 'https://stf.audit.test';
 const PATIENT_ORIGIN = 'https://pat.audit.test';
 const CLINIC_ONE = 'zarya-med';
@@ -29,7 +38,13 @@ async function loadRuntime() {
     import('@/shared/publicBook/paths'),
   ]);
   return {
-    proxy: proxyModule.proxy,
+    proxy: (request: NextRequest, tenantLookup?: TenantSurfaceLookup) => {
+      tenantLookupRuntime.current = tenantLookup;
+      return proxyModule.proxy(request, {
+        waitUntil: vi.fn(),
+        passThroughOnException: vi.fn(),
+      });
+    },
     readResolvedSurface: requestSurface.readResolvedSurface,
     publicClinicCardPath: paths.publicClinicCardPath,
     publicBookPaths: paths.publicBookPaths,
