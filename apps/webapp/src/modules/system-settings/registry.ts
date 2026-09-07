@@ -151,6 +151,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   /** Platform-wide product switch, deliberately not a per-tariff mechanic. */
   material_ratings_enabled: runtime('admin', 'global', 'server', 'boolean', 'true'),
   patient_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'Пациенты'),
+  support_group_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'on_support'),
   sms_fallback_enabled: restricted(
     'doctor',
     'per_org',
@@ -201,6 +202,13 @@ export const SYSTEM_SETTING_REGISTRY = {
     'server',
     'structured',
     '{"version":1,"modules":{"medical_record":true,"encounters":true,"rehabilitation":true,"direct_chat":true,"program_comments":true,"program_media":true,"mailings":true,"analytics":true,"client_portal":true}}',
+  ),
+  doctor_workspace_client_defaults: runtime(
+    'doctor',
+    'per_org',
+    'server',
+    'structured',
+    '{"version":1,"channelDefaults":{"direct_chat":"all","program_comments":"on_support","program_media":"on_support"},"patientSymptomTrackingDefault":"all"}',
   ),
   doctor_appointment_reminder_enabled: runtime('doctor', 'per_org', 'server', 'boolean', 'false'),
   doctor_appointment_reminder_offsets_minutes: runtime(

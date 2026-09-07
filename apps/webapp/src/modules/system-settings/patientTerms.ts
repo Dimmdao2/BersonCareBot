@@ -16,6 +16,32 @@ export type PatientTerms = {
   patientSingularLabel: string;
 };
 
+export const PATIENT_LABEL_VALUES = ['пациент', 'клиент'] as const;
+export type PatientLabelValue = (typeof PATIENT_LABEL_VALUES)[number];
+
+export const SUPPORT_GROUP_LABEL_KEY = 'support_group_label' as const;
+export const SUPPORT_GROUP_LABEL_VALUES = ['favorites', 'on_support'] as const;
+export type SupportGroupLabelValue = (typeof SUPPORT_GROUP_LABEL_VALUES)[number];
+
+export function normalizePatientLabel(value: unknown): PatientLabelValue | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return (PATIENT_LABEL_VALUES as readonly string[]).includes(normalized)
+    ? (normalized as PatientLabelValue)
+    : null;
+}
+
+export function normalizeSupportGroupLabel(value: unknown): SupportGroupLabelValue | null {
+  return typeof value === 'string' &&
+    (SUPPORT_GROUP_LABEL_VALUES as readonly string[]).includes(value)
+    ? (value as SupportGroupLabelValue)
+    : null;
+}
+
+export function resolveSupportGroupLabel(value: unknown): 'Избранные' | 'На сопровождении' {
+  return normalizeSupportGroupLabel(value) === 'favorites' ? 'Избранные' : 'На сопровождении';
+}
+
 /**
  * Резолвит {именительный мн.ч., родительный мн.ч., именительный ед.ч.} из значения настройки `patient_label`.
  *

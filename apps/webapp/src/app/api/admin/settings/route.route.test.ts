@@ -8,6 +8,7 @@ const fakes = vi.hoisted(() => ({
   listSettingsByScope: vi.fn(),
   getSetting: vi.fn(),
   updateSetting: vi.fn(),
+  persistSettingsBatch: vi.fn(),
   persistAdminModesBatch: vi.fn(),
   getClinicPlatformIntegrationAvailability: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
       listSettingsByScope: fakes.listSettingsByScope,
       getSetting: fakes.getSetting,
       updateSetting: fakes.updateSetting,
+      persistSettingsBatch: fakes.persistSettingsBatch,
       persistAdminModesBatch: fakes.persistAdminModesBatch,
       getClinicPlatformIntegrationAvailability: fakes.getClinicPlatformIntegrationAvailability,
     },
@@ -378,6 +380,93 @@ describe('clinic-owner atomic settings readback', () => {
     );
   });
 
+  it('commits the canonical four-key workspace form once under the trusted organization', async () => {
+    const composition = {
+      version: 1,
+      modules: {
+        medical_record: true,
+        encounters: true,
+        rehabilitation: false,
+        direct_chat: true,
+        program_comments: true,
+        program_media: true,
+        mailings: false,
+        analytics: true,
+        client_portal: true,
+      },
+    };
+    const defaults = {
+      version: 1,
+      channelDefaults: {
+        direct_chat: 'all',
+        program_comments: 'on_support',
+        program_media: 'off',
+      },
+      patientSymptomTrackingDefault: 'on_support',
+    };
+    const items = [
+      { key: 'doctor_workspace_composition', value: { value: composition } },
+      { key: 'doctor_workspace_client_defaults', value: { value: defaults } },
+      { key: 'patient_label', value: { value: 'клиент' } },
+      { key: 'support_group_label', value: { value: 'favorites' } },
+    ];
+    const saved = items.map((item) => ({
+      key: item.key,
+      scope: 'doctor',
+      organizationId: CLINIC_ORGANIZATION_ID,
+      valueJson: item.value,
+      updatedAt: '2026-09-07T00:00:00.000Z',
+      updatedBy: clinicSession.user.userId,
+    }));
+    fakes.persistSettingsBatch.mockResolvedValue(saved);
+
+    const response = await patch({ items });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, settings: saved });
+    expect(fakes.persistSettingsBatch).toHaveBeenCalledOnce();
+    expect(fakes.persistSettingsBatch).toHaveBeenCalledWith(
+      items.map((item) => ({ key: item.key, scope: 'doctor', value: item.value })),
+      clinicSession.user.userId,
+      { organizationId: CLINIC_ORGANIZATION_ID },
+    );
+  });
+
+  it('rejects a malformed workspace value before the atomic writer is reached', async () => {
+    const response = await patch({
+      items: [
+        {
+          key: 'doctor_workspace_composition',
+          value: { value: { version: 1, modules: { analytics: 'yes' } } },
+        },
+        {
+          key: 'doctor_workspace_client_defaults',
+          value: {
+            value: {
+              version: 1,
+              channelDefaults: {
+                direct_chat: 'all',
+                program_comments: 'all',
+                program_media: 'all',
+              },
+              patientSymptomTrackingDefault: 'all',
+            },
+          },
+        },
+        { key: 'patient_label', value: { value: 'клиент' } },
+        { key: 'support_group_label', value: { value: 'favorites' } },
+      ],
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'invalid_value',
+      key: 'doctor_workspace_composition',
+    });
+    expect(fakes.persistSettingsBatch).not.toHaveBeenCalled();
+  });
+
   it('resets a saved clinic channel to pending until a new live probe succeeds', async () => {
     const response = await patch({
       key: 'clinic_telegram_bot_token',
@@ -392,5 +481,41 @@ describe('clinic-owner atomic settings readback', () => {
       clinicSession.user.userId,
       { organizationId: CLINIC_ORGANIZATION_ID },
     );
+  });
+});
+
+describe('platform workspace settings refusal', () => {
+  it('requires clinic organization context for the canonical workspace batch', async () => {
+    const response = await patch({
+      items: [
+        {
+          key: 'doctor_workspace_composition',
+          value: { value: { version: 1, modules: {} } },
+        },
+        {
+          key: 'doctor_workspace_client_defaults',
+          value: {
+            value: {
+              version: 1,
+              channelDefaults: {
+                direct_chat: 'all',
+                program_comments: 'all',
+                program_media: 'all',
+              },
+              patientSymptomTrackingDefault: 'all',
+            },
+          },
+        },
+        { key: 'patient_label', value: { value: 'пациент' } },
+        { key: 'support_group_label', value: { value: 'on_support' } },
+      ],
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'organization_context_required',
+    });
+    expect(fakes.persistSettingsBatch).not.toHaveBeenCalled();
   });
 });
