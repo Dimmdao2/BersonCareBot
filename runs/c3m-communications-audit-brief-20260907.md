@@ -8,7 +8,8 @@ Candidate: `5283a3ff3` on `wt/c3m-communications-slice-20260907`. Exact audit sc
 `apps/webapp/**,apps/integrator/**,deploy/postgres/**`; the integrator delivery worker and signed webapp
 workspace-status seam are part of the required C3M-09 path, not an out-of-scope expansion.
 
-Taskdb workstream: `#1098`.
+Taskdb workstream: `#1098`. Binding authority/checklist:
+`docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md`, C3M owner decisions and C3M-09.
 
 Источник оракула: roadmap C3M-09 — filter Communications tabs/default; enforce chat ensure/read/write, unread,
 snapshots, payment-link-to-chat, comments/media and mailing read/write; stop corresponding jobs/notifications, not
