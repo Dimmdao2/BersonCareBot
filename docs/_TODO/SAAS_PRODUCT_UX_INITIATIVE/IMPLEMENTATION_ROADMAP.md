@@ -777,8 +777,11 @@ public booking этой organization продолжает работать.
       онбординге (C3M.5). Инварианты при любом ответе: обязательный security first-run не ослабляется и не
       разветвляется, повтор/reload идемпотентен, пресет применяется максимум один раз на подтверждение, пишет
       обычные switches и не меняет доступность функций.
-- [ ] **C3M-06 — specialist shell and routes.** Проецировать resolver в sidebar/mobile nav, direct pages, card tab
+- [x] **C3M-06 — specialist shell and routes.** Проецировать resolver в sidebar/mobile nav, direct pages, card tab
       registry, header CTA, lazy bootstrap/fetches и cross-links; OFF не оставляет скрытый poller, badge или preload.
+      Доказательство: product `557f2caa4`, независимый audit/oracles `bd2ee567c`; `28/28` projection tests и после
+      correction `3/3` patient-card hidden-module bootstrap tests, webapp typecheck, scoped ESLint, architecture
+      checks, `git diff --check` и isolated DEV desktop/mobile PASS.
 - [ ] **C3M-07a — medical record slice.** Независимо скрыть/запретить продольную медкарту при OFF, сохранив clients,
       Overview notes, tasks, appointments, encounters, files/account и исторические данные для re-enable.
 - [ ] **C3M-07b — encounters slice.** Независимо скрыть/запретить старт/историю приёмов и visit-bound осмотр,

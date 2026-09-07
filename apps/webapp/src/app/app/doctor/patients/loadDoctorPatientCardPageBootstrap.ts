@@ -376,9 +376,51 @@ export async function loadDoctorPatientCardTabBootstrap(
 
   if (activeTab === 'overview') {
     const programInstancesPromise = loadProgramInstances();
+    const medicalRecordEnabled = workspaceModules?.medical_record !== false;
+    const encountersEnabled = workspaceModules?.encounters !== false;
+    const [clinicalStateResults, visitsResults, remainingResults] = await Promise.all([
+      medicalRecordEnabled ? Promise.allSettled([loadClinicalState()]) : Promise.resolve(null),
+      encountersEnabled ? Promise.allSettled([loadVisits()]) : Promise.resolve(null),
+      Promise.allSettled([
+        deps.doctorNotes.listForUser(patientUserId),
+        specialistTasksReadable
+          ? deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false)
+          : Promise.resolve([]),
+        workspaceModules?.program_comments === false
+          ? Promise.resolve({ unreadCount: 0, unreadByStageItemId: {}, lastMark: null })
+          : loadDoctorPatientProgramActivity(
+              { programItemDiscussion: deps.programItemDiscussion },
+              {
+                patientUserId,
+                viewerUserId: session.user.userId,
+                organizationId: workspace.organizationId,
+              },
+            ),
+        deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
+        programInstancesPromise,
+        loadProgramInstanceDetail(programInstancesPromise),
+        membershipAccess.specialistNavigation && deps.memberships
+          ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId)
+          : Promise.resolve(null),
+        workspaceModules?.rehabilitation === false
+          ? Promise.resolve({
+              iana: 'UTC',
+              ...currentPatientExerciseCalendarMonthRangeInIana('UTC'),
+              days: [],
+            })
+          : (async () => {
+              const patientIana =
+                (await deps.patientCalendarTimezone.getIanaForUser(patientUserId)) ?? 'UTC';
+              return loadDoctorPatientExerciseCalendar(
+                deps,
+                workspace,
+                patientUserId,
+                currentPatientExerciseCalendarMonthRangeInIana(patientIana),
+              );
+            })(),
+      ]),
+    ]);
     const [
-      clinicalStateResult,
-      visitsResult,
       notesResult,
       tasksResult,
       programActivityResult,
@@ -387,54 +429,17 @@ export async function loadDoctorPatientCardTabBootstrap(
       programInstanceDetailResult,
       packagesResult,
       exerciseCalendarResult,
-    ] = await Promise.allSettled([
-      loadClinicalState(),
-      loadVisits(),
-      deps.doctorNotes.listForUser(patientUserId),
-      specialistTasksReadable
-        ? deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false)
-        : Promise.resolve([]),
-      workspaceModules?.program_comments === false
-        ? Promise.resolve({ unreadCount: 0, unreadByStageItemId: {}, lastMark: null })
-        : loadDoctorPatientProgramActivity(
-            { programItemDiscussion: deps.programItemDiscussion },
-            {
-              patientUserId,
-              viewerUserId: session.user.userId,
-              organizationId: workspace.organizationId,
-            },
-          ),
-      deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
-      programInstancesPromise,
-      loadProgramInstanceDetail(programInstancesPromise),
-      membershipAccess.specialistNavigation && deps.memberships
-        ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId)
-        : Promise.resolve(null),
-      workspaceModules?.rehabilitation === false
-        ? Promise.resolve({
-            iana: 'UTC',
-            ...currentPatientExerciseCalendarMonthRangeInIana('UTC'),
-            days: [],
-          })
-        : (async () => {
-            const patientIana =
-              (await deps.patientCalendarTimezone.getIanaForUser(patientUserId)) ?? 'UTC';
-            return loadDoctorPatientExerciseCalendar(
-              deps,
-              workspace,
-              patientUserId,
-              currentPatientExerciseCalendarMonthRangeInIana(patientIana),
-            );
-          })(),
-    ]);
+    ] = remainingResults;
 
     const packagesValue =
       packagesResult.status === 'fulfilled' ? shapePackages(packagesResult.value) : null;
 
     return {
       ...NULL_TAB_BOOTSTRAP,
-      initialClinicalState: envelopeFromSettled(clinicalStateResult),
-      initialVisits: envelopeFromSettled(visitsResult),
+      initialClinicalState: clinicalStateResults
+        ? envelopeFromSettled(clinicalStateResults[0]!)
+        : null,
+      initialVisits: visitsResults ? envelopeFromSettled(visitsResults[0]!) : null,
       initialNotes: envelopeFromSettled(notesResult),
       initialTasks: envelopeFromSettled(tasksResult),
       initialProgramActivity: envelopeFromSettled(programActivityResult),
@@ -451,24 +456,35 @@ export async function loadDoctorPatientCardTabBootstrap(
   }
 
   if (activeTab === 'karta') {
-    const [clinicalStateResult, visitsResult, anamnesisResult, comorbiditiesResult] =
-      await Promise.allSettled([
-        loadClinicalState(),
-        loadVisits(),
-        withDoctorWorkspacePrincipal(workspace, () =>
-          deps.patientClinical.getAnamnesis(patientUserId),
-        ),
-        withDoctorWorkspacePrincipal(workspace, () =>
-          deps.patientComorbidities.listActive(patientUserId),
-        ),
-      ]);
+    const [medicalRecordResults, encounterResults] = await Promise.all([
+      workspaceModules?.medical_record === false
+        ? Promise.resolve(null)
+        : Promise.allSettled([
+            loadClinicalState(),
+            withDoctorWorkspacePrincipal(workspace, () =>
+              deps.patientClinical.getAnamnesis(patientUserId),
+            ),
+            withDoctorWorkspacePrincipal(workspace, () =>
+              deps.patientComorbidities.listActive(patientUserId),
+            ),
+          ]),
+      workspaceModules?.encounters === false
+        ? Promise.resolve(null)
+        : Promise.allSettled([loadVisits()]),
+    ]);
 
     return {
       ...NULL_TAB_BOOTSTRAP,
-      initialClinicalState: envelopeFromSettled(clinicalStateResult),
-      initialVisits: envelopeFromSettled(visitsResult),
-      initialAnamnesis: envelopeFromSettled(anamnesisResult),
-      initialComorbidities: envelopeFromSettled(comorbiditiesResult),
+      initialClinicalState: medicalRecordResults
+        ? envelopeFromSettled(medicalRecordResults[0]!)
+        : null,
+      initialVisits: encounterResults ? envelopeFromSettled(encounterResults[0]!) : null,
+      initialAnamnesis: medicalRecordResults
+        ? envelopeFromSettled(medicalRecordResults[1]!)
+        : null,
+      initialComorbidities: medicalRecordResults
+        ? envelopeFromSettled(medicalRecordResults[2]!)
+        : null,
     };
   }
 
