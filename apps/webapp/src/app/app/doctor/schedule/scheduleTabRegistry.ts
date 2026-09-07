@@ -29,6 +29,10 @@ export type ScheduleTabProps = {
   setupPackagesOnly?: boolean;
   /** Server-resolved role/specialist capabilities shared by calendar/KPI/create. */
   scheduleScopeBootstrap?: DoctorScheduleScopeBootstrap;
+  /** Server-resolved own-appointment mutation capability; components never infer it from role. */
+  appointmentsManageOwn?: boolean;
+  /** Server-resolved own-availability mutation capability; components never infer it from role. */
+  availabilityManageOwn?: boolean;
   /** The single doctor_statistics mechanic controls clinic statistics and booking attribution. */
   doctorStatisticsEnabled: boolean;
   /** Monotonic request from mobile chrome to open a blank appointment form. */

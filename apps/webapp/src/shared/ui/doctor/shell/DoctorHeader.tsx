@@ -29,7 +29,7 @@ type DoctorHeaderProps = {
   /** Когда true (админ + левый сайдбар в layout), кнопка «Меню» скрыта на md+. */
   hideMenuOnDesktop?: boolean;
   /** Which item source `DoctorMenuAccordion` renders. See `DoctorMenuAccordionProps.menuKind`. */
-  menuKind?: 'doctor' | 'platform';
+  menuKind?: 'doctor' | 'platform' | 'management';
   globalActions?: ReactNode;
 };
 

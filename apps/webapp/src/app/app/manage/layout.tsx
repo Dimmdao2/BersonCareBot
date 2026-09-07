@@ -28,6 +28,7 @@ export default async function ManagementLayout({ children }: { children: ReactNo
       userDisplayName={workspace.session.user.displayName}
       workspaceContext={workspaceContext}
       enableTenantRuntime={false}
+      menuKind="management"
     >
       {children}
     </DoctorWorkspaceShell>

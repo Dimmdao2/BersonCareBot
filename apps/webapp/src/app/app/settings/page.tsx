@@ -46,6 +46,7 @@ import { SettingsForm } from './SettingsForm';
 import { SettingsTabsNav } from './SettingsTabsNav';
 import type { SettingsTabId } from './settingsTabs';
 import { TeamSection } from './TeamSection';
+import { BookingSoloSpecialistsSection } from './BookingSoloSpecialistsSection';
 import { env } from '@/config/env';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import { isPlatformIntegrationAvailable } from '@/modules/system-settings/platformIntegrationAvailability';
@@ -109,7 +110,6 @@ export default async function SettingsPage({
   }
 
   const tab = parseTab(sp.tab);
-  if (tab === 'specialist') redirect(routePaths.account);
   if (tab === 'install') redirect(`${routePaths.account}?tab=install`);
 
   const workspace = await requireOrganizationWorkspaceContext({ allowCabinetRecovery: true });
@@ -146,9 +146,23 @@ export default async function SettingsPage({
     workspace.membershipRole === 'owner' || workspace.membershipRole === 'admin' || isGlobalAdmin;
   const visibleTabs: SettingsTabId[] = [
     'organization',
+    ...(composition === 'solo' && workspace.specialistId !== null ? (['specialist'] as const) : []),
     ...(composition === 'clinic' && teamEntitlement.ok ? (['team'] as const) : []),
     ...(canAccessBilling ? (['billing'] as const) : []),
   ];
+
+  if (tab === 'specialist') {
+    if (composition !== 'solo' || workspace.specialistId === null) {
+      redirect(`${routePaths.settings}?tab=${composition === 'clinic' ? 'team' : 'organization'}`);
+    }
+    return (
+      <DoctorAppShell title="Профиль специалиста" user={workspace.session.user}>
+        <DoctorPageHeader title="Профиль специалиста" />
+        <SettingsTabsNav activeTab="specialist" visibleTabs={visibleTabs} />
+        <BookingSoloSpecialistsSection />
+      </DoctorAppShell>
+    );
+  }
 
   if (tab === null || tab === 'organization') {
     const deps = buildAppDeps();

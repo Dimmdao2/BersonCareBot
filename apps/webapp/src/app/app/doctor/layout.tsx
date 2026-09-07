@@ -22,6 +22,12 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     );
   }
 
+  // A management-only membership has no clinical workspace to render.  Its landing is the
+  // separately guarded management mode; the mode switch is only shown when both modes exist.
+  if (!workspaceAccess.canAccessClinicalWorkspace && workspaceAccess.canManageOrganization) {
+    redirect('/app/manage');
+  }
+
   if (!workspaceAccess.canAccessClinicalWorkspace && !workspaceAccess.canManageOrganization) {
     if (shell.canRenderClinicalChildren) {
       return children;

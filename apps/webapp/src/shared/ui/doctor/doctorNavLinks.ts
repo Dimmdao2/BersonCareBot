@@ -184,12 +184,6 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     href: '/app/doctor/patient-home',
     requiresPatientHomeTodayEntitlement: true,
   },
-  {
-    id: 'settings',
-    label: 'Управление клиникой',
-    href: '/app/manage',
-    accessTier: 'clinic_admin',
-  },
   // NOTE: the platform operator's own destinations (analytics + the former "system" cluster)
   // moved out to `platformNavLinks.ts` — the platform shell has its own dedicated, flat
   // navigation now (owner ruling 2026-07-26: the global admin is not a doctor and does not

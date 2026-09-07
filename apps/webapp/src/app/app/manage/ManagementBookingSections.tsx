@@ -13,11 +13,17 @@ const MANAGEMENT_BOOKING_SECTIONS = new Set([
   'packages',
 ]);
 
-export function ManagementBookingSections() {
+export function ManagementBookingSections({
+  defaultSection = 'locations',
+  basePath = '/app/manage',
+}: {
+  defaultSection?: string;
+  basePath?: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const section = searchParams.get('section');
-  if (!section || !MANAGEMENT_BOOKING_SECTIONS.has(section)) return null;
+  const section = searchParams.get('section') ?? defaultSection;
+  if (!MANAGEMENT_BOOKING_SECTIONS.has(section)) return null;
 
   return (
     <ScheduleSetupTab
@@ -27,7 +33,7 @@ export function ManagementBookingSections() {
         const next = new URLSearchParams(searchParams.toString());
         if (value === null) next.delete('section');
         else next.set('section', value);
-        router.replace(`/app/manage${next.size ? `?${next.toString()}` : ''}`);
+        router.replace(`${basePath}${next.size ? `?${next.toString()}` : ''}`);
       }}
       isActive
       packagesVisible

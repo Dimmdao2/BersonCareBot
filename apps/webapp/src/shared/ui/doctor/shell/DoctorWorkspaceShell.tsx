@@ -11,6 +11,7 @@ import { DoctorWorkspaceViewport } from '@/shared/ui/doctor/shell/DoctorWorkspac
 import { DoctorShellChromeProvider } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { DoctorPatientTermsProvider } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { DoctorSupportUnreadProvider } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
+import { DoctorWorkspaceModeSwitch } from '@/shared/ui/doctor/shell/DoctorWorkspaceModeSwitch';
 import { getDoctorShellHomeHref } from '@/shared/ui/doctor/doctorNavLinks';
 import type { UserRole } from '@/shared/types/session';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
@@ -47,7 +48,7 @@ type DoctorWorkspaceShellProps = {
    * admin is not a doctor, so its shell instances (`(global-admin)/doctor/layout.tsx`, the new
    * `app/platform/layout.tsx`) pass `"platform"` explicitly.
    */
-  menuKind?: 'doctor' | 'platform';
+  menuKind?: 'doctor' | 'platform' | 'management';
   mobileHeaderActions?: ReactNode;
   children: ReactNode;
 };
@@ -105,6 +106,12 @@ export function DoctorWorkspaceShell({
   const homeHref = getDoctorShellHomeHref(menuAccess);
   const showClinicalShortcuts = capabilities.includes('clinical.workspace');
   const clinicalRuntimeEnabled = enableTenantRuntime && showClinicalShortcuts;
+  const modeSwitch =
+    workspaceContext?.canManageOrganization &&
+    workspaceContext.specialistId !== null &&
+    workspaceContext.canAccessClinicalWorkspace ? (
+      <DoctorWorkspaceModeSwitch />
+    ) : null;
 
   return (
     <DoctorSupportUnreadProvider
@@ -131,7 +138,12 @@ export function DoctorWorkspaceShell({
             patientLabel,
             hideMenuOnDesktop: showDoctorDesktopNav,
             menuKind,
-            globalActions: mobileHeaderActions,
+            globalActions: (
+              <>
+                {modeSwitch}
+                {mobileHeaderActions}
+              </>
+            ),
           }}
           sidebar={
             showDoctorDesktopNav ? (
@@ -142,10 +154,15 @@ export function DoctorWorkspaceShell({
                 homeHref={homeHref}
                 brand={brand}
                 menuKind={menuKind}
+                modeSwitch={modeSwitch}
               />
             ) : undefined
           }
-          bottomNav={showClinicalShortcuts ? { menuAccess, patientLabel } : undefined}
+          bottomNav={
+            menuKind === 'doctor' && showClinicalShortcuts
+              ? { menuAccess, patientLabel }
+              : undefined
+          }
         >
           <DoctorPatientTermsProvider patientLabel={patientLabel}>
             {children}

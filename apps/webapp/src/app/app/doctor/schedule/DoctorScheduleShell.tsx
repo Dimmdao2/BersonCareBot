@@ -115,6 +115,8 @@ export type DoctorScheduleShellProps = {
   showPackagesTab: boolean;
   /** Server-resolved schedule permissions and active specialists. */
   scheduleScopeBootstrap: DoctorScheduleScopeBootstrap;
+  appointmentsManageOwn: boolean;
+  availabilityManageOwn: boolean;
   /** Server-resolved visibility of clinic statistics and booking attribution. */
   doctorStatisticsEnabled: boolean;
   /** SSR bootstrap for the initially visible tab only (e.g. cal feed/KPI/settings). */
@@ -144,6 +146,8 @@ export function DoctorScheduleShell({
   packagesReadOnly,
   showPackagesTab,
   scheduleScopeBootstrap,
+  appointmentsManageOwn,
+  availabilityManageOwn,
   doctorStatisticsEnabled,
   initialTabData,
 }: DoctorScheduleShellProps) {
@@ -301,6 +305,8 @@ export function DoctorScheduleShell({
               packagesReadOnly={packagesReadOnly}
               setupPackagesOnly={entry.id === 'setup'}
               scheduleScopeBootstrap={scheduleScopeBootstrap}
+              appointmentsManageOwn={appointmentsManageOwn}
+              availabilityManageOwn={availabilityManageOwn}
               doctorStatisticsEnabled={doctorStatisticsEnabled}
             />
           </div>

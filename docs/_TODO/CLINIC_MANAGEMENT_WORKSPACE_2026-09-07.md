@@ -273,33 +273,33 @@ owner-blocked этапом до выбора лицензии/зависимос
 
 ### M2. Разделение shell и навигации
 
-- [ ] Превратить `/app/manage` из redirect в отдельный management mode с собственным nav registry.
-- [ ] Переиспользовать существующий doctor viewport/sidebar/mobile shell chrome и визуальные primitives;
+- [x] Превратить `/app/manage` из redirect в отдельный management mode с собственным nav registry. Evidence: `managementNavLinks` is rendered by the reused workspace shell; root opens the catalog writer and online booking has its own route.
+- [x] Переиспользовать существующий doctor viewport/sidebar/mobile shell chrome и визуальные primitives;
   не создавать визуально эквивалентный shell с нуля.
-- [ ] Добавить capability-gated mode switch для owner/admin со specialist binding и корректные landing rules для
+- [x] Добавить capability-gated mode switch для owner/admin со specialist binding и корректные landing rules для
   management-only пользователя.
-- [ ] Ограничить `/app/doctor/**` scope `mine` для всех clinic memberships; clinic/specialist scope разрешать
+- [x] Ограничить `/app/doctor/**` scope `mine` для всех clinic memberships; clinic/specialist scope разрешать
   только management routes через параметризованный resolver `#1028`.
-- [ ] Убрать clinic-management links из specialist menu в clinic composition; solo сохраняет единый Settings.
+- [x] Убрать clinic-management links из specialist menu в clinic composition; solo сохраняет единый Settings.
 
 ### M3. Перекомпоновка Settings и существующих booking sections
 
-- [ ] Собрать solo Settings в целевую структуру §3.1 и скрыть Team.
+- [x] Собрать solo Settings в целевую структуру §3.1 и скрыть Team. Evidence: solo exposes `Профиль специалиста` beside existing clinic and billing sections; Team stays capability/composition-gated.
 - [x] В management mode подключить существующие Team, branches, services, specialists, public form, rules,
   notifications, payments, integrations, branding и billing components к их новым разделам. Evidence:
   `MANAGEMENT_NAV` + `ManagementBookingSections` reuse existing writers.
 - [x] Один компонент/один API path обслуживает одинаковую настройку в solo и clinic composition; не оставлять
   второй writer в Schedule Setup. Evidence: management renders the existing `ScheduleSetupTab`, no copied writer.
-- [ ] Разместить существующее specialist description по правилам §4.
+- [x] Разместить существующее specialist description по правилам §4. Evidence: solo uses `BookingSoloSpecialistsSection`; clinic management reaches the same entity writer through Team.
 
 ### M4. Schedule и packages
 
-- [ ] Заменить Schedule Setup на `Абонементы` для solo.
-- [ ] Для clinic specialist оставить `Записи / График работы`; mutation actions зависят от M1 capabilities.
-- [ ] Ограничить `availability.manage_own` собственным графиком/исключениями и применением готового шаблона;
+- [x] Заменить Schedule Setup на `Абонементы` для solo.
+- [x] Для clinic specialist оставить `Записи / График работы`; mutation actions зависят от M1 capabilities.
+- [x] Ограничить `availability.manage_own` собственным графиком/исключениями и применением готового шаблона;
   общий template CRUD оставить management authority.
-- [ ] Перенести clinic package-template management в management Catalog без копии package business logic.
-- [ ] Сохранить полезные старые deep links через redirect/normalization и удалить только мёртвую композицию.
+- [x] Перенести clinic package-template management в management Catalog без копии package business logic.
+- [x] Сохранить полезные старые deep links через redirect/normalization и удалить только мёртвую композицию.
 
 ### M5. Management appointments — отдельный owner-blocked этап
 
@@ -311,10 +311,10 @@ owner-blocked этапом до выбора лицензии/зависимос
 
 ### M6. Timezone и архитектурная чистота
 
-- [ ] Диагностировать и исправить regression существующего `DoctorTimezoneSelect`/его placement по §7, не
+- [x] Диагностировать и исправить regression существующего `DoctorTimezoneSelect`/его placement по §7, не
   заменяя компонент и timezone dataset.
-- [ ] Удалить/не допустить дубли timezone options, labels, formatting и styles.
-- [ ] Проверить doctor/patient UI isolation, Select display labels, shared primitives и отсутствие новых локальных
+- [x] Удалить/не допустить дубли timezone options, labels, formatting и styles.
+- [x] Проверить doctor/patient UI isolation, Select display labels, shared primitives и отсутствие новых локальных
   page-level containers.
 - [ ] Обновить только действующую документацию затронутых route/module boundaries.
 

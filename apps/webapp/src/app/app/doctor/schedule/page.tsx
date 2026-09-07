@@ -132,6 +132,8 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
       packagesReadOnly={!packagesMutation.available}
       showPackagesTab={packagesVisibility.specialistNavigation && composition === 'solo'}
       scheduleScopeBootstrap={scheduleScopeBootstrap}
+      appointmentsManageOwn={workspace.appointmentsManageOwn}
+      availabilityManageOwn={workspace.availabilityManageOwn}
       doctorStatisticsEnabled={doctorStatisticsEnabled}
       initialTabData={initialTabData}
     />
