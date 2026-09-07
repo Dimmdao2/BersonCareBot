@@ -61,6 +61,7 @@ type Props = {
   boundAppointmentId: string | null;
   /** Только для mode="edit": визит, загруженный сервером. */
   initialVisit?: Visit;
+  medicalRecordEnabled?: boolean;
 };
 
 type RepeatComplaintUpdate = {
@@ -76,7 +77,7 @@ type RepeatDiagnosisUpdate = {
   removed: boolean;
 };
 
-type ClinicalApiResponse = { ok: boolean; state: ClinicalState; visits: Visit[] };
+type ClinicalApiResponse = { ok: boolean; state: ClinicalState };
 type AppointmentsApiResponse = { appointments: PatientAppointmentItem[] };
 
 type CreateVisitRequest = {
@@ -171,15 +172,21 @@ export function EncounterPageClient({
   patient,
   boundAppointmentId,
   initialVisit,
+  medicalRecordEnabled = true,
 }: Props) {
   const router = useRouter();
 
   // ── Clinical state (симптомы/диагнозы/история визитов) ───────────────────
-  const [clinicalLoading, setClinicalLoading] = useState(true);
+  const [clinicalLoading, setClinicalLoading] = useState(medicalRecordEnabled);
   const [clinicalError, setClinicalError] = useState(false);
   const [clinicalState, setClinicalState] = useState<ClinicalState | null>(null);
 
   const reloadClinical = useCallback(() => {
+    if (!medicalRecordEnabled) {
+      setClinicalState(null);
+      setClinicalLoading(false);
+      return;
+    }
     setClinicalError(false);
     fetch(`/api/doctor/patients/${userId}/clinical`, { credentials: 'include' })
       .then((r) => {
@@ -191,7 +198,7 @@ export function EncounterPageClient({
       })
       .catch(() => setClinicalError(true))
       .finally(() => setClinicalLoading(false));
-  }, [userId]);
+  }, [userId, medicalRecordEnabled]);
 
   useEffect(() => {
     reloadClinical();
@@ -212,9 +219,10 @@ export function EncounterPageClient({
   );
   useEffect(() => {
     if (mode !== 'create') return;
+    if (!medicalRecordEnabled) return;
     if (activeComplaints.length === 0 && activeDiagnoses.length === 0) setVisitType('first');
     else setVisitType('repeat');
-  }, [mode, activeComplaints, activeDiagnoses]);
+  }, [mode, activeComplaints, activeDiagnoses, medicalRecordEnabled]);
 
   // ── Связь с записью (создание) ────────────────────────────────────────
   const [boundAppointment, setBoundAppointment] = useState<PatientAppointmentItem | null>(null);
@@ -371,7 +379,7 @@ export function EncounterPageClient({
         ...(canonicalAppointmentId ? { canonicalAppointmentId } : {}),
       };
 
-      if (visitType === 'first') {
+      if (medicalRecordEnabled && visitType === 'first') {
         const validDiagnoses = firstDiagnoses.filter((d) => d.text.trim());
         if (validDiagnoses.length > 0) {
           body.diagnoses = validDiagnoses.map((d) => ({
@@ -385,7 +393,7 @@ export function EncounterPageClient({
         if (manipulations.trim()) body.manipulations = manipulations;
         if (trialResults.trim()) body.trialResults = trialResults;
         if (recommendations.trim()) body.recommendations = recommendations;
-      } else {
+      } else if (medicalRecordEnabled) {
         const cuList = Object.values(complaintUpdates)
           .filter(
             (u) =>
@@ -525,158 +533,172 @@ export function EncounterPageClient({
         ) : null}
       </section>
 
-      {/* Симптомы — отдельный блок ENCOUNTER-PAGE-12/13/20 */}
-      <section className={doctorSectionCardClass}>
-        <div className="flex items-center justify-between gap-3">
-          <h2 className={doctorSectionTitleClass}>Симптомы</h2>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            title="Добавить симптом"
-            aria-label="Добавить симптом"
-            onClick={() => setQuickAddKind('complaint')}
-          >
-            <FilePlus2 className="size-5" />
-          </Button>
-        </div>
-        {clinicalLoading ? <DoctorPanelLoading className="py-2" /> : null}
-        {!clinicalLoading && clinicalError ? (
-          <p className="text-sm text-destructive">Не удалось загрузить симптомы.</p>
-        ) : null}
-        {!clinicalLoading && !clinicalError ? (
-          <div className="flex flex-col gap-2 text-sm">
-            {mode === 'create' && visitType === 'repeat'
-              ? activeComplaints.map((c) => {
-                  const upd = complaintUpdates[c.id] ?? {
-                    complaintId: c.id,
-                    note: '',
-                    severity: c.currentSeverity,
-                    resolved: false,
-                  };
-                  const setUpd = (patch: Partial<RepeatComplaintUpdate>) =>
-                    setComplaintUpdates((prev) => ({ ...prev, [c.id]: { ...upd, ...patch } }));
-                  return (
-                    <div key={c.id} className="border-b border-border pb-2 last:border-0 last:pb-0">
-                      <p>
-                        {c.priority ? <span className="font-bold text-destructive">! </span> : null}
-                        {c.text}
-                      </p>
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <Input
-                          placeholder="Заметка…"
-                          value={upd.note}
-                          onChange={(e) => setUpd({ note: e.target.value })}
-                        />
-                        <Input
-                          type="number"
-                          min={0}
-                          max={10}
-                          value={upd.severity}
-                          onChange={(e) => setUpd({ severity: Number(e.target.value) })}
-                          className="w-16"
-                        />
-                        <label className="flex items-center gap-1 text-xs">
-                          <Checkbox
-                            checked={upd.resolved}
-                            onCheckedChange={(v) => setUpd({ resolved: v === true })}
-                          />
-                          Закрыт
-                        </label>
-                      </div>
-                    </div>
-                  );
-                })
-              : activeComplaints.map((c) => (
-                  <p key={c.id}>
-                    {c.priority ? <span className="font-bold text-destructive">! </span> : null}
-                    {c.text} — {c.currentSeverity}/10
-                  </p>
-                ))}
-            {mode === 'edit' && initialVisit?.dynamics?.length
-              ? initialVisit.dynamics.map((row) => (
-                  <p key={row.id} className="text-muted-foreground">
-                    {row.label}: {row.from} → {row.to}
-                    {row.note ? ` — ${row.note}` : ''}
-                  </p>
-                ))
-              : null}
-          </div>
-        ) : null}
-      </section>
-
-      {/* Диагнозы — отдельный блок ENCOUNTER-PAGE-12/21 */}
-      <section className={doctorSectionCardClass}>
-        <div className="flex items-center justify-between gap-3">
-          <h2 className={doctorSectionTitleClass}>Диагнозы</h2>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            title="Добавить диагноз"
-            aria-label="Добавить диагноз"
-            onClick={() => setQuickAddKind('diagnosis')}
-          >
-            <HeartPlus className="size-5" />
-          </Button>
-        </div>
-        {clinicalLoading ? <DoctorPanelLoading className="py-2" /> : null}
-        {!clinicalLoading && clinicalError ? (
-          <p className="text-sm text-destructive">Не удалось загрузить диагнозы.</p>
-        ) : null}
-        {!clinicalLoading && !clinicalError ? (
-          <div className="flex flex-col gap-2 text-sm">
-            {mode === 'create' && visitType === 'repeat'
-              ? activeDiagnoses.map((d) => {
-                  const upd = diagnosisUpdates[d.id] ?? {
-                    diagnosisId: d.id,
-                    refinement: '',
-                    removed: false,
-                  };
-                  const setUpd = (patch: Partial<RepeatDiagnosisUpdate>) =>
-                    setDiagnosisUpdates((prev) => ({ ...prev, [d.id]: { ...upd, ...patch } }));
-                  return (
-                    <div key={d.id} className="border-b border-border pb-2 last:border-0 last:pb-0">
-                      <p>
-                        {d.priority ? <span className="font-bold text-destructive">! </span> : null}
-                        {d.text}
-                      </p>
-                      <Input
-                        className="mt-1.5"
-                        placeholder="Уточнение…"
-                        value={upd.refinement}
-                        onChange={(e) => setUpd({ refinement: e.target.value })}
-                      />
-                      <label className="mt-1.5 flex items-center gap-1 text-xs">
-                        <Checkbox
-                          checked={upd.removed}
-                          onCheckedChange={(v) => setUpd({ removed: v === true })}
-                        />
-                        Снять диагноз
-                      </label>
-                    </div>
-                  );
-                })
-              : activeDiagnoses.map((d) => (
-                  <p key={d.id}>
-                    {d.priority ? <span className="font-bold text-destructive">! </span> : null}
-                    {d.text} ({d.clinicalStatus})
-                  </p>
-                ))}
-            {mode === 'create' && visitType === 'first' ? (
-              <>
-                <DiagnosisAutocomplete
-                  userId={userId}
-                  onSelect={(entry) => setFirstDiagnoses((prev) => [...prev, entry])}
-                />
-                {firstDiagnoses.map((d) => (
-                  <p key={d.id}>{d.text}</p>
-                ))}
-              </>
+      {medicalRecordEnabled ? (
+        <>
+          {/* Симптомы — отдельный блок ENCOUNTER-PAGE-12/13/20 */}
+          <section className={doctorSectionCardClass}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className={doctorSectionTitleClass}>Симптомы</h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                title="Добавить симптом"
+                aria-label="Добавить симптом"
+                onClick={() => setQuickAddKind('complaint')}
+              >
+                <FilePlus2 className="size-5" />
+              </Button>
+            </div>
+            {clinicalLoading ? <DoctorPanelLoading className="py-2" /> : null}
+            {!clinicalLoading && clinicalError ? (
+              <p className="text-sm text-destructive">Не удалось загрузить симптомы.</p>
             ) : null}
-          </div>
-        ) : null}
-      </section>
+            {!clinicalLoading && !clinicalError ? (
+              <div className="flex flex-col gap-2 text-sm">
+                {mode === 'create' && visitType === 'repeat'
+                  ? activeComplaints.map((c) => {
+                      const upd = complaintUpdates[c.id] ?? {
+                        complaintId: c.id,
+                        note: '',
+                        severity: c.currentSeverity,
+                        resolved: false,
+                      };
+                      const setUpd = (patch: Partial<RepeatComplaintUpdate>) =>
+                        setComplaintUpdates((prev) => ({ ...prev, [c.id]: { ...upd, ...patch } }));
+                      return (
+                        <div
+                          key={c.id}
+                          className="border-b border-border pb-2 last:border-0 last:pb-0"
+                        >
+                          <p>
+                            {c.priority ? (
+                              <span className="font-bold text-destructive">! </span>
+                            ) : null}
+                            {c.text}
+                          </p>
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <Input
+                              placeholder="Заметка…"
+                              value={upd.note}
+                              onChange={(e) => setUpd({ note: e.target.value })}
+                            />
+                            <Input
+                              type="number"
+                              min={0}
+                              max={10}
+                              value={upd.severity}
+                              onChange={(e) => setUpd({ severity: Number(e.target.value) })}
+                              className="w-16"
+                            />
+                            <label className="flex items-center gap-1 text-xs">
+                              <Checkbox
+                                checked={upd.resolved}
+                                onCheckedChange={(v) => setUpd({ resolved: v === true })}
+                              />
+                              Закрыт
+                            </label>
+                          </div>
+                        </div>
+                      );
+                    })
+                  : activeComplaints.map((c) => (
+                      <p key={c.id}>
+                        {c.priority ? <span className="font-bold text-destructive">! </span> : null}
+                        {c.text} — {c.currentSeverity}/10
+                      </p>
+                    ))}
+                {mode === 'edit' && initialVisit?.dynamics?.length
+                  ? initialVisit.dynamics.map((row) => (
+                      <p key={row.id} className="text-muted-foreground">
+                        {row.label}: {row.from} → {row.to}
+                        {row.note ? ` — ${row.note}` : ''}
+                      </p>
+                    ))
+                  : null}
+              </div>
+            ) : null}
+          </section>
+
+          {/* Диагнозы — отдельный блок ENCOUNTER-PAGE-12/21 */}
+          <section className={doctorSectionCardClass}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className={doctorSectionTitleClass}>Диагнозы</h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                title="Добавить диагноз"
+                aria-label="Добавить диагноз"
+                onClick={() => setQuickAddKind('diagnosis')}
+              >
+                <HeartPlus className="size-5" />
+              </Button>
+            </div>
+            {clinicalLoading ? <DoctorPanelLoading className="py-2" /> : null}
+            {!clinicalLoading && clinicalError ? (
+              <p className="text-sm text-destructive">Не удалось загрузить диагнозы.</p>
+            ) : null}
+            {!clinicalLoading && !clinicalError ? (
+              <div className="flex flex-col gap-2 text-sm">
+                {mode === 'create' && visitType === 'repeat'
+                  ? activeDiagnoses.map((d) => {
+                      const upd = diagnosisUpdates[d.id] ?? {
+                        diagnosisId: d.id,
+                        refinement: '',
+                        removed: false,
+                      };
+                      const setUpd = (patch: Partial<RepeatDiagnosisUpdate>) =>
+                        setDiagnosisUpdates((prev) => ({ ...prev, [d.id]: { ...upd, ...patch } }));
+                      return (
+                        <div
+                          key={d.id}
+                          className="border-b border-border pb-2 last:border-0 last:pb-0"
+                        >
+                          <p>
+                            {d.priority ? (
+                              <span className="font-bold text-destructive">! </span>
+                            ) : null}
+                            {d.text}
+                          </p>
+                          <Input
+                            className="mt-1.5"
+                            placeholder="Уточнение…"
+                            value={upd.refinement}
+                            onChange={(e) => setUpd({ refinement: e.target.value })}
+                          />
+                          <label className="mt-1.5 flex items-center gap-1 text-xs">
+                            <Checkbox
+                              checked={upd.removed}
+                              onCheckedChange={(v) => setUpd({ removed: v === true })}
+                            />
+                            Снять диагноз
+                          </label>
+                        </div>
+                      );
+                    })
+                  : activeDiagnoses.map((d) => (
+                      <p key={d.id}>
+                        {d.priority ? <span className="font-bold text-destructive">! </span> : null}
+                        {d.text} ({d.clinicalStatus})
+                      </p>
+                    ))}
+                {mode === 'create' && visitType === 'first' ? (
+                  <>
+                    <DiagnosisAutocomplete
+                      userId={userId}
+                      onSelect={(entry) => setFirstDiagnoses((prev) => [...prev, entry])}
+                    />
+                    {firstDiagnoses.map((d) => (
+                      <p key={d.id}>{d.text}</p>
+                    ))}
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
+        </>
+      ) : null}
 
       {/* Содержимое приёма — ENCOUNTER-PAGE-02 */}
       <section className={cn(doctorSectionCardClass)}>
@@ -868,7 +890,7 @@ export function EncounterPageClient({
         </Button>
       </div>
 
-      {quickAddKind ? (
+      {medicalRecordEnabled && quickAddKind ? (
         <PatientClinicalCreateModal
           kind={quickAddKind}
           open

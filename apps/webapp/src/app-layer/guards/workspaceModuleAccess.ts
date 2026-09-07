@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server';
 import { notFound } from 'next/navigation';
-import type { WorkspaceModuleKey } from '@/modules/system-settings/doctorWorkspaceComposition';
+import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
+import type { SystemSettingsService } from '@/modules/system-settings/service';
+import {
+  WORKSPACE_MODULE_KEYS,
+  resolveWorkspaceModuleEffective,
+  type WorkspaceModuleAvailability,
+  type WorkspaceModuleKey,
+} from '@/modules/system-settings/doctorWorkspaceComposition';
 
 /**
  * C3M-01 frozen disabled-route outcome for a workspace module hidden by specialist preference
  * (`docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` §C3M.7 C3M-01/C3M-03).
- * Foundation-only: no route in this stage calls these — later C3M-06+ slices that actually wire
- * sidebar/card-tab/direct-route/API guards consume this door instead of inventing a second shape.
+ * C3M slices consume this shared door instead of inventing page-local parsers or response shapes.
  */
 export type WorkspaceModuleDisabledReason = 'workspace_module_disabled';
 
@@ -24,6 +30,29 @@ export function workspaceModuleDisabledResponse(module: WorkspaceModuleKey): Nex
     },
     { status: 403 },
   );
+}
+
+const AVAILABLE_AFTER_UPSTREAM_GATES = Object.fromEntries(
+  WORKSPACE_MODULE_KEYS.map((key) => [key, true]),
+) as WorkspaceModuleAvailability;
+
+/**
+ * Product-preference narrowing for an already authorized doctor API/Server Action.
+ * Authentication, organization membership and any mechanic entitlement stay upstream; this
+ * shared door only reads the canonical structured setting and runs the accepted C3M resolver.
+ */
+export async function requireWorkspaceModuleForApi(
+  workspace: DoctorWorkspaceAccessContext,
+  module: WorkspaceModuleKey,
+  systemSettings: Pick<SystemSettingsService, 'getDoctorWorkspaceComposition'>,
+): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
+  const composition = await systemSettings.getDoctorWorkspaceComposition({
+    organizationId: workspace.organizationId,
+  });
+  const effective = resolveWorkspaceModuleEffective(composition, AVAILABLE_AFTER_UPSTREAM_GATES);
+  return effective[module]
+    ? { ok: true }
+    : { ok: false, response: workspaceModuleDisabledResponse(module) };
 }
 
 /**
