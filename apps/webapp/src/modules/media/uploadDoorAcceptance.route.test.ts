@@ -27,6 +27,8 @@ const fakes = vi.hoisted(() => ({
   pgValidateUserAssignableMediaFolder: vi.fn(),
   pgEnsureClientPatientFolder: vi.fn(),
   resolveDoctorInstanceInWorkspace: vi.fn(),
+  runWithDbPatientPrincipal: vi.fn(),
+  getInstanceForPatient: vi.fn(),
   assertPatientProgramMediaAllowed: vi.fn(),
   isPatientProgramDiscussionMediaFlowEnabled: vi.fn(),
   insertPendingMediaFileTx: vi.fn(),
@@ -37,6 +39,8 @@ const fakes = vi.hoisted(() => ({
   confirmMediaFileReady: vi.fn(),
   confirmProgramSubmissionMediaFileReady: vi.fn(),
   abortPendingProgramSubmissionMedia: vi.fn(),
+  getProgramSubmissionMediaStatusRow: vi.fn(),
+  isProgramSubmissionMediaAttachReady: vi.fn(),
   insertUploadSessionTx: vi.fn(),
   claimUploadSessionForCompletingTx: vi.fn(),
   getCompletingSessionTx: vi.fn(),
@@ -79,6 +83,9 @@ vi.mock('@/app-layer/guards/requireEntitlement', () => ({
 vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: fakes.withDoctorWorkspacePrincipal,
 }));
+vi.mock('@bersoncare/db-principal', () => ({
+  runWithDbPatientPrincipal: fakes.runWithDbPatientPrincipal,
+}));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withExplicitOrganizationPrincipal: fakes.withExplicitOrganizationPrincipal,
 }));
@@ -117,6 +124,8 @@ vi.mock('@/app-layer/media/s3MediaStorage', () => ({
   confirmMediaFileReady: fakes.confirmMediaFileReady,
   confirmProgramSubmissionMediaFileReady: fakes.confirmProgramSubmissionMediaFileReady,
   abortPendingProgramSubmissionMedia: fakes.abortPendingProgramSubmissionMedia,
+  getProgramSubmissionMediaStatusRow: fakes.getProgramSubmissionMediaStatusRow,
+  isProgramSubmissionMediaAttachReady: fakes.isProgramSubmissionMediaAttachReady,
 }));
 vi.mock('@/app-layer/media/mediaUploadSessionsRepo', () => ({
   insertUploadSessionTx: fakes.insertUploadSessionTx,
@@ -157,6 +166,7 @@ import { POST as multipartComplete } from '@/app/api/media/multipart/complete/ro
 import { POST as individualPresign } from '@/app/api/doctor/treatment-program-instances/[instanceId]/media-presign/route';
 import { POST as submissionPresign } from '@/app/api/patient/media/program-submission/presign/route';
 import { POST as submissionConfirm } from '@/app/api/patient/media/program-submission/confirm/route';
+import { GET as submissionStatus } from '@/app/api/patient/media/program-submission/[mediaId]/status/route';
 import { POST as patientFilePresign } from '@/app/api/doctor/patients/[userId]/files/route';
 import { POST as patientFileConfirm } from '@/app/api/doctor/patients/[userId]/files/[fileId]/confirm/route';
 
@@ -236,6 +246,9 @@ beforeEach(() => {
   fakes.withExplicitOrganizationPrincipal.mockImplementation((...args: unknown[]) =>
     executeLastCallback(args),
   );
+  fakes.runWithDbPatientPrincipal.mockImplementation((...args: unknown[]) =>
+    executeLastCallback(args),
+  );
   fakes.withUserLifecycleLock.mockImplementation((...args: unknown[]) => executeLastCallback(args));
   fakes.withMultipartSessionLock.mockImplementation((...args: unknown[]) =>
     executeLastCallback(args),
@@ -249,6 +262,7 @@ beforeEach(() => {
     ok: true,
     instance: { patientUserId: ids.patient },
   });
+  fakes.getInstanceForPatient.mockResolvedValue({ organizationId: ids.organization });
   fakes.assertPatientProgramMediaAllowed.mockResolvedValue({
     ok: true,
     policy: { organizationId: ids.organization },
@@ -265,6 +279,13 @@ beforeEach(() => {
   fakes.confirmProgramSubmissionMediaFileReady.mockResolvedValue(true);
   fakes.createPendingProgramSubmissionMediaFile.mockResolvedValue(true);
   fakes.abortPendingProgramSubmissionMedia.mockResolvedValue(true);
+  fakes.getProgramSubmissionMediaStatusRow.mockResolvedValue({
+    status: 'ready',
+    mime_type: 'image/jpeg',
+    video_processing_status: null,
+    video_processing_error: null,
+  });
+  fakes.isProgramSubmissionMediaAttachReady.mockReturnValue(true);
   fakes.stagePendingMediaAbort.mockResolvedValue(true);
   fakes.tryFinalizeMultipartIdempotentTx.mockResolvedValue({
     kind: 'finalized',
@@ -309,6 +330,9 @@ beforeEach(() => {
       getStorageUsedBytes: fakes.getStorageUsedBytes,
     },
     orgEntitlements: {},
+    treatmentProgramInstance: {
+      getInstanceForPatient: fakes.getInstanceForPatient,
+    },
   });
 });
 
@@ -348,7 +372,12 @@ describe('Ч1 intent policy at the six public intake routes', () => {
       'patient submission',
       () =>
         submissionPresign(
-          jsonRequest({ filename: 'report.pdf', mimeType: 'application/pdf', size: 5 }),
+          jsonRequest({
+            instanceId: ids.instance,
+            filename: 'report.pdf',
+            mimeType: 'application/pdf',
+            size: 5,
+          }),
         ),
     ],
     [
@@ -388,7 +417,12 @@ describe('Ч1 intent policy at the six public intake routes', () => {
 
   it('patient submission presign creates the exact pending record before issuing the upload URL', async () => {
     const response = await submissionPresign(
-      jsonRequest({ filename: 'photo.jpg', mimeType: 'image/jpeg', size: 3 }),
+      jsonRequest({
+        instanceId: ids.instance,
+        filename: 'photo.jpg',
+        mimeType: 'image/jpeg',
+        size: 3,
+      }),
     );
 
     expect(response.status).toBe(200);
@@ -433,6 +467,7 @@ describe('Ч1 intent policy at the six public intake routes', () => {
   it('rejects a patient video shorter than ten seconds before creating an upload', async () => {
     const response = await submissionPresign(
       jsonRequest({
+        instanceId: ids.instance,
         filename: 'clip.mp4',
         mimeType: 'video/mp4',
         size: 12,
@@ -448,7 +483,12 @@ describe('Ч1 intent policy at the six public intake routes', () => {
 
   it('rejects a patient video without measured duration before creating an upload', async () => {
     const response = await submissionPresign(
-      jsonRequest({ filename: 'clip.mp4', mimeType: 'video/mp4', size: 12 }),
+      jsonRequest({
+        instanceId: ids.instance,
+        filename: 'clip.mp4',
+        mimeType: 'video/mp4',
+        size: 12,
+      }),
     );
 
     expect(response.status).toBe(400);
@@ -463,6 +503,7 @@ describe('Ч1 intent policy at the six public intake routes', () => {
   it('allows a patient video at least ten seconds long to enter the upload path', async () => {
     const response = await submissionPresign(
       jsonRequest({
+        instanceId: ids.instance,
         filename: 'clip.mp4',
         mimeType: 'video/mp4',
         size: 12,
@@ -492,7 +533,9 @@ describe('Ч1 intent policy at the six public intake routes', () => {
       Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]),
     );
 
-    const response = await submissionConfirm(jsonRequest({ mediaId: ids.media }));
+    const response = await submissionConfirm(
+      jsonRequest({ mediaId: ids.media, instanceId: ids.instance }),
+    );
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(
@@ -630,7 +673,9 @@ describe('Ч1 received object at real confirm handlers', () => {
     );
     fakes.s3HeadObjectDetails.mockResolvedValue(receivedHead({ contentLength: 4 }));
 
-    const response = await submissionConfirm(jsonRequest({ mediaId: ids.media }));
+    const response = await submissionConfirm(
+      jsonRequest({ mediaId: ids.media, instanceId: ids.instance }),
+    );
 
     expect(response.status).toBe(413);
     expect(fakes.confirmProgramSubmissionMediaFileReady).not.toHaveBeenCalled();
@@ -696,8 +741,15 @@ describe('Ч1 preserved authorization and patient-file lifecycle boundaries', ()
     });
 
     const responses = await Promise.all([
-      submissionPresign(jsonRequest({ filename: 'photo.jpg', mimeType: 'image/jpeg', size: 3 })),
-      submissionConfirm(jsonRequest({ mediaId: ids.media })),
+      submissionPresign(
+        jsonRequest({
+          instanceId: ids.instance,
+          filename: 'photo.jpg',
+          mimeType: 'image/jpeg',
+          size: 3,
+        }),
+      ),
+      submissionConfirm(jsonRequest({ mediaId: ids.media, instanceId: ids.instance })),
     ]);
 
     expect(responses.map((response) => response.status)).toEqual([401, 401]);
@@ -741,5 +793,73 @@ describe('Ч1 preserved authorization and patient-file lifecycle boundaries', ()
     expect(response.status).toBe(409);
     expect(fakes.s3HeadObjectDetails).not.toHaveBeenCalled();
     expect(fakes.confirmPatientFileUpload).not.toHaveBeenCalled();
+  });
+
+  it('derives support policy context from the patient-owned instance on all three submission routes', async () => {
+    const foreignOrganization = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    fakes.getInstanceForPatient.mockResolvedValue({ organizationId: foreignOrganization });
+    fakes.assertPatientProgramMediaAllowed.mockImplementation(
+      async (_deps: unknown, _patientUserId: string, context: { organizationId: string }) =>
+        context.organizationId === foreignOrganization
+          ? { ok: false, error: 'patient_support_media_disabled' }
+          : { ok: true, policy: { organizationId: context.organizationId } },
+    );
+
+    const responses = await Promise.all([
+      submissionPresign(
+        jsonRequest({
+          instanceId: ids.instance,
+          filename: 'photo.jpg',
+          mimeType: 'image/jpeg',
+          size: 3,
+        }),
+      ),
+      submissionConfirm(jsonRequest({ mediaId: ids.media, instanceId: ids.instance })),
+      submissionStatus(
+        new Request(
+          `http://test.local/api/patient/media/program-submission/${ids.media}/status?instanceId=${ids.instance}`,
+        ),
+        { params: Promise.resolve({ mediaId: ids.media }) },
+      ),
+    ]);
+
+    expect(responses.map((response) => response.status)).toEqual([403, 403, 403]);
+    expect(fakes.assertPatientProgramMediaAllowed).toHaveBeenCalledTimes(3);
+    expect(fakes.assertPatientProgramMediaAllowed.mock.calls.map((call) => call[2])).toEqual([
+      { organizationId: foreignOrganization },
+      { organizationId: foreignOrganization },
+      { organizationId: foreignOrganization },
+    ]);
+    expect(fakes.createPendingProgramSubmissionMediaFile).not.toHaveBeenCalled();
+    expect(fakes.getMediaRowForConfirm).not.toHaveBeenCalled();
+    expect(fakes.getProgramSubmissionMediaStatusRow).not.toHaveBeenCalled();
+  });
+
+  it('rejects all three submission routes when the instance is not owned by the patient', async () => {
+    fakes.getInstanceForPatient.mockResolvedValue(null);
+
+    const responses = await Promise.all([
+      submissionPresign(
+        jsonRequest({
+          instanceId: ids.instance,
+          filename: 'photo.jpg',
+          mimeType: 'image/jpeg',
+          size: 3,
+        }),
+      ),
+      submissionConfirm(jsonRequest({ mediaId: ids.media, instanceId: ids.instance })),
+      submissionStatus(
+        new Request(
+          `http://test.local/api/patient/media/program-submission/${ids.media}/status?instanceId=${ids.instance}`,
+        ),
+        { params: Promise.resolve({ mediaId: ids.media }) },
+      ),
+    ]);
+
+    expect(responses.map((response) => response.status)).toEqual([404, 404, 404]);
+    expect(fakes.assertPatientProgramMediaAllowed).not.toHaveBeenCalled();
+    expect(fakes.createPendingProgramSubmissionMediaFile).not.toHaveBeenCalled();
+    expect(fakes.getMediaRowForConfirm).not.toHaveBeenCalled();
+    expect(fakes.getProgramSubmissionMediaStatusRow).not.toHaveBeenCalled();
   });
 });
