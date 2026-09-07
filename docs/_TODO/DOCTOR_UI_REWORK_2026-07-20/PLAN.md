@@ -1,5 +1,10 @@
 # Doctor UI Rework — детальный execution artifact (2026-07-20)
 
+> **OWNER CORRECTION 2026-09-08:** все ссылки ниже на Design DNA v1.0/v1.1 и выведенные из него
+> `Nunito`, `#F6F4EF`, `#386FBA`/`#406ca7`, радиусы и token-migration **SUPERSEDED**. Старый DNA
+> архивирован в `docs/archive/2026-07-design-dna/` и не является authority. Для текущего doctor UI
+> действуют `AGENTS.md` §16, `DOCTOR_APP_UI_STYLE_GUIDE.md` и фактические doctor primitives/tokens.
+
 > RE-VERIFIED 2026-07-23 (all [x] audited vs code; visual-acceptance items -> [~] pending owner): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
 > STATUS RECONCILED 2026-08-20 against current `feat/doctor-ui-rebuild`, taskdb and the dated owner corrections

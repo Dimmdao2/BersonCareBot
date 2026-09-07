@@ -68,7 +68,7 @@ discovery-manifest; Toast UI полностью выведен.
 - **markdown out:** на каждое изменение сериализовать документ обратно в markdown → `onChange(md)` + запись в
   скрытый `input[name]` (для не-controlled форм). `maxLength` считать по сериализованному markdown.
 - **Тулбар (сохранить как минимум):** жирный, курсив, заголовки, списки (маркир./нумер.), inline-код, ссылка,
-  вставка из медиатеки (`MediaLibraryInsertDialog` → Tiptap link/image command). Стиль — наша Design DNA (primitives),
+  вставка из медиатеки (`MediaLibraryInsertDialog` → Tiptap link/image command). Стиль — актуальные primitives своей UI-зоны,
   не дефолтная тема Tiptap; **Simple Editor** как база (НЕ AI-editor — платный Tiptap Cloud, наружу; см. канон).
 - **SSR:** Tiptap — client-only (`"use client"`), у форм уже client-компоненты; не импортировать в серверных.
 

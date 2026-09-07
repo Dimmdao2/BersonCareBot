@@ -1,7 +1,7 @@
 /**
  * BersonCare tweakcn hook.
  *
- * Source of truth: docs/design/dna/ (Design DNA v1.0 + v1.1).
+ * Current doctor theme adapter. The archived Design DNA is not a source of truth.
  * tweakcn exports shadcn/Tailwind CSS variables; keep this file as the app-level
  * adapter so future theme iterations do not require component rewrites.
  *

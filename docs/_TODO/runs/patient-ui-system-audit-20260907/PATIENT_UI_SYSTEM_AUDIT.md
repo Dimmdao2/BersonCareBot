@@ -1,5 +1,9 @@
 # Аудит UI кабинета пациента — 2026-09-07
 
+> **Owner correction 2026-09-08:** старый Design DNA v1.0/v1.1 был направлением кабинета врача,
+> архивирован и не является baseline пациента. Выводы ниже скорректированы относительно текущего
+> patient-кода и patient-канона; новый visual target требует отдельного owner-подтверждения.
+
 ## Статус и граница
 
 - Область: `apps/webapp/src/app/app/patient/**`, `apps/webapp/src/shared/ui/patient/**`, `apps/webapp/src/app/styles/patient.css` и patient shell.
@@ -12,7 +16,7 @@
 
 - [`PATIENT_APP_UI_STYLE_GUIDE.md`](../../../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md);
 - [`SCREEN_ARCHITECTURE_GUIDE.md`](../../../ARCHITECTURE/SCREEN_ARCHITECTURE_GUIDE.md);
-- [`bersoncare-theme.css`](../../../design/dna/bersoncare-theme.css) и [`design-dna-v1.1-amendment.md`](../../../design/dna/design-dna-v1.1-amendment.md);
+- `shared/ui/patient/patientVisual.ts`, `app/styles/patient.css` и пациентские примитивы;
 - `AGENTS.md` §15, §17, §21, §22 и правила аудита/поведенческих тестов.
 
 ## Итог
@@ -77,7 +81,7 @@ console.log(ratio('#98a2b3','#ffffff').toFixed(2))
 NODE
 ```
 
-Исправление: заменить muted token на цвет, который даёт минимум 4.5:1 на фактических canvas/surface. Не подкрашивать отдельные страницы вручную. `#667085` на белом даёт 4.97:1 и уже существует как `--patient-text-secondary`, но итоговый token надо согласовать с Design DNA (`--color-ink-2`) и проверить на кремовом canvas.
+Исправление: заменить muted token на цвет, который даёт минимум 4.5:1 на фактических patient canvas/surface. Не подкрашивать отдельные страницы вручную. `#667085` на белом даёт 4.97:1 и уже существует как `--patient-text-secondary`; итоговый token проверить на каждом фактическом фоне patient-зоны.
 
 ### F2. Заголовок страницы визуально равен или меньше заголовка секции
 
@@ -88,12 +92,12 @@ NODE
 - mobile shell title: 15px (`PatientShellTopChrome.tsx`);
 - shell/section title: 16px (`patientSectionTitleClass`);
 - отдельный page title: 17px → 20px (`patientPageTitleClass`);
-- Design DNA: заголовки 600, максимум 700.
+- Целевая иерархия должна быть закреплена в patient semantic typography, а не в page-local классах.
 
 Источник размеров:
 
 ```bash
-rg -n --no-heading "MOBILE_HEADER_TITLE_CLASS|patientSectionTitleClass|patientPageTitleClass|patient-block-heading-font-(size|weight)" apps/webapp/src/shared/ui/patient apps/webapp/src/app/styles/patient.css docs/design/dna/design-dna-v1.1-amendment.md
+rg -n --no-heading "MOBILE_HEADER_TITLE_CLASS|patientSectionTitleClass|patientPageTitleClass|patient-block-heading-font-(size|weight)" apps/webapp/src/shared/ui/patient apps/webapp/src/app/styles/patient.css
 ```
 
 На живом экране `/app/patient/diary` заголовок страницы «Статистика» оказался меньше заголовков секций «Самочувствие за неделю», «Отслеживаемые симптомы». Иерархия экрана сломана.
@@ -213,7 +217,7 @@ NODE
 
 Решение: применить patient semantic theme на `:root:has(#app-shell-patient)`, `body:has(#app-shell-patient)` и shell — тем же принципом, которым doctor theme уже покрывает portals. После этого удалить portal-only palette и fallback hex из feature classes.
 
-### S4. Палитра не централизована и расходится с Design DNA
+### S4. Палитра не централизована; новый patient visual target ещё не утверждён
 
 Текущий patient shell:
 
@@ -222,16 +226,7 @@ NODE
 - белый canvas и белые cards;
 - card radius 6px mobile / 8px desktop.
 
-Утверждённый Design DNA:
-
-- Nunito;
-- accent `#386fba`;
-- cream canvas `#f6f4ef`, white surface;
-- card/panel radius до 14px;
-- graphite text вместо почти чёрного `#111827`;
-- тёплые borders `#efece4`.
-
-Это не небольшое отклонение одного экрана, а параллельная тема. Кроме того, в patient TS/TSX найдено 206 Tailwind arbitrary color classes в 33 файлах.
+Кроме того, в patient TS/TSX найдено 206 Tailwind arbitrary color classes в 33 файлах. До owner-подтверждения нового patient visual target сохраняются Manrope и текущий patient blue; локальные оттенки всё равно должны быть сведены в patient semantic tokens.
 
 Измерение:
 
@@ -248,7 +243,7 @@ NODE
 
 Основные hotspots: `patientVisual.ts`, `PatientProgramStageItemPageClient.tsx`, `PatientPlanTabStrip.tsx`, `patientHomeCardStyles.ts`, booking service, diary week nav и treatment stage page.
 
-`SCREEN_ARCHITECTURE_GUIDE.md` прямо фиксирует один DNA для обеих зон и называет текущие patient tokens реализацией, которую предстоит выровнять. Поэтому рабочее решение уже есть: переносить patient UI на действующий DNA, если более поздний owner-регистр не содержит явной замены. Palette values должны жить в CSS tokens; компоненты используют semantic names, не hex.
+Palette values должны жить в patient CSS tokens; компоненты используют semantic names, не hex. Значения нового визуального слоя нельзя выводить из врачебной зоны без owner-решения.
 
 ### S5. Радиусы образуют несколько несвязанных шкал
 
@@ -405,7 +400,7 @@ rg -n --no-heading "text-xs font-(normal|medium) uppercase tracking-wide" apps/w
 
 ### V1. Белый canvas + белые cards стирают иерархию
 
-`#app-shell-patient`, `<main>`, `--patient-page-bg` и `--patient-card-bg` все белые. На profile/diary карточки отделяются только очень светлой границей и слабой тенью; при этом muted text ещё светлее. Design DNA уже решает это cream canvas + white surface + warm line. Если DNA остаётся каноном, не надо придумывать новый набор оттенков для пациента.
+`#app-shell-patient`, `<main>`, `--patient-page-bg` и `--patient-card-bg` все белые. На profile/diary карточки отделяются только очень светлой границей и слабой тенью; при этом muted text ещё светлее. Patient target должен развести canvas и surface единым набором semantic tokens; конкретная температура фона требует owner-подтверждения.
 
 ### V2. Desktop «Сегодня» растягивает mobile-композицию
 
@@ -466,7 +461,7 @@ NODE
 
 ### Этап A — один patient foundation
 
-1. Взять опубликованный Design DNA как visual target для patient-зоны согласно `SCREEN_ARCHITECTURE_GUIDE.md`; перед этапом проверить только более поздние owner-регистры на явную замену.
+1. Зафиксировать показанный владельцу и явно подтверждённый visual target patient-зоны. До подтверждения сохранить Manrope и текущий patient blue, исправляя только консистентность, доступность и функциональные разрывы.
 2. Распространить patient theme на shell и portal root/body.
 3. Сделать `patient/primitives/Button`, `Input`, `Textarea`, `SelectTrigger`, `Card`, `Badge`, `Tabs` настоящими patient adapters с typed variants и touch defaults.
 4. Оставить `patientVisual.ts` для semantic composition classes и link-compatible strings, но убрать дублирование primitive chrome.
