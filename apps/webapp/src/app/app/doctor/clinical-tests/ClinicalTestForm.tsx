@@ -60,6 +60,7 @@ import {
   ClinicalTestMeasureRowsEditor,
   type ClinicalTestMeasureRowModel,
 } from './ClinicalTestMeasureRowsEditor';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export type ClinicalTestFormValues = {
   title: string;
@@ -274,6 +275,7 @@ export function ClinicalTestForm({
   unarchiveAction = unarchiveClinicalTest,
   externalUsageSnapshot,
 }: ClinicalTestFormProps) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const recordKey = test?.id ?? 'create';
   const [values, setValues] = useState<ClinicalTestFormValues>(() =>
     clinicalTestToFormValues(test),
@@ -560,7 +562,7 @@ export function ClinicalTestForm({
                   </Select>
                   {values.schemaType === 'numeric' ? (
                     <p className="text-xs text-muted-foreground leading-snug">
-                      Пациент вводит одно число между min и max ниже. Примеры: боль 0–10, угол в
+                      {patientSingularLabel} вводит одно число между min и max ниже. Примеры: боль 0–10, угол в
                       градусах 0–180, процент выполнения 0–100.
                     </p>
                   ) : null}
