@@ -44,6 +44,12 @@ export type WorkspaceModuleDisabledReason = 'workspace_module_disabled';
  * before their rehabilitation parent and therefore retain their own stored preference as well.
  */
 export function workspaceModuleForApiPath(pathname: string): WorkspaceModuleKey | null {
+  if (
+    pathname.startsWith('/api/doctor/messages') ||
+    pathname.startsWith('/api/patient/messages')
+  ) {
+    return 'direct_chat';
+  }
   if (pathname.startsWith('/api/patient/media/program-submission')) return 'program_media';
   if (
     /^\/api\/patient\/treatment-program-instances\/[^/]+\/(?:discussion|items\/[^/]+\/discussion)(?:\/|$)/.test(
