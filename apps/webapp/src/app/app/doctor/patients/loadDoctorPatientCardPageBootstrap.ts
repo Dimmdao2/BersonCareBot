@@ -302,14 +302,16 @@ export async function loadDoctorPatientCardShellMeta(
   workspace: DoctorWorkspaceAccessContext,
   patientUserId: string,
   activeTab: PatientCardTabId,
-  programInstancesPromise = loadDoctorPatientProgramInstances(deps, workspace, patientUserId),
+  programInstancesPromise?: ReturnType<typeof loadDoctorPatientProgramInstances>,
   workspaceModules?: WorkspaceModuleEffective,
 ): Promise<DoctorPatientCardShellMeta> {
   const [membershipMeta, cardHeader, portalState, currentProgramStartedAt, displayIana] =
     await Promise.all([
       loadMembershipMeta(workspace, activeTab),
       withDoctorWorkspacePrincipal(workspace, () =>
-        deps.doctorClients.getPatientCardHeader(patientUserId, workspace.organizationId),
+        deps.doctorClients.getPatientCardHeader(patientUserId, workspace.organizationId, {
+          includeEncounterData: workspaceModules?.encounters !== false,
+        }),
       ),
       workspaceModules?.client_portal === false
         ? Promise.resolve(null)
@@ -318,7 +320,8 @@ export async function loadDoctorPatientCardShellMeta(
           ).catch(() => null),
       workspaceModules?.rehabilitation === false
         ? Promise.resolve(null)
-        : programInstancesPromise
+        : (programInstancesPromise ??
+            loadDoctorPatientProgramInstances(deps, workspace, patientUserId))
             .then((instances) => pickOpenTreatmentProgramInstance(instances)?.createdAt ?? null)
             .catch(() => null),
       getAppDisplayTimeZone(),
@@ -359,8 +362,10 @@ export async function loadDoctorPatientCardTabBootstrap(
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId));
 
   const loadProgramInstances = () =>
-    sharedProgramInstancesPromise ??
-    loadDoctorPatientProgramInstances(deps, workspace, patientUserId);
+    workspaceModules?.rehabilitation === false
+      ? Promise.resolve([])
+      : (sharedProgramInstancesPromise ??
+        loadDoctorPatientProgramInstances(deps, workspace, patientUserId));
 
   const loadProgramInstanceDetail = async (
     programInstancesPromise: ReturnType<typeof loadProgramInstances>,
@@ -386,7 +391,7 @@ export async function loadDoctorPatientCardTabBootstrap(
         specialistTasksReadable
           ? deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false)
           : Promise.resolve([]),
-        workspaceModules?.program_comments === false
+        workspaceModules?.rehabilitation === false || workspaceModules?.program_comments === false
           ? Promise.resolve({ unreadCount: 0, unreadByStageItemId: {}, lastMark: null })
           : loadDoctorPatientProgramActivity(
               { programItemDiscussion: deps.programItemDiscussion },
@@ -396,7 +401,9 @@ export async function loadDoctorPatientCardTabBootstrap(
                 organizationId: workspace.organizationId,
               },
             ),
-        deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
+        deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId, {
+          includeEncounterData: encountersEnabled,
+        }),
         programInstancesPromise,
         loadProgramInstanceDetail(programInstancesPromise),
         membershipAccess.specialistNavigation && deps.memberships
@@ -479,9 +486,7 @@ export async function loadDoctorPatientCardTabBootstrap(
         ? envelopeFromSettled(medicalRecordResults[0]!)
         : null,
       initialVisits: encounterResults ? envelopeFromSettled(encounterResults[0]!) : null,
-      initialAnamnesis: medicalRecordResults
-        ? envelopeFromSettled(medicalRecordResults[1]!)
-        : null,
+      initialAnamnesis: medicalRecordResults ? envelopeFromSettled(medicalRecordResults[1]!) : null,
       initialComorbidities: medicalRecordResults
         ? envelopeFromSettled(medicalRecordResults[2]!)
         : null,
@@ -489,6 +494,7 @@ export async function loadDoctorPatientCardTabBootstrap(
   }
 
   if (activeTab === 'program') {
+    if (workspaceModules?.rehabilitation === false) return { ...NULL_TAB_BOOTSTRAP };
     const programInstancesResult = await Promise.allSettled([loadProgramInstances()]);
     return {
       ...NULL_TAB_BOOTSTRAP,
@@ -518,7 +524,9 @@ export async function loadDoctorPatientCardTabBootstrap(
       deps.platformUserContacts.listForPlatformUser(patientUserId),
     ]);
     const cardHeader = await withDoctorWorkspacePrincipal(workspace, () =>
-      deps.doctorClients.getPatientCardHeader(patientUserId, workspace.organizationId),
+      deps.doctorClients.getPatientCardHeader(patientUserId, workspace.organizationId, {
+        includeEncounterData: workspaceModules?.encounters !== false,
+      }),
     );
     const rawContactRows =
       rawContactRowsResult.status === 'fulfilled' ? rawContactRowsResult.value : null;
@@ -547,6 +555,7 @@ export async function loadDoctorPatientCardTabBootstrap(
   }
 
   if (activeTab === 'comms') {
+    if (workspaceModules?.rehabilitation === false) return { ...NULL_TAB_BOOTSTRAP };
     const programInstancesResult = await Promise.allSettled([loadProgramInstances()]);
     return {
       ...NULL_TAB_BOOTSTRAP,
@@ -560,7 +569,9 @@ export async function loadDoctorPatientCardTabBootstrap(
         withDoctorWorkspacePrincipal(workspace, () =>
           deps.patientPayments.listPaymentsWithSummary(patientUserId),
         ),
-        deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
+        deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId, {
+          includeEncounterData: workspaceModules?.encounters !== false,
+        }),
         membershipAccess.specialistNavigation && deps.memberships
           ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId)
           : Promise.resolve(null),
@@ -577,7 +588,9 @@ export async function loadDoctorPatientCardTabBootstrap(
     // empty: it settles fulfilled with `[]` above and still builds a cash-only timeline.
     const historyEvents =
       historyEventsResult.status === 'fulfilled' ? historyEventsResult.value : null;
-    const patientPaymentRows = paymentsSummary?.payments ?? [];
+    const patientPaymentRows = (paymentsSummary?.payments ?? []).map((payment) =>
+      workspaceModules?.encounters === false ? { ...payment, visitId: null } : payment,
+    );
     const finances =
       paymentsSummary && historyEvents
         ? buildFinancesTimeline(patientPaymentRows, historyEvents)

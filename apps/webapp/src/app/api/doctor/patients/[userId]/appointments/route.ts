@@ -9,6 +9,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { resolveWorkspaceModulesForApi } from '@/app-layer/guards/workspaceModuleAccess';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 export async function GET(_request: Request, { params }: { params: Promise<{ userId: string }> }) {
@@ -29,9 +30,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   if (!identity) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
+  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps);
   const appointments = await deps.doctorClientsPort.listPatientAppointments(
     identity.userId,
     gate.ctx.organizationId,
+    { includeEncounterData: workspaceModules.encounters },
   );
 
   return NextResponse.json({ appointments });

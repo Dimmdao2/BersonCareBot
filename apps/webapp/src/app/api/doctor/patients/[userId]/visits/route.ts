@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
-import { requireWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
+import { requireDoctorWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
@@ -77,6 +77,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   }
 
   const deps = buildAppDeps();
+  const moduleGate = await requireDoctorWorkspaceModuleForApi(deps, gate.ctx, 'encounters');
+  if (!moduleGate.ok) return moduleGate.response;
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     gate.ctx.organizationId,
@@ -116,17 +118,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   }
   const b = parsed.data;
   const deps = buildAppDeps();
+  const encountersGate = await requireDoctorWorkspaceModuleForApi(deps, gate.ctx, 'encounters');
+  if (!encountersGate.ok) return encountersGate.response;
   const writesMedicalRecord =
     (b.complaints?.length ?? 0) > 0 ||
     (b.diagnoses?.length ?? 0) > 0 ||
     (b.complaintUpdates?.length ?? 0) > 0 ||
     (b.diagnosisUpdates?.length ?? 0) > 0;
   if (writesMedicalRecord) {
-    const moduleGate = await requireWorkspaceModuleForApi(
-      gate.ctx,
-      'medical_record',
-      deps.systemSettings,
-    );
+    const moduleGate = await requireDoctorWorkspaceModuleForApi(deps, gate.ctx, 'medical_record');
     if (!moduleGate.ok) return moduleGate.response;
   }
 

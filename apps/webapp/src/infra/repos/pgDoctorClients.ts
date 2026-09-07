@@ -783,9 +783,20 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async listPatientAppointments(
       userId: string,
       organizationId?: string,
+      options?: import('@/modules/doctor-clients/ports').PatientCardEncounterProjectionOptions,
     ): Promise<PatientAppointmentItem[]> {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
+      const hasVisitRecordExpression =
+        options?.includeEncounterData === false
+          ? sql`false`
+          : sql`EXISTS (
+             SELECT 1
+             FROM clinical_visit cv
+             WHERE cv.canonical_appointment_id = bea.id
+               AND cv.patient_user_id = bea.platform_user_id
+               AND cv.organization_id = bea.organization_id
+           )`;
 
       const rows = await runWebappSql<{
         internal_id: string;
@@ -820,13 +831,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            u.patient_package_id::text AS patient_package_id,
            pp.title AS package_title,
            pp.display_number AS package_display_number,
-           EXISTS (
-             SELECT 1
-             FROM clinical_visit cv
-             WHERE cv.canonical_appointment_id = bea.id
-               AND cv.patient_user_id = bea.platform_user_id
-               AND cv.organization_id = bea.organization_id
-           ) AS has_visit_record
+           ${hasVisitRecordExpression} AS has_visit_record
          FROM be_appointments bea
          LEFT JOIN be_branches br ON br.id = bea.branch_id
          LEFT JOIN be_specialists spec ON spec.id = bea.specialist_id
@@ -892,7 +897,11 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       });
     },
 
-    async getPatientCardHeader(userId: string, organizationId: string) {
+    async getPatientCardHeader(
+      userId: string,
+      organizationId: string,
+      options?: import('@/modules/doctor-clients/ports').PatientCardEncounterProjectionOptions,
+    ) {
       // Resolve canonical user id
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
@@ -1023,20 +1032,24 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const cancellationsCount = parseInt(appt?.cancellations_count ?? '0', 10);
       const reschedulesCount = parseInt(appt?.reschedules_count ?? '0', 10);
 
-      // Fetch latest clinical_visit for this patient (for visitType + city)
-      const clinicalVisitRow = await runWebappSql<{
-        visited_at: string;
-        visit_type: string;
-        location: string | null;
-      }>(
-        getWebappSqlDb(),
-        sql`SELECT visited_at, visit_type, location
-         FROM clinical_visit
-         WHERE patient_user_id = ${canonicalId}::uuid
-         ORDER BY visited_at DESC
-         LIMIT 1`,
-      );
-      const latestClinical = clinicalVisitRow.rows[0] ?? null;
+      // Encounter-disabled workspaces retain appointment history but do not read clinical visits.
+      const latestClinical =
+        options?.includeEncounterData === false
+          ? null
+          : ((
+              await runWebappSql<{
+                visited_at: string;
+                visit_type: string;
+                location: string | null;
+              }>(
+                getWebappSqlDb(),
+                sql`SELECT visited_at, visit_type, location
+                 FROM clinical_visit
+                 WHERE patient_user_id = ${canonicalId}::uuid
+                 ORDER BY visited_at DESC
+                 LIMIT 1`,
+              )
+            ).rows[0] ?? null);
 
       // Last visit: prefer clinical_visit (has visitType + city); fall back to canonical appointment date
       let lastVisit: import('@/modules/doctor-clients/ports').PatientCardHeader['lastVisit'] = null;

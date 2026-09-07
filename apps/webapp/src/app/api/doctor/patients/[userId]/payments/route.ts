@@ -13,6 +13,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import {
+  requireDoctorWorkspaceModuleForApi,
+  resolveWorkspaceModulesForApi,
+} from '@/app-layer/guards/workspaceModuleAccess';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -46,8 +50,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   const { payments, totalPaidMinor } = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     deps.patientPayments.listPaymentsWithSummary(identity.userId),
   );
+  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps);
+  const visiblePayments = payments.map((payment) =>
+    workspaceModules.encounters ? payment : { ...payment, visitId: null },
+  );
 
-  return NextResponse.json({ ok: true, payments, totalPaidMinor });
+  return NextResponse.json({ ok: true, payments: visiblePayments, totalPaidMinor });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
@@ -83,6 +91,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   );
   if (!identity) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+  if (b.visitId !== undefined) {
+    const moduleGate = await requireDoctorWorkspaceModuleForApi(deps, gate.ctx, 'encounters');
+    if (!moduleGate.ok) return moduleGate.response;
   }
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'payments');
   if (!entitlement.ok) return entitlement.response;

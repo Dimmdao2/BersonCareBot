@@ -16,6 +16,8 @@ import {
 } from '@/app-layer/guards/requireEntitlement';
 import { requirePatientWarmupReminderMutation } from '@/app-layer/reminders/patientWarmupReminderMutationGuard';
 import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
+import { requirePatientWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
+import { isRehabilitationReminderRule } from '@/modules/reminders/rehabProgramLinkedObject';
 
 const LINKED_TYPES = new Set<ReminderLinkedObjectType>([
   'lfk_complex',
@@ -105,6 +107,14 @@ export async function POST(req: Request) {
 
   const deps = buildAppDeps();
   const userId = session.user.userId;
+  if (isRehabilitationReminderRule({ linkedObjectType })) {
+    const moduleGate = await requirePatientWorkspaceModuleForApi(
+      deps,
+      userId,
+      'rehabilitation',
+    );
+    if (!moduleGate.ok) return moduleGate.response;
+  }
 
   const linkedObjectIdRaw = body.linkedObjectId;
   if (

@@ -237,6 +237,7 @@ type Props = {
   onOpenVisitNotes?: (appointmentId: string) => void;
   onOpenMembershipConfiguration?: () => void;
   displayIana?: string;
+  encountersEnabled?: boolean;
 };
 
 export function PatientTabRecords({
@@ -252,6 +253,7 @@ export function PatientTabRecords({
   onOpenVisitNotes,
   onOpenMembershipConfiguration,
   displayIana = 'Europe/Moscow',
+  encountersEnabled = true,
 }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
   const [highlightedPackageId, setHighlightedPackageId] = useState<string | null>(null);
@@ -849,7 +851,7 @@ export function PatientTabRecords({
                 {/* Status chip */}
                 <StatusChip status={appt.status} rescheduledToDate={appt.rescheduledToDate} />
                 {/* Action */}
-                {appt.status === 'completed' && !appt.hasVisitRecord && (
+                {encountersEnabled && appt.status === 'completed' && !appt.hasVisitRecord && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -870,7 +872,7 @@ export function PatientTabRecords({
                     Оформить визит
                   </Button>
                 )}
-                {appt.status === 'completed' && appt.hasVisitRecord && (
+                {encountersEnabled && appt.status === 'completed' && appt.hasVisitRecord && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -887,10 +889,12 @@ export function PatientTabRecords({
             ))}
           </div>
 
-          <p className={cn(doctorSectionSubtitleClass, 'text-[11px] leading-relaxed')}>
-            У состоявшейся записи — либо ссылка «визит → » (Карта, визит раскрыт), либо кнопка
-            «Оформить визит», если визит не оформлен. Создание новой записи — в Расписании.
-          </p>
+          {encountersEnabled ? (
+            <p className={cn(doctorSectionSubtitleClass, 'text-[11px] leading-relaxed')}>
+              У состоявшейся записи — либо ссылка «визит → » (Карта, визит раскрыт), либо кнопка
+              «Оформить визит», если визит не оформлен. Создание новой записи — в Расписании.
+            </p>
+          ) : null}
         </div>
 
         {/* RIGHT column: Предстоящие + Абонемент */}

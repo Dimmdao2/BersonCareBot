@@ -32,8 +32,10 @@ const fakes = vi.hoisted(() => ({
   requireDoctorWorkspace: vi.fn<RequireDoctorWorkspace>(),
   getClientIdentity: vi.fn<AppDeps['doctorClientsPort']['getClientIdentityForOrganization']>(),
   getSnapshot: vi.fn<AppDeps['orgEntitlements']['getSnapshot']>(),
+  resolveMechanicAccess: vi.fn<AppDeps['orgEntitlements']['resolveMechanicAccess']>(),
   getDoctorWorkspaceComposition:
     vi.fn<AppDeps['systemSettings']['getDoctorWorkspaceComposition']>(),
+  listPatientAppointments: vi.fn<AppDeps['doctorClientsPort']['listPatientAppointments']>(),
   getClinicalState: vi.fn(),
   listVisits: vi.fn(),
   createVisit: vi.fn(),
@@ -54,6 +56,7 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: fakes.requireDoctorWorkspace,
 }));
 vi.mock('@bersoncare/db-principal', () => ({
+  getCurrentObservabilityContext: () => ({}),
   getCurrentDbPrincipal: () => ({
     kind: 'staff',
     organizationId: '00000000-0000-4000-8000-000000001069',
@@ -67,6 +70,7 @@ vi.mock('@bersoncare/db-principal', () => ({
 
 import { GET as listVisitsRoute, POST as createVisitRoute } from './visits/route';
 import { PATCH as updateVisitRoute } from './visits/[visitId]/route';
+import { GET as listAppointmentsRoute } from './appointments/route';
 import {
   GET as readAnamnesisRoute,
   PATCH as updateAnamnesisRoute,
@@ -83,7 +87,10 @@ import {
   PATCH as updateDiagnosisStatusRoute,
 } from './diagnoses/[diagnosisId]/status/route';
 import { PATCH as updatePhysicalRoute } from './physical/route';
-import { GET as readComorbiditiesRoute, POST as createComorbidityRoute } from './comorbidities/route';
+import {
+  GET as readComorbiditiesRoute,
+  POST as createComorbidityRoute,
+} from './comorbidities/route';
 import {
   PATCH as updateComorbidityRoute,
   DELETE as deleteComorbidityRoute,
@@ -138,8 +145,14 @@ const blockedNoTariffSnapshot: OrgEntitlementSnapshot = {
 };
 
 const fakeDeps = {
-  doctorClientsPort: { getClientIdentityForOrganization: fakes.getClientIdentity },
-  orgEntitlements: { getSnapshot: fakes.getSnapshot },
+  doctorClientsPort: {
+    getClientIdentityForOrganization: fakes.getClientIdentity,
+    listPatientAppointments: fakes.listPatientAppointments,
+  },
+  orgEntitlements: {
+    getSnapshot: fakes.getSnapshot,
+    resolveMechanicAccess: fakes.resolveMechanicAccess,
+  },
   systemSettings: { getDoctorWorkspaceComposition: fakes.getDoctorWorkspaceComposition },
   patientClinical: {
     getClinicalState: fakes.getClinicalState,
@@ -174,6 +187,12 @@ beforeEach(() => {
   fakes.requireDoctorWorkspace.mockResolvedValue({ ok: true, ctx: doctorContext });
   fakes.getClientIdentity.mockResolvedValue(clientIdentity);
   fakes.getSnapshot.mockResolvedValue(blockedNoTariffSnapshot);
+  fakes.resolveMechanicAccess.mockImplementation(async (_organizationId, mechanic) => ({
+    mechanic,
+    state: 'full_access',
+    policySource: 'system',
+    warning: null,
+  }));
   fakes.getDoctorWorkspaceComposition.mockResolvedValue(defaultDoctorWorkspaceComposition());
   fakes.getClinicalState.mockResolvedValue({
     complaints: [],
@@ -182,6 +201,7 @@ beforeEach(() => {
     diagnosisHistory: [],
   });
   fakes.listVisits.mockResolvedValue([]);
+  fakes.listPatientAppointments.mockResolvedValue([]);
   fakes.createVisit.mockResolvedValue(VISIT_ID);
   fakes.updateVisitFields.mockResolvedValue(true);
   fakes.appendAnamnesisTrauma.mockResolvedValue(undefined);
@@ -201,10 +221,14 @@ beforeEach(() => {
 });
 
 function setMedicalRecordPreference(enabled: boolean): void {
+  setWorkspacePreferences({ medical_record: enabled });
+}
+
+function setWorkspacePreferences(modules: Partial<DoctorWorkspaceComposition['modules']>): void {
   const defaults = defaultDoctorWorkspaceComposition();
   const composition: DoctorWorkspaceComposition = {
     ...defaults,
-    modules: { ...defaults.modules, medical_record: enabled },
+    modules: { ...defaults.modules, ...modules },
   };
   fakes.getDoctorWorkspaceComposition.mockResolvedValue(composition);
 }
@@ -381,6 +405,79 @@ describe('C3M-07a medical-record API independence (#1098)', () => {
 
     expect(response.status).toBe(403);
     expect(fakes.createVisit).not.toHaveBeenCalled();
+  });
+});
+
+describe('C3M-07b encounter API independence (#1098)', () => {
+  it('denies encounter history, creation, and visit-bound updates before patient data is read', async () => {
+    setWorkspacePreferences({ encounters: false });
+    const base = `https://app.example.test/api/doctor/patients/${PATIENT_ID}/visits`;
+    const probes: Array<readonly [string, () => Promise<Response>]> = [
+      [
+        'history GET',
+        () =>
+          listVisitsRoute(request(base, 'GET'), {
+            params: Promise.resolve({ userId: PATIENT_ID }),
+          }),
+      ],
+      [
+        'visit-bound examination POST',
+        () =>
+          createVisitRoute(
+            jsonRequest(base, 'POST', {
+              visitType: 'first',
+              date: '2026-09-07',
+              exam: 'Осмотр не должен записаться',
+            }),
+            { params: Promise.resolve({ userId: PATIENT_ID }) },
+          ),
+      ],
+      [
+        'visit-bound prescription PATCH',
+        () =>
+          updateVisitRoute(
+            jsonRequest(`${base}/${VISIT_ID}`, 'PATCH', {
+              recommendations: 'Назначение не должно записаться',
+            }),
+            { params: Promise.resolve({ userId: PATIENT_ID, visitId: VISIT_ID }) },
+          ),
+      ],
+    ];
+
+    for (const [label, probe] of probes) {
+      const response = await probe();
+      expect(response.status, label).toBe(403);
+      await expect(response.json(), label).resolves.toEqual({
+        ok: false,
+        error: 'workspace_module_disabled',
+        module: 'encounters',
+      });
+    }
+    expect(fakes.getClientIdentity).not.toHaveBeenCalled();
+    expect(fakes.listVisits).not.toHaveBeenCalled();
+    expect(fakes.createVisit).not.toHaveBeenCalled();
+    expect(fakes.updateVisitFields).not.toHaveBeenCalled();
+  });
+
+  it('keeps longitudinal medical records and appointments available without encounter projection', async () => {
+    setWorkspacePreferences({ encounters: false, medical_record: true });
+    const base = `https://app.example.test/api/doctor/patients/${PATIENT_ID}`;
+
+    const clinicalResponse = await readClinicalRoute(request(`${base}/clinical`, 'GET'), {
+      params: Promise.resolve({ userId: PATIENT_ID }),
+    });
+    const appointmentResponse = await listAppointmentsRoute(
+      request(`${base}/appointments`, 'GET'),
+      { params: Promise.resolve({ userId: PATIENT_ID }) },
+    );
+
+    expect(clinicalResponse.status).toBe(200);
+    expect(appointmentResponse.status).toBe(200);
+    expect(fakes.getClinicalState).toHaveBeenCalledOnce();
+    expect(fakes.listPatientAppointments).toHaveBeenCalledWith(PATIENT_ID, ORGANIZATION_ID, {
+      includeEncounterData: false,
+    });
+    expect(fakes.listVisits).not.toHaveBeenCalled();
   });
 });
 

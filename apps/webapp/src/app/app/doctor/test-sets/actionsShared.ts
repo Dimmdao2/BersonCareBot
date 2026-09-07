@@ -67,7 +67,7 @@ export function parseTestSetItemsPayloadJson(raw: string): TestSetItemInput[] {
 export async function saveTestSetCore(
   formData: FormData,
 ): Promise<{ ok: true; setId: string; wasUpdate: boolean } | { ok: false; error: string }> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const idRaw = formData.get('id');
   const titleField = formData.get('title');
   const title = typeof titleField === 'string' ? titleField.trim() : '';
@@ -171,7 +171,7 @@ export async function createTestSetDraftCore(
     publicationStatus?: 'draft' | 'published';
   } = {},
 ): Promise<{ ok: true; setId: string } | { ok: false; error: string }> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const title = input.title?.trim() || NEW_TEST_SET_DRAFT_TITLE;
   const description = input.description?.trim() || null;
   const publicationStatus = input.publicationStatus;
@@ -201,7 +201,7 @@ export async function createTestSetDraftCore(
 export async function saveTestSetItemsCore(
   formData: FormData,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const setIdRaw = formData.get('setId');
   const payloadRaw = formData.get('itemsPayload');
   const setId = typeof setIdRaw === 'string' ? setIdRaw.trim() : '';
@@ -243,7 +243,7 @@ export async function saveTestSetItemsCore(
 }
 
 export async function archiveTestSetCore(formData: FormData): Promise<ArchiveTestSetCoreResult> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' && idRaw.trim() ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указан набор' };
@@ -281,7 +281,7 @@ export async function archiveTestSetCore(formData: FormData): Promise<ArchiveTes
 export async function unarchiveTestSetCore(
   formData: FormData,
 ): Promise<UnarchiveTestSetCoreResult> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' && idRaw.trim() ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указан набор' };

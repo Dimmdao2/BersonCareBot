@@ -61,7 +61,7 @@ export async function saveReferenceCatalog(input: {
   updates: CatalogRowInput[];
   additions: CatalogAddInput[];
 }): Promise<SaveReferenceCatalogResult> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const categoryCode = input.categoryCode.trim();
   if (!categoryCode) return { ok: false, code: 'category_required' };
   const deps = buildAppDeps();
@@ -126,7 +126,7 @@ export async function saveReferenceCatalog(input: {
 }
 
 export async function addReferenceItem(formData: FormData): Promise<void> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const categoryCode = parseCategoryCode(formData);
   const code = (formData.get('code') as string | null)?.trim() ?? '';
   const title = (formData.get('title') as string | null)?.trim() ?? '';
@@ -149,7 +149,7 @@ export async function addReferenceItem(formData: FormData): Promise<void> {
 }
 
 export async function saveReferenceItem(formData: FormData): Promise<void> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const categoryCode = parseCategoryCode(formData);
   const itemId = (formData.get('itemId') as string | null)?.trim() ?? '';
   const title = (formData.get('title') as string | null)?.trim() ?? '';
@@ -166,7 +166,7 @@ export async function saveReferenceItem(formData: FormData): Promise<void> {
 }
 
 export async function toggleReferenceItem(formData: FormData): Promise<void> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const categoryCode = parseCategoryCode(formData);
   const itemId = (formData.get('itemId') as string | null)?.trim() ?? '';
   const nextActiveRaw = (formData.get('nextActive') as string | null)?.trim() ?? '';
@@ -185,7 +185,7 @@ export type SoftDeleteReferenceItemResult = { ok: true } | { ok: false; code: st
 export async function softDeleteReferenceItem(
   formData: FormData,
 ): Promise<SoftDeleteReferenceItemResult> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   let categoryCode: string;
   try {
     categoryCode = parseCategoryCode(formData);

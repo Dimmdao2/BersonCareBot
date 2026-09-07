@@ -586,9 +586,11 @@ async function loadPeopleRealtimeStats(
       let unreadMessagesCount = 0;
       let exerciseDoneTodayCount = 0;
       const newExerciseCommentsCount =
-        unreadExerciseCommentsByPatientId.get(patientUserId) ??
-        row.unreadExerciseCommentsCount ??
-        0;
+        deps.programItemDiscussion === undefined
+          ? 0
+          : (unreadExerciseCommentsByPatientId.get(patientUserId) ??
+            row.unreadExerciseCommentsCount ??
+            0);
 
       try {
         unreadMessagesCount = deps.messaging.doctorSupport.unreadFromPatient

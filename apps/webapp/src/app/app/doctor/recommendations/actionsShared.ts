@@ -90,7 +90,7 @@ export async function saveRecommendationCore(
 ): Promise<
   { ok: true; recommendationId: string; wasUpdate: boolean } | { ok: false; error: string }
 > {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
 
   const idRaw = formData.get('id');
   const titleField = formData.get('title');
@@ -200,7 +200,7 @@ export async function saveRecommendationCore(
 export async function archiveRecommendationCore(
   formData: FormData,
 ): Promise<ArchiveRecommendationCoreResult> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' && idRaw.trim() ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указана рекомендация' };
@@ -238,7 +238,7 @@ export async function archiveRecommendationCore(
 export async function unarchiveRecommendationCore(
   formData: FormData,
 ): Promise<UnarchiveRecommendationCoreResult> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' && idRaw.trim() ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указана рекомендация' };

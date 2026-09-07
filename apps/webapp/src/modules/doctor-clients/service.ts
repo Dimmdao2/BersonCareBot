@@ -7,7 +7,12 @@ import type {
   SymptomTracking,
 } from '@/modules/diaries/types';
 import type { DoctorSupplementaryContact } from '@/modules/platform-user-contacts/bookingContactUpsert';
-import type { DoctorClientsFilters, DoctorClientsPort, PatientCardHeader } from './ports';
+import type {
+  DoctorClientsFilters,
+  DoctorClientsPort,
+  PatientCardEncounterProjectionOptions,
+  PatientCardHeader,
+} from './ports';
 import type { ClientIdentity, ClientListItem, PatientProgramInteractionPolicy } from './ports';
 import type { ClientSupportProfile } from './supportPolicy';
 import { resolvePatientProgramInteractionPolicy } from './supportPolicy';
@@ -150,8 +155,9 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
     async getPatientCardHeader(
       userId: string,
       organizationId: string,
+      options?: PatientCardEncounterProjectionOptions,
     ): Promise<PatientCardHeader | null> {
-      return deps.clientsPort.getPatientCardHeader(userId, organizationId);
+      return deps.clientsPort.getPatientCardHeader(userId, organizationId, options);
     },
 
     async setPatientBirthDate(

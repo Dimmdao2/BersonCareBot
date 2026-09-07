@@ -787,8 +787,11 @@ public booking этой organization продолжает работать.
       Доказательство: product `366f65f63`, независимый audit/oracles `c8974edac` + `d636eaef5`; route `14/14`,
       bootstrap/registry `10/10`, webapp typecheck, scoped ESLint, architecture checks, `git diff --check` и isolated
       DEV desktop/mobile matrix `medical_record × encounters` PASS; OFF→ON вернул те же симптомы/диагнозы/анамнез.
-- [ ] **C3M-07b — encounters slice.** Независимо скрыть/запретить старт/историю приёмов и visit-bound осмотр,
+- [x] **C3M-07b — encounters slice.** Независимо скрыть/запретить старт/историю приёмов и visit-bound осмотр,
       интервенции и назначения при OFF, сохранив appointments, medical record и исторические данные для re-enable.
+      Доказательство: product `ba3152029`, independent audit/oracles `50c993146`; `4 files / 28 tests`, пять из
+      пяти fault injections, webapp typecheck, scoped ESLint, architecture checks и isolated DEV desktop/mobile
+      matrix `medical_record × encounters` PASS; OFF→ON вернул ту же историю приёмов.
 - [ ] **C3M-08 — rehabilitation slice.** Скрыть/запретить ЛФК/program/catalog paths и зависимые comment/media
       surfaces.
 - [ ] **C3M-09 — communications slice.** Фильтровать Communications tabs и default tab; gate chat ensure/read/write,

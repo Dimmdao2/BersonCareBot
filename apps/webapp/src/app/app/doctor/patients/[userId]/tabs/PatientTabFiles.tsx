@@ -252,7 +252,15 @@ function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
 // List row
 // ---------------------------------------------------------------------------
 
-function FileListRow({ file, onClick }: { file: FileRecord; onClick: () => void }) {
+function FileListRow({
+  file,
+  onClick,
+  encountersEnabled,
+}: {
+  file: FileRecord;
+  onClick: () => void;
+  encountersEnabled: boolean;
+}) {
   return (
     <button
       type="button"
@@ -264,7 +272,7 @@ function FileListRow({ file, onClick }: { file: FileRecord; onClick: () => void 
         <div className="truncate text-sm text-foreground">{file.fileName}</div>
         <div className={cn(doctorMetaTextClass, 'mt-0.5')}>
           {categoryLabel(file.category)} · {formatDate(file.createdAt)}
-          {file.visitId ? ' · привязан к визиту' : null}
+          {encountersEnabled && file.visitId ? ' · привязан к визиту' : null}
         </div>
       </div>
       <span className={cn(doctorMetaTextClass, 'shrink-0')}>{formatBytes(file.sizeBytes)}</span>
@@ -422,12 +430,14 @@ function FilePreviewModal({
   onClose,
   onLinked,
   onDeleteRequested,
+  encountersEnabled,
 }: {
   file: FileRecord | null;
   userId: string;
   onClose: () => void;
   onLinked: (visitId: string) => void;
   onDeleteRequested: (file: FileRecord) => void;
+  encountersEnabled: boolean;
 }) {
   const isImage = file?.mimeType.startsWith('image/') ?? false;
   const isPdf = file?.mimeType === 'application/pdf';
@@ -467,12 +477,14 @@ function FilePreviewModal({
               {categoryLabel(file.category)} · {formatDate(file.createdAt)} ·{' '}
               {formatBytes(file.sizeBytes)}
             </p>
-            <VisitSelector
-              userId={userId}
-              currentVisitId={file.visitId}
-              fileId={file.id}
-              onLinked={onLinked}
-            />
+            {encountersEnabled ? (
+              <VisitSelector
+                userId={userId}
+                currentVisitId={file.visitId}
+                fileId={file.id}
+                onLinked={onLinked}
+              />
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -518,11 +530,13 @@ export function PatientTabFiles({
   userId,
   header: _header,
   initialFiles,
+  encountersEnabled = true,
 }: {
   userId: string;
   header?: PatientCardHeader;
   /** SSR-provided file list (no presigned URLs). When present, skips the initial client fetch. */
   initialFiles?: FileRecord[];
+  encountersEnabled?: boolean;
 }) {
   const [files, setFiles] = useState<FileRecord[]>(() => initialFiles ?? []);
   const [loading, setLoading] = useState(initialFiles == null);
@@ -699,7 +713,12 @@ export function PatientTabFiles({
           </div>
         ) : (
           files.map((file) => (
-            <FileListRow key={file.id} file={file} onClick={() => setPreviewFileId(file.id)} />
+            <FileListRow
+              key={file.id}
+              file={file}
+              encountersEnabled={encountersEnabled}
+              onClick={() => setPreviewFileId(file.id)}
+            />
           ))
         )}
       </div>
@@ -709,6 +728,7 @@ export function PatientTabFiles({
         userId={userId}
         onClose={() => setPreviewFileId(null)}
         onLinked={handleLinked}
+        encountersEnabled={encountersEnabled}
         onDeleteRequested={(file) => {
           setFilePendingDelete(file);
           setDeleteError(null);

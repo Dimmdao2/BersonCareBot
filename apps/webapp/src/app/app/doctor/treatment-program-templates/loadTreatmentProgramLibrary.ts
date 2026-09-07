@@ -8,7 +8,7 @@ import { buildTreatmentProgramLibraryPickers } from './buildTreatmentProgramLibr
 
 /** Inactive constructor surface: load related catalogs only when the editor opens. */
 export async function loadTreatmentProgramLibrary(): Promise<TreatmentProgramLibraryPickers> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const deps = buildAppDeps();
   const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
     .ok;

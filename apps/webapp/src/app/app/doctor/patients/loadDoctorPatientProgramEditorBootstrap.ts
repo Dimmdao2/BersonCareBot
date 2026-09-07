@@ -43,7 +43,7 @@ export async function loadDoctorPatientProgramEditorBootstrap(
     return null;
   }
 
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     patientUserId,

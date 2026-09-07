@@ -12,6 +12,7 @@ import {
 } from '@/app-layer/platform-access';
 import { MaterialRatingAccessError } from '@/modules/material-rating/types';
 import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
+import { requirePatientWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
 
 const targetKindSchema = z.enum(['content_page', 'lfk_exercise', 'lfk_complex']);
 
@@ -55,6 +56,14 @@ export async function GET(req: Request) {
 
   if (!session) {
     return NextResponse.json({ ok: false, error: 'organization_required' }, { status: 403 });
+  }
+  if (parsed.data.kind !== 'content_page') {
+    const moduleGate = await requirePatientWorkspaceModuleForApi(
+      deps,
+      session.user.userId,
+      'rehabilitation',
+    );
+    if (!moduleGate.ok) return moduleGate.response;
   }
   const tenant = await resolvePatientEnrollmentOrganizationId(
     { patientOrganization: deps.patientOrganization },
@@ -112,6 +121,14 @@ export async function PUT(req: Request) {
   const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(gate.session);
 
   const deps = buildAppDeps();
+  if (targetKind !== 'content_page') {
+    const moduleGate = await requirePatientWorkspaceModuleForApi(
+      deps,
+      gate.session.user.userId,
+      'rehabilitation',
+    );
+    if (!moduleGate.ok) return moduleGate.response;
+  }
   const ratingsEnabled = await deps.runtimeConfig.getServerBoolean('material_ratings_enabled');
   if (!ratingsEnabled) {
     return NextResponse.json({ ok: false, error: 'material_ratings_disabled' }, { status: 403 });
