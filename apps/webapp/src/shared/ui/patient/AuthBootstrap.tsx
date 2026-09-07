@@ -47,6 +47,7 @@ import {
   readTelegramInitDataForAuth,
 } from '@/shared/lib/messengerMiniApp';
 import type { MessengerSurfaceHint } from '@/shared/lib/platform';
+import type { SurfaceAuthPolicy } from '@/shared/lib/surface/requestSurface';
 import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
 import { PLATFORM_COOKIE_NAME, readMessengerSurfaceCookie } from '@/shared/lib/platform';
 import { FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY } from '@/modules/auth/otpChannelUi';
@@ -82,6 +83,7 @@ type AuthBootstrapProps = {
   /** Явные entry `/app/tg` и `/app/max` — без интерактивного «веб-сайта» вместо miniapp. */
   routeBoundMiniappEntry?: boolean;
   roleLoginPortal?: RoleLoginPortal | null;
+  surfaceAuthPolicy?: SurfaceAuthPolicy;
 };
 
 const TOKEN_FALLBACK_MS = 1100;
@@ -155,6 +157,7 @@ export function AuthBootstrap({
   entryClassification,
   routeBoundMiniappEntry = false,
   roleLoginPortal = null,
+  surfaceAuthPolicy,
 }: AuthBootstrapProps) {
   const surfaceName = useSurfaceName();
   const router = useRouter();
@@ -162,10 +165,12 @@ export function AuthBootstrap({
   const rawToken = searchParams.get('t') ?? searchParams.get('token');
   const nextParam = searchParams.get('next');
   const initialSpecialistSignupView =
-    searchParams.get('intent') === 'specialist' || searchParams.get('devView') === 'registration'
+    roleLoginPortal == null &&
+    (searchParams.get('intent') === 'specialist' || searchParams.get('devView') === 'registration')
       ? 'registration'
       : undefined;
-  const specialistSignupRequested = searchParams.get('intent') === 'specialist';
+  const specialistSignupRequested =
+    roleLoginPortal == null && searchParams.get('intent') === 'specialist';
   const debug = searchParams.get('debug') === '1';
   const [effectiveEntryClassification, setEffectiveEntryClassification] =
     useState<UnauthenticatedAppEntryClassification>(entryClassification);
@@ -1136,6 +1141,7 @@ export function AuthBootstrap({
           initialDevView={initialSpecialistSignupView}
           onInteractiveLoginEngaged={handleInteractiveEngaged}
           roleLoginPortal={roleLoginPortal}
+          surfaceAuthPolicy={surfaceAuthPolicy}
         />
       </>
     );
