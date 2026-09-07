@@ -138,6 +138,8 @@ function context(canManageAllSpecialists: boolean): DoctorBookingEngineContext {
     specialistId: OWN_ID,
     canManageOrganization: canManageAllSpecialists,
     canManageAllSpecialists,
+    appointmentsManageOwn: true,
+    availabilityManageOwn: true,
   };
 }
 

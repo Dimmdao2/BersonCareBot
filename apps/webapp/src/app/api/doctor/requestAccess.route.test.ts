@@ -143,6 +143,8 @@ function doctorMembership(platformUserId: string): OrganizationMembershipContext
     canManageAllSpecialists: false,
     canAccessClinicalWorkspace: true,
     doctorScreensDisabled: false,
+    appointmentsManageOwn: true,
+    availabilityManageOwn: true,
   };
 }
 
