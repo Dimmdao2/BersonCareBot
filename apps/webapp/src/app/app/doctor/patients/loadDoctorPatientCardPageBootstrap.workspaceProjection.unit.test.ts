@@ -96,6 +96,11 @@ describe('patient-card hidden-module bootstrap', () => {
 
   it.each([
     {
+      modules: { ...ALL_MODULES_OFF },
+      medicalCalls: false,
+      encounterCalls: false,
+    },
+    {
       modules: { ...ALL_MODULES_OFF, encounters: true },
       medicalCalls: false,
       encounterCalls: true,
@@ -104,6 +109,11 @@ describe('patient-card hidden-module bootstrap', () => {
       modules: { ...ALL_MODULES_OFF, medical_record: true },
       medicalCalls: true,
       encounterCalls: false,
+    },
+    {
+      modules: { ...ALL_MODULES_OFF, medical_record: true, encounters: true },
+      medicalCalls: true,
+      encounterCalls: true,
     },
   ])('loads only the effective half of the combined Karte surface: %o', async (scenario) => {
     const { calls, deps, workspace } = makeFixture();

@@ -36,6 +36,8 @@ type Props = {
   initialAnamnesis?: AnamnesisState | null;
   /** SSR-provided active comorbidities — skips the Comorbidities component's initial fetch. */
   initialComorbidities?: PatientClinicalComorbidity[] | null;
+  medicalRecordEnabled?: boolean;
+  encountersEnabled?: boolean;
   /** UI-5b composition slots. Only `leftContent`/`selectedAppointmentId` are still read —
    * the karta tab no longer has a second detail pane, so `rightContent`/`mobilePane`
    * flow through unused for backwards-compat with PatientCardClient's calling shape. */
@@ -56,6 +58,10 @@ type Props = {
 interface ClinicalApiResponse {
   ok: boolean;
   state: ClinicalState;
+}
+
+interface VisitsApiResponse {
+  ok: boolean;
   visits: Visit[];
 }
 
@@ -76,9 +82,12 @@ export function PatientTabKarta({
   initialVisits,
   initialAnamnesis,
   initialComorbidities,
+  medicalRecordEnabled = true,
+  encountersEnabled = true,
   composition,
 }: Props) {
-  const hasSsrClinical = initialClinicalState != null && initialVisits != null;
+  const hasSsrClinical = initialClinicalState != null;
+  const hasSsrVisits = initialVisits != null;
 
   // Clinical data — loaded from /api/doctor/patients/[userId]/clinical
   const [complaints, setComplaints] = useState<ActiveComplaint[]>(() =>
@@ -93,11 +102,11 @@ export function PatientTabKarta({
   const [diagnosisHistory, setDiagnosisHistory] = useState<ActiveDiagnosis[]>(() =>
     hasSsrClinical ? initialClinicalState!.diagnosisHistory : [],
   );
-  const [visits, setVisits] = useState<Visit[]>(() => (hasSsrClinical ? initialVisits! : []));
-  const [isLoading, setIsLoading] = useState(!hasSsrClinical);
+  const [visits, setVisits] = useState<Visit[]>(() => initialVisits ?? []);
+  const [isLoading, setIsLoading] = useState(medicalRecordEnabled && !hasSsrClinical);
   const [fetchError, setFetchError] = useState(false);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(() =>
-    hasSsrClinical ? userId : null,
+    !medicalRecordEnabled || hasSsrClinical ? userId : null,
   );
 
   // Anamnesis data — loaded from /api/doctor/patients/[userId]/anamnesis
@@ -121,7 +130,6 @@ export function PatientTabKarta({
         setDiagnoses(data.state.diagnoses);
         setComplaintHistory(data.state.complaintHistory);
         setDiagnosisHistory(data.state.diagnosisHistory);
-        setVisits(data.visits);
         setFetchError(false);
         setLoadedUserId(userId);
         setIsLoading(false);
@@ -131,6 +139,16 @@ export function PatientTabKarta({
         setLoadedUserId(userId);
         setIsLoading(false);
       });
+  }, [userId]);
+
+  const fetchVisits = useCallback(() => {
+    fetch(`/api/doctor/patients/${userId}/visits`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`status ${r.status}`);
+        return r.json() as Promise<VisitsApiResponse>;
+      })
+      .then((data) => setVisits(data.visits))
+      .catch(() => setVisits([]));
   }, [userId]);
 
   const fetchAnamnesis = useCallback(() => {
@@ -151,17 +169,13 @@ export function PatientTabKarta({
   }, [userId]);
 
   useEffect(() => {
-    // Skip clinical fetch on mount when SSR data covers this userId.
-    // fetchClinical() remains callable after mutations (onSaved callbacks).
-    if (hasSsrClinical && loadedUserId === userId) {
-      // Skip anamnesis fetch too when SSR data provided.
+    if (medicalRecordEnabled) {
+      if (!hasSsrClinical || loadedUserId !== userId) fetchClinical();
       if (!hasSsrAnamnesis) fetchAnamnesis();
-      return;
     }
-    fetchClinical();
-    if (!hasSsrAnamnesis) fetchAnamnesis();
+    if (encountersEnabled && !hasSsrVisits) fetchVisits();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchClinical, fetchAnamnesis]);
+  }, [fetchClinical, fetchAnamnesis, fetchVisits, medicalRecordEnabled, encountersEnabled]);
 
   // Treat as loading while userId doesn't match loaded data
   const isStale = loadedUserId !== userId;
@@ -189,33 +203,37 @@ export function PatientTabKarta({
     <>
       <div className="flex flex-col gap-2.5">
         {composition?.leftContent}
-        <PatientClinicalSections
-          userId={userId}
-          patientName={patientName}
-          patientOnSupport={patientOnSupport}
-          complaints={complaints}
-          complaintHistory={complaintHistory}
-          diagnoses={diagnoses}
-          diagnosisHistory={diagnosisHistory}
-          loading={loading}
-          fetchError={fetchError}
-          onClinicalRefresh={fetchClinical}
-          anamnesis={anamnesis}
-          anamnesisLoading={anamnesisLoading}
-          anamnesisError={anamnesisError}
-          onAnamnesisRefresh={fetchAnamnesis}
-          initialComorbidities={initialComorbidities ?? undefined}
-        />
+        {medicalRecordEnabled ? (
+          <PatientClinicalSections
+            userId={userId}
+            patientName={patientName}
+            patientOnSupport={patientOnSupport}
+            complaints={complaints}
+            complaintHistory={complaintHistory}
+            diagnoses={diagnoses}
+            diagnosisHistory={diagnosisHistory}
+            loading={loading}
+            fetchError={fetchError}
+            onClinicalRefresh={fetchClinical}
+            anamnesis={anamnesis}
+            anamnesisLoading={anamnesisLoading}
+            anamnesisError={anamnesisError}
+            onAnamnesisRefresh={fetchAnamnesis}
+            initialComorbidities={initialComorbidities ?? undefined}
+          />
+        ) : null}
       </div>
 
-      <EncounterViewModal
-        visit={viewedVisit}
-        nested={false}
-        editHref={viewedVisit ? `/app/doctor/patients/${userId}/visits/${viewedVisit.id}` : ''}
-        patientName={patientName}
-        patientOnSupport={patientOnSupport}
-        onClose={closeViewedVisit}
-      />
+      {encountersEnabled ? (
+        <EncounterViewModal
+          visit={viewedVisit}
+          nested={false}
+          editHref={viewedVisit ? `/app/doctor/patients/${userId}/visits/${viewedVisit.id}` : ''}
+          patientName={patientName}
+          patientOnSupport={patientOnSupport}
+          onClose={closeViewedVisit}
+        />
+      ) : null}
     </>
   );
 }

@@ -10,7 +10,7 @@
 #   tools/orch-queue-tick.sh <клон> <файл-очереди>
 #
 # Формат очереди — по одной работе в строке, поля через |, пустые строки и # игнорируются:
-#   роль|модель|effort|путь-к-брифу|слой-плана|run-id
+#   роль|модель|effort|путь-к-брифу|слой-плана|run-id|причина-выбора-Claude
 # Пример:
 #   worker|gpt-5.6-terra|high|docs/_TODO/runs/x/BRIEF.md|PLAN этап 5|worker-x-0730
 #
@@ -73,7 +73,7 @@ if [ -z "$LINE" ]; then
   exit 0
 fi
 
-IFS='|' read -r ROLE MODEL EFFORT BRIEF SLICE RUN_ID <<< "$LINE"
+IFS='|' read -r ROLE MODEL EFFORT BRIEF SLICE RUN_ID PROVIDER_REASON <<< "$LINE"
 [ -n "${RUN_ID:-}" ] || { say "битая строка очереди: $LINE"; exit 0; }
 
 # 4. Клон обязан содержать свежую голову feat — подтягиваем сами, это безопасно на чистом дереве.
@@ -88,8 +88,16 @@ git -C "$CLONE" merge -q --no-edit FETCH_HEAD 2>>"$LOG" || {
 # Провайдер выводится из имени модели: claude-* идёт через провайдера claude, остальное — codex.
 # Без этого строка очереди с claude-sonnet-5 уходила в codex и падала как blocked_system (31.07).
 case "$MODEL" in
-  claude-*) export ORCH_PROVIDER=claude ;;
-  *) unset ORCH_PROVIDER ;;
+  claude-*)
+    [ -n "${PROVIDER_REASON:-}" ] || {
+      say "СТОП: $RUN_ID выбирает Claude без task-specific причины в седьмом поле очереди"
+      notify_lead "Конвейер $CLONE_NAME: $RUN_ID не запущен — выбор Claude не обоснован в очереди."
+      exit 0
+    }
+    export ORCH_PROVIDER=claude
+    export ORCH_PROVIDER_REASON="$PROVIDER_REASON"
+    ;;
+  *) unset ORCH_PROVIDER ORCH_PROVIDER_REASON ;;
 esac
 say "запуск $RUN_ID ($ROLE, ${ORCH_PROVIDER:-codex}/$MODEL/$EFFORT) по брифу $BRIEF"
 

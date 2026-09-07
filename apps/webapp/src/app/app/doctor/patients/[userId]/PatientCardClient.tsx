@@ -762,6 +762,8 @@ function PatientCardTabPanels({
             canOpenKarta={availableTabIds.has('karta')}
             canOpenProgram={availableTabIds.has('program')}
             canCreateEncounter={workspaceModules?.encounters !== false}
+            medicalRecordEnabled={workspaceModules?.medical_record !== false}
+            encountersEnabled={workspaceModules?.encounters !== false}
             initialClinicalState={tab.initialClinicalState}
             initialVisits={tab.initialVisits}
             initialNotes={tab.initialNotes}
@@ -791,6 +793,8 @@ function PatientCardTabPanels({
             initialVisits={unwrapBootstrapEnvelope(tab.initialVisits)}
             initialAnamnesis={unwrapBootstrapEnvelope(tab.initialAnamnesis)}
             initialComorbidities={unwrapBootstrapEnvelope(tab.initialComorbidities)}
+            medicalRecordEnabled={workspaceModules?.medical_record !== false}
+            encountersEnabled={workspaceModules?.encounters !== false}
             composition={{
               leftContent: null,
               rightContent: null,
