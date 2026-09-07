@@ -16,6 +16,11 @@ export type PatientTerms = {
   patientSingularLabel: string;
 };
 
+export type DoctorClientTerms = PatientTerms & {
+  /** Chosen display name for the one `doctor_patient_support.on_support` group. */
+  supportGroupLabel: 'Избранные' | 'На сопровождении';
+};
+
 export const PATIENT_LABEL_VALUES = ['пациент', 'клиент'] as const;
 export type PatientLabelValue = (typeof PATIENT_LABEL_VALUES)[number];
 
@@ -61,5 +66,19 @@ export function resolvePatientTerms(singular?: string | null): PatientTerms {
     patientPluralLabel: 'Пациенты',
     patientGenPlural: 'пациентов',
     patientSingularLabel: 'Пациент',
+  };
+}
+
+/**
+ * The sole terminology projection for specialist/client surfaces.  Both settings remain
+ * organization-scoped, while the underlying membership stays the existing `onSupport` field.
+ */
+export function resolveDoctorClientTerms(
+  patientLabel?: string | null,
+  supportGroupLabel?: string | null,
+): DoctorClientTerms {
+  return {
+    ...resolvePatientTerms(patientLabel),
+    supportGroupLabel: resolveSupportGroupLabel(supportGroupLabel),
   };
 }

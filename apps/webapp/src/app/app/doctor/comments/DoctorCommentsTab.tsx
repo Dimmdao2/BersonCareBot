@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
 import type { DoctorExerciseCommentCursor } from '@/modules/program-item-discussion/types';
 import type { CommentPatientRow } from './loadDoctorCommentPatients';
@@ -113,6 +114,7 @@ function PatientRow({
  * комментариев ЛФК один путь на весь кабинет.
  */
 function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCommentsTabProps) {
+  const { supportGroupLabel } = useDoctorPatientTerms();
   // ── View mode: «Непрочитанные» (unread) or «Все» (all) ──
   // Default: «Все» — показать всю историю комментариев; «Непрочитанные» — только непрочитанные.
   const [viewMode, setViewMode] = useState<'unread' | 'all'>('all');
@@ -329,7 +331,7 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
             )}
             aria-pressed={onSupportOnly}
           >
-            ★ На сопровождении{onSupportCount > 0 ? ` ${onSupportCount}` : ''}
+            ★ {supportGroupLabel}{onSupportCount > 0 ? ` ${onSupportCount}` : ''}
           </Button>
         </div>
       ) : null}

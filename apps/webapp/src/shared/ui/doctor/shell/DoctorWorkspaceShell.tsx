@@ -25,6 +25,8 @@ type DoctorWorkspaceShellProps = {
   userDisplayName?: string;
   /** Если `"клиент"`, пункт «Пациенты» в сайдбаре отображается как «Клиенты». */
   patientLabel?: string;
+  /** Chosen display name for the existing `onSupport` group. */
+  supportGroupLabel?: string;
   /** Stable server-resolved org/member context for nested multi-specialist workspace controls. */
   workspaceContext?: DoctorWorkspaceContext;
   /** Server-resolved solo/clinic composition; client chrome never infers it from capabilities. */
@@ -70,6 +72,7 @@ export function DoctorWorkspaceShell({
   userRole,
   userDisplayName,
   patientLabel,
+  supportGroupLabel,
   workspaceContext,
   workspaceComposition,
   coursesEnabled = false,
@@ -169,7 +172,10 @@ export function DoctorWorkspaceShell({
               : undefined
           }
         >
-          <DoctorPatientTermsProvider patientLabel={patientLabel}>
+          <DoctorPatientTermsProvider
+            patientLabel={patientLabel}
+            supportGroupLabel={supportGroupLabel}
+          >
             {children}
           </DoctorPatientTermsProvider>
         </DoctorWorkspaceViewport>

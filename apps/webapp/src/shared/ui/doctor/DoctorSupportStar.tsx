@@ -1,16 +1,20 @@
+'use client';
+
 import type { ComponentPropsWithoutRef } from 'react';
 import { cn } from '@/lib/utils';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 /** Compact inline marker for a patient who is currently on support. */
 export function DoctorSupportStar({ className }: { className?: string }) {
+  const { supportGroupLabel } = useDoctorPatientTerms();
   return (
     <span
       className={cn(
         'relative -top-0.5 ml-1 inline-block text-[10px] leading-none font-semibold text-primary',
         className,
       )}
-      title="На сопровождении"
-      aria-label="На сопровождении"
+      title={supportGroupLabel}
+      aria-label={supportGroupLabel}
     >
       ★
     </span>

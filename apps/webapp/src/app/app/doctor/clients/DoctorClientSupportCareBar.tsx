@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import type { PatientProgramInteractionPolicy } from '@/modules/doctor-clients/supportPolicy';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type SupportSettingsResponse = {
   ok?: boolean;
@@ -12,6 +13,7 @@ type SupportSettingsResponse = {
 
 /** Компактный тумблер «На сопровождении» для Hero (id якоря support). */
 export function DoctorClientSupportCareBar({ patientUserId }: { patientUserId: string }) {
+  const { supportGroupLabel } = useDoctorPatientTerms();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [onSupport, setOnSupport] = useState(false);
@@ -71,7 +73,7 @@ export function DoctorClientSupportCareBar({ patientUserId }: { patientUserId: s
         htmlFor="doctor-client-on-support-care-bar"
         className="text-sm font-medium whitespace-nowrap"
       >
-        На сопровождении
+        {supportGroupLabel}
       </Label>
     </div>
   );

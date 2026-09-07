@@ -16,6 +16,7 @@ import { FilePlus2, ListPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientSupportPanel';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import type { ActiveComplaint, ClinicalState, Visit } from '@/modules/patient-clinical/ports';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import type { DoctorNoteRow } from '@/modules/doctor-notes/ports';
@@ -916,6 +917,7 @@ export function PatientTabOverview({
   tasksTodayIso,
   compositionMode,
 }: Props) {
+  const { supportGroupLabel } = useDoctorPatientTerms();
   const isComposed = compositionMode != null;
   const isOverviewComposition = compositionMode === 'overview';
   const seededExerciseCalendar = unwrapBootstrapEnvelope(initialExerciseCalendarSnapshot);
@@ -2232,9 +2234,9 @@ export function PatientTabOverview({
         </DoctorModal>
 
         {/* Сопровождение — moved here from Учётка (S2.5) */}
-        {!isComposed ? (
+        {isOverviewComposition ? (
           <div className={doctorSectionCardClass}>
-            <span className={doctorSectionTitleClass}>Сопровождение</span>
+            <span className={doctorSectionTitleClass}>{supportGroupLabel}</span>
             <DoctorClientSupportPanel
               patientUserId={userId}
               initialEffectivePolicy={unwrapBootstrapEnvelope(initialSupportEffectivePolicy)}

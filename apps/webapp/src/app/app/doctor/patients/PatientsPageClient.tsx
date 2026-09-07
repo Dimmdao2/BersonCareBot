@@ -52,6 +52,7 @@ import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/D
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { formatDoctorFio } from '@/shared/lib/fio';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import {
   buildPatientListWorkspaceHref,
   patientCardHrefWithReturnTo,
@@ -591,6 +592,7 @@ function PatientsContent({
             )}
           >
             {SEGMENTS.map((seg) => {
+              const title = seg.key === 'on_support' ? supportGroupLabel : seg.title;
               const totalValue =
                 seg.key === 'all'
                   ? categoryBase.length
@@ -601,7 +603,7 @@ function PatientsContent({
                   id={`${idPrefix}-segment-${seg.key}`}
                   title={
                     <>
-                      {seg.key === 'all' ? `Все ${patientPluralLabelLower}` : seg.title}
+                      {seg.key === 'all' ? `Все ${patientPluralLabelLower}` : title}
                       {seg.titleMeta ? (
                         <span className="ml-1 text-[10px] font-normal tracking-normal normal-case text-muted-foreground">
                           ({seg.titleMeta})
@@ -889,6 +891,7 @@ export function PatientsPageClient({
   patientPluralLabel = 'Пациенты',
   patientSingularLabel = 'Пациент',
 }: PatientsPageClientProps) {
+  const { supportGroupLabel } = useDoctorPatientTerms();
   // Search state (local, debounced)
   const [searchInput, setSearchInput] = useState(initialFilters.q);
   const [searchQuery, setSearchQuery] = useState(initialFilters.q);

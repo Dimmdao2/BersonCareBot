@@ -16,6 +16,7 @@ import {
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -82,8 +83,9 @@ function DoctorTodayPeopleSection({
   people?: TodayDashboardData['people'];
   peopleListTruncated?: boolean;
 }) {
+  const { patientPluralLabel, supportGroupLabel } = useDoctorPatientTerms();
   const peopleListIsOnSupport = peopleListMode === 'on_support';
-  const peopleListTitle = peopleListIsOnSupport ? 'На сопровождении' : 'Недавние с визитами';
+  const peopleListTitle = peopleListIsOnSupport ? supportGroupLabel : 'Недавние с визитами';
 
   return (
     <DoctorSection
@@ -95,7 +97,7 @@ function DoctorTodayPeopleSection({
           <DoctorSectionTitle>{peopleListTitle}</DoctorSectionTitle>
           {peopleCount > 0 ? (
             <p className="text-xs text-muted-foreground" id="doctor-today-people-count">
-              Клиентов: {peopleCount}
+              {patientPluralLabel}: {peopleCount}
             </p>
           ) : null}
         </DoctorSectionHeader>
@@ -103,7 +105,9 @@ function DoctorTodayPeopleSection({
       {peopleCount === 0 ? (
         <DoctorEmptyState>
           <p>
-            {peopleListIsOnSupport ? 'Клиентов на сопровождении нет' : 'Клиентов с визитами нет'}
+            {peopleListIsOnSupport
+              ? `В группе «${supportGroupLabel}» нет ${patientPluralLabel.toLowerCase()}`
+              : `${patientPluralLabel} с визитами нет`}
           </p>
           <Link
             href={peopleListIsOnSupport ? ON_SUPPORT_LIST_HREF : RECENT_VISITS_LIST_HREF}
@@ -196,6 +200,7 @@ export function DoctorTodayDashboard({
   specialistTasksReadable,
   appointmentsManageOwn = true,
 }: Props) {
+  const { supportGroupLabel } = useDoctorPatientTerms();
   const router = useRouter();
   const isMobile = useIsMobileViewport();
   const [mobileModal, setMobileModal] = useState<
@@ -339,7 +344,7 @@ export function DoctorTodayDashboard({
           <DoctorMetricList columns="two" aria-label="Сводка дня">
             <DoctorStatCard
               id="doctor-today-mobile-kpi-support"
-              title="Сопровождение"
+              title={supportGroupLabel}
               value={data.onSupportPeopleCount}
               onClick={data.onSupportPeopleCount > 0 ? () => setMobileModal('support') : undefined}
             />
@@ -405,7 +410,7 @@ export function DoctorTodayDashboard({
       <DoctorModal
         open={mobileModal === 'support'}
         onClose={() => setMobileModal(null)}
-        title="Сопровождение"
+        title={supportGroupLabel}
         size="lg"
         bodyVariant="list"
         desktopPresentation="right-sheet"
