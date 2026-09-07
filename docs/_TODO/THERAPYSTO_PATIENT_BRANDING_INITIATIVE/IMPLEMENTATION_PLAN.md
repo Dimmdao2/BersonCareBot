@@ -1024,4 +1024,5 @@ rollback-preflight → PASS; три fault injection (bot-side write, рассы�
 `SURFACE_AND_DOMAIN_MAP_2026-08-22.md` §9: они не меняют границы A/B, но нужны до приёмки соответствующих F/C/E.
 
 Остальные развилки первой редакции закрыты технически: domain edit остаётся owner-only; active docs исправляются
-на месте; обе patient-поверхности используют одну global Yandex registration; новая domain table не нужна.
+на месте; обе patient-поверхности используют одну global Yandex registration; self-service lifecycle использует
+один server-owned domain binding из `B2`, а сохранённая строка запроса не становится вторым runtime-источником.
