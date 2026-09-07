@@ -92,6 +92,11 @@ describe('patient-card hidden-module bootstrap', () => {
     expect(calls.notes).toHaveBeenCalledOnce();
     expect(calls.tasks).toHaveBeenCalledOnce();
     expect(calls.appointments).toHaveBeenCalledOnce();
+    expect(calls.appointments).toHaveBeenCalledWith(
+      '22222222-2222-4222-8222-222222222222',
+      '11111111-1111-4111-8111-111111111111',
+      { includeEncounterData: false },
+    );
   });
 
   it.each([

@@ -6,6 +6,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import {
+  requireDoctorWorkspaceModuleForApi,
+  resolveWorkspaceModulesForApi,
+} from '@/app-layer/guards/workspaceModuleAccess';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -56,6 +60,7 @@ export async function GET(
   if (!file || file.patientUserId !== patientUserId) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
+  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps);
 
   let previewUrl: string | null = null;
   if (isS3MediaEnabled(env)) {
@@ -69,7 +74,10 @@ export async function GET(
     }
   }
 
-  return NextResponse.json({ ok: true, file: { ...file, previewUrl } });
+  return NextResponse.json({
+    ok: true,
+    file: { ...file, visitId: workspaceModules.encounters ? file.visitId : null, previewUrl },
+  });
 }
 
 /**
@@ -191,6 +199,10 @@ export async function PATCH(
   );
   if (!existing || existing.patientUserId !== patientUserId) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+  if (parsed.data.visitId !== undefined) {
+    const moduleGate = await requireDoctorWorkspaceModuleForApi(deps, gate.ctx, 'encounters');
+    if (!moduleGate.ok) return moduleGate.response;
   }
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'files');
   if (!entitlement.ok) return entitlement.response;

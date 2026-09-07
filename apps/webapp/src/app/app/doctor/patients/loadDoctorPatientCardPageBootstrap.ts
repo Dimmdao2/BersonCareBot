@@ -309,7 +309,9 @@ export async function loadDoctorPatientCardShellMeta(
     await Promise.all([
       loadMembershipMeta(workspace, activeTab),
       withDoctorWorkspacePrincipal(workspace, () =>
-        deps.doctorClients.getPatientCardHeader(patientUserId, workspace.organizationId),
+        deps.doctorClients.getPatientCardHeader(patientUserId, workspace.organizationId, {
+          includeEncounterData: workspaceModules?.encounters !== false,
+        }),
       ),
       workspaceModules?.client_portal === false
         ? Promise.resolve(null)
@@ -399,7 +401,9 @@ export async function loadDoctorPatientCardTabBootstrap(
                 organizationId: workspace.organizationId,
               },
             ),
-        deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
+        deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId, {
+          includeEncounterData: encountersEnabled,
+        }),
         programInstancesPromise,
         loadProgramInstanceDetail(programInstancesPromise),
         membershipAccess.specialistNavigation && deps.memberships
@@ -482,9 +486,7 @@ export async function loadDoctorPatientCardTabBootstrap(
         ? envelopeFromSettled(medicalRecordResults[0]!)
         : null,
       initialVisits: encounterResults ? envelopeFromSettled(encounterResults[0]!) : null,
-      initialAnamnesis: medicalRecordResults
-        ? envelopeFromSettled(medicalRecordResults[1]!)
-        : null,
+      initialAnamnesis: medicalRecordResults ? envelopeFromSettled(medicalRecordResults[1]!) : null,
       initialComorbidities: medicalRecordResults
         ? envelopeFromSettled(medicalRecordResults[2]!)
         : null,
@@ -522,7 +524,9 @@ export async function loadDoctorPatientCardTabBootstrap(
       deps.platformUserContacts.listForPlatformUser(patientUserId),
     ]);
     const cardHeader = await withDoctorWorkspacePrincipal(workspace, () =>
-      deps.doctorClients.getPatientCardHeader(patientUserId, workspace.organizationId),
+      deps.doctorClients.getPatientCardHeader(patientUserId, workspace.organizationId, {
+        includeEncounterData: workspaceModules?.encounters !== false,
+      }),
     );
     const rawContactRows =
       rawContactRowsResult.status === 'fulfilled' ? rawContactRowsResult.value : null;
@@ -565,7 +569,9 @@ export async function loadDoctorPatientCardTabBootstrap(
         withDoctorWorkspacePrincipal(workspace, () =>
           deps.patientPayments.listPaymentsWithSummary(patientUserId),
         ),
-        deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
+        deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId, {
+          includeEncounterData: workspaceModules?.encounters !== false,
+        }),
         membershipAccess.specialistNavigation && deps.memberships
           ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId)
           : Promise.resolve(null),
@@ -582,7 +588,9 @@ export async function loadDoctorPatientCardTabBootstrap(
     // empty: it settles fulfilled with `[]` above and still builds a cash-only timeline.
     const historyEvents =
       historyEventsResult.status === 'fulfilled' ? historyEventsResult.value : null;
-    const patientPaymentRows = paymentsSummary?.payments ?? [];
+    const patientPaymentRows = (paymentsSummary?.payments ?? []).map((payment) =>
+      workspaceModules?.encounters === false ? { ...payment, visitId: null } : payment,
+    );
     const finances =
       paymentsSummary && historyEvents
         ? buildFinancesTimeline(patientPaymentRows, historyEvents)

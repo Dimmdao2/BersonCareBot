@@ -13,6 +13,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireDoctorWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
@@ -26,6 +27,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   }
 
   const deps = buildAppDeps();
+  const moduleGate = await requireDoctorWorkspaceModuleForApi(deps, gate.ctx, 'encounters');
+  if (!moduleGate.ok) return moduleGate.response;
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     gate.ctx.organizationId,

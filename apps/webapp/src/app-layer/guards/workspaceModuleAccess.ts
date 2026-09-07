@@ -152,6 +152,19 @@ export async function resolveDoctorWorkspaceModules(
 }
 
 /**
+ * Canonical API projection for callers that preserve an independent surface while omitting data
+ * owned by a disabled workspace module (for example appointments without encounter links).
+ * It delegates to the same entitlement-aware specialist resolver instead of folding preferences
+ * through a second availability formula.
+ */
+export async function resolveWorkspaceModulesForApi(
+  workspace: DoctorWorkspaceAccessContext,
+  deps: Pick<AppDeps, 'orgEntitlements' | 'systemSettings'>,
+): Promise<WorkspaceModuleEffective> {
+  return resolveDoctorWorkspaceModules(deps, workspace);
+}
+
+/**
  * Patient/service projection after the existing enrollment/target authorization established the
  * organization. Those prior boundaries remain authoritative; this resolver only applies the
  * stored workspace preference and its frozen parent dependencies.

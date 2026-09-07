@@ -77,6 +77,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   }
 
   const deps = buildAppDeps();
+  const moduleGate = await requireDoctorWorkspaceModuleForApi(deps, gate.ctx, 'encounters');
+  if (!moduleGate.ok) return moduleGate.response;
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     gate.ctx.organizationId,
@@ -116,6 +118,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   }
   const b = parsed.data;
   const deps = buildAppDeps();
+  const encountersGate = await requireDoctorWorkspaceModuleForApi(deps, gate.ctx, 'encounters');
+  if (!encountersGate.ok) return encountersGate.response;
   const writesMedicalRecord =
     (b.complaints?.length ?? 0) > 0 ||
     (b.diagnoses?.length ?? 0) > 0 ||
