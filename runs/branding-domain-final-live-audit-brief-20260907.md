@@ -2,6 +2,10 @@
 
 You are the independent final auditor on `wt/branding-domain-absolute-links-20260907`, after the implementation worker has committed. Product code is read-only. This is one bounded continuation audit, not a new serial nit-picking round. Commit before ending; do not push, land, deploy, or touch TEST/PROD/DNS/TLS/services.
 
+## Test or view classification — first action
+
+Before reading tests, classify each exact acceptance item below as repeatable behavior (`test`) or one-time final state/architecture (`view`) under `AGENTS.md` §24.4 and record that classification at the top of the audit artifact. Reuse prior kill-sets as instructed below.
+
 ## Mandatory start
 
 1. Run `grep -n "^## \\|^### " AGENTS.md`, read the route and `AGENTS.md` §§1, 1a, 1b, 5, 6, 7, 9, 10a, 10b, 11 and 24 in full. Read `README.md`, `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`, `docs/ARCHITECTURE/SERVER CONVENTIONS.md`, `deploy/HOST_DEPLOY_README.md` and `docs/ORCHESTRATION_BINDINGS.md` before host/DB/runtime action.
