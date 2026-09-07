@@ -12,6 +12,8 @@ const fakes = vi.hoisted(() => ({
   persistAdminModesBatch: vi.fn(),
   getClinicPlatformIntegrationAvailability: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
+  setCustomDomainIntent: vi.fn(),
+  clearCustomDomainIntent: vi.fn(),
 }));
 
 vi.mock('@/modules/auth/service', () => ({ getCurrentSession: fakes.getCurrentSession }));
@@ -37,6 +39,10 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
       persistSettingsBatch: fakes.persistSettingsBatch,
       persistAdminModesBatch: fakes.persistAdminModesBatch,
       getClinicPlatformIntegrationAvailability: fakes.getClinicPlatformIntegrationAvailability,
+    },
+    customDomainBinding: {
+      setCustomDomainIntent: fakes.setCustomDomainIntent,
+      clearCustomDomainIntent: fakes.clearCustomDomainIntent,
     },
   }),
 }));
@@ -74,6 +80,20 @@ beforeEach(() => {
   fakes.getSetting.mockResolvedValue(null);
   fakes.listSettingsByScope.mockResolvedValue([]);
   fakes.requireEntitlementForMutation.mockResolvedValue({ ok: true });
+  fakes.setCustomDomainIntent.mockResolvedValue({
+    ok: true,
+    state: {
+      organizationId: CLINIC_ORGANIZATION_ID,
+      baseDomain: 'clinic.example.test',
+      placement: 'apex',
+      subdomainLabel: null,
+      hostname: 'clinic.example.test',
+      status: 'pending',
+      statusReason: null,
+      activatedAt: null,
+    },
+  });
+  fakes.clearCustomDomainIntent.mockResolvedValue({ ok: true, state: null });
   fakes.getClinicPlatformIntegrationAvailability.mockResolvedValue({
     version: 1,
     integrations: { email: true, smsc: true, telegram: true, max: true, vk: true },
@@ -481,6 +501,94 @@ describe('clinic-owner atomic settings readback', () => {
       clinicSession.user.userId,
       { organizationId: CLINIC_ORGANIZATION_ID },
     );
+  });
+
+  it('computes the fixed app label server-side and ignores a browser-supplied prefix', async () => {
+    const response = await patch({
+      key: 'org_custom_domain_hostname',
+      value: {
+        value: 'Clinic.Example.Test',
+        placement: 'subdomain',
+        subdomainLabel: 'browser-controlled',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(fakes.setCustomDomainIntent).toHaveBeenCalledWith({
+      organizationId: CLINIC_ORGANIZATION_ID,
+      baseDomain: 'clinic.example.test',
+      placement: 'subdomain',
+      subdomainLabel: 'app',
+    });
+  });
+
+  it('rejects the platform-owned patient namespace as a clinic custom-domain intent', async () => {
+    const response = await patch({
+      key: 'org_custom_domain_hostname',
+      value: { value: 'victim-clinic.therapygo.ru', placement: 'apex' },
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ ok: false });
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
+    expect(fakes.setCustomDomainIntent).not.toHaveBeenCalled();
+  });
+
+  it('does not persist the settings row when the hostname claim loses uniqueness', async () => {
+    fakes.setCustomDomainIntent.mockResolvedValueOnce({ ok: false, code: 'hostname_taken' });
+
+    const response = await patch({
+      key: 'org_custom_domain_hostname',
+      value: { value: 'clinic.example.test', placement: 'apex' },
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'custom_domain_hostname_taken',
+    });
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('keeps custom-domain mutation owner-only', async () => {
+    fakes.requireClinic.mockResolvedValueOnce({
+      ok: true,
+      ctx: {
+        organizationId: CLINIC_ORGANIZATION_ID,
+        membershipRole: 'admin',
+        session: clinicSession,
+      },
+    });
+
+    const response = await patch({
+      key: 'org_custom_domain_hostname',
+      value: { value: 'clinic.example.test', placement: 'apex' },
+    });
+
+    expect(response.status).toBe(403);
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
+    expect(fakes.setCustomDomainIntent).not.toHaveBeenCalled();
+  });
+
+  it('enforces the custom-domain entitlement at the mutation boundary', async () => {
+    fakes.requireEntitlementForMutation.mockResolvedValueOnce({
+      ok: false,
+      reason: 'entitlement_required',
+    });
+
+    const response = await patch({
+      key: 'org_custom_domain_hostname',
+      value: { value: 'clinic.example.test', placement: 'apex' },
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'entitlement_required',
+      mechanic: 'custom_domain',
+    });
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
+    expect(fakes.setCustomDomainIntent).not.toHaveBeenCalled();
   });
 });
 
