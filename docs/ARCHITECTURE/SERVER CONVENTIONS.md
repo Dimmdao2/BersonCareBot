@@ -195,6 +195,14 @@ bash tools/deploy-prod-from-dev.sh <ref>    # выложить конкретн�
 Скрипт доставляет коммит в репозиторий прода и запускает там штатный конвейер; своей логики выкладки не
 несёт. На самом хосте те же операции доступны как `deploy-prod`, `rollback-prod`, `prod-status`.
 
+**🔴 Ловушка: применение host-firewall стирает правила docker.** `/etc/nftables.conf` начинается с
+`flush ruleset`, поэтому ЛЮБОЙ `nft -f /etc/nftables.conf` сносит и таблицы, которые docker пишет себе сам
+(`DOCKER-FORWARD`, `DOCKER-CT`, NAT). Docker восстанавливает их только при старте демона. Симптомы читаются
+как что угодно, кроме причины: `docker network create` падает с `iptables: No chain/target/match by that name`,
+а сборка образа — на `E: Unable to locate package ffmpeg`, то есть выглядит как «сломался apt» или «упал
+интернет». **После каждой правки firewall — `systemctl restart docker`**, и проверять контейнерную сеть
+изнутри контейнера, а не с хоста: `docker run --rm alpine wget -qO/dev/null https://deb.debian.org/`.
+
 **Ключ доступа:** `~/.ssh/bcb_prod_build_20260817` (root). **Каталоги:** `/opt/bersoncarebot/{src,git,env,pipeline,state,releases}`,
 env-файлы `env/{api.prod,webapp.prod}`, пароли рантайм-логинов — `env/reconcile.env` (600, root).
 
