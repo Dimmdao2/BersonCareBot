@@ -35,8 +35,14 @@ ssh -i "$PROD_KEY" -o IdentitiesOnly=yes -o BatchMode=yes "root@$PROD_HOST" "
   S=/opt/bersoncarebot/src/deploy/host/prod
   D=/opt/bersoncarebot/src/deploy/docker
   P=/opt/bersoncarebot/pipeline
-  for f in bcb-bluegreen-lib.sh bcb-deploy bcb-rollback bcb-status; do
+  for f in bcb-bluegreen-lib.sh bcb-deploy bcb-rollback bcb-status cutover-edge-to-caddy.sh rollback-edge-to-nginx.sh check-caddy-edge-health.sh; do
     install -m 0755 -o root -g root \"\$S/\$f\" \"\$P/\$f\"
+  done
+  install -m 0644 -o root -g root /opt/bersoncarebot/src/deploy/caddy/Caddyfile.template \"\$P/Caddyfile.template\"
+  install -m 0755 -o root -g root /opt/bersoncarebot/src/deploy/caddy/build-caddy-edge.sh \"\$P/build-caddy-edge.sh\"
+  install -m 0644 -o root -g root /opt/bersoncarebot/src/deploy/nginx/prod/bcb-internal.conf.template \"\$P/bcb-internal.conf.template\"
+  for f in bersoncarebot-caddy-edge.service bersoncarebot-caddy-edge-health.service bersoncarebot-caddy-edge-health.timer; do
+    install -m 0644 -o root -g root \"/opt/bersoncarebot/src/deploy/systemd/\$f\" \"\$P/\$f\"
   done
   install -m 0644 -o root -g root \"\$D/Dockerfile\" \"\$P/Dockerfile\"
   install -m 0644 -o root -g root \"\$D/docker-compose.yml\" \"\$P/docker-compose.yml\"

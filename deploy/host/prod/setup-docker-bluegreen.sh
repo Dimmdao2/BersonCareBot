@@ -116,6 +116,23 @@ for f in bcb-bluegreen-lib.sh bcb-deploy bcb-rollback bcb-status; do
   [ -f "$SRC_DIR/$f" ] || die "missing pipeline file next to this script: $f"
   install -m 0755 -o root -g root "$SRC_DIR/$f" "$PIPELINE/$f"
 done
+for f in cutover-edge-to-caddy.sh rollback-edge-to-nginx.sh check-caddy-edge-health.sh; do
+  [ -f "$SRC_DIR/$f" ] || die "missing edge pipeline file next to this script: $f"
+  install -m 0755 -o root -g root "$SRC_DIR/$f" "$PIPELINE/$f"
+done
+for f in Caddyfile.template build-caddy-edge.sh bcb-internal.conf.template \
+         bersoncarebot-caddy-edge.service bersoncarebot-caddy-edge-health.service \
+         bersoncarebot-caddy-edge-health.timer; do
+  case "$f" in
+    Caddyfile.template|build-caddy-edge.sh) source="$SRC_DIR/../../caddy/$f" ;;
+    bcb-internal.conf.template) source="$SRC_DIR/../../nginx/prod/$f" ;;
+    *) source="$SRC_DIR/../../systemd/$f" ;;
+  esac
+  [ -f "$source" ] || die "missing edge pipeline asset: $source"
+  mode=0644
+  [ "$f" = build-caddy-edge.sh ] && mode=0755
+  install -m "$mode" -o root -g root "$source" "$PIPELINE/$f"
+done
 # The image definition is installed onto the host rather than read from the deployed checkout on
 # purpose: the branch being deployed does not have to contain the pipeline that deploys it. Otherwise
 # the first deploy of a branch written before this pipeline existed would fail on a missing file.

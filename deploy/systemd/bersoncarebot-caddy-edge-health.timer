@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly BersonCare Caddy edge certificate-store health check
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=bersoncarebot-caddy-edge-health.service
+
+[Install]
+WantedBy=timers.target
