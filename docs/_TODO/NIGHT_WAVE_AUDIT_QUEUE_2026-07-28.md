@@ -6,6 +6,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## Split login surfaces #787 — 07.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Раздельные staff/admin/patient двери и сохранённые acceptance-oracle | product `a3183f03e`, audit/tests `2a164c2ea` (`wt/branding-login-split-20260907`) | **FAIL — HOLD, CONTINUATION REQUIRED, DO NOT LAND.** Route/unit/UI acceptance прошли; fault injection поймал четыре заявленных класса поломок. Обязательные typecheck и desktop/narrow live-view не состоялись из-за отсутствовавших workspace build-артефактов `@bersoncare/platform-merge` и `@bersoncare/shared-contracts`. Продолжение должно реализовать актуальные `TPB-20`–`TPB-23`, восстановить package resolution и пройти единый финальный audit-live. Артефакт: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_LOGIN_SURFACE_SPLIT_2026-09-07.md`. |
+
 ## Custom-domain settings UI #787 — 07.09
 
 | слой | коммит | вердикт |
