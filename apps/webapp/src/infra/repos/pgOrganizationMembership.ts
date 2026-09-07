@@ -27,6 +27,8 @@ type WorkspaceResolutionMembershipRow = {
   specialist_id: string | null;
   status: string;
   doctor_screens_disabled: boolean;
+  appointments_manage_own: boolean;
+  availability_manage_own: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -58,6 +60,8 @@ function mapOrganizationMembershipRow(row: OrganizationMembershipRow): Organizat
     specialistId: row.specialistId,
     status: parseOrganizationMembershipStatus(row.status),
     doctorScreensDisabled: row.doctorScreensDisabled,
+    appointmentsManageOwn: row.appointmentsManageOwn,
+    availabilityManageOwn: row.availabilityManageOwn,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -74,6 +78,8 @@ function mapWorkspaceResolutionMembershipRow(
     specialistId: row.specialist_id,
     status: parseOrganizationMembershipStatus(row.status),
     doctorScreensDisabled: row.doctor_screens_disabled,
+    appointmentsManageOwn: row.appointments_manage_own,
+    availabilityManageOwn: row.availability_manage_own,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -87,6 +93,8 @@ type OrganizationMemberDirectoryRow = {
   specialistId: string | null;
   status: string;
   doctorScreensDisabled: boolean;
+  appointmentsManageOwn: boolean;
+  availabilityManageOwn: boolean;
   createdAt: string;
   updatedAt: string;
   displayName: string | null;
@@ -100,6 +108,8 @@ type PlatformOrganizationMemberDirectoryRow = {
   specialist_id: string | null;
   status: string;
   doctor_screens_disabled: boolean;
+  appointments_manage_own: boolean;
+  availability_manage_own: boolean;
   created_at: string;
   updated_at: string;
   display_name: string | null;
@@ -116,6 +126,8 @@ function mapOrganizationMemberDirectoryRow(
     specialistId: row.specialistId,
     status: parseOrganizationMembershipStatus(row.status),
     doctorScreensDisabled: row.doctorScreensDisabled,
+    appointmentsManageOwn: row.appointmentsManageOwn,
+    availabilityManageOwn: row.availabilityManageOwn,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     displayName: row.displayName?.trim() || null,
@@ -183,6 +195,8 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
           specialistId: beOrganizationMembers.specialistId,
           status: beOrganizationMembers.status,
           doctorScreensDisabled: beOrganizationMembers.doctorScreensDisabled,
+          appointmentsManageOwn: beOrganizationMembers.appointmentsManageOwn,
+          availabilityManageOwn: beOrganizationMembers.availabilityManageOwn,
           createdAt: beOrganizationMembers.createdAt,
           updatedAt: beOrganizationMembers.updatedAt,
           displayName: drizzleFioCols.displayName,
@@ -205,6 +219,8 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
           specialist_id::text AS specialist_id,
           membership_status AS status,
           doctor_screens_disabled,
+          appointments_manage_own,
+          availability_manage_own,
           created_at::text AS created_at,
           updated_at::text AS updated_at,
           display_name
@@ -219,6 +235,8 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
           specialistId: row.specialist_id,
           status: row.status,
           doctorScreensDisabled: row.doctor_screens_disabled,
+          appointmentsManageOwn: row.appointments_manage_own,
+          availabilityManageOwn: row.availability_manage_own,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
           displayName: row.display_name,
@@ -237,6 +255,8 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
           specialistId: beOrganizationMembers.specialistId,
           status: beOrganizationMembers.status,
           doctorScreensDisabled: beOrganizationMembers.doctorScreensDisabled,
+          appointmentsManageOwn: beOrganizationMembers.appointmentsManageOwn,
+          availabilityManageOwn: beOrganizationMembers.availabilityManageOwn,
           createdAt: beOrganizationMembers.createdAt,
           updatedAt: beOrganizationMembers.updatedAt,
           displayName: drizzleFioCols.displayName,
@@ -281,6 +301,14 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
       await db
         .update(beOrganizationMembers)
         .set({ doctorScreensDisabled: disabled, updatedAt: sql`now()` })
+        .where(eq(beOrganizationMembers.id, membershipId));
+    },
+
+    async setClinicalPermissions({ membershipId, appointmentsManageOwn, availabilityManageOwn }) {
+      const db = getDrizzle();
+      await db
+        .update(beOrganizationMembers)
+        .set({ appointmentsManageOwn, availabilityManageOwn, updatedAt: sql`now()` })
         .where(eq(beOrganizationMembers.id, membershipId));
     },
   };

@@ -4,7 +4,10 @@ import { runStaffManualCancelAfterCanonical } from '@/app-layer/booking/staffMan
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
-import { resolveDoctorAppointmentAccess } from '../../../_resolveDoctorAppointmentAccess';
+import {
+  canMutateOwnAppointments,
+  resolveDoctorAppointmentAccess,
+} from '../../../_resolveDoctorAppointmentAccess';
 
 const bodySchema = z.object({
   decisionType: z.enum([
@@ -26,16 +29,18 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function POST(request: Request, context: RouteContext) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  if (!canMutateOwnAppointments(gate.ctx)) {
+    return NextResponse.json(
+      { ok: false, error: 'appointment_mutation_forbidden' },
+      { status: 403 },
+    );
+  }
   const { id: appointmentId } = await context.params;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
-  const appointment = await resolveDoctorAppointmentAccess(
-    gate.ctx,
-    appointmentId,
-    'clinic',
-  );
+  const appointment = await resolveDoctorAppointmentAccess(gate.ctx, appointmentId, 'clinic');
   if (!appointment) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }

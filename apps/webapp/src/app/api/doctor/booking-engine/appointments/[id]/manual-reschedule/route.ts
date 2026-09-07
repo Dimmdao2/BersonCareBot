@@ -11,7 +11,10 @@ import {
   resolveStaffAppointmentFinancials,
 } from '@/app-layer/booking/staffAppointmentFinancials';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
-import { resolveDoctorAppointmentAccess } from '../../../_resolveDoctorAppointmentAccess';
+import {
+  canMutateOwnAppointments,
+  resolveDoctorAppointmentAccess,
+} from '../../../_resolveDoctorAppointmentAccess';
 
 /** PAY-APPT-03: тот же закрытый словарь режимов, что и у создания записи врачом. */
 const prepaymentOverrideSchema = z.object({
@@ -53,6 +56,12 @@ function isSlotOverlapError(err: unknown): boolean {
 export async function POST(request: Request, context: RouteContext) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  if (!canMutateOwnAppointments(gate.ctx)) {
+    return NextResponse.json(
+      { ok: false, error: 'appointment_mutation_forbidden' },
+      { status: 403 },
+    );
+  }
   const { id: appointmentId } = await context.params;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -141,10 +150,7 @@ export async function POST(request: Request, context: RouteContext) {
   if (financialEditRequested) {
     // Замок денег стоит ДО расчёта: запись с состоявшейся или удержанной оплатой финансовые
     // значения не переписывает — ни молча, ни новым снимком.
-    if (
-      currentAppointment.prepaymentPaidMinor > 0 ||
-      currentAppointment.paymentRef !== null
-    ) {
+    if (currentAppointment.prepaymentPaidMinor > 0 || currentAppointment.paymentRef !== null) {
       return NextResponse.json(
         { ok: false, error: 'appointment_financials_locked' },
         { status: 409 },

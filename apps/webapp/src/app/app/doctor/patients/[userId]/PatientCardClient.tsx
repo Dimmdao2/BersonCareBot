@@ -154,6 +154,8 @@ type Props = {
   patientListHref: string;
   /** The same request-local effective map used by shell navigation and route guards. */
   workspaceModules?: WorkspaceModuleEffective;
+  /** Server-resolved scheduling mutation capability for all specialist-mode entry points. */
+  appointmentsManageOwn?: boolean;
 };
 
 type TabPanelsProps = Props & {
@@ -360,6 +362,7 @@ export function PatientCardClient({
   isAdmin = false,
   patientListHref,
   workspaceModules,
+  appointmentsManageOwn = true,
 }: Props) {
   const header = shellMeta.cardHeader;
   const availableTabs = useMemo(
@@ -673,6 +676,7 @@ export function PatientCardClient({
               onStartEncounter={openEncounterStart}
               header={header}
               workspaceModules={workspaceModules}
+              appointmentsManageOwn={appointmentsManageOwn}
             />
           </div>
         </Suspense>
@@ -691,6 +695,7 @@ export function PatientCardClient({
             ''
           }
           initialAppointmentId={encounterStartAppointmentId}
+          appointmentsManageOwn={appointmentsManageOwn}
           onClose={() => setEncounterStartOpen(false)}
         />
       ) : null}
@@ -711,6 +716,7 @@ function PatientCardTabPanels({
   onStartEncounter,
   header,
   workspaceModules,
+  appointmentsManageOwn = true,
 }: TabPanelsProps) {
   const tab = use(tabPromise);
   const availableTabIds = new Set(
@@ -753,6 +759,7 @@ function PatientCardTabPanels({
             membershipMutationsAllowed={membershipMutationsAllowed}
             displayIana={shellMeta.displayIana}
             encountersEnabled={workspaceModules?.encounters !== false}
+            appointmentsManageOwn={appointmentsManageOwn}
           />
           <PatientTabOverview
             active={activeTab === 'overview'}

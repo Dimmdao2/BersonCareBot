@@ -14,6 +14,7 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { isSeatConsumingMember } from '@/modules/clinic-seats/service';
+import { resolveDoctorWorkspaceComposition } from '@/modules/doctor-workspace/composition';
 import {
   entitlementsFromSnapshot,
   resolveOwnOrgQuotaProjections,
@@ -44,6 +45,7 @@ import { SettingsForm } from './SettingsForm';
 import { SettingsTabsNav } from './SettingsTabsNav';
 import type { SettingsTabId } from './settingsTabs';
 import { TeamSection } from './TeamSection';
+import { BookingSoloSpecialistsSection } from './BookingSoloSpecialistsSection';
 import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import { isPlatformIntegrationAvailable } from '@/modules/system-settings/platformIntegrationAvailability';
@@ -120,7 +122,6 @@ export default async function SettingsPage({
   }
 
   const tab = parseTab(sp.tab);
-  if (tab === 'specialist') redirect(routePaths.account);
   if (tab === 'install') redirect(`${routePaths.account}?tab=install`);
 
   const workspace = await requireOrganizationWorkspaceContext({ allowCabinetRecovery: true });
@@ -138,10 +139,18 @@ export default async function SettingsPage({
   // can show the same nav with only the sections this viewer may actually open — Defect #1
   // 2026-07-25: the page had no nav at all, so `?tab=team`/`?tab=billing` were reachable only by
   // typing the URL.
-  const teamEntitlement = await requireEntitlementForReadAction(
-    { organizationId: workspace.organizationId },
-    'clinic_team',
-  );
+  const depsForComposition = buildAppDeps();
+  const [teamEntitlement, seatStatus] = await Promise.all([
+    requireEntitlementForReadAction({ organizationId: workspace.organizationId }, 'clinic_team'),
+    depsForComposition.clinicSeats.getSeatStatus(
+      workspace.organizationId,
+      workspace.session.user.userId,
+    ),
+  ]);
+  const composition = resolveDoctorWorkspaceComposition({
+    clinicTeamEntitled: teamEntitlement.ok,
+    seats: seatStatus,
+  });
   // §29 владельца: биллинг клиники видит владелец И администратор клиники («админ клиники или соло-специалист
   // — равноценно»), а обычный персонал не видит. Условие потеряно лидом при разрешении конфликта слияния
   // 28.07 и возвращено: тест «shows billing to owner and clinic admin» падал на редиректе админа.
@@ -149,9 +158,23 @@ export default async function SettingsPage({
     workspace.membershipRole === 'owner' || workspace.membershipRole === 'admin' || isGlobalAdmin;
   const visibleTabs: SettingsTabId[] = [
     'organization',
-    ...(teamEntitlement.ok ? (['team'] as const) : []),
+    ...(composition === 'solo' && workspace.specialistId !== null ? (['specialist'] as const) : []),
+    ...(composition === 'clinic' && teamEntitlement.ok ? (['team'] as const) : []),
     ...(canAccessBilling ? (['billing'] as const) : []),
   ];
+
+  if (tab === 'specialist') {
+    if (composition !== 'solo' || workspace.specialistId === null) {
+      redirect(`${routePaths.settings}?tab=${composition === 'clinic' ? 'team' : 'organization'}`);
+    }
+    return (
+      <DoctorAppShell title="Профиль специалиста" user={workspace.session.user}>
+        <DoctorPageHeader title="Профиль специалиста" />
+        <SettingsTabsNav activeTab="specialist" visibleTabs={visibleTabs} />
+        <BookingSoloSpecialistsSection />
+      </DoctorAppShell>
+    );
+  }
 
   if (tab === null || tab === 'organization') {
     const deps = buildAppDeps();
@@ -483,7 +506,8 @@ export default async function SettingsPage({
   }
 
   if (tab === 'team') {
-    if (!teamEntitlement.ok) redirect(`${routePaths.settings}?tab=organization`);
+    if (composition !== 'clinic' || !teamEntitlement.ok)
+      redirect(`${routePaths.settings}?tab=organization`);
 
     const deps = buildAppDeps();
     const [members, invites, seats, mutationAvailability] = await Promise.all([
@@ -503,6 +527,9 @@ export default async function SettingsPage({
             role: member.role,
             status: member.status,
             seatConsuming: isSeatConsumingMember(member),
+            specialistLinked: member.specialistId !== null,
+            appointmentsManageOwn: member.appointmentsManageOwn,
+            availabilityManageOwn: member.availabilityManageOwn,
           }))}
           invites={invites.map((invite) => ({
             id: invite.id,

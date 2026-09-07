@@ -12,6 +12,9 @@ export default async function SettingsLayout({ children }: { children: ReactNode
   const shell = await loadDoctorWorkspaceShell(true);
   const { session } = shell;
 
+  const managementMode =
+    shell.workspaceContext.canManageOrganization && shell.workspaceComposition === 'clinic';
+
   if (shell.maintenance.enabled) {
     return (
       <ClinicMaintenanceScreen
@@ -28,12 +31,14 @@ export default async function SettingsLayout({ children }: { children: ReactNode
       userDisplayName={session.user.displayName}
       patientLabel={shell.patientLabel}
       workspaceContext={shell.workspaceContext}
+      workspaceComposition={shell.workspaceComposition}
       coursesEnabled={shell.coursesEnabled}
       promoEnabled={shell.promoEnabled}
       cmsEnabled={shell.cmsEnabled}
       patientHomeTodayEnabled={shell.patientHomeTodayEnabled}
       specialistTasksEnabled={shell.specialistTasksEnabled}
       brand={shell.shellBrand}
+      menuKind={managementMode ? 'management' : 'doctor'}
     >
       {children}
     </DoctorWorkspaceShell>

@@ -30,6 +30,8 @@ function membership(overrides: Partial<OrganizationMembership> = {}): Organizati
     specialistId: SPECIALIST_ID,
     status: 'active',
     doctorScreensDisabled: false,
+    appointmentsManageOwn: true,
+    availabilityManageOwn: true,
     createdAt: '2026-08-04T00:00:00.000Z',
     updatedAt: '2026-08-04T00:00:00.000Z',
     ...overrides,

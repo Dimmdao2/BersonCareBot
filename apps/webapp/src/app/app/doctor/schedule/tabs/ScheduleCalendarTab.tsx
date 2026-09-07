@@ -908,6 +908,8 @@ export function ScheduleCalendarTab({
   scheduleScopeBootstrap,
   doctorStatisticsEnabled,
   createAppointmentRequestId,
+  appointmentsManageOwn = true,
+  availabilityManageOwn = true,
 }: ScheduleTabProps) {
   const bootstrap = isScheduleCalendarBootstrap(initialData) ? initialData : null;
   /** While current key equals SSR key, skip client load (survives Strict Mode remount). */
@@ -956,6 +958,8 @@ export function ScheduleCalendarTab({
     () => bootstrap?.serviceId ?? deepLinkParams.service ?? null,
   );
   const scopeBootstrap = scheduleScopeBootstrap ?? EMPTY_SCHEDULE_SCOPE_BOOTSTRAP;
+  const canManageAppointments = appointmentsManageOwn;
+  const canManageAvailability = availabilityManageOwn;
   const [scheduleScope, setScheduleScope] = useState<DoctorScheduleScopeState>(
     () =>
       bootstrap?.scheduleScope ??
@@ -1829,6 +1833,7 @@ export function ScheduleCalendarTab({
 
   const openCreateDraft = useCallback(
     (start: Date, end: Date | null, revealWithDelay = false) => {
+      if (!canManageAppointments) return;
       const startLocal =
         DateTime.fromJSDate(start).setZone(currentTimeZone).toFormat("yyyy-MM-dd'T'HH:mm") || null;
       if (!startLocal) return;
@@ -1890,6 +1895,7 @@ export function ScheduleCalendarTab({
       calendarSettings.defaultBranchId,
       branchId,
       onDeepLinkChange,
+      canManageAppointments,
     ],
   );
 
@@ -1909,6 +1915,7 @@ export function ScheduleCalendarTab({
 
   const openGridSelection = useCallback(
     (start: Date, end: Date | null) => {
+      if (!canManageAppointments) return;
       const startDt = DateTime.fromJSDate(start).setZone(currentTimeZone);
       const dateKey = startDt.toISODate();
       if (!dateKey) return;
@@ -1939,7 +1946,7 @@ export function ScheduleCalendarTab({
       }
       setSelectionMenuOpen(true);
     },
-    [chooseServiceForDuration, currentTimeZone, filters.services],
+    [canManageAppointments, chooseServiceForDuration, currentTimeZone, filters.services],
   );
 
   /**
@@ -1999,6 +2006,7 @@ export function ScheduleCalendarTab({
   }, [currentTimeZone, displayableCalendarEvents, gridSelection]);
 
   const canEditSelectionSchedule =
+    canManageAvailability &&
     scopeBootstrap.ownSpecialistId !== null &&
     (scheduleScope.scope === 'mine' ||
       (scheduleScope.scope === 'specialist' &&
@@ -2006,6 +2014,7 @@ export function ScheduleCalendarTab({
   const canOpenWorkingHours = filters.branches.length > 0 && canEditSelectionSchedule;
 
   const selectionMenuActions = useMemo((): CalendarSelectionAction[] => {
+    if (!canManageAppointments) return [];
     if (!selectionContext) return [];
     const canEditSchedule = canEditSelectionSchedule;
     if (selectionContext.kind === 'working') {
@@ -2023,7 +2032,7 @@ export function ScheduleCalendarTab({
         : ['create'];
     }
     return ['create'];
-  }, [canEditSelectionSchedule, canOpenWorkingHours, selectionContext]);
+  }, [canManageAppointments, canEditSelectionSchedule, canOpenWorkingHours, selectionContext]);
 
   /**
    * Anchors the contextual menu to the live FullCalendar highlight so it tracks the selection
@@ -2079,7 +2088,7 @@ export function ScheduleCalendarTab({
   const applySelectionScheduleChange = useCallback(
     async (mode: 'add-break' | 'open-for-booking', target?: { branchId: string }) => {
       if (!gridSelection || !selectionContext) return;
-      if (!canEditSelectionSchedule) {
+      if (!canManageAvailability || !canEditSelectionSchedule) {
         setSelectionActionError(SELECTION_MUTATION_ERRORS.foreign_specialist ?? null);
         return;
       }
@@ -2152,7 +2161,14 @@ export function ScheduleCalendarTab({
         setSelectionActionPending(false);
       }
     },
-    [canEditSelectionSchedule, clearGridSelection, gridSelection, load, selectionContext],
+    [
+      canEditSelectionSchedule,
+      canManageAvailability,
+      clearGridSelection,
+      gridSelection,
+      load,
+      selectionContext,
+    ],
   );
 
   const beginOpenWorkingHours = useCallback(() => {
@@ -2343,9 +2359,9 @@ export function ScheduleCalendarTab({
           // рамки и поверхности — общий payment-pending border и цвет филиала тогда пропадают
           // молча. Режим отрисовки выводит общая функция из типа вида, а не локальное условие.
           display: doctorCalendarAppointmentDisplay(fcView),
-          editable: !isCancelledAppointmentStatus(event.status),
-          durationEditable: !isCancelledAppointmentStatus(event.status),
-          startEditable: !isCancelledAppointmentStatus(event.status),
+          editable: canManageAppointments && !isCancelledAppointmentStatus(event.status),
+          durationEditable: canManageAppointments && !isCancelledAppointmentStatus(event.status),
+          startEditable: canManageAppointments && !isCancelledAppointmentStatus(event.status),
           classNames: [eventClassName(event)],
           ...doctorCalendarAppointmentBranchColors(event),
           extendedProps: {
@@ -2379,6 +2395,7 @@ export function ScheduleCalendarTab({
     loMinute,
     hiMinute,
     draftSlot,
+    canManageAppointments,
   ]);
 
   // ─── Reschedule (drag/resize) ──────────────────────────────────────────────
@@ -2390,6 +2407,7 @@ export function ScheduleCalendarTab({
       endAt: string,
       staffComment?: string,
     ): Promise<{ ok: boolean; error?: string }> => {
+      if (!canManageAppointments) return { ok: false, error: 'forbidden' };
       const durationMinutes = Math.max(
         1,
         Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / 60_000),
@@ -2413,29 +2431,33 @@ export function ScheduleCalendarTab({
       }
       return { ok: true };
     },
-    [],
+    [canManageAppointments],
   );
 
   // R34: drag/resize не применяются сразу — открываем диалог подтверждения.
-  const openRescheduleConfirm = useCallback((arg: any) => {
-    const appointment = arg.event.extendedProps?.appointment as
-      CalendarAppointmentEvent | undefined;
-    if (!appointment) return arg.revert();
-    const nextStart = arg.event.start?.toISOString();
-    const nextEnd = arg.event.end?.toISOString();
-    if (!nextStart || !nextEnd) return arg.revert();
-    pendingRescheduleRef.current = { appointment, arg, newStartAt: nextStart, newEndAt: nextEnd };
-    setRescheduleComment('');
-    setRescheduleError(null);
-    setRescheduleBusy(false);
-    setPendingReschedule({
-      patientName: appointment.patientName ?? null,
-      oldStartAt: appointment.startAt,
-      oldEndAt: appointment.endAt,
-      newStartAt: nextStart,
-      newEndAt: nextEnd,
-    });
-  }, []);
+  const openRescheduleConfirm = useCallback(
+    (arg: any) => {
+      if (!canManageAppointments) return arg.revert();
+      const appointment = arg.event.extendedProps?.appointment as
+        CalendarAppointmentEvent | undefined;
+      if (!appointment) return arg.revert();
+      const nextStart = arg.event.start?.toISOString();
+      const nextEnd = arg.event.end?.toISOString();
+      if (!nextStart || !nextEnd) return arg.revert();
+      pendingRescheduleRef.current = { appointment, arg, newStartAt: nextStart, newEndAt: nextEnd };
+      setRescheduleComment('');
+      setRescheduleError(null);
+      setRescheduleBusy(false);
+      setPendingReschedule({
+        patientName: appointment.patientName ?? null,
+        oldStartAt: appointment.startAt,
+        oldEndAt: appointment.endAt,
+        newStartAt: nextStart,
+        newEndAt: nextEnd,
+      });
+    },
+    [canManageAppointments],
+  );
 
   const cancelRescheduleConfirm = useCallback(() => {
     pendingRescheduleRef.current?.arg.revert();
@@ -2663,6 +2685,7 @@ export function ScheduleCalendarTab({
       activeFilters={activeFilters}
       ownSpecialistId={scopeBootstrap.ownSpecialistId}
       clinicSpecialists={scopeBootstrap.specialists}
+      appointmentsManageOwn={canManageAppointments}
       flushChrome
       startInCreate={showCreatePanel && !selected}
       createInitialStart={createInitialStart}
@@ -3261,12 +3284,12 @@ export function ScheduleCalendarTab({
                     timeZone={currentTimeZone}
                     events={calendarEvents}
                     headerToolbar={false}
-                    editable={view !== 'month'}
-                    eventDurationEditable={view !== 'month'}
-                    eventStartEditable={view !== 'month'}
+                    editable={canManageAppointments && view !== 'month'}
+                    eventDurationEditable={canManageAppointments && view !== 'month'}
+                    eventStartEditable={canManageAppointments && view !== 'month'}
                     // R32: выделение области создаёт запись; клик (без движения) не выделяет,
                     // чтобы остаться сбросом выбора (R24). selectMinDistance разводит клик и drag.
-                    selectable={view !== 'month'}
+                    selectable={canManageAppointments && view !== 'month'}
                     selectMirror
                     selectMinDistance={5}
                     // #225: keep FC visual slot selection while the create panel is open.

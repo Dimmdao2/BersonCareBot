@@ -14,6 +14,7 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 import { resolveDoctorOwnSpecialistId } from '../_resolveDoctorSpecialistId';
+import { canMutateOwnAvailability } from '../_resolveDoctorAppointmentAccess';
 
 // Doctor-self-scoped per-date schedule overrides. The server resolves the doctor's own
 // specialist and FORCES it on list/upsert/close/clear;
@@ -95,6 +96,12 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  if (!canMutateOwnAvailability(gate.ctx)) {
+    return NextResponse.json(
+      { ok: false, error: 'availability_mutation_forbidden' },
+      { status: 403 },
+    );
+  }
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
   if (!entitlement.ok) return entitlement.response;
   const parsed = putBody.safeParse(await request.json().catch(() => null));
