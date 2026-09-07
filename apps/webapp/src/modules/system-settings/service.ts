@@ -35,6 +35,7 @@ import {
   parseDoctorWorkspaceComposition,
   type DoctorWorkspaceComposition,
 } from './doctorWorkspaceComposition';
+import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
 
 type SystemSettingsServiceDependencies = {
   runtimeRepository?: RuntimeSettingsRepository;
@@ -286,6 +287,15 @@ export function createSystemSettingsService(
         'doctor',
         options,
       );
+      if (
+        row !== null &&
+        (row.valueJson === null ||
+          typeof row.valueJson !== 'object' ||
+          Array.isArray(row.valueJson) ||
+          !('value' in row.valueJson))
+      ) {
+        throw new RuntimeSettingUnavailableError(DOCTOR_WORKSPACE_COMPOSITION_KEY);
+      }
       return parseDoctorWorkspaceComposition(row?.valueJson ?? null);
     },
 
