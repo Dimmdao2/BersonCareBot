@@ -364,7 +364,28 @@ beforeEach(() => {
     bookingEngine: {
       organization: { getOrganization: async () => ({ title: 'Клиника' }) },
     },
-    systemSettings: { listSettingsByScope: async () => [], getSetting: async () => null },
+    systemSettings: {
+      listSettingsByScope: async () => [],
+      getSetting: async () => null,
+      getDoctorWorkspaceComposition: async () => ({
+        version: 1,
+        modules: {
+          client_portal: true,
+          direct_chat: true,
+          rehabilitation: true,
+          program_comments: true,
+          program_media: true,
+        },
+      }),
+    },
+    clinicSeats: {
+      getSeatStatus: async () => ({
+        configured: false,
+        limit: null,
+        used: 0,
+        available: null,
+      }),
+    },
     orgBranding: { resolveEffectiveOrgBranding: async () => null },
     saasBilling: {
       getOrganizationBillingOverview: async () => ({ invoices: [], subscriptions: [] }),

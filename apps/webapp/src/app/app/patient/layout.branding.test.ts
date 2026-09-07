@@ -72,6 +72,27 @@ beforeEach(() => {
         effectiveDisplayName: 'Дмитрий Берсон',
       })),
     },
+    systemSettings: {
+      listSettingsByScope: vi.fn(async () => []),
+      getDoctorWorkspaceComposition: vi.fn(async () => ({
+        version: 1,
+        modules: {
+          client_portal: true,
+          direct_chat: true,
+          rehabilitation: true,
+          program_comments: true,
+          program_media: true,
+        },
+      })),
+    },
+    doctorClients: {
+      getClientChannelPolicy: vi.fn(async () => ({
+        portalAllowed: true,
+        directChatAllowed: true,
+        commentsAllowed: true,
+        mediaAllowed: true,
+      })),
+    },
   });
   fakes.resolvePatientOrganizationRequestContext.mockResolvedValue({
     ok: true,
@@ -124,6 +145,9 @@ describe('patient layout branding fallback', () => {
     expect(layout).toMatchObject({
       props: { organizationContext: { organization: { title: 'Клиника на Host' } } },
     });
-    expect(fakes.withPatientOrganizationPrincipal).not.toHaveBeenCalled();
+    expect(fakes.withPatientOrganizationPrincipal).not.toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'app.patient.layout.org-branding' }),
+      expect.any(Function),
+    );
   });
 });

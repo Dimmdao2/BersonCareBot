@@ -38,6 +38,14 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
       listSettingsByScope: fakes.listSettingsByScope,
       getClinicPlatformIntegrationAvailability: fakes.getClinicPlatformIntegrationAvailability,
     },
+    clinicSeats: {
+      getSeatStatus: vi.fn(async () => ({
+        configured: false,
+        limit: null,
+        used: 0,
+        available: null,
+      })),
+    },
   }),
 }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
