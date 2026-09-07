@@ -99,8 +99,11 @@ export function SettingsForm({
   workspaceModuleAvailability,
   supportGroupLabel = 'on_support',
 }: SettingsFormProps) {
-  const { patientGenitive, patientPluralLabel, supportGroupLabel: currentSupportGroupLabel } =
-    useDoctorPatientTerms();
+  const {
+    patientGenitive,
+    patientPluralLabel,
+    supportGroupLabel: currentSupportGroupLabel,
+  } = useDoctorPatientTerms();
   const [label, setLabel] = useState<PatientLabelValue>(
     normalizePatientLabel(patientLabel) ?? 'пациент',
   );

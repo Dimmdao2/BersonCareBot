@@ -82,8 +82,8 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
         Автосмена разминок на главной
       </h2>
       <p className="text-sm text-muted-foreground">
-        Какая разминка дня на главной {patientGenitive}. До 3 времён в календарной таймзоне {patientGenitive} (не
-        путать с исходящим сообщением бота ниже).
+        Какая разминка дня на главной {patientGenitive}. До 3 времён в календарной таймзоне{' '}
+        {patientGenitive} (не путать с исходящим сообщением бота ниже).
       </p>
       <div className="flex flex-col gap-3">
         <label className="flex items-center gap-2 text-sm">

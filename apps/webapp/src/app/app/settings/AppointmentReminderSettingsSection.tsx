@@ -55,7 +55,8 @@ export function AppointmentReminderSettingsSection({
       </DoctorSectionHeader>
       <div className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">
-          Выберите варианты, которые {patientSingularLower} сможет изменить для своей подтверждённой записи.
+          Выберите варианты, которые {patientSingularLower} сможет изменить для своей подтверждённой
+          записи.
         </p>
         {REMINDER_SCHEDULE_PRESETS.map((preset) => {
           const checked = settings.allowedPresetIds.includes(preset.id);

@@ -215,7 +215,7 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
             ? 'Слишком много сообщений в одной рассылке. Уменьшите аудиторию или каналы.'
             : err instanceof Error && err.message.startsWith('Невозможно ')
               ? err.message
-            : 'Ошибка при отправке рассылки. Попробуйте ещё раз.',
+              : 'Ошибка при отправке рассылки. Попробуйте ещё раз.',
         );
       }
     });
@@ -336,7 +336,8 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
             id="broadcast-audience-form-warning"
             className="mt-1 text-[10px] text-amber-700 dark:text-amber-500"
           >
-            Для этой аудитории число получателей считается как «все {patientPluralLabel.toLowerCase()}».
+            Для этой аудитории число получателей считается как «все{' '}
+            {patientPluralLabel.toLowerCase()}».
           </p>
         ) : null}
       </div>

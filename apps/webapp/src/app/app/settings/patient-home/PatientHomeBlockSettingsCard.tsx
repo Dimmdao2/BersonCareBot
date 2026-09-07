@@ -122,7 +122,9 @@ export function PatientHomeBlockSettingsCard({
             <DropdownMenuGroup>
               <DropdownMenuLabel>Блок на главной</DropdownMenuLabel>
               <DropdownMenuItem onClick={handleToggle} disabled={isPending}>
-                {block.isVisible ? `Скрыть у ${patientGenitive}` : `Показать ${patientDativePlural}`}
+                {block.isVisible
+                  ? `Скрыть у ${patientGenitive}`
+                  : `Показать ${patientDativePlural}`}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             {canManageItems ? (
@@ -172,8 +174,8 @@ export function PatientHomeBlockSettingsCard({
         <div className="mt-3 rounded-lg border border-border/80 bg-muted/30 p-3">
           <div className="text-xs font-semibold text-muted-foreground">Иконка блока</div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Картинка из медиатеки вместо стандартной иконки на главной {patientGenitive}. Очистите, чтобы
-            вернуть значок по умолчанию.
+            Картинка из медиатеки вместо стандартной иконки на главной {patientGenitive}. Очистите,
+            чтобы вернуть значок по умолчанию.
           </p>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <div
@@ -221,7 +223,8 @@ export function PatientHomeBlockSettingsCard({
       {repairOnlyHiddenBroken ? (
         <div className="mt-3 rounded-lg border border-amber-200/80 bg-amber-50/60 p-3 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
           <p className="mb-2">
-            Есть битые связи CMS у скрытых элементов — на главной {patientGenitive} они не показываются.
+            Есть битые связи CMS у скрытых элементов — на главной {patientGenitive} они не
+            показываются.
           </p>
           <Button
             type="button"

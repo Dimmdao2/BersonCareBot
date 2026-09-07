@@ -82,8 +82,8 @@ export function PatientHomeCreateSectionInlineDialog({
         <DialogHeader>
           <DialogTitle>Новый раздел в блок «{meta.displayTitle}»</DialogTitle>
           <DialogDescription>
-            Раздел сохраняется в CMS и сразу добавляется в этот блок главной {patientGenitive} как видимый
-            элемент.
+            Раздел сохраняется в CMS и сразу добавляется в этот блок главной {patientGenitive} как
+            видимый элемент.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-1">
@@ -165,7 +165,9 @@ export function PatientHomeCreateSectionInlineDialog({
               <Label htmlFor="ph-inline-sec-vis" className="text-sm">
                 Виден {patientDativePlural}
               </Label>
-              <p className="text-xs text-muted-foreground">Раздел в меню и навигации {patientGenitive}.</p>
+              <p className="text-xs text-muted-foreground">
+                Раздел в меню и навигации {patientGenitive}.
+              </p>
             </div>
             <Switch
               id="ph-inline-sec-vis"
@@ -178,7 +180,9 @@ export function PatientHomeCreateSectionInlineDialog({
               <Label htmlFor="ph-inline-sec-auth" className="text-sm">
                 Только для залогиненных
               </Label>
-              <p className="text-xs text-muted-foreground">Требует авторизации {patientGenitive}.</p>
+              <p className="text-xs text-muted-foreground">
+                Требует авторизации {patientGenitive}.
+              </p>
             </div>
             <Switch
               id="ph-inline-sec-auth"
