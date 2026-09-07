@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import {
-  requireWorkspaceModuleForApi,
+  requireDoctorWorkspaceModuleForApi,
   resolveWorkspaceModulesForApi,
 } from '@/app-layer/guards/workspaceModuleAccess';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
@@ -60,7 +60,7 @@ export async function GET(
   if (!file || file.patientUserId !== patientUserId) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
-  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps.systemSettings);
+  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps);
 
   let previewUrl: string | null = null;
   if (isS3MediaEnabled(env)) {
@@ -201,11 +201,7 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   if (parsed.data.visitId !== undefined) {
-    const moduleGate = await requireWorkspaceModuleForApi(
-      gate.ctx,
-      'encounters',
-      deps.systemSettings,
-    );
+    const moduleGate = await requireDoctorWorkspaceModuleForApi(deps, gate.ctx, 'encounters');
     if (!moduleGate.ok) return moduleGate.response;
   }
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'files');

@@ -978,6 +978,7 @@ export function PatientTabOverview({
   const ssrSeedRef = useRef<string | null>(hasSsrData ? userId : null);
 
   useEffect(() => {
+    if (!canOpenProgram) return;
     const seeded = unwrapBootstrapEnvelope(initialExerciseCalendarSnapshot);
     if (!seeded) return;
     const { year, month } = monthPartsFromIsoDate(seeded.from);
@@ -1011,7 +1012,7 @@ export function PatientTabOverview({
     return () => {
       cancelled = true;
     };
-  }, [userId, calYear, calMonth, initialExerciseCalendarSnapshot]);
+  }, [userId, calYear, calMonth, initialExerciseCalendarSnapshot, canOpenProgram]);
 
   useEffect(() => {
     if (!membershipsVisible) return;
@@ -1077,18 +1078,20 @@ export function PatientTabOverview({
               .then((r) => (r.ok ? (r.json() as Promise<PackagesApiResponse>) : null))
               .catch(() => null);
 
-    const fetchProgram = initialProgramInstances?.ok
-      ? Promise.resolve({
-          ok: true,
-          items: initialProgramInstances.value,
-        } as ProgramInstancesApiResponse)
-      : initialProgramInstances != null && isBootstrapEnvelopeFailed(initialProgramInstances)
-        ? Promise.resolve(null)
-        : fetch(`/api/doctor/clients/${userId}/treatment-program-instances`, {
-            credentials: 'include',
-          })
-            .then((r) => (r.ok ? (r.json() as Promise<ProgramInstancesApiResponse>) : null))
-            .catch(() => null);
+    const fetchProgram = !canOpenProgram
+      ? Promise.resolve({ ok: true, items: [] } as ProgramInstancesApiResponse)
+      : initialProgramInstances?.ok
+        ? Promise.resolve({
+            ok: true,
+            items: initialProgramInstances.value,
+          } as ProgramInstancesApiResponse)
+        : initialProgramInstances != null && isBootstrapEnvelopeFailed(initialProgramInstances)
+          ? Promise.resolve(null)
+          : fetch(`/api/doctor/clients/${userId}/treatment-program-instances`, {
+              credentials: 'include',
+            })
+              .then((r) => (r.ok ? (r.json() as Promise<ProgramInstancesApiResponse>) : null))
+              .catch(() => null);
 
     const fetchMessages = initialMessagesSnapshot?.ok
       ? Promise.resolve({
@@ -1140,7 +1143,7 @@ export function PatientTabOverview({
             .catch(() => null);
 
     const fetchProgramActivity =
-      hasSsrData && ssrSeedRef.current === userId
+      !canOpenProgram || (hasSsrData && ssrSeedRef.current === userId)
         ? Promise.resolve(null as ProgramActivityApiResponse | null)
         : fetch(`/api/doctor/patients/${userId}/program-activity`, { credentials: 'include' })
             .then((r) => (r.ok ? (r.json() as Promise<ProgramActivityApiResponse>) : null))
@@ -1399,7 +1402,7 @@ export function PatientTabOverview({
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, membershipsVisible, medicalRecordEnabled, encountersEnabled]);
+  }, [userId, membershipsVisible, canOpenProgram, medicalRecordEnabled, encountersEnabled]);
 
   const messagesPollGenerationRef = useRef(0);
 

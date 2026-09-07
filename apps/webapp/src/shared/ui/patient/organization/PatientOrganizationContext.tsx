@@ -13,6 +13,7 @@ import {
 import { usePathname } from 'next/navigation';
 import { routePaths } from '@/app-layer/routes/paths';
 import type { PatientOrganizationSummary } from '@/modules/patient-organization/service';
+import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import {
   Select,
@@ -28,6 +29,7 @@ export type PatientOrganizationClientContext = {
   switchOrganization(organizationId: string): Promise<void>;
   switching: boolean;
   contextChangeNotice: boolean;
+  workspaceModules: WorkspaceModuleEffective | null;
 };
 
 const Context = createContext<PatientOrganizationClientContext | null>(null);
@@ -57,6 +59,7 @@ export function PatientOrganizationContextProvider({
   organization,
   organizations,
   rememberOrganizationOnMount = false,
+  workspaceModules = null,
   checkContextChangeReceipt = true,
   navigate = replacePatientLocation,
   children,
@@ -64,6 +67,7 @@ export function PatientOrganizationContextProvider({
   organization: PatientOrganizationSummary;
   organizations: PatientOrganizationSummary[];
   rememberOrganizationOnMount?: boolean;
+  workspaceModules?: WorkspaceModuleEffective | null;
   checkContextChangeReceipt?: boolean;
   navigate?: PatientOrganizationNavigate;
   children: ReactNode;
@@ -111,6 +115,7 @@ export function PatientOrganizationContextProvider({
       organizations,
       switching,
       contextChangeNotice,
+      workspaceModules,
       async switchOrganization(organizationId) {
         if (switchingRef.current || organizationId === organization.organizationId) return;
         switchingRef.current = true;
@@ -130,7 +135,7 @@ export function PatientOrganizationContextProvider({
         }
       },
     }),
-    [contextChangeNotice, navigate, organization, organizations, switching],
+    [contextChangeNotice, navigate, organization, organizations, switching, workspaceModules],
   );
 
   return (

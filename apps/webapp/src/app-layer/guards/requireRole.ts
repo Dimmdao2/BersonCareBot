@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import {
@@ -24,6 +25,13 @@ import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import { PLATFORM_OPERATIONS_DB_SOURCE } from '@/shared/security/platformOperationsPrincipal';
 import type { AppSession } from '@/shared/types/session';
 import type { OrganizationMembershipRole } from '@/modules/organization-membership/ports';
+import type { WorkspaceModuleKey } from '@/modules/system-settings/doctorWorkspaceComposition';
+import {
+  requireDoctorWorkspaceModuleForAction,
+  requireDoctorWorkspaceModuleForApi,
+  requirePatientWorkspaceModuleForApi,
+  workspaceModuleForApiPath,
+} from '@/app-layer/guards/workspaceModuleAccess';
 import {
   hasLaunchCapability,
   resolveLaunchCapabilities,
@@ -88,8 +96,8 @@ export async function patientRscPersonalDataGate(
   return 'allow';
 }
 
-export async function requireDoctorAccess(): Promise<AppSession> {
-  return (await requireDoctorWorkspaceContext()).session;
+export async function requireDoctorAccess(options: CabinetGateOptions = {}): Promise<AppSession> {
+  return (await requireDoctorWorkspaceContext(options)).session;
 }
 
 /** Personal staff account entry. It deliberately does not require an organization membership. */
@@ -416,7 +424,10 @@ function contextHasCapability(
 }
 
 /** Resolves an organization membership for both clinical and management surfaces. */
-type CabinetGateOptions = { allowCabinetRecovery?: boolean };
+type CabinetGateOptions = {
+  allowCabinetRecovery?: boolean;
+  workspaceModule?: WorkspaceModuleKey;
+};
 
 async function cabinetEntryIsBlocked(organizationId: string): Promise<boolean> {
   try {
@@ -480,14 +491,19 @@ export async function requireOrganizationManagementContext(): Promise<DoctorWork
 }
 
 /** Clinical doctor workspace: a bound owner/doctor, never a management-only admin membership. */
-export async function requireDoctorWorkspaceContext(): Promise<DoctorWorkspaceAccessContext> {
-  const ctx = await requireOrganizationWorkspaceContext();
+export async function requireDoctorWorkspaceContext(
+  options: CabinetGateOptions = {},
+): Promise<DoctorWorkspaceAccessContext> {
+  const ctx = await requireOrganizationWorkspaceContext(options);
   if (!contextHasCapability(ctx, 'clinical.workspace')) {
     redirect(
       contextHasCapability(ctx, 'organization.management')
         ? `${routePaths.settings}?tab=organization`
         : routePaths.account,
     );
+  }
+  if (options.workspaceModule) {
+    await requireDoctorWorkspaceModuleForAction(buildAppDeps(), ctx, options.workspaceModule);
   }
   return ctx;
 }
@@ -759,6 +775,23 @@ export async function requireDoctorWorkspaceApiContext(
   if (!options.allowCabinetRecovery && (await cabinetEntryIsBlocked(resolved.ctx.organizationId))) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse('cabinet_blocked') };
   }
+  let requestedModule: WorkspaceModuleKey | null | undefined = options.workspaceModule;
+  if (!requestedModule) {
+    try {
+      requestedModule = workspaceModuleForApiPath((await headers()).get('x-bc-pathname') ?? '');
+    } catch {
+      requestedModule = undefined;
+    }
+  }
+  if (requestedModule) {
+    return requireDoctorWorkspaceModuleForApi(
+      buildAppDeps(),
+      resolved.ctx,
+      requestedModule,
+    ).then((moduleGate) =>
+      moduleGate.ok ? resolved : { ok: false as const, response: moduleGate.response },
+    );
+  }
   return resolved;
 }
 
@@ -911,6 +944,7 @@ function patientActivationRequiredJson(returnPath: string) {
 export async function requirePatientApiBusinessAccess(options?: {
   /** Для redirectTo в теле 403 (по умолчанию главное меню пациента). */
   returnPath?: string;
+  workspaceModule?: WorkspaceModuleKey;
 }): Promise<{ ok: true; session: AppSession } | { ok: false; response: NextResponse }> {
   ensureDbPrincipalContext({ source: 'requirePatientApiBusinessAccess:pending' });
   const session = await getCurrentSession();
@@ -936,6 +970,23 @@ export async function requirePatientApiBusinessAccess(options?: {
   const principal = await stampPatientPrincipalForApi(session);
   if (!principal.ok) {
     return principal;
+  }
+
+  let requestedModule: WorkspaceModuleKey | null | undefined = options?.workspaceModule;
+  if (!requestedModule) {
+    try {
+      requestedModule = workspaceModuleForApiPath((await headers()).get('x-bc-pathname') ?? '');
+    } catch {
+      requestedModule = undefined;
+    }
+  }
+  if (requestedModule) {
+    const moduleGate = await requirePatientWorkspaceModuleForApi(
+      buildAppDeps(),
+      session.user.userId,
+      requestedModule,
+    );
+    if (!moduleGate.ok) return moduleGate;
   }
 
   return { ok: true, session };

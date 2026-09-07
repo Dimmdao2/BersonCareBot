@@ -9,6 +9,7 @@ import { requirePatientAccessWithPhone } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { routePaths } from '@/app-layer/routes/paths';
 import { logger, serializeError } from '@/infra/logging/logger';
+import { requirePatientWorkspaceModuleForAction } from '@/app-layer/guards/workspaceModuleAccess';
 
 function parseOptionalInt(raw: unknown): number | null {
   if (typeof raw !== 'string' || !raw.trim()) return null;
@@ -26,6 +27,11 @@ export async function markLfkSession(
     return { ok: false };
   }
   const deps = buildAppDeps();
+  await requirePatientWorkspaceModuleForAction(
+    deps,
+    session.user.userId,
+    'rehabilitation',
+  );
   const complexes = await deps.diaries.listLfkComplexes(session.user.userId);
   if (!complexes.some((c) => c.id === complexId.trim())) {
     return { ok: false };
@@ -78,7 +84,12 @@ export async function markLfkSession(
 
 /** Patient self-creation of LFK complexes is disabled (complexes come from doctor assignments; see ROADMAP_2 §1.2). */
 export async function createLfkComplex(_formData: FormData) {
-  await requirePatientAccessWithPhone(routePaths.diary);
+  const session = await requirePatientAccessWithPhone(routePaths.diary);
+  await requirePatientWorkspaceModuleForAction(
+    buildAppDeps(),
+    session.user.userId,
+    'rehabilitation',
+  );
   return;
 }
 
@@ -105,6 +116,7 @@ export async function updateLfkJournalSession(
 
   const deps = buildAppDeps();
   const userId = session.user.userId;
+  await requirePatientWorkspaceModuleForAction(deps, userId, 'rehabilitation');
   const existing = await deps.diaries.getLfkSessionForUser({ userId, sessionId });
   if (!existing) return { ok: false };
 
@@ -136,6 +148,7 @@ export async function deleteLfkJournalSession(
   if (!sessionId) return { ok: false };
   const deps = buildAppDeps();
   const userId = session.user.userId;
+  await requirePatientWorkspaceModuleForAction(deps, userId, 'rehabilitation');
   const existing = await deps.diaries.getLfkSessionForUser({ userId, sessionId });
   if (!existing) return { ok: false };
   try {

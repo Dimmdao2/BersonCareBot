@@ -72,7 +72,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const patientUserId = identity.userId;
-  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps.systemSettings);
+  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps);
 
   const header = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     deps.doctorClients.getPatientCardHeader(patientUserId, gate.ctx.organizationId, {

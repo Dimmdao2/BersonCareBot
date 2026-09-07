@@ -64,7 +64,7 @@ export async function unarchiveClinicalTest(
 }
 
 export async function fetchDoctorClinicalTestUsageSnapshot(clinicalTestId: string) {
-  await requireDoctorAccess();
+  await requireDoctorAccess({ workspaceModule: 'rehabilitation' });
   const id = clinicalTestId.trim();
   if (!id) return { ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT };
   const deps = buildAppDeps();

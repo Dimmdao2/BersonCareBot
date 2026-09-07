@@ -82,7 +82,7 @@ export async function unarchiveDoctorTestSet(
 }
 
 export async function fetchDoctorTestSetUsageSnapshot(testSetId: string) {
-  await requireDoctorAccess();
+  await requireDoctorAccess({ workspaceModule: 'rehabilitation' });
   const id = testSetId.trim();
   if (!id) return { ...EMPTY_TEST_SET_USAGE_SNAPSHOT };
   const deps = buildAppDeps();

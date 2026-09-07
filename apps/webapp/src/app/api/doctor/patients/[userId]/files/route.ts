@@ -70,7 +70,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const patientUserId = identity.userId;
-  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps.systemSettings);
+  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps);
   const files = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     deps.patientFiles.listFiles(patientUserId, category),
   );

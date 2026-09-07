@@ -51,14 +51,18 @@ export async function loadPatientHomeProgressMetrics(
   deps: LoadPatientHomeProgressMetricsDeps,
   userId: string,
   appTz: string,
+  options: { rehabilitationEnabled?: boolean } = {},
 ): Promise<PatientHomeProgressDisplay> {
+  const rehabilitationEnabled = options.rehabilitationEnabled !== false;
   const [rules, patientCalTz, mutedUntilIso, recentPracticeRows, lfkRecentDays] = await Promise.all(
     [
       deps.reminders.listRulesByUser(userId),
       deps.patientCalendarTimezone.getIanaForUser(userId),
       deps.reminders.getReminderMutedUntil(userId),
       deps.patientPractice.listRecent(userId, 1500),
-      deps.treatmentProgramPatientActions.listLocalDoneDateKeysForRecentDays(userId, 120),
+      rehabilitationEnabled
+        ? deps.treatmentProgramPatientActions.listLocalDoneDateKeysForRecentDays(userId, 120)
+        : Promise.resolve({ iana: '', dateKeys: [] }),
     ],
   );
 
@@ -70,7 +74,7 @@ export async function loadPatientHomeProgressMetrics(
   const rangeEnd = dayStart.plus({ days: 1 }).toUTC().toJSDate();
 
   const warmupPlanned = muted ? 0 : countWarmupPlannedSlotsInUtcRange(rules, rangeStart, rangeEnd);
-  const trainingPlanned = muted
+  const trainingPlanned = muted || !rehabilitationEnabled
     ? 0
     : countTrainingPlannedSlotsInUtcRange(rules, rangeStart, rangeEnd);
 
@@ -84,9 +88,9 @@ export async function loadPatientHomeProgressMetrics(
   const warmupDone = countWarmupDoneToday(todayPracticeRows);
 
   let trainingDone = 0;
-  const activePlan = pickActivePlanInstance(
-    await deps.treatmentProgramInstance.listForPatient(userId),
-  );
+  const activePlan = rehabilitationEnabled
+    ? pickActivePlanInstance(await deps.treatmentProgramInstance.listForPatient(userId))
+    : null;
   if (activePlan) {
     const timestamps = await deps.treatmentProgramPatientActions.listProgramDoneTimestampsToday(
       userId,

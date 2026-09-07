@@ -16,6 +16,8 @@ import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import type { MaterialRatingTargetKind } from '@/modules/material-rating/types';
 import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { resolveDoctorWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 
 const KIND_LABEL: Record<MaterialRatingTargetKind, string> = {
   content_page: 'Страница CMS',
@@ -38,11 +40,15 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
   const offset = (pageNum - 1) * PAGE_SIZE;
 
   const deps = buildAppDeps();
+  const workspaceModules = await withDoctorWorkspacePrincipal(workspace, () =>
+    resolveDoctorWorkspaceModules(deps, workspace),
+  );
   const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
     .ok;
   const audience = await loadDoctorAnalyticsAudience();
   const rowsPlus = await deps.materialRating.listDoctorSummary({
     organizationId: workspace.organizationId,
+    targetKind: workspaceModules.rehabilitation ? undefined : 'content_page',
     limit: PAGE_SIZE + 1,
     offset,
     excludedUserIds: audience.excludedUserIds,

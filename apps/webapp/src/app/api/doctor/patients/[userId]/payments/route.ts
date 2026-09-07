@@ -14,7 +14,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import {
-  requireWorkspaceModuleForApi,
+  requireDoctorWorkspaceModuleForApi,
   resolveWorkspaceModulesForApi,
 } from '@/app-layer/guards/workspaceModuleAccess';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
@@ -50,7 +50,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   const { payments, totalPaidMinor } = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     deps.patientPayments.listPaymentsWithSummary(identity.userId),
   );
-  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps.systemSettings);
+  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps);
   const visiblePayments = payments.map((payment) =>
     workspaceModules.encounters ? payment : { ...payment, visitId: null },
   );
@@ -93,11 +93,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   if (b.visitId !== undefined) {
-    const moduleGate = await requireWorkspaceModuleForApi(
-      gate.ctx,
-      'encounters',
-      deps.systemSettings,
-    );
+    const moduleGate = await requireDoctorWorkspaceModuleForApi(deps, gate.ctx, 'encounters');
     if (!moduleGate.ok) return moduleGate.response;
   }
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'payments');

@@ -32,6 +32,7 @@ const fakes = vi.hoisted(() => ({
   requireDoctorWorkspace: vi.fn<RequireDoctorWorkspace>(),
   getClientIdentity: vi.fn<AppDeps['doctorClientsPort']['getClientIdentityForOrganization']>(),
   getSnapshot: vi.fn<AppDeps['orgEntitlements']['getSnapshot']>(),
+  resolveMechanicAccess: vi.fn<AppDeps['orgEntitlements']['resolveMechanicAccess']>(),
   getDoctorWorkspaceComposition:
     vi.fn<AppDeps['systemSettings']['getDoctorWorkspaceComposition']>(),
   listPatientAppointments: vi.fn<AppDeps['doctorClientsPort']['listPatientAppointments']>(),
@@ -55,6 +56,7 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: fakes.requireDoctorWorkspace,
 }));
 vi.mock('@bersoncare/db-principal', () => ({
+  getCurrentObservabilityContext: () => ({}),
   getCurrentDbPrincipal: () => ({
     kind: 'staff',
     organizationId: '00000000-0000-4000-8000-000000001069',
@@ -147,7 +149,10 @@ const fakeDeps = {
     getClientIdentityForOrganization: fakes.getClientIdentity,
     listPatientAppointments: fakes.listPatientAppointments,
   },
-  orgEntitlements: { getSnapshot: fakes.getSnapshot },
+  orgEntitlements: {
+    getSnapshot: fakes.getSnapshot,
+    resolveMechanicAccess: fakes.resolveMechanicAccess,
+  },
   systemSettings: { getDoctorWorkspaceComposition: fakes.getDoctorWorkspaceComposition },
   patientClinical: {
     getClinicalState: fakes.getClinicalState,
@@ -182,6 +187,12 @@ beforeEach(() => {
   fakes.requireDoctorWorkspace.mockResolvedValue({ ok: true, ctx: doctorContext });
   fakes.getClientIdentity.mockResolvedValue(clientIdentity);
   fakes.getSnapshot.mockResolvedValue(blockedNoTariffSnapshot);
+  fakes.resolveMechanicAccess.mockImplementation(async (_organizationId, mechanic) => ({
+    mechanic,
+    state: 'full_access',
+    policySource: 'system',
+    warning: null,
+  }));
   fakes.getDoctorWorkspaceComposition.mockResolvedValue(defaultDoctorWorkspaceComposition());
   fakes.getClinicalState.mockResolvedValue({
     complaints: [],

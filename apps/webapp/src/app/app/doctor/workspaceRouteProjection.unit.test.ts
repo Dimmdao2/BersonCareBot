@@ -22,9 +22,16 @@ vi.mock('./loadDoctorWorkspaceShell', () => ({
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
 
 import DoctorBroadcastsPage from './broadcasts/page';
+import DoctorClinicalTestsLayout from './clinical-tests/layout';
 import DoctorCommentsPage from './comments/page';
 import DoctorExercisesLayout from './exercises/layout';
+import DoctorLfkTemplatesLayout from './lfk-templates/layout';
 import DoctorMessagesPage from './messages/page';
+import DoctorRecommendationsLayout from './recommendations/layout';
+import DoctorReferencesLayout from './references/layout';
+import DoctorTestSetsLayout from './test-sets/layout';
+import DoctorTreatmentProgramPromoLayout from './treatment-program-promo/layout';
+import DoctorTreatmentProgramTemplatesLayout from './treatment-program-templates/layout';
 import NewEncounterPage from './patients/[userId]/visits/new/page';
 import EditEncounterPage from './patients/[userId]/visits/[visitId]/page';
 
@@ -60,12 +67,21 @@ describe('workspace-module direct page projection', () => {
     await expect(page()).rejects.toThrow(`NEXT_REDIRECT:${redirectHref}`);
   });
 
-  it('guards a rehabilitation catalog route while leaving its child untouched when enabled', async () => {
+  it.each([
+    ['clinical tests', DoctorClinicalTestsLayout],
+    ['exercises', DoctorExercisesLayout],
+    ['LFK templates', DoctorLfkTemplatesLayout],
+    ['recommendations', DoctorRecommendationsLayout],
+    ['references', DoctorReferencesLayout],
+    ['test sets', DoctorTestSetsLayout],
+    ['treatment program promo', DoctorTreatmentProgramPromoLayout],
+    ['treatment program templates', DoctorTreatmentProgramTemplatesLayout],
+  ] as const)('guards the complete rehabilitation catalog cluster: %s', async (_name, layout) => {
     fakes.loadDoctorWorkspaceShell.mockResolvedValue(shellWith('rehabilitation', false));
-    await expect(DoctorExercisesLayout({ children: 'exercise-catalog' })).rejects.toThrow(
-      'NEXT_NOT_FOUND',
-    );
+    await expect(layout({ children: 'catalog-child' })).rejects.toThrow('NEXT_NOT_FOUND');
+  });
 
+  it('leaves a rehabilitation catalog child untouched when enabled', async () => {
     fakes.loadDoctorWorkspaceShell.mockResolvedValue(shellWith('rehabilitation', true));
     await expect(DoctorExercisesLayout({ children: 'exercise-catalog' })).resolves.toBe(
       'exercise-catalog',

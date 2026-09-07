@@ -3,6 +3,7 @@ import { Clock3 } from 'lucide-react';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { resolveOrganizationWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
 import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
@@ -77,6 +78,7 @@ export async function PatientContentSlugArticle(props: Props) {
 async function renderPatientContentSlugArticle({
   slug,
   session,
+  organizationId,
   dbRow,
   item,
   personalTierOk,
@@ -103,11 +105,15 @@ async function renderPatientContentSlugArticle({
 
   let courseCta: { courseTitle: string; href: string } | null = null;
   if (dbRow?.linkedCourseId && session) {
+    const workspaceModules = organizationId
+      ? await resolveOrganizationWorkspaceModules(deps, organizationId)
+      : null;
     const patientOrganization = await resolvePatientEnrollmentOrganizationId(
       deps,
       session.user.userId,
     );
     if (
+      workspaceModules?.rehabilitation !== false &&
       patientOrganization.ok &&
       (await requireEntitlementForReadAction(patientOrganization, 'courses')).ok
     ) {

@@ -105,7 +105,7 @@ export async function unarchiveRecommendation(
 }
 
 export async function fetchDoctorRecommendationUsageSnapshot(recommendationId: string) {
-  await requireDoctorAccess();
+  await requireDoctorAccess({ workspaceModule: 'rehabilitation' });
   const id = recommendationId.trim();
   if (!id) return { ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT };
   const deps = buildAppDeps();

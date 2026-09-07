@@ -5,6 +5,9 @@ import { materializePatientReminderDeliveries } from '@/modules/reminders/materi
 import type { PatientReminderMaterializationPort } from '@/modules/reminders/patientReminderMaterializationPort';
 import { createPgPatientReminderMaterializationPort } from '@/infra/repos/pgPatientReminderMaterialization';
 import { resolvePatientNotificationChannels } from '@/modules/patient-notifications/resolveNotificationChannels';
+import { isRehabilitationReminderRule } from '@/modules/reminders/rehabProgramLinkedObject';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { resolveOrganizationWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
 
 export type PatientReminderMaterializationWakeResult = {
   rules: number;
@@ -17,11 +20,24 @@ export type PatientReminderMaterializationWakeResult = {
 export async function runPatientReminderMaterializationWake(
   organizationId: string,
   now = new Date(),
-  port: PatientReminderMaterializationPort = createPgPatientReminderMaterializationPort(),
+  port?: PatientReminderMaterializationPort,
+  options: { rehabilitationEnabled?: boolean } = {},
 ): Promise<PatientReminderMaterializationWakeResult> {
+  const effectivePort = port ?? createPgPatientReminderMaterializationPort();
+  const rehabilitationEnabled =
+    options.rehabilitationEnabled ??
+    (port
+      ? true
+      : await resolveOrganizationWorkspaceModules(buildAppDeps(), organizationId).then(
+          (modules) => modules.rehabilitation,
+        ));
   const nowIso = now.toISOString();
-  const snapshot = await port.readSnapshot(organizationId, nowIso);
-  const { rules, dueOccurrences: duePlanned } = snapshot;
+  const snapshot = await effectivePort.readSnapshot(organizationId, nowIso);
+  const rules = snapshot.rules.filter(
+    (rule) => rehabilitationEnabled || !isRehabilitationReminderRule(rule),
+  );
+  const allowedRuleIds = new Set(rules.map((rule) => rule.id));
+  const duePlanned = snapshot.dueOccurrences.filter((item) => allowedRuleIds.has(item.ruleId));
   const rulesById = new Map(rules.map((rule) => [rule.id, rule]));
   const result: PatientReminderMaterializationWakeResult = {
     rules: rules.length,
@@ -50,7 +66,7 @@ export async function runPatientReminderMaterializationWake(
     result.occurrences += 1;
     const topic = rule.notificationTopicCode?.trim();
     const targets = topic
-      ? await port.readDeliveryTargetSnapshot({
+      ? await effectivePort.readDeliveryTargetSnapshot({
           organizationId,
           platformUserId: rule.platformUserId,
           topicCode: topic,
@@ -92,7 +108,7 @@ export async function runPatientReminderMaterializationWake(
             },
           })
         : [];
-    const outcome = await port.materializeOccurrence(rule, draft, occurrence, deliveries);
+    const outcome = await effectivePort.materializeOccurrence(rule, draft, occurrence, deliveries);
     if (outcome === 'materialized') result.materialized += 1;
     else if (outcome === 'dedup') result.deduplicated += 1;
     else result.skipped += 1;

@@ -76,6 +76,8 @@ import type { PatientHomeProgressDisplay } from '@/modules/patient-home/patientH
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { canMaterializeMechanicOnRead } from '@/app-layer/entitlements/readMaterializationGate';
+import { resolveOrganizationWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
+import { isRehabilitationReminderRule } from '@/modules/reminders/rehabProgramLinkedObject';
 
 type SharedProps = {
   personalTierOk: boolean;
@@ -182,6 +184,16 @@ async function renderPatientHomeToday({
 }: Props) {
   const deps = buildAppDeps();
   const anonymousGuest = session === null;
+  const rehabilitationEnabled = session
+    ? await withPatientOrganizationPrincipal(
+        {
+          organizationId,
+          platformUserId: session.user.userId,
+          source: 'app.patient.home.workspace-modules',
+        },
+        () => resolveOrganizationWorkspaceModules(deps, organizationId),
+      ).then((modules) => modules.rehabilitation)
+    : false;
   const serverRenderInstant = new Date();
   const sessionActive = Boolean(session && personalTierOk);
   // patient_diaries is a critical mechanic (#1069, owner 31.07) — always materializes when a
@@ -245,7 +257,9 @@ async function renderPatientHomeToday({
         : Promise.resolve([]),
       subscriptionBlock
         ? resolveSubscriptionCarouselCards(
-            subscriptionBlock.items,
+            rehabilitationEnabled
+              ? subscriptionBlock.items
+              : subscriptionBlock.items.filter((item) => item.targetType !== 'course'),
             resolverDeps,
             canViewAuthOnlyContent,
           )
@@ -253,7 +267,7 @@ async function renderPatientHomeToday({
       sosBlock
         ? resolveSosCard(sosBlock.items, resolverDeps, canViewAuthOnlyContent)
         : Promise.resolve(null),
-      coursesBlock && session && coursesOrganizationId
+      rehabilitationEnabled && coursesBlock && session && coursesOrganizationId
         ? withPatientOrganizationPrincipal(
             {
               organizationId: coursesOrganizationId,
@@ -281,7 +295,9 @@ async function renderPatientHomeToday({
   let planUpdatedLabel: string | null = null;
   let planStartLessonHref: string | null = null;
   let progressMetrics: PatientHomeProgressDisplay | null = session
-    ? await loadPatientHomeProgressMetrics(deps, session.user.userId, appTz)
+    ? await loadPatientHomeProgressMetrics(deps, session.user.userId, appTz, {
+        rehabilitationEnabled,
+      })
     : null;
   let initialMoodCheckin: PatientMoodCheckinState | null = null;
   let moodWeekMarks: PatientMoodWeekMark[] = [];
@@ -298,10 +314,12 @@ async function renderPatientHomeToday({
 
   if (personalTierOk && session) {
     const warmupPageId = todayCfg.dailyWarmupItem?.page?.contentPageId;
-    const [rules, instances, moodState, mutedUntilIso, patientCalTz, warmupCooldownMeta] =
+    const [rawRules, instances, moodState, mutedUntilIso, patientCalTz, warmupCooldownMeta] =
       await Promise.all([
         deps.reminders.listRulesByUser(session.user.userId),
-        deps.treatmentProgramInstance.listForPatient(session.user.userId),
+        rehabilitationEnabled
+          ? deps.treatmentProgramInstance.listForPatient(session.user.userId)
+          : Promise.resolve([]),
         deps.patientMood.getCheckinState(session.user.userId, appTz, {
           materializeMissingTracking: materializeDiaryState,
         }),
@@ -315,6 +333,9 @@ async function renderPatientHomeToday({
             )
           : Promise.resolve({ active: false as const }),
       ]);
+    const rules = rehabilitationEnabled
+      ? rawRules
+      : rawRules.filter((rule) => !isRehabilitationReminderRule(rule));
 
     moodWeekTz = resolveCalendarDayIanaForPatient(patientCalTz, appTz);
 
@@ -524,6 +545,7 @@ async function renderPatientHomeToday({
           />
         );
       case 'courses':
+        if (!rehabilitationEnabled || courseCards.length === 0) return null;
         return (
           <PatientHomeCoursesRow
             cards={courseCards}

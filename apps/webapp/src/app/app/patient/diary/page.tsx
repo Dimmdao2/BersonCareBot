@@ -22,6 +22,8 @@ import { resolvePatientCanViewAuthOnlyContent } from '@/app-layer/platform-acces
 import { PatientDiaryAuthenticatedMain } from './PatientDiaryAuthenticatedMain';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
+import { resolveOrganizationWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 
 type PageProps = {
   searchParams?: Promise<{ week?: string | string[] }>;
@@ -50,9 +52,19 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
   const deps = buildAppDeps();
   const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, s.user.userId);
   if (!patientOrganization.ok) notFound();
-  const planReminderStrip = await runWithWebappDbOperationFamily('patient_diary', () =>
-    buildDiaryPlanReminderStrip(deps, s.user.userId, canViewAuthOnlyContent),
+  const workspaceModules = await withPatientOrganizationPrincipal(
+    {
+      organizationId: patientOrganization.organizationId,
+      platformUserId: s.user.userId,
+      source: 'app.patient.diary.workspace-modules',
+    },
+    () => resolveOrganizationWorkspaceModules(deps, patientOrganization.organizationId),
   );
+  const planReminderStrip = workspaceModules.rehabilitation
+    ? await runWithWebappDbOperationFamily('patient_diary', () =>
+        buildDiaryPlanReminderStrip(deps, s.user.userId, canViewAuthOnlyContent),
+      )
+    : null;
 
   return (
     <PatientAppShell
@@ -60,12 +72,15 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
       user={s.user}
       backHref="/app/patient"
       backLabel="Меню"
-      patientShellAboveTitleSlot={<PatientPlanTodayRemindersCard {...planReminderStrip} />}
+      patientShellAboveTitleSlot={
+        planReminderStrip ? <PatientPlanTodayRemindersCard {...planReminderStrip} /> : null
+      }
     >
       <Suspense fallback={<AppContentLoading className="py-10" />}>
         <PatientDiaryAuthenticatedMain
           userId={s.user.userId}
           organizationId={patientOrganization.organizationId}
+          rehabilitationEnabled={workspaceModules.rehabilitation}
           week={week}
         />
       </Suspense>

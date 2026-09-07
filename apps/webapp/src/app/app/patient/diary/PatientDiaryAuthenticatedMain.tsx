@@ -26,10 +26,12 @@ const EMPTY_STATS =
 export async function PatientDiaryAuthenticatedMain({
   userId,
   organizationId,
+  rehabilitationEnabled,
   week,
 }: {
   userId: string;
   organizationId: string;
+  rehabilitationEnabled: boolean;
   /** Сырой query `week` (YYYY-MM-DD); парсинг и clamp — в {@link loadPatientDiaryWeekWellbeing}. */
   week?: string;
 }) {
@@ -41,7 +43,7 @@ export async function PatientDiaryAuthenticatedMain({
     },
     () =>
       runWithWebappDbOperationFamily('patient_diary', () =>
-        renderPatientDiaryAuthenticatedMain({ userId, week }),
+        renderPatientDiaryAuthenticatedMain({ userId, week, rehabilitationEnabled }),
       ),
   );
 }
@@ -49,9 +51,11 @@ export async function PatientDiaryAuthenticatedMain({
 async function renderPatientDiaryAuthenticatedMain({
   userId,
   week,
+  rehabilitationEnabled,
 }: {
   userId: string;
   week?: string;
+  rehabilitationEnabled: boolean;
 }) {
   const deps = buildAppDeps();
   // patient_diaries is a critical mechanic (#1069, owner 31.07) — always materializes.
@@ -86,6 +90,7 @@ async function renderPatientDiaryAuthenticatedMain({
       weekEndMs: wellbeing.chart.weekEndMs,
       iana: wellbeing.iana,
       materializeMissingSnapshots: materializeDiaryState,
+      includePlan: rehabilitationEnabled,
     },
   );
 
@@ -132,7 +137,9 @@ async function renderPatientDiaryAuthenticatedMain({
         }))}
       />
       <PatientDiaryWarmupWeekBars weekDayLabels={weekDayLabels} days={activity.warmupDays} />
-      <PatientDiaryPlanWeekStripes weekDayLabels={weekDayLabels} days={activity.planDays} />
+      {rehabilitationEnabled ? (
+        <PatientDiaryPlanWeekStripes weekDayLabels={weekDayLabels} days={activity.planDays} />
+      ) : null}
     </>
   );
 

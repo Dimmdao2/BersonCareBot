@@ -9,6 +9,25 @@ import { SLOTS_V1_DB_PLACEHOLDER } from '@/modules/reminders/scheduleSlots';
 import { reminderRuleToPatientJson } from '../reminderPatientJson';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { requirePatientWarmupReminderMutation } from '@/app-layer/reminders/patientWarmupReminderMutationGuard';
+import { requirePatientWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
+import { isRehabilitationReminderRule } from '@/modules/reminders/rehabProgramLinkedObject';
+
+async function requireRehabilitationForRule(
+  deps: ReturnType<typeof buildAppDeps>,
+  patientUserId: string,
+  ruleId: string,
+) {
+  const rule = (await deps.reminders.listRulesByUser(patientUserId)).find(
+    (candidate) => candidate.id === ruleId,
+  );
+  if (!rule || !isRehabilitationReminderRule(rule)) return null;
+  const gate = await requirePatientWorkspaceModuleForApi(
+    deps,
+    patientUserId,
+    'rehabilitation',
+  );
+  return gate.ok ? null : gate.response;
+}
 
 export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientReminders });
@@ -116,6 +135,12 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
   }
 
   const deps = buildAppDeps();
+  const rehabilitationRefusal = await requireRehabilitationForRule(
+    deps,
+    session.user.userId,
+    ruleId,
+  );
+  if (rehabilitationRefusal) return rehabilitationRefusal;
   const warmupEntitlement = await requirePatientWarmupReminderMutation(
     deps,
     session.user.userId,
@@ -152,6 +177,12 @@ export async function DELETE(_req: Request, context: { params: Promise<{ id: str
   }
 
   const deps = buildAppDeps();
+  const rehabilitationRefusal = await requireRehabilitationForRule(
+    deps,
+    session.user.userId,
+    ruleId,
+  );
+  if (rehabilitationRefusal) return rehabilitationRefusal;
   const warmupEntitlement = await requirePatientWarmupReminderMutation(
     deps,
     session.user.userId,

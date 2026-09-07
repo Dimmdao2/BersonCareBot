@@ -30,7 +30,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   if (!identity) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
-  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps.systemSettings);
+  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps);
   const appointments = await deps.doctorClientsPort.listPatientAppointments(
     identity.userId,
     gate.ctx.organizationId,
