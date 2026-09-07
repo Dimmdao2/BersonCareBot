@@ -46,6 +46,7 @@ const bootstrapHybridOrgGatedTables = new Set([
 export const preScopedDirectOrgTables = new Set([
   'public.clinical_disease_anamnesis',
   'public.clinic_public_directory_entries',
+  'public.org_custom_domain_bindings',
   'public.patient_invites',
   'public.saas_organization_trials',
 ]);

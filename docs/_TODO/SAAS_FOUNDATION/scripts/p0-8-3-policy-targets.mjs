@@ -77,6 +77,7 @@ export const expectedP083PublicDirectOrgTargets = Object.freeze([
   'public.motivational_quotes',
   'public.online_intake_requests',
   'public.operator_health_failure_archive',
+  'public.org_custom_domain_bindings',
   'public.org_enrollments',
   'public.organization_member_invites',
   'public.patient_comorbidity',

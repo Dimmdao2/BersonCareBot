@@ -161,6 +161,7 @@ VALUES
   ('public', 'operator_health_failure_archive'),
   ('public', 'operator_incidents'),
   ('public', 'operator_job_status'),
+  ('public', 'org_custom_domain_bindings'),
   ('public', 'org_enrollments'),
   ('public', 'outgoing_delivery_queue'),
   ('public', 'patient_bookings'),
