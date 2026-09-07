@@ -14,9 +14,14 @@
  * every `it` below into a 403 and fails the assertions.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextResponse } from 'next/server';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 import type { ClientIdentity } from '@/modules/doctor-clients/ports';
 import type { OrgEntitlementSnapshot } from '@/modules/org-entitlements/types';
+import {
+  defaultDoctorWorkspaceComposition,
+  type DoctorWorkspaceComposition,
+} from '@/modules/system-settings/doctorWorkspaceComposition';
 
 type AppDeps = ReturnType<typeof import('@/app-layer/di/buildAppDeps').buildAppDeps>;
 type RequireDoctorWorkspace =
@@ -27,6 +32,10 @@ const fakes = vi.hoisted(() => ({
   requireDoctorWorkspace: vi.fn<RequireDoctorWorkspace>(),
   getClientIdentity: vi.fn<AppDeps['doctorClientsPort']['getClientIdentityForOrganization']>(),
   getSnapshot: vi.fn<AppDeps['orgEntitlements']['getSnapshot']>(),
+  getDoctorWorkspaceComposition:
+    vi.fn<AppDeps['systemSettings']['getDoctorWorkspaceComposition']>(),
+  getClinicalState: vi.fn(),
+  listVisits: vi.fn(),
   createVisit: vi.fn(),
   updateVisitFields: vi.fn(),
   appendAnamnesisTrauma: vi.fn(),
@@ -56,14 +65,25 @@ vi.mock('@bersoncare/db-principal', () => ({
   runWithDbStaffPrincipal: <T>(_ctx: unknown, callback: () => T): T => callback(),
 }));
 
-import { POST as createVisitRoute } from './visits/route';
+import { GET as listVisitsRoute, POST as createVisitRoute } from './visits/route';
 import { PATCH as updateVisitRoute } from './visits/[visitId]/route';
-import { POST as appendAnamnesisRoute } from './anamnesis/route';
+import {
+  GET as readAnamnesisRoute,
+  PATCH as updateAnamnesisRoute,
+  POST as appendAnamnesisRoute,
+} from './anamnesis/route';
+import { GET as readClinicalRoute } from './clinical/route';
+import { POST as createComplaintRoute } from './complaints/route';
 import { PATCH as updateComplaintRoute } from './complaints/[complaintId]/route';
+import { POST as appendComplaintUpdateRoute } from './complaints/[complaintId]/updates/route';
+import { POST as createDiagnosisRoute } from './diagnoses/route';
 import { PATCH as updateDiagnosisRoute } from './diagnoses/[diagnosisId]/route';
-import { PATCH as updateDiagnosisStatusRoute } from './diagnoses/[diagnosisId]/status/route';
+import {
+  GET as readDiagnosisStatusRoute,
+  PATCH as updateDiagnosisStatusRoute,
+} from './diagnoses/[diagnosisId]/status/route';
 import { PATCH as updatePhysicalRoute } from './physical/route';
-import { POST as createComorbidityRoute } from './comorbidities/route';
+import { GET as readComorbiditiesRoute, POST as createComorbidityRoute } from './comorbidities/route';
 import {
   PATCH as updateComorbidityRoute,
   DELETE as deleteComorbidityRoute,
@@ -120,7 +140,10 @@ const blockedNoTariffSnapshot: OrgEntitlementSnapshot = {
 const fakeDeps = {
   doctorClientsPort: { getClientIdentityForOrganization: fakes.getClientIdentity },
   orgEntitlements: { getSnapshot: fakes.getSnapshot },
+  systemSettings: { getDoctorWorkspaceComposition: fakes.getDoctorWorkspaceComposition },
   patientClinical: {
+    getClinicalState: fakes.getClinicalState,
+    listVisits: fakes.listVisits,
     createVisit: fakes.createVisit,
     updateVisitFields: fakes.updateVisitFields,
     appendAnamnesisTrauma: fakes.appendAnamnesisTrauma,
@@ -151,6 +174,14 @@ beforeEach(() => {
   fakes.requireDoctorWorkspace.mockResolvedValue({ ok: true, ctx: doctorContext });
   fakes.getClientIdentity.mockResolvedValue(clientIdentity);
   fakes.getSnapshot.mockResolvedValue(blockedNoTariffSnapshot);
+  fakes.getDoctorWorkspaceComposition.mockResolvedValue(defaultDoctorWorkspaceComposition());
+  fakes.getClinicalState.mockResolvedValue({
+    complaints: [],
+    complaintHistory: [],
+    diagnoses: [],
+    diagnosisHistory: [],
+  });
+  fakes.listVisits.mockResolvedValue([]);
   fakes.createVisit.mockResolvedValue(VISIT_ID);
   fakes.updateVisitFields.mockResolvedValue(true);
   fakes.appendAnamnesisTrauma.mockResolvedValue(undefined);
@@ -167,6 +198,188 @@ beforeEach(() => {
   });
   fakes.editComorbidityText.mockResolvedValue(true);
   fakes.markComorbidityRemoved.mockResolvedValue(true);
+});
+
+function setMedicalRecordPreference(enabled: boolean): void {
+  const defaults = defaultDoctorWorkspaceComposition();
+  const composition: DoctorWorkspaceComposition = {
+    ...defaults,
+    modules: { ...defaults.modules, medical_record: enabled },
+  };
+  fakes.getDoctorWorkspaceComposition.mockResolvedValue(composition);
+}
+
+function request(url: string, method: string): Request {
+  return method === 'GET' ? new Request(url, { method }) : jsonRequest(url, method, {});
+}
+
+describe('C3M-07a medical-record API independence (#1098)', () => {
+  it('keeps the existing actor/capability/tenant denial upstream of workspace preferences', async () => {
+    fakes.requireDoctorWorkspace.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    });
+
+    const response = await readClinicalRoute(
+      request(`https://app.example.test/api/doctor/patients/${PATIENT_ID}/clinical`, 'GET'),
+      { params: Promise.resolve({ userId: PATIENT_ID }) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(fakes.getDoctorWorkspaceComposition).not.toHaveBeenCalled();
+    expect(fakes.getClientIdentity).not.toHaveBeenCalled();
+  });
+
+  it('denies every longitudinal medical-record route before patient data is read or mutated', async () => {
+    setMedicalRecordPreference(false);
+    const userParams = { params: Promise.resolve({ userId: PATIENT_ID }) };
+    const complaintParams = {
+      params: Promise.resolve({ userId: PATIENT_ID, complaintId: COMPLAINT_ID }),
+    };
+    const diagnosisParams = {
+      params: Promise.resolve({ userId: PATIENT_ID, diagnosisId: DIAGNOSIS_ID }),
+    };
+    const comorbidityParams = {
+      params: Promise.resolve({ userId: PATIENT_ID, comorbidityId: COMORBIDITY_ID }),
+    };
+    const base = `https://app.example.test/api/doctor/patients/${PATIENT_ID}`;
+    const probes: Array<readonly [string, () => Promise<Response>]> = [
+      ['clinical GET', () => readClinicalRoute(request(`${base}/clinical`, 'GET'), userParams)],
+      ['anamnesis GET', () => readAnamnesisRoute(request(`${base}/anamnesis`, 'GET'), userParams)],
+      [
+        'anamnesis POST',
+        () => appendAnamnesisRoute(request(`${base}/anamnesis`, 'POST'), userParams),
+      ],
+      [
+        'anamnesis PATCH',
+        () => updateAnamnesisRoute(request(`${base}/anamnesis`, 'PATCH'), userParams),
+      ],
+      [
+        'complaints POST',
+        () => createComplaintRoute(request(`${base}/complaints`, 'POST'), userParams),
+      ],
+      [
+        'complaint PATCH',
+        () =>
+          updateComplaintRoute(
+            request(`${base}/complaints/${COMPLAINT_ID}`, 'PATCH'),
+            complaintParams,
+          ),
+      ],
+      [
+        'complaint update POST',
+        () =>
+          appendComplaintUpdateRoute(
+            request(`${base}/complaints/${COMPLAINT_ID}/updates`, 'POST'),
+            complaintParams,
+          ),
+      ],
+      [
+        'diagnoses POST',
+        () => createDiagnosisRoute(request(`${base}/diagnoses`, 'POST'), userParams),
+      ],
+      [
+        'diagnosis PATCH',
+        () =>
+          updateDiagnosisRoute(
+            request(`${base}/diagnoses/${DIAGNOSIS_ID}`, 'PATCH'),
+            diagnosisParams,
+          ),
+      ],
+      [
+        'diagnosis status GET',
+        () =>
+          readDiagnosisStatusRoute(
+            request(`${base}/diagnoses/${DIAGNOSIS_ID}/status`, 'GET'),
+            diagnosisParams,
+          ),
+      ],
+      [
+        'diagnosis status PATCH',
+        () =>
+          updateDiagnosisStatusRoute(
+            request(`${base}/diagnoses/${DIAGNOSIS_ID}/status`, 'PATCH'),
+            diagnosisParams,
+          ),
+      ],
+      [
+        'comorbidities GET',
+        () => readComorbiditiesRoute(request(`${base}/comorbidities`, 'GET'), userParams),
+      ],
+      [
+        'comorbidities POST',
+        () => createComorbidityRoute(request(`${base}/comorbidities`, 'POST'), userParams),
+      ],
+      [
+        'comorbidity PATCH',
+        () =>
+          updateComorbidityRoute(
+            request(`${base}/comorbidities/${COMORBIDITY_ID}`, 'PATCH'),
+            comorbidityParams,
+          ),
+      ],
+      [
+        'comorbidity DELETE',
+        () =>
+          deleteComorbidityRoute(
+            request(`${base}/comorbidities/${COMORBIDITY_ID}`, 'DELETE'),
+            comorbidityParams,
+          ),
+      ],
+    ];
+
+    for (const [label, probe] of probes) {
+      const response = await probe();
+      expect(response.status, label).toBe(403);
+      await expect(response.json(), label).resolves.toEqual({
+        ok: false,
+        error: 'workspace_module_disabled',
+        module: 'medical_record',
+      });
+    }
+    expect(fakes.getClientIdentity).not.toHaveBeenCalled();
+    expect(fakes.getClinicalState).not.toHaveBeenCalled();
+    expect(fakes.createVisit).not.toHaveBeenCalled();
+  });
+
+  it('keeps encounter read/create/update routes available while medical records are off', async () => {
+    setMedicalRecordPreference(false);
+    const base = `https://app.example.test/api/doctor/patients/${PATIENT_ID}`;
+
+    const listResponse = await listVisitsRoute(request(`${base}/visits`, 'GET'), {
+      params: Promise.resolve({ userId: PATIENT_ID }),
+    });
+    const createResponse = await createVisitRoute(
+      jsonRequest(`${base}/visits`, 'POST', { visitType: 'first', date: '2026-07-31' }),
+      { params: Promise.resolve({ userId: PATIENT_ID }) },
+    );
+    const updateResponse = await updateVisitRoute(
+      jsonRequest(`${base}/visits/${VISIT_ID}`, 'PATCH', { location: 'Кабинет 3' }),
+      { params: Promise.resolve({ userId: PATIENT_ID, visitId: VISIT_ID }) },
+    );
+
+    expect(listResponse.status).toBe(200);
+    expect(createResponse.status).toBe(201);
+    expect(updateResponse.status).toBe(200);
+    expect(fakes.listVisits).toHaveBeenCalledOnce();
+    expect(fakes.createVisit).toHaveBeenCalledOnce();
+    expect(fakes.updateVisitFields).toHaveBeenCalledOnce();
+  });
+
+  it('denies medical-record fields smuggled through encounter creation while medical records are off', async () => {
+    setMedicalRecordPreference(false);
+    const response = await createVisitRoute(
+      jsonRequest(`https://app.example.test/api/doctor/patients/${PATIENT_ID}/visits`, 'POST', {
+        visitType: 'first',
+        date: '2026-07-31',
+        complaints: [{ text: 'Боль', priority: false, severity: 5 }],
+      }),
+      { params: Promise.resolve({ userId: PATIENT_ID }) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(fakes.createVisit).not.toHaveBeenCalled();
+  });
 });
 
 describe('patient card mutations ignore commercial/tariff state (critical mechanic, #1069)', () => {
