@@ -1,4 +1,4 @@
--- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner
+-- BCB-MIGRATION-OWNER: app_object_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-VERIFY: SELECT to_regclass('public.org_custom_domain_bindings') IS NOT NULL AND to_regprocedure('app.resolve_active_organization_by_custom_domain(text)') IS NOT NULL AND to_regprocedure('app.read_anonymous_patient_surface_projection(uuid)') IS NOT NULL AND to_regprocedure('app.custom_domain_ask_is_authorized(text)') IS NOT NULL AND to_regprocedure('app.custom_domain_apply_transition(text,text,text)') IS NOT NULL
 --
@@ -85,23 +85,23 @@ CREATE TABLE "org_custom_domain_bindings" (
       ELSE "subdomain_label" || '.' || "base_domain" END)
 );
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner
+-- BCB-MIGRATION-OWNER: app_object_owner
 
 CREATE UNIQUE INDEX "uq_org_custom_domain_bindings_hostname"
   ON "org_custom_domain_bindings" USING btree (lower("hostname"));
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner
+-- BCB-MIGRATION-OWNER: app_object_owner
 
 CREATE UNIQUE INDEX "uq_org_custom_domain_bindings_live_org"
   ON "org_custom_domain_bindings" USING btree ("organization_id")
   WHERE "organization_id" IS NOT NULL AND "status" <> 'quarantine';
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner
+-- BCB-MIGRATION-OWNER: app_object_owner
 
 CREATE INDEX "idx_org_custom_domain_bindings_status"
   ON "org_custom_domain_bindings" USING btree ("status");
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner
+-- BCB-MIGRATION-OWNER: app_object_owner
 
 CREATE FUNCTION app.resolve_active_organization_by_custom_domain(p_hostname text)
 RETURNS uuid
@@ -123,7 +123,7 @@ $$;
 COMMENT ON FUNCTION app.resolve_active_organization_by_custom_domain(text) IS
   'Pre-session hostname -> organization id for an ACTIVE custom-domain binding of an active organization only (B2).';
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner
+-- BCB-MIGRATION-OWNER: app_object_owner
 
 CREATE FUNCTION app.read_anonymous_patient_surface_projection(p_organization_id uuid)
 RETURNS TABLE (
@@ -176,7 +176,7 @@ $$;
 COMMENT ON FUNCTION app.read_anonymous_patient_surface_projection(uuid) IS
   'Anonymous-safe brand/slug/redirect projection for an already-resolved organization id (B4a/B2). No row for an unknown, inactive, or unpublished-slug organization.';
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner
+-- BCB-MIGRATION-OWNER: app_object_owner
 
 CREATE FUNCTION app.custom_domain_ask_is_authorized(p_hostname text)
 RETURNS boolean
@@ -196,7 +196,7 @@ $$;
 COMMENT ON FUNCTION app.custom_domain_ask_is_authorized(text) IS
   'Caddy on_demand_tls ask authorization only: is this hostname one we are willing to request a certificate for. Never probes DNS and never claims a certificate exists (C5a).';
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner
+-- BCB-MIGRATION-OWNER: app_object_owner
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 
 CREATE FUNCTION app.custom_domain_apply_transition(p_hostname text, p_transition text, p_reason text)

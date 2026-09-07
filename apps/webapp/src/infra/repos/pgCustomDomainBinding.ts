@@ -128,7 +128,11 @@ export function createPgCustomDomainBindingPort(): CustomDomainBindingPort {
         return await runDrizzleMutationTransaction(async (tx) => {
           await lockCustomDomainBindings(tx, input.organizationId);
           const [existing] = await tx
-            .select({ id: orgCustomDomainBindings.id, hostname: orgCustomDomainBindings.hostname })
+            .select({
+              id: orgCustomDomainBindings.id,
+              hostname: orgCustomDomainBindings.hostname,
+              status: orgCustomDomainBindings.status,
+            })
             .from(orgCustomDomainBindings)
             .where(
               and(
@@ -143,6 +147,18 @@ export function createPgCustomDomainBindingPort(): CustomDomainBindingPort {
               ? input.baseDomain
               : `${input.subdomainLabel}.${input.baseDomain}`;
           if (existing?.hostname === hostname) {
+            if (existing.status === 'failed') {
+              const [retried] = await tx
+                .update(orgCustomDomainBindings)
+                .set({
+                  status: 'pending',
+                  statusReason: null,
+                  updatedAt: new Date().toISOString(),
+                })
+                .where(eq(orgCustomDomainBindings.id, existing.id))
+                .returning();
+              return { ok: true as const, state: retried ? mapRow(retried) : null };
+            }
             const [unchanged] = await tx
               .select()
               .from(orgCustomDomainBindings)

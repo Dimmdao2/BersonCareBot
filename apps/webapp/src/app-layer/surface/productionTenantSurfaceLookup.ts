@@ -82,7 +82,7 @@ export const productionTenantSurfaceLookup: TenantSurfaceLookup = async (
       ...(projection.logoUrl ? { logoUrl: projection.logoUrl } : {}),
     },
     ...(projection.activeCustomDomainHostname
-      ? { redirectToHostname: projection.activeCustomDomainHostname }
+      ? { activeCustomDomainHostname: projection.activeCustomDomainHostname }
       : {}),
   };
 };

@@ -41,6 +41,12 @@ const envSchema = z.object({
    * the patient app shares the staff origin; an explicit value enables separate Hosts.
    */
   PATIENT_APP_ORIGIN: z.string().url().optional(),
+  /** Stable edge facts used by custom-domain verification; empty keeps one-host TEST fail-closed. */
+  CUSTOM_DOMAIN_EDGE_IP: z
+    .string()
+    .regex(/^(?:\d{1,3}\.){3}\d{1,3}$/u)
+    .optional(),
+  CUSTOM_DOMAIN_CNAME_TARGET: z.string().min(1).optional(),
   /** In test env use "" unless USE_REAL_DATABASE=1 (then use .env / dev DB for e2e). */
   DATABASE_URL: z
     .string()

@@ -8,6 +8,7 @@ import type {
   CustomDomainTransitionErrorCode,
   SetCustomDomainIntentInput,
 } from './ports';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 
 const HOSTNAME_LABEL_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
 const MAX_HOSTNAME_LENGTH = 253;
@@ -25,8 +26,14 @@ function isPlausibleBaseDomain(value: string): boolean {
   return labels.every((label) => HOSTNAME_LABEL_RE.test(label));
 }
 
-function isPlausibleSubdomainLabel(value: string): boolean {
-  return HOSTNAME_LABEL_RE.test(value);
+function isPlatformOwnedHostname(hostname: string): boolean {
+  try {
+    const platformHost = new URL(PATIENT_DEFAULT_SURFACE.origin).hostname.toLowerCase();
+    return hostname === platformHost || hostname.endsWith(`.${platformHost}`);
+  } catch {
+    // An invalid deploy origin must never make a custom-domain claim more permissive.
+    return true;
+  }
 }
 
 export type CustomDomainBindingService = {
@@ -59,16 +66,16 @@ export function createCustomDomainBindingService(
       if (!isPlausibleBaseDomain(baseDomain)) {
         return { ok: false, code: 'invalid_base_domain' };
       }
+      const hostname = input.placement === 'subdomain' ? `app.${baseDomain}` : baseDomain;
+      if (isPlatformOwnedHostname(hostname)) {
+        return { ok: false, code: 'invalid_base_domain' };
+      }
       if (input.placement === 'subdomain') {
-        const subdomainLabel = normalizeDomainLabelInput(input.subdomainLabel ?? '');
-        if (!isPlausibleSubdomainLabel(subdomainLabel)) {
-          return { ok: false, code: 'invalid_subdomain_label' };
-        }
         return port.setCustomDomainIntent({
           organizationId: input.organizationId,
           baseDomain,
           placement: 'subdomain',
-          subdomainLabel,
+          subdomainLabel: 'app',
         });
       }
       return port.setCustomDomainIntent({

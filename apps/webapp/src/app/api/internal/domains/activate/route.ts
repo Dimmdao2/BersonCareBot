@@ -7,19 +7,15 @@ import { logger } from '@/app-layer/logging/logger';
 
 const bodySchema = z.object({
   hostname: z.string().min(1),
-  transition: z.enum(['mark_dns_ready', 'mark_active', 'mark_failed', 'mark_suspended']),
+  transition: z.enum(['mark_dns_ready', 'mark_failed', 'mark_suspended']),
   reason: z.string().max(500).optional(),
 });
 
 /**
- * POST — the narrow, deterministic custom-domain status transition door for a LATER verifier/edge
- * integration (not built in this slice, C5a). Secured with the same
- * `Authorization: Bearer <INTERNAL_JOB_SECRET>` convention as every other `/api/internal/**` route.
+ * POST — limited failure-state transition door for the domain verifier. A caller cannot assert
+ * `mark_active`: only the shared health verifier may do that after DNS, TLS and routing evidence.
  *
- * This route never runs on its own (nothing in this codebase calls it yet) and it never derives
- * `mark_active` from DNS resolution alone — the caller is trusted to have already confirmed
- * whatever assurance `mark_active` requires (a real ACME/cert check). Allowed transitions are
- * enforced by `app.custom_domain_apply_transition` itself, not re-validated here.
+ * Allowed transitions are enforced by `app.custom_domain_apply_transition` itself.
  */
 export async function POST(request: Request) {
   const auth = verifyInternalJobBearer(request);

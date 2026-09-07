@@ -63,6 +63,8 @@ import {
   normalizeOrgCustomDomainHostnamePatch,
   ORG_CUSTOM_DOMAIN_HOSTNAME_KEY,
 } from '@/modules/system-settings/orgCustomDomainHostname';
+import type { CustomDomainBindingState } from '@/modules/custom-domain-binding/ports';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { normalizeDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import {
   isPlatformIntegrationAvailable,
@@ -227,6 +229,8 @@ const PATCH_SCOPE_KEYS = [...ADMIN_SCOPE_KEYS, ...DOCTOR_SCOPE_KEYS] as const;
 const patchSchema = z.object({
   key: z.enum(PATCH_SCOPE_KEYS),
   value: z.unknown(),
+  placement: z.enum(['apex', 'subdomain']).optional(),
+  subdomainLabel: z.unknown().optional(),
 });
 const deleteSchema = z.object({ key: z.literal('operator_health_probe_config') });
 
@@ -371,6 +375,18 @@ const PROMO_ENTITLEMENT_SETTING_KEYS = new Set([
 ]);
 
 const CUSTOM_DOMAIN_ENTITLEMENT_SETTING_KEYS = new Set<string>([ORG_CUSTOM_DOMAIN_HOSTNAME_KEY]);
+const PLATFORM_PATIENT_HOSTNAME = 'therapygo.ru';
+
+function isPlatformOwnedCustomDomain(baseDomain: string): boolean {
+  const platformHosts = [PLATFORM_PATIENT_HOSTNAME];
+  try {
+    platformHosts.push(new URL(PATIENT_DEFAULT_SURFACE.origin).hostname.toLowerCase());
+  } catch {
+    // TEST's one-host compatibility has no patient origin; the permanent platform namespace above
+    // remains protected.
+  }
+  return platformHosts.some((host) => baseDomain === host || baseDomain.endsWith(`.${host}`));
+}
 
 type SettingsApiContext =
   | {
@@ -947,43 +963,40 @@ export async function PATCH(request: Request) {
     normalizedValue = checked.valueJson;
   }
 
-  /**
-   * `placement`/`subdomainLabel` are optional, forward-compatible sibling fields the React settings
-   * UI does not send today (this worker does not touch that UI) — `normalizeValueJson`'s
-   * pass-through preserves them if a future UI ever does. Read from `normalizedValue` BEFORE
-   * `normalizeOrgCustomDomainHostnamePatch` overwrites it: that normalizer's own stored contract is
-   * `{ value: string }` only, same as before this change, so these two fields never reach
-   * `system_settings`. B2's "exact hostname computed server-side" is enforced by
-   * `CustomDomainBindingService.setCustomDomainIntent`, not by trusting this hostname string as the
-   * final hostname when `placement === 'subdomain'`.
-   */
+  /** The browser sends a base domain plus placement; server derives the only allowed prefix. */
   let orgCustomDomainIntentPatch:
     | { kind: 'clear' }
     | { kind: 'set'; baseDomain: string; placement: 'apex' | 'subdomain'; subdomainLabel?: unknown }
     | null = null;
   if (parsed.data.key === ORG_CUSTOM_DOMAIN_HOSTNAME_KEY) {
-    const rawPlacement =
+    // Accept the prior nested envelope for HTTP compatibility, but never pass its label on.
+    const legacyEnvelope =
       normalizedValue.value !== null && typeof normalizedValue.value === 'object'
-        ? (normalizedValue.value as Record<string, unknown>).placement
-        : undefined;
-    const rawSubdomainLabel =
-      normalizedValue.value !== null && typeof normalizedValue.value === 'object'
-        ? (normalizedValue.value as Record<string, unknown>).subdomainLabel
-        : undefined;
-    const checked = normalizeOrgCustomDomainHostnamePatch(normalizedValue);
+        ? (normalizedValue.value as Record<string, unknown>)
+        : null;
+    const baseDomain = legacyEnvelope?.value ?? normalizedValue.value;
+    const placement =
+      parsed.data.placement ??
+      (legacyEnvelope?.placement === 'subdomain' ||
+      (normalizedValue as Record<string, unknown>).placement === 'subdomain'
+        ? 'subdomain'
+        : 'apex');
+    const checked = normalizeOrgCustomDomainHostnamePatch({ value: baseDomain });
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: checked.error }, { status: 400 });
     }
     normalizedValue = checked.valueJson;
     const hostnameValue = checked.valueJson.value;
+    if (hostnameValue !== '' && isPlatformOwnedCustomDomain(hostnameValue)) {
+      return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
+    }
     orgCustomDomainIntentPatch =
       hostnameValue === ''
         ? { kind: 'clear' }
         : {
             kind: 'set',
             baseDomain: hostnameValue,
-            placement: rawPlacement === 'subdomain' ? 'subdomain' : 'apex',
-            subdomainLabel: rawSubdomainLabel,
+            placement,
           };
   }
 
@@ -1101,8 +1114,38 @@ export async function PATCH(request: Request) {
     timestamp: new Date().toISOString(),
   });
 
+  // The binding is canonical. Do not persist a settings value before its globally-unique claim
+  // succeeds, otherwise a rejected hostname becomes a durable lie.
+  let domainBinding: CustomDomainBindingState | null | undefined;
+  if (orgCustomDomainIntentPatch && deps.customDomainBinding && organizationId) {
+    const intentResult =
+      orgCustomDomainIntentPatch.kind === 'clear'
+        ? await deps.customDomainBinding.clearCustomDomainIntent({ organizationId })
+        : await deps.customDomainBinding.setCustomDomainIntent({
+            organizationId,
+            baseDomain: orgCustomDomainIntentPatch.baseDomain,
+            placement: orgCustomDomainIntentPatch.placement,
+          });
+    if (!intentResult.ok && intentResult.code !== 'nothing_to_clear') {
+      return NextResponse.json(
+        { ok: false, error: `custom_domain_${intentResult.code}` },
+        { status: 409 },
+      );
+    }
+    domainBinding = intentResult.ok ? intentResult.state : null;
+  }
+
   let setting: SystemSetting;
-  try {
+  if (orgCustomDomainIntentPatch) {
+    setting = {
+      key: ORG_CUSTOM_DOMAIN_HOSTNAME_KEY,
+      scope: settingScope,
+      organizationId,
+      valueJson: { value: domainBinding?.baseDomain ?? '' },
+      updatedAt: new Date().toISOString(),
+      updatedBy: session.user.userId,
+    };
+  } else try {
     setting = await deps.systemSettings.updateSetting(
       parsed.data.key,
       settingScope,
@@ -1123,34 +1166,8 @@ export async function PATCH(request: Request) {
     throw error;
   }
 
-  // B2/B8/C5a (reopened #787): the custom-domain binding side-effect of the SAME PATCH, extending
-  // this one settings choke point rather than adding a second store for the same intent. Runs AFTER
-  // `system_settings` is durably written; a failure here is surfaced loudly (not swallowed) so the
-  // admin knows the domain binding itself did not take — the setting value and the binding table are
-  // two separate stores with no shared transaction in this slice.
-  if (orgCustomDomainIntentPatch && deps.customDomainBinding && organizationId) {
-    const intentResult =
-      orgCustomDomainIntentPatch.kind === 'clear'
-        ? await deps.customDomainBinding.clearCustomDomainIntent({ organizationId })
-        : await deps.customDomainBinding.setCustomDomainIntent({
-            organizationId,
-            baseDomain: orgCustomDomainIntentPatch.baseDomain,
-            placement: orgCustomDomainIntentPatch.placement,
-            subdomainLabel:
-              typeof orgCustomDomainIntentPatch.subdomainLabel === 'string'
-                ? orgCustomDomainIntentPatch.subdomainLabel
-                : undefined,
-          });
-    if (!intentResult.ok && intentResult.code !== 'nothing_to_clear') {
-      return NextResponse.json(
-        { ok: false, error: `custom_domain_${intentResult.code}` },
-        { status: 409 },
-      );
-    }
-  }
-
   const clientSetting = redactAdminSettingsForClient([setting])[0]!;
-  return NextResponse.json({ ok: true, setting: clientSetting });
+  return NextResponse.json({ ok: true, setting: clientSetting, ...(domainBinding !== undefined ? { domainBinding } : {}) });
 }
 
 export async function DELETE(request: Request) {

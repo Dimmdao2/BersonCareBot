@@ -71,8 +71,8 @@ therapygo.ru, *.therapygo.ru {
 	import edge_common
 }
 
-# Arbitrary clinic domains only. The unavailable app permission endpoint is a
-# deny, so no certificate is issued until the API stream supplies it.
+# Arbitrary clinic domains only. The headerless public ask endpoint permits only
+# an exact eligible binding; every unavailable/error response denies issuance.
 :443 {
 	tls {
 		on_demand
