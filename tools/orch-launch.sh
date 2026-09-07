@@ -23,7 +23,8 @@ tools/orch-launch.sh auditor-live <clone> <run-id> <model> <effort> <brief> <sco
 tools/orch-launch.sh land         <clone> <branch>
 
 This port is for delegated gated/stateful repo-work whose scope justifies a separate executor.
-Environment: ORCH_WAIT=1, ORCH_OPS="reason", ORCH_NO_TESTS="reason", ORCH_ISOLATE=1, ORCH_DRY=1.
+Environment: ORCH_WAIT=1, ORCH_OPS="reason", ORCH_NO_TESTS="reason", ORCH_ISOLATE=1, ORCH_DRY=1,
+ORCH_PROVIDER=claude + ORCH_PROVIDER_REASON="task-specific reason".
 Canon: AGENTS.md §24. Operational paths: docs/ORCHESTRATION_BINDINGS.md.
 USAGE
 }
@@ -225,8 +226,12 @@ if [ "$ROLE" = worker ]; then
   Формат — как уже пишется в $QUEUE, новый не изобретай. Допиши строку вердикта, потом новая работа."
 fi
 
-# Провайдер stateful repo-work по умолчанию; advisory/read-only spawn к этому порту не относится.
-PROVIDER=${ORCH_PROVIDER:-claude}
+# Stateful repo-work по умолчанию идёт через Codex. Claude — осознанное task-specific отклонение,
+# а не неявный выбор launcher; advisory/read-only spawn к этому порту не относится.
+PROVIDER=${ORCH_PROVIDER:-codex}
+if [ "$PROVIDER" = claude ] && [ -z "${ORCH_PROVIDER_REASON:-}" ]; then
+  die "ORCH_PROVIDER=claude требует ORCH_PROVIDER_REASON с task-specific причиной; роль worker/auditor сама по себе причиной не является."
+fi
 # Провайдер и модель обязаны быть из одного семейства. Несовпадение раньше проявлялось только в логе
 # уже запущенного агента (провайдер отвечал 400 «model is not supported») — то есть слот и запуск
 # сгорали впустую. Здесь это отказ до старта, с внятной причиной, и его видно в ORCH_DRY.

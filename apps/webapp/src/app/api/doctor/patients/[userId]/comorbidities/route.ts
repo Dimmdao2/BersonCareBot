@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
@@ -23,6 +24,13 @@ const addSchema = z.object({
 export async function GET(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const deps = buildAppDeps();
+  const moduleGate = await requireWorkspaceModuleForApi(
+    gate.ctx,
+    'medical_record',
+    deps.systemSettings,
+  );
+  if (!moduleGate.ok) return moduleGate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -35,7 +43,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
     return NextResponse.json({ ok: false, error: 'invalid_status' }, { status: 400 });
   }
 
-  const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     gate.ctx.organizationId,
@@ -64,6 +71,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
 export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const deps = buildAppDeps();
+  const moduleGate = await requireWorkspaceModuleForApi(
+    gate.ctx,
+    'medical_record',
+    deps.systemSettings,
+  );
+  if (!moduleGate.ok) return moduleGate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -85,7 +99,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     );
   }
 
-  const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     gate.ctx.organizationId,
