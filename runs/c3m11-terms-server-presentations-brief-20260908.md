@@ -1,0 +1,13 @@
+# C3M-11 terminology sweep — server presentation and notifications
+
+Read the `AGENTS.md` heading map before every action, then the full sections for modules, tests and orchestration matching the files below. Authority: `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md`, C3M.6 and C3M-11; taskdb `#1098`.
+
+Источник оракула: `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` — «Терминология не реализуется условными строками по страницам.»
+
+Finish organization-aware visible presentation outside mounted React contexts: `doctor/page.tsx`, `shared/ui/doctor/doctorNavLinks.ts`, `shared/ui/doctorScreenTitles.ts`; booking/admin presentation helpers (`loadBookingAdminOverview`, `appointmentCancellationOptions`, `notifTemplateLabels`, `NotificationTemplatesPageClient`); usage-summary helpers for courses, clinical tests, exercises, LFK templates, recommendations and test sets; `programInstanceMutationGuard`, `adminMergeAccountsLogic`, patient-home doctor/settings actions; patient-home metadata, broadcast eligibility labels, doctor notification topics, client files folder names, patient booking doctor-message text and specialist task reminders; the active pg/module fallback/error strings listed by the final inventory (`pgBookingCalendar`, `pgDoctorCanonicalAppointments`, `pgDoctorProgramActivity`, `pgDoctorAnalyticsMetricAccounts`, `pgTreatmentProgramInstance`, `pgTreatmentProgramTestAttempts`, `treatment-program/instance-service`).
+
+Also inspect organization-owned integrator copy in `bookingLifecycleRoute.ts`, `google-calendar/summaryMarkers.ts`, `google-calendar/calendarDescription.ts` and the `doctor.onlineIntake.notify` template path. Reuse an existing organization-aware event/presentation seam and pass resolved terms; do not invent a second dictionary or persist a provider/display label. If no lawful existing seam can carry the organization term without a new cross-app architecture, leave that integrator subset unchanged and report the exact blocker instead of inventing one.
+
+One required pattern: use `resolveDoctorClientTerms()` at the organization-aware server boundary, then pass resolved grammatical forms into pure helpers. No page-level `if client`, no new group/membership, no booking-policy change. Tenantless/global-admin copy stays platform-default. Relationship wording is not the display group and must not be renamed.
+
+Do not write or modify tests in this worker. Run scoped formatting/lint, relevant app typecheck(s), architecture checks and `git diff --check`; commit explicit paths with `#1098`, no push and no full CI.
