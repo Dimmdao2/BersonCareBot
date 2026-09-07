@@ -13636,7 +13636,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."doctor_patient_support" FROM "app_clini
 GRANT SELECT ON TABLE "public"."doctor_patient_support" TO "app_patient";
 GRANT SELECT, DELETE ON TABLE "public"."doctor_patient_support" TO "app_staff";
 GRANT INSERT ("birth_date", "comments_enabled", "gender", "height_cm", "id", "media_enabled", "on_support", "organization_id", "patient_user_id", "support_started_at", "updated_at", "updated_by", "weight_kg") ON TABLE "public"."doctor_patient_support" TO "app_staff";
-GRANT UPDATE ("birth_date", "comments_enabled", "gender", "height_cm", "media_enabled", "organization_id", "updated_at", "updated_by", "weight_kg") ON TABLE "public"."doctor_patient_support" TO "app_staff";
+GRANT UPDATE ("birth_date", "comments_enabled", "gender", "height_cm", "media_enabled", "on_support", "organization_id", "support_started_at", "updated_at", "updated_by", "weight_kg") ON TABLE "public"."doctor_patient_support" TO "app_staff";
 GRANT SELECT ("on_support", "patient_user_id") ON TABLE "public"."doctor_patient_support" TO "app_tenant_service";
 -- последовательности public.doctor_patient_support: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
