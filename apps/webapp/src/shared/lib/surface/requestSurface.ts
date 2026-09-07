@@ -57,6 +57,14 @@ export type ResolvedSurface = Readonly<{
   effectivePatientBrand?: EffectivePatientBrand;
   /** Branded surface only: the clinic's own bot identity per platform (see the type doc). */
   clinicMessengerBots?: ClinicMessengerBots;
+  /**
+   * Set only when this organization has an ACTIVE custom-domain binding AND the current request
+   * did not already arrive on that hostname (B2/B8). `proxy.ts` is the sole consumer: it issues a
+   * 308 to this hostname, preserving path and query, before anything else runs.
+   */
+  redirectToHostname?: string;
+  /** Internal proxy-only marker; never serialized to downstream application code. */
+  customDomainProbeOnly?: true;
   authPolicy: SurfaceAuthPolicy;
 }>;
 
@@ -76,16 +84,28 @@ export type TenantSurfaceLookupResult =
        * resolver only sanitizes and forwards it.
        */
       clinicMessengerBots?: ClinicMessengerBots;
+      /**
+       * The organization's current ACTIVE custom-domain hostname, if any — regardless of which
+       * hostname the visitor actually used to arrive. `resolveRequestSurface` turns this into
+       * `ResolvedSurface.redirectToHostname` only when it differs from the request's own host, so
+       * a visitor already on the custom domain never redirects to itself.
+       */
+      activeCustomDomainHostname?: string;
     }>
+  | Readonly<{ status: 'probe' }>
   | Readonly<{ status: 'unknown' | 'duplicate' | 'inactive' }>;
 
-export type TenantSurfaceLookup = (normalizedHost: string) => Promise<TenantSurfaceLookupResult>;
+export type TenantSurfaceLookup = (
+  normalizedHost: string,
+  purpose?: 'surface' | 'preactivation_probe',
+) => Promise<TenantSurfaceLookupResult>;
 
 export type RequestSurfaceResolver = (
   input: Readonly<{
     host: string | null;
     protocol: string;
     resolveTenantSurface: TenantSurfaceLookup;
+    tenantLookupPurpose?: 'surface' | 'preactivation_probe';
     authPolicyConfig?: SurfaceAuthPolicyConfig;
   }>,
 ) => Promise<ResolvedSurface | null>;
@@ -212,6 +232,17 @@ function sanitizeClinicMessengerBots(value: unknown): ClinicMessengerBots | unde
   return { ...(telegram ? { telegram } : {}), ...(max ? { max } : {}) };
 }
 
+/**
+ * Fails closed to "no redirect": a malformed value never becomes a redirect target, it just skips
+ * the redirect. `requestHostname` is already lower-cased by the caller.
+ */
+function sanitizeRedirectToHostname(value: unknown, requestHostname: string): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const candidate = value.trim().toLowerCase();
+  if (!candidate || candidate === requestHostname) return undefined;
+  return normalizedOrigin(`https://${candidate}`)?.hostname === candidate ? candidate : undefined;
+}
+
 function sanitizeEffectivePatientBrand(value: unknown): EffectivePatientBrand | null {
   if (!value || typeof value !== 'object') return null;
   const candidate = value as Partial<EffectivePatientBrand>;
@@ -254,6 +285,7 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
   host,
   protocol,
   resolveTenantSurface,
+  tenantLookupPurpose,
   authPolicyConfig = DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
 }) => {
   const requestOrigin = normalizeRequestOrigin(host, protocol);
@@ -289,7 +321,15 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
   }
 
   // Persistence/domain seams store a hostname, never an HTTP authority with a development port.
-  const tenant = await resolveTenantSurface(requestOrigin.hostname.toLowerCase());
+  const tenant = tenantLookupPurpose
+    ? await resolveTenantSurface(requestOrigin.hostname.toLowerCase(), tenantLookupPurpose)
+    : await resolveTenantSurface(requestOrigin.hostname.toLowerCase());
+  if (tenant.status === 'probe' && tenantLookupPurpose === 'preactivation_probe') {
+    const authPolicy = policyFor('patient', authPolicyConfig);
+    return authPolicy
+      ? { surface: 'patient_default', publicOrigin, customDomainProbeOnly: true, authPolicy }
+      : null;
+  }
   if (
     tenant.status !== 'active' ||
     !tenant.organizationId ||
@@ -310,6 +350,10 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
   }
 
   const clinicMessengerBots = sanitizeClinicMessengerBots(tenant.clinicMessengerBots);
+  const redirectToHostname = sanitizeRedirectToHostname(
+    tenant.activeCustomDomainHostname,
+    requestOrigin.hostname.toLowerCase(),
+  );
   return {
     surface: 'patient_branded',
     publicOrigin,
@@ -318,6 +362,7 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
     skipPublicCardAtRoot: tenant.skipPublicCardAtRoot === true,
     effectivePatientBrand,
     ...(clinicMessengerBots ? { clinicMessengerBots } : {}),
+    ...(redirectToHostname ? { redirectToHostname } : {}),
     authPolicy,
   };
 };
@@ -387,7 +432,14 @@ export function readResolvedSurface(headers: Pick<Headers, 'get'>): ResolvedSurf
       ) {
         return null;
       }
-      const { clinicMessengerBots: rawClinicMessengerBots, ...withoutBots } = candidate;
+      const {
+        clinicMessengerBots: rawClinicMessengerBots,
+        // `redirectToHostname` is a one-shot proxy.ts instruction, never a fact about the resolved
+        // surface itself: the request that would have redirected never reaches a header consumer.
+        // A downstream reader must never be able to forge a redirect through this header.
+        redirectToHostname: _ignoredRedirectToHostname,
+        ...withoutBots
+      } = candidate;
       const clinicMessengerBots = sanitizeClinicMessengerBots(rawClinicMessengerBots);
       return {
         ...withoutBots,
@@ -402,7 +454,9 @@ export function readResolvedSurface(headers: Pick<Headers, 'get'>): ResolvedSurf
       candidate.clinicSlug ||
       candidate.skipPublicCardAtRoot !== undefined ||
       candidate.effectivePatientBrand ||
-      candidate.clinicMessengerBots
+      candidate.clinicMessengerBots ||
+      candidate.redirectToHostname ||
+      candidate.customDomainProbeOnly
     ) {
       return null;
     }

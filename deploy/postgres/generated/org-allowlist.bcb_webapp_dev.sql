@@ -96,6 +96,7 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'online_intake_status_history'),
   ('public', 'operator_health_failure_archive'),
   ('public', 'org_brand_revisions'),
+  ('public', 'org_custom_domain_bindings'),
   ('public', 'org_enrollments'),
   ('public', 'organization_member_invites'),
   ('public', 'organization_slug_claims'),

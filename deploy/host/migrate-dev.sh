@@ -258,6 +258,16 @@ owner_state="$(postgres_scalar \
   fatal "$OBJECT_OWNER_ROLE must be a stationary NOLOGIN/NOBYPASSRLS/NOINHERIT owner"
 
 if [[ "$MODE" == "--preflight" ]]; then
+  # A candidate may introduce a declared seam owner. Install the existing declaration-generated
+  # shared-role baseline before owner-marked DDL, exactly as --execute already does; migrations
+  # never create roles or grants themselves.
+  run_tracked bash -c '
+    set -Eeuo pipefail
+    node --experimental-strip-types "$1" --shared-role-baseline |
+      sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
+    node --experimental-strip-types "$1" --shared-role-verify |
+      sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
+  ' bash "$PRIVILEGE_GENERATOR"
   seed_relation_wall_registry
   run_tracked node "$OWNER_MIGRATOR" \
     --db "$TARGET_DB" \

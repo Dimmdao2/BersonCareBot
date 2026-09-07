@@ -199,6 +199,11 @@ bash tools/deploy-prod-from-dev.sh <ref>    # выложить конкретн�
 **Ключ доступа:** `~/.ssh/bcb_prod_build_20260817` (root). **Каталоги:** `/opt/bersoncarebot/{src,git,env,pipeline,state,releases}`,
 env-файлы `env/{api.prod,webapp.prod}`, пароли рантайм-логинов — `env/reconcile.env` (600, root).
 
+`env/webapp.prod` копируется из `deploy/env/.env.webapp.prod.example`: `APP_BASE_URL=https://therapysto.ru`,
+`PATIENT_APP_ORIGIN=https://therapygo.ru`, `CUSTOM_DOMAIN_EDGE_IP=135.106.187.95` и
+`CUSTOM_DOMAIN_CNAME_TARGET=edge.therapygo.ru`. Это app-facing configuration нового trial PROD; не подменяет
+legacy `bersoncare.ru` state на `135.106.162.170` и не применяется к DEV/TEST fallback.
+
 **База.** Пробная база называется `bersoncarebot_test`, логины `bcb_test_*` — не по недосмотру: декларация
 прав знает ровно два имени баз (`bcb_webapp_dev`, `bersoncarebot_test`), и третьего в ней нет. Настоящее
 прод-имя заводится в декларации при переезде, одним проходом с переименованием ролей — чтобы не делать эту
