@@ -3332,7 +3332,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.list_operator_web_push_recipients(text)', 'public.user_channel_preferences', ARRAY['platform_user_id', 'user_id', 'channel_code', 'is_enabled_for_notifications']::text[], ARRAY['SELECT']::text[]),
   ('app.list_operator_web_push_recipients(text)', 'public.user_web_push_subscriptions', ARRAY['user_id']::text[], ARRAY['SELECT']::text[]),
   ('app.list_platform_health_failure_archive(text,integer,timestamp with time zone,uuid)', 'public.operator_health_failure_archive', ARRAY['id', 'archived_at', 'archived_by_user_id', 'health_probe', 'source_kind', 'source_id', 'severity_at_archive', 'summary_json']::text[], ARRAY['SELECT']::text[]),
-  ('app.list_platform_organization_members(uuid)', 'public.be_organization_members', ARRAY['id', 'organization_id', 'platform_user_id', 'role', 'specialist_id', 'status', 'created_at', 'updated_at', 'doctor_screens_disabled']::text[], ARRAY['SELECT']::text[]),
+  ('app.list_platform_organization_members(uuid)', 'public.be_organization_members', ARRAY['id', 'organization_id', 'platform_user_id', 'role', 'specialist_id', 'status', 'created_at', 'updated_at', 'doctor_screens_disabled', 'appointments_manage_own', 'availability_manage_own']::text[], ARRAY['SELECT']::text[]),
   ('app.list_platform_organization_members(uuid)', 'public.platform_users', ARRAY['id', 'display_name', 'role', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)', 'public.product_analytics_events_recent', ARRAY['id', 'occurred_at', 'event_type', 'entry_channel', 'user_id', 'metadata']::text[], ARRAY['SELECT']::text[]),
   ('app.list_public_booking_form_fields()', 'public.be_booking_form_fields', ARRAY['id', 'organization_id', 'field_key', 'field_type', 'label', 'placeholder', 'is_required', 'visible_to_patient', 'visible_to_staff', 'sort_order', 'is_active', 'archived_at']::text[], ARRAY['SELECT']::text[]),
@@ -3905,7 +3905,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.resolve_public_organization_slug(text)', 'public.organization_slug_claims', ARRAY['id', 'slug', 'kind', 'organization_id']::text[], ARRAY['SELECT']::text[]),
   ('app.resolve_saas_billing_invoice_for_webhook(text,text)', 'public.saas_billing_invoices', ARRAY['id', 'organization_id', 'amount_minor', 'currency', 'provider_id', 'provider_invoice_ref']::text[], ARRAY['SELECT']::text[]),
   ('app.resolve_saas_billing_refund_for_webhook(text,text)', 'public.saas_billing_refunds', ARRAY['id', 'organization_id', 'saas_billing_invoice_id', 'amount_minor', 'currency', 'status', 'provider_id', 'provider_refund_ref', 'provider_idempotency_key', 'confirmed_at', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.resolve_staff_workspace_memberships(uuid)', 'public.be_organization_members', ARRAY['id', 'organization_id', 'platform_user_id', 'role', 'specialist_id', 'status', 'doctor_screens_disabled', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.resolve_staff_workspace_memberships(uuid)', 'public.be_organization_members', ARRAY['id', 'organization_id', 'platform_user_id', 'role', 'specialist_id', 'status', 'doctor_screens_disabled', 'appointments_manage_own', 'availability_manage_own', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.revalidate_appointment_reminder_materialization(uuid)', 'public.be_appointments', ARRAY['id', 'organization_id', 'platform_user_id', 'start_at', 'status', 'updated_at', 'deleted_at']::text[], ARRAY['SELECT']::text[]),
   ('app.revalidate_appointment_reminder_materialization(uuid)', 'public.outgoing_delivery_queue', ARRAY['id', 'kind', 'channel', 'payload_json', 'status', 'dead_at', 'last_error', 'updated_at', 'organization_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.revalidate_appointment_reminder_materialization(uuid)', 'public.platform_users', ARRAY['id', 'updated_at', 'is_blocked', 'is_archived', 'merged_into_id', 'reminder_muted_until']::text[], ARRAY['SELECT']::text[]),
@@ -11458,7 +11458,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_organization_members" FROM "app_clin
 GRANT SELECT ("organization_id", "platform_user_id", "status") ON TABLE "public"."be_organization_members" TO "app_seam_delivery_scope_owner";
 GRANT SELECT ("organization_id", "platform_user_id", "status") ON TABLE "public"."be_organization_members" TO "app_seam_identity_lookup_owner";
 GRANT SELECT ("id", "organization_id", "specialist_id", "status") ON TABLE "public"."be_organization_members" TO "app_seam_org_commerce_owner";
-GRANT SELECT ("created_at", "doctor_screens_disabled", "id", "organization_id", "platform_user_id", "role", "specialist_id", "status", "updated_at") ON TABLE "public"."be_organization_members" TO "app_seam_org_directory_owner";
+GRANT SELECT ("appointments_manage_own", "availability_manage_own", "created_at", "doctor_screens_disabled", "id", "organization_id", "platform_user_id", "role", "specialist_id", "status", "updated_at") ON TABLE "public"."be_organization_members" TO "app_seam_org_directory_owner";
 GRANT SELECT ("created_at", "id", "organization_id", "platform_user_id", "role", "specialist_id", "status", "updated_at") ON TABLE "public"."be_organization_members" TO "app_seam_org_invite_owner";
 GRANT INSERT ("created_at", "id", "organization_id", "platform_user_id", "role", "specialist_id", "status", "updated_at") ON TABLE "public"."be_organization_members" TO "app_seam_org_invite_owner";
 GRANT UPDATE ("created_at", "id", "organization_id", "platform_user_id", "role", "specialist_id", "status", "updated_at") ON TABLE "public"."be_organization_members" TO "app_seam_org_invite_owner";
@@ -11470,7 +11470,7 @@ GRANT UPDATE ("created_at", "id", "organization_id", "platform_user_id", "role",
 GRANT SELECT ("organization_id", "platform_user_id", "status") ON TABLE "public"."be_organization_members" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ON TABLE "public"."be_organization_members" TO "app_staff";
 GRANT INSERT ("created_at", "organization_id", "platform_user_id", "role", "specialist_id", "status", "updated_at") ON TABLE "public"."be_organization_members" TO "app_staff";
-GRANT UPDATE ("doctor_screens_disabled", "role", "specialist_id", "status", "updated_at") ON TABLE "public"."be_organization_members" TO "app_staff";
+GRANT UPDATE ("appointments_manage_own", "availability_manage_own", "doctor_screens_disabled", "role", "specialist_id", "status", "updated_at") ON TABLE "public"."be_organization_members" TO "app_staff";
 GRANT SELECT ("organization_id", "platform_user_id", "status") ON TABLE "public"."be_organization_members" TO "app_tenant_service";
 GRANT SELECT ("id", "organization_id") ON TABLE "public"."be_organization_members" TO "saas_system_health_owner";
 -- последовательности public.be_organization_members: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях

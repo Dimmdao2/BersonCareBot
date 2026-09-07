@@ -108,6 +108,8 @@ type PlatformOrganizationMemberDirectoryRow = {
   specialist_id: string | null;
   status: string;
   doctor_screens_disabled: boolean;
+  appointments_manage_own: boolean;
+  availability_manage_own: boolean;
   created_at: string;
   updated_at: string;
   display_name: string | null;

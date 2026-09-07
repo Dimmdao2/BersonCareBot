@@ -263,7 +263,7 @@ owner-blocked этапом до выбора лицензии/зависимос
 
 ### M1. Composition и capability projection
 
-- [ ] Зафиксировать единый typed `solo|clinic` resolver по §3.1, включая unconfigured и downgrade state.
+- [x] Зафиксировать единый typed `solo|clinic` resolver по §3.1, включая unconfigured и downgrade state. Evidence: `resolveDoctorWorkspaceComposition`; targeted composition/scope oracle 9/9 PASS.
 - [ ] Добавить server-resolved `appointments.manage_own` и `availability.manage_own` с `true` default/backfill и
   единым membership write/read path.
 - [ ] Провести поля через обе SECURITY DEFINER functions, typed mapping, обе function `relationSurfaces` и
@@ -285,10 +285,11 @@ owner-blocked этапом до выбора лицензии/зависимос
 ### M3. Перекомпоновка Settings и существующих booking sections
 
 - [ ] Собрать solo Settings в целевую структуру §3.1 и скрыть Team.
-- [ ] В management mode подключить существующие Team, branches, services, specialists, public form, rules,
-  notifications, payments, integrations, branding и billing components к их новым разделам.
-- [ ] Один компонент/один API path обслуживает одинаковую настройку в solo и clinic composition; не оставлять
-  второй writer в Schedule Setup.
+- [x] В management mode подключить существующие Team, branches, services, specialists, public form, rules,
+  notifications, payments, integrations, branding и billing components к их новым разделам. Evidence:
+  `MANAGEMENT_NAV` + `ManagementBookingSections` reuse existing writers.
+- [x] Один компонент/один API path обслуживает одинаковую настройку в solo и clinic composition; не оставлять
+  второй writer в Schedule Setup. Evidence: management renders the existing `ScheduleSetupTab`, no copied writer.
 - [ ] Разместить существующее specialist description по правилам §4.
 
 ### M4. Schedule и packages

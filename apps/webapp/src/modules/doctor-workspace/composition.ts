@@ -10,7 +10,10 @@ export function resolveDoctorWorkspaceComposition(params: {
   clinicTeamEntitled: boolean;
   seats: ClinicSeatStatus;
 }): DoctorWorkspaceComposition {
-  if (!params.seats.configured) return params.seats.used > 1 ? 'clinic' : 'solo';
-  if (!params.clinicTeamEntitled) return params.seats.used > 1 ? 'clinic' : 'solo';
-  return params.seats.limit > 1 || params.seats.used > 1 ? 'clinic' : 'solo';
+  // A team-capable workspace must keep its management surface before a second
+  // member exists. Retained active members/invites (`used`) keep it available
+  // after a downgrade, including legacy organizations without a configured cap.
+  if (params.clinicTeamEntitled || params.seats.used > 1) return 'clinic';
+  if (params.seats.configured && params.seats.limit > 1) return 'clinic';
+  return 'solo';
 }

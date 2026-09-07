@@ -5,6 +5,7 @@ import {
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
+import { ManagementBookingSections } from './ManagementBookingSections';
 import { MANAGEMENT_NAV } from './managementNav';
 
 export default async function ManagementPage() {
@@ -28,6 +29,7 @@ export default async function ManagementPage() {
             ))}
           </nav>
         </DoctorSection>
+        <ManagementBookingSections />
       </div>
     </>
   );
