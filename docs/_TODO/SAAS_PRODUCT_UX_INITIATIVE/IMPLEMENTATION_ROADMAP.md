@@ -584,8 +584,8 @@ card; запрещено строить временный resolver, второ�
 
 #### C3M — настраиваемый кабинет специалиста и доступ клиента к функциям
 
-**Статус:** product/technical plan готов 2026-09-07; implementation не запускалась; отдельная taskdb-карточка не
-создавалась. Этот stage расширяет уже завершённый C3 settings hub и не меняет коммерческую механику.
+**Статус:** product/technical plan проверен независимым Opus и принят 2026-09-07; implementation ведётся в taskdb
+`#1098`. Этот stage расширяет уже завершённый C3 settings hub и не меняет коммерческую механику.
 
 **Owner outcome:** специалист сам решает, какие из уже доступных ему возможностей показывать и использовать.
 Настройки могут только сузить существующую доступность. Отключение скрывает весь путь функции и останавливает её
@@ -752,14 +752,17 @@ public booking этой organization продолжает работать.
 - [x] **C3M-00 — current census.** Проверены entitlement registry/resolver, doctor nav/shell, settings/account,
       fixed patient-card tabs/bootstrap, Overview fetches, Communications registry, support policy, patient invite,
       patient messaging, symptom diary и specialist signup redirect; разрывы зафиксированы в C3M.2.
-- [ ] **C3M-01 — contract freeze.** Зафиксировать typed module registry, dependency graph, defaults matrix и
-      disabled-route response codes.
+- [x] **C3M-01 — contract freeze.** Зафиксировать typed module registry, dependency graph, defaults matrix и
+      disabled-route response codes. Доказательство: product `d4446a453`, независимый kill-set и fault injection
+      `1fedb1b18` — все шесть классов пойманы; закрытый registry и typed `403`/page `404` приняты.
 - [ ] **C3M-02 — organization-scoped client controls.** Закрепить `onSupport` как единственный источник группы
       «Избранные / На сопровождении»; исправить composite identity support profile, миграцию/backfill/ambiguity report,
       ports/infra/in-memory parity и tenant negatives до добавления новых client overrides. Не создавать отдельный
       `favorite`.
-- [ ] **C3M-03 — preference foundation.** Добавить structured settings keys, parser/versioning, one resolver и
-      server guards; backfill/absence должны сохранять текущее «всё доступное видно».
+- [x] **C3M-03 — preference foundation.** Добавить structured settings keys, parser/versioning, one resolver и
+      server guards; backfill/absence должны сохранять текущее «всё доступное видно». Доказательство: product
+      `d4446a453`, независимый audit/oracle `1fedb1b18`, correction `4eae78f45`; acceptance `7/7`, webapp typecheck,
+      scoped ESLint и `git diff --check` PASS. Реальное подключение shell/routes остаётся C3M-06.
 - [ ] **C3M-04 — settings UI.** Создать одну секцию «Рабочее пространство» в каноническом settings hub; перенести
       туда defaults `off | all | on_support` для chat/comments/media, symptom create-time default, два выбора
       терминологии и dependency states; место пресета в настройках — часть owner-gate C3M.5;

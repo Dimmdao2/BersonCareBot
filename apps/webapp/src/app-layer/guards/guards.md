@@ -21,6 +21,12 @@
 
 Используются в серверных компонентах и серверных действиях (actions).
 
+- **workspaceModuleAccess** (`workspaceModuleAccess.ts`) — C3M-01 замороженный typed disabled-route
+  outcome для модуля рабочего пространства, скрытого настройкой специалиста (не тарифом): `workspaceModuleDisabledResponse`
+  (403, тот же конверт, что у `entitlementMutationRefusalResponse`) и `requireWorkspaceModuleForPage` (`notFound()`).
+  На этом этапе ни один route их не вызывает — резолвер доступности лежит в
+  `modules/system-settings/doctorWorkspaceComposition.ts` (`resolveWorkspaceModuleEffective`).
+
 ## Защита в глубину (пациент + телефон)
 
 - **Сервер:** `patientRouteApiPolicy` (`patientPathRequiresBoundPhone`, `resolvePatientLayoutPathname`) + редирект в `app/app/patient/layout.tsx` (заголовки `x-bc-pathname` / `x-bc-search` из `proxy.ts`; если `x-bc-pathname` пуст — fallback по `Referer`). RSC с персональными данными из БД — **`patientRscPersonalDataGate`**.

@@ -190,6 +190,18 @@ export const SYSTEM_SETTING_REGISTRY = {
     'structured',
     '{"peopleListMode":"on_support"}',
   ),
+  /**
+   * C3M-03 preference foundation: one versioned structured per-organization workspace-composition
+   * contract (`modules/system-settings/doctorWorkspaceComposition.ts`). Absence is compatibility
+   * mode — every already-available module stays visible, no backfill required.
+   */
+  doctor_workspace_composition: runtime(
+    'doctor',
+    'per_org',
+    'server',
+    'structured',
+    '{"version":1,"modules":{"medical_record":true,"encounters":true,"rehabilitation":true,"direct_chat":true,"program_comments":true,"program_media":true,"mailings":true,"analytics":true,"client_portal":true}}',
+  ),
   doctor_appointment_reminder_enabled: runtime('doctor', 'per_org', 'server', 'boolean', 'false'),
   doctor_appointment_reminder_offsets_minutes: runtime(
     'doctor',

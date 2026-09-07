@@ -30,6 +30,12 @@ import {
   parsePlatformIntegrationAvailabilityEnvelope,
   type PlatformIntegrationAvailability,
 } from './platformIntegrationAvailability';
+import {
+  DOCTOR_WORKSPACE_COMPOSITION_KEY,
+  parseDoctorWorkspaceComposition,
+  type DoctorWorkspaceComposition,
+} from './doctorWorkspaceComposition';
+import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
 
 type SystemSettingsServiceDependencies = {
   runtimeRepository?: RuntimeSettingsRepository;
@@ -266,6 +272,31 @@ export function createSystemSettingsService(
       options?: SystemSettingsReadOptions,
     ): Promise<SystemSetting | null> {
       return getSettingFromCanonicalRoot(key, scope, options);
+    },
+
+    /**
+     * C3M-03: one read of the versioned per-org workspace-composition contract. Reuses the
+     * canonical read chokepoint above instead of a second settings-lookup path; a missing row
+     * parses to the compatibility default (see `parseDoctorWorkspaceComposition`).
+     */
+    async getDoctorWorkspaceComposition(
+      options: SystemSettingsReadOptions = {},
+    ): Promise<DoctorWorkspaceComposition> {
+      const row = await getSettingFromCanonicalRoot(
+        DOCTOR_WORKSPACE_COMPOSITION_KEY,
+        'doctor',
+        options,
+      );
+      if (
+        row !== null &&
+        (row.valueJson === null ||
+          typeof row.valueJson !== 'object' ||
+          Array.isArray(row.valueJson) ||
+          !('value' in row.valueJson))
+      ) {
+        throw new RuntimeSettingUnavailableError(DOCTOR_WORKSPACE_COMPOSITION_KEY);
+      }
+      return parseDoctorWorkspaceComposition(row?.valueJson ?? null);
     },
 
     async listSettingsByScope(
