@@ -1,5 +1,5 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { resolveDoctorClientTerms } from '@/modules/system-settings/patientTerms';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 import {
   countServicesWithoutAvailability,
   hasScheduleOnUpcomingDays,
@@ -86,7 +86,7 @@ export async function loadBookingAdminOverview(
     warnings.push('На ближайшие 7 дней нет рабочих интервалов в расписании.');
   }
   if (publicServices.length === 0 && activeServices.length > 0) {
-    const terms = resolveDoctorClientTerms(
+    const terms = resolvePatientTerms(
       typeof patientLabel?.valueJson === 'object' && patientLabel.valueJson !== null
         ? (patientLabel.valueJson as { value?: string }).value
         : undefined,

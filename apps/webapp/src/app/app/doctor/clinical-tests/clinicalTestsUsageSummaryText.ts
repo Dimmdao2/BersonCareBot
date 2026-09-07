@@ -1,4 +1,5 @@
 import type { ClinicalTestUsageRef, ClinicalTestUsageSnapshot } from '@/modules/tests/types';
+import type { PatientTerms } from '@/modules/system-settings/patientTerms';
 import { vNaForm } from '@/app/app/doctor/exercises/exerciseUsageSummaryText';
 
 export function clinicalTestUsageHasAnyReference(u: ClinicalTestUsageSnapshot): boolean {
@@ -23,6 +24,7 @@ export type ClinicalTestUsageSection = {
 
 export function clinicalTestUsageSections(
   u: ClinicalTestUsageSnapshot,
+  terms: Pick<PatientTerms, 'patientGenPlural'>,
 ): ClinicalTestUsageSection[] {
   const sections: ClinicalTestUsageSection[] = [];
   if (u.nonArchivedTestSetsContainingCount > 0) {
@@ -95,9 +97,9 @@ export function clinicalTestUsageSections(
       key: 'active_tp_inst',
       summary: vNaForm(
         u.activeTreatmentProgramInstanceCount,
-        'активной программе у пациентов',
-        'активных программах у пациентов',
-        'активных программах у пациентов',
+        `активной программе у ${terms.patientGenPlural}`,
+        `активных программах у ${terms.patientGenPlural}`,
+        `активных программах у ${terms.patientGenPlural}`,
       ),
       refs: u.activeTreatmentProgramInstanceRefs,
       total: u.activeTreatmentProgramInstanceCount,
@@ -108,9 +110,9 @@ export function clinicalTestUsageSections(
       key: 'completed_tp_inst',
       summary: vNaForm(
         u.completedTreatmentProgramInstanceCount,
-        'завершённой программе у пациентов (история)',
-        'завершённых программах у пациентов (история)',
-        'завершённых программах у пациентов (история)',
+        `завершённой программе у ${terms.patientGenPlural} (история)`,
+        `завершённых программах у ${terms.patientGenPlural} (история)`,
+        `завершённых программах у ${terms.patientGenPlural} (история)`,
       ),
       refs: u.completedTreatmentProgramInstanceRefs,
       total: u.completedTreatmentProgramInstanceCount,

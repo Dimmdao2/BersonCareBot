@@ -13,7 +13,7 @@ import {
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { resolveDoctorWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
-import { resolveDoctorClientTerms } from '@/modules/system-settings/patientTerms';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 import {
   DOCTOR_TODAY_PREFERENCES_KEY,
   parseDoctorTodayPreferences,
@@ -126,7 +126,7 @@ export default async function DoctorPage() {
   const workspace = await requireOrganizationWorkspaceContext();
   const session = workspace.session;
   const shell = await loadDoctorWorkspaceShell();
-  const terms = resolveDoctorClientTerms(shell.patientLabel, shell.supportGroupLabel);
+  const terms = resolvePatientTerms(shell.patientLabel, shell.supportGroupLabel);
   if (!workspace.canAccessClinicalWorkspace) {
     return (
       <DoctorAppShell title="Первый запуск" user={session.user}>

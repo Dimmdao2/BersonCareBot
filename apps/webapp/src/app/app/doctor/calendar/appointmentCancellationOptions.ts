@@ -1,11 +1,11 @@
-import type { DoctorClientTerms } from '@/modules/system-settings/patientTerms';
+import type { PatientTerms } from '@/modules/system-settings/patientTerms';
 
 export function appointmentCancelReasons(
-  terms: Pick<DoctorClientTerms, 'patientSingularLabel'>,
+  terms: Pick<PatientTerms, 'patientSingularLabel'>,
 ) {
   return [
-  { value: 'Пациент перенёс', label: `${terms.patientSingularLabel} перенёс` },
-  { value: 'Пациент отменил', label: `${terms.patientSingularLabel} отменил` },
+    { value: 'Пациент перенёс', label: `${terms.patientSingularLabel} перенёс` },
+    { value: 'Пациент отменил', label: `${terms.patientSingularLabel} отменил` },
   { value: 'Не пришёл', label: 'Не пришёл' },
   { value: 'По состоянию здоровья', label: 'По состоянию здоровья' },
   { value: 'Другая', label: 'Другая' },

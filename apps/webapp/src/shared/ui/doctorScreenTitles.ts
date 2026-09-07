@@ -4,18 +4,14 @@ import {
   BOOKING_ADMIN_TABS,
   bookingAdminTabFromPathname,
 } from '@/app/app/doctor/admin/booking/bookingAdminTabs';
-import {
-  resolveDoctorClientTerms,
-  type DoctorClientTerms,
-} from '@/modules/system-settings/patientTerms';
+import { resolvePatientTerms, type PatientTerms } from '@/modules/system-settings/patientTerms';
 
 /**
  * Заголовки экранов кабинета врача по pathname (сервер и клиент).
  */
 export function getDoctorScreenTitle(
   pathname: string,
-  terms: Pick<DoctorClientTerms, 'patientPluralLabel' | 'patientSingularLabel'> =
-    resolveDoctorClientTerms(),
+  terms: Pick<PatientTerms, 'patientPluralLabel' | 'patientSingularLabel'> = resolvePatientTerms(),
 ): string {
   const { patientPluralLabel, patientSingularLabel } = terms;
   const p = pathname.replace(/\/$/, '') || '/app/doctor';

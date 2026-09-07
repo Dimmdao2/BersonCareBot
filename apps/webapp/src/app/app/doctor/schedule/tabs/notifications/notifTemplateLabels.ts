@@ -7,7 +7,7 @@ import type {
   NotifTemplateEvent,
   NotifTemplateAudience,
 } from '@/modules/notif-templates/notifTemplatesService';
-import type { DoctorClientTerms } from '@/modules/system-settings/patientTerms';
+import type { PatientTerms } from '@/modules/system-settings/patientTerms';
 
 export const NOTIF_EVENT_LABELS: Record<NotifTemplateEvent, string> = {
   created: 'Подтверждение записи',
@@ -18,7 +18,7 @@ export const NOTIF_EVENT_LABELS: Record<NotifTemplateEvent, string> = {
 export function notifTemplateTitle(
   event: NotifTemplateEvent,
   audience: NotifTemplateAudience,
-  terms: Pick<DoctorClientTerms, 'patientDative'>,
+  terms: Pick<PatientTerms, 'patientDative'>,
 ): string {
   const audienceLabel = audience === 'patient' ? terms.patientDative : 'специалисту';
   return `${NOTIF_EVENT_LABELS[event]} → ${audienceLabel}`;
@@ -26,7 +26,7 @@ export function notifTemplateTitle(
 
 /** Подпись переменной для подсказки-чипа. */
 export function notifVariableLabels(
-  terms: Pick<DoctorClientTerms, 'patientGenitive'>,
+  terms: Pick<PatientTerms, 'patientGenitive'>,
 ): Record<string, string> {
   return {
     date: 'дата и время',

@@ -40,6 +40,7 @@ import {
 } from '../courseUsageSummaryText';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type TemplateOption = { id: string; title: string; status: string };
 
@@ -164,7 +165,7 @@ export function DoctorCourseEditForm({
     };
   }, [courseId, externalUsageSnapshot]);
 
-  const usageSections = usage ? courseUsageSections(usage) : [];
+  const usageSections = usage ? courseUsageSections(usage, terms) : [];
 
   async function persistToServer(acknowledgeArchive: boolean): Promise<{
     ok: boolean;
@@ -303,7 +304,7 @@ export function DoctorCourseEditForm({
     }
   }
 
-  const warnSections = warnUsage ? courseUsageSections(warnUsage) : [];
+  const warnSections = warnUsage ? courseUsageSections(warnUsage, terms) : [];
 
   return (
     <>

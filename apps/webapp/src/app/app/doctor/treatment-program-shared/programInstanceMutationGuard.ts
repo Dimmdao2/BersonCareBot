@@ -1,12 +1,14 @@
 import type { TreatmentProgramInstanceStatus } from '@/modules/treatment-program/types';
+import type { PatientTerms } from '@/modules/system-settings/patientTerms';
 
 /** Программа завершена — мутации структуры плана запрещены. */
 export function isProgramInstanceEditLocked(status: TreatmentProgramInstanceStatus): boolean {
   return status === 'completed';
 }
 
-const ACTIVE_BATCH_SAVE_PROMPT =
-  'Применить изменения к активной программе лечения пациента? Они отразятся в плане.';
+function activeBatchSavePrompt(terms: Pick<PatientTerms, 'patientGenitive'>): string {
+  return `Применить изменения к активной программе лечения ${terms.patientGenitive}? Они отразятся в плане.`;
+}
 
 /** Структурные мутации (добавление, удаление, reorder): только lock при `completed`. */
 export function isProgramInstanceStructuralMutationBlocked(
@@ -28,11 +30,12 @@ export function requestProgramInstanceDataMutation(
 /** Одно подтверждение перед сохранением черновика активной программы. */
 export function confirmActiveProgramInstanceBatchSave(
   status: TreatmentProgramInstanceStatus,
+  terms: Pick<PatientTerms, 'patientGenitive'>,
 ): boolean {
   if (status === 'completed') return false;
   if (status === 'active') {
     return (
-      typeof globalThis !== 'undefined' && globalThis.confirm?.(ACTIVE_BATCH_SAVE_PROMPT) === true
+      typeof globalThis !== 'undefined' && globalThis.confirm?.(activeBatchSavePrompt(terms)) === true
     );
   }
   return true;

@@ -39,6 +39,7 @@ import {
   testSetUsageSections,
   type TestSetUsageSection,
 } from './testSetUsageSummaryText';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 function TestSetUsageSectionsView({ sections }: { sections: TestSetUsageSection[] }) {
   if (sections.length === 0) {
@@ -155,6 +156,7 @@ export function TestSetForm({
   externalUsageSnapshot,
   clinicalTestsLibrary = [],
 }: Props) {
+  const terms = useDoctorPatientTerms();
   const recordKey = testSet?.id ?? 'create';
   const metaFormId = useMemo(() => `test-set-meta-${recordKey}`, [recordKey]);
   const [title, setTitle] = useState(testSet?.title ?? '');
@@ -266,8 +268,8 @@ export function TestSetForm({
 
   const usageSections = useMemo(() => {
     if (!usage || !testSetUsageHasAnyReference(usage)) return [];
-    return testSetUsageSections(usage);
-  }, [usage]);
+    return testSetUsageSections(usage, terms);
+  }, [terms, usage]);
 
   const warnSections = useMemo(() => {
     if (
@@ -277,10 +279,10 @@ export function TestSetForm({
     ) {
       const u = archiveState.usage;
       if (!testSetUsageHasAnyReference(u)) return [];
-      return testSetUsageSections(u);
+      return testSetUsageSections(u, terms);
     }
     return [];
-  }, [archiveState]);
+  }, [archiveState, terms]);
 
   const archiveError =
     archiveState?.ok === false && 'error' in archiveState ? archiveState.error : null;

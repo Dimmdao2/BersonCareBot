@@ -5,10 +5,7 @@ import {
   hasLaunchCapability,
   type LaunchCapability,
 } from '@/app-layer/guards/workspaceCapabilities';
-import {
-  resolveDoctorClientTerms,
-  type DoctorClientTerms,
-} from '@/modules/system-settings/patientTerms';
+import { resolvePatientTerms, type PatientTerms } from '@/modules/system-settings/patientTerms';
 import type {
   WorkspaceModuleEffective,
   WorkspaceModuleKey,
@@ -203,7 +200,7 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
  */
 export function getDoctorMenuItems(
   access: DoctorMenuAccess,
-  terms: Pick<DoctorClientTerms, 'patientPluralLabel'> = resolveDoctorClientTerms(),
+  terms: Pick<PatientTerms, 'patientPluralLabel'> = resolvePatientTerms(),
 ): DoctorMenuLinkItem[] {
   const { patientPluralLabel } = terms;
   return RAW_DOCTOR_MENU_ITEMS.filter((item) => isDoctorMenuLinkVisible(item, access))

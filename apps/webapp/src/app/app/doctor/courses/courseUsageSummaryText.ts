@@ -1,4 +1,5 @@
 import type { CourseUsageRef, CourseUsageSnapshot } from '@/modules/courses/types';
+import type { PatientTerms } from '@/modules/system-settings/patientTerms';
 import { vNaForm } from '@/app/app/doctor/exercises/exerciseUsageSummaryText';
 
 /** Есть ли экземпляры программ или привязки CMS помимо самого факта привязанного шаблона. */
@@ -19,7 +20,10 @@ export type CourseUsageSection = {
   total: number;
 };
 
-export function courseUsageSections(u: CourseUsageSnapshot): CourseUsageSection[] {
+export function courseUsageSections(
+  u: CourseUsageSnapshot,
+  terms: Pick<PatientTerms, 'patientGenPlural'>,
+): CourseUsageSection[] {
   const sections: CourseUsageSection[] = [];
   if (u.programTemplateRef) {
     sections.push({
@@ -34,9 +38,9 @@ export function courseUsageSections(u: CourseUsageSnapshot): CourseUsageSection[
       key: 'active_inst',
       summary: `${vNaForm(
         u.activeTreatmentProgramInstanceCount,
-        'активной программе у пациентов по шаблону курса',
-        'активных программах у пациентов по шаблону курса',
-        'активных программах у пациентов по шаблону курса',
+        `активной программе у ${terms.patientGenPlural} по шаблону курса`,
+        `активных программах у ${terms.patientGenPlural} по шаблону курса`,
+        `активных программах у ${terms.patientGenPlural} по шаблону курса`,
       )} (все экземпляры по шаблону в базе; запись именно на этот курс отдельно не считается).`,
       refs: u.activeTreatmentProgramInstanceRefs,
       total: u.activeTreatmentProgramInstanceCount,
@@ -47,9 +51,9 @@ export function courseUsageSections(u: CourseUsageSnapshot): CourseUsageSection[
       key: 'completed_inst',
       summary: `${vNaForm(
         u.completedTreatmentProgramInstanceCount,
-        'завершённой программе у пациентов по шаблону курса (история)',
-        'завершённых программах у пациентов по шаблону курса (история)',
-        'завершённых программах у пациентов по шаблону курса (история)',
+        `завершённой программе у ${terms.patientGenPlural} по шаблону курса (история)`,
+        `завершённых программах у ${terms.patientGenPlural} по шаблону курса (история)`,
+        `завершённых программах у ${terms.patientGenPlural} по шаблону курса (история)`,
       )}.`,
       refs: u.completedTreatmentProgramInstanceRefs,
       total: u.completedTreatmentProgramInstanceCount,

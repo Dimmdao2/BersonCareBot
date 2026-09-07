@@ -275,7 +275,8 @@ export function ClinicalTestForm({
   unarchiveAction = unarchiveClinicalTest,
   externalUsageSnapshot,
 }: ClinicalTestFormProps) {
-  const { patientSingularLabel } = useDoctorPatientTerms();
+  const terms = useDoctorPatientTerms();
+  const { patientSingularLabel } = terms;
   const recordKey = test?.id ?? 'create';
   const [values, setValues] = useState<ClinicalTestFormValues>(() =>
     clinicalTestToFormValues(test),
@@ -363,8 +364,8 @@ export function ClinicalTestForm({
 
   const usageSections = useMemo(() => {
     if (!usage || !clinicalTestUsageHasAnyReference(usage)) return [];
-    return clinicalTestUsageSections(usage);
-  }, [usage]);
+    return clinicalTestUsageSections(usage, terms);
+  }, [terms, usage]);
 
   const assessmentKindSelectOptions = useMemo(
     () =>
@@ -381,10 +382,10 @@ export function ClinicalTestForm({
     ) {
       const u = archiveState.usage;
       if (!clinicalTestUsageHasAnyReference(u)) return [];
-      return clinicalTestUsageSections(u);
+      return clinicalTestUsageSections(u, terms);
     }
     return [];
-  }, [archiveState]);
+  }, [archiveState, terms]);
 
   const archiveError =
     archiveState?.ok === false && 'error' in archiveState ? archiveState.error : null;

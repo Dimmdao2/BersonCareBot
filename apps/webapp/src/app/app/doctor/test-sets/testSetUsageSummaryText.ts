@@ -1,4 +1,5 @@
 import type { TestSetUsageRef, TestSetUsageSnapshot } from '@/modules/tests/types';
+import type { PatientTerms } from '@/modules/system-settings/patientTerms';
 import { vNaForm } from '@/app/app/doctor/exercises/exerciseUsageSummaryText';
 
 export function testSetUsageHasAnyReference(u: TestSetUsageSnapshot): boolean {
@@ -19,7 +20,10 @@ export type TestSetUsageSection = {
   total: number;
 };
 
-export function testSetUsageSections(u: TestSetUsageSnapshot): TestSetUsageSection[] {
+export function testSetUsageSections(
+  u: TestSetUsageSnapshot,
+  terms: Pick<PatientTerms, 'patientGenPlural'>,
+): TestSetUsageSection[] {
   const sections: TestSetUsageSection[] = [];
   if (u.publishedTreatmentProgramTemplateCount > 0) {
     sections.push({
@@ -65,9 +69,9 @@ export function testSetUsageSections(u: TestSetUsageSnapshot): TestSetUsageSecti
       key: 'active_tp_inst',
       summary: vNaForm(
         u.activeTreatmentProgramInstanceCount,
-        'активной программе у пациентов',
-        'активных программах у пациентов',
-        'активных программах у пациентов',
+        `активной программе у ${terms.patientGenPlural}`,
+        `активных программах у ${terms.patientGenPlural}`,
+        `активных программах у ${terms.patientGenPlural}`,
       ),
       refs: u.activeTreatmentProgramInstanceRefs,
       total: u.activeTreatmentProgramInstanceCount,
@@ -78,9 +82,9 @@ export function testSetUsageSections(u: TestSetUsageSnapshot): TestSetUsageSecti
       key: 'completed_tp_inst',
       summary: vNaForm(
         u.completedTreatmentProgramInstanceCount,
-        'завершённой программе у пациентов (история)',
-        'завершённых программах у пациентов (история)',
-        'завершённых программах у пациентов (история)',
+        `завершённой программе у ${terms.patientGenPlural} (история)`,
+        `завершённых программах у ${terms.patientGenPlural} (история)`,
+        `завершённых программах у ${terms.patientGenPlural} (история)`,
       ),
       refs: u.completedTreatmentProgramInstanceRefs,
       total: u.completedTreatmentProgramInstanceCount,
