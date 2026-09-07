@@ -28,7 +28,7 @@ type SupportSettingsResponse = {
 
 type ChannelControl = {
   key: WorkspaceClientChannelKey | 'portal';
-  title: string;
+  title?: string;
   module: keyof WorkspaceModuleEffective;
   override: keyof Pick<
     ClientSupportProfile,
@@ -41,11 +41,15 @@ const CHANNEL_CONTROLS: readonly ChannelControl[] = [
   { key: 'direct_chat', title: 'Чат', module: 'direct_chat', override: 'directChatEnabled', allowed: 'directChatAllowed' },
   { key: 'program_comments', title: 'Комментарии к программе', module: 'program_comments', override: 'commentsEnabled', allowed: 'commentsAllowed' },
   { key: 'program_media', title: 'Медиа программы', module: 'program_media', override: 'mediaEnabled', allowed: 'mediaAllowed' },
-  { key: 'portal', title: 'Кабинет клиента', module: 'client_portal', override: 'portalEnabled', allowed: 'portalAllowed' },
+  { key: 'portal', module: 'client_portal', override: 'portalEnabled', allowed: 'portalAllowed' },
 ];
 
-function defaultSource(mode: WorkspaceClientDefaultMode | undefined, groupLabel: string): string {
-  if (mode === 'all') return 'настройка кабинета: для всех клиентов';
+function defaultSource(
+  mode: WorkspaceClientDefaultMode | undefined,
+  groupLabel: string,
+  patientGenPlural: string,
+): string {
+  if (mode === 'all') return `настройка кабинета: для всех ${patientGenPlural}`;
   if (mode === 'on_support') return `настройка кабинета: только «${groupLabel}»`;
   return 'настройка кабинета: выключено';
 }
@@ -58,7 +62,7 @@ export function DoctorClientSupportPanel({
   /** Keeps the membership switch stable until the complete control state is read. */
   initialEffectivePolicy?: PatientProgramInteractionPolicy | null;
 }) {
-  const { supportGroupLabel } = useDoctorPatientTerms();
+  const { patientGenitive, patientGenPlural, supportGroupLabel } = useDoctorPatientTerms();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,16 +133,17 @@ export function DoctorClientSupportPanel({
         {CHANNEL_CONTROLS.filter((control) => workspaceModules?.[control.module]).map((control) => {
           const override = profile?.[control.override] ?? null;
           const allowed = channelPolicy?.[control.allowed] === true;
+          const title = control.title ?? `Кабинет ${patientGenitive}`;
           const source = override === null
             ? control.key === 'portal'
-              ? 'доступ кабинета клиента по умолчанию'
-              : defaultSource(channelDefaults?.[control.key], supportGroupLabel)
+              ? `доступ кабинета ${patientGenitive} по умолчанию`
+              : defaultSource(channelDefaults?.[control.key], supportGroupLabel, patientGenPlural)
             : override ? 'индивидуальное разрешение' : 'индивидуальный запрет';
           return (
             <section key={control.key} className="rounded-md border border-border/60 bg-background px-3 py-2">
-              <p className="text-sm font-medium">{control.title}</p>
+              <p className="text-sm font-medium">{title}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">Эффективно: {allowed ? 'разрешено' : 'запрещено'} · {source}</p>
-              <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label={control.title}>
+              <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label={title}>
                 <Button type="button" size="sm" variant={override === null ? 'secondary' : 'outline'} disabled={saving} onClick={() => void patch({ [control.override]: null })}>По умолчанию</Button>
                 <Button type="button" size="sm" variant={override === true ? 'secondary' : 'outline'} disabled={saving} onClick={() => void patch({ [control.override]: true })}>Разрешить</Button>
                 <Button type="button" size="sm" variant={override === false ? 'secondary' : 'outline'} disabled={saving} onClick={() => void patch({ [control.override]: false })}>Запретить</Button>
