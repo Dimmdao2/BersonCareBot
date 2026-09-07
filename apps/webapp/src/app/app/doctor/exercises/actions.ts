@@ -73,7 +73,7 @@ export async function unarchiveDoctorExercise(
 
 /** Загрузка usage для формы, когда нет server-passed snapshot (split-view без `selected` в URL). */
 export async function fetchDoctorExerciseUsageSnapshot(exerciseId: string) {
-  await requireDoctorAccess();
+  await requireDoctorAccess({ workspaceModule: 'rehabilitation' });
   const id = exerciseId.trim();
   if (!id) return { ...EMPTY_EXERCISE_USAGE_SNAPSHOT };
   const deps = buildAppDeps();

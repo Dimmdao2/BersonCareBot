@@ -5,6 +5,7 @@ import { materializePatientReminderDeliveries } from '@/modules/reminders/materi
 import type { PatientReminderMaterializationPort } from '@/modules/reminders/patientReminderMaterializationPort';
 import { createPgPatientReminderMaterializationPort } from '@/infra/repos/pgPatientReminderMaterialization';
 import { resolvePatientNotificationChannels } from '@/modules/patient-notifications/resolveNotificationChannels';
+import { isRehabilitationReminderRule } from '@/modules/reminders/rehabProgramLinkedObject';
 
 export type PatientReminderMaterializationWakeResult = {
   rules: number;
@@ -18,10 +19,15 @@ export async function runPatientReminderMaterializationWake(
   organizationId: string,
   now = new Date(),
   port: PatientReminderMaterializationPort = createPgPatientReminderMaterializationPort(),
+  options: { rehabilitationEnabled?: boolean } = {},
 ): Promise<PatientReminderMaterializationWakeResult> {
   const nowIso = now.toISOString();
   const snapshot = await port.readSnapshot(organizationId, nowIso);
-  const { rules, dueOccurrences: duePlanned } = snapshot;
+  const rules = snapshot.rules.filter(
+    (rule) => options.rehabilitationEnabled !== false || !isRehabilitationReminderRule(rule),
+  );
+  const allowedRuleIds = new Set(rules.map((rule) => rule.id));
+  const duePlanned = snapshot.dueOccurrences.filter((item) => allowedRuleIds.has(item.ruleId));
   const rulesById = new Map(rules.map((rule) => [rule.id, rule]));
   const result: PatientReminderMaterializationWakeResult = {
     rules: rules.length,

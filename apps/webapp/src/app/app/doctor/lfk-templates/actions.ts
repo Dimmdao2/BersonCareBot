@@ -42,7 +42,7 @@ async function archiveDoctorLfkTemplateCore(
   | { kind: 'needs_confirmation'; usage: LfkTemplateUsageSnapshot }
   | { kind: 'invalid'; error: string }
 > {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указан шаблон комплекса' };
@@ -80,7 +80,7 @@ async function archiveDoctorLfkTemplateCore(
 async function unarchiveDoctorLfkTemplateCore(
   formData: FormData,
 ): Promise<{ kind: 'unarchived'; id: string } | { kind: 'invalid'; error: string }> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указан шаблон комплекса' };
@@ -108,7 +108,7 @@ async function unarchiveDoctorLfkTemplateCore(
 }
 
 export async function createLfkTemplateDraft(formData: FormData) {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const titleRaw = formData.get('title');
   const title = typeof titleRaw === 'string' && titleRaw.trim() ? titleRaw.trim() : 'Новый шаблон';
   const deps = buildAppDeps();
@@ -126,7 +126,7 @@ export async function createLfkTemplateDraftFromEditor(payload: {
   exercises: TemplateExerciseInput[];
 }): Promise<{ ok: true; id: string } | ({ ok: false } & ActionFailureFields)> {
   try {
-    const workspace = await requireDoctorWorkspaceContext();
+    const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
     const deps = buildAppDeps();
     const titleRaw = payload.title.trim();
     const title = titleRaw || 'Новый комплекс';
@@ -164,7 +164,7 @@ export async function persistLfkTemplateDraft(payload: {
   exercises: TemplateExerciseInput[];
 }): Promise<{ ok: true } | ({ ok: false } & ActionFailureFields)> {
   try {
-    const workspace = await requireDoctorWorkspaceContext();
+    const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
     const deps = buildAppDeps();
     const includePlatformBase = (
       await requireEntitlementForReadAction(workspace, 'exercise_catalog')
@@ -205,7 +205,7 @@ export async function publishLfkTemplateAction(
   templateId: string,
 ): Promise<{ ok: true } | ({ ok: false } & ActionFailureFields)> {
   try {
-    const workspace = await requireDoctorWorkspaceContext();
+    const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
     const deps = buildAppDeps();
     await deps.lfkTemplates.publishTemplate(templateId, {
       runTemplateWrite: (fn) =>
@@ -255,7 +255,7 @@ export async function unarchiveDoctorLfkTemplate(
 }
 
 export async function fetchDoctorLfkTemplateUsageSnapshot(templateId: string) {
-  await requireDoctorAccess();
+  await requireDoctorAccess({ workspaceModule: 'rehabilitation' });
   const id = templateId.trim();
   if (!id) return { ...EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT };
   const deps = buildAppDeps();

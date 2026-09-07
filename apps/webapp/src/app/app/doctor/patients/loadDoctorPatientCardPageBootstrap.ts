@@ -302,7 +302,7 @@ export async function loadDoctorPatientCardShellMeta(
   workspace: DoctorWorkspaceAccessContext,
   patientUserId: string,
   activeTab: PatientCardTabId,
-  programInstancesPromise = loadDoctorPatientProgramInstances(deps, workspace, patientUserId),
+  programInstancesPromise?: ReturnType<typeof loadDoctorPatientProgramInstances>,
   workspaceModules?: WorkspaceModuleEffective,
 ): Promise<DoctorPatientCardShellMeta> {
   const [membershipMeta, cardHeader, portalState, currentProgramStartedAt, displayIana] =
@@ -318,7 +318,8 @@ export async function loadDoctorPatientCardShellMeta(
           ).catch(() => null),
       workspaceModules?.rehabilitation === false
         ? Promise.resolve(null)
-        : programInstancesPromise
+        : (programInstancesPromise ??
+            loadDoctorPatientProgramInstances(deps, workspace, patientUserId))
             .then((instances) => pickOpenTreatmentProgramInstance(instances)?.createdAt ?? null)
             .catch(() => null),
       getAppDisplayTimeZone(),
@@ -359,8 +360,10 @@ export async function loadDoctorPatientCardTabBootstrap(
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId));
 
   const loadProgramInstances = () =>
-    sharedProgramInstancesPromise ??
-    loadDoctorPatientProgramInstances(deps, workspace, patientUserId);
+    workspaceModules?.rehabilitation === false
+      ? Promise.resolve([])
+      : (sharedProgramInstancesPromise ??
+        loadDoctorPatientProgramInstances(deps, workspace, patientUserId));
 
   const loadProgramInstanceDetail = async (
     programInstancesPromise: ReturnType<typeof loadProgramInstances>,
@@ -386,7 +389,7 @@ export async function loadDoctorPatientCardTabBootstrap(
         specialistTasksReadable
           ? deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false)
           : Promise.resolve([]),
-        workspaceModules?.program_comments === false
+        workspaceModules?.rehabilitation === false || workspaceModules?.program_comments === false
           ? Promise.resolve({ unreadCount: 0, unreadByStageItemId: {}, lastMark: null })
           : loadDoctorPatientProgramActivity(
               { programItemDiscussion: deps.programItemDiscussion },
@@ -489,6 +492,7 @@ export async function loadDoctorPatientCardTabBootstrap(
   }
 
   if (activeTab === 'program') {
+    if (workspaceModules?.rehabilitation === false) return { ...NULL_TAB_BOOTSTRAP };
     const programInstancesResult = await Promise.allSettled([loadProgramInstances()]);
     return {
       ...NULL_TAB_BOOTSTRAP,
@@ -547,6 +551,7 @@ export async function loadDoctorPatientCardTabBootstrap(
   }
 
   if (activeTab === 'comms') {
+    if (workspaceModules?.rehabilitation === false) return { ...NULL_TAB_BOOTSTRAP };
     const programInstancesResult = await Promise.allSettled([loadProgramInstances()]);
     return {
       ...NULL_TAB_BOOTSTRAP,

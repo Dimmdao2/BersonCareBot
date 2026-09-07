@@ -106,6 +106,7 @@ async function synthesizePlanDay(
     instances: TreatmentProgramInstanceSummary[];
   },
 ): Promise<DiaryPlanDayModel | null> {
+  if (params.instances.length === 0) return null;
   const win = localCalendarDayWindowUtcIso(params.localYmd, params.iana);
   const doneRows = await deps.programActionLog.listDoneItemsByLocalDateInWindowForPatient({
     patientUserId: params.userId,
@@ -237,6 +238,7 @@ export async function loadPatientDiaryWeekActivity(
     weekEndMs: number;
     iana: string;
     materializeMissingSnapshots: boolean;
+    includePlan?: boolean;
   },
 ): Promise<PatientDiaryWeekActivityModel> {
   const { userId, weekStartMs, weekEndMs, iana } = params;
@@ -248,11 +250,13 @@ export async function loadPatientDiaryWeekActivity(
 
   const [rules, instances] = await Promise.all([
     deps.reminders.listRulesByUser(userId),
-    deps.treatmentProgramInstance.listInstancesForPatient(userId),
+    params.includePlan === false
+      ? Promise.resolve([])
+      : deps.treatmentProgramInstance.listInstancesForPatient(userId),
   ]);
   const planPick = pickActivePlanInstance(instances);
 
-  if (params.materializeMissingSnapshots) {
+  if (params.materializeMissingSnapshots && params.includePlan !== false) {
     await ensurePastDaySnapshots(deps, { userId, iana, weekStart, todayYmd, rules, instances });
   }
 

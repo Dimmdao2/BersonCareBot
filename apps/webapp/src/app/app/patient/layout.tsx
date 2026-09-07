@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { sessionMatchesTestAccountIdentifiers } from '@/config/testAccounts';
 import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { patientClientBusinessGate } from '@/app-layer/platform-access';
 import {
   patientPathRequiresBoundPhone,
@@ -35,6 +35,7 @@ import { PatientOrganizationRecoveryScreen } from '@/shared/ui/patient/organizat
 import { getAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
 import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
+import { resolveOrganizationWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
 
 function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boolean {
   return [
@@ -128,6 +129,25 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       source: 'app.patient.layout',
     });
     const patientOrganizationId = patientContext.organizationId;
+    const workspaceModules = await withPatientOrganizationPrincipal(
+      {
+        organizationId: patientOrganizationId,
+        platformUserId: session.user.userId,
+        source: 'app.patient.layout.workspace-modules',
+      },
+      () => resolveOrganizationWorkspaceModules(deps, patientOrganizationId),
+    );
+    if (
+      !workspaceModules.rehabilitation &&
+      (pathname === routePaths.patientTreatmentPrograms ||
+        pathname.startsWith(`${routePaths.patientTreatmentPrograms}/`) ||
+        pathname === routePaths.patientCourses ||
+        pathname.startsWith(`${routePaths.patientCourses}/`) ||
+        pathname === '/app/patient/go/plan-start-lesson' ||
+        pathname.startsWith(`${routePaths.diary}/lfk`))
+    ) {
+      notFound();
+    }
     // A branded Host is the final surface authority. Until the tenant-host seam is connected,
     // platform patient requests carry no brand, so preserve the existing patient-principal read.
     // This fallback disappears from the request path as soon as the Host supplies this tenant's
@@ -205,6 +225,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       return (
         <PatientClientLayout
           organizationContext={patientBrandingContext}
+          workspaceModules={workspaceModules}
           authChannelPolicy={authChannelPolicy}
           materialRatingsEnabled={materialRatingsEnabled}
         >
@@ -221,6 +242,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     return (
       <PatientClientLayout
         organizationContext={patientBrandingContext}
+        workspaceModules={workspaceModules}
         rememberOrganizationOnMount={patientContext.selectedBy === 'only_active'}
         authChannelPolicy={authChannelPolicy}
         materialRatingsEnabled={materialRatingsEnabled}

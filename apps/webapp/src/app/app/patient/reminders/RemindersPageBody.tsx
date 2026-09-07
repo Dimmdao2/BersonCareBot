@@ -24,6 +24,8 @@ import {
   resolveActiveReminderDeliveryLabelsForTopic,
 } from '@/modules/reminders/reminderDeliveryChannelLabels';
 import { resolvePromoAccessForPatient } from '@/app-layer/treatment-program/promoMaterializationGate';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { resolveOrganizationWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
 
 function mapIconKind(
   linked: NonNullable<ReminderRule['linkedObjectType']>,
@@ -93,13 +95,21 @@ async function resolvePersonalReminderLabel(
 export async function RemindersPageBody({ session }: { session: AppSession }) {
   const deps = buildAppDeps();
   const userId = session.user.userId;
+  const organizationId = getCurrentDbPrincipalOrganizationId();
+  const rehabilitationEnabled = organizationId
+    ? await resolveOrganizationWorkspaceModules(deps, organizationId).then(
+        (modules) => modules.rehabilitation,
+      )
+    : false;
 
-  const [rules, appTz, patientIanaRaw, programList, canViewAuth, exerciseDeliveryChannelLabels] =
+  const [storedRules, appTz, patientIanaRaw, programList, canViewAuth, exerciseDeliveryChannelLabels] =
     await Promise.all([
       deps.reminders.listRulesByUser(userId),
       getAppDisplayTimeZone(),
       deps.patientCalendarTimezone.getIanaForUser(userId),
-      deps.treatmentProgramInstance.listForPatient(userId),
+      rehabilitationEnabled
+        ? deps.treatmentProgramInstance.listForPatient(userId)
+        : Promise.resolve([]),
       resolvePatientCanViewAuthOnlyContent(session),
       resolveActiveReminderDeliveryLabelsForTopic({
         platformUserId: userId,
@@ -113,6 +123,15 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
         webPushSubscriptions: deps.webPushSubscriptions,
       }),
     ]);
+  const rules = rehabilitationEnabled
+    ? storedRules
+    : storedRules.filter(
+        (rule) =>
+          rule.reminderIntent !== 'exercises' &&
+          rule.linkedObjectType !== 'rehab_program' &&
+          rule.linkedObjectType !== 'treatment_program_item' &&
+          rule.linkedObjectType !== 'lfk_complex',
+      );
 
   const patientCalendarDayIana = resolveCalendarDayIanaForPatient(patientIanaRaw, appTz);
   const calendarDateKey = DateTime.now().setZone(patientCalendarDayIana).toISODate()!;
@@ -130,9 +149,11 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
   const warmupsSectionTitle = warmRes?.section.title?.trim() || 'Разминки';
   const warmupsSectionSlug = (warmRes?.canonicalSlug ?? DEFAULT_WARMUPS_SECTION_SLUG).trim();
 
-  const activeInstanceId = await resolveActiveTreatmentProgramInstanceId(deps, userId, () =>
-    resolvePromoAccessForPatient({ patientOrganization: deps.patientOrganization }, userId),
-  );
+  const activeInstanceId = rehabilitationEnabled
+    ? await resolveActiveTreatmentProgramInstanceId(deps, userId, () =>
+        resolvePromoAccessForPatient({ patientOrganization: deps.patientOrganization }, userId),
+      )
+    : null;
   let rehabProgramForBlock: { id: string; title: string } | null = null;
   if (activeInstanceId) {
     const row = programList.find((p) => p.id === activeInstanceId);

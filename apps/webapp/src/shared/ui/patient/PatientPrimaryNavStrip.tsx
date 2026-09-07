@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { usePatientSupportUnreadCount } from '@/modules/messaging/hooks/useSupportUnreadPolling';
 import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/patient/navChrome';
 import { PatientNavCountBadge } from '@/shared/ui/patient/PatientNavCountBadge';
+import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 
 const NAV_ICONS: Record<PatientPrimaryNavItemId, typeof Home> = {
   today: Home,
@@ -38,6 +39,11 @@ export function PatientPrimaryNavStrip({ className, variant = 'bottom' }: Props)
   const pathname = usePathname() ?? '';
   const activeId = getPatientPrimaryNavActiveId(pathname);
   const chatUnread = usePatientSupportUnreadCount();
+  const organizationContext = usePatientOrganizationContext();
+  const navItems =
+    organizationContext?.workspaceModules?.rehabilitation === false
+      ? PATIENT_PRIMARY_NAV_ITEMS.filter((item) => item.id !== 'plan')
+      : PATIENT_PRIMARY_NAV_ITEMS;
 
   const renderNavLink = (item: PatientPrimaryNavItem) => {
     const Icon = NAV_ICONS[item.id];
@@ -108,6 +114,7 @@ export function PatientPrimaryNavStrip({ className, variant = 'bottom' }: Props)
   return (
     <nav
       aria-label="Основная навигация пациента"
+      data-nav-count={navItems.length}
       className={cn(
         variant === 'bottom'
           ? 'patient-shell-bottom-nav-grid mx-auto max-w-[26.5rem]'
@@ -115,7 +122,7 @@ export function PatientPrimaryNavStrip({ className, variant = 'bottom' }: Props)
         className,
       )}
     >
-      {PATIENT_PRIMARY_NAV_ITEMS.map(renderNavLink)}
+      {navItems.map(renderNavLink)}
     </nav>
   );
 }

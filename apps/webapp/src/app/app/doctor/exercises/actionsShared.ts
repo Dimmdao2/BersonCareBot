@@ -155,7 +155,7 @@ export type BulkCreateExercisesFromMediaResult =
 export async function bulkCreateExercisesFromMediaCore(
   items: BulkCreateExercisesFromMediaItem[],
 ): Promise<BulkCreateExercisesFromMediaResult> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const userId = workspace.session.user.userId;
 
   const deduped: BulkCreateExercisesFromMediaItem[] = [];
@@ -288,7 +288,7 @@ export async function bulkCreateExercisesFromMediaCore(
 }
 
 export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveExerciseResult> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const deps = buildAppDeps();
   const loadRefItems = await deps.references.listActiveItemsByCategoryCode(
     EXERCISE_LOAD_TYPE_CATEGORY_CODE,
@@ -392,7 +392,7 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
 export async function archiveDoctorExerciseCore(
   formData: FormData,
 ): Promise<ArchiveDoctorExerciseCoreResult> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указано упражнение' };
@@ -430,7 +430,7 @@ export async function archiveDoctorExerciseCore(
 export async function unarchiveDoctorExerciseCore(
   formData: FormData,
 ): Promise<UnarchiveDoctorExerciseCoreResult> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указано упражнение' };

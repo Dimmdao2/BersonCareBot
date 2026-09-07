@@ -11,6 +11,7 @@ import {
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { resolveDoctorWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
   DOCTOR_TODAY_PREFERENCES_KEY,
@@ -48,6 +49,7 @@ async function DoctorTodayDashboardSection({
     todayPreferencesRow,
     specialistTasksAvailability,
     specialistTasksRead,
+    workspaceModules,
   ] = await Promise.all([
     loadDoctorAnalyticsAudience(),
     deps.systemSettings.getSetting(DOCTOR_TODAY_PREFERENCES_KEY, 'doctor', {
@@ -55,6 +57,9 @@ async function DoctorTodayDashboardSection({
     }),
     getMechanicMutationAvailability(workspace, 'specialist_tasks'),
     requireEntitlementForReadAction(workspace, 'specialist_tasks'),
+    withDoctorWorkspacePrincipal(workspace, () =>
+      resolveDoctorWorkspaceModules(deps, workspace),
+    ),
   ]);
 
   const todayPreferences = parseDoctorTodayPreferences(todayPreferencesRow?.valueJson);
@@ -85,10 +90,16 @@ async function DoctorTodayDashboardSection({
         doctorUserId: session.user.userId,
         organizationId: workspace.organizationId,
         visibilityActor: workspace,
-        treatmentProgramProgress: deps.treatmentProgramProgress,
-        treatmentProgramInstance: deps.treatmentProgramInstance,
-        programItemDiscussion: deps.programItemDiscussion,
-        programActionLog: deps.programActionLog,
+        treatmentProgramProgress: workspaceModules.rehabilitation
+          ? deps.treatmentProgramProgress
+          : undefined,
+        treatmentProgramInstance: workspaceModules.rehabilitation
+          ? deps.treatmentProgramInstance
+          : undefined,
+        programItemDiscussion: workspaceModules.program_comments
+          ? deps.programItemDiscussion
+          : undefined,
+        programActionLog: workspaceModules.rehabilitation ? deps.programActionLog : undefined,
         displayIana,
       },
       workspaceAudience,
@@ -103,6 +114,8 @@ async function DoctorTodayDashboardSection({
       calendarSnapshot={calendarSnapshot}
       specialistTasksAvailable={specialistTasksAvailable}
       specialistTasksReadable={specialistTasksReadable}
+      rehabilitationEnabled={workspaceModules.rehabilitation}
+      programCommentsEnabled={workspaceModules.program_comments}
     />
   );
 }

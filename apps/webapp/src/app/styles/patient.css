@@ -452,6 +452,10 @@
     align-items: stretch;
   }
 
+  .patient-shell-bottom-nav-grid[data-nav-count='4'] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .safe-bleed-x {
     margin-left: calc(
       -1 * max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px))

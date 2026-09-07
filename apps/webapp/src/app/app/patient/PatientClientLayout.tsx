@@ -12,11 +12,13 @@ import type { PatientOrganizationSummary } from '@/modules/patient-organization/
 import { PatientOrganizationContextProvider } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import type { AuthChannelUiPolicy } from '@/modules/auth/otpChannelUi';
 import { PatientRuntimeFeaturesProvider } from '@/shared/ui/patient/PatientRuntimeFeaturesContext';
+import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
 
 /** Клиентская обёртка пациентского раздела (гейт Mini App). Серверный редирект по телефону — в `layout.tsx`. */
 export function PatientClientLayout({
   children,
   organizationContext,
+  workspaceModules,
   rememberOrganizationOnMount = false,
   authChannelPolicy,
   materialRatingsEnabled,
@@ -26,6 +28,7 @@ export function PatientClientLayout({
     organization: PatientOrganizationSummary;
     organizations: PatientOrganizationSummary[];
   } | null;
+  workspaceModules?: WorkspaceModuleEffective;
   rememberOrganizationOnMount?: boolean;
   authChannelPolicy: AuthChannelUiPolicy;
   materialRatingsEnabled: boolean;
@@ -34,6 +37,7 @@ export function PatientClientLayout({
     <PatientOrganizationContextProvider
       organization={organizationContext.organization}
       organizations={organizationContext.organizations}
+      workspaceModules={workspaceModules}
       rememberOrganizationOnMount={rememberOrganizationOnMount}
     >
       {children}

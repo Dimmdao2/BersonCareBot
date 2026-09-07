@@ -78,7 +78,7 @@ function validateMedia(
 export async function saveClinicalTestCore(
   formData: FormData,
 ): Promise<{ ok: true; testId: string; wasUpdate: boolean } | { ok: false; error: string }> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
 
   const idRaw = formData.get('id');
   const titleField = formData.get('title');
@@ -216,7 +216,7 @@ export async function saveClinicalTestCore(
 export async function archiveClinicalTestCore(
   formData: FormData,
 ): Promise<ArchiveClinicalTestCoreResult> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' && idRaw.trim() ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указан тест' };
@@ -254,7 +254,7 @@ export async function archiveClinicalTestCore(
 export async function unarchiveClinicalTestCore(
   formData: FormData,
 ): Promise<UnarchiveClinicalTestCoreResult> {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' && idRaw.trim() ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указан тест' };
