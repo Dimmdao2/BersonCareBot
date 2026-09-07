@@ -12,6 +12,9 @@
 import { redirect, notFound } from 'next/navigation';
 import { z } from 'zod';
 import { routePaths } from '@/app-layer/routes/paths';
+import { requireWorkspaceModuleForPage } from '@/app-layer/guards/workspaceModuleAccess';
+import { loadDoctorWorkspaceShell } from '../../../loadDoctorWorkspaceShell';
+import { resolvePatientCardTab } from '../patientCardTabRegistry';
 
 const VALID_TABS = new Set([
   'karta',
@@ -43,5 +46,10 @@ export default async function PatientCardTabRedirectPage({ params }: PageProps) 
     notFound();
   }
 
-  redirect(`${routePaths.doctorPatients}/${userId}?tab=${LEGACY_TABS.has(tab) ? 'karta' : tab}`);
+  const shell = await loadDoctorWorkspaceShell();
+  const targetTab = LEGACY_TABS.has(tab) ? 'karta' : tab;
+  const effectiveTab = resolvePatientCardTab(targetTab, shell.workspaceModules);
+  requireWorkspaceModuleForPage(effectiveTab !== null);
+
+  redirect(`${routePaths.doctorPatients}/${userId}?tab=${effectiveTab ?? 'overview'}`);
 }

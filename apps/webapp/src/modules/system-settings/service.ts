@@ -310,16 +310,22 @@ export function createSystemSettingsService(
      */
     async getDoctorWorkspaceComposition(
       options: SystemSettingsReadOptions = {},
+      preloadedRow?: SystemSetting | null,
     ): Promise<DoctorWorkspaceComposition> {
       const organizationId = options.organizationId?.trim();
       if (!organizationId) {
         throw new SystemSettingsOrgContextRequiredError(DOCTOR_WORKSPACE_COMPOSITION_KEY);
       }
-      const row = await getSettingFromCanonicalRoot(
-        DOCTOR_WORKSPACE_COMPOSITION_KEY,
-        'doctor',
-        { ...options, organizationId },
-      );
+      const row =
+        preloadedRow === undefined
+          ? await getSettingFromCanonicalRoot(DOCTOR_WORKSPACE_COMPOSITION_KEY, 'doctor', {
+              ...options,
+              organizationId,
+            })
+          : preloadedRow;
+      if (row !== null && row.organizationId !== organizationId) {
+        throw new RuntimeSettingUnavailableError(DOCTOR_WORKSPACE_COMPOSITION_KEY);
+      }
       if (
         row !== null &&
         (row.valueJson === null ||

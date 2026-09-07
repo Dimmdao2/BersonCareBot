@@ -27,14 +27,23 @@ const DoctorShellBadgeContext = createContext<DoctorShellBadgeCounts | undefined
 export function DoctorSupportUnreadProvider({
   children,
   enabled = true,
+  directChatEnabled = true,
+  programCommentsEnabled = true,
+  rehabilitationEnabled = true,
   registrationFailuresEnabled = false,
 }: {
   children: ReactNode;
   enabled?: boolean;
+  directChatEnabled?: boolean;
+  programCommentsEnabled?: boolean;
+  rehabilitationEnabled?: boolean;
   registrationFailuresEnabled?: boolean;
 }) {
-  const messages = useDoctorSupportUnreadCountPolling(enabled);
-  const pendingProgramTests = useDoctorPendingProgramTestsCount(enabled);
+  const messagesEnabled = enabled && directChatEnabled;
+  const commentsEnabled = enabled && programCommentsEnabled;
+  const programTestsEnabled = enabled && rehabilitationEnabled;
+  const messages = useDoctorSupportUnreadCountPolling(messagesEnabled);
+  const pendingProgramTests = useDoctorPendingProgramTestsCount(programTestsEnabled);
   const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(
     registrationFailuresEnabled,
   );
@@ -134,12 +143,12 @@ export function DoctorSupportUnreadProvider({
     const controller = new AbortController();
     const refreshVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      void refreshExerciseComments(controller.signal).catch(() => {});
+      if (commentsEnabled) void refreshExerciseComments(controller.signal).catch(() => {});
       void refreshTasks(controller.signal).catch(() => {});
     };
     const refreshComments = () => {
       if (document.visibilityState !== 'visible') return;
-      void refreshExerciseComments(controller.signal).catch(() => {});
+      if (commentsEnabled) void refreshExerciseComments(controller.signal).catch(() => {});
     };
     const refreshTaskAttention = () => {
       if (document.visibilityState !== 'visible') return;
@@ -161,19 +170,20 @@ export function DoctorSupportUnreadProvider({
       window.removeEventListener(DOCTOR_EXERCISE_COMMENTS_CHANGED_EVENT, refreshComments);
       window.removeEventListener(DOCTOR_TASKS_CHANGED_EVENT, refreshTaskAttention);
     };
-  }, [enabled, refreshExerciseComments, refreshTasks]);
+  }, [commentsEnabled, enabled, refreshExerciseComments, refreshTasks]);
 
   return (
     <DoctorShellBadgeContext.Provider
       value={{
-        messagesUnread: enabled ? messages.count : 0,
-        unreadExerciseComments: enabled ? navigationAttention.unreadExerciseComments : 0,
+        messagesUnread: messagesEnabled ? messages.count : 0,
+        unreadExerciseComments: commentsEnabled ? navigationAttention.unreadExerciseComments : 0,
         overdueTasks: enabled ? navigationAttention.overdueTasks : 0,
         todayTasks: enabled ? navigationAttention.todayTasks : 0,
         pendingProgramTests,
         registrationSystemFailures,
-        messagesUnreadReady: messages.ready,
-        unreadExerciseCommentsReady: enabled && navigationAttention.unreadExerciseCommentsReady,
+        messagesUnreadReady: messagesEnabled && messages.ready,
+        unreadExerciseCommentsReady:
+          commentsEnabled && navigationAttention.unreadExerciseCommentsReady,
         overdueTasksReady: enabled && navigationAttention.overdueTasksReady,
       }}
     >

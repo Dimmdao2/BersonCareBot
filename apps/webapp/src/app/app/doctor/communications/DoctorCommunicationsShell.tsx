@@ -19,6 +19,7 @@ import {
   COMMUNICATIONS_DEFAULT_TAB,
   COMMUNICATIONS_TABS,
   communicationsTabFromQuery,
+  type CommunicationsTab,
   type CommunicationsTabId,
 } from './doctorCommunicationsTabs';
 import {
@@ -26,6 +27,7 @@ import {
   type CommunicationsTabProps,
 } from './communicationsTabRegistry';
 import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
+import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
 
 // ---------------------------------------------------------------------------
 // Tabs nav (inline, passed to DoctorPageHeader.tabs slot)
@@ -33,11 +35,17 @@ import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/Doct
 
 type CommunicationsTabsNavProps = {
   activeTab: CommunicationsTabId;
+  tabs: readonly CommunicationsTab[];
   badges?: Partial<Record<CommunicationsTabId, number>>;
   onTabClick: (tab: CommunicationsTabId) => void;
 };
 
-function CommunicationsTabsNav({ activeTab, badges, onTabClick }: CommunicationsTabsNavProps) {
+function CommunicationsTabsNav({
+  tabs,
+  activeTab,
+  badges,
+  onTabClick,
+}: CommunicationsTabsNavProps) {
   return (
     <div
       id="doctor-communications-tabs"
@@ -46,7 +54,7 @@ function CommunicationsTabsNav({ activeTab, badges, onTabClick }: Communications
       aria-label="Разделы коммуникаций"
       className="flex w-full gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      {COMMUNICATIONS_TABS.map((tab) => {
+      {tabs.map((tab) => {
         const active = tab.id === activeTab;
         const badge = badges?.[tab.id];
         return (
@@ -84,9 +92,10 @@ const DYNAMIC_TABS = new Map<CommunicationsTabId, ComponentType<CommunicationsTa
 
 function readDeepLinksFromSearchParams(
   params: URLSearchParams,
+  registry: readonly (typeof COMMUNICATIONS_TAB_REGISTRY)[number][],
 ): Partial<Record<CommunicationsTabId, Record<string, string>>> {
   const initial: Partial<Record<CommunicationsTabId, Record<string, string>>> = {};
-  for (const entry of COMMUNICATIONS_TAB_REGISTRY) {
+  for (const entry of registry) {
     const tabParams: Record<string, string> = {};
     for (const key of entry.deepLinkKeys) {
       const val = params.get(key);
@@ -110,6 +119,8 @@ export type DoctorCommunicationsShellProps = {
   displayIana?: string;
   /** Tariff permission for creating or sending new mailings; history stays available. */
   mailingsMutationAvailable?: boolean;
+  /** Request-local effective workspace projection; disabled tabs never mount or preload. */
+  workspaceModules?: WorkspaceModuleEffective;
 };
 
 /**
@@ -127,13 +138,32 @@ export function DoctorCommunicationsShell({
   initialTabData,
   displayIana,
   mailingsMutationAvailable = true,
+  workspaceModules,
 }: DoctorCommunicationsShellProps) {
+  const availableTabs = useMemo(
+    () =>
+      workspaceModules
+        ? COMMUNICATIONS_TABS.filter((tab) => workspaceModules[tab.workspaceModule])
+        : COMMUNICATIONS_TABS,
+    [workspaceModules],
+  );
+  const availableTabIds = useMemo(
+    () => new Set(availableTabs.map((tab) => tab.id)),
+    [availableTabs],
+  );
+  const effectiveRegistry = useMemo(
+    () => COMMUNICATIONS_TAB_REGISTRY.filter((entry) => availableTabIds.has(entry.id)),
+    [availableTabIds],
+  );
   const resolvedInit: CommunicationsTabId = (() => {
-    if (initialTab) return initialTab;
+    if (initialTab) return communicationsTabFromQuery(initialTab, availableTabs);
     if (typeof window !== 'undefined') {
-      return communicationsTabFromQuery(new URLSearchParams(window.location.search).get('tab'));
+      return communicationsTabFromQuery(
+        new URLSearchParams(window.location.search).get('tab'),
+        availableTabs,
+      );
     }
-    return COMMUNICATIONS_DEFAULT_TAB;
+    return availableTabs[0]?.id ?? COMMUNICATIONS_DEFAULT_TAB;
   })();
 
   const [activeTab, setActiveTab] = useState<CommunicationsTabId>(resolvedInit);
@@ -160,7 +190,10 @@ export function DoctorCommunicationsShell({
     Partial<Record<CommunicationsTabId, Record<string, string>>>
   >(() =>
     typeof window !== 'undefined'
-      ? readDeepLinksFromSearchParams(new URLSearchParams(window.location.search))
+      ? readDeepLinksFromSearchParams(
+          new URLSearchParams(window.location.search),
+          effectiveRegistry,
+        )
       : {},
   );
   const deepLinksRef = useRef(deepLinks);
@@ -177,14 +210,14 @@ export function DoctorCommunicationsShell({
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const tab = communicationsTabFromQuery(params.get('tab'));
+      const tab = communicationsTabFromQuery(params.get('tab'), availableTabs);
       setActiveTab(tab);
       setMountedTabs((prev) => new Set([...prev, tab]));
-      setDeepLinks(readDeepLinksFromSearchParams(params));
+      setDeepLinks(readDeepLinksFromSearchParams(params, effectiveRegistry));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [availableTabs, effectiveRegistry]);
 
   const buildTabUrl = useCallback(
     (tabId: CommunicationsTabId, tabDeepLinks: Record<string, string>): string => {
@@ -228,13 +261,13 @@ export function DoctorCommunicationsShell({
   const mobileBottomTabs = useMemo(
     () => (
       <DoctorMobileSectionTabs
-        tabs={COMMUNICATIONS_TABS.map((tab) => ({ ...tab, badge: liveBadges[tab.id] }))}
+        tabs={availableTabs.map((tab) => ({ ...tab, badge: liveBadges[tab.id] }))}
         activeTab={activeTab}
         onTabChange={handleTabChange}
         ariaLabel="Разделы коммуникаций"
       />
     ),
-    [activeTab, handleTabChange, liveBadges],
+    [activeTab, availableTabs, handleTabChange, liveBadges],
   );
 
   return (
@@ -261,13 +294,14 @@ export function DoctorCommunicationsShell({
         }
         tabs={
           <CommunicationsTabsNav
+            tabs={availableTabs}
             activeTab={activeTab}
             badges={liveBadges}
             onTabClick={handleTabChange}
           />
         }
       />
-      {COMMUNICATIONS_TAB_REGISTRY.map((entry) => {
+      {effectiveRegistry.map((entry) => {
         if (!mountedTabs.has(entry.id)) return null;
         const TabComponent = DYNAMIC_TABS.get(entry.id)!;
         const tabId = entry.id;

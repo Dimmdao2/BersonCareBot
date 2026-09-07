@@ -7,8 +7,8 @@
  */
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
-import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireWorkspaceModuleForPage } from '@/app-layer/guards/workspaceModuleAccess';
 import { routePaths } from '@/app-layer/routes/paths';
 import { TreatmentProgramInstanceDetailClient } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient';
 import { PatientCardClient } from '../../PatientCardClient';
@@ -18,6 +18,7 @@ import {
   loadDoctorPatientCardTabBootstrap,
   loadDoctorPatientProgramInstances,
 } from '../../../loadDoctorPatientCardPageBootstrap';
+import { loadDoctorWorkspaceShell } from '../../../../loadDoctorWorkspaceShell';
 
 type Props = {
   params: Promise<{ userId: string; instanceId: string }>;
@@ -25,7 +26,9 @@ type Props = {
 };
 
 export default async function DoctorPatientProgramEmbeddedPage({ params, searchParams }: Props) {
-  const workspace = await requireDoctorWorkspaceContext();
+  const shell = await loadDoctorWorkspaceShell();
+  requireWorkspaceModuleForPage(shell.workspaceModules.rehabilitation);
+  const workspace = shell.workspaceAccess;
   const { userId, instanceId } = await params;
   const {
     scope: scopeParam,
@@ -63,6 +66,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     userId,
     'program',
     programInstancesPromise,
+    shell.workspaceModules,
   );
   const shellMeta = await loadDoctorPatientCardShellMeta(
     deps,
@@ -70,6 +74,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     userId,
     'program',
     programInstancesPromise,
+    shell.workspaceModules,
   );
 
   const embeddedEditor = (
@@ -91,6 +96,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
       initialTab="program"
       embeddedProgramContent={embeddedEditor}
       patientListHref={routePaths.doctorPatients}
+      workspaceModules={shell.workspaceModules}
     />
   );
 }

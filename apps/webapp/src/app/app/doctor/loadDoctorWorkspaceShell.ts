@@ -21,6 +21,12 @@ import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 import { getPatientMaintenanceConfig } from '@/modules/system-settings/patientMaintenance';
 import { sessionMatchesTestAccountIdentifiers } from '@/config/testAccounts';
+import {
+  DOCTOR_WORKSPACE_COMPOSITION_KEY,
+  resolveWorkspaceModuleEffective,
+  type WorkspaceModuleAvailability,
+  type WorkspaceModuleEffective,
+} from '@/modules/system-settings/doctorWorkspaceComposition';
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (
@@ -48,6 +54,7 @@ export type DoctorWorkspaceShellData = {
   cmsEnabled: boolean;
   patientHomeTodayEnabled: boolean;
   specialistTasksEnabled: boolean;
+  workspaceModules: WorkspaceModuleEffective;
   canRenderClinicalChildren: boolean;
   maintenance: { enabled: boolean; message: string };
 };
@@ -81,6 +88,10 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     cmsVisibility,
     patientHomeTodayVisibility,
     specialistTasksVisibility,
+    exerciseCatalogVisibility,
+    mailingsVisibility,
+    doctorStatisticsVisibility,
+    patientAppVisibility,
     entitlementSnapshot,
     cabinetAccess,
     lifecycleAnchors,
@@ -90,6 +101,10 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     getMechanicSurfaceVisibility(workspaceAccess, 'cms_pages'),
     getMechanicSurfaceVisibility(workspaceAccess, 'patient_home_today'),
     getMechanicSurfaceVisibility(workspaceAccess, 'specialist_tasks'),
+    getMechanicSurfaceVisibility(workspaceAccess, 'exercise_catalog'),
+    getMechanicSurfaceVisibility(workspaceAccess, 'mailings'),
+    getMechanicSurfaceVisibility(workspaceAccess, 'doctor_statistics'),
+    getMechanicSurfaceVisibility(workspaceAccess, 'patient_app'),
     deps.orgEntitlements.getSnapshot(organizationId).catch(() => null),
     resolveCabinetAccessRequestLocal(organizationId).catch(() => null),
     deps.orgEntitlements.prepareLifecycleNotificationContext(organizationId).catch(() => null),
@@ -147,7 +162,8 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
   ];
 
   const shellBrand = {
-    displayName: effectiveBranding?.effectiveDisplayName ?? organization?.title ?? STAFF_SURFACE.name,
+    displayName:
+      effectiveBranding?.effectiveDisplayName ?? organization?.title ?? STAFF_SURFACE.name,
     logoUrl: effectiveBranding?.paid.logoUrl ?? null,
   };
 
@@ -169,6 +185,27 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
   const patientLabel = getValueJson(
     doctorSettings.find((x) => x.key === 'patient_label')?.valueJson,
     'пациент',
+  );
+
+  const clinicalWorkspaceAvailable = workspaceAccess.canAccessClinicalWorkspace;
+  const workspaceAvailability = {
+    medical_record: clinicalWorkspaceAvailable,
+    encounters: clinicalWorkspaceAvailable,
+    rehabilitation: clinicalWorkspaceAvailable && exerciseCatalogVisibility.specialistNavigation,
+    direct_chat: clinicalWorkspaceAvailable,
+    program_comments: clinicalWorkspaceAvailable,
+    program_media: clinicalWorkspaceAvailable,
+    mailings: clinicalWorkspaceAvailable && mailingsVisibility.specialistNavigation,
+    analytics: clinicalWorkspaceAvailable && doctorStatisticsVisibility.specialistNavigation,
+    client_portal: clinicalWorkspaceAvailable && patientAppVisibility.specialistNavigation,
+  } satisfies WorkspaceModuleAvailability;
+  const workspaceComposition = await deps.systemSettings.getDoctorWorkspaceComposition(
+    { organizationId },
+    doctorSettings.find((setting) => setting.key === DOCTOR_WORKSPACE_COMPOSITION_KEY) ?? null,
+  );
+  const workspaceModules = resolveWorkspaceModuleEffective(
+    workspaceComposition,
+    workspaceAvailability,
   );
 
   const canRenderClinicalChildren =
@@ -193,6 +230,7 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     cmsEnabled: cmsVisibility.specialistNavigation,
     patientHomeTodayEnabled: patientHomeTodayVisibility.specialistNavigation,
     specialistTasksEnabled: specialistTasksVisibility.specialistNavigation,
+    workspaceModules,
     canRenderClinicalChildren,
     maintenance: {
       enabled: maintenance.enabled && session.user.role !== 'admin' && !isTestAccount,

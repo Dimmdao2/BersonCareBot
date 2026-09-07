@@ -41,10 +41,9 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       cmsEnabled={shell.cmsEnabled}
       patientHomeTodayEnabled={shell.patientHomeTodayEnabled}
       specialistTasksEnabled={shell.specialistTasksEnabled}
+      workspaceModules={shell.workspaceModules}
       brand={shell.shellBrand}
-      mobileHeaderActions={
-        <DoctorGlobalQuickActions patientSingularLabel={shell.patientLabel} />
-      }
+      mobileHeaderActions={<DoctorGlobalQuickActions patientSingularLabel={shell.patientLabel} />}
     >
       {shell.accessWarnings.length > 0 ? (
         <div

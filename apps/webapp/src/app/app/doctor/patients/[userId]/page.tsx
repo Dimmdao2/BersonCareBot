@@ -4,8 +4,8 @@
  */
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
-import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireWorkspaceModuleForPage } from '@/app-layer/guards/workspaceModuleAccess';
 import { PatientCardClient } from './PatientCardClient';
 import { sanitizePatientListReturnHref } from '../patientListWorkspaceState';
 import {
@@ -14,6 +14,7 @@ import {
   loadDoctorPatientProgramInstances,
   resolvePatientCardTab,
 } from '../loadDoctorPatientCardPageBootstrap';
+import { loadDoctorWorkspaceShell } from '../../loadDoctorWorkspaceShell';
 
 type PageProps = {
   params: Promise<{ userId: string }>;
@@ -28,7 +29,16 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     notFound();
   }
 
-  const workspace = await requireDoctorWorkspaceContext();
+  const shell = await loadDoctorWorkspaceShell();
+  const workspace = shell.workspaceAccess;
+  const workspaceModules = shell.workspaceModules;
+  const requestedTab = typeof sp.tab === 'string' ? sp.tab : undefined;
+  const resolvedTab = resolvePatientCardTab(requestedTab, workspaceModules);
+  requireWorkspaceModuleForPage(resolvedTab !== null);
+  const activeTab = resolvedTab ?? 'overview';
+  if (typeof sp.createVisitFrom === 'string') {
+    requireWorkspaceModuleForPage(workspaceModules.encounters);
+  }
   const session = workspace.session;
   const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
@@ -40,19 +50,17 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     notFound();
   }
 
-  const activeTab = resolvePatientCardTab(typeof sp.tab === 'string' ? sp.tab : undefined);
-  const programInstancesPromise = loadDoctorPatientProgramInstances(
-    deps,
-    workspace,
-    identity.userId,
-  );
-  // Start tab bootstrap before awaiting shell so Suspense can overlap progressive stream.
+  const programInstancesPromise = workspaceModules.rehabilitation
+    ? loadDoctorPatientProgramInstances(deps, workspace, identity.userId)
+    : Promise.resolve([]);
+  // Start tab bootstrap before awaiting card shell metadata so Suspense can overlap the reads.
   const tabPromise = loadDoctorPatientCardTabBootstrap(
     deps,
     workspace,
     identity.userId,
     activeTab,
     programInstancesPromise,
+    workspaceModules,
   );
   const loadedShellMeta = await loadDoctorPatientCardShellMeta(
     deps,
@@ -60,6 +68,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     identity.userId,
     activeTab,
     programInstancesPromise,
+    workspaceModules,
   );
   const shellMeta = loadedShellMeta.cardHeader
     ? {
@@ -87,6 +96,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
       visitDate={visitDate}
       isAdmin={session.user.role === 'admin'}
       patientListHref={patientListHref}
+      workspaceModules={workspaceModules}
     />
   );
 }

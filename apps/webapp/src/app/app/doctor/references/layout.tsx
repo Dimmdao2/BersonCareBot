@@ -1,14 +1,17 @@
 import type { ReactNode } from 'react';
-import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireWorkspaceModuleForPage } from '@/app-layer/guards/workspaceModuleAccess';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { ReferencesSidebar } from './ReferencesSidebar';
+import { loadDoctorWorkspaceShell } from '../loadDoctorWorkspaceShell';
 
 export default async function DoctorReferencesLayout({ children }: { children: ReactNode }) {
-  const workspace = await requireDoctorWorkspaceContext();
+  const shell = await loadDoctorWorkspaceShell();
+  requireWorkspaceModuleForPage(shell.workspaceModules.rehabilitation);
+  const workspace = shell.workspaceAccess;
   const deps = buildAppDeps();
   const categories = await withDoctorWorkspacePrincipal(workspace, () =>
     deps.references.listCategories(),

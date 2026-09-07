@@ -14,6 +14,7 @@ import { DoctorSupportUnreadProvider } from '@/shared/ui/doctor/shell/DoctorSupp
 import { getDoctorShellHomeHref } from '@/shared/ui/doctor/doctorNavLinks';
 import type { UserRole } from '@/shared/types/session';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
+import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
 
 type DoctorWorkspaceShellProps = {
   isPlatformOperator: boolean;
@@ -30,6 +31,8 @@ type DoctorWorkspaceShellProps = {
   cmsEnabled?: boolean;
   patientHomeTodayEnabled?: boolean;
   specialistTasksEnabled?: boolean;
+  /** One request-local projection of capability/entitlement availability and org preference. */
+  workspaceModules?: WorkspaceModuleEffective;
   /** Disable tenant-only background badge requests on global operator surfaces. */
   enableTenantRuntime?: boolean;
   /**
@@ -69,6 +72,7 @@ export function DoctorWorkspaceShell({
   cmsEnabled = false,
   patientHomeTodayEnabled = false,
   specialistTasksEnabled = false,
+  workspaceModules,
   enableTenantRuntime = true,
   brand,
   menuKind = 'doctor',
@@ -96,6 +100,7 @@ export function DoctorWorkspaceShell({
     cmsEnabled,
     patientHomeTodayEnabled,
     specialistTasksEnabled,
+    workspaceModules,
   };
   const homeHref = getDoctorShellHomeHref(menuAccess);
   const showClinicalShortcuts = capabilities.includes('clinical.workspace');
@@ -104,6 +109,9 @@ export function DoctorWorkspaceShell({
   return (
     <DoctorSupportUnreadProvider
       enabled={clinicalRuntimeEnabled}
+      directChatEnabled={workspaceModules?.direct_chat ?? clinicalRuntimeEnabled}
+      programCommentsEnabled={workspaceModules?.program_comments ?? clinicalRuntimeEnabled}
+      rehabilitationEnabled={workspaceModules?.rehabilitation ?? clinicalRuntimeEnabled}
       registrationFailuresEnabled={
         clinicalRuntimeEnabled && capabilities.includes('platform.operations')
       }

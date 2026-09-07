@@ -1,81 +1,96 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { getMechanicMutationAvailability } from '@/app-layer/guards/requireEntitlement';
-import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
-import { communicationsTabFromQuery } from './doctorCommunicationsTabs';
+import { COMMUNICATIONS_TABS, communicationsTabFromQuery } from './doctorCommunicationsTabs';
 import { loadDoctorCommunicationsBadges } from './loadDoctorCommunicationsBadges';
 import { loadDoctorExerciseCommentsForTab } from '../comments/loadDoctorExerciseCommentsForTab';
 import { loadDoctorCommentPatients } from '../comments/loadDoctorCommentPatients';
 import { DoctorCommunicationsShell } from './DoctorCommunicationsShell';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { requireWorkspaceModuleForPage } from '@/app-layer/guards/workspaceModuleAccess';
+import { loadDoctorWorkspaceShell } from '../loadDoctorWorkspaceShell';
 
 type Props = { searchParams: Promise<{ tab?: string; archive?: string }> };
 
 export default async function DoctorCommunicationsPage({ searchParams }: Props) {
-  const workspace = await requireDoctorWorkspaceContext();
+  const shell = await loadDoctorWorkspaceShell();
+  const workspace = shell.workspaceAccess;
+  const workspaceModules = shell.workspaceModules;
   const session = workspace.session;
   const params = await searchParams;
-  const initialTab = communicationsTabFromQuery(params.tab ?? null);
-  const [mailingsMutationAvailability, brandingMutationAvailability] = await Promise.all([
-    getMechanicMutationAvailability(workspace, 'mailings'),
-    getMechanicMutationAvailability(workspace, 'branding'),
-  ]);
+  const availableTabs = COMMUNICATIONS_TABS.filter((tab) => workspaceModules[tab.workspaceModule]);
+  requireWorkspaceModuleForPage(availableTabs.length > 0);
+  const initialTab = communicationsTabFromQuery(params.tab ?? null, availableTabs);
 
   const deps = buildAppDeps();
 
-  const [badges, displayIana] = await Promise.all([
-    loadDoctorCommunicationsBadges(deps, {
-      organizationId: workspace.organizationId,
-      visibilityActor: workspace,
-    }),
-    getAppDisplayTimeZone(),
-  ]);
-
-  const audience = await loadDoctorAnalyticsAudience();
-  const excludedUserIds = audience?.excludedUserIds ?? [];
-  const [commentsData, patients] = await Promise.all([
-    withDoctorWorkspacePrincipal(workspace, () =>
-      loadDoctorExerciseCommentsForTab(deps, {
-        viewerUserId: session.user.userId,
-        organizationId: workspace.organizationId,
-        excludedUserIds,
-        visibilityActor: workspace,
-      }),
-    ),
-    withDoctorWorkspacePrincipal(workspace, () =>
-      loadDoctorCommentPatients(
-        {
-          doctorClientsPort: deps.doctorClientsPort,
-          programItemDiscussion: deps.programItemDiscussion,
-        },
-        {
-          viewerUserId: session.user.userId,
+  const [mailingsMutationAvailable, badges, displayIana, commentsBundle] = await Promise.all([
+    workspaceModules.mailings
+      ? Promise.all([
+          getMechanicMutationAvailability(workspace, 'mailings'),
+          getMechanicMutationAvailability(workspace, 'branding'),
+        ]).then(([mailings, branding]) => mailings.available && branding.available)
+      : Promise.resolve(false),
+    workspaceModules.direct_chat
+      ? loadDoctorCommunicationsBadges(deps, {
           organizationId: workspace.organizationId,
           visibilityActor: workspace,
-        },
-        { excludedUserIds: excludedUserIds.length ? excludedUserIds : undefined },
-      ),
-    ),
+        })
+      : Promise.resolve({}),
+    getAppDisplayTimeZone(),
+    initialTab === 'comments'
+      ? (async () => {
+          const audience = await loadDoctorAnalyticsAudience();
+          const excludedUserIds = audience?.excludedUserIds ?? [];
+          const [commentsData, patients] = await Promise.all([
+            withDoctorWorkspacePrincipal(workspace, () =>
+              loadDoctorExerciseCommentsForTab(deps, {
+                viewerUserId: session.user.userId,
+                organizationId: workspace.organizationId,
+                excludedUserIds,
+                visibilityActor: workspace,
+              }),
+            ),
+            withDoctorWorkspacePrincipal(workspace, () =>
+              loadDoctorCommentPatients(
+                {
+                  doctorClientsPort: deps.doctorClientsPort,
+                  programItemDiscussion: deps.programItemDiscussion,
+                },
+                {
+                  viewerUserId: session.user.userId,
+                  organizationId: workspace.organizationId,
+                  visibilityActor: workspace,
+                },
+                { excludedUserIds: excludedUserIds.length ? excludedUserIds : undefined },
+              ),
+            ),
+          ]);
+          return { commentsData, patients };
+        })()
+      : Promise.resolve(null),
   ]);
-  const commentsUnread = patients.reduce((sum, patient) => sum + patient.unreadCount, 0);
+  const commentsUnread =
+    commentsBundle?.patients.reduce((sum, patient) => sum + patient.unreadCount, 0) ?? 0;
 
   return (
     <DoctorCommunicationsShell
       initialTab={initialTab}
-      mailingsMutationAvailable={
-        mailingsMutationAvailability.available && brandingMutationAvailability.available
-      }
+      workspaceModules={workspaceModules}
+      mailingsMutationAvailable={mailingsMutationAvailable}
       badges={commentsUnread > 0 ? { ...badges, comments: commentsUnread } : badges}
       displayIana={displayIana}
       initialTabData={
-        {
-          comments: {
-            feed: commentsData,
-            patients,
-            displayIana,
-          },
-        }
+        commentsBundle
+          ? {
+              comments: {
+                feed: commentsBundle.commentsData,
+                patients: commentsBundle.patients,
+                displayIana,
+              },
+            }
+          : undefined
       }
     />
   );

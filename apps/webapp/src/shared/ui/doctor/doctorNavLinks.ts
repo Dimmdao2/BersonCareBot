@@ -6,6 +6,10 @@ import {
   type LaunchCapability,
 } from '@/app-layer/guards/workspaceCapabilities';
 import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
+import type {
+  WorkspaceModuleEffective,
+  WorkspaceModuleKey,
+} from '@/modules/system-settings/doctorWorkspaceComposition';
 
 /** Устаревший ключ: один открытый кластер. Читается только для миграции в формат множества. */
 export const DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY = 'doctorMenu.openCluster.v1';
@@ -40,6 +44,8 @@ export type DoctorMenuLinkItem = {
   requiresCmsEntitlement?: boolean;
   requiresPatientHomeTodayEntitlement?: boolean;
   requiresSpecialistTasksEntitlement?: boolean;
+  requiresWorkspaceModule?: WorkspaceModuleKey;
+  requiresAnyWorkspaceModule?: readonly WorkspaceModuleKey[];
 };
 
 export type DoctorMenuAccessTier = 'doctor' | 'staff' | 'clinic_admin' | 'global_admin';
@@ -51,6 +57,7 @@ export type DoctorMenuAccess = {
   cmsEnabled?: boolean;
   patientHomeTodayEnabled?: boolean;
   specialistTasksEnabled?: boolean;
+  workspaceModules?: WorkspaceModuleEffective;
 };
 
 export function getDoctorShellHomeHref(access: DoctorMenuAccess): string {
@@ -73,6 +80,19 @@ export function isDoctorMenuLinkVisible(
   if (item.requiresCmsEntitlement && !access.cmsEnabled) return false;
   if (item.requiresPatientHomeTodayEntitlement && !access.patientHomeTodayEnabled) return false;
   if (item.requiresSpecialistTasksEntitlement && !access.specialistTasksEnabled) return false;
+  if (
+    item.requiresWorkspaceModule &&
+    access.workspaceModules?.[item.requiresWorkspaceModule] === false
+  ) {
+    return false;
+  }
+  if (
+    item.requiresAnyWorkspaceModule &&
+    access.workspaceModules &&
+    !item.requiresAnyWorkspaceModule.some((module) => access.workspaceModules?.[module] === true)
+  ) {
+    return false;
+  }
   const tier = item.accessTier ?? 'doctor';
   if (tier === 'doctor') return hasLaunchCapability(access.capabilities, 'clinical.workspace');
   if (tier === 'staff') {
@@ -108,15 +128,18 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     label: 'Коммуникации',
     href: routePaths.doctorCommunications,
     badgeKey: 'communicationsTotal',
+    requiresAnyWorkspaceModule: ['direct_chat', 'program_comments', 'mailings'],
   },
   {
     id: 'analytics',
     label: 'Аналитика',
     href: '/app/doctor/analytics',
+    requiresWorkspaceModule: 'analytics',
   },
   {
     id: 'library',
     label: 'Каталог ЛФК',
+    requiresWorkspaceModule: 'rehabilitation',
     items: [
       { id: 'exercises', label: 'Упражнения', href: '/app/doctor/exercises' },
       { id: 'lfk-templates', label: 'Комплексы ЛФК', href: '/app/doctor/lfk-templates' },

@@ -546,6 +546,9 @@ type Props = {
   userId: string;
   header?: PatientCardHeader;
   onTabSwitch?: (tab: string) => void;
+  canOpenKarta?: boolean;
+  canOpenProgram?: boolean;
+  canCreateEncounter?: boolean;
   initialClinicalState?: BootstrapEnvelope<ClinicalState> | null;
   initialVisits?: BootstrapEnvelope<Visit[]> | null;
   initialNotes?: BootstrapEnvelope<DoctorNoteRow[]> | null;
@@ -880,6 +883,9 @@ export function PatientTabOverview({
   userId,
   header,
   onTabSwitch,
+  canOpenKarta = true,
+  canOpenProgram = true,
+  canCreateEncounter = true,
   initialClinicalState,
   initialVisits,
   initialNotes,
@@ -1707,15 +1713,17 @@ export function PatientTabOverview({
       {/* ===== LEFT COLUMN ===== */}
       <div className={cn(isComposed ? 'contents' : 'flex flex-col gap-2.5')}>
         {/* «+ Создать визит» entry point */}
-        <div className={cn('flex justify-end', isComposed && 'hidden')}>
-          <Button
-            variant="ghost"
-            onClick={() => onTabSwitch?.('karta')}
-            className="h-auto rounded-lg bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"
-          >
-            + Создать визит
-          </Button>
-        </div>
+        {canCreateEncounter ? (
+          <div className={cn('flex justify-end', isComposed && 'hidden')}>
+            <Button
+              variant="ghost"
+              onClick={() => onTabSwitch?.('karta')}
+              className="h-auto rounded-lg bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"
+            >
+              + Создать визит
+            </Button>
+          </div>
+        ) : null}
 
         {/* KPI row */}
         <div className={cn('grid grid-cols-2 gap-2', isComposed && 'hidden')}>
@@ -1772,13 +1780,15 @@ export function PatientTabOverview({
         <div className={cn(doctorSectionCardClass, isComposed && 'hidden')}>
           <div className="flex items-center justify-between mb-1">
             <span className={doctorSectionTitleClass}>Актуальные симптомы</span>
-            <Button
-              variant="ghost"
-              onClick={() => onTabSwitch?.('karta')}
-              className="h-auto rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 gap-0.5"
-            >
-              Открыть Карту →
-            </Button>
+            {canOpenKarta ? (
+              <Button
+                variant="ghost"
+                onClick={() => onTabSwitch?.('karta')}
+                className="h-auto rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 gap-0.5"
+              >
+                Открыть Карту →
+              </Button>
+            ) : null}
           </div>
 
           {isLoading && <DoctorPanelLoading className="py-3" />}
@@ -2068,6 +2078,7 @@ export function PatientTabOverview({
             doctorSectionCardClass,
             compositionMode === 'right-pane' && 'order-4',
             isOverviewComposition && 'order-3 col-span-2',
+            !canOpenProgram && 'hidden',
           )}
         >
           <div className="flex flex-col gap-1">
@@ -2081,7 +2092,7 @@ export function PatientTabOverview({
                 ) : null}
               </div>
             </div>
-            {!isLoading && data?.programStatus === 'ok' && data.programTitle ? (
+            {!isLoading && data?.programStatus === 'ok' && data.programTitle && canOpenProgram ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -2147,7 +2158,7 @@ export function PatientTabOverview({
         </div>
 
         <DoctorModal
-          open={stageExercisesModalOpen}
+          open={canOpenProgram && stageExercisesModalOpen}
           onClose={() => {
             setStageExercisesModalOpen(false);
             setStageExerciseDiscussionOpen(false);
@@ -2224,13 +2235,15 @@ export function PatientTabOverview({
                   {totalMessageUnread} новых
                 </span>
               )}
-              <Button
-                variant="ghost"
-                onClick={() => onTabSwitch?.('karta')}
-                className="ml-auto h-auto p-0 text-xs text-muted-foreground hover:text-primary hover:bg-transparent"
-              >
-                вся переписка →
-              </Button>
+              {canOpenKarta ? (
+                <Button
+                  variant="ghost"
+                  onClick={() => onTabSwitch?.('karta')}
+                  className="ml-auto h-auto p-0 text-xs text-muted-foreground hover:text-primary hover:bg-transparent"
+                >
+                  вся переписка →
+                </Button>
+              ) : null}
             </div>
 
             {isLoading && <DoctorPanelLoading className="py-3" />}
