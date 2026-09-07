@@ -95,21 +95,11 @@ async function loadProfileContent(
             )?.valueJson,
             false,
           )}
-          supportCommentsWithoutSupportDefault={valueOf(
-            doctorSettings.find(
-              (setting) =>
-                setting.key === 'doctor_patient_support_comments_without_support_default_enabled',
-            )?.valueJson,
-            false,
-          )}
-          supportMediaWithoutSupportDefault={valueOf(
-            doctorSettings.find(
-              (setting) =>
-                setting.key === 'doctor_patient_support_media_without_support_default_enabled',
-            )?.valueJson,
-            false,
-          )}
+          supportCommentsWithoutSupportDefault={false}
+          supportMediaWithoutSupportDefault={false}
           showPatientLabel={false}
+          showSmsFallback
+          showSupportDefaults={false}
         />
       ) : null}
       <LogoutSection />
@@ -182,9 +172,7 @@ export default async function AccountPage({
     showSecurity
       ? loadSecurityContent(deps, session, workspaceContext, recoveryOnly, isPlatformConsole)
       : null,
-    showNotifications
-      ? loadStaffNotificationsSection(deps, session, workspaceContext)
-      : null,
+    showNotifications ? loadStaffNotificationsSection(deps, session, workspaceContext) : null,
   ]);
 
   const content = (
