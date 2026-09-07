@@ -8,12 +8,9 @@
  * не заводим: резолвер один — `resolvePatientTerms` из `modules/system-settings/patientTerms`.
  */
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import {
-  resolveDoctorClientTerms,
-  type DoctorClientTerms,
-} from '@/modules/system-settings/patientTerms';
+import { resolvePatientTerms, type PatientTerms } from '@/modules/system-settings/patientTerms';
 
-const DoctorPatientTermsContext = createContext<DoctorClientTerms>(resolveDoctorClientTerms());
+const DoctorPatientTermsContext = createContext<PatientTerms>(resolvePatientTerms());
 
 export function DoctorPatientTermsProvider({
   patientLabel,
@@ -25,7 +22,7 @@ export function DoctorPatientTermsProvider({
   children: ReactNode;
 }) {
   const value = useMemo(
-    () => resolveDoctorClientTerms(patientLabel, supportGroupLabel),
+    () => resolvePatientTerms(patientLabel, supportGroupLabel),
     [patientLabel, supportGroupLabel],
   );
   return (
@@ -35,7 +32,7 @@ export function DoctorPatientTermsProvider({
   );
 }
 
-export function useDoctorPatientTerms(): DoctorClientTerms {
+export function useDoctorPatientTerms(): PatientTerms {
   return useContext(DoctorPatientTermsContext);
 }
 

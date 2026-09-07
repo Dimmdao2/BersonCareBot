@@ -38,7 +38,7 @@ import {
 import {
   normalizePatientLabel,
   normalizeSupportGroupLabel,
-  resolveSupportGroupLabel,
+  resolvePatientTerms,
   SUPPORT_GROUP_LABEL_KEY,
   type PatientLabelValue,
   type SupportGroupLabelValue,
@@ -128,7 +128,7 @@ export function SettingsForm({
     availability,
   );
   const effectiveModules = resolveWorkspaceModuleEffective(composition, availability);
-  const supportGroupDisplayLabel = resolveSupportGroupLabel(supportLabel);
+  const supportGroupDisplayLabel = resolvePatientTerms(label, supportLabel).supportGroupLabel;
   const defaultModeOptions: ReadonlyArray<{
     value: WorkspaceClientDefaultMode;
     label: string;

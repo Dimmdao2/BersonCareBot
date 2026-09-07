@@ -26,9 +26,6 @@ export type PatientTerms = {
   patientInstrumental: string;
   /** Творительный падеж мн.ч.: «пациентами» или «клиентами». */
   patientInstrumentalPlural: string;
-};
-
-export type DoctorClientTerms = PatientTerms & {
   /** Chosen display name for the one `doctor_patient_support.on_support` group. */
   supportGroupLabel: 'Избранные' | 'На сопровождении';
 };
@@ -55,22 +52,22 @@ export function normalizeSupportGroupLabel(value: unknown): SupportGroupLabelVal
     : null;
 }
 
-export function resolveSupportGroupLabel(value: unknown): 'Избранные' | 'На сопровождении' {
-  return normalizeSupportGroupLabel(value) === 'favorites' ? 'Избранные' : 'На сопровождении';
-}
-
 /**
  * Резолвит {именительный мн.ч., родительный мн.ч., именительный ед.ч.} из значения настройки `patient_label`.
  *
  * @param value — необработанное значение либо стандартный `{ value }` envelope из БД.
  *                Если не передано или не распознано, используется дефолт «пациент».
  */
-export function resolvePatientTerms(value?: unknown): PatientTerms {
+export function resolvePatientTerms(value?: unknown, supportGroupValue?: unknown): PatientTerms {
   const singular =
     value !== null && typeof value === 'object' && 'value' in value
       ? (value as { value?: unknown }).value
       : value;
   const normalized = normalizePatientLabel(singular);
+  const supportGroupLabel =
+    normalizeSupportGroupLabel(supportGroupValue) === 'favorites'
+      ? 'Избранные'
+      : 'На сопровождении';
   if (normalized === 'клиент') {
     return {
       patientPluralLabel: 'Клиенты',
@@ -82,6 +79,7 @@ export function resolvePatientTerms(value?: unknown): PatientTerms {
       patientDativePlural: 'клиентам',
       patientInstrumental: 'клиентом',
       patientInstrumentalPlural: 'клиентами',
+      supportGroupLabel,
     };
   }
   return {
@@ -94,19 +92,6 @@ export function resolvePatientTerms(value?: unknown): PatientTerms {
     patientDativePlural: 'пациентам',
     patientInstrumental: 'пациентом',
     patientInstrumentalPlural: 'пациентами',
-  };
-}
-
-/**
- * The sole terminology projection for specialist/client surfaces.  Both settings remain
- * organization-scoped, while the underlying membership stays the existing `onSupport` field.
- */
-export function resolveDoctorClientTerms(
-  patientLabel?: string | null,
-  supportGroupLabel?: string | null,
-): DoctorClientTerms {
-  return {
-    ...resolvePatientTerms(patientLabel),
-    supportGroupLabel: resolveSupportGroupLabel(supportGroupLabel),
+    supportGroupLabel,
   };
 }
