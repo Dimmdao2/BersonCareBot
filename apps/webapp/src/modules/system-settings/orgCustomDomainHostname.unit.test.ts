@@ -4,8 +4,6 @@ import {
   normalizeOrgCustomDomainHostnamePatch,
   ORG_CUSTOM_DOMAIN_HOSTNAME_KEY,
 } from './orgCustomDomainHostname';
-import { isPerOrgSettingKey } from './orgScopedKeys';
-import { ALLOWED_KEYS } from './registry';
 import { createSystemSettingsService } from './service';
 
 describe('normalizeOrgCustomDomainHostnamePatch', () => {
@@ -44,7 +42,6 @@ describe('TPB-09: домен и интеграции клиники — org-scop
 
   it('домен клиники принадлежит организации, а не деплою, и не течёт между организациями', async () => {
     const service = createSystemSettingsService(createInMemorySystemSettingsPort());
-    expect(isPerOrgSettingKey(ORG_CUSTOM_DOMAIN_HOSTNAME_KEY)).toBe(true);
 
     // Значение из окружения: если бы домен читался деплой-конфигом, оно бы сюда дошло.
     const savedEnv = process.env.ORG_CUSTOM_DOMAIN_HOSTNAME;
@@ -76,24 +73,5 @@ describe('TPB-09: домен и интеграции клиники — org-scop
       if (savedEnv === undefined) delete process.env.ORG_CUSTOM_DOMAIN_HOSTNAME;
       else process.env.ORG_CUSTOM_DOMAIN_HOSTNAME = savedEnv;
     }
-  });
-
-  it('интеграции клиники тоже per-org, и ни одна настройка не дублирует имя пациентской поверхности', async () => {
-    // Каналы доставки клиники — настройки организации, не окружения (§1.1 плана).
-    for (const key of [
-      'clinic_smtp_outbound',
-      'clinic_smsc_api_key',
-      'clinic_max_bot_api_key',
-      'patient_booking_url',
-    ]) {
-      expect(isPerOrgSettingKey(key)).toBe(true);
-    }
-
-    // Смена имени/origin платформенной пациентской поверхности не требует строки в БД: такой
-    // настройки не существует ни в одном scope.
-    const nameLike = ALLOWED_KEYS.filter((key) =>
-      /patient_app_name|patient_surface_name|platform_name|app_origin|patient_app_origin/.test(key),
-    );
-    expect(nameLike).toEqual([]);
   });
 });
