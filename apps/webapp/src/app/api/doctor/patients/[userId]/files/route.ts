@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { resolveWorkspaceModulesForApi } from '@/app-layer/guards/workspaceModuleAccess';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -69,6 +70,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const patientUserId = identity.userId;
+  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps.systemSettings);
   const files = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     deps.patientFiles.listFiles(patientUserId, category),
   );
@@ -90,7 +92,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
           // Non-fatal: file may not exist in S3 yet.
         }
       }
-      return { ...f, previewUrl };
+      return {
+        ...f,
+        visitId: workspaceModules.encounters ? f.visitId : null,
+        previewUrl,
+      };
     }),
   );
 

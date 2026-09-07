@@ -749,6 +749,7 @@ function PatientCardTabPanels({
             membershipsVisible={membershipsVisible}
             membershipMutationsAllowed={membershipMutationsAllowed}
             displayIana={shellMeta.displayIana}
+            encountersEnabled={workspaceModules?.encounters !== false}
           />
           <PatientTabOverview
             active={activeTab === 'overview'}
@@ -829,6 +830,7 @@ function PatientCardTabPanels({
             userId={identity.userId}
             header={header}
             initialFiles={unwrapBootstrapEnvelope(tab.initialFiles) ?? undefined}
+            encountersEnabled={workspaceModules?.encounters !== false}
           />
         </div>
       ) : null}
@@ -843,26 +845,32 @@ function PatientCardTabPanels({
           />
         </div>
       ) : null}
-      <EncounterHistoryModal
-        open={historyOpen}
-        onClose={onHistoryClose}
-        visits={visits}
-        patientName={formatDoctorFioShort(identity, identity.displayName)}
-        patientOnSupport={header.support.isOnSupport}
-        onOpenVisit={setHistoryVisitId}
-      />
-      <EncounterViewModal
-        visit={
-          historyVisitId ? (visits.find((visit) => visit.id === historyVisitId) ?? null) : null
-        }
-        nested={historyOpen}
-        editHref={
-          historyVisitId ? `/app/doctor/patients/${identity.userId}/visits/${historyVisitId}` : ''
-        }
-        patientName={formatDoctorFioShort(identity, identity.displayName)}
-        patientOnSupport={header.support.isOnSupport}
-        onClose={() => setHistoryVisitId(null)}
-      />
+      {workspaceModules?.encounters !== false ? (
+        <>
+          <EncounterHistoryModal
+            open={historyOpen}
+            onClose={onHistoryClose}
+            visits={visits}
+            patientName={formatDoctorFioShort(identity, identity.displayName)}
+            patientOnSupport={header.support.isOnSupport}
+            onOpenVisit={setHistoryVisitId}
+          />
+          <EncounterViewModal
+            visit={
+              historyVisitId ? (visits.find((visit) => visit.id === historyVisitId) ?? null) : null
+            }
+            nested={historyOpen}
+            editHref={
+              historyVisitId
+                ? `/app/doctor/patients/${identity.userId}/visits/${historyVisitId}`
+                : ''
+            }
+            patientName={formatDoctorFioShort(identity, identity.displayName)}
+            patientOnSupport={header.support.isOnSupport}
+            onClose={() => setHistoryVisitId(null)}
+          />
+        </>
+      ) : null}
       <DoctorModal
         open={membershipConfigurationOpen}
         onClose={() => setMembershipConfigurationOpen(false)}

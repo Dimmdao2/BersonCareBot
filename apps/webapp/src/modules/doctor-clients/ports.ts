@@ -271,6 +271,11 @@ export type PatientAppointmentItem = {
   hasVisitRecord?: boolean;
 };
 
+export type PatientCardEncounterProjectionOptions = {
+  /** False omits every clinical-visit lookup while preserving the independent patient surface. */
+  includeEncounterData?: boolean;
+};
+
 export type DoctorClientsPort = {
   listClients(
     filters: DoctorClientsFilters,
@@ -280,12 +285,17 @@ export type DoctorClientsPort = {
   listPatientAppointments(
     userId: string,
     organizationId?: string,
+    options?: PatientCardEncounterProjectionOptions,
   ): Promise<PatientAppointmentItem[]>;
   /**
    * Агрегат шапки карточки пациента (для нового раздела «Пациенты»).
    * Возвращает null, если пользователь не найден или не является клиентом.
    */
-  getPatientCardHeader(userId: string, organizationId: string): Promise<PatientCardHeader | null>;
+  getPatientCardHeader(
+    userId: string,
+    organizationId: string,
+    options?: PatientCardEncounterProjectionOptions,
+  ): Promise<PatientCardHeader | null>;
   /** Сегменты контактов для аналитики `/app/doctor/analytics/clients`. */
   getClientContactBreakdown(audience?: {
     excludedUserIds?: string[];

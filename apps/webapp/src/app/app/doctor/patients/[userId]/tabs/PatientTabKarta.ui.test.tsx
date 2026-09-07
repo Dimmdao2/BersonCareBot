@@ -117,13 +117,6 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('PatientTabKarta — encounter details without a local summary block', () => {
-  it('does not render the removed encounter summary and actions', () => {
-    renderKarta();
-    expect(screen.queryByText('Приёмы: 3')).toBeNull();
-    expect(screen.queryByText('История приёмов')).toBeNull();
-    expect(screen.queryByText('Новый приём')).toBeNull();
-  });
-
   it('opening a visit via composition.selectedAppointmentId routes close back to the caller', () => {
     const onCloseSelectedVisit = vi.fn();
     renderKarta({

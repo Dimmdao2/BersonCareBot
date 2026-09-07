@@ -12,6 +12,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { resolveWorkspaceModulesForApi } from '@/app-layer/guards/workspaceModuleAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { recordPatientCardOpen } from '@/app-layer/identity/recordIdentityBoundaryCrossing';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -71,9 +72,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const patientUserId = identity.userId;
+  const workspaceModules = await resolveWorkspaceModulesForApi(gate.ctx, deps.systemSettings);
 
   const header = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    deps.doctorClients.getPatientCardHeader(patientUserId, gate.ctx.organizationId),
+    deps.doctorClients.getPatientCardHeader(patientUserId, gate.ctx.organizationId, {
+      includeEncounterData: workspaceModules.encounters,
+    }),
   );
 
   if (!header) {

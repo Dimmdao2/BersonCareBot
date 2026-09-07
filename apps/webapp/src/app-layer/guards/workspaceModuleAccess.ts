@@ -6,6 +6,7 @@ import {
   WORKSPACE_MODULE_KEYS,
   resolveWorkspaceModuleEffective,
   type WorkspaceModuleAvailability,
+  type WorkspaceModuleEffective,
   type WorkspaceModuleKey,
 } from '@/modules/system-settings/doctorWorkspaceComposition';
 
@@ -37,6 +38,20 @@ const AVAILABLE_AFTER_UPSTREAM_GATES = Object.fromEntries(
 ) as WorkspaceModuleAvailability;
 
 /**
+ * Canonical API projection for callers that must preserve an independent surface while omitting
+ * data owned by a disabled workspace module (for example appointments without encounter links).
+ */
+export async function resolveWorkspaceModulesForApi(
+  workspace: DoctorWorkspaceAccessContext,
+  systemSettings: Pick<SystemSettingsService, 'getDoctorWorkspaceComposition'>,
+): Promise<WorkspaceModuleEffective> {
+  const composition = await systemSettings.getDoctorWorkspaceComposition({
+    organizationId: workspace.organizationId,
+  });
+  return resolveWorkspaceModuleEffective(composition, AVAILABLE_AFTER_UPSTREAM_GATES);
+}
+
+/**
  * Product-preference narrowing for an already authorized doctor API/Server Action.
  * Authentication, organization membership and any mechanic entitlement stay upstream; this
  * shared door only reads the canonical structured setting and runs the accepted C3M resolver.
@@ -46,10 +61,7 @@ export async function requireWorkspaceModuleForApi(
   module: WorkspaceModuleKey,
   systemSettings: Pick<SystemSettingsService, 'getDoctorWorkspaceComposition'>,
 ): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
-  const composition = await systemSettings.getDoctorWorkspaceComposition({
-    organizationId: workspace.organizationId,
-  });
-  const effective = resolveWorkspaceModuleEffective(composition, AVAILABLE_AFTER_UPSTREAM_GATES);
+  const effective = await resolveWorkspaceModulesForApi(workspace, systemSettings);
   return effective[module]
     ? { ok: true }
     : { ok: false, response: workspaceModuleDisabledResponse(module) };
