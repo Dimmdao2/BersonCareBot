@@ -765,10 +765,14 @@ public booking этой organization продолжает работать.
       server guards; backfill/absence должны сохранять текущее «всё доступное видно». Доказательство: product
       `d4446a453`, независимый audit/oracle `1fedb1b18`, correction `4eae78f45`; acceptance `7/7`, webapp typecheck,
       scoped ESLint и `git diff --check` PASS. Реальное подключение shell/routes остаётся C3M-06.
-- [ ] **C3M-04 — settings UI.** Создать одну секцию «Рабочее пространство» в каноническом settings hub; перенести
+- [x] **C3M-04 — settings UI.** Создать одну секцию «Рабочее пространство» в каноническом settings hub; перенести
       туда defaults `off | all | on_support` для chat/comments/media, symptom create-time default, два выбора
       терминологии и dependency states; место пресета в настройках — часть owner-gate C3M.5;
-      убрать дублирующий write UI из Account, не создавая второй endpoint/owner.
+      убрать дублирующий write UI из Account, не создавая второй endpoint/owner. Доказательство: product
+      `5bee7711a`, independent audit/oracle `62022020c`; единственный audit-дефект `C3M04-A1` исправлен в этом
+      acceptance-коммите. Тот же oracle: `4 files / 28 tests`, webapp typecheck, scoped ESLint и
+      `git diff --check` — PASS; live desktop/mobile acceptance и fault-injection matrix записаны в
+      `runs/c3m-workspace-settings-audit-5bee7711a.md`.
 - [ ] **C3M-05 — стартовая конфигурация (owner-gate).** Ждёт ответа владельца по составу пресетов и месту шага в
       онбординге (C3M.5). Инварианты при любом ответе: обязательный security first-run не ослабляется и не
       разветвляется, повтор/reload идемпотентен, пресет применяется максимум один раз на подтверждение, пишет

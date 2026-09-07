@@ -38,15 +38,15 @@ export function allowsPlatformGlobalFallbackWrite(key: string): boolean {
 }
 
 /**
- * Thrown by the existing write service when a per-org key has no proven org context.
- * It never falls back to a platform-global write.
+ * Thrown when a per-org setting operation has no proven organization context.
+ * It never falls back to a platform-global row.
  */
 export class SystemSettingsOrgContextRequiredError extends Error {
   readonly key: string;
 
   constructor(key: string) {
     super(
-      `organization_context_required: per-org setting "${key}" was written without an organizationId`,
+      `organization_context_required: per-org setting "${key}" was accessed without an organizationId`,
     );
     this.name = 'SystemSettingsOrgContextRequiredError';
     this.key = key;

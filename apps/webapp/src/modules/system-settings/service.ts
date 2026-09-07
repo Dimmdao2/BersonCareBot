@@ -311,10 +311,14 @@ export function createSystemSettingsService(
     async getDoctorWorkspaceComposition(
       options: SystemSettingsReadOptions = {},
     ): Promise<DoctorWorkspaceComposition> {
+      const organizationId = options.organizationId?.trim();
+      if (!organizationId) {
+        throw new SystemSettingsOrgContextRequiredError(DOCTOR_WORKSPACE_COMPOSITION_KEY);
+      }
       const row = await getSettingFromCanonicalRoot(
         DOCTOR_WORKSPACE_COMPOSITION_KEY,
         'doctor',
-        options,
+        { ...options, organizationId },
       );
       if (
         row !== null &&
