@@ -582,47 +582,38 @@ card; запрещено строить временный resolver, второ�
 - **Gate:** role × nav × direct route/API matrix; one-write-path tests; desktop/mobile; отсутствие regressions у
   сохранённых notification/event settings.
 
-#### C3M — настраиваемый solo-кабинет и доступ клиента к функциям
+#### C3M — настраиваемый кабинет специалиста и доступ клиента к функциям
 
 **Статус:** product/technical plan готов 2026-09-07; implementation не запускалась; отдельная taskdb-карточка не
-создавалась. Этот stage расширяет уже завершённый C3 settings hub и не открывает C4/C5 или clinic scope.
+создавалась. Этот stage расширяет уже завершённый C3 settings hub и не меняет коммерческую механику.
 
-**Owner outcome:** один solo-специалист получает только доступные его тарифу возможности, но сам решает, какие из
-них показывать и использовать. Тариф — верхняя коммерческая граница; настройки рабочего пространства — более
-узкая пользовательская конфигурация. Отключение скрывает весь путь функции и останавливает её действия, но не
-удаляет уже созданные данные. Повторное включение возвращает сохранённые данные.
+**Owner outcome:** специалист сам решает, какие из уже доступных ему возможностей показывать и использовать.
+Настройки могут только сузить существующую доступность. Отключение скрывает весь путь функции и останавливает её
+действия, но не удаляет уже созданные данные. Повторное включение возвращает сохранённые данные.
 
 ##### C3M.1 Границы и неизменяемая основа
 
-- запуск: только solo; текущие названия тарифов в решении владельца — `Start`, `Pro`, `Plus`; clinic,
-  multi-specialist и общее расписание клиники отложены;
-- не строить покупку отдельных add-on, новую формулу цены или отдельную оплату домена; код потребляет уже
-  настроенные tariff entitlements/quotas. `custom_domain`/`branding` могут входить в `Plus`, но C3M не реализует
-  доменную инфраструктуру и не определяет состав тарифов;
-- тарифные названия и состав не hardcode-ить в UI/resolver: global admin продолжает собирать тарифы данными;
 - не делать переключателями `Сегодня`, расписание/онлайн-запись, список клиентов, базовый `Обзор` с заметками,
-  задачи, файлы и `Учётку`. В launch-тарифах `booking`, `specialist_tasks` и `patient_home_today` должны быть
-  включены данными; C3M не меняет их entitlement-класс;
-- онлайн-оплата и предоплата остаются существующей связкой tariff mechanic + runtime/configuration в
-  `BookingPaymentsSection` и настройках услуги; отдельный workspace toggle для них не добавлять;
+  задачи, файлы и `Учётку`;
+- онлайн-оплата и предоплата остаются в существующих настройках; отдельный workspace toggle для них не добавлять;
 - не менять страницу `Сегодня` в этом stage. Её ссылки не могут обойти новые server-side guards, но состав и
   presentation самой страницы остаются как сейчас;
-- базовые `patient_card`, `patient_app` и `patient_diaries` остаются registry-классом `никогда`: operational
-  выключение кабинета конкретной организации не превращается в тарифное отнятие глобальной учётки или дневника;
+- operational выключение кабинета конкретной организации не удаляет глобальную учётку или дневник;
 - существующий switch «Показывать мне врачебные экраны» не является моделью C3M: он снимает всю
-  `clinical.workspace` capability у owner/admin со specialist binding. В solo UI его не использовать для модулей;
-  сохранить только как будущий clinic-admin режим либо убрать из solo presentation после проверки потребителей.
+  `clinical.workspace` capability у owner/admin со specialist binding. Не использовать его для настроек отдельных
+  модулей.
 
 ##### C3M.2 Подтверждённое текущее состояние
 
 | Область | Что уже есть | Разрыв C3M |
 | --- | --- | --- |
-| Тарифы | `MECHANIC_REGISTRY`, единый resolver surface/mutation и write-clearance | shell проецирует только часть mechanics; preference-слоя нет |
+| Доступность функций | единый resolver surface/mutation и write-clearance | shell проецирует только часть доступности; preference-слоя нет |
 | Главное меню | entitlement flags для courses/promo/CMS/patient home/tasks | аналитика, коммуникации и весь каталог ЛФК всегда видимы |
-| Карточка клиента | фиксированные вкладки `Обзор`, `Карта`, `ЛФК`, `Файлы`, `Учётка`; кнопки истории/старта приёма всегда | вкладки, CTA, bootstrap и direct routes не знают о модулях |
+| Карточка клиента | фиксированные вкладки `Обзор`, `Карта`, `ЛФК`, `Файлы`, `Учётка`; кнопки истории/старта приёма всегда | медкарта и приёмы сейчас не разделены как независимые настройки; вкладки, CTA, bootstrap и direct routes не знают о модулях |
 | Обзор | одновременно грузит clinical, appointments, notes, tasks, program, activity, chat и support | выключенный модуль всё равно делает fetch и показывает widgets |
 | Коммуникации | единый shell с табами `Чаты`, `Комментарии`, `Рассылки`; рассылка имеет mutation entitlement | табы фиксированы; shell всегда грузит comment feed; entitlement не убирает ненужный таб целиком |
-| Комментарии/медиа | `doctor_patient_support`, org defaults и per-client nullable overrides уже работают и стоят в UI | UI показывает только effective switches, не позволяет явно вернуть `inherit`; отдельного свойства `favorite` и default-mode `off | all | favorites` нет |
+| Комментарии/медиа | `doctor_patient_support.on_support`, org defaults и per-client nullable overrides уже работают и стоят в UI | UI показывает только effective switches, не позволяет явно вернуть `inherit`; нет выбираемого названия одной группы и default-mode `off | all | on_support` |
+| Терминология | есть `patient_label`, `resolvePatientTerms` и настройка «Клиент / Пациент» | настройка доходит лишь до части экранов; остальные подписи hardcoded; для `onSupport` нет выбора «Избранные / На сопровождении» |
 | Чат | patient/doctor API, unread polling, карточка и Communications shell | нет org default, support-default или per-client deny; остаются write/read/ensure/unread обходы |
 | Кабинет клиента | invite status `not_activated/invited/linked`, выдача и отзыв pending invite | нельзя запретить новые invites общей настройкой и нельзя operational выключить уже linked org-context |
 | Симптомы | врач назначает tracking; patient diary автоматически показывает все активные назначенные tracking; `is_active` управляет самим tracking | нет отдельного per-tracking разрешения пациенту; клинические симптомы из приёмов ошибочно смешиваются с patient tracking |
@@ -631,18 +622,17 @@ card; запрещено строить временный resolver, второ�
 
 ##### C3M.3 Целевая модель: три независимых слоя
 
-1. **Tariff entitlement** отвечает только на вопрос «организация оплатила возможность?». Он остаётся единственным
-   источником коммерческого доступа и lifecycle/read-only состояния.
-2. **Workspace preference** отвечает «solo-специалист хочет видеть и использовать оплаченную возможность?». Она
-   не может включить отсутствующий entitlement.
+1. **Existing availability** остаётся внешним для C3M источником доступности функции.
+2. **Workspace preference** отвечает «специалист хочет видеть и использовать доступную возможность?». Она
+   не может включить недоступную функцию.
 3. **Client policy** отвечает «разрешена ли эта клиентская функция именно этому клиенту?». Для клиентских каналов
-   она вычисляется из одного default-режима `off | all | favorites` и индивидуального исключения; `favorites`
-   проверяет самостоятельное свойство клиента `favorite`, а не статус сопровождения `onSupport`. Policy применяется
-   только после первых двух слоёв и не меняет врачебную record-visibility/tenant authorization.
+   она вычисляется из одного default-режима `off | all | on_support` и индивидуального исключения; `on_support`
+   проверяет существующее свойство сопровождения `onSupport`, название которого выбирает специалист. Policy
+   применяется только после первых двух слоёв и не меняет врачебную record-visibility/tenant authorization.
 
 Для specialist surface каноническое решение одно:
 
-`effective = actorCapability && tariffAllows && workspaceEnabled`.
+`effective = actorCapability && featureAvailable && workspaceEnabled`.
 
 Для patient/client surface:
 
@@ -650,21 +640,21 @@ card; запрещено строить временный resolver, второ�
 
 Не разносить формулу по страницам. Добавить typed registry рабочих модулей и один resolver/guard в application
 layer; sidebar, card tabs, page bootstrap, direct RSC routes, API/actions, unread counters, pollers и notifications
-получают одну и ту же проекцию. Не переиспользовать tariff key `exercise_catalog` как имя всего модуля
-реабилитации: сейчас он означает доступ к platform catalog, а не желание специалиста работать с программами.
+получают одну и ту же проекцию.
 
 ##### C3M.4 Рабочие модули и зависимости
 
-| Workspace key | Что исчезает при OFF | Tariff ceiling | Зависимости |
-| --- | --- | --- | --- |
-| `clinical_records` | `Карта`; старт/история приёма; encounter CTA; жалобы, диагнозы, анамнез и клиническая динамика из визитов | базовая `patient_card` остаётся | не выключает запись/appointment и базовые notes |
-| `rehabilitation` | `ЛФК` в карточке; program widgets/actions; весь cluster каталога ЛФК; program comments inbox | действующие exercise/program mechanics проверяются отдельно | parent для program comments/media |
-| `direct_chat` | чат в карточке, таб «Чаты», composer, unread badges/pollers и message notifications | без нового tariff key в первом проходе, пока owner не включит его в тарифную сетку | требует доступный кабинет клиента |
-| `program_comments` | комментарии в программе, таб «Комментарии», его badges/feed | текущие entitlement/rollout gates сохраняются | требует `rehabilitation` и кабинет клиента |
-| `program_media` | загрузка пациентом медиа и связанные controls/notifications | текущие entitlement/rollout gates сохраняются | требует `program_comments`, `rehabilitation`, кабинет клиента |
-| `mailings` | таб «Рассылки» и все create/history surfaces | `mailings`; не добавлять add-on | не требует chat; branding не должно неявно заменять `mailings` policy |
-| `analytics` | пункт меню и specialist analytics routes | `doctor_statistics` | данные/события не удаляются |
-| `client_portal` | invite controls и приватные org surfaces пациента | `patient_app` остаётся `никогда` | public booking остаётся доступным |
+| Workspace key | Что исчезает при OFF | Зависимости |
+| --- | --- | --- |
+| `medical_record` | симптомы, диагнозы, анамнез, история проблемы и другие продольные записи непосредственно в `Карте` | работает без созданного приёма; не управляет приёмами или записью |
+| `encounters` | старт и история приёмов; осмотр, интервенции, назначения и другие записи внутри конкретного приёма | не управляет медкартой или записью |
+| `rehabilitation` | `ЛФК` в карточке; program widgets/actions; весь cluster каталога ЛФК; program comments inbox | parent для program comments/media |
+| `direct_chat` | чат в карточке, таб «Чаты», composer, unread badges/pollers и message notifications | требует доступный кабинет клиента |
+| `program_comments` | комментарии в программе, таб «Комментарии», его badges/feed | требует `rehabilitation` и кабинет клиента |
+| `program_media` | загрузка пациентом медиа и связанные controls/notifications | требует `program_comments`, `rehabilitation`, кабинет клиента |
+| `mailings` | таб «Рассылки» и все create/history surfaces | не требует chat |
+| `analytics` | пункт меню и specialist analytics routes | данные/события не удаляются |
+| `client_portal` | invite controls и приватные org surfaces пациента | public booking остаётся доступным |
 
 Если все дочерние функции Communications выключены или недоступны, исчезает весь пункт «Коммуникации». Если
 осталась хотя бы одна — shell открывает первую доступную вкладку, фильтрует tab registry и не загружает данные
@@ -680,10 +670,10 @@ per-client symptom override и постоянного inheritance resolver не 
 
 - `off` — новый symptom создаётся с выключенной галочкой;
 - `all` — новый symptom создаётся с включённой галочкой;
-- `favorites` — начальное значение равно текущему свойству `favorite` этого клиента.
+- `on_support` — начальное значение равно текущему `onSupport` этого клиента.
 
 Это шаблон формы, а не живая policy. После создания `patient_tracking_enabled` является самостоятельным boolean;
-смена общего default или последующая смена `favorite` не изменяет существующие tracking.
+смена общего default или последующая смена `onSupport` не изменяет существующие tracking.
 
 ##### C3M.5 Presets и first-run
 
@@ -691,49 +681,55 @@ Presets не привязывать к профессиям: профессия 
 Предлагать сценарии работы:
 
 - **Клиенты и заметки** — только неизменяемая основа;
-- **Приёмы и медицинская карта** — основа + `clinical_records`;
+- **Приёмы и медицинская карта** — основа + оба независимых switches `medical_record` и `encounters`;
 - **Реабилитация и сопровождение** — основа + clinical/rehabilitation/client portal, а chat/comments/media получают
-  default `favorites`;
+  default `on_support`;
 - **Настроить вручную** — тот же список switches без применения пакета.
 
 Показывать этот шаг не внутри формы регистрации, а после завершения обязательного security first-run и перед
 первым переходом в рабочий кабинет. Причина не UI-вкус: текущий confirm обязан вести в security setup, а preset не
 должен ослаблять или разветвлять этот поток. Шаг можно пропустить; до явного выбора для новой организации
-сохраняется compatibility default «показывать всё доступное по тарифу».
+сохраняется compatibility default «показывать всё доступное».
 
 В `Настройки → Рабочее пространство` preset можно применить повторно, но только через preview diff + подтверждение.
-Он записывает обычные switches один раз и после этого не связан с ними. Недоступная по тарифу функция видна только
-в настройках как locked «Не входит в тариф» с переходом к существующей смене тарифа, без покупки add-on; в основном
-интерфейсе её нет.
+Он записывает обычные switches один раз и после этого не связан с ними. Недоступная функция не предлагается как
+рабочий switch и отсутствует в основном интерфейсе.
 
-##### C3M.6 Избранные, defaults и индивидуальные исключения клиента
+##### C3M.6 Сопровождение, терминология, defaults и индивидуальные исключения клиента
 
-**«Избранные»** — самостоятельное organization-scoped свойство клиента. Оно управляет звездой, фильтрацией и
-появлением клиента в соответствующих блоках интерфейса. Не выводить его из `doctor_patient_support.on_support` и не
-переименовывать сопровождение в избранное: эти признаки могут меняться независимо.
+`doctor_patient_support.on_support` — единственное organization-scoped свойство этой группы. Оно управляет звездой,
+фильтрацией и появлением клиента в соответствующих блоках интерфейса. Специалист выбирает только display-name:
+**«Избранные»** или **«На сопровождении»**. Не добавлять отдельную колонку, сущность, группу или второй switch.
 
 Для каждого из `direct_chat`, `program_comments`, `program_media` хранить один org-level default-mode:
 
 - `off` — канал по умолчанию выключен для всех;
 - `all` — канал по умолчанию включён для всех;
-- `favorites` — канал по умолчанию включён только для клиентов с `favorite=true`.
+- `on_support` — канал по умолчанию включён только для клиентов с `on_support=true`; подпись этого режима строится
+  из выбранного display-name группы.
 
 Effective policy: `явное allow/deny клиента → результат default-mode`. Per-client значение должно быть tri-state
 `inherit | allow | deny`; обычный boolean switch, который показывает effective value, не даёт отличить
 наследование и не позволяет вернуть клиента под изменяемый default. В карточке не создавать второй блок: развить
-существующий `DoctorClientSupportPanel` в «Избранное и доступ клиента» и показывать для каждого канала effective
-state + источник (`индивидуально`, `для всех`, `только избранным`, `выключено`). Изменение свойства «Избранный»
-сразу меняет только наследуемые каналы; явные исключения сохраняются.
+существующий `DoctorClientSupportPanel`, а его заголовок строить из выбранного названия группы. Для каждого канала
+показывать effective state + источник (`индивидуально`, `для всех`, выбранная группа, `выключено`). Изменение
+`onSupport` сразу меняет только наследуемые каналы; явные исключения сохраняются.
 
-`client_portal` не входит в favorite-defaults: для него достаточно workspace switch и индивидуального
+`client_portal` не входит в support-group defaults: для него достаточно workspace switch и индивидуального
 `inherit | allow | deny`. Запись, отмены, предоплата, расписание и иные booking policy не используют группу
-«Избранные» и не меняются в C3M.
+сопровождения и не меняются в C3M.
+
+Терминология не реализуется условными строками по страницам. Расширить уже спроектированный единый terminology
+layer из `MEDICAL_WELLNESS_TERMINOLOGY_MODE_2026-09-02.md`: существующий выбор `patient_label` (`Клиенты |
+Пациенты`) и новый `support_group_label` (`Избранные | На сопровождении`) резолвятся один раз для организации и
+используются меню, заголовками, карточками, списками, аналитикой, настройками, aria/title, empty states и
+уведомлениями. Этот C3M-slice не ждёт решения по остальным медицинским терминам MWT и не создаёт второй словарь.
 
 Persistence reuse:
 
 - org module flags и defaults хранить через существующий typed `system_settings` port, по одному versioned
   structured per-org ключу на workspace composition и client defaults, без новой таблицы;
-- symptom create-time default `off | all | favorites` хранить в workspace settings рядом с channel defaults, но не
+- symptom create-time default `off | all | on_support` хранить в workspace settings рядом с channel defaults, но не
   включать его в effective client policy resolver;
 - per-client overrides расширяют существующий `doctor_patient_support`, а не создают соседний профиль;
 - до расширения изменить уникальность на `(organization_id, patient_user_id)`, сделать `organization_id NOT NULL`
@@ -750,8 +746,8 @@ public booking этой organization продолжает работать.
 `patient_tracking_enabled=true` tracking и server-side отклоняют ввод по выключенному tracking. Врач продолжает
 видеть и редактировать tracking и его историю. Существующие tracking backfill-ятся `true`, чтобы rollout не скрыл
 то, что пациент уже видит; начальное значение новых вычисляется из `patient_symptom_tracking_default`, но врач
-может изменить галочку прямо в create/edit форме. В режиме `favorites` при создании один раз читается текущее
-свойство `favorite`; дальнейшее добавление или удаление клиента из «Избранных» этот tracking не меняет.
+может изменить галочку прямо в create/edit форме. В режиме `on_support` при создании один раз читается текущее
+значение `onSupport`; дальнейшее изменение состава группы этот tracking не меняет.
 
 ##### C3M.7 Исполнение
 
@@ -759,60 +755,64 @@ public booking этой organization продолжает работать.
       fixed patient-card tabs/bootstrap, Overview fetches, Communications registry, support policy, patient invite,
       patient messaging, symptom diary и specialist signup redirect; разрывы зафиксированы в C3M.2.
 - [ ] **C3M-01 — contract freeze.** Зафиксировать typed module registry, dependency graph, defaults matrix,
-      disabled-route response codes и точные значения presets; новые tariff keys не добавлять без отдельного owner
-      решения.
-- [ ] **C3M-02 — organization-scoped client controls.** Добавить независимое свойство `favorite`; исправить
-      composite identity support profile, миграцию/backfill/ambiguity report, ports/infra/in-memory parity и tenant
-      negatives до добавления новых client overrides. Не связывать `favorite` и `onSupport` миграцией или resolver.
+      disabled-route response codes и точные значения presets.
+- [ ] **C3M-02 — organization-scoped client controls.** Закрепить `onSupport` как единственный источник группы
+      «Избранные / На сопровождении»; исправить composite identity support profile, миграцию/backfill/ambiguity report,
+      ports/infra/in-memory parity и tenant negatives до добавления новых client overrides. Не создавать отдельный
+      `favorite`.
 - [ ] **C3M-03 — preference foundation.** Добавить structured settings keys, parser/versioning, one resolver и
       server guards; backfill/absence должны сохранять текущее «всё доступное видно».
 - [ ] **C3M-04 — settings UI.** Создать одну секцию «Рабочее пространство» в каноническом settings hub; перенести
-      туда defaults `off | all | favorites` для chat/comments/media, symptom create-time default, presets,
-      dependency states и tariff locks;
+      туда defaults `off | all | on_support` для chat/comments/media, symptom create-time default, два выбора
+      терминологии, presets и dependency states;
       убрать дублирующий write UI из Account, не создавая второй endpoint/owner.
 - [ ] **C3M-05 — first-run preset.** После успешного security setup показать один skippable configuration step;
-      повтор/reload идемпотентен, preset применён максимум один раз на подтверждение и не меняет entitlement.
+      повтор/reload идемпотентен, preset применён максимум один раз на подтверждение и не меняет доступность функций.
 - [ ] **C3M-06 — specialist shell and routes.** Проецировать resolver в sidebar/mobile nav, direct pages, card tab
       registry, header CTA, lazy bootstrap/fetches и cross-links; OFF не оставляет скрытый poller, badge или preload.
-- [ ] **C3M-07 — clinical records slice.** Скрыть/запретить encounter/medical path при OFF, сохранив clients,
-      Overview notes, tasks, appointments, files/account и исторические данные для re-enable.
+- [ ] **C3M-07a — medical record slice.** Независимо скрыть/запретить продольную медкарту при OFF, сохранив clients,
+      Overview notes, tasks, appointments, encounters, files/account и исторические данные для re-enable.
+- [ ] **C3M-07b — encounters slice.** Независимо скрыть/запретить старт/историю приёмов и visit-bound осмотр,
+      интервенции и назначения при OFF, сохранив appointments, medical record и исторические данные для re-enable.
 - [ ] **C3M-08 — rehabilitation slice.** Скрыть/запретить ЛФК/program/catalog paths и зависимые comment/media
-      surfaces; сохранить отдельную семантику platform exercise catalog entitlement.
+      surfaces.
 - [ ] **C3M-09 — communications slice.** Фильтровать Communications tabs и default tab; gate chat ensure/read/write,
       unread-count, snapshots, payment-link-to-chat, comments/media and mailing read/write paths; отключить
       соответствующие notifications/jobs, не только кнопки.
 - [ ] **C3M-10 — portal and symptom slice.** Gate invite issue и linked org-private patient routes/APIs client
       policy; отдельно добавить `patient_tracking_enabled` в create/edit symptom, patient list/read/write guards и
-      compatibility backfill `true`; создание использует только snapshot текущего symptom default и `favorite`.
+      compatibility backfill `true`; создание использует только snapshot текущего symptom default и `onSupport`.
       Public booking и глобальный дневник/identity не отнимать.
-- [ ] **C3M-11 — favorites и per-client UI.** Добавить самостоятельную звезду/фильтр «Избранные» и развить
-      существующий support panel в tri-state overrides chat/comments/media и portal с явным reset-to-default; не
-      делать отдельную страницу или второй профиль клиента и не добавлять сюда booking policy.
+- [ ] **C3M-11 — support group, terminology и per-client UI.** Представить существующий `onSupport` звездой,
+      фильтром и выбранным названием одной группы; подключить `Клиенты / Пациенты` и `Избранные / На сопровождении`
+      ко всем inventoried UI surfaces через общий resolver; развить support panel в tri-state overrides
+      chat/comments/media и portal с явным reset-to-default. Не создавать вторую механику и не добавлять booking policy.
 - [ ] **C3M-12 — compatibility and acceptance.** Existing orgs сохраняют текущие surfaces; existing linked clients,
-      chats, comments/media overrides, symptoms, visits and programs не теряются. Проверить Start/Pro/Plus fixtures
-      как tariff data, presets, OFF/ON/re-enable, direct/API bypass, two-org isolation, desktop/mobile и live DEV.
+      chats, comments/media overrides, symptoms, visits and programs не теряются. Проверить разные уже вычисленные
+      наборы доступности, presets, OFF/ON/re-enable, direct/API bypass, two-org isolation, desktop/mobile и live DEV.
 
 ##### C3M.8 Минимальная acceptance matrix
 
-- preference никогда не включает отсутствующий entitlement и не создаёт новый счёт/add-on;
+- preference никогда не расширяет уже вычисленную доступность функции;
 - выключенный module отсутствует в desktop/mobile navigation, card tabs/widgets/CTA, deep links, unread badges,
   pollers and notifications; direct mutation получает typed 403, скрытый data bootstrap не выполняется;
 - OFF→ON возвращает существующие визиты, программы, переписку, рассылки и symptom entries без data mutation;
-- client explicit allow/deny побеждает channel default; при `inherit` режим `favorites` следует текущему свойству
-  клиента в «Избранных», а `all`/`off` — общей настройке без повторного сохранения клиента;
+- client explicit allow/deny побеждает channel default; при `inherit` режим `on_support` следует текущему составу
+  одной группы, а `all`/`off` — общей настройке без повторного сохранения клиента;
 - symptom tracking с выключенной галочкой остаётся в карточке специалиста вместе с историей, но отсутствует у
   пациента и не принимает patient entry через прямой API; включение возвращает его без потери данных;
-- переключение symptom default влияет только на новые tracking; режим `favorites` проверяет `favorite` один раз при
-  создании и не меняет уже созданный symptom при последующем добавлении/удалении клиента из «Избранных»;
-- membership «Избранные» не меняет доступ к кабинету, записи, отменам, предоплате или расписанию;
+- переключение symptom default влияет только на новые tracking; режим `on_support` проверяет `onSupport` один раз
+  при создании и не меняет уже созданный symptom при последующем изменении состава группы;
+- выбор display-name меняет все видимые формы терминов, но не данные и не `onSupport`; переключение одной страницы
+  при оставшихся hardcoded «Клиент/Пациент/На сопровождении» не считается выполнением;
+- membership группы не меняет доступ к кабинету, записи, отменам, предоплате или расписанию;
 - выключенный client portal блокирует private org content, но не удаляет identity/enrollment и не ломает public
   booking или доступ пациента к другой организации;
-- `clinical_records=OFF` оставляет рабочий сценарий «Клиенты → карточка → Обзор → заметка» и ручное ведение
-  расписания;
+- `medical_record` и `encounters` проверяются во всех четырёх сочетаниях; каждый OFF убирает только свой путь,
+  запись/расписание и второй модуль продолжают работать;
 - `rehabilitation=OFF` убирает не только card tab, но также catalog cluster, program widgets, comments/media inbox
   and their server actions;
-- `mailings=OFF` и отсутствующий `mailings` entitlement дают один и тот же чистый основной интерфейс, но settings
-  различает «выключено вами» и «не входит в тариф»;
+- `mailings=OFF` и недоступные рассылки дают один и тот же чистый основной интерфейс;
 - full CI нужен только на общей integration boundary; каждый slice сначала закрывается targeted behavior tests,
   typecheck/lint по затронутой области и live визуальной проверкой изменяемых экранов.
 

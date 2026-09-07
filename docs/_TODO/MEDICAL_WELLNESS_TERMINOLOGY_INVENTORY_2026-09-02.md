@@ -9,6 +9,11 @@
 Оракул: решение владельца 02.09.2026 — «переключение должно действовать **системно**, а не как набор
 независимых настроек отдельных полей» и «до реализации нужен полный инвентарь видимых терминов».
 
+**Позднее уточнение владельца 07.09.2026:** явный выбор `Клиенты / Пациенты` сохраняется, а одна существующая
+группа `onSupport` получает отдельный выбор display-name `Избранные / На сопровождении`. Все предложения ниже о
+замене `patient_label` одним `clinic_terminology_mode` в этой части заменены данным решением. Инвентарь поверхностей
+и единый typed terminology layer сохраняются; отдельные resolver и новая механика сопровождения запрещены.
+
 Код продукта, миграции, БД, env, UI и тесты этой веткой не менялись.
 
 **Correction-pass 02.09.2026** по независимым аудитам
@@ -462,36 +467,34 @@ treatment-program ошибки уже перечислены в §6.2, а `appoi
 
 ---
 
-## 5. MWT-03 · Устройство: один источник режима, один типизированный слой
+## 5. MWT-03 · Устройство: один типизированный слой терминологии
 
 ### 5.1. Принцип
 
-Расширяем существующий шов `patient_label` → `resolvePatientTerms`, а не заводим рядом второй.
-Старая настройка **исчезает** (MWT-05 «убрать старую одиночную настройку без параллельного обходного
-пути»), её значение мигрирует в режим: `'клиент'` → `wellness`, всё остальное → `medical`.
+Расширяем существующий шов `patient_label` → `resolvePatientTerms` до одного typed terminology layer. Явный выбор
+`Клиенты / Пациенты` сохраняется. Тот же слой получает выбор display-name единственной группы `onSupport`:
+`Избранные / На сопровождении`. Отдельных page-level resolver и второй механики сопровождения не будет.
 
-Флага на слово не будет: ключ настройки ровно один.
-
-### 5.2. Source of mode — один ключ
+### 5.2. Источники терминологии организации
 
 ```
 clinic_terminology_mode: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'medical')
+patient_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'пациент')
+support_group_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'сопровождение')
 ```
 
-- `scope='doctor'`, `ownership='per_org'` — ровно как у `patient_label`, поэтому граница арендатора и
+- все три ключа имеют `scope='doctor'`, `ownership='per_org'`, поэтому граница арендатора и
   RLS-модель уже существуют и не меняются. **Исправление по F3:** порт чтения для персонала (`app_staff`,
   `deps.systemSettings.listSettingsByScope`) действительно не меняется, но патient-safe чтение —
   меняется: `app.read_authenticated_runtime_setting` имеет фиксированный по коду allowlist ключей, в
-  котором `patient_label` есть, а `clinic_terminology_mode` нет — без явного добавления в этот
+  котором новые ключи должны быть перечислены явно — без добавления в этот
   аксессор чтение с пациентской стороны вернёт `NULL`, а не режим организации. Подробности и точные
   строки — §5.4.
-- Значения: `'medical' | 'wellness'`. Контракт `string`, валидация — в `adminSettingsPatchNormalize.ts`
-  рядом с текущей нормализацией `patient_label` (`app/api/admin/settings/route.ts:678`).
-- **Backward compatibility:** резолвер режима читает `clinic_terminology_mode`; если строки нет —
-  падает на `patient_label` (`'клиент'` → `wellness`, иначе `medical`); если нет и её — `medical`.
-  Это делает выкатку безшовной: ни одна клиника не видит смены слов, пока сама не переключит.
-  Двойное чтение живёт до одной миграции данных, которая проставит `clinic_terminology_mode` всем
-  организациям, после чего fallback на `patient_label` удаляется вместе с ключом.
+- Значения: `clinic_terminology_mode = 'medical' | 'wellness'`, `patient_label = 'пациент' | 'клиент'`,
+  `support_group_label = 'сопровождение' | 'избранные'`. Контракт `string`, валидация — в общем normalizer.
+- **Backward compatibility:** отсутствующий `patient_label` означает `пациент`, отсутствующий
+  `support_group_label` — `сопровождение`, отсутствующий mode — `medical`. Значение одного ключа не переписывает
+  другой; переключение терминологии не меняет бизнес-данные.
 - **Default для новой клиники** — `medical` (сохраняет сегодняшнее поведение). Развилка §7-Q4.
 
 ### 5.3. Typed terminology layer — один пакет для обоих процессов
@@ -524,7 +527,7 @@ packages/terminology/
   workspace:*` в свой `package.json` (тот же шаблон, что уже есть для `@bersoncare/platform-merge`) и
   добавляют пакет в шаг `build` (`apps/integrator/package.json:10` уже цепочкой собирает три соседних
   пакета — новый встаёт туда же).
-- Чтение самого значения ключа (`clinic_terminology_mode`) из БД остаётся в каждом процессе своим:
+- Чтение значений терминологии из БД остаётся в каждом процессе своим:
   `apps/webapp` через `deps.systemSettings`/`app.read_authenticated_runtime_setting` (как сегодня
   `patient_label`), `apps/integrator` через `app.read_integrator_runtime_setting` (см. §5.4) — пакет
   сам в БД не ходит, только резолвит уже прочитанную строку в `Terms`.
@@ -541,7 +544,7 @@ packages/terminology/
 
 | Узел | Что получает |
 | --- | --- |
-| `app/app/doctor/loadDoctorWorkspaceShell.ts:170` | режим вместо сырого `patient_label` |
+| `app/app/doctor/loadDoctorWorkspaceShell.ts:170` | choices терминологии для общего resolver |
 | `app/app/doctor/patients/page.tsx:41` | `terms` вместо трёх пропов |
 | `app/app/settings/page.tsx:203` | режим для редактора настройки |
 | `shared/ui/doctorScreenTitles.ts` | `getDoctorScreenTitle(pathname, terms)` — параметр вместо литералов |
@@ -651,17 +654,17 @@ classification-`CASE WHEN` на строке ~141) чтение вернёт `NU
 | `packages/terminology/src/mode.ts` | `resolveTerminologyMode(rawSetting)` — чистая, принимает уже прочитанную строку |
 | `packages/terminology/src/index.ts` | публичный реэкспорт |
 | `apps/webapp/src/shared/ui/TerminologyProvider.tsx` | контекст + `useTerms()` |
-| `apps/webapp/db/drizzle-migrations/<ts>_seed_clinic_terminology_mode.sql` | проставить режим всем организациям из текущего `patient_label`; та же миграция добавляет `clinic_terminology_mode` в allowlist `app.read_authenticated_runtime_setting` (два места — §5.4) |
+| `apps/webapp/db/drizzle-migrations/<ts>_add_support_group_label.sql` | зарегистрировать `support_group_label` и добавить patient-safe allowlist там, где термин нужен клиентской поверхности; `patient_label` не удалять и не мигрировать в mode |
 | `deploy/postgres/integrator-server-runtime-config.sql` — новая ветка/капабилити exact-org для `notif_template:*` и `clinic_terminology_mode`, по прецеденту `read_integrator_google_calendar_setting(text, uuid)` | капабилити (§5.4), не миграция webapp |
 
 ### 6.2. Правится
 
 | Узел | Что меняется |
 | --- | --- |
-| `modules/system-settings/registry.ts:103` | `patient_label` → `clinic_terminology_mode` |
-| `modules/system-settings/patientTerms.ts` | обёртка над `person.*` из `@bersoncare/terminology`, затем удаление |
-| `app/api/admin/settings/route.ts:194,678` | whitelist и нормализация нового ключа |
-| `app/app/settings/SettingsForm.tsx:62,129-153` | селектор «Как называть клиента» → переключатель режима терминологии |
+| `modules/system-settings/registry.ts:103` | сохранить `patient_label`, добавить `support_group_label`; общий mode остаётся для остальных терминов после MWT-04 |
+| `modules/system-settings/patientTerms.ts` | заменить общим typed resolver без параллельного page-level пути |
+| `app/api/admin/settings/route.ts:194,678` | whitelist и нормализация обоих явных choices |
+| `app/app/settings/SettingsForm.tsx:62,129-153` | сохранить «Клиент / Пациент», добавить «Избранные / На сопровождении» |
 | `app/app/settings/page.tsx:203` | чтение режима |
 | `app/app/doctor/layout.tsx:32,36` + `loadDoctorWorkspaceShell.ts:170` | режим в shell + монтирование провайдера |
 | `app/app/patient/PatientClientLayout.tsx:34` | монтирование провайдера (сегодня пациент режим не видит вообще) |
@@ -713,8 +716,8 @@ classification-`CASE WHEN` на строке ~141) чтение вернёт `NU
 | 19 | Права и поведение | роли, RLS, видимость, доступ | без изменений | без изменений |
 | 20 | Фискальный чек | предмет расчёта | «Оплата медицинской услуги» | **не переключается автоматически** — по Q7 |
 | 21 | Legal | `/legal/privacy`, `/legal/terms` | без изменений (включая §2.5-D — «Медицинские решения…», «очную консультацию») | без изменений |
-| 22 | Совместимость | клиника с `patient_label='клиент'` и без `clinic_terminology_mode` | — | видит `wellness` без ручного действия |
-| 23 | Совместимость | клиника без обеих настроек | видит `medical` | — |
+| 22 | Совместимость | организация с `patient_label='клиент'` | — | во всех поверхностях видит «Клиент», независимо от общего mode |
+| 23 | Совместимость | организация без явных label settings | видит «Пациент» и «На сопровождении» | — |
 | 24 | Изоляция арендатора | две клиники с разными режимами в одной сессии браузера | каждая видит свой | каждая видит свой |
 | 25 | Уведомления, изоляция арендатора | две клиники с разными режимами, оба получают событие `created` одновременно | текст своей клиники | текст своей клиники, а не глобальный (доказывает, что exact-org капабилити реально используется, не fallback на глобальную строку) |
 
