@@ -517,3 +517,58 @@ BASE=http://127.0.0.1:5210 CHROME=/home/dev/.cache/ms-playwright/chromium-1223/c
 curl -sS --max-time 20 -b /tmp/bcb-patient-ui-audit.cookies -o /tmp/bcb-patient-messages.json -w 'HTTP %{http_code} total=%{time_total}s\n' http://127.0.0.1:5210/api/patient/messages
 node -e 'const fs=require("fs");const j=JSON.parse(fs.readFileSync("/tmp/bcb-patient-messages.json","utf8"));console.log({ok:j.ok,messageCount:Array.isArray(j.messages)?j.messages.length:null})'
 ```
+
+## Дополнение 2026-09-08: точная карта одинаковых элементов и хардкодов
+
+Это не второй audit-pass и не новый visual target. Раздел делает прежние S1–S6 пригодными для
+последующей миграции: перечисляет только повторяющиеся элементы одного назначения и палитры,
+которые обязаны меняться из одного patient token. Уникальные clinical шкалы, графики, media
+preview и home-only geometry намеренно не включены.
+
+### Повторяющиеся элементы одного назначения
+
+| Семейство | Где повторено | Общая точка вместо локальных реализаций |
+| --- | --- | --- |
+| 40px field chrome: `h-10`, `rounded-xl`, border/background, focus ring | `diary/lfk/LfkSessionForm.tsx:116,185,218,244`; `diary/QuickAddPopup.tsx:131,193`; `diary/lfk/journal/LfkJournalClient.tsx:93`; `diary/symptoms/journal/SymptomsJournalClient.tsx:93` | Patient `Input`/`Textarea`/`SelectTrigger` должны получить один variant `control` (40px, radius, surface, focus). Это не card token и не page-local class. |
+| Form label | 32 production-места с `text-xs font-(normal|medium) uppercase tracking-wide`, в том числе `LfkSessionForm.tsx:105,139,157,235,249`, оба journal client, profile, support, auth, booking | Нужен presentation primitive `PatientFieldLabel` или `PatientField`; он владеет label, gap, help/error slots и связью `htmlFor`/`aria-describedby`, но не form state. |
+| Две journal-формы | `diary/lfk/journal/LfkJournalClient.tsx:73-305`; `diary/symptoms/journal/SymptomsJournalClient.tsx:73-…` | Общий journal presentation scaffold: back action, selector, month toolbar, row, edit modal/footer. Модель и save/delete callback остаются доменными. |
+| Submit формы | 36px default `<Button>`: `LfkSessionForm.tsx:296`, `QuickAddPopup.tsx:157,206`, journal submit, `SymptomTrackingRow.tsx:103`; 44px patient CTA: `booking/confirm/ConfirmStepClient.tsx:374,542` | Один patient Button primary/touch variant. `patientButtonPrimaryClass` оставить class API для Link/нестандартного DOM, не собирать submit повторно. |
+| Warning CTA | `patientVisual.ts:295-300`; `home/PatientHomeNextReminderCard.tsx:21-33`; `booking/BookingUpcomingSection.tsx:29-34`; `treatment/program-detail/PatientPlanTodayRemindersCard.tsx:42-46` | Один warning-action base с size/width variants. Различия ширины/высоты не оправдывают отдельные палитры. |
+| Segmented navigation / pager | `diary/PatientDiaryWeekNavStrip.tsx:9-65`; `content/[slug]/PatientDailyWarmupPager.tsx:6-37`; `treatment/program-detail/PatientPlanTabStrip.tsx:21-128`; `PatientProgramStageItemPageClient.tsx:707-820` | Для tab behavior — patient `Tabs`; поверх него общий `PatientSegmentedStrip`/pager presentation. Он владеет cell geometry, focus и active/disabled tones. |
+| Card chrome | `cabinet/CabinetInfoLinksCard.tsx:9`; `CabinetBookingEntry.tsx:10`; `CabinetActiveBookings.tsx:109,121`; `CabinetPastBookings.tsx:48`; `diary/lfk/LfkComplexCard.tsx:49`; `reminders/ReminderRulesClient.tsx:101,195` | Patient `Card` с variants `default`, `compact`, `list`, `flush`; не сочетать global Card chrome с `patientCardClass` и override-ами. |
+| List rows в organization UI | `shared/ui/patient/organization/PatientOrganizationContext.tsx:161,204,258`; `PatientOrganizationRelationships.tsx:52,66,96` | `patientListItemClass`, `patientSurfaceInfoClass`, `patientSurfaceWarningClass` уже выражают эти роли. |
+| Form surface ошибочно надето на поле | `treatment/PatientTestSetProgressForm.tsx:632,675`; definition `patientVisual.ts:172` | `patientFormSurfaceClass` остаётся контейнером; textarea должен получить field primitive. |
+| Empty state | definition `patientVisual.ts:202-204`; фактический render `profile/PatientBookingHistorySection.tsx:105`, тогда как другие страницы собирают локальные muted paragraphs | `PatientEmptyState`/`patientEmptyStateClass` с variants `inline`/`section` и optional action. |
+
+### Токены, которые сейчас не меняют все одинаковые элементы
+
+| Семейство значения | Повторения / обходы | Нужное исправление в patient theme |
+| --- | --- | --- |
+| Scope палитры для portal | В `patient.css:9-31` на `:root` только часть значений; рабочие primary/success/warning/danger и surfaces находятся в `#app-shell-patient:99-151`. `PatientModal` рендерится вне shell. Fallback primary остаётся в `patientVisual.ts:251-252,338-339,481-483`, pager/tab, auth и booking. | Канонические semantic tokens должны существовать в scope portal; shell переопределяет только clinic brand. После этого убрать literal fallback `#284da0`. |
+| Primary CTA | `PwaInstallSection.tsx:90,119`; `PatientWebPushOnboardingCard.tsx:47`; `patientVisual.ts:481-483`. Shadow повторён в `PatientHomeDailyWarmupCard.tsx:138`, `PatientPlanHero.tsx:127`, `patientVisual.ts:482`. | `--patient-color-primary`, `--patient-color-primary-soft`, один `--patient-color-primary-hover` и `--patient-shadow-primary-cta`. Сейчас PWA `#1f3d85` и shared `#1f3d82` расходятся. |
+| Secondary web-push action | `PatientWebPushOnboardingCard.tsx:78`; `PatientWebPushFreshLoginDeniedDialog.tsx:47` используют `#e5e7eb/#ffffff/#e8eefb`. | Уже есть `--patient-border`, `--patient-card-bg`, `--patient-color-primary-soft`; использовать shared secondary action state. |
+| Warning action | `patientVisual.ts:296-299`; `BookingUpcomingSection.tsx:31-34`; `PatientHomeNextReminderCard.tsx:22-25`; `PatientPlanTodayRemindersCard.tsx:44-47` повторяют `#fde68a/#fffbeb/#d97706/#fef3c7/#f59e0b`. | Полный warning-action token family: bg, border, text, hover, active, focus. Текущие warning surface tokens покрывают не все эти роли. |
+| Success surface/action | `patientVisual.ts:308-312`; `home/patientHomeCardStyles.ts:69`; `PatientHomeBookingCard.tsx:68`; `PatientStageCompositionList.tsx:194` повторяют `#dcfce7/#16a34a/#166534/#bbf7d0`. | Полный semantic success token family; как минимум заменить `patientHomeCardStyles.ts:69` на существующий `--patient-surface-success-border`. |
+| Lavender segmented chrome | `PatientDiaryWeekNavStrip.tsx:9-23,35,52`; `PatientDailyWarmupPager.tsx:6-11,22,29`; `PatientProgramStageItemPageClient.tsx:704-712,804,820`; `PatientPlanTabStrip.tsx:31-35,43-55,65-69,77-89,99-103,111-123`. | `--patient-segmented-{bg,hover,active,border,text,muted,disabled-*}` плюс общий presentation component. |
+| Material rating | CSS `patient.css:276-280`; library props `MaterialRatingBlock.tsx:64-72`; summary stars `MaterialRatingBlock.tsx:302-303`; native stars `MaterialRatingNativeStars.tsx:62-63`. | `--patient-rating-{fill-on,fill-off,stroke-on,stroke-off}` в portal-safe scope; SVG/library получают CSS vars, не очередную копию hex. |
+| Shell translucency | `PatientTopNav.tsx:217,275,292`; `PatientBottomNav.tsx:34` повторяют `rgba(255,255,255,.96)`, одновременно `patient.css:51` хранит `--patient-header-chrome-opacity:82%`. | Один chrome-surface token, основанный на `--patient-page-bg`; убрать две разные opacity systems. |
+| Modal footer surface | `PatientModal.tsx:37`; `patient/primitives/dialog.tsx:190` повторяют `rgba(248,250,252,.9)`. | `--patient-modal-footer-bg` в portal-safe scope. |
+| Control radius | Form controls используют `rounded-xl`, cards — 6/8px tokens, actions — `rounded-md`/`rounded-sm`. | `--patient-control-radius`; control primitive задаёт его один раз. Не применять card radius к field по умолчанию. |
+
+### Локальные shared-слои, которые сами обходят theme
+
+`patientVisual.ts` ещё содержит palette literals для danger (`:277`), skip (`:287-290`), warning action
+(`:296-299`), badges (`:305,311,317,323,328`), success done CTA (`:366-367`) и program text
+(`:430,435,440`). Пока эти значения не вынесены в tokens, изменение одной patient variable не сможет
+поменять все элементы одного значения даже при миграции feature-кода.
+
+### Сознательно исключено из унификации
+
+- clinical severity slider и wellbeing/map/chart markers;
+- media-specific placeholder и fullscreen geometry;
+- fixed home grid/hero geometry, которую style guide объявляет home-specific;
+- мелкая typography 10–11px: в текущем коде она смешивает nav labels, metadata и axis-like status. Для неё
+  нельзя выбирать один token без отдельного visual decision.
+
+Эта карта — инвентарь и порядок миграции, не source-based test/gate. Проверять будущие изменения нужно
+наблюдаемым поведением control/modal/tab, а не числом классов, hex или строк исходника.
