@@ -633,11 +633,19 @@ Checkbox закрывается только доказательством, у�
   удалены из общей системы. Staff credentials на admin/patient Host и platform-admin credentials на staff Host
   не создают сессию. Доказательство: живой проход регистрации и входа на staff Host плюс route-проверки
   выключенных методов и cross-surface role denial.
-- [ ] `TPB-21` Обычный staff-вход не требует кода из письма после верного пароля. Если пользователь сам подключил
+  **Кандидат 07.09.2026:** экран регистрации и отдельные wide/narrow staff views проверены на изолированном
+  candidate-порту; session-mint matrix запрещает staff/admin/patient credentials на чужой поверхности. Галочка
+  остаётся открытой до применения pending migration, которая выключает старые persisted email/phone/messenger
+  значения, и повторного живого входа уже на итоговом runtime.
+- [x] `TPB-21` Обычный staff-вход не требует кода из письма после верного пароля. Если пользователь сам подключил
   TOTP, существующий factor-step обязателен. Служебная email-доставка подтверждения регистрации и восстановления
   доступа работает независимо от выключенного passwordless email-code login. Доказательство: behavior-тесты трёх
   путей — password-only без TOTP, password→TOTP при подключённом факторе, signup/recovery email при выключенном
   email-code login.
+  **Закрыт 07.09.2026:** `passwordAuth.route.test.ts` проходит password-only и personal-TOTP ветки;
+  `specialist-signup/start/route.route.test.ts` доказывает служебную отправку при выключенном passwordless
+  email-code; migration `20260907T214444_disable_staff_passwordless_channel_defaults.sql` прошла owner-aware
+  rollback-preflight на именованной DEV.
 - [ ] `TPB-22` Patient login на `therapygo.ru`, `<slug>.therapygo.ru` и собственном домене клиники называется
   «Войти в личный кабинет» и не предлагает выбрать роль или называет человека пациентом/клиентом. На первом
   запуске доступны passwordless-код на email и подтверждение телефона через TherapyGo-бота; OAuth/passkey и
@@ -645,11 +653,17 @@ Checkbox закрывается только доказательством, у�
   значения этих переключателей. Patient credentials/contact proof на staff/admin Host не создают сессию.
   Доказательство: живой просмотр standard/branded экранов и behavior-тест доступности методов по policy и
   cross-surface role denial.
-- [ ] `TPB-23` Владелец клиники может включить для всего персонала обязательный второй фактор после email + пароль.
+  **Кандидат 07.09.2026:** standard patient view проверен wide/narrow; policy-toggle и cross-surface session denial
+  зелёные. Галочка остаётся открытой: текущая DEV не имеет активной публичной brand projection для `berson`, поэтому
+  production Host seam честно вернул 404 и branded live view нельзя засчитать до runtime-активации клиники.
+- [x] `TPB-23` Владелец клиники может включить для всего персонала обязательный второй фактор после email + пароль.
   Сотрудник с подключённым TOTP проходит существующий TOTP factor-step; сотруднику без TOTP отправляется код на
   подтверждённый email. Политика org-scoped, по умолчанию выключена, не управляется пациентской auth-матрицей и не
   ослабляет личный TOTP. Доказательство: owner-only настройка и behavior-тесты четырёх путей — policy off без TOTP,
   личный TOTP, policy on с TOTP, policy on без TOTP → email-code factor.
+  **Закрыт 07.09.2026:** `passwordAuth.route.test.ts` проходит все четыре factor paths;
+  `doctor/settings/route.route.test.ts` доказывает owner-only org setting и запрет non-owner; настройка использует
+  существующий password/factor flow без второго auth-движка.
 
   **`OG-5` ЗАКРЫТ владельцем 22.08.2026: вариант (б).** OAuth присутствует в списке механик и выключен по
   умолчанию у докторов — так же, как passkey. Ничего не удаляется и не блокируется архитектурно. Прежняя
@@ -996,12 +1010,17 @@ tests; проверка, что секреты не попадают в public r
   выключенную у докторов. Код и маршруты сохраняются; выключённая механика недоступна на входе, но включается
   настройкой без правки кода. PIN заново не вводить (вырезан 04.08.2026).
   **Доказательство 24.08.2026:** `auth_surface_staff_passkey_enabled=false`; `independentAuthMethodToggle.route.test.ts` and `passkey/login/verify/route.test.ts` → PASS.
-- [ ] `F2c` Реализовать обновлённое решение `TPB-21`: обычный staff-вход — email + пароль без обязательного
+- [x] `F2c` Реализовать обновлённое решение `TPB-21`: обычный staff-вход — email + пароль без обязательного
   email-кода; подключённый пользователем TOTP сохраняет обязательный factor-step. Развязать служебные письма
   регистрации/восстановления и переключатель passwordless email-code login.
-- [ ] `F2d` Реализовать `TPB-23` через существующий password-login/factor flow и org-scoped settings seam: один
+  **Закрыт 07.09.2026:** targeted password/signup behavior tests PASS; compiled staff policy оставляет
+  `password`/`totp`, а owner-aware migration preflight проверил выключение старых persisted passwordless/phone
+  значений без затрагивания служебной email-доставки.
+- [x] `F2d` Реализовать `TPB-23` через существующий password-login/factor flow и org-scoped settings seam: один
   owner-only переключатель «обязательный второй фактор для персонала», TOTP для уже подключивших его и email-code
   factor для остальных. Отдельный auth-движок или второй staff-login не создавать.
+  **Закрыт 07.09.2026:** `passwordAuth.route.test.ts` и `doctor/settings/route.route.test.ts` → PASS для
+  default-off, personal TOTP, org-required TOTP/email-factor и owner-only mutation.
 - [x] `F3` Свести patient-вход к email и телефону с подтверждением через бота на обеих patient-поверхностях,
   переиспользуя существующие pre-session seams канонических контактов; второго пути входа не создавать.
   **Доказательство 24.08.2026:** migration enables patient email + Telegram proof and disables patient passkey;
@@ -1019,11 +1038,14 @@ tests; проверка, что секреты не попадают в public r
   поверхности: `email`, `passkey`. Исторический конфликт pre-session gate
   `app.email_auth_find_email_challenge_for_confirm` устранён последующими forward-правками; разбор причины сохранён
   в `docs/_TODO/runs/PRE_SESSION_GATE_CONFLICT_2026-08-23.md`.
-- [ ] `F5` Проверить обновлённое решение `TPB-22`: patient OAuth/passkey полностью следуют значениям политики,
+- [x] `F5` Проверить обновлённое решение `TPB-22`: patient OAuth/passkey полностью следуют значениям политики,
   которые выставляет владелец в админке; этот этап не перезаписывает их миграцией или compiled-default. Код и
   настройки Яндекс/Google/VK/Apple не удаляются. Отдельных OAuth-регистраций на клинику не заводить (`W4`):
   включение provider показывает его на patient login и открывает route, выключение скрывает кнопку и закрывает
   прямой route-вызов.
+  **Закрыт 07.09.2026:** `independentAuthMethodToggle.route.test.ts` и `publicAuthPolicy.unit.test.ts` проверяют
+  управление существующими patient cells; новая migration меняет только staff email/SMS/Telegram/MAX и не
+  переписывает ни один patient OAuth/passkey setting.
 
 **Gate F:** targeted auth/settings tests, fault injection «staff + OAuth» отвечает отказом, lint+typecheck.
 

@@ -35,18 +35,15 @@ afterEach(() => {
 
 describe('AuthFlowV2 — OAuth provider registry (VK visibility)', () => {
   it('shows no OAuth block when every provider is disabled/unconfigured', async () => {
-    const { container } = render(
+    render(
       <AuthFlowV2
         nextParam={null}
         prefetchedAuthConfig={baseConfig({ yandex: false, google: false, vk: false, apple: false })}
       />,
     );
 
-    // With no OAuth alternatives the flow lands directly on the email step, skipping oauth_first.
-    await waitFor(() =>
-      expect(container.querySelector('#auth-flow-v2-email-password')).toBeInTheDocument(),
-    );
-    expect(container.querySelector('#auth-flow-v2-oauth-first')).not.toBeInTheDocument();
+    // With no OAuth alternatives the user receives the password flow, not an OAuth-first screen.
+    await screen.findByLabelText('Пароль');
     expect(screen.queryByRole('button', { name: /Войти через/ })).not.toBeInTheDocument();
   });
 

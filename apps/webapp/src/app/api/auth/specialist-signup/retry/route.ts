@@ -10,7 +10,7 @@ import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecu
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/specialist-signup/retry:POST', request);
-  if (!(await isAuthChannelEnabled('email'))) {
+  if (!(await isAuthChannelEnabled('email', undefined, 'transactional'))) {
     return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
   const session = await getCurrentSession();
