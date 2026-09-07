@@ -13,6 +13,7 @@ import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { doctorInlineMetricValueClass } from '@/shared/ui/doctor/doctorVisual';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import {
   APPOINTMENT_CANCEL_CHARGE_OPTIONS,
   APPOINTMENT_CANCEL_REASONS,
@@ -55,6 +56,7 @@ export function DoctorAppointmentCancelModal({
   pending,
   onConfirm,
 }: Props) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   return (
     <DoctorModal
       open={open}
@@ -149,7 +151,7 @@ export function DoctorAppointmentCancelModal({
         </div>
 
         <label className="flex items-center justify-between gap-2">
-          <span className="text-sm">Уведомлять пациента</span>
+          <span className="text-sm">Уведомлять {patientSingularLabel.toLowerCase()}</span>
           <Switch
             checked={draft.notify}
             disabled={pending}
