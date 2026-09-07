@@ -2,19 +2,13 @@
 
 import { useState } from 'react';
 import { Button } from '@/shared/ui/patient/primitives/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/ui/patient/primitives/dialog';
+import { PatientModal, PatientModalFooter } from '@/shared/ui/patient/PatientModal';
 import { Input } from '@/shared/ui/patient/primitives/input';
 import { Label } from '@/shared/ui/patient/primitives/label';
 import { RadioGroup, RadioGroupItem } from '@/shared/ui/patient/primitives/radio-group';
 import { cn } from '@/lib/utils';
 import {
   patientButtonPrimaryClass,
-  patientFormSurfaceClass,
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
 
@@ -55,113 +49,123 @@ export function ProgramItemCompleteDialog(props: {
   const [repsRaw, setRepsRaw] = useState('');
   const [setsRaw, setSetsRaw] = useState('');
   const [weightRaw, setWeightRaw] = useState('');
+  const formId = 'patient-program-item-complete-form';
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-lg border border-[var(--patient-border)] shadow-md sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Отметить выполнение</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-2">
-            <Label className={cn(patientMutedTextClass, 'text-xs')}>Сложность</Label>
-            <RadioGroup
-              value={difficulty ?? ''}
-              onValueChange={(next) =>
-                setDifficulty(next as ProgramItemCompleteDialogPayload['perceivedDifficulty'])
-              }
-              className="grid grid-cols-1 gap-2"
-              aria-label="Оценка сложности"
-            >
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--patient-border)] px-2.5 py-2">
-                <RadioGroupItem value="easy" />
-                <span className="text-sm">Легко</span>
-              </label>
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--patient-border)] px-2.5 py-2">
-                <RadioGroupItem value="medium" />
-                <span className="text-sm">Нормально</span>
-              </label>
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--patient-border)] px-2.5 py-2">
-                <RadioGroupItem value="hard" />
-                <span className="text-sm">Тяжело</span>
-              </label>
-            </RadioGroup>
-          </div>
-
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <div className="flex flex-col gap-1.5">
-              <Label
-                htmlFor="patient-item-complete-reps"
-                className={cn(patientMutedTextClass, 'text-xs')}
-              >
-                Повторения
-              </Label>
-              <Input
-                id="patient-item-complete-reps"
-                inputMode="numeric"
-                autoComplete="off"
-                value={repsRaw}
-                onChange={(e) => setRepsRaw(e.target.value)}
-                className={cn(patientFormSurfaceClass, 'h-9 text-sm')}
-                placeholder="Например, 12"
-                disabled={submitting}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label
-                htmlFor="patient-item-complete-sets"
-                className={cn(patientMutedTextClass, 'text-xs')}
-              >
-                Подходы
-              </Label>
-              <Input
-                id="patient-item-complete-sets"
-                inputMode="numeric"
-                autoComplete="off"
-                value={setsRaw}
-                onChange={(e) => setSetsRaw(e.target.value)}
-                className={cn(patientFormSurfaceClass, 'h-9 text-sm')}
-                placeholder="Например, 3"
-                disabled={submitting}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label
-                htmlFor="patient-item-complete-weight"
-                className={cn(patientMutedTextClass, 'text-xs')}
-              >
-                Вес, кг
-              </Label>
-              <Input
-                id="patient-item-complete-weight"
-                inputMode="decimal"
-                autoComplete="off"
-                value={weightRaw}
-                onChange={(e) => setWeightRaw(e.target.value)}
-                className={cn(patientFormSurfaceClass, 'h-9 text-sm')}
-                placeholder="Например, 5"
-                disabled={submitting}
-              />
-            </div>
-          </div>
-
-          <Button
-            type="button"
-            className={cn(patientButtonPrimaryClass, 'w-full sm:w-auto')}
-            disabled={submitting}
-            onClick={() =>
-              void onSubmit({
-                ...(difficulty ? { perceivedDifficulty: difficulty } : {}),
-                reps: parseOptionalPositiveInt(repsRaw),
-                sets: parseOptionalPositiveInt(setsRaw),
-                weightKg: parseOptionalNonNegativeNumber(weightRaw),
-              })
+    <PatientModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Отметить выполнение"
+      size="md"
+    >
+      <form
+        id={formId}
+        className="flex flex-col gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void onSubmit({
+            ...(difficulty ? { perceivedDifficulty: difficulty } : {}),
+            reps: parseOptionalPositiveInt(repsRaw),
+            sets: parseOptionalPositiveInt(setsRaw),
+            weightKg: parseOptionalNonNegativeNumber(weightRaw),
+          });
+        }}
+      >
+        <div className="flex flex-col gap-2">
+          <Label className={cn(patientMutedTextClass, 'text-xs')}>Сложность</Label>
+          <RadioGroup
+            value={difficulty ?? ''}
+            onValueChange={(next) =>
+              setDifficulty(next as ProgramItemCompleteDialogPayload['perceivedDifficulty'])
             }
+            className="grid grid-cols-1 gap-2"
+            aria-label="Оценка сложности"
           >
-            {submitting ? 'Сохраняю...' : 'Записать'}
-          </Button>
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--patient-border)] px-2.5 py-2">
+              <RadioGroupItem value="easy" />
+              <span className="text-sm">Легко</span>
+            </label>
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--patient-border)] px-2.5 py-2">
+              <RadioGroupItem value="medium" />
+              <span className="text-sm">Нормально</span>
+            </label>
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--patient-border)] px-2.5 py-2">
+              <RadioGroupItem value="hard" />
+              <span className="text-sm">Тяжело</span>
+            </label>
+          </RadioGroup>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="flex flex-col gap-1.5">
+            <Label
+              htmlFor="patient-item-complete-reps"
+              className={cn(patientMutedTextClass, 'text-xs')}
+            >
+              Повторения
+            </Label>
+            <Input
+              id="patient-item-complete-reps"
+              inputMode="numeric"
+              autoComplete="off"
+              value={repsRaw}
+              onChange={(e) => setRepsRaw(e.target.value)}
+              className="h-11 text-base sm:h-9 sm:text-sm"
+              placeholder="Например, 12"
+              disabled={submitting}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label
+              htmlFor="patient-item-complete-sets"
+              className={cn(patientMutedTextClass, 'text-xs')}
+            >
+              Подходы
+            </Label>
+            <Input
+              id="patient-item-complete-sets"
+              inputMode="numeric"
+              autoComplete="off"
+              value={setsRaw}
+              onChange={(e) => setSetsRaw(e.target.value)}
+              className="h-11 text-base sm:h-9 sm:text-sm"
+              placeholder="Например, 3"
+              disabled={submitting}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label
+              htmlFor="patient-item-complete-weight"
+              className={cn(patientMutedTextClass, 'text-xs')}
+            >
+              Вес, кг
+            </Label>
+            <Input
+              id="patient-item-complete-weight"
+              inputMode="decimal"
+              autoComplete="off"
+              value={weightRaw}
+              onChange={(e) => setWeightRaw(e.target.value)}
+              className="h-11 text-base sm:h-9 sm:text-sm"
+              placeholder="Например, 5"
+              disabled={submitting}
+            />
+          </div>
+        </div>
+      </form>
+      <PatientModalFooter>
+        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          Отмена
+        </Button>
+        <Button
+          type="submit"
+          form={formId}
+          className={patientButtonPrimaryClass}
+          disabled={submitting}
+        >
+          {submitting ? 'Сохраняю...' : 'Записать'}
+        </Button>
+      </PatientModalFooter>
+    </PatientModal>
   );
 }
