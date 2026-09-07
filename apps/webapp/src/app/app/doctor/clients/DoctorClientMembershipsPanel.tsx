@@ -209,7 +209,7 @@ export function DoctorClientMembershipsPanel({
   const catalogApi = '/api/doctor/booking-engine/packages';
   const today = DateTime.now().toFormat('yyyy-MM-dd');
 
-  function showError(code: string | null) {
+  const showError = useCallback((code: string | null) => {
     if (!code) {
       setError(null);
       return;
@@ -219,7 +219,7 @@ export function DoctorClientMembershipsPanel({
         ? `Не удалось отправить ссылку в чат ${patientGenitive}.`
         : (ERROR_LABELS[code] ?? code),
     );
-  }
+  }, [patientGenitive]);
 
   const loadPackages = useCallback(async () => {
     try {
@@ -242,7 +242,7 @@ export function DoctorClientMembershipsPanel({
     } catch {
       showError('load_failed');
     }
-  }, [patientGenitive, platformUserId]);
+  }, [platformUserId, showError]);
 
   useEffect(() => {
     queueMicrotask(() => {

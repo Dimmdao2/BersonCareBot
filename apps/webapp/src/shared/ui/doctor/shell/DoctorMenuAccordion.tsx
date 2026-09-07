@@ -482,7 +482,7 @@ export function DoctorMenuAccordion({
     if (variant === 'sidebar') return menuItems.filter((item) => item.id !== 'account');
     if (menuKind !== 'doctor') return menuItems;
     return menuItems.filter((item) => !MOBILE_SHELL_NAV_IDS.has(item.id));
-  }, [menuKind, menuAccess, patientLabel, variant]);
+  }, [menuKind, menuAccess, terms, variant]);
 
   const {
     messagesUnread,

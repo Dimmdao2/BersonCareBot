@@ -1,7 +1,5 @@
 'use client';
 
-import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
-
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
@@ -98,7 +96,8 @@ export function DoctorCourseEditForm({
   introPageOptions,
   externalUsageSnapshot,
 }: Props) {
-  const { patientGenPlural } = useDoctorPatientTerms();
+  const terms = useDoctorPatientTerms();
+  const { patientGenPlural } = terms;
   const router = useRouter();
   const [title, setTitle] = useState(initial.title);
   const [description, setDescription] = useState(initial.description ?? '');

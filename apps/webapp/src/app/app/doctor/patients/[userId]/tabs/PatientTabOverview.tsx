@@ -76,7 +76,6 @@ import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { formatDoctorFioShort } from '@/shared/lib/fio';
 import { SpecialistTaskFormDialog } from '@/app/app/doctor/clients/SpecialistTaskFormDialog';
 import { SpecialistTaskRow as TaskRow } from '@/app/app/doctor/clients/SpecialistTaskRow';
-import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import {
   isSpecialistTaskDueOnDate,
   isSpecialistTaskOverdue,

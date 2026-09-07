@@ -110,7 +110,6 @@ function SectionCard({
   children: React.ReactNode;
   className?: string;
 }) {
-  const { patientInstrumental } = useDoctorPatientTerms();
   return (
     <div className={cn(doctorSectionCardClass, className)}>
       {title || titleRight ? (
@@ -162,6 +161,7 @@ function ChannelRow({
   actionLabel?: string;
   onAction?: () => void;
 }) {
+  const { patientInstrumental } = useDoctorPatientTerms();
   return (
     <div className="flex items-center gap-2.5 rounded-lg border border-border bg-background px-2.5 py-2">
       <span className="w-5 flex-none flex items-center justify-center text-muted-foreground">

@@ -71,7 +71,6 @@ function SortableItemRow({
   onBadgeChange(itemId: string, badgeLabel: string | null): void;
   onShowTitleChange(itemId: string, showTitle: boolean): void;
 }) {
-  const { patientDativePlural } = useDoctorPatientTerms();
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id });
   const usefulPost = blockCode === 'useful_post';
   const badgeOn = normalizeUsefulPostBadge(item.badgeLabel) !== null;
@@ -173,6 +172,7 @@ export function PatientHomeBlockItemsDialog({
   refDisplayTitles: PatientHomeRefDisplayTitles;
   onSaved(): void;
 }) {
+  const { patientDativePlural } = useDoctorPatientTerms();
   const sortItems = (rows: PatientHomeBlockItem[]) =>
     [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 
