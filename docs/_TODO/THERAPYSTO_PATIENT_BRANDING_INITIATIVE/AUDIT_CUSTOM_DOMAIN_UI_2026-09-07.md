@@ -71,3 +71,20 @@ No secret was read or copied from another worktree, and no TEST/PROD/DNS/TLS sys
 ## Verdict and queue
 
 **FAIL — HOLD, NOT FOR LAND.** There is no concrete reachable product-code finding in this UI pass: the strengthened HTTP acceptance is green after reversion and the accepted core audit supplies the lifecycle/security evidence. The required desktop/mobile candidate live gate was not executable with the candidate worktree's missing DEV runtime environment, so a binary PASS would be false. Queue verdict: run one isolated candidate desktop/mobile inspection with sanctioned non-secret DEV env, then record actual viewport facts; do not recreate `OrgCustomDomainSection.ui.test.tsx`.
+
+## Live viewport continuation — 2026-09-07
+
+- Candidate: `58cdd83c1ad5ab1b50325f0a1c63398ea92092c5` (`git rev-parse HEAD` before the audit-record change); it includes the audited UI/test commit `b48ae835a7ceb70c4584945b881bdfb254012ed1` and current integration head.
+- Launch: sourced the sanctioned named DEV env from `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` into the candidate process without printing or copying values, then set only `NODE_ENV=development`, `HOST=127.0.0.1`, `PORT=5210`, and `APP_BASE_URL=http://127.0.0.1:5210`. Started Next directly with `pnpm exec next dev -H 127.0.0.1 -p 5210`. Readiness: `GET http://127.0.0.1:5210/api/me` returned `401`, the expected unauthenticated response; shared `:5200` was untouched.
+- Existing registered clinic-owner flow: ordinary email/password login opened `/app/settings` for the clinic `Точка Здоровья`; no fixture, slug, custom-domain intent, save, recheck, DNS, TLS, TEST, or PROD action was performed.
+
+| Viewport | Live observation |
+| --- | --- |
+| Desktop `1440×1100` | `/app/settings` rendered the `Собственный домен` card between clinic branding and public booking without horizontal overflow (`scrollWidth/clientWidth = 1440/1440`). The base-domain input was empty with readable `clinic.ru` placeholder. Both human placement choices were visible; `Домен целиком под приложение` was selected and `На домене уже есть сайт` was reachable. The disabled `Подключить домен` control was wholly visible. |
+| Mobile `390×844` | The same card fit the single-column settings flow above the bottom navigation without clipping or horizontal overflow (`390/390`). Its base-domain field, both radio choices, and disabled `Подключить домен` control remained reachable and readable. Neighbouring branding, slug/public-booking, workspace and settings controls remained usable in the same scroll owner. |
+
+Current-data limitation: this clinic has no persisted base-domain/binding and no persisted slug (both are empty inputs with `clinic.ru` and `tochka-zdorovya` placeholders). Consequently there is honestly no current hostname, DNS instruction, lifecycle status, recheck control, technical `<slug>.therapygo.ru` address, or booking-link destination to display. This is not a reachable owner-requirement failure: the owner-facing form exposes the required base-domain and placement inputs, while returned binding-dependent values cannot exist until a domain is configured. No mutation was used to manufacture that state.
+
+Cleanup proof: stopped only the candidate process group (`kill -- -3495206`); process and `127.0.0.1:5210` listener were both absent on the second check.
+
+**PASS — live continuation complete.** No reachable owner-requirement failure was found. The earlier environment-only hold is superseded for this candidate; retain the existing core/edge owner-authorized DNS, TLS, issuance, renewal, and cutover gates.
