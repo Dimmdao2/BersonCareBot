@@ -86,6 +86,15 @@ colour_api_port()    { case "$1" in blue) echo $BCB_BLUE_API_PORT;;    green) ec
 colour_subnet()      { case "$1" in blue) echo $BCB_BLUE_SUBNET;;     green) echo $BCB_GREEN_SUBNET;;     *) return 1;; esac; }
 colour_gateway()     { case "$1" in blue) echo $BCB_BLUE_GATEWAY;;    green) echo $BCB_GREEN_GATEWAY;;    *) return 1;; esac; }
 
+# Имя, под которым вебапп отвечает СЕБЕ и своим фоновым процессам. Берётся не из головы и не копией
+# строки в конфиг: маршрутизация поверхностей отказывает закрыто на незнакомом `Host`, поэтому имя
+# выводится из APP_BASE_URL тем же единственным seam'ом, что и health-проверка деплоя.
+surface_host() {
+  ( set -a; . "$BCB_ENV_DIR/webapp.prod"; set +a
+    node "$BCB_SRC/deploy/host/webapp-health-host.mjs" ) ||
+    die "cannot derive the surface host from APP_BASE_URL in webapp.prod"
+}
+
 # Every compose invocation goes through here so the project name, file and variables can never drift
 # between the deploy path and the rollback path.
 compose() {
@@ -97,6 +106,7 @@ compose() {
   BCB_API_PORT="$(colour_api_port "$colour")" \
   BCB_NETWORK_SUBNET="$(colour_subnet "$colour")" \
   BCB_NETWORK_GATEWAY="$(colour_gateway "$colour")" \
+  BCB_SURFACE_HOST="$(surface_host)" \
   docker compose -p "bcb-$colour" -f "$BCB_PIPELINE/docker-compose.yml" "$@"
 }
 

@@ -55,6 +55,13 @@ x-app: &app
 services:
   webapp:
     <<: *app
+    networks:
+      default:
+        # Свои же фоновые процессы обращаются к вебаппу по ЕГО публичному имени, а не по имени
+        # docker-сервиса: маршрутизация поверхностей отвечает 404 на незнакомый `Host`, и `webapp:6200`
+        # для неё — незнакомый хост.
+        aliases:
+          - ${BCB_SURFACE_HOST:?BCB_SURFACE_HOST is required}
     working_dir: /app/apps/webapp/.next/standalone/apps/webapp
     command: ["node", "server.js"]
     env_file:
@@ -116,7 +123,7 @@ services:
       # Pinned to this project's own webapp, overriding whatever the env file says. The control route
       # is how the media worker reaches the database at all, and a worker talking to the other colour's
       # webapp would be running new code against the old release's control seam.
-      MEDIA_WORKER_CONTROL_URL: "http://webapp:6200"
+      MEDIA_WORKER_CONTROL_URL: "http://${BCB_SURFACE_HOST}:6200"
     depends_on:
       webapp:
         condition: service_healthy
