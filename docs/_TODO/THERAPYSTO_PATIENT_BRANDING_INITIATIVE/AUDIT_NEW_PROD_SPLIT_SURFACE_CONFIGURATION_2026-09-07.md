@@ -51,3 +51,16 @@ The existing fallback behaviour must remain unchanged when those values are abse
 
 No full CI is warranted: this audit artifact changes neither product code nor the build/test graph, and its
 configuration evidence is covered by the targeted parser/syntax checks above.
+
+## Lead disposition after core integration
+
+The finding was a dependency-order failure, not a need for a second env implementation. After merging the
+accepted domain core (`dc23b5ff5`), the existing `parseWebappEnv` schema and process-env projection preserve
+both `CUSTOM_DOMAIN_EDGE_IP` and `CUSTOM_DOMAIN_CNAME_TARGET`; the binding service consumes those same typed
+values to produce the DNS instruction. No configuration/product fix was added in this branch.
+
+Post-integration evidence: the two existing patient-origin cases pass; a direct typed parse of the four
+new-PROD surface/domain values returns both custom-domain values unchanged; shell/diff checks from the audit
+remain applicable because the configuration commit is unchanged. The integrated repository verdict is
+**PASS AFTER DEPENDENCY INTEGRATION, FOR LAND**. Live host, DNS, TLS, firewall, Caddy cutover and 443 policy
+remain owner-authorized gates.
