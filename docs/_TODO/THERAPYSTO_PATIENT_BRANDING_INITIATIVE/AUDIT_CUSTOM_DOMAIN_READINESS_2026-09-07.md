@@ -109,3 +109,19 @@ artifact and the queue verdict.
 firewall, service, secret or live-clinic action was performed. A green repository test/preflight cannot prove
 live DNS propagation, ACME issuance/renewal, Caddy deployment or an external routing probe; those remain
 owner-authorized live gates after product fixes.
+
+## Lead disposition after the audit
+
+Correction `07eb02ba6` closes both bounded findings without adding a second resolver or lifecycle path:
+
+- M1: apex readiness now accepts only the single configured edge IP; the auditor's retained mixed-answer
+  oracle is green.
+- M2: the existing Caddy ask root admits the permanently claimed `failed` state, so owner recheck can
+  trigger issuance after DNS/TLS correction without resaving or releasing the hostname.
+
+Post-correction evidence: the same focused command is **4 files / 22 tests PASS**; scoped ESLint and
+`git diff --check` pass; the owner-aware named-DEV preflight executes the changed migration with
+`pending=1` and ends in explicit `ROLLBACK`. Per `AGENTS.md` §§24.5–24.6, the same red acceptance oracle
+was rerun by the correcting lead and no new surface was introduced, so a second blind audit is neither
+required nor launched. Repository acceptance is **PASS AFTER FIX, FOR LAND**; live DNS/ACME/cutover and
+renewal remain separate owner-authorized gates.
