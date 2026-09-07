@@ -539,7 +539,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                AND (${organizationId}::uuid IS NULL OR organization_id = ${organizationId}::uuid)
              ORDER BY patient_user_id, updated_at DESC NULLS LAST`,
         ),
-        listOnSupportPatientUserIds(organizationId ?? undefined),
+        organizationId
+          ? listOnSupportPatientUserIds(organizationId)
+          : Promise.resolve(new Set<string>()),
         filters.viewerUserId
           ? runWebappSql<{ patient_user_id: string; unread_comments_count: number }>(
               getWebappSqlDb(),
@@ -890,7 +892,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       });
     },
 
-    async getPatientCardHeader(userId: string) {
+    async getPatientCardHeader(userId: string, organizationId: string) {
       // Resolve canonical user id
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
@@ -922,6 +924,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
          ${sql.raw(USER_IDENTITY_FIO_JOIN)}
          LEFT JOIN doctor_patient_support clinical_profile
            ON clinical_profile.patient_user_id = pu.id
+          AND clinical_profile.organization_id = ${organizationId}::uuid
          ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
          WHERE pu.id = ${canonicalId}::uuid`,
       );
@@ -962,7 +965,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const hasConversation = conversationRow.rows[0]?.has_conversation ?? false;
 
       // Fetch support status
-      const supportProfile = await getClientSupportProfile(canonicalId);
+      const supportProfile = await getClientSupportProfile(canonicalId, organizationId);
 
       // Lifetime no-show counter from booking profile
       const noShowRows = await runWebappSql<{ no_show_count: string }>(
@@ -1130,13 +1133,13 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       };
     },
 
-    async getDashboardPatientMetrics(audience?: {
+    async getDashboardPatientMetrics(audience: {
       excludedUserIds?: string[];
-      organizationId?: string;
+      organizationId: string;
       visibilityActor?: PatientVisibilityActor;
     }): Promise<DoctorDashboardPatientMetrics> {
-      const excluded = audience?.excludedUserIds ?? [];
-      const organizationId = audience?.organizationId;
+      const excluded = audience.excludedUserIds ?? [];
+      const organizationId = audience.organizationId;
 
       const clientActivePredicate = sql.raw(sqlClientActivePredicate(organizationId));
       const totalBase = sql`SELECT COUNT(*)::text AS c FROM platform_users pu WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND ${clientActivePredicate}`;
@@ -1552,8 +1555,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       if ((result.rowCount ?? 0) !== 1) throw new Error('patient_not_available');
     },
 
-    async getClientSupport(patientUserId: string) {
-      return getClientSupportProfile(patientUserId);
+    async getClientSupport(patientUserId: string, organizationId: string) {
+      return getClientSupportProfile(patientUserId, organizationId);
     },
 
     async updateClientSupport(params) {
@@ -1561,12 +1564,20 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       return upsertClientSupportProfile({ ...rest, updatedBy: actorId });
     },
 
-    async setPatientBirthDate(userId: string, birthDate: string | null): Promise<void> {
-      await updatePatientClinicalDemographics(userId, { birthDate });
+    async setPatientBirthDate(
+      userId: string,
+      organizationId: string,
+      birthDate: string | null,
+    ): Promise<void> {
+      await updatePatientClinicalDemographics(userId, organizationId, { birthDate });
     },
 
-    async setPatientGender(userId: string, gender: 'male' | 'female' | null): Promise<void> {
-      await updatePatientClinicalDemographics(userId, { gender });
+    async setPatientGender(
+      userId: string,
+      organizationId: string,
+      gender: 'male' | 'female' | null,
+    ): Promise<void> {
+      await updatePatientClinicalDemographics(userId, organizationId, { gender });
     },
 
     async setPatientNames(
@@ -1607,17 +1618,18 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       });
     },
 
-    async getPatientPhysical(userId: string) {
-      const demographics = await getPatientClinicalDemographics(userId);
+    async getPatientPhysical(userId: string, organizationId: string) {
+      const demographics = await getPatientClinicalDemographics(userId, organizationId);
       if (!demographics) return null;
       return { heightCm: demographics.heightCm, weightKg: demographics.weightKg };
     },
 
     async setPatientPhysical(
       userId: string,
+      organizationId: string,
       params: { heightCm?: number | null; weightKg?: number | null },
     ): Promise<void> {
-      await updatePatientClinicalDemographics(userId, params);
+      await updatePatientClinicalDemographics(userId, organizationId, params);
     },
 
     async getClientContactBreakdown(audience?: {

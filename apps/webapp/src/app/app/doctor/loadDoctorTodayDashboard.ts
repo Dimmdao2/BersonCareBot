@@ -77,8 +77,9 @@ export type DoctorTodayDashboardDeps = {
   /** Optional loader for calendar-month appointments (deferred to avoid extra audience-filtered call). */
   loadMonthAppointments?: () => Promise<AppointmentRow[]>;
   doctorClients: {
-    getDashboardPatientMetrics(audience?: {
+    getDashboardPatientMetrics(audience: {
       excludedUserIds?: string[];
+      organizationId: string;
     }): Promise<DoctorDashboardPatientMetrics>;
     listClients(
       filters: DoctorClientsFilters,

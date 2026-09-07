@@ -755,10 +755,12 @@ public booking этой organization продолжает работать.
 - [x] **C3M-01 — contract freeze.** Зафиксировать typed module registry, dependency graph, defaults matrix и
       disabled-route response codes. Доказательство: product `d4446a453`, независимый kill-set и fault injection
       `1fedb1b18` — все шесть классов пойманы; закрытый registry и typed `403`/page `404` приняты.
-- [ ] **C3M-02 — organization-scoped client controls.** Закрепить `onSupport` как единственный источник группы
+- [x] **C3M-02 — organization-scoped client controls.** Закрепить `onSupport` как единственный источник группы
       «Избранные / На сопровождении»; исправить composite identity support profile, миграцию/backfill/ambiguity report,
       ports/infra/in-memory parity и tenant negatives до добавления новых client overrides. Не создавать отдельный
-      `favorite`.
+      `favorite`. Доказательство: product `edf156aa2`, независимый audit `9cad47163`; найденный audit-дефект прав
+      `app_staff` исправлен в этом acceptance-коммите, privilege oracle `341/341` и rollback-only migration preflight
+      на именованной DEV — PASS.
 - [x] **C3M-03 — preference foundation.** Добавить structured settings keys, parser/versioning, one resolver и
       server guards; backfill/absence должны сохранять текущее «всё доступное видно». Доказательство: product
       `d4446a453`, независимый audit/oracle `1fedb1b18`, correction `4eae78f45`; acceptance `7/7`, webapp typecheck,

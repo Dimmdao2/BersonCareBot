@@ -20,7 +20,7 @@ export const doctorPatientSupport = pgTable(
   'doctor_patient_support',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id'),
+    organizationId: uuid('organization_id').notNull(),
     patientUserId: uuid('patient_user_id')
       .notNull()
       .references(() => platformUsers.id, { onDelete: 'cascade' }),
@@ -43,8 +43,14 @@ export const doctorPatientSupport = pgTable(
   },
   (table) => [
     index('idx_doctor_patient_support_organization_id').on(table.organizationId),
-    uniqueIndex('uq_doctor_patient_support_patient').on(table.patientUserId),
-    index('idx_doctor_patient_support_on_support').on(table.onSupport),
+    uniqueIndex('uq_doctor_patient_support_organization_patient').on(
+      table.organizationId,
+      table.patientUserId,
+    ),
+    index('idx_doctor_patient_support_organization_on_support').on(
+      table.organizationId,
+      table.onSupport,
+    ),
     check(
       'doctor_patient_support_gender_check',
       sql`${table.gender} IS NULL OR ${table.gender} IN ('male', 'female')`,

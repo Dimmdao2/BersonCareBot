@@ -318,7 +318,9 @@ export async function loadDoctorPatientCardShellMeta(
   const [membershipMeta, cardHeader, portalState, currentProgramStartedAt, displayIana] =
     await Promise.all([
       loadMembershipMeta(workspace, activeTab),
-      deps.doctorClients.getPatientCardHeader(patientUserId),
+      withDoctorWorkspacePrincipal(workspace, () =>
+        deps.doctorClients.getPatientCardHeader(patientUserId, workspace.organizationId),
+      ),
       withDoctorWorkspacePrincipal(workspace, () =>
         deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
       ).catch(() => null),
@@ -496,7 +498,9 @@ export async function loadDoctorPatientCardTabBootstrap(
     const [rawContactRowsResult] = await Promise.allSettled([
       deps.platformUserContacts.listForPlatformUser(patientUserId),
     ]);
-    const cardHeader = await deps.doctorClients.getPatientCardHeader(patientUserId);
+    const cardHeader = await withDoctorWorkspacePrincipal(workspace, () =>
+      deps.doctorClients.getPatientCardHeader(patientUserId, workspace.organizationId),
+    );
     const rawContactRows =
       rawContactRowsResult.status === 'fulfilled' ? rawContactRowsResult.value : null;
     const initialSupplementaryContacts = rawContactRows

@@ -15,7 +15,7 @@ export type PatientClinicalDemographics = {
 
 function mapRow(row: typeof doctorPatientSupport.$inferSelect): ClientSupportProfile {
   return {
-    organizationId: row.organizationId ?? null,
+    organizationId: row.organizationId,
     patientUserId: row.patientUserId,
     onSupport: row.onSupport,
     supportStartedAt: row.supportStartedAt,
@@ -26,30 +26,28 @@ function mapRow(row: typeof doctorPatientSupport.$inferSelect): ClientSupportPro
   };
 }
 
-function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {
+function requireOrganizationPrincipal(organizationId: string): void {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
-  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
-  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
-  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
-  if (
-    hasFallbackMismatch ||
-    (principalOrganizationId &&
-      fallbackOrganizationId &&
-      principalOrganizationId !== fallbackOrganizationId)
-  ) {
+  if (!principalOrganizationId || principalOrganizationId !== organizationId) {
     throw new Error('organization_principal_mismatch');
   }
-  return principalOrganizationId ?? fallbackOrganizationId;
 }
 
 export async function getClientSupportProfile(
   patientUserId: string,
+  organizationId: string,
 ): Promise<ClientSupportProfile | null> {
+  requireOrganizationPrincipal(organizationId);
   const db = getDrizzle();
   const rows = await db
     .select()
     .from(doctorPatientSupport)
-    .where(eq(doctorPatientSupport.patientUserId, patientUserId))
+    .where(
+      and(
+        eq(doctorPatientSupport.patientUserId, patientUserId),
+        eq(doctorPatientSupport.organizationId, organizationId),
+      ),
+    )
     .limit(1);
   return rows[0] ? mapRow(rows[0]) : null;
 }
@@ -57,7 +55,9 @@ export async function getClientSupportProfile(
 /** Reads patient-subject demographics through the same tenant wall as the support profile. */
 export async function getPatientClinicalDemographics(
   patientUserId: string,
+  organizationId: string,
 ): Promise<PatientClinicalDemographics | null> {
+  requireOrganizationPrincipal(organizationId);
   const db = getDrizzle();
   const rows = await db
     .select({
@@ -67,7 +67,13 @@ export async function getPatientClinicalDemographics(
       weightKg: doctorPatientSupport.weightKg,
     })
     .from(platformUsers)
-    .leftJoin(doctorPatientSupport, eq(doctorPatientSupport.patientUserId, platformUsers.id))
+    .leftJoin(
+      doctorPatientSupport,
+      and(
+        eq(doctorPatientSupport.patientUserId, platformUsers.id),
+        eq(doctorPatientSupport.organizationId, organizationId),
+      ),
+    )
     .where(and(eq(platformUsers.id, patientUserId), eq(platformUsers.role, 'client')))
     .limit(1);
   const row = rows[0];
@@ -83,6 +89,7 @@ export async function getPatientClinicalDemographics(
 /** Writes patient-subject demographics without moving or weakening the existing profile tenant key. */
 export async function updatePatientClinicalDemographics(
   patientUserId: string,
+  organizationId: string,
   values: {
     birthDate?: string | null;
     gender?: 'male' | 'female' | null;
@@ -90,6 +97,7 @@ export async function updatePatientClinicalDemographics(
     weightKg?: number | null;
   },
 ): Promise<void> {
+  requireOrganizationPrincipal(organizationId);
   const patch: Partial<typeof doctorPatientSupport.$inferInsert> = {
     updatedAt: new Date().toISOString(),
   };
@@ -110,12 +118,12 @@ export async function updatePatientClinicalDemographics(
     await tx
       .insert(doctorPatientSupport)
       .values({
-        organizationId: currentWriteOrganizationId(),
+        organizationId,
         patientUserId,
         ...patch,
       })
       .onConflictDoUpdate({
-        target: doctorPatientSupport.patientUserId,
+        target: [doctorPatientSupport.organizationId, doctorPatientSupport.patientUserId],
         set: patch,
       });
   });
@@ -123,13 +131,15 @@ export async function updatePatientClinicalDemographics(
 
 export async function upsertClientSupportProfile(params: {
   patientUserId: string;
+  organizationId: string;
   onSupport?: boolean;
   commentsEnabled?: boolean | null;
   mediaEnabled?: boolean | null;
   updatedBy: string;
 }): Promise<ClientSupportProfile> {
+  requireOrganizationPrincipal(params.organizationId);
   const now = new Date().toISOString();
-  const existing = await getClientSupportProfile(params.patientUserId);
+  const existing = await getClientSupportProfile(params.patientUserId, params.organizationId);
 
   if (!existing) {
     const startingOnSupport = params.onSupport ?? false;
@@ -137,7 +147,7 @@ export async function upsertClientSupportProfile(params: {
       const inserted = await tx
         .insert(doctorPatientSupport)
         .values({
-          organizationId: currentWriteOrganizationId(),
+          organizationId: params.organizationId,
           patientUserId: params.patientUserId,
           onSupport: startingOnSupport,
           // Дата начала сопровождения фиксируется при первом включении on_support.
@@ -176,9 +186,14 @@ export async function upsertClientSupportProfile(params: {
       .update(doctorPatientSupport)
       .set({
         ...patch,
-        organizationId: currentWriteOrganizationId(existing.organizationId),
+        organizationId: params.organizationId,
       })
-      .where(eq(doctorPatientSupport.patientUserId, params.patientUserId))
+      .where(
+        and(
+          eq(doctorPatientSupport.patientUserId, params.patientUserId),
+          eq(doctorPatientSupport.organizationId, params.organizationId),
+        ),
+      )
       .returning();
     const row = updated[0];
     if (!row) throw new Error('doctor_patient_support update failed');
@@ -186,18 +201,16 @@ export async function upsertClientSupportProfile(params: {
   });
 }
 
-export async function listOnSupportPatientUserIds(organizationId?: string): Promise<Set<string>> {
+export async function listOnSupportPatientUserIds(organizationId: string): Promise<Set<string>> {
   const db = getDrizzle();
   const rows = await db
     .select({ patientUserId: doctorPatientSupport.patientUserId })
     .from(doctorPatientSupport)
     .where(
-      organizationId
-        ? and(
-            eq(doctorPatientSupport.onSupport, true),
-            eq(doctorPatientSupport.organizationId, organizationId),
-          )
-        : eq(doctorPatientSupport.onSupport, true),
+      and(
+        eq(doctorPatientSupport.onSupport, true),
+        eq(doctorPatientSupport.organizationId, organizationId),
+      ),
     );
   return new Set(rows.map((r) => r.patientUserId));
 }

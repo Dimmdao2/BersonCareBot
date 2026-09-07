@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { runWithDbPatientPrincipal } from '@bersoncare/db-principal';
 import {
   getProgramSubmissionMediaStatusRow,
   isProgramSubmissionMediaAttachReady,
@@ -27,21 +28,36 @@ function resolveProgramSubmissionStatusState(
   return row.status === 'ready' ? 'processing' : 'pending';
 }
 
-export async function GET(_request: Request, context: { params: Promise<{ mediaId: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ mediaId: string }> }) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patient });
   if (!gate.ok) return gate.response;
 
   const deps = buildAppDeps();
-  const supportGate = await assertPatientProgramMediaAllowed(deps, gate.session.user.userId);
+  const instanceId = new URL(request.url).searchParams.get('instanceId');
+  if (!instanceId || !z.string().uuid().safeParse(instanceId).success) {
+    return NextResponse.json({ ok: false, error: 'invalid_instance_id' }, { status: 400 });
+  }
+  const detail = await deps.treatmentProgramInstance.getInstanceForPatient(
+    gate.session.user.userId,
+    instanceId,
+  );
+  if (!detail) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+  const organizationId = detail.organizationId;
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: 'organization_context_missing' }, { status: 500 });
+  }
+  const supportGate = await runWithDbPatientPrincipal(
+    {
+      platformUserId: gate.session.user.userId,
+      organizationId,
+      source: 'patient.program-submission.status.support-policy',
+    },
+    () => assertPatientProgramMediaAllowed(deps, gate.session.user.userId, { organizationId }),
+  );
   if (!supportGate.ok) {
     return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
-  }
-  const organizationId = supportGate.policy.organizationId;
-  if (!organizationId) {
-    return NextResponse.json(
-      { ok: false, error: 'organization_context_required' },
-      { status: 403 },
-    );
   }
   if (
     !(await isPatientProgramDiscussionMediaFlowEnabled(deps, {

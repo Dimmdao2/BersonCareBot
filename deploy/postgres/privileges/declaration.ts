@@ -15691,7 +15691,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "gender",
           "height_cm",
           "media_enabled",
+          "on_support",
           "organization_id",
+          "support_started_at",
           "updated_at",
           "updated_by",
           "weight_kg"
@@ -15746,7 +15748,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "gender",
           "height_cm",
           "media_enabled",
+          "on_support",
           "organization_id",
+          "support_started_at",
           "updated_at",
           "updated_by",
           "weight_kg"
