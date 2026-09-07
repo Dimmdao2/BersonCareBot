@@ -745,6 +745,9 @@ const customDomainBindingService = !inMemoryRepos
         ),
     })
   : null;
+const resolvePatientPublicOrigin = customDomainBindingService
+  ? (organizationId: string) => customDomainBindingService.resolvePatientPublicOrigin(organizationId)
+  : undefined;
 const bookingEngineCorePort = !inMemoryRepos ? createPgBookingEnginePort() : null;
 const doctorAppointmentsCanonicalPort =
   !inMemoryRepos && bookingEngineCorePort
@@ -1025,6 +1028,7 @@ const membershipsService =
         bookingEngine: bookingEngineService,
         resolveServiceTitle: resolveMembershipServiceTitle,
         assertWriteClearance: assertMechanicWriteClearance,
+        resolvePatientPublicOrigin,
       })
     : null;
 
@@ -1065,6 +1069,7 @@ const paymentsService =
           const identity = await doctorClientsPort.getClientIdentity(platformUserId);
           return identity?.email?.trim() || null;
         },
+        resolvePatientPublicOrigin,
         onPackagePaymentCaptured: membershipsService
           ? async ({ patientPackageId, paymentId, organizationId }) => {
               await membershipsService.activatePatientPackage(
@@ -1137,6 +1142,7 @@ const membershipsServiceResolved =
         resolveServiceTitle: resolveMembershipServiceTitle,
         refreshPackageCalendar: refreshPackageCalendarForAppointment,
         assertWriteClearance: assertMechanicWriteClearance,
+        resolvePatientPublicOrigin,
       })
     : membershipsService;
 
@@ -1429,6 +1435,7 @@ patientBookingService = createPatientBookingService({
     return parseBookingLifecycleNotificationsSettings(row?.valueJson ?? null);
   },
   getAppDisplayTimeZone,
+  resolvePatientPublicOrigin,
 });
 
 const patientHomeBlocksService = createPatientHomeBlocksService({
@@ -1467,6 +1474,7 @@ const notifyPatientDoctorReply = createNotifyPatientDoctorReply({
   getProfileEmailFields: (platformUserId) =>
     userProjectionPort.getProfileEmailFields(platformUserId),
   getChannelBindings: loadPlatformUserChannelBindings,
+  resolvePatientPublicOrigin,
 });
 const sendProgramNoteReply = createSendProgramNoteReply({
   supportCommunication: supportCommunicationPort,
@@ -1826,6 +1834,7 @@ function _buildAppDeps() {
     domainHealth,
     doctorBroadcasts: createDoctorBroadcastsService({
       assertWriteClearance: assertMechanicWriteClearance,
+      resolvePatientPublicOrigin,
       resolveBroadcastAudience: async (filter, channels, category, context) => {
         const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter, context);
         const prefsMap = await channelPreferencesPort.getBroadcastNotificationFlagsBatch(
@@ -1899,6 +1908,7 @@ function _buildAppDeps() {
         recordDeliveryAttempt: (input) =>
           notificationDelivery.recordNotificationDeliveryAttempt(input),
         patientInboundChatPort: supportCommunicationPort,
+        resolvePatientPublicOrigin,
       },
       broadcastEmailRecipientsPort,
     }),

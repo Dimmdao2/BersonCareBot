@@ -147,6 +147,7 @@ export function createMembershipsService(deps: {
    * `assertMechanicWriteClearance`).
    */
   assertWriteClearance?: (mechanic: 'subscriptions') => void;
+  resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
 }) {
   async function refreshPackageCalendarForAppointment(appointmentId: string) {
     if (!deps.refreshPackageCalendar) return;
@@ -456,7 +457,10 @@ export function createMembershipsService(deps: {
       if (!pkg) throw new Error('package_not_found');
       if (!deps.payments) throw new Error('payments_unavailable');
       const idempotencyKey = `package:${patientPackageId}:offer`;
-      const returnUrl = `${env.APP_BASE_URL}/app/patient/memberships/pay?patientPackageId=${encodeURIComponent(patientPackageId)}`;
+      const patientOrigin = deps.resolvePatientPublicOrigin
+        ? await deps.resolvePatientPublicOrigin(organizationId)
+        : env.APP_BASE_URL;
+      const returnUrl = `${patientOrigin}/app/patient/memberships/pay?patientPackageId=${encodeURIComponent(patientPackageId)}`;
       const intent = await deps.payments.createPackagePaymentIntent({
         organizationId,
         platformUserId,

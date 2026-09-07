@@ -29,7 +29,6 @@ import type { PatientInboundChatPort } from '@/modules/messaging/ports';
 import type { PatientWebPushNotifyDeps } from '@/modules/patient-notifications/patientWebPushNotify';
 import { logger } from '@/infra/logging/logger';
 import { routePaths } from '@/app-layer/routes/paths';
-import { env } from '@/config/env';
 import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import type { PatientNotificationTopicsPort } from '@/modules/patient-notifications/patientNotificationTopicsPort';
 import { broadcastNotificationTopicCode } from '@/modules/patient-notifications/notificationTopicCodes';
@@ -67,6 +66,7 @@ export type DoctorBroadcastsServiceDeps = {
   }) => string;
   /** Existing patient-facing title from `system_settings.notifications_topics`. */
   getTopicDisplayTitle: (topicCode: string, organizationId: string) => Promise<string | null>;
+  resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
   /**
    * 3.2: physically refuses a mailings write unless a passing `mailings` mutation decision already
    * ran in this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
@@ -195,7 +195,10 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       } = resolved;
       await options.reserveAudienceGrowth?.(audienceSize);
       const messageBody = buildBroadcastMessageText(command.message.title, command.message.body);
-      const notificationOpenUrl = buildPatientNotificationsOpenUrl(env.APP_BASE_URL);
+      const patientOrigin = deps.resolvePatientPublicOrigin
+        ? await deps.resolvePatientPublicOrigin(options.organizationId)
+        : '';
+      const notificationOpenUrl = buildPatientNotificationsOpenUrl(patientOrigin);
       // In-app chat has no markup → patient sees clean text, not raw **/-/_ markers.
       const messageBodyPlainText = stripMarkdownToPlain(messageBody);
       const auditId = randomUUID();

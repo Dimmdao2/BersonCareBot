@@ -44,6 +44,24 @@ export async function GET(request: Request) {
       { status: 503 },
     );
   }
-  const rules = await deps.reminderProjection.listRulesByPlatformUserId(platformUserId);
+  if (!deps.customDomainBinding) {
+    return NextResponse.json(
+      { ok: false, error: 'patient public origin unavailable' },
+      { status: 503 },
+    );
+  }
+  let patientPublicOrigin: string;
+  try {
+    patientPublicOrigin = await deps.customDomainBinding.resolvePatientPublicOrigin(organizationId);
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: 'patient public origin unavailable' },
+      { status: 503 },
+    );
+  }
+  const rules = await deps.reminderProjection.listRulesByPlatformUserId(
+    platformUserId,
+    patientPublicOrigin,
+  );
   return NextResponse.json({ ok: true, rules }, { status: 200 });
 }

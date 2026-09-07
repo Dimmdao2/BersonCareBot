@@ -20,7 +20,7 @@
 
 ## Цели
 
-- убрать появление новых кейсов `Неизвестный клиент` из Rubitime ingestion;
+- не допускать новые кейсы `Неизвестный клиент` при импорте legacy-записей;
 - исключить silent binding steal в `user_channel_bindings`;
 - перевести user-owned legacy refs на canonical UUID (`platform_user_id`);
 - ввести logical merge через alias (`merged_into_id`) без physical delete duplicate rows;
@@ -89,7 +89,7 @@
 
 | Слой                                  | Роль                                                                                                                                                                                            |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Live identity (фаза 1+)**           | Предотвращение дублей: Rubitime `booking.upsert` → `appointment.record.upserted` → `ensureAppointmentClientTx` (phone → integrator_id → email); trusted phone; contact email без auto-password. |
+| **Legacy identity ingestion**         | Историческое предотвращение дублей: `appointment.record.upserted` → `ensureAppointmentClientTx` (phone → integrator_id → email); trusted phone; contact email без auto-password.              |
 | **Email setup / register (фазы 3–5)** | Contact-only не плодит второго `platform_user`; `email_conflict` сначала пробует безопасный auto-merge дублей по email, но не сливает два полноценных password-login аккаунта.                  |
 | **Merge (этот документ)**             | Страховка, если дубль уже есть: ручной merge в кабинете врача или auto-merge на ingestion / phone bind.                                                                                         |
 
@@ -102,14 +102,13 @@
 | `appointment.record.upserted` / phone bind: `MergeConflictError` / `MergeDependentConflictError` | Событие **202**, аудит `auto_merge_conflict`, projection **без** привязки к «первому попавшемуся» user (см. § Projection ingestion ниже).                                                                               |
 | Один телефон, meaningful data на обоих                                                           | Hard blocker `shared_phone_both_have_meaningful_data` — только ручное решение.                                                                                                                                          |
 
-Регрессия сценария «приёмы (Rubitime) + дневник/разминка (PWA) на одном canonical» — unit-тест `repoints appointments and diary/warmup domains to canonical user` в `pgPlatformUserMerge.test.ts` (manual merge path).
+Регрессия сценария «импортированные приёмы + дневник/разминка (PWA) на одном canonical» — unit-тест `repoints appointments and diary/warmup domains to canonical user` в `pgPlatformUserMerge.test.ts` (manual merge path).
 
-## Интеграционный ingestion (Rubitime)
+## Исторический ingestion внешней системы записи
 
-- `appointment.record.upserted` в webapp должен:
-  - при наличии телефона вызывать `ensureClientFromAppointmentProjection(...)`;
-  - возвращать canonical `platformUserId` и передавать его в compat booking update path;
-  - при **merge conflicts** (typed `MergeConflictError` / `MergeDependentConflictError`): событие принимается (**HTTP 202**), аудит `auto_merge_conflict`, запись в projection без неоднозначной привязки к платформенному пользователю (см. ниже «Projection ingestion — конфликты auto-merge»), без fallback «первый кандидат» и без compat `findByPhone` / `findByIntegratorId` при флаге конфликта.
+- Удалённый `appointment.record.upserted` при наличии телефона вызывал `ensureClientFromAppointmentProjection(...)`.
+- При merge conflict исторический путь принимал событие без неоднозначной привязки к «первому кандидату».
+- Эти правила сохранены как описание происхождения legacy-данных; новый runtime строится только на native booking engine.
 - UI fallback label для appointments:
   1. canonical профиль (`display_name`/first/last),
   2. `payload_json.name`,
@@ -242,7 +241,7 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 ### Projection ingestion — конфликты auto-merge
 
-Репозиторий (`pgUserProjection.ts` и т.п.) по-прежнему **пробрасывает** `MergeConflictError` / `MergeDependentConflictError` без решения HTTP. Решение **`202` vs `503`** принимается в **`modules/integrator/events.ts`**: при подключённом `conflictAudit` конфликт класса merge → `upsertOpenConflictLog` / `writeAuditLog(anomaly)` → **`accepted: true`** (маршрут `POST /api/integrator/events` отвечает **202**), без мутации identity для identity-событий (`user.upserted`, `contact.linked`, `preferences.updated`). Для **`appointment.record.upserted`**: `ensureClientFromAppointmentProjection` запускается по нормализованному телефону из top-level payload **или** `payloadJson.phone`; при конфликте — аудит, запись в projection-таблицу записи, **без** fallback `findByPhone` / `findByIntegratorId` и без привязки `userId` в compat-path (`userId: null` в `applyRubitimeUpdate`). Повторы того же набора кандидатов увеличивают `repeat_count` и дополняют `seenEventTypes` в открытой строке `auto_merge_conflict` (ключ `sha256(sorted(candidateIds))`). `MergeDependentConflictError` **обязан** нести `candidateIds` (как `MergeConflictError`) для стабильного `conflict_key`.
+Репозиторий (`pgUserProjection.ts` и т.п.) по-прежнему **пробрасывает** `MergeConflictError` / `MergeDependentConflictError` без решения HTTP. Решение **`202` vs `503`** принимается в **`modules/integrator/events.ts`**: при подключённом `conflictAudit` конфликт класса merge → `upsertOpenConflictLog` / `writeAuditLog(anomaly)` → **`accepted: true`** (маршрут `POST /api/integrator/events` отвечает **202**), без мутации identity для identity-событий (`user.upserted`, `contact.linked`, `preferences.updated`). Для исторического **`appointment.record.upserted`**: `ensureClientFromAppointmentProjection` запускался по нормализованному телефону из top-level payload **или** `payloadJson.phone`; при конфликте — аудит и запись projection без fallback `findByPhone` / `findByIntegratorId` и без привязки `userId` в compat-path. Повторы того же набора кандидатов увеличивают `repeat_count` и дополняют `seenEventTypes` в открытой строке `auto_merge_conflict` (ключ `sha256(sorted(candidateIds))`). `MergeDependentConflictError` **обязан** нести `candidateIds` (как `MergeConflictError`) для стабильного `conflict_key`.
 
 ### Ограничения v1 и v2 (после закрытия инициативы)
 

@@ -136,6 +136,7 @@ export function createPatientBookingService(input: {
   getAppDisplayTimeZone?: () => Promise<string>;
   /** Порт постановки исходящего сообщения в очередь доставки. Внедряется из `buildAppDeps`. */
   outboundMessageQueue: OutboundMessageQueuePort;
+  resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
   /** Пациентское уведомление о созданной записи — работа вебаппа (владелец 19.08). */
   bookingCreatedEffects?: BookingCreatedEffectsPort | null;
   slotsTtlMs?: number;
@@ -174,6 +175,7 @@ export function createPatientBookingService(input: {
             input.getBookingLifecycleNotificationSettings ?? (async () => null),
           getAppDisplayTimeZone: input.getAppDisplayTimeZone,
           outboundMessageQueue: input.outboundMessageQueue,
+          resolvePatientPublicOrigin: input.resolvePatientPublicOrigin,
           bookingCreatedEffects: input.bookingCreatedEffects ?? null,
         }
       : null;

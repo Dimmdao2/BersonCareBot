@@ -53,7 +53,6 @@ const parsed = z
     INTEGRATOR_DB_TLS_KEY_FILE: z.string().optional().transform((value) => (value ?? '').trim()),
     INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON: z.string().optional().transform((value) => (value ?? '').trim()),
 
-    BOOKING_URL: z.string().min(1),
     CONTENT_SERVICE_BASE_URL: z.string().optional().default(''),
     CONTENT_ACCESS_HMAC_SECRET: z.string().optional().default(''),
     INTEGRATOR_SHARED_SECRET: z.string().min(16).optional(),

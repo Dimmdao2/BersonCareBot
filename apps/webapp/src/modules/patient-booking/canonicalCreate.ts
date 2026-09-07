@@ -43,7 +43,6 @@ import type { BookingCreatedEffectsPort } from '@/modules/booking-notifications/
 import { buildDoctorCreatedMessageText } from './doctorMessageText';
 import { resolveBookingCalendarSyncFields } from './bookingCalendarSyncFields';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
-import { env } from '@/config/env';
 import { publicBookPaths } from '@/shared/publicBook/paths';
 
 function isPostgresExclusionViolation(err: unknown): boolean {
@@ -103,6 +102,7 @@ export type CanonicalBookingDeps = {
   getAppDisplayTimeZone?: () => Promise<string>;
   /** Порт постановки исходящего сообщения в очередь доставки (письмо-подтверждение записи). */
   outboundMessageQueue: OutboundMessageQueuePort;
+  resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
   /**
    * Последствия создания записи: уведомления пациенту/персоналу и напоминания. Владелец 19.08:
    * «интегратор тут вообще ни при чем. Запись делает вебапп». Отсутствие порта — только изолированные
@@ -502,10 +502,10 @@ export async function createBookingOnCanonicalEngine(
   }
 
   if (needsPrepayment && deps.payments) {
-    const returnUrl =
+    const returnPath =
       createInput.bookingChannel === 'public_widget'
-        ? `${env.APP_BASE_URL}${publicBookPaths.pay}?bookingId=${encodeURIComponent(pending.id)}`
-        : `${env.APP_BASE_URL}/app/patient/booking/pay?bookingId=${encodeURIComponent(pending.id)}`;
+        ? `${publicBookPaths.pay}?bookingId=${encodeURIComponent(pending.id)}`
+        : `/app/patient/booking/pay?bookingId=${encodeURIComponent(pending.id)}`;
     try {
       await deps.payments.createAppointmentPaymentIntent({
         organizationId: orgId,
@@ -514,7 +514,7 @@ export async function createBookingOnCanonicalEngine(
         amountMinor: financialSnapshot.prepaymentRequiredMinor * slotCount,
         currency: financialSnapshot.priceCurrency,
         idempotencyKey: `appointment_prepay:${appointment.id}`,
-        returnUrl,
+        returnUrl: returnPath,
       });
     } catch (err) {
       await rollbackChain('payment_intent_create_failed');
@@ -700,7 +700,10 @@ export async function createBookingOnCanonicalEngine(
       pendingRow.branchTitleSnapshot ?? (pendingRow.bookingType === 'online' ? 'Онлайн' : null),
     contactName: createInput.contactName,
     mailProfile: createInput.mailProfile,
-  }, { outboundMessageQueue: deps.outboundMessageQueue });
+  }, {
+    outboundMessageQueue: deps.outboundMessageQueue,
+    resolvePatientPublicOrigin: deps.resolvePatientPublicOrigin,
+  });
 
   await persistBookingFormContacts(deps, createInput);
   return confirmed ?? pending;

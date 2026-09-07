@@ -38,11 +38,3 @@ if (envFile) {
   // Legacy: `.env` next to cwd (e.g. host deploy with single directory).
   dotenv.config({ override: false });
 }
-
-// Generic booking link used by menu rendering. In local development the
-// canonical webapp cabinet is a safe default.
-if (!process.env.BOOKING_URL?.trim()) {
-  const relaxDev =
-    process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEV_AUTH_BYPASS === 'true';
-  if (relaxDev) process.env.BOOKING_URL = 'http://127.0.0.1:4200/app/patient/cabinet';
-}

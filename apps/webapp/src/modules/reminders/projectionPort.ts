@@ -16,10 +16,14 @@ export type ReminderProjectionPort = {
    *
    * The reads below are keyed by canonical `public.platform_users.id`.
    */
-  listRulesByPlatformUserId(platformUserId: string): Promise<ReminderRuleListItem[]>;
+  listRulesByPlatformUserId(
+    platformUserId: string,
+    patientPublicOrigin?: string,
+  ): Promise<ReminderRuleListItem[]>;
   getRuleByPlatformUserIdAndCategory(
     platformUserId: string,
     category: string,
+    patientPublicOrigin?: string,
   ): Promise<ReminderRuleListItem | null>;
   listHistoryByPlatformUserId(
     platformUserId: string,

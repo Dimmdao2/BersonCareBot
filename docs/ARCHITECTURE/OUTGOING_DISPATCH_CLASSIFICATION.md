@@ -16,7 +16,6 @@
 | Область                         | Файл / вход                                                               |
 | ------------------------------- | ------------------------------------------------------------------------- |
 | Исходящий шлюз событий          | `kernel/eventGateway/incomingEventPipeline.ts`                            |
-| Rubitime M2M / записи           | `integrations/rubitime/recordM2mRoute.ts`                                 |
 | Запрос контакта врача           | `integrations/bersoncare/dispatchRequestContact.ts`                       |
 | OTP                             | `integrations/bersoncare/sendOtpRoute.ts`                                 |
 | Relay outbound (webapp → канал) | `integrations/bersoncare/relayOutboundRoute.ts`                           |

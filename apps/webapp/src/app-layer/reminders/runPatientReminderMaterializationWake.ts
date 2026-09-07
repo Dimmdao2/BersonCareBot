@@ -21,7 +21,10 @@ export async function runPatientReminderMaterializationWake(
   organizationId: string,
   now = new Date(),
   port?: PatientReminderMaterializationPort,
-  options: { rehabilitationEnabled?: boolean } = {},
+  options: {
+    rehabilitationEnabled?: boolean;
+    resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
+  } = {},
 ): Promise<PatientReminderMaterializationWakeResult> {
   const effectivePort = port ?? createPgPatientReminderMaterializationPort();
   const rehabilitationEnabled =
@@ -34,7 +37,9 @@ export async function runPatientReminderMaterializationWake(
   const nowIso = now.toISOString();
   const snapshot = await effectivePort.readSnapshot(organizationId, nowIso);
   const rules = snapshot.rules.filter(
-    (rule) => rehabilitationEnabled || !isRehabilitationReminderRule(rule),
+    (rule) =>
+      rule.organizationId === organizationId &&
+      (rehabilitationEnabled || !isRehabilitationReminderRule(rule)),
   );
   const allowedRuleIds = new Set(rules.map((rule) => rule.id));
   const duePlanned = snapshot.dueOccurrences.filter((item) => allowedRuleIds.has(item.ruleId));
@@ -97,7 +102,9 @@ export async function runPatientReminderMaterializationWake(
         ? materializePatientReminderDeliveries({
             rule,
             occurrence,
-            appBaseUrl: env.APP_BASE_URL,
+            appBaseUrl: options.resolvePatientPublicOrigin
+              ? await options.resolvePatientPublicOrigin(rule.organizationId)
+              : env.APP_BASE_URL,
             linkedTitle: rule.linkedTitle,
             targets: {
               selectedChannels: resolution.selectedChannels,
