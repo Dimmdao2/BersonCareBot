@@ -1,5 +1,7 @@
 'use client';
 
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -28,6 +30,7 @@ function statusClass(status: TreatmentProgramInstanceSummary['status']): string 
 }
 
 export function ProgramHistoryModal({ open, onOpenChange, userId }: Props) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const [instances, setInstances] = useState<TreatmentProgramInstanceSummary[] | null>(null);
   const [error, setError] = useState(false);
 
@@ -67,7 +70,7 @@ export function ProgramHistoryModal({ open, onOpenChange, userId }: Props) {
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>История программ</DialogTitle>
-          <DialogDescription>Все программы лечения пациента.</DialogDescription>
+          <DialogDescription>Все программы лечения {patientGenitive}.</DialogDescription>
         </DialogHeader>
 
         {instances === null ? (

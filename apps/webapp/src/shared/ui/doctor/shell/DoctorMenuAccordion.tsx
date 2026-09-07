@@ -28,6 +28,7 @@ import {
   resolveSpecialistTaskAttentionTone,
   type SpecialistTaskAttentionTone,
 } from '@/modules/specialist-tasks/taskPriority';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 /** Отображаемый текст бейджа; `null` — не показывать. */
 export function formatNavBadgeCount(n: number): string | null {
@@ -469,18 +470,19 @@ export function DoctorMenuAccordion({
   menuKind = 'doctor',
   tabletExpanded = false,
 }: DoctorMenuAccordionProps) {
+  const terms = useDoctorPatientTerms();
   const items = useMemo(() => {
     const menuItems =
       menuKind === 'platform'
         ? getPlatformMenuItems(menuAccess)
         : menuKind === 'management'
           ? getManagementMenuItems(menuAccess)
-          : getDoctorMenuItems(menuAccess, patientLabel);
+          : getDoctorMenuItems(menuAccess, terms);
 
     if (variant === 'sidebar') return menuItems.filter((item) => item.id !== 'account');
     if (menuKind !== 'doctor') return menuItems;
     return menuItems.filter((item) => !MOBILE_SHELL_NAV_IDS.has(item.id));
-  }, [menuKind, menuAccess, patientLabel, variant]);
+  }, [menuKind, menuAccess, terms, variant]);
 
   const {
     messagesUnread,

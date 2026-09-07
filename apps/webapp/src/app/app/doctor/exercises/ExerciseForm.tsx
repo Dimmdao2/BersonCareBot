@@ -52,6 +52,7 @@ import {
 import { MaterialRatingBlock } from '@/shared/ui/doctor/material-rating/MaterialRatingBlock';
 import type { ReferenceItemDto } from '@/modules/references/referenceCache';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 function ExerciseUsageSectionsView({ sections }: { sections: ExerciseUsageSection[] }) {
   if (sections.length === 0) {
@@ -152,6 +153,7 @@ export function ExerciseForm({
   bodyRegionItems,
   loadTypeItems,
 }: ExerciseFormProps) {
+  const terms = useDoctorPatientTerms();
   const recordKey = exercise?.id ?? 'create';
 
   const [values, setValues] = useState<ExerciseFormValues>(() => exerciseToFormValues(exercise));
@@ -248,8 +250,8 @@ export function ExerciseForm({
 
   const usageSections = useMemo(() => {
     if (!usage || !exerciseUsageHasAnyReference(usage)) return [];
-    return exerciseUsageSections(usage);
-  }, [usage]);
+    return exerciseUsageSections(usage, terms);
+  }, [terms, usage]);
 
   const warnSections = useMemo(() => {
     if (
@@ -259,10 +261,10 @@ export function ExerciseForm({
     ) {
       const u = archiveState.usage;
       if (!exerciseUsageHasAnyReference(u)) return [];
-      return exerciseUsageSections(u);
+      return exerciseUsageSections(u, terms);
     }
     return [];
-  }, [archiveState]);
+  }, [archiveState, terms]);
 
   const archiveError =
     archiveState?.ok === false && 'error' in archiveState ? archiveState.error : null;

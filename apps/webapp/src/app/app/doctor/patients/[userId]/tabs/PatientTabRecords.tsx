@@ -28,6 +28,7 @@ import {
   doctorStatCardShellClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { formatDoctorFioShort } from '@/shared/lib/fio';
 import { cn } from '@/lib/utils';
@@ -257,6 +258,7 @@ export function PatientTabRecords({
   encountersEnabled = true,
   appointmentsManageOwn = true,
 }: Props) {
+  const { patientInstrumental, patientSingularLower } = useDoctorPatientTerms();
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
   const [highlightedPackageId, setHighlightedPackageId] = useState<string | null>(null);
   const [visitsModalOpen, setVisitsModalOpen] = useState(false);
@@ -790,8 +792,8 @@ export function PatientTabRecords({
                 </span>
                 <span className="text-muted-foreground flex-1 min-w-0">
                   {a.status === 'canceled'
-                    ? `отменена клиентом · причина: ${a.cancelReason ?? '—'}`
-                    : `отменена · причина: клиент не пришёл`}
+                    ? `отменена ${patientInstrumental} · причина: ${a.cancelReason ?? '—'}`
+                    : `отменена · причина: ${patientSingularLower} не пришёл`}
                 </span>
                 {a.status === 'no_show' && (
                   <span className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive whitespace-nowrap flex-none">

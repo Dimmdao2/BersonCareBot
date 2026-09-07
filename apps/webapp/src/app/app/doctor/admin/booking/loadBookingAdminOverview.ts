@@ -1,4 +1,5 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 import {
   countServicesWithoutAvailability,
   hasScheduleOnUpcomingDays,
@@ -44,6 +45,7 @@ export async function loadBookingAdminOverview(
     locationAvailability,
     usesHoursFallback,
     workingHoursRows,
+    patientLabel,
   ] = await Promise.all([
     service.catalog.listBranches(organizationId),
     service.services.listServices(organizationId),
@@ -52,6 +54,7 @@ export async function loadBookingAdminOverview(
     service.services.listServiceLocationAvailability(organizationId),
     deps.bookingScheduling?.usesWorkingHoursFallback({ organizationId }) ?? Promise.resolve(true),
     deps.bookingScheduling?.listWorkingHoursAdmin({ organizationId }) ?? Promise.resolve([]),
+    deps.systemSettings.getSetting('patient_label', 'doctor', { organizationId }),
   ]);
 
   const activeBranches = branches.filter((b) => b.isActive);
@@ -83,7 +86,12 @@ export async function loadBookingAdminOverview(
     warnings.push('На ближайшие 7 дней нет рабочих интервалов в расписании.');
   }
   if (publicServices.length === 0 && activeServices.length > 0) {
-    warnings.push('Нет услуг, доступных пациентам для самостоятельной записи.');
+    const terms = resolvePatientTerms(
+      typeof patientLabel?.valueJson === 'object' && patientLabel.valueJson !== null
+        ? (patientLabel.valueJson as { value?: string }).value
+        : undefined,
+    );
+    warnings.push(`Нет услуг, доступных ${terms.patientDativePlural} для самостоятельной записи.`);
   }
   if (activeBranches.length === 0) {
     warnings.push('Нет активных локаций.');

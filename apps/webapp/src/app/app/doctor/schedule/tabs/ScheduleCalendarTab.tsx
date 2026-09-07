@@ -66,6 +66,7 @@ import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import {
   Select,
@@ -911,6 +912,7 @@ export function ScheduleCalendarTab({
   appointmentsManageOwn = true,
   availabilityManageOwn = true,
 }: ScheduleTabProps) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const bootstrap = isScheduleCalendarBootstrap(initialData) ? initialData : null;
   /** While current key equals SSR key, skip client load (survives Strict Mode remount). */
   const ssrLoadKeyRef = useRef(
@@ -2668,7 +2670,7 @@ export function ScheduleCalendarTab({
   const eventPanelTitle = selected ? (
     <DoctorModalStackedTitle
       label="Запись на приём"
-      patientName={selected.patientName ?? 'Пациент'}
+      patientName={selected.patientName ?? patientSingularLabel}
       patientHref={selected.platformUserId ? patientCardHref(selected.platformUserId) : null}
       patientOnSupport={selected.patientOnSupport === true}
     />
@@ -3679,7 +3681,7 @@ export function ScheduleCalendarTab({
             <li>
               <AppointmentKpiItem
                 item={{
-                  clientLabel: item.patientName ?? 'Запись',
+                  clientLabel: item.patientName ?? patientSingularLabel,
                   time: timeLabel,
                   typeLabel: item.serviceTitle ?? null,
                   statusLabel: appointmentStatusLabel(item.status),

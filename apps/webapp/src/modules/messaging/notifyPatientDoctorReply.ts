@@ -9,6 +9,7 @@ import {
 } from '@/modules/patient-notifications/resolveNotificationChannels';
 import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
 import type { SystemSettingsService } from '@/modules/system-settings/service';
+import { resolvePatientTerms, type PatientTerms } from '@/modules/system-settings/patientTerms';
 import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
 import { buildMessagePushCopy } from '@/modules/web-push/pushNotificationCopy';
 import { isOperationalVerboseLogEnabled } from '@/modules/observability/operationalVerboseLog';
@@ -55,10 +56,11 @@ export function buildPatientMessagesOpenUrl(appBaseUrl: string): string {
 export function buildPersonalChatNotificationText(
   senderDisplayName: string | null | undefined,
   senderRole: 'specialist' | 'patient',
+  patientTerms: PatientTerms = resolvePatientTerms(),
 ): string {
   const candidate = senderDisplayName?.replace(/\s+/g, ' ').trim() ?? '';
   const isName = /^[\p{L}\p{M}](?:[\p{L}\p{M}'’ -]*[\p{L}\p{M}])?$/u.test(candidate);
-  const displayName = isName ? candidate : senderRole === 'patient' ? 'пациента' : 'специалиста';
+  const displayName = isName ? candidate : senderRole === 'patient' ? patientTerms.patientGenitive : 'специалиста';
   return `новое сообщение от ${displayName}`;
 }
 
@@ -124,11 +126,6 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
     const openUrl = buildPatientMessagesOpenUrl(patientOrigin);
     const trimmed = text.trim();
     if (!trimmed) return;
-    const notificationText = buildPersonalChatNotificationText(
-      params.senderDisplayName,
-      'specialist',
-    );
-
     const topicCode = params.topicCode?.trim() || NOTIFICATION_TOPIC_SPECIALIST_MESSAGES;
     const organizationId = params.organizationId;
     const [prefs, availability, topicRows, gate] = await Promise.all([
@@ -137,6 +134,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
       deps.topicChannelPrefs.listByUserId(platformUserId),
       deps.readReminderNotifyGate(platformUserId, topicCode),
     ]);
+    const notificationText = buildPersonalChatNotificationText(params.senderDisplayName, 'specialist');
     const { selectedChannels } = resolvePatientNotificationChannels({
       topicCode,
       availability,

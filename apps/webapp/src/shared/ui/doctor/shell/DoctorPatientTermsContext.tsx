@@ -14,12 +14,17 @@ const DoctorPatientTermsContext = createContext<PatientTerms>(resolvePatientTerm
 
 export function DoctorPatientTermsProvider({
   patientLabel,
+  supportGroupLabel,
   children,
 }: {
   patientLabel?: string;
+  supportGroupLabel?: string;
   children: ReactNode;
 }) {
-  const value = useMemo(() => resolvePatientTerms(patientLabel), [patientLabel]);
+  const value = useMemo(
+    () => resolvePatientTerms(patientLabel, supportGroupLabel),
+    [patientLabel, supportGroupLabel],
+  );
   return (
     <DoctorPatientTermsContext.Provider value={value}>
       {children}

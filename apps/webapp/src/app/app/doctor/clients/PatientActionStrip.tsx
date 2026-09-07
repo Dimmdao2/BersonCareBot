@@ -10,6 +10,7 @@ import {
   doctorClientActionStripClass,
   doctorClientTabBadgeClass,
 } from './doctorClientCardChrome';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type ChipVariant = 'default' | 'destructive' | 'outline' | 'secondary';
 
@@ -30,6 +31,7 @@ export function PatientActionStrip({
   onNavigateTab,
   onNavigateAnchor,
 }: PatientActionStripProps) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const chips: { key: string; label: string; variant: ChipVariant; onClick: () => void }[] = [];
 
   if (pendingTestsCount > 0) {
@@ -57,7 +59,7 @@ export function PatientActionStrip({
   if (aggregates.patientMediaCount > 0) {
     chips.push({
       key: 'media',
-      label: `Медиа от пациента · ${aggregates.patientMediaCount}`,
+      label: `Медиа от ${patientGenitive} · ${aggregates.patientMediaCount}`,
       variant: 'default',
       onClick: () => {
         onNavigateTab('program');

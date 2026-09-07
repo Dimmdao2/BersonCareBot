@@ -62,6 +62,7 @@ import type { MediaFolderRecord } from '@/modules/media/types';
 import { libraryMediaRowToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type MediaKindFilter = 'all' | 'image' | 'video' | 'audio' | 'file';
 type SortBy = 'date' | 'size' | 'type' | 'name';
@@ -389,6 +390,7 @@ export type MediaLibraryClientProps = {
 export function MediaLibraryClient({
   canSeeDeleteErrorsLink = false,
 }: MediaLibraryClientProps = {}) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const [kind, setKind] = useState<MediaKindFilter>('all');
   const [sortBy, setSortBy] = useState<SortBy>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -1102,7 +1104,7 @@ export function MediaLibraryClient({
               <DialogHeader>
                 <DialogTitle>Файл используется</DialogTitle>
                 <DialogDescription>
-                  Этот файл всё ещё используется в контенте или диалогах пациента. Удаление может
+                  Этот файл всё ещё используется в контенте или диалогах {patientSingularLabel.toLowerCase()}. Удаление может
                   сломать ссылки и историю сообщений.
                 </DialogDescription>
               </DialogHeader>
@@ -1465,7 +1467,7 @@ export function MediaLibraryClient({
             </div>
             {uploadBlockedAtClientRoot ? (
               <p className="text-xs text-muted-foreground">
-                Откройте папку клиента, чтобы загрузить файл.
+                Откройте папку {patientSingularLabel.toLowerCase()}, чтобы загрузить файл.
               </p>
             ) : null}
           </div>

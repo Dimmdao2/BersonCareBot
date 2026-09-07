@@ -24,6 +24,7 @@ import {
 } from '@/shared/lib/formatBusinessDateTime';
 import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
 import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { formatDoctorFio, type StructuredFio } from '@/shared/lib/fio';
 import { isBuiltInOnlineLocationCityCode } from '@/modules/booking-engine/onlineLocation';
 import { canonicalBookingFormFieldKey } from '@/modules/booking-form/fieldTypes';
@@ -135,6 +136,7 @@ export function ConfirmStepClient({
   useRescheduleBookingHook = useRescheduleBooking,
   rescheduleBookingId,
 }: Props & { rescheduleBookingId?: string }) {
+  const { patientSingularLabel } = usePatientTerms();
   const router = useRouter();
   const [lastName, setLastName] = useState(defaultFio.lastName ?? '');
   const [firstName, setFirstName] = useState(defaultFio.firstName ?? '');
@@ -441,7 +443,7 @@ export function ConfirmStepClient({
               selection,
               slot,
               slotCount,
-              contactName: contactName || phone.trim() || email.trim() || 'Пациент',
+              contactName: contactName || phone.trim() || email.trim() || patientSingularLabel,
               contactFio: contactFioInput,
               contactPhone: phone.trim(),
               contactEmail: email.trim() || undefined,

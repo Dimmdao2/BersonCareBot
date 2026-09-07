@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 
 type Tracking = {
@@ -30,6 +31,7 @@ function isTracking(value: unknown): value is Tracking {
 }
 
 export function PatientSymptomTrackingControls({ patientUserId }: { patientUserId: string }) {
+  const { patientInstrumental } = useDoctorPatientTerms();
   const [trackings, setTrackings] = useState<Tracking[]>([]);
   const [title, setTitle] = useState('');
   const [patientTrackingEnabled, setPatientTrackingEnabled] = useState(true);
@@ -106,7 +108,7 @@ export function PatientSymptomTrackingControls({ patientUserId }: { patientUserI
             checked={patientTrackingEnabled}
             onChange={(event) => setPatientTrackingEnabled(event.target.checked)}
           />
-          разрешить отслеживание пациентом
+          разрешить отслеживание {patientInstrumental}
         </label>
         <Button type="button" size="sm" disabled={pending || !title.trim()} onClick={() => void create()}>
           Добавить
@@ -124,7 +126,7 @@ export function PatientSymptomTrackingControls({ patientUserId }: { patientUserI
                   disabled={pending}
                   onChange={(event) => void setPatientVisibility(tracking, event.target.checked)}
                 />
-                разрешить отслеживание пациентом
+                разрешить отслеживание {patientInstrumental}
               </label>
             </li>
           ))}

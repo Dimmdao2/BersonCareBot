@@ -12,6 +12,8 @@ type OrganizationState = {
   onSupport: boolean;
   commentsEnabled: boolean | null;
   mediaEnabled: boolean | null;
+  directChatEnabled: boolean | null;
+  portalEnabled: boolean | null;
   birthDate: string | null;
   gender: 'male' | 'female' | null;
   heightCm: number | null;
@@ -51,7 +53,15 @@ import {
   inMemoryDoctorClientsPort,
 } from '@/infra/repos/inMemoryDoctorClients';
 import { createDoctorClientsService } from './service';
+import { resolveClientChannelPolicy } from './supportPolicy';
 import { defaultDoctorWorkspaceComposition } from '@/modules/system-settings/doctorWorkspaceComposition';
+
+/** Organization channel defaults the GET handler projects next to the per-client overrides. */
+const channelDefaults = {
+  direct_chat: 'on_support',
+  program_comments: 'on_support',
+  program_media: 'on_support',
+} as const;
 
 let activeOrganizationId: string;
 let stateByOrganization: Map<string, OrganizationState>;
@@ -82,6 +92,8 @@ function supportProfile(organizationId: string, state: OrganizationState) {
     supportStartedAt: state.onSupport ? '2026-09-01T00:00:00.000Z' : null,
     commentsEnabled: state.commentsEnabled,
     mediaEnabled: state.mediaEnabled,
+    directChatEnabled: state.directChatEnabled,
+    portalEnabled: state.portalEnabled,
     updatedAt: '2026-09-07T00:00:00.000Z',
     updatedBy: ids.doctor,
   };
@@ -97,6 +109,8 @@ beforeEach(() => {
         onSupport: true,
         commentsEnabled: true,
         mediaEnabled: false,
+        directChatEnabled: null,
+        portalEnabled: null,
         birthDate: '1980-01-02',
         gender: 'female',
         heightCm: 165,
@@ -109,6 +123,8 @@ beforeEach(() => {
         onSupport: false,
         commentsEnabled: false,
         mediaEnabled: true,
+        directChatEnabled: null,
+        portalEnabled: null,
         birthDate: '1990-03-04',
         gender: 'male',
         heightCm: 180,
@@ -140,11 +156,15 @@ beforeEach(() => {
       onSupport?: boolean;
       commentsEnabled?: boolean | null;
       mediaEnabled?: boolean | null;
+      directChatEnabled?: boolean | null;
+      portalEnabled?: boolean | null;
     }) {
       const current = stateByOrganization.get(input.organizationId) ?? {
         onSupport: false,
         commentsEnabled: null,
         mediaEnabled: null,
+        directChatEnabled: null,
+        portalEnabled: null,
         birthDate: null,
         gender: null,
         heightCm: null,
@@ -155,9 +175,20 @@ beforeEach(() => {
         ...(input.onSupport !== undefined ? { onSupport: input.onSupport } : {}),
         ...(input.commentsEnabled !== undefined ? { commentsEnabled: input.commentsEnabled } : {}),
         ...(input.mediaEnabled !== undefined ? { mediaEnabled: input.mediaEnabled } : {}),
+        ...(input.directChatEnabled !== undefined
+          ? { directChatEnabled: input.directChatEnabled }
+          : {}),
+        ...(input.portalEnabled !== undefined ? { portalEnabled: input.portalEnabled } : {}),
       };
       stateByOrganization.set(input.organizationId, next);
       return supportProfile(input.organizationId, next);
+    },
+    async getClientChannelPolicy(_patientUserId: string, context: { organizationId: string }) {
+      const state = stateByOrganization.get(context.organizationId);
+      return resolveClientChannelPolicy({
+        profile: state ? supportProfile(context.organizationId, state) : null,
+        defaults: channelDefaults,
+      });
     },
     async getPatientProgramInteractionPolicy(
       patientUserId: string,
@@ -219,6 +250,7 @@ beforeEach(() => {
     },
     systemSettings: {
       getDoctorWorkspaceComposition: async () => defaultDoctorWorkspaceComposition(),
+      getDoctorWorkspaceClientDefaults: async () => ({ channelDefaults }),
     },
     doctorClientsPort: {
       getClientIdentityForOrganization: async () => ({ userId: ids.patient }),
@@ -393,5 +425,25 @@ describe('C3M-02 organization-scoped support identity', () => {
       birthDate: '1990-03-04',
       gender: 'male',
     });
+  });
+
+  it('lets an explicit client exception be reset back to the changeable default', async () => {
+    // The specialist first denies comments for this one client, against an `on_support` default.
+    await patchSupport(jsonRequest({ commentsEnabled: false }), params());
+    const denied = await (await getSupport(new Request('http://test.local'), params())).json();
+    expect(denied.profile).toMatchObject({ commentsEnabled: false });
+    expect(denied.channelPolicy).toMatchObject({ commentsAllowed: false });
+
+    // «По умолчанию» sends an explicit null; it must clear the exception, not be dropped as absent.
+    await patchSupport(jsonRequest({ commentsEnabled: null }), params());
+    const restored = await (await getSupport(new Request('http://test.local'), params())).json();
+    expect(restored.profile).toMatchObject({ commentsEnabled: null });
+    // Back under the org default, which this client follows because they are in the group.
+    expect(restored.channelPolicy).toMatchObject({ commentsAllowed: true });
+
+    // An unrelated write must not silently re-materialise an exception.
+    await patchSupport(jsonRequest({ onSupport: true }), params());
+    const afterUnrelated = await (await getSupport(new Request('http://test.local'), params())).json();
+    expect(afterUnrelated.profile).toMatchObject({ commentsEnabled: null, mediaEnabled: false });
   });
 });

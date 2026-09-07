@@ -38,6 +38,7 @@ import {
 } from '../courseUsageSummaryText';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type TemplateOption = { id: string; title: string; status: string };
 
@@ -95,6 +96,8 @@ export function DoctorCourseEditForm({
   introPageOptions,
   externalUsageSnapshot,
 }: Props) {
+  const terms = useDoctorPatientTerms();
+  const { patientGenPlural } = terms;
   const router = useRouter();
   const [title, setTitle] = useState(initial.title);
   const [description, setDescription] = useState(initial.description ?? '');
@@ -161,7 +164,7 @@ export function DoctorCourseEditForm({
     };
   }, [courseId, externalUsageSnapshot]);
 
-  const usageSections = usage ? courseUsageSections(usage) : [];
+  const usageSections = usage ? courseUsageSections(usage, terms) : [];
 
   async function persistToServer(acknowledgeArchive: boolean): Promise<{
     ok: boolean;
@@ -300,7 +303,7 @@ export function DoctorCourseEditForm({
     }
   }
 
-  const warnSections = warnUsage ? courseUsageSections(warnUsage) : [];
+  const warnSections = warnUsage ? courseUsageSections(warnUsage, terms) : [];
 
   return (
     <>
@@ -445,9 +448,9 @@ export function DoctorCourseEditForm({
           <DialogHeader>
             <DialogTitle>Отправить курс в архив?</DialogTitle>
             <DialogDescription>
-              Есть активные программы у пациентов по шаблону этого курса или опубликованные страницы
+              Есть активные программы у {patientGenPlural} по шаблону этого курса или опубликованные страницы
               контента с привязкой к курсу. В архиве курс не показывается в каталоге; связи шаблона
-              и записи пациентов в базе не удаляются.
+              и записи {patientGenPlural} в базе не удаляются.
             </DialogDescription>
           </DialogHeader>
           <CourseUsageSectionsView sections={warnSections} />

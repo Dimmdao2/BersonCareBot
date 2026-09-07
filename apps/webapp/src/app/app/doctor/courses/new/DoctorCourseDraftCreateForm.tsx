@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { PatientHomeCmsReturnQuery } from '@/modules/patient-home/patientHomeCmsReturnUrls';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type TemplateOption = { id: string; title: string; status: string };
 
@@ -24,6 +25,7 @@ type Props = {
 };
 
 export function DoctorCourseDraftCreateForm({ templates, returnContext }: Props) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const [title, setTitle] = useState('');
   const [programTemplateId, setProgramTemplateId] = useState(templates[0]?.id ?? '');
   const [pending, setPending] = useState(false);
@@ -75,13 +77,13 @@ export function DoctorCourseDraftCreateForm({ templates, returnContext }: Props)
         <p className="mt-1 font-mono text-xs text-muted-foreground">id: {createdId}</p>
         <p className="mt-2 text-muted-foreground">
           Добавьте курс в блок «{returnContext.patientHomeBlock}» через «Настроить» на экране
-          главной пациента (кандидаты подтягиваются после публикации курса).
+          главной {patientGenitive} (кандидаты подтягиваются после публикации курса).
         </p>
         <Link
           href={returnContext.returnTo}
           className={cn(buttonVariants({ variant: 'secondary' }), 'mt-3 inline-flex')}
         >
-          Открыть экран «Главная пациента»
+          Открыть экран «Главная {patientGenitive}»
         </Link>
       </div>
     );

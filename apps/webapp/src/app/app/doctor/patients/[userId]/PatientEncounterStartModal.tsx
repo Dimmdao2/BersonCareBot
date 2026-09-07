@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { DateTime } from 'luxon';
 import { Check } from 'lucide-react';
 import type { PatientAppointmentItem, PatientCardHeader } from '@/modules/doctor-clients/ports';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { formatDoctorFioShort } from '@/shared/lib/fio';
 import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -75,6 +76,7 @@ export function PatientEncounterStartModal({
   appointmentsManageOwn?: boolean;
   onClose: () => void;
 }) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const router = useRouter();
   const [mode, setMode] = useState<StartMode>('select');
   const [appointments, setAppointments] = useState<PatientAppointmentItem[]>([]);
@@ -229,7 +231,7 @@ export function PatientEncounterStartModal({
           <DoctorPanelLoading className="min-h-32" />
         ) : loadError ? (
           <p role="alert" className="px-4 py-4 text-sm text-destructive">
-            Не удалось загрузить записи пациента.
+            Не удалось загрузить записи {patientGenitive}.
           </p>
         ) : appointments.length === 0 ? (
           <p className="px-4 py-4 text-sm text-muted-foreground">Доступных записей нет.</p>

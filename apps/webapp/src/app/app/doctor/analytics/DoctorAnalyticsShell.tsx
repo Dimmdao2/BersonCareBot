@@ -128,11 +128,7 @@ export function DoctorAnalyticsShell({
       ) : null}
       {mountedTabs.has('activity') ? (
         <div hidden={activeTab !== 'activity'} data-testid="tab-panel-activity">
-          <ActivityTab
-            calendarTodayYmd={calendarTodayYmd}
-            displayIana={displayIana}
-            patientGenPlural={patientGenPlural}
-          />
+          <ActivityTab calendarTodayYmd={calendarTodayYmd} displayIana={displayIana} />
         </div>
       ) : null}
     </DoctorAppShell>

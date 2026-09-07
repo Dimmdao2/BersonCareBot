@@ -8,13 +8,16 @@ import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import type { LfkComplexExerciseLine } from '@/modules/diaries/types';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 function ExerciseRowEditor({
   patientUserId,
+  patientDative,
   line,
   onSaved,
 }: {
   patientUserId: string;
+  patientDative: string;
   line: LfkComplexExerciseLine;
   onSaved: () => void;
 }) {
@@ -29,7 +32,7 @@ function ExerciseRowEditor({
         Из шаблона (заморожено): <span className="text-foreground">{frozen}</span>
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
-        Для пациента:{' '}
+        Для {patientDative}:{' '}
         <span className="text-foreground">
           {line.effectiveComment?.trim() ? line.effectiveComment : '—'}
         </span>
@@ -125,6 +128,7 @@ export function DoctorLfkComplexExerciseOverridesPanel({
   complexes: { id: string; title: string }[];
   linesByComplexId: Record<string, LfkComplexExerciseLine[]>;
 }) {
+  const { patientDative } = useDoctorPatientTerms();
   const router = useRouter();
   const anyLines = complexes.some((c) => (linesByComplexId[c.id] ?? []).length > 0);
   if (!anyLines) return null;
@@ -145,6 +149,7 @@ export function DoctorLfkComplexExerciseOverridesPanel({
                 <ExerciseRowEditor
                   key={`${line.id}:${line.localComment ?? ''}:${line.templateCommentSnapshot ?? ''}`}
                   patientUserId={patientUserId}
+                  patientDative={patientDative}
                   line={line}
                   onSaved={() => {
                     router.refresh();

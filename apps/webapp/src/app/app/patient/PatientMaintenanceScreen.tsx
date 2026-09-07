@@ -19,6 +19,7 @@ export type PatientMaintenanceScreenProps = {
   bookingUrl: string | null;
   bookings: PatientMaintenanceBooking[];
   appDisplayTimeZone: string;
+  patientSingularLabel: string;
 };
 
 export type PatientMaintenanceBooking = {
@@ -64,6 +65,7 @@ export function PatientMaintenanceScreen({
   bookingUrl,
   bookings,
   appDisplayTimeZone,
+  patientSingularLabel,
 }: PatientMaintenanceScreenProps) {
   const safeExternal = bookingUrl && isSafeExternalHref(bookingUrl) ? bookingUrl : null;
 
@@ -77,7 +79,7 @@ export function PatientMaintenanceScreen({
     >
       <div className="flex flex-col gap-4 pb-4">
         <div className={cn(patientSurfaceNeutralClass, 'flex flex-col gap-2')}>
-          <h2 className="sr-only">Сообщение для пациента</h2>
+          <h2 className="sr-only">Сообщение для {patientSingularLabel.toLocaleLowerCase('ru-RU')}</h2>
           <p className="whitespace-pre-wrap text-sm text-[var(--patient-text-primary)]">
             {message}
           </p>

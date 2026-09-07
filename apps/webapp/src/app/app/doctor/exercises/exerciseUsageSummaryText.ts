@@ -1,4 +1,5 @@
 import type { ExerciseUsageRef, ExerciseUsageSnapshot } from '@/modules/lfk-exercises/types';
+import type { PatientTerms } from '@/modules/system-settings/patientTerms';
 
 /** «В N + одна/несколько/много» для существительного после числа (род. мн. / предл. мн.). */
 export function vNaForm(n: number, one: string, few: string, many: string): string {
@@ -31,7 +32,10 @@ export type ExerciseUsageSection = {
 };
 
 /** Секции для UI: сводная строка + ограниченный список ссылок. */
-export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSection[] {
+export function exerciseUsageSections(
+  u: ExerciseUsageSnapshot,
+  terms: Pick<PatientTerms, 'patientGenPlural'>,
+): ExerciseUsageSection[] {
   const sections: ExerciseUsageSection[] = [];
   if (u.publishedLfkComplexTemplateCount > 0) {
     sections.push({
@@ -90,9 +94,9 @@ export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSe
       key: 'active_tp_inst',
       summary: vNaForm(
         u.activeTreatmentProgramInstanceCount,
-        'активной программе у пациентов',
-        'активных программах у пациентов',
-        'активных программах у пациентов',
+        `активной программе у ${terms.patientGenPlural}`,
+        `активных программах у ${terms.patientGenPlural}`,
+        `активных программах у ${terms.patientGenPlural}`,
       ),
       refs: u.activeTreatmentProgramInstanceRefs,
       total: u.activeTreatmentProgramInstanceCount,
@@ -103,9 +107,9 @@ export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSe
       key: 'active_pla',
       summary: vNaForm(
         u.activePatientLfkAssignmentCount,
-        'активном назначении ЛФК у пациентов',
-        'активных назначениях ЛФК у пациентов',
-        'активных назначениях ЛФК у пациентов',
+        `активном назначении ЛФК у ${terms.patientGenPlural}`,
+        `активных назначениях ЛФК у ${terms.patientGenPlural}`,
+        `активных назначениях ЛФК у ${terms.patientGenPlural}`,
       ),
       refs: u.activePatientLfkAssignmentRefs,
       total: u.activePatientLfkAssignmentCount,
@@ -116,9 +120,9 @@ export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSe
       key: 'completed_tp_inst',
       summary: vNaForm(
         u.completedTreatmentProgramInstanceCount,
-        'завершённой программе у пациентов (история)',
-        'завершённых программах у пациентов (история)',
-        'завершённых программах у пациентов (история)',
+        `завершённой программе у ${terms.patientGenPlural} (история)`,
+        `завершённых программах у ${terms.patientGenPlural} (история)`,
+        `завершённых программах у ${terms.patientGenPlural} (история)`,
       ),
       refs: u.completedTreatmentProgramInstanceRefs,
       total: u.completedTreatmentProgramInstanceCount,
@@ -128,6 +132,9 @@ export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSe
 }
 
 /** Короткие строки для блока «Где используется» (только сводка, без списка ссылок). */
-export function exerciseUsageSummaryLines(u: ExerciseUsageSnapshot): string[] {
-  return exerciseUsageSections(u).map((s) => s.summary);
+export function exerciseUsageSummaryLines(
+  u: ExerciseUsageSnapshot,
+  terms: Pick<PatientTerms, 'patientGenPlural'>,
+): string[] {
+  return exerciseUsageSections(u, terms).map((s) => s.summary);
 }

@@ -8,20 +8,21 @@ import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import type { CalendarAppointmentPaymentView } from '@/modules/booking-calendar/types';
 import { sendPaymentLinkToPatientChat } from '../sendPaymentLinkToPatientChat';
 import { localQrCodeDataUri } from './localQrCode';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Response = { ok?: boolean; payment?: CalendarAppointmentPaymentView; error?: string };
 
 const money = (amountMinor: number, currency = 'RUB') =>
   (amountMinor / 100).toLocaleString('ru-RU', { style: 'currency', currency });
 
-function errorLabel(error: string) {
+function errorLabel(error: string, patientSingularLabel: string) {
   if (error === 'payments_disabled') return 'Приём платежей выключен для клиники.';
   if (error === 'payment_provider_unavailable' || error === 'payment_link_unavailable') {
     return 'Платёжный провайдер не настроен.';
   }
   if (error === 'appointment_amount_unavailable') return 'Стоимость записи не определена.';
   if (error === 'already_paid') return 'Запись уже оплачена.';
-  if (error === 'chat_send_failed') return 'Не удалось отправить ссылку в чат пациента.';
+  if (error === 'chat_send_failed') return `Не удалось отправить ссылку в чат ${patientSingularLabel.toLowerCase()}.`;
   return 'Не удалось выполнить действие.';
 }
 
@@ -41,6 +42,7 @@ export function AppointmentPaymentSection({
   /** Needed only for the chat send; omitting it hides that option. */
   patientUserId?: string | null;
 }) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const [current, setCurrent] = useState(view);
   const [link, setLink] = useState<string | null>(null);
   const [collectOpen, setCollectOpen] = useState(false);
@@ -92,7 +94,7 @@ export function AppointmentPaymentSection({
         await reload(targetAppointmentId, version);
       } catch (cause) {
         if (version === requestVersion.current) {
-          toast.error(errorLabel(cause instanceof Error ? cause.message : 'request_failed'));
+          toast.error(errorLabel(cause instanceof Error ? cause.message : 'request_failed', patientSingularLabel));
         }
       }
     });
@@ -117,7 +119,7 @@ export function AppointmentPaymentSection({
         link,
       }).catch(() => false);
       if (ok) setChatSent(true);
-      else toast.error(errorLabel('chat_send_failed'));
+      else toast.error(errorLabel('chat_send_failed', patientSingularLabel));
     });
 
   const captured = current.payment?.status === 'succeeded' ? current.payment.amountMinor : 0;

@@ -47,6 +47,7 @@ import {
   type RecommendationUsageSection,
 } from './recommendationUsageSummaryText';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 function RecommendationUsageSectionsView({ sections }: { sections: RecommendationUsageSection[] }) {
   if (sections.length === 0) {
@@ -157,6 +158,7 @@ export function RecommendationForm({
   unarchiveAction = unarchiveRecommendation,
   externalUsageSnapshot,
 }: Props) {
+  const terms = useDoctorPatientTerms();
   const recordKey = recommendation?.id ?? 'create';
   const [values, setValues] = useState<FormValues>(() => toValues(recommendation));
   const [localError, setLocalError] = useState<string | null>(null);
@@ -242,8 +244,8 @@ export function RecommendationForm({
 
   const usageSections = useMemo(() => {
     if (!usage || !recommendationUsageHasAnyReference(usage)) return [];
-    return recommendationUsageSections(usage);
-  }, [usage]);
+    return recommendationUsageSections(usage, terms);
+  }, [terms, usage]);
 
   const warnSections = useMemo(() => {
     if (
@@ -253,10 +255,10 @@ export function RecommendationForm({
     ) {
       const u = archiveState.usage;
       if (!recommendationUsageHasAnyReference(u)) return [];
-      return recommendationUsageSections(u);
+      return recommendationUsageSections(u, terms);
     }
     return [];
-  }, [archiveState]);
+  }, [archiveState, terms]);
 
   const archiveError =
     archiveState?.ok === false && 'error' in archiveState ? archiveState.error : null;

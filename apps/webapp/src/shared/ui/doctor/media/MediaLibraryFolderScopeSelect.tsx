@@ -8,9 +8,9 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import type { MediaFolderRecord } from '@/modules/media/types';
-import { CLIENT_FILES_ROOT_FOLDER_NAME } from '@/modules/media/clientFilesFolders';
 import { cn } from '@/lib/utils';
 import { mediaFolderPathLabel, sortMediaFoldersByPathRu } from './mediaFolderScopeUtils';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 /** `undefined` — все папки в выдаче API; `null` — только корень; uuid — конкретная папка. */
 export type MediaFolderScopeValue = string | null | undefined;
@@ -48,10 +48,11 @@ function displayLabel(
   folders: MediaFolderRecord[],
   foldersLoaded: boolean,
   clientFilesRootId: string | null | undefined,
+  clientFilesRootLabel: string,
 ): string {
   if (value === undefined) return 'Все папки';
   if (value === null) return 'Корень';
-  if (clientFilesRootId && value === clientFilesRootId) return CLIENT_FILES_ROOT_FOLDER_NAME;
+  if (clientFilesRootId && value === clientFilesRootId) return clientFilesRootLabel;
   const f = folders.find((x) => x.id === value);
   if (f) return mediaFolderPathLabel(f, folders);
   return foldersLoaded ? value : 'Загрузка…';
@@ -75,9 +76,16 @@ export function MediaLibraryFolderScopeSelect({
   label = 'Папка',
   triggerClassName,
 }: MediaLibraryFolderScopeSelectProps) {
+  const { patientPluralLabel } = useDoctorPatientTerms();
   const sorted = sortMediaFoldersByPathRu(folders);
   const internalValue = selectItemValue(value);
-  const labelText = displayLabel(value, folders, foldersLoaded, clientFilesRootId);
+  const labelText = displayLabel(
+    value,
+    folders,
+    foldersLoaded,
+    clientFilesRootId,
+    patientPluralLabel,
+  );
 
   return (
     <div className={cn('flex min-w-[10rem] flex-1 flex-col gap-1', className)}>
@@ -101,7 +109,7 @@ export function MediaLibraryFolderScopeSelect({
           {allowAllFolders ? <SelectItem value="__all__">Все папки</SelectItem> : null}
           <SelectItem value="__root__">Корень</SelectItem>
           {clientFilesRootId ? (
-            <SelectItem value={clientFilesRootId}>{CLIENT_FILES_ROOT_FOLDER_NAME}</SelectItem>
+            <SelectItem value={clientFilesRootId}>{patientPluralLabel}</SelectItem>
           ) : null}
           {sorted.map((f) => (
             <SelectItem key={f.id} value={f.id}>

@@ -13,6 +13,7 @@ import {
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { resolveDoctorWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 import {
   DOCTOR_TODAY_PREFERENCES_KEY,
   parseDoctorTodayPreferences,
@@ -29,6 +30,7 @@ import { DoctorPageLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorTodayAdminBannersSuspense } from './DoctorTodayAdminBanners';
 import { DoctorTodayDashboard, type DoctorTodayCalendarSnapshot } from './DoctorTodayDashboard';
 import { loadDoctorTodayDashboard } from './loadDoctorTodayDashboard';
+import { loadDoctorWorkspaceShell } from './loadDoctorWorkspaceShell';
 
 function DoctorTodayDashboardFallback() {
   return <DoctorPageLoading />;
@@ -123,6 +125,8 @@ async function DoctorTodayDashboardSection({
 export default async function DoctorPage() {
   const workspace = await requireOrganizationWorkspaceContext();
   const session = workspace.session;
+  const shell = await loadDoctorWorkspaceShell();
+  const terms = resolvePatientTerms(shell.patientLabel, shell.supportGroupLabel);
   if (!workspace.canAccessClinicalWorkspace) {
     return (
       <DoctorAppShell title="Первый запуск" user={session.user}>
@@ -131,7 +135,7 @@ export default async function DoctorPage() {
             <DoctorSectionTitle>Защитите аккаунт</DoctorSectionTitle>
           </DoctorSectionHeader>
           <p className="text-sm text-muted-foreground">
-            Кабинет создан. Чтобы открыть пациентов и клинические данные, подключите двухфакторную
+            Кабинет создан. Чтобы открыть {terms.patientGenPlural} и клинические данные, подключите двухфакторную
             защиту и сохраните резервные коды.
           </p>
           <Link className={buttonVariants({ size: 'sm' })} href="/app/account?tab=security">

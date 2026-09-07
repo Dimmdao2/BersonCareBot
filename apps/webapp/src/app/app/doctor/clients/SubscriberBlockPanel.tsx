@@ -8,6 +8,7 @@ import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
 } from './doctorClientCardChrome';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Props = {
   userId: string;
@@ -16,6 +17,7 @@ type Props = {
 };
 
 export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }: Props) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const [blocked, setBlocked] = useState(initiallyBlocked);
   const [reason, setReason] = useState(blockedReason ?? '');
   const [pending, setPending] = useState(false);
@@ -51,7 +53,7 @@ export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }
         Блокировка учётной записи
       </h2>
       <p className="text-muted-foreground text-sm">
-        Пациент не сможет войти в приложение и записаться на приём.
+        {patientSingularLabel} не сможет войти в приложение и записаться на приём.
       </p>
       {blocked ? (
         <p className="text-sm">

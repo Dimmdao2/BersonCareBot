@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
 import { DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS } from '@/shared/ui/doctor/navChrome';
 import { DoctorNewAppointmentModal } from './calendar/DoctorNewAppointmentModal';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type DoctorTodayQuickActionsProps = {
   todayIso: string;
@@ -22,6 +23,7 @@ export function DoctorTodayQuickActions({
   placement,
   appointmentsManageOwn,
 }: DoctorTodayQuickActionsProps) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const [appointmentOpen, setAppointmentOpen] = useState(false);
 
   function openAppointment() {
@@ -61,7 +63,7 @@ export function DoctorTodayQuickActions({
           </Button>
         ) : null}
         <DoctorNewClientAction
-          patientSingularLabel="Клиент"
+          patientSingularLabel={patientSingularLabel}
           className={
             placement === 'mobile-header' ? DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS : undefined
           }

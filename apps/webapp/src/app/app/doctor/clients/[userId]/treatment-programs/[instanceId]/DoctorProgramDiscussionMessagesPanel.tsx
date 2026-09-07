@@ -343,7 +343,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
           <DialogHeader>
             <DialogTitle>Удалить файл из чата?</DialogTitle>
             <DialogDescription>
-              Файл исчезнет из обсуждения с клиентом, но останется в библиотеке «Файлы клиентов».
+              Файл исчезнет из обсуждения, но останется в библиотеке файлов.
             </DialogDescription>
           </DialogHeader>
           {deleteError ? <p className="text-sm text-destructive">{deleteError}</p> : null}
@@ -563,7 +563,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
           }
           submitting={replySending}
           placeholder="Ответ..."
-          ariaLabel="Ответ пациенту"
+          ariaLabel="Ответ в обсуждении"
           submitLabel={<ArrowUp className="size-4" aria-hidden />}
           submittingLabel={<ArrowUp className="size-4" aria-hidden />}
           submitAriaLabel="Отправить ответ"

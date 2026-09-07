@@ -75,7 +75,7 @@ export async function updateReminderRule(
       error:
         'message' in warmupEntitlement
           ? warmupEntitlement.message
-          : 'Не удалось определить клинику пациента',
+          : 'Не удалось определить клинику',
     };
   }
   const result = await warmupEntitlement.runMutation(() =>
@@ -115,7 +115,7 @@ export async function patchPatientReminderScheduleBundle(input: {
       error:
         'message' in warmupEntitlement
           ? warmupEntitlement.message
-          : 'Не удалось определить клинику пациента',
+          : 'Не удалось определить клинику',
     };
   }
   const result = await warmupEntitlement.runMutation(() =>

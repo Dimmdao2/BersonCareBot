@@ -35,10 +35,7 @@ import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
-import {
-  DoctorPatientName,
-  DoctorSupportStar,
-} from '@/shared/ui/doctor/DoctorSupportStar';
+import { DoctorPatientName, DoctorSupportStar } from '@/shared/ui/doctor/DoctorSupportStar';
 import { TooltipProvider } from '@/shared/ui/doctor/primitives/tooltip';
 import {
   doctorDnaFlatListClass,
@@ -52,6 +49,7 @@ import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/D
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { formatDoctorFio } from '@/shared/lib/fio';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import {
   buildPatientListWorkspaceHref,
   patientCardHrefWithReturnTo,
@@ -411,6 +409,7 @@ type PatientsContentProps = {
   metricsPromise: Promise<DoctorDashboardPatientMetrics>;
   patientPluralLabel: string;
   patientSingularLabel: string;
+  supportGroupLabel: string;
   activeSegments: SegmentKey[];
   activeChannel: PatientListChannel | null;
   archivedOnly: boolean;
@@ -436,6 +435,7 @@ function PatientsContent({
   metricsPromise,
   patientPluralLabel,
   patientSingularLabel,
+  supportGroupLabel,
   activeSegments,
   activeChannel,
   archivedOnly,
@@ -455,6 +455,7 @@ function PatientsContent({
   onSearchInput,
   onMobileFiltersOpenChange,
 }: PatientsContentProps) {
+  const { patientGenPlural } = useDoctorPatientTerms();
   const router = useRouter();
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
@@ -591,6 +592,7 @@ function PatientsContent({
             )}
           >
             {SEGMENTS.map((seg) => {
+              const title = seg.key === 'on_support' ? supportGroupLabel : seg.title;
               const totalValue =
                 seg.key === 'all'
                   ? categoryBase.length
@@ -601,7 +603,7 @@ function PatientsContent({
                   id={`${idPrefix}-segment-${seg.key}`}
                   title={
                     <>
-                      {seg.key === 'all' ? `Все ${patientPluralLabelLower}` : seg.title}
+                      {seg.key === 'all' ? `Все ${patientPluralLabelLower}` : title}
                       {seg.titleMeta ? (
                         <span className="ml-1 text-[10px] font-normal tracking-normal normal-case text-muted-foreground">
                           ({seg.titleMeta})
@@ -613,7 +615,9 @@ function PatientsContent({
                   tooltip={
                     seg.key === 'all'
                       ? `Все ${patientPluralLabelLower} этой организации.`
-                      : seg.tooltip
+                      : seg.key === 'on_support'
+                        ? `Сейчас в группе «${supportGroupLabel}».`
+                        : seg.tooltip
                   }
                   selected={
                     seg.key === 'all'
@@ -662,7 +666,7 @@ function PatientsContent({
                   supportFilterActive && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
                 )}
                 onClick={() => onSegmentToggle('on_support')}
-                aria-label="Только на сопровождении"
+                aria-label={`Только: ${supportGroupLabel}`}
                 aria-pressed={supportFilterActive}
               >
                 <DoctorSupportStar
@@ -717,8 +721,8 @@ function PatientsContent({
             {filtered.length === 0 ? (
               <p className="px-3 py-4 text-sm text-muted-foreground">
                 {searchQuery.trim()
-                  ? 'Нет пациентов по запросу.'
-                  : 'Нет пациентов по заданным фильтрам.'}
+                  ? `Нет ${patientGenPlural} по запросу.`
+                  : `Нет ${patientGenPlural} по заданным фильтрам.`}
               </p>
             ) : (
               <ul
@@ -889,6 +893,7 @@ export function PatientsPageClient({
   patientPluralLabel = 'Пациенты',
   patientSingularLabel = 'Пациент',
 }: PatientsPageClientProps) {
+  const { supportGroupLabel } = useDoctorPatientTerms();
   // Search state (local, debounced)
   const [searchInput, setSearchInput] = useState(initialFilters.q);
   const [searchQuery, setSearchQuery] = useState(initialFilters.q);
@@ -1039,6 +1044,7 @@ export function PatientsPageClient({
         metricsPromise={metricsPromise}
         patientPluralLabel={patientPluralLabel}
         patientSingularLabel={patientSingularLabel}
+        supportGroupLabel={supportGroupLabel}
         activeSegments={activeSegments}
         activeChannel={activeChannel}
         archivedOnly={archivedOnly}

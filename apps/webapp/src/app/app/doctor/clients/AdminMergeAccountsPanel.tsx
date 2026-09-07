@@ -32,6 +32,7 @@ import {
   type MergePreviewApiOk,
 } from './adminMergeAccountsLogic';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type CandidateRow = {
   id: string;
@@ -83,6 +84,7 @@ export function AdminMergeAccountsPanel({
   enabled,
   suspendHeavyFetch = false,
 }: Props) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const router = useRouter();
   const [q, setQ] = useState('');
   const [candidates, setCandidates] = useState<CandidateRow[] | null>(null);
@@ -631,7 +633,7 @@ export function AdminMergeAccountsPanel({
                 </p>
                 <ul className="list-disc space-y-2 pl-4">
                   {preview.hardBlockers.map((b) => {
-                    const ru = hardBlockerUi(b.code);
+                    const ru = hardBlockerUi(b.code, { patientGenitive });
                     return (
                       <li key={b.code}>
                         <span className="font-medium">{ru.title}</span>

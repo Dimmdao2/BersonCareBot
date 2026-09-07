@@ -1,5 +1,7 @@
 'use client';
 
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+
 import { useActionState, useId, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
@@ -28,6 +30,7 @@ export function SectionSlugRenameDialog({
   disabled,
   disabledReason,
 }: Props) {
+  const { patientGenPlural } = useDoctorPatientTerms();
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     renameContentSectionSlug,
@@ -54,7 +57,7 @@ export function SectionSlugRenameDialog({
           <DialogTitle>Переименование slug раздела</DialogTitle>
           <DialogDescription>
             Текущий slug: <span className="font-mono text-foreground">{oldSlug}</span>. Будут
-            обновлены ссылки в страницах контента и история редиректов для пациентских URL. Действие
+            обновлены ссылки в страницах контента и история редиректов для {patientGenPlural} URL. Действие
             необратимо по смыслу (старый slug остаётся только как запись в истории).
           </DialogDescription>
         </DialogHeader>

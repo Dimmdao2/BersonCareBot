@@ -1,4 +1,5 @@
 import type { LfkTemplateUsageRef, LfkTemplateUsageSnapshot } from '@/modules/lfk-templates/types';
+import type { PatientTerms } from '@/modules/system-settings/patientTerms';
 import { vNaForm } from '@/app/app/doctor/exercises/exerciseUsageSummaryText';
 
 export function lfkTemplateUsageHasAnyReference(u: LfkTemplateUsageSnapshot): boolean {
@@ -18,7 +19,10 @@ export type LfkTemplateUsageSection = {
   total: number;
 };
 
-export function lfkTemplateUsageSections(u: LfkTemplateUsageSnapshot): LfkTemplateUsageSection[] {
+export function lfkTemplateUsageSections(
+  u: LfkTemplateUsageSnapshot,
+  terms: Pick<PatientTerms, 'patientGenPlural'>,
+): LfkTemplateUsageSection[] {
   const sections: LfkTemplateUsageSection[] = [];
   if (u.publishedTreatmentProgramTemplateCount > 0) {
     sections.push({
@@ -51,9 +55,9 @@ export function lfkTemplateUsageSections(u: LfkTemplateUsageSnapshot): LfkTempla
       key: 'active_tp_inst',
       summary: vNaForm(
         u.activeTreatmentProgramInstanceCount,
-        'активной программе у пациентов',
-        'активных программах у пациентов',
-        'активных программах у пациентов',
+        `активной программе у ${terms.patientGenPlural}`,
+        `активных программах у ${terms.patientGenPlural}`,
+        `активных программах у ${terms.patientGenPlural}`,
       ),
       refs: u.activeTreatmentProgramInstanceRefs,
       total: u.activeTreatmentProgramInstanceCount,
@@ -64,9 +68,9 @@ export function lfkTemplateUsageSections(u: LfkTemplateUsageSnapshot): LfkTempla
       key: 'active_pla',
       summary: vNaForm(
         u.activePatientLfkAssignmentCount,
-        'активном назначении ЛФК у пациентов',
-        'активных назначениях ЛФК у пациентов',
-        'активных назначениях ЛФК у пациентов',
+        `активном назначении ЛФК у ${terms.patientGenPlural}`,
+        `активных назначениях ЛФК у ${terms.patientGenPlural}`,
+        `активных назначениях ЛФК у ${terms.patientGenPlural}`,
       ),
       refs: u.activePatientLfkAssignmentRefs,
       total: u.activePatientLfkAssignmentCount,
@@ -77,9 +81,9 @@ export function lfkTemplateUsageSections(u: LfkTemplateUsageSnapshot): LfkTempla
       key: 'completed_tp_inst',
       summary: vNaForm(
         u.completedTreatmentProgramInstanceCount,
-        'завершённой программе у пациентов (история)',
-        'завершённых программах у пациентов (история)',
-        'завершённых программах у пациентов (история)',
+        `завершённой программе у ${terms.patientGenPlural} (история)`,
+        `завершённых программах у ${terms.patientGenPlural} (история)`,
+        `завершённых программах у ${terms.patientGenPlural} (история)`,
       ),
       refs: u.completedTreatmentProgramInstanceRefs,
       total: u.completedTreatmentProgramInstanceCount,

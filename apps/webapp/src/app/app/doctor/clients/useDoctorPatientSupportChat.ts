@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export function useDoctorPatientSupportChat(
   patientUserId: string,
   onUnreadChange?: (count: number) => void,
 ) {
+  const { patientSingularLabel, patientGenitive } = useDoctorPatientTerms();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -31,11 +33,11 @@ export function useDoctorPatientSupportChat(
       };
       if (!res.ok || !data.ok || !data.conversationId) {
         if (data.error === 'patient_not_found') {
-          setError('Пациент не найден, чат открыть нельзя.');
+          setError(`${patientSingularLabel} не найден, чат открыть нельзя.`);
         } else if (data.error === 'conversation_ensure_failed') {
           setError('Не удалось открыть чат. Попробуйте ещё раз.');
         } else {
-          setError('Не удалось открыть чат пациента');
+          setError(`Не удалось открыть чат ${patientGenitive}`);
         }
         setConversationId(null);
         return;
@@ -51,7 +53,7 @@ export function useDoctorPatientSupportChat(
     } finally {
       setLoading(false);
     }
-  }, [patientUserId, onUnreadChange]);
+  }, [patientUserId, onUnreadChange, patientGenitive, patientSingularLabel]);
 
   useEffect(() => {
     void ensure();

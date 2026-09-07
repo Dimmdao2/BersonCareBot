@@ -6,6 +6,7 @@ import { ContentHeroImage } from '@/shared/ui/doctor/media/ContentHeroImage';
 import { NoContextMenuVideo } from '@/shared/ui/doctor/media/NoContextMenuVideo';
 import { HostedVideoEmbed } from '@/shared/ui/doctor/media/HostedVideoEmbed';
 import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Props = {
   title: string;
@@ -16,10 +17,13 @@ type Props = {
 };
 
 export function ContentPreview({ title, summary, bodyMd, imageUrl, videoUrl }: Props) {
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const hostedVideo = videoUrl ? parseHostedVideoLink(videoUrl) : null;
   return (
     <section className="rounded-xl border border-border bg-muted/10 p-4">
-      <h3 className={`m-0 ${doctorSectionTitleClass}`}>Предпросмотр для пациента</h3>
+      <h3 className={`m-0 ${doctorSectionTitleClass}`}>
+        Предпросмотр для {patientSingularLabel.toLowerCase()}
+      </h3>
       <article className="mt-3 flex flex-col gap-3 rounded-lg border border-border bg-background p-4">
         <h4 className="m-0 text-base font-semibold">{title.trim() || 'Заголовок страницы'}</h4>
         {summary.trim() ? (

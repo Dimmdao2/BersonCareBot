@@ -27,7 +27,10 @@ import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/patient/navChrome';
 import { usePatientShellScrollCompact } from '@/shared/hooks/usePatientShellScrollCompact';
 import { PatientNavCountBadge } from '@/shared/ui/patient/PatientNavCountBadge';
 import { PatientNotificationInboxButton } from '@/shared/ui/patient/shell/PatientNotificationInboxButton';
-import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/PatientOrganizationContext';
+import {
+  usePatientOrganizationContext,
+  usePatientTerms,
+} from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import {
   PATIENT_DESKTOP_INNER_MAX_CLASS,
   PATIENT_TOP_NAV_FIXED_MOBILE_CLASS,
@@ -93,6 +96,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
   const pathname = usePathname() ?? '';
   const activeId = getPatientPrimaryNavActiveId(pathname);
   const organizationContext = usePatientOrganizationContext();
+  const { patientGenitive } = usePatientTerms();
   const directChatEnabled = organizationContext?.workspaceModules?.direct_chat !== false;
   const chatUnread = usePatientSupportUnreadCount(directChatEnabled);
   const navItems = PATIENT_PRIMARY_NAV_ITEMS.filter(
@@ -221,7 +225,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         )}
       >
         <nav
-          aria-label="Основная навигация пациента"
+          aria-label={`Основная навигация ${patientGenitive}`}
           data-testid="patient-mobile-top-nav"
           className="safe-padding-patient-horiz flex w-full min-w-0 items-stretch justify-around py-1 patient-desktop:hidden"
         >
