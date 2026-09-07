@@ -6,8 +6,11 @@ import {
   workspaceModuleDisabledResponse,
 } from '@/app-layer/guards/workspaceModuleAccess';
 import {
+  defaultDoctorWorkspaceClientDefaults,
   defaultDoctorWorkspaceComposition,
+  DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY,
   DOCTOR_WORKSPACE_COMPOSITION_KEY,
+  parseDoctorWorkspaceClientDefaults,
   parseDoctorWorkspaceComposition,
   resolveWorkspaceModuleEffective,
   type DoctorWorkspaceComposition,
@@ -57,6 +60,40 @@ describe('doctor workspace composition foundation', () => {
     expect(resolveWorkspaceModuleEffective(composition, ALL_AVAILABLE)).toEqual(ALL_AVAILABLE);
   });
 
+  it('projects the accepted channel and symptom compatibility defaults when no structured row exists', () => {
+    expect(parseDoctorWorkspaceClientDefaults(null)).toEqual({
+      version: 1,
+      channelDefaults: {
+        direct_chat: 'all',
+        program_comments: 'on_support',
+        program_media: 'on_support',
+      },
+      patientSymptomTrackingDefault: 'all',
+    });
+    expect(
+      parseDoctorWorkspaceClientDefaults(null, {
+        legacyCommentsWithoutSupportEnabled: true,
+        legacyMediaWithoutSupportEnabled: true,
+      }),
+    ).toEqual({
+      version: 1,
+      channelDefaults: {
+        direct_chat: 'all',
+        program_comments: 'all',
+        program_media: 'all',
+      },
+      patientSymptomTrackingDefault: 'all',
+    });
+    expect(
+      defaultDoctorWorkspaceClientDefaults({
+        legacyCommentsWithoutSupportEnabled: false,
+        legacyMediaWithoutSupportEnabled: false,
+      }),
+    ).toMatchObject({
+      channelDefaults: { program_comments: 'on_support', program_media: 'on_support' },
+    });
+  });
+
   it('never broadens upstream module availability', () => {
     const effective = resolveWorkspaceModuleEffective(
       defaultDoctorWorkspaceComposition(),
@@ -69,10 +106,7 @@ describe('doctor workspace composition foundation', () => {
   it('turns direct and transitive descendants effective-OFF without rewriting child preferences', () => {
     const rehabilitationOff = compositionWith({ rehabilitation: false });
     const rehabilitationBefore = { ...rehabilitationOff.modules };
-    const withoutRehabilitation = resolveWorkspaceModuleEffective(
-      rehabilitationOff,
-      ALL_AVAILABLE,
-    );
+    const withoutRehabilitation = resolveWorkspaceModuleEffective(rehabilitationOff, ALL_AVAILABLE);
     expect(withoutRehabilitation).toMatchObject({
       medical_record: true,
       encounters: true,
@@ -110,6 +144,63 @@ describe('doctor workspace composition foundation', () => {
         RuntimeSettingUnavailableError,
       );
     }
+  });
+
+  it('rejects malformed persisted channel defaults instead of broadening them', () => {
+    for (const invalid of [
+      { value: { version: 2, channelDefaults: {}, patientSymptomTrackingDefault: 'all' } },
+      {
+        value: {
+          version: 1,
+          channelDefaults: {
+            direct_chat: 'all',
+            program_comments: 'all',
+            program_media: 'all',
+            booking: 'all',
+          },
+          patientSymptomTrackingDefault: 'all',
+        },
+      },
+      {
+        value: {
+          version: 1,
+          channelDefaults: {
+            direct_chat: 'unsupported',
+            program_comments: 'all',
+            program_media: 'all',
+          },
+          patientSymptomTrackingDefault: 'all',
+        },
+      },
+    ]) {
+      expect(() => parseDoctorWorkspaceClientDefaults(invalid)).toThrowError(
+        RuntimeSettingUnavailableError,
+      );
+    }
+  });
+
+  it('rejects malformed structured defaults at the canonical service write boundary', async () => {
+    const service = createSystemSettingsService(createInMemorySystemSettingsPort());
+
+    await expect(
+      service.updateSetting(
+        DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY,
+        'doctor',
+        {
+          value: {
+            version: 1,
+            channelDefaults: {
+              direct_chat: 'all',
+              program_comments: 'all',
+              program_media: 'invalid',
+            },
+            patientSymptomTrackingDefault: 'all',
+          },
+        },
+        'audit-fixture',
+        { organizationId: 'org-a' },
+      ),
+    ).rejects.toThrow(`invalid_setting_value: ${DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY}`);
   });
 
   it('fails closed when a stored preference row has a malformed value', async () => {
