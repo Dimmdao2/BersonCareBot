@@ -7,9 +7,9 @@ export type { OrgCustomDomainPlacement, OrgCustomDomainStatus };
  * B2/B8/C5a — server-owned custom-domain binding lifecycle
  * (`docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md`).
  *
- * This module owns hostname computation, validation and the lifecycle state machine. It never
- * probes DNS or claims a certificate exists — that boundary belongs to a later verifier/edge
- * integration (see `transitionBindingStatus`'s doc comment).
+ * This module owns hostname computation, validation and the lifecycle state machine. The port itself
+ * does not probe DNS or claim a certificate exists; the readiness service performs those checks and
+ * records their result through `transitionBindingStatus`.
  */
 export type CustomDomainBindingState = Readonly<{
   organizationId: string;
@@ -98,10 +98,10 @@ export type CustomDomainBindingPort = {
   clearCustomDomainIntent(input: ClearCustomDomainIntentInput): Promise<CustomDomainIntentResult>;
 
   /**
-   * Internal door for a LATER verifier/edge integration (not built in this slice). It never runs on
-   * its own and this module never calls it from DNS/network signals gathered in a request path.
-   * Allowed transitions: pending->dns_ready, dns_ready->active, suspended->active,
-   * (pending|dns_ready)->failed, active->suspended.
+   * Internal transition used by the scheduled and owner-triggered readiness verifier. It never runs
+   * on its own and this module never calls it from DNS/network signals gathered in a request path.
+   * `mark_dns_ready` retries pending/failed/suspended bindings, `mark_active` follows DNS readiness,
+   * and failed/suspended outcomes may remove any non-quarantined binding from public use.
    */
   transitionBindingStatus(input: {
     hostname: string;
