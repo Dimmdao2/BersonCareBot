@@ -1,5 +1,4 @@
 import { routePaths } from '@/app-layer/routes/paths';
-import { env } from '@/config/env';
 import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
 import { logger } from '@/infra/logging/logger';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
@@ -43,6 +42,7 @@ export type NotifyPatientDoctorReplyDeps = RelayOutboundDeps & {
   getChannelBindings: (
     platformUserId: string,
   ) => Promise<{ telegramId?: string | null; maxId?: string | null }>;
+  resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
 };
 
 export function buildPatientMessagesOpenUrl(appBaseUrl: string): string {
@@ -118,7 +118,10 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
     params: NotifyPatientDoctorReplyParams,
   ): Promise<void> {
     const { platformUserId, messageId, text } = params;
-    const openUrl = buildPatientMessagesOpenUrl(env.APP_BASE_URL);
+    const patientOrigin = deps.resolvePatientPublicOrigin
+      ? await deps.resolvePatientPublicOrigin(params.organizationId)
+      : '';
+    const openUrl = buildPatientMessagesOpenUrl(patientOrigin);
     const trimmed = text.trim();
     if (!trimmed) return;
     const notificationText = buildPersonalChatNotificationText(

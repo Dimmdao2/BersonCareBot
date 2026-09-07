@@ -59,7 +59,20 @@ export type CustomDomainBindingService = {
   readAnonymousPatientSurfaceProjection(
     organizationId: string,
   ): Promise<AnonymousPatientSurfaceProjection | null>;
+  /**
+   * The one organization-bound patient-link seam. A ready custom hostname wins; every other
+   * lifecycle state deliberately falls back to the permanent platform alias.
+   */
+  resolvePatientPublicOrigin(organizationId: string): Promise<string>;
 };
+
+export function patientPublicOriginFromProjection(
+  projection: AnonymousPatientSurfaceProjection,
+): string {
+  return projection.activeCustomDomainHostname
+    ? `https://${projection.activeCustomDomainHostname}`
+    : `https://${projection.clinicSlug}.therapygo.ru`;
+}
 
 export function createCustomDomainBindingService(
   port: CustomDomainBindingPort,
@@ -146,6 +159,15 @@ export function createCustomDomainBindingService(
       if (await isBindingLifecycleEligible(organizationId)) return projection;
       const { activeCustomDomainHostname: _inactiveCustomDomain, ...slugProjection } = projection;
       return slugProjection;
+    },
+    async resolvePatientPublicOrigin(organizationId) {
+      const projection = await port.readAnonymousPatientSurfaceProjection(organizationId);
+      if (!projection) throw new Error('patient_public_origin_unresolved');
+      if (projection.activeCustomDomainHostname && !(await isBindingLifecycleEligible(organizationId))) {
+        const { activeCustomDomainHostname: _inactiveCustomDomain, ...slugProjection } = projection;
+        return patientPublicOriginFromProjection(slugProjection);
+      }
+      return patientPublicOriginFromProjection(projection);
     },
   };
 }

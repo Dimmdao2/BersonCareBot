@@ -26,8 +26,17 @@ import { resolvePaymentProviderWebhookSecret } from './providerPort';
  * The caller always computes a screen-specific return address; this is only the safety net for
  * the case it comes in blank — our own screen, never the provider's site (B0.3a/#1057).
  */
-function resolveReturnUrl(returnUrl: string | null | undefined): string {
-  return returnUrl?.trim() || `${env.APP_BASE_URL}${routePaths.patient}`;
+async function resolveReturnUrl(
+  organizationId: string,
+  returnUrl: string | null | undefined,
+  resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>,
+): Promise<string> {
+  const legacyFallback = `${env.APP_BASE_URL}${routePaths.patient}`;
+  if (!resolvePatientPublicOrigin) return returnUrl?.trim() || legacyFallback;
+  const patientOrigin = await resolvePatientPublicOrigin(organizationId);
+  const requested = returnUrl?.trim() || routePaths.patient;
+  const parsed = new URL(requested, patientOrigin);
+  return new URL(`${parsed.pathname}${parsed.search}`, patientOrigin).toString();
 }
 
 /**
@@ -74,6 +83,8 @@ export function createPaymentsService(deps: {
   assertWriteClearance?: (mechanic: 'payments' | 'booking_prepayment') => void;
   /** Resolve the current payer email for fiscal receipts at the moment the intent is created. */
   resolvePayerEmail?: (platformUserId: string) => Promise<string | null>;
+  /** Injected once by composition; patient payment returns never use the staff deployment origin. */
+  resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
 }) {
   async function loadSettings(organizationId?: string): Promise<BookingPaymentSettings> {
     return deps.config.getBookingPaymentSettings(organizationId);
@@ -415,7 +426,11 @@ export function createPaymentsService(deps: {
         payerRef: `platform_user:${input.platformUserId}`,
         purpose: 'appointment_prepayment',
         subjectRef: input.appointmentId,
-        returnUrl: resolveReturnUrl(input.returnUrl),
+        returnUrl: await resolveReturnUrl(
+          input.organizationId,
+          input.returnUrl,
+          deps.resolvePatientPublicOrigin,
+        ),
         receipt: buildBookingPaymentReceipt({
           settings,
           providerId: provider.id,
@@ -488,7 +503,11 @@ export function createPaymentsService(deps: {
         payerRef: `platform_user:${input.platformUserId}`,
         purpose: 'package_purchase',
         subjectRef: productRef,
-        returnUrl: resolveReturnUrl(input.returnUrl),
+        returnUrl: await resolveReturnUrl(
+          input.organizationId,
+          input.returnUrl,
+          deps.resolvePatientPublicOrigin,
+        ),
         receipt: buildBookingPaymentReceipt({
           settings,
           providerId: provider.id,
