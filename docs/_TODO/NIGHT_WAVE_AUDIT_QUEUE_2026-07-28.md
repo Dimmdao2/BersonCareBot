@@ -6,6 +6,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## Custom-domain settings UI #787 — 07.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Настройка и независимая desktop/mobile-приёмка | product `062eb52eb`, acceptance `b48ae835a`, live audit `a6a3dfe83`, queue registration `c01e44176` (`wt/branding-domain-ui-20260907`) | **INDEPENDENT LIVE-VIEW PASS — FOR LAND.** На изолированном candidate `58cdd83c1` владелец клиники видит существующую карточку собственного домена с выбором корневого домена или `app.`; desktop `1440×1100` и mobile `390×844` без обрезки и горизонтального переполнения. Route-acceptance подтверждает, что управляемая браузером метка поддомена не проходит в каноническую запись. Данные клиники, DNS, TLS, TEST и PROD не менялись; общий `:5200` не затронут. Артефакт: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_CUSTOM_DOMAIN_UI_2026-09-07.md`. |
+
 ## Booking acquiring webhook MONEY-13 — 05.09
 
 | слой | коммит | вердикт |
