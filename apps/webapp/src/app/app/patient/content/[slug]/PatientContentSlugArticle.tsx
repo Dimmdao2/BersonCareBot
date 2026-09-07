@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { MarkdownContent } from '@/shared/ui/patient/markdown/MarkdownContent';
 import { resolveMediaPlaybackPayload } from '@/app-layer/media/resolveMediaPlaybackPayload';
 import { ContentHeroImage } from '@/shared/ui/patient/media/ContentHeroImage';
+import { HostedVideoEmbed } from '@/shared/ui/patient/media/HostedVideoEmbed';
 import {
   patientCardClass,
   patientMutedTextClass,
@@ -54,7 +55,7 @@ type Props = {
   isDailyWarmup: boolean;
   practiceSource: 'daily_warmup' | 'section_page';
   videoPlayableUrl: string | undefined;
-  /** YouTube или RuTube — канонический URL для `<iframe>` (не файл из медиабиблиотеки). */
+  /** Распознанное внешнее видео (не файл из медиабиблиотеки). */
   hostedVideoIframeSrc: string | null;
   apiMediaId: string | null;
   warmupNav: PatientDailyWarmupNav | null;
@@ -234,7 +235,7 @@ async function renderPatientContentSlugArticle({
               <PatientDailyWarmupVideoEngagement
                 mode="hosted"
                 contentPageId={dbRow.id}
-                iframeSrc={hostedVideoIframeSrc}
+                url={videoPlayableUrl}
                 title={item.title}
               />
             ) : (
@@ -249,15 +250,7 @@ async function renderPatientContentSlugArticle({
               />
             )
           ) : hostedVideoIframeSrc ? (
-            <div className="relative aspect-video">
-              <iframe
-                src={hostedVideoIframeSrc}
-                className="absolute inset-0 size-full border-0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                title={item.title}
-              />
-            </div>
+            <HostedVideoEmbed url={videoPlayableUrl} title={item.title} />
           ) : (
             <PatientContentAdaptiveVideo
               mediaId={apiMediaId ?? ''}

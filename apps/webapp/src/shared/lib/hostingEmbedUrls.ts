@@ -20,9 +20,13 @@
  */
 
 export type HostedVideoProvider = 'youtube' | 'rutube' | 'vk' | 'vimeo';
+export type HostedVideoPlayerKind =
+  'youtube_custom_controls' | 'rutube_custom_controls' | 'provider_native_controls';
 
 export type HostedVideoLink = {
   provider: HostedVideoProvider;
+  /** Способ рендера выводится из самого видео, а не из упражнения или CMS-страницы. */
+  playerKind: HostedVideoPlayerKind;
   /** Публичный URL хоста без трекинга — то, что сохраняется в базу. */
   canonicalUrl: string;
   /** Значение для `<iframe src>`; наименее навязчивый режим хоста. */
@@ -55,7 +59,11 @@ function parseYoutube(u: URL): HostedVideoLink | null {
 
   if (host === 'youtu.be') {
     id = u.pathname.replace(/^\//, '').split('/')[0] ?? null;
-  } else if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtube-nocookie.com') {
+  } else if (
+    host === 'youtube.com' ||
+    host === 'm.youtube.com' ||
+    host === 'youtube-nocookie.com'
+  ) {
     if (u.pathname === '/watch') id = u.searchParams.get('v');
     else {
       const m = /^\/(?:embed|shorts|live|v)\/([^/?#]+)/.exec(u.pathname);
@@ -67,6 +75,7 @@ function parseYoutube(u: URL): HostedVideoLink | null {
   if (!id || !/^[A-Za-z0-9_-]{11}$/.test(id)) return null;
   return {
     provider: 'youtube',
+    playerKind: 'youtube_custom_controls',
     canonicalUrl: `https://www.youtube.com/watch?v=${id}`,
     embedSrc: `https://www.youtube-nocookie.com/embed/${id}`,
     videoRef: id,
@@ -85,6 +94,7 @@ function parseRutube(u: URL): HostedVideoLink | null {
   const query = access ? `?p=${encodeURIComponent(access)}` : '';
   return {
     provider: 'rutube',
+    playerKind: 'rutube_custom_controls',
     canonicalUrl: `https://rutube.ru/video/${id.toLowerCase()}/${query}`,
     embedSrc: `https://rutube.ru/play/embed/${id.toLowerCase()}${query}`,
     videoRef: id.toLowerCase(),
@@ -122,6 +132,7 @@ function parseVk(u: URL): HostedVideoLink | null {
 
   return {
     provider: 'vk',
+    playerKind: 'provider_native_controls',
     canonicalUrl: `https://vkvideo.ru/video${oid}_${vid}${hashOk ? `?hash=${hashOk}` : ''}`,
     embedSrc: embed.toString(),
     videoRef: `${oid}_${vid}${hashOk ? `_${hashOk}` : ''}`,
@@ -153,6 +164,7 @@ function parseVimeo(u: URL): HostedVideoLink | null {
 
   return {
     provider: 'vimeo',
+    playerKind: 'provider_native_controls',
     canonicalUrl: `https://vimeo.com/${id}${hashOk ? `/${hashOk}` : ''}`,
     embedSrc: embed.toString(),
     videoRef: hashOk ? `${id}:${hashOk}` : id,
@@ -187,6 +199,16 @@ export function hostedVideoLinkRejectionRu(raw: string): string | null {
 /** `<iframe src>` для сохранённой ссылки. `null` — показывать iframe нельзя. */
 export function toHostedVideoEmbedSrc(url: string): string | null {
   return parseHostedVideoLink(url)?.embedSrc ?? null;
+}
+
+export function toYouTubeCustomControlsEmbedSrc(link: HostedVideoLink): string | null {
+  if (link.provider !== 'youtube' || link.playerKind !== 'youtube_custom_controls') return null;
+  const embed = new URL(link.embedSrc);
+  embed.searchParams.set('controls', '0');
+  embed.searchParams.set('enablejsapi', '1');
+  embed.searchParams.set('playsinline', '1');
+  embed.searchParams.set('disablekb', '1');
+  return embed.toString();
 }
 
 const HOSTED_EMBED_ORIGINS = new Set([
