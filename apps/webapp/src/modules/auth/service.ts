@@ -59,6 +59,9 @@ import {
   ensureDbPrincipalContext,
 } from '@bersoncare/db-principal';
 import { requireSessionUserPort } from './sessionUserPort';
+import { getOptionalResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
+import { arePlatformSurfaceHostsDistinct } from '@/shared/lib/surface/requestSurface';
+import { roleCanUseRequestSurface } from './roleLogin';
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
@@ -1027,6 +1030,16 @@ export async function setSessionFromUser(
     staffSecurity?: AppSession['staffSecurity'];
   },
 ): Promise<void> {
+  // TEST/legacy may deliberately run staff and patient trees on one Host. Once deploy origins are
+  // distinct, every browser login must match the product selected by proxy's trusted surface
+  // header. This is the single mint-side gate shared by password, OTP, messenger, passkey and
+  // OAuth flows; no auth route may mint a cross-product session by forgetting its own check.
+  if (arePlatformSurfaceHostsDistinct()) {
+    const resolvedSurface = await getOptionalResolvedSurface();
+    if (resolvedSurface && !roleCanUseRequestSurface(user.role, resolvedSurface.surface)) {
+      throw new Error('auth_surface_role_mismatch');
+    }
+  }
   const session = buildSession(user);
   const full: AppSession = {
     ...session,

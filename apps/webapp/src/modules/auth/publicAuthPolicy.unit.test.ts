@@ -155,17 +155,17 @@ describe('public auth policy', () => {
     expect(fakes.getPublicRuntimeBool).not.toHaveBeenCalled();
   });
 
-  it('declares the independent owner defaults for staff, platform-admin and patient mechanics', () => {
-    const defaults = (surface: (typeof SURFACE_AUTH_POLICY_NAMES)[number]) =>
-      Object.fromEntries(
-        SURFACE_AUTH_CONTROLS.map((control) => [
-          control,
-          SYSTEM_SETTING_REGISTRY[surfaceAuthSettingKey(surface, control)].defaultValue,
-        ]),
-      );
+  const defaults = (surface: (typeof SURFACE_AUTH_POLICY_NAMES)[number]) =>
+    Object.fromEntries(
+      SURFACE_AUTH_CONTROLS.map((control) => [
+        control,
+        SYSTEM_SETTING_REGISTRY[surfaceAuthSettingKey(surface, control)].defaultValue,
+      ]),
+    );
 
+  it('defaults staff first launch to password-only authentication mechanics', () => {
     expect(defaults('staff')).toMatchObject({
-      email: 'true',
+      email: 'false',
       sms: 'false',
       oauth_google: 'false',
       oauth_yandex: 'false',
@@ -173,6 +173,9 @@ describe('public auth policy', () => {
       oauth_apple: 'false',
       passkey: 'false',
     });
+  });
+
+  it('keeps the independent platform-admin defaults', () => {
     expect(defaults('platform_admin')).toMatchObject({
       email: 'true',
       sms: 'false',
@@ -180,14 +183,6 @@ describe('public auth policy', () => {
       oauth_yandex: 'false',
       oauth_vk: 'false',
       oauth_apple: 'false',
-    });
-    expect(defaults('patient')).toMatchObject({
-      email: 'true',
-      sms: 'false',
-      telegram: 'true',
-      oauth_google: 'false',
-      oauth_yandex: 'true',
-      passkey: 'false',
     });
   });
 

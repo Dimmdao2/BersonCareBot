@@ -42,6 +42,7 @@ import { ClinicDeliveryChannelsSection } from './ClinicDeliveryChannelsSection';
 import { OrgBrandingSection } from './OrgBrandingSection';
 import { OrgCustomDomainSection } from './OrgCustomDomainSection';
 import { SettingsForm } from './SettingsForm';
+import { ClinicStaffSecuritySection } from './ClinicStaffSecuritySection';
 import { SettingsTabsNav } from './SettingsTabsNav';
 import type { SettingsTabId } from './settingsTabs';
 import { TeamSection } from './TeamSection';
@@ -292,6 +293,11 @@ export default async function SettingsPage({
         ),
       },
     );
+    const staffSecondFactorRequired = valueOf(
+      doctorSettings.find((setting) => setting.key === 'doctor_staff_second_factor_required')
+        ?.valueJson,
+      false,
+    );
     const workspaceModuleAvailability: WorkspaceModuleAvailability = {
       medical_record: true,
       encounters: true,
@@ -472,6 +478,9 @@ export default async function SettingsPage({
           supportGroupLabel={supportGroupLabel}
           showSupportDefaults={false}
         />
+        {workspace.membershipRole === 'owner' ? (
+          <ClinicStaffSecuritySection initialRequired={Boolean(staffSecondFactorRequired)} />
+        ) : null}
         <DoctorPatientTermsProvider
           patientLabel={String(patientLabel)}
           supportGroupLabel={supportGroupLabel}

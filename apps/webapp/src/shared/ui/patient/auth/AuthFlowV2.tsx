@@ -23,6 +23,7 @@ import {
 } from '@/modules/auth/otpChannelUi';
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
 import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
+import type { SurfaceAuthPolicy } from '@/shared/lib/surface/requestSurface';
 import {
   EMPTY_OAUTH_PROVIDER_FLAGS,
   hasAnyOAuthProvider,
@@ -247,6 +248,8 @@ type AuthFlowV2Props = {
   /** Пользователь начал интерактивный вход (OAuth / телефон / код) — не перехватывать UI поздним initData. */
   onInteractiveLoginEngaged?: () => void;
   roleLoginPortal?: RoleLoginPortal | null;
+  /** Proxy-resolved surface capabilities; absent only for isolated legacy callers. */
+  surfaceAuthPolicy?: SurfaceAuthPolicy;
 };
 
 export function AuthFlowV2({
@@ -257,6 +260,7 @@ export function AuthFlowV2({
   initialDevView,
   onInteractiveLoginEngaged,
   roleLoginPortal = null,
+  surfaceAuthPolicy,
 }: AuthFlowV2Props) {
   const router = useRouter();
   const engageInteractive = useCallback(() => {
@@ -284,6 +288,7 @@ export function AuthFlowV2({
   const [passwordAltchaGeneration, setPasswordAltchaGeneration] = useState(0);
   const [staffFactorCode, setStaffFactorCode] = useState('');
   const [staffFactorUseRecovery, setStaffFactorUseRecovery] = useState(false);
+  const [staffFactorMethod, setStaffFactorMethod] = useState<'totp' | 'email'>('totp');
   const [emailRegPassword, setEmailRegPassword] = useState('');
   const [emailAuthMode, setEmailAuthMode] = useState<
     | 'login'
@@ -330,11 +335,21 @@ export function AuthFlowV2({
   const specialistSignupEnabled = prefetchedAuthConfig?.specialistSignupEnabled === true;
   const authChannelPolicy =
     prefetchedAuthConfig?.authChannelPolicy ?? FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY;
-  const emailOtpEnabled = authChannelPolicy.email;
+  const surfaceAllows = useCallback(
+    (method: SurfaceAuthPolicy['availableMethods'][number]) =>
+      !surfaceAuthPolicy || surfaceAuthPolicy.availableMethods.includes(method),
+    [surfaceAuthPolicy],
+  );
+  const passwordLoginEnabled = surfaceAllows('password');
+  const emailOtpEnabled = surfaceAllows('email_code') && authChannelPolicy.email;
   const messengerPhoneEnabled = authChannelPolicy.telegram || authChannelPolicy.max;
   const phoneLoginEnabled =
-    messengerPhoneEnabled || authChannelPolicy.sms || authChannelPolicy.email;
-  const passkeyEnabled = prefetchedAuthConfig?.passkeyEnabled === true;
+    surfaceAllows('phone_bot') &&
+    (messengerPhoneEnabled || authChannelPolicy.sms || authChannelPolicy.email);
+  const passkeyEnabled =
+    surfaceAllows('passkey') && prefetchedAuthConfig?.passkeyEnabled === true;
+  const patientRegistrationEnabled = roleLoginPortal !== 'doctor' && roleLoginPortal !== 'admin';
+  const specialistSignupEntryEnabled = roleLoginPortal !== 'patient' && roleLoginPortal !== 'admin';
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -345,21 +360,30 @@ export function AuthFlowV2({
   useEffect(() => {
     if (isMessengerMiniAppHost()) {
       setOauthProviders(EMPTY_OAUTH_PROVIDER_FLAGS);
-      if (messengerPhoneEnabled) {
+      if (surfaceAllows('phone_bot') && messengerPhoneEnabled) {
         setStep('phone');
-      } else {
+      } else if (passwordLoginEnabled) {
         setEmailAuthMode('password_login');
         setStep('email_password');
       }
       return;
     }
 
-    const oauth = prefetchedAuthConfig?.oauthProviders ?? EMPTY_OAUTH_PROVIDER_FLAGS;
+    const oauth = surfaceAllows('oauth')
+      ? (prefetchedAuthConfig?.oauthProviders ?? EMPTY_OAUTH_PROVIDER_FLAGS)
+      : EMPTY_OAUTH_PROVIDER_FLAGS;
     setOauthProviders(oauth);
     const oauthOn = hasAnyOAuthProvider(oauth) || passkeyEnabled;
-    if (!emailOtpEnabled) setEmailAuthMode('password_login');
+    if (!emailOtpEnabled && passwordLoginEnabled) setEmailAuthMode('password_login');
     setStep(oauthOn ? 'oauth_first' : 'email_password');
-  }, [prefetchedAuthConfig, emailOtpEnabled, messengerPhoneEnabled, passkeyEnabled]);
+  }, [
+    prefetchedAuthConfig,
+    emailOtpEnabled,
+    messengerPhoneEnabled,
+    passkeyEnabled,
+    passwordLoginEnabled,
+    surfaceAllows,
+  ]);
 
   useEffect(() => {
     onStepChange?.(step);
@@ -375,10 +399,17 @@ export function AuthFlowV2({
     if (emailOtpEnabled && specialistSignupEnabled) {
       setEmailVerifyPurpose('specialist_signup');
       setEmailAuthMode('specialist_signup');
-    } else {
+    } else if (passwordLoginEnabled) {
       setEmailAuthMode('password_login');
     }
-  }, [emailOtpEnabled, engageInteractive, initialDevView, specialistSignupEnabled, step]);
+  }, [
+    emailOtpEnabled,
+    engageInteractive,
+    initialDevView,
+    passwordLoginEnabled,
+    specialistSignupEnabled,
+    step,
+  ]);
 
   useEffect(() => {
     if (pendingHydratedRef.current) return;
@@ -388,7 +419,7 @@ export function AuthFlowV2({
     pendingHydratedRef.current = true;
     const p = readAuthFlowPending();
     if (!p) return;
-    if (!emailOtpEnabled && p.mode !== 'password_reset') {
+    if (!emailOtpEnabled && passwordLoginEnabled && p.mode !== 'password_reset') {
       clearAuthFlowPending();
       setEmailAuthMode('password_login');
       return;
@@ -442,7 +473,14 @@ export function AuthFlowV2({
       setPwResetEmail(p.email);
       setPwResetChallengeId(p.challengeId ?? null);
     }
-  }, [step, prefetchedAuthConfig, engageInteractive, specialistSignupEnabled, emailOtpEnabled]);
+  }, [
+    step,
+    prefetchedAuthConfig,
+    engageInteractive,
+    specialistSignupEnabled,
+    emailOtpEnabled,
+    passwordLoginEnabled,
+  ]);
 
   const startOauth = async (provider: OAuthProvider) => {
     engageInteractive();
@@ -587,10 +625,11 @@ export function AuthFlowV2({
   };
 
   const openEmailPasswordLogin = (returnTo: 'oauth_first' | 'phone' | 'email_password') => {
+    if (!emailOtpEnabled && !passwordLoginEnabled) return;
     engageInteractive();
     setEmailPasswordReturn(returnTo);
     resetEmailAuthFields();
-    if (!emailOtpEnabled) setEmailAuthMode('password_login');
+    if (!emailOtpEnabled && passwordLoginEnabled) setEmailAuthMode('password_login');
     setStep('email_password');
   };
 
@@ -702,6 +741,7 @@ export function AuthFlowV2({
 
   /** Staff/professional entry: switch the shared login screen to email+password. */
   const openPasswordLoginMode = () => {
+    if (!passwordLoginEnabled) return;
     engageInteractive();
     clearAuthFlowPending();
     setEmailAuthMode('password_login');
@@ -760,9 +800,10 @@ export function AuthFlowV2({
     }
   };
 
-  const openStaffFactorMode = () => {
+  const openStaffFactorMode = (method: 'totp' | 'email' = 'totp') => {
     setEmailLoginPassword('');
     setStaffFactorCode('');
+    setStaffFactorMethod(method);
     setStaffFactorUseRecovery(false);
     setEmailAuthMode('staff_factor');
   };
@@ -803,6 +844,7 @@ export function AuthFlowV2({
         redirectTo?: string;
         role?: 'client' | 'doctor' | 'admin';
         factorRequired?: boolean;
+        factorMethod?: 'totp' | 'email';
         message?: string;
       }>('/api/auth/passkey/login/verify', {
         method: 'POST',
@@ -850,6 +892,7 @@ export function AuthFlowV2({
         redirectTo?: string;
         role?: 'client' | 'doctor' | 'admin';
         factorRequired?: boolean;
+        factorMethod?: 'totp' | 'email';
         error?: string;
         message?: string;
         captchaRequired?: boolean;
@@ -869,7 +912,7 @@ export function AuthFlowV2({
       }
       const { response: res, data } = loginResult;
       if (data.ok && data.factorRequired) {
-        openStaffFactorMode();
+        openStaffFactorMode(data.factorMethod);
         return;
       }
       if (data.ok && data.redirectTo) {
@@ -1434,7 +1477,7 @@ export function AuthFlowV2({
           </form>
         ) : (
           <>
-            {emailAuthMode === 'login' ? (
+            {emailOtpEnabled && emailAuthMode === 'login' ? (
               <form
                 className="mt-3 flex w-full flex-col gap-3"
                 onSubmit={(e) => void submitEmailOtpStart(e)}
@@ -1464,16 +1507,18 @@ export function AuthFlowV2({
                 >
                   Получить код
                 </Button>
-                <Button
-                  type="button"
-                  variant="link"
-                  className={authLinkButtonClass}
-                  disabled={loading}
-                  onClick={openPatientEmailRegistration}
-                >
-                  Зарегистрироваться
-                </Button>
-                {emailOtpEnabled && specialistSignupEnabled ? (
+                {patientRegistrationEnabled ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className={authLinkButtonClass}
+                    disabled={loading}
+                    onClick={openPatientEmailRegistration}
+                  >
+                    Зарегистрироваться
+                  </Button>
+                ) : null}
+                {specialistSignupEntryEnabled && specialistSignupEnabled ? (
                   <Button
                     type="button"
                     variant="link"
@@ -1484,15 +1529,17 @@ export function AuthFlowV2({
                     Я специалист
                   </Button>
                 ) : null}
-                <Button
-                  type="button"
-                  variant="link"
-                  className={authLinkButtonClass}
-                  disabled={loading}
-                  onClick={openPasswordLoginMode}
-                >
-                  Войти по паролю
-                </Button>
+                {passwordLoginEnabled ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className={authLinkButtonClass}
+                    disabled={loading}
+                    onClick={openPasswordLoginMode}
+                  >
+                    Войти по паролю
+                  </Button>
+                ) : null}
               </form>
             ) : null}
 
@@ -1586,7 +1633,7 @@ export function AuthFlowV2({
               </form>
             ) : null}
 
-            {emailAuthMode === 'password_login' ? (
+            {passwordLoginEnabled && emailAuthMode === 'password_login' ? (
               <form
                 className="mt-3 flex w-full flex-col gap-3"
                 onSubmit={(e) => void submitEmailPasswordLogin(e)}
@@ -1694,7 +1741,9 @@ export function AuthFlowV2({
                 <p className={authStepMutedParagraphClass}>
                   {staffFactorUseRecovery
                     ? 'Введите один из сохранённых резервных кодов.'
-                    : 'Введите код из приложения-аутентификатора.'}
+                    : staffFactorMethod === 'email'
+                      ? 'Введите код, отправленный на подтверждённый email.'
+                      : 'Введите код из приложения-аутентификатора.'}
                 </p>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="auth-staff-factor-code" className={authFormFieldLabelClass}>
@@ -1719,20 +1768,22 @@ export function AuthFlowV2({
                 >
                   Продолжить
                 </Button>
-                <Button
-                  type="button"
-                  variant="link"
-                  className={authLinkButtonClass}
-                  disabled={loading}
-                  onClick={() => {
-                    setStaffFactorUseRecovery((current) => !current);
-                    setStaffFactorCode('');
-                  }}
-                >
-                  {staffFactorUseRecovery
-                    ? 'Использовать приложение'
-                    : 'Использовать резервный код'}
-                </Button>
+                {staffFactorMethod === 'totp' ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className={authLinkButtonClass}
+                    disabled={loading}
+                    onClick={() => {
+                      setStaffFactorUseRecovery((current) => !current);
+                      setStaffFactorCode('');
+                    }}
+                  >
+                    {staffFactorUseRecovery
+                      ? 'Использовать приложение'
+                      : 'Использовать резервный код'}
+                  </Button>
+                ) : null}
                 {supportContactHref ? (
                   <SupportContactLink
                     href={
@@ -2511,15 +2562,17 @@ export function AuthFlowV2({
             </Button>
           ) : null}
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
-          disabled={loading}
-          onClick={() => openEmailPasswordLogin('oauth_first')}
-        >
-          Войти по email
-        </Button>
+        {emailOtpEnabled || passwordLoginEnabled ? (
+          <Button
+            type="button"
+            variant="outline"
+            className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
+            disabled={loading}
+            onClick={() => openEmailPasswordLogin('oauth_first')}
+          >
+            Войти по email
+          </Button>
+        ) : null}
         {phoneLoginEnabled ? (
           <Button
             type="button"

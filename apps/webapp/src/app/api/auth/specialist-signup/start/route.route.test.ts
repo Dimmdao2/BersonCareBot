@@ -70,6 +70,22 @@ beforeEach(() => {
 });
 
 describe('POST /api/auth/specialist-signup/start organization title', () => {
+  it('keeps signup confirmation available when passwordless email login is disabled', async () => {
+    fakes.isAuthChannelEnabled.mockImplementation(
+      async (_channel: string, _surface: unknown, use?: string) => use === 'transactional',
+    );
+
+    const response = await POST(request('Клиника'));
+
+    expect(response.status).toBe(200);
+    expect(fakes.startEmailChallenge).toHaveBeenCalledWith(
+      'user-1',
+      'doctor@example.test',
+      'specialist_signup',
+      { kind: 'platform', senderDisplayName: 'Therapysto' },
+    );
+  });
+
   it('accepts exactly 100 characters without changing the title', async () => {
     const organizationTitle = 'К'.repeat(100);
 

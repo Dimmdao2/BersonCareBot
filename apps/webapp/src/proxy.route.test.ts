@@ -154,7 +154,7 @@ afterEach(() => {
 });
 
 describe('surface auth policy', () => {
-  it('matches the 2026-08-17 live runtime-settings snapshot on all three surfaces', async () => {
+  it('matches the owner first-launch defaults on all three surfaces', async () => {
     const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
     const resolve = (origin: URL) =>
       runtime.resolveRequestSurface({
@@ -171,7 +171,7 @@ describe('surface auth policy', () => {
 
     expect(staff?.authPolicy).toEqual({
       availableMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
-      enabledMethods: ['password', 'email_code', 'totp'],
+      enabledMethods: ['password', 'totp'],
     });
     expect(platformAdmin?.authPolicy).toEqual({
       availableMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
@@ -604,7 +604,7 @@ describe('request-surface host matrix at the proxy choke point', () => {
       'platform admin',
       (runtime: Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>) =>
         new URL(`https://admin.${runtime.staffOrigin.hostname}`),
-      '/app/doctor/login',
+      '/app/admin/login',
       'platform_admin',
     ],
   ] as const)(
@@ -620,6 +620,19 @@ describe('request-surface host matrix at the proxy choke point', () => {
           get: (name) => response.headers.get(`x-middleware-request-${name}`),
         }),
       ).toMatchObject({ surface });
+    },
+  );
+
+  it.each(['/app/doctor/login', '/app/patient/login'] as const)(
+    'hard-404s the alternate login door %s on the platform-admin Host',
+    async (pathname) => {
+      const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+      const platformAdminOrigin = new URL(`https://admin.${runtime.staffOrigin.hostname}`);
+
+      const response = await runtime.proxy(requestFor(platformAdminOrigin, pathname));
+
+      expect(response.status).toBe(404);
+      expect(response.headers.get('cache-control')).toBe('no-store');
     },
   );
 });

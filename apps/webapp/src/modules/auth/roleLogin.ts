@@ -1,4 +1,5 @@
 import type { UserRole } from '@/shared/types/session';
+import type { RequestSurface } from '@/shared/lib/surface/requestSurface';
 
 export type RoleLoginPortal = 'doctor' | 'patient' | 'admin';
 
@@ -20,6 +21,13 @@ export function roleCanUsePortal(role: UserRole, portal: RoleLoginPortal): boole
   if (portal === 'patient') return role === 'client';
   if (portal === 'doctor') return role === 'doctor';
   return role === 'admin';
+}
+
+/** The Host-resolved product audience is independent from the path/portal audience. */
+export function roleCanUseRequestSurface(role: UserRole, surface: RequestSurface): boolean {
+  if (surface === 'staff') return role === 'doctor';
+  if (surface === 'platform_admin') return role === 'admin';
+  return role === 'client';
 }
 
 export function portalForAppPath(pathname: string): RoleLoginPortal | null {

@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!(await isAuthChannelEnabled('email'))) {
+  if (!(await isAuthChannelEnabled('email', undefined, 'transactional'))) {
     return jsonError(AUTH_CHANNEL_DISABLED_ERROR, {}, { status: 503 });
   }
   const raw = (await request.json().catch(() => null)) as unknown;

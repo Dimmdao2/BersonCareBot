@@ -8,8 +8,10 @@ export const STAFF_LOGIN_CONTINUATION_COOKIE = 'bersoncare_staff_factor';
 
 type StaffLoginContinuation = {
   purpose: 'staff_factor';
+  factorMethod: 'totp' | 'email';
   userId: string;
   token: string;
+  emailChallengeId?: string;
   expiresAt: number;
   postLoginHints?: AppSession['postLoginHints'];
 };
@@ -35,8 +37,10 @@ function decode(raw: string): StaffLoginContinuation | null {
     const parsed = JSON.parse(decodeBase64Url(payload)) as StaffLoginContinuation;
     if (
       parsed.purpose !== 'staff_factor' ||
+      (parsed.factorMethod !== 'totp' && parsed.factorMethod !== 'email') ||
       typeof parsed.userId !== 'string' ||
       typeof parsed.token !== 'string' ||
+      (parsed.factorMethod === 'email' && typeof parsed.emailChallengeId !== 'string') ||
       !Number.isSafeInteger(parsed.expiresAt) ||
       parsed.expiresAt <= Math.floor(Date.now() / 1000)
     )
@@ -61,6 +65,8 @@ export async function issueStaffLoginContinuation(input: {
   userId: string;
   token: string;
   expiresAt: string;
+  factorMethod?: 'totp' | 'email';
+  emailChallengeId?: string;
   postLoginHints?: AppSession['postLoginHints'];
 }): Promise<void> {
   const expiresAt = Math.floor(Date.parse(input.expiresAt) / 1000);
@@ -69,8 +75,10 @@ export async function issueStaffLoginContinuation(input: {
     STAFF_LOGIN_CONTINUATION_COOKIE,
     encode({
       purpose: 'staff_factor',
+      factorMethod: input.factorMethod ?? 'totp',
       userId: input.userId,
       token: input.token,
+      ...(input.emailChallengeId ? { emailChallengeId: input.emailChallengeId } : {}),
       expiresAt,
       ...(input.postLoginHints ? { postLoginHints: input.postLoginHints } : {}),
     }),
