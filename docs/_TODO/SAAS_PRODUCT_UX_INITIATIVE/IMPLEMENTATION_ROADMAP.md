@@ -802,10 +802,13 @@ public booking этой organization продолжает работать.
       соответствующие notifications/jobs, не только кнопки. Доказательство: product `5283a3ff3`, независимые
       behavior tests `b51bc98d2`, correction `016477803`, final audit `ee87395e3`, land `a0ee3903c`; все 12 классов
       kill-set закрыты, targeted gates и isolated DEV desktop/mobile acceptance PASS, OFF→ON сохранил данные.
-- [ ] **C3M-10 — portal and symptom slice.** Gate invite issue и linked org-private patient routes/APIs client
+- [x] **C3M-10 — portal and symptom slice.** Gate invite issue и linked org-private patient routes/APIs client
       policy; отдельно добавить `patient_tracking_enabled` в create/edit symptom, patient list/read/write guards и
       compatibility backfill `true`; создание использует только snapshot текущего symptom default и `onSupport`.
-      Public booking и глобальный дневник/identity не отнимать.
+      Public booking и глобальный дневник/identity не отнимать. Доказательство: product `e82c4a43a`, независимые
+      tests/audit `d14fd91b6`, correction `1598b7a4a`; четыре подтверждённых дефекта закрыты, сохранённый oracle
+      `6 files / 62 tests`, webapp typecheck, scoped lint/format, architecture и diff checks PASS; migration/backfill,
+      privilege и isolated DEV desktop/mobile evidence — в `runs/c3m-portal-symptom-audit-e82c4a43a.md`.
 - [ ] **C3M-11 — support group, terminology и per-client UI.** Представить существующий `onSupport` звездой,
       фильтром и выбранным названием одной группы; подключить `Клиенты / Пациенты` и `Избранные / На сопровождении`
       ко всем inventoried UI surfaces через общий resolver; развить support panel в tri-state overrides
