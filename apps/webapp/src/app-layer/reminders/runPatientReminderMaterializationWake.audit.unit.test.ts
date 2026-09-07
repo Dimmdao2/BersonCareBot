@@ -136,3 +136,119 @@ describe('D31 VK messenger delivery acceptance', () => {
     );
   });
 });
+
+describe('C3M-08 rehabilitation workspace closure', () => {
+  it('does not materialize or resolve delivery targets for hidden rehabilitation rules', async () => {
+    const rehabilitationRule: PatientReminderRuleForMaterialization = {
+      ...rule,
+      id: 'rule-rehabilitation',
+      category: 'lfk',
+      reminderIntent: 'exercises',
+      linkedObjectType: 'rehab_program',
+      linkedObjectId: 'program-17',
+      notificationTopicCode: 'rehab_program_reminders',
+    };
+    const readDeliveryTargetSnapshot = vi.fn(async () => null);
+    const materializeOccurrence = vi.fn(async () => 'materialized' as const);
+    const port: PatientReminderMaterializationPort = {
+      readSnapshot: vi.fn(async () => ({
+        rules: [rule, rehabilitationRule],
+        dueOccurrences: [
+          {
+            ruleId: rule.id,
+            draft: {
+              occurrenceKey: `${rule.id}:2026-08-03T07:00:00.000Z`,
+              plannedAt: '2026-08-03T07:00:00.000Z',
+            },
+            occurrence: {
+              id: 'occurrence-warmup',
+              deliveryGeneration: 0,
+              plannedAt: '2026-08-03T07:00:00.000Z',
+            },
+          },
+          {
+            ruleId: rehabilitationRule.id,
+            draft: {
+              occurrenceKey: `${rehabilitationRule.id}:2026-08-03T07:00:00.000Z`,
+              plannedAt: '2026-08-03T07:00:00.000Z',
+            },
+            occurrence: {
+              id: 'occurrence-rehabilitation',
+              deliveryGeneration: 0,
+              plannedAt: '2026-08-03T07:00:00.000Z',
+            },
+          },
+        ],
+      })),
+      readDeliveryTargetSnapshot,
+      materializeOccurrence,
+    };
+
+    const result = await runPatientReminderMaterializationWake(
+      rule.organizationId,
+      new Date('2026-08-03T07:05:00.000Z'),
+      port,
+      { rehabilitationEnabled: false },
+    );
+
+    expect(result).toMatchObject({ rules: 1, occurrences: 1, materialized: 1 });
+    expect(readDeliveryTargetSnapshot).toHaveBeenCalledTimes(1);
+    expect(readDeliveryTargetSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ topicCode: rule.notificationTopicCode }),
+    );
+    expect(materializeOccurrence).toHaveBeenCalledTimes(1);
+    expect(materializeOccurrence).toHaveBeenCalledWith(
+      rule,
+      expect.any(Object),
+      expect.objectContaining({ id: 'occurrence-warmup' }),
+      expect.any(Array),
+    );
+  });
+
+  it('restores the same rehabilitation rule and occurrence when the module is enabled again', async () => {
+    const rehabilitationRule: PatientReminderRuleForMaterialization = {
+      ...rule,
+      id: 'rule-rehabilitation-restored',
+      category: 'lfk',
+      reminderIntent: 'exercises',
+      linkedObjectType: 'rehab_program',
+      linkedObjectId: 'program-17',
+    };
+    const materializeOccurrence = vi.fn(async () => 'materialized' as const);
+    const port: PatientReminderMaterializationPort = {
+      readSnapshot: vi.fn(async () => ({
+        rules: [rehabilitationRule],
+        dueOccurrences: [
+          {
+            ruleId: rehabilitationRule.id,
+            draft: {
+              occurrenceKey: `${rehabilitationRule.id}:2026-08-03T07:00:00.000Z`,
+              plannedAt: '2026-08-03T07:00:00.000Z',
+            },
+            occurrence: {
+              id: 'occurrence-rehabilitation-restored',
+              deliveryGeneration: 0,
+              plannedAt: '2026-08-03T07:00:00.000Z',
+            },
+          },
+        ],
+      })),
+      readDeliveryTargetSnapshot: vi.fn(async () => null),
+      materializeOccurrence,
+    };
+
+    await runPatientReminderMaterializationWake(
+      rehabilitationRule.organizationId,
+      new Date('2026-08-03T07:05:00.000Z'),
+      port,
+      { rehabilitationEnabled: true },
+    );
+
+    expect(materializeOccurrence).toHaveBeenCalledWith(
+      rehabilitationRule,
+      expect.any(Object),
+      expect.objectContaining({ id: 'occurrence-rehabilitation-restored' }),
+      expect.any(Array),
+    );
+  });
+});
