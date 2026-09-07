@@ -114,8 +114,6 @@ async function DoctorTodayDashboardSection({
       calendarSnapshot={calendarSnapshot}
       specialistTasksAvailable={specialistTasksAvailable}
       specialistTasksReadable={specialistTasksReadable}
-      rehabilitationEnabled={workspaceModules.rehabilitation}
-      programCommentsEnabled={workspaceModules.program_comments}
     />
   );
 }

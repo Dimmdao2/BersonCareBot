@@ -51,8 +51,6 @@ type Props = {
   calendarSnapshot: DoctorTodayCalendarSnapshot;
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
-  rehabilitationEnabled: boolean;
-  programCommentsEnabled: boolean;
 };
 
 function peopleItemName(client: TodayDashboardData['people'][number]): string {
@@ -195,8 +193,6 @@ export function DoctorTodayDashboard({
   calendarSnapshot,
   specialistTasksAvailable,
   specialistTasksReadable,
-  rehabilitationEnabled,
-  programCommentsEnabled,
 }: Props) {
   const router = useRouter();
   const isMobile = useIsMobileViewport();
@@ -326,8 +322,6 @@ export function DoctorTodayDashboard({
             displayIana={displayIana}
             tasksAvailable={specialistTasksAvailable}
             tasksReadable={specialistTasksReadable}
-            rehabilitationEnabled={rehabilitationEnabled}
-            programCommentsEnabled={programCommentsEnabled}
             taskMutationPending={taskMutationPending}
             onTaskComplete={handleTaskComplete}
             onTaskSaved={handleTaskSaved}

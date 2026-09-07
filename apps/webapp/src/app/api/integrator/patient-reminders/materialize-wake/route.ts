@@ -4,8 +4,6 @@ import { isKeyValid } from '@/app-layer/idempotency/idempotencyStore';
 import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
 import { enterVerifiedIntegratorOrganizationPrincipal } from '@/app-layer/principal/integratorOrganizationPrincipal';
 import { runPatientReminderMaterializationWake } from '@/app-layer/reminders/runPatientReminderMaterializationWake';
-import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { resolveOrganizationWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
 
 const bodySchema = z
   .object({ wakeId: z.string().min(1).max(64), organizationId: z.string().uuid() })
@@ -45,16 +43,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid organization' }, { status: 400 });
   }
   try {
-    const modules = await resolveOrganizationWorkspaceModules(
-      buildAppDeps(),
-      parsed.data.organizationId,
-    );
-    const result = await runPatientReminderMaterializationWake(
-      parsed.data.organizationId,
-      new Date(),
-      undefined,
-      { rehabilitationEnabled: modules.rehabilitation },
-    );
+    const result = await runPatientReminderMaterializationWake(parsed.data.organizationId);
     return NextResponse.json({ ok: true, ...result });
   } catch {
     return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 });

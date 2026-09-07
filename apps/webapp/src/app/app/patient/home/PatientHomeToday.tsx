@@ -77,6 +77,7 @@ import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperatio
 import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { canMaterializeMechanicOnRead } from '@/app-layer/entitlements/readMaterializationGate';
 import { resolveOrganizationWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
+import { isRehabilitationReminderRule } from '@/modules/reminders/rehabProgramLinkedObject';
 
 type SharedProps = {
   personalTierOk: boolean;
@@ -256,7 +257,9 @@ async function renderPatientHomeToday({
         : Promise.resolve([]),
       subscriptionBlock
         ? resolveSubscriptionCarouselCards(
-            subscriptionBlock.items,
+            rehabilitationEnabled
+              ? subscriptionBlock.items
+              : subscriptionBlock.items.filter((item) => item.targetType !== 'course'),
             resolverDeps,
             canViewAuthOnlyContent,
           )
@@ -264,7 +267,7 @@ async function renderPatientHomeToday({
       sosBlock
         ? resolveSosCard(sosBlock.items, resolverDeps, canViewAuthOnlyContent)
         : Promise.resolve(null),
-      coursesBlock && session && coursesOrganizationId
+      rehabilitationEnabled && coursesBlock && session && coursesOrganizationId
         ? withPatientOrganizationPrincipal(
             {
               organizationId: coursesOrganizationId,
@@ -332,13 +335,7 @@ async function renderPatientHomeToday({
       ]);
     const rules = rehabilitationEnabled
       ? rawRules
-      : rawRules.filter(
-          (rule) =>
-            rule.reminderIntent !== 'exercises' &&
-            rule.linkedObjectType !== 'rehab_program' &&
-            rule.linkedObjectType !== 'treatment_program_item' &&
-            rule.linkedObjectType !== 'lfk_complex',
-        );
+      : rawRules.filter((rule) => !isRehabilitationReminderRule(rule));
 
     moodWeekTz = resolveCalendarDayIanaForPatient(patientCalTz, appTz);
 
@@ -548,6 +545,7 @@ async function renderPatientHomeToday({
           />
         );
       case 'courses':
+        if (!rehabilitationEnabled || courseCards.length === 0) return null;
         return (
           <PatientHomeCoursesRow
             cards={courseCards}

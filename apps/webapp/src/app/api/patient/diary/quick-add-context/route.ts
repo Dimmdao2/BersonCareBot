@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { routePaths } from '@/app-layer/routes/paths';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { resolveOrganizationWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
 
 export async function GET() {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.diary });
@@ -13,9 +15,15 @@ export async function GET() {
 
   const deps = buildAppDeps();
   const userId = session.user.userId;
+  const organizationId = getCurrentDbPrincipalOrganizationId();
+  const rehabilitationEnabled = organizationId
+    ? await resolveOrganizationWorkspaceModules(deps, organizationId).then(
+        (modules) => modules.rehabilitation,
+      )
+    : false;
   const [trackings, complexes] = await Promise.all([
     deps.diaries.listSymptomTrackings(userId),
-    deps.diaries.listLfkComplexes(userId),
+    rehabilitationEnabled ? deps.diaries.listLfkComplexes(userId) : Promise.resolve([]),
   ]);
 
   return NextResponse.json({

@@ -33,8 +33,8 @@ function mechanicIsVisible(resolution: Awaited<ReturnType<typeof resolveMechanic
 /**
  * C3M-01 frozen disabled-route outcome for a workspace module hidden by specialist preference
  * (`docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` §C3M.7 C3M-01/C3M-03).
- * Foundation-only: no route in this stage calls these — later C3M-06+ slices that actually wire
- * sidebar/card-tab/direct-route/API guards consume this door instead of inventing a second shape.
+ * C3M-06+ projections consume this door for sidebar/card-tab/direct-route/API enforcement instead
+ * of inventing a second response shape.
  */
 export type WorkspaceModuleDisabledReason = 'workspace_module_disabled';
 

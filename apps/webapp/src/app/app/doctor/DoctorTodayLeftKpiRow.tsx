@@ -61,8 +61,6 @@ type Props = Pick<
   displayIana: string;
   tasksAvailable: boolean;
   tasksReadable: boolean;
-  rehabilitationEnabled: boolean;
-  programCommentsEnabled: boolean;
   taskMutationPending: boolean;
   onTaskComplete: (taskId: string) => Promise<boolean>;
   onTaskSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
@@ -132,8 +130,6 @@ export function DoctorTodayLeftKpiRow({
   displayIana,
   tasksAvailable,
   tasksReadable,
-  rehabilitationEnabled,
-  programCommentsEnabled,
   taskMutationPending,
   onTaskComplete,
   onTaskSaved,
@@ -223,31 +219,27 @@ export function DoctorTodayLeftKpiRow({
           onClick={messageTotal > 0 ? () => setKpiModal('messages') : undefined}
         />
         {/* Комментарии к упражнениям → KpiPreviewModal (S2.8) */}
-        {programCommentsEnabled ? (
-          <DoctorStatCard
-            id="doctor-today-left-kpi-comments"
-            title="Комментарии"
-            value={displayTotal}
-            tooltip="Новые комментарии клиентов к упражнениям."
-            tone={displayTotal > 0 ? 'warning' : 'neutral'}
-            className={displayTotal > 0 ? attentionKpiBackgroundClass : undefined}
-            valueClassName={displayTotal > 0 ? attentionKpiValueClass : undefined}
-            onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
-          />
-        ) : null}
+        <DoctorStatCard
+          id="doctor-today-left-kpi-comments"
+          title="Комментарии"
+          value={displayTotal}
+          tooltip="Новые комментарии клиентов к упражнениям."
+          tone={displayTotal > 0 ? 'warning' : 'neutral'}
+          className={displayTotal > 0 ? attentionKpiBackgroundClass : undefined}
+          valueClassName={displayTotal > 0 ? attentionKpiValueClass : undefined}
+          onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
+        />
         {/* Тесты к проверке → KpiPreviewModal (SEG-02) */}
-        {rehabilitationEnabled ? (
-          <DoctorStatCard
-            id="doctor-today-left-kpi-tests"
-            title="Тесты"
-            value={pendingTestsTotal}
-            tooltip="Тесты по программам, ожидающие проверки."
-            tone={pendingTestsTotal > 0 ? 'warning' : 'neutral'}
-            className={pendingTestsTotal > 0 ? attentionKpiBackgroundClass : undefined}
-            valueClassName={pendingTestsTotal > 0 ? attentionKpiValueClass : undefined}
-            onClick={pendingTestsTotal > 0 ? () => setKpiModal('tests') : undefined}
-          />
-        ) : null}
+        <DoctorStatCard
+          id="doctor-today-left-kpi-tests"
+          title="Тесты"
+          value={pendingTestsTotal}
+          tooltip="Тесты по программам, ожидающие проверки."
+          tone={pendingTestsTotal > 0 ? 'warning' : 'neutral'}
+          className={pendingTestsTotal > 0 ? attentionKpiBackgroundClass : undefined}
+          valueClassName={pendingTestsTotal > 0 ? attentionKpiValueClass : undefined}
+          onClick={pendingTestsTotal > 0 ? () => setKpiModal('tests') : undefined}
+        />
         {tasksReadable ? (
           <DoctorStatCard
             id="doctor-today-left-kpi-tasks"
@@ -273,20 +265,18 @@ export function DoctorTodayLeftKpiRow({
         ) : null}
       </DoctorMetricList>
 
-      {programCommentsEnabled ? (
-        <DoctorTodayExerciseCommentsModal
-          open={kpiModal === 'comments'}
-          onClose={() => setKpiModal(null)}
-          items={exerciseCommentItems}
-          onMarkedRead={(item) => {
-            setLocallyReadCommentKeys((current) => {
-              const next = new Set(current);
-              next.add(`${item.instanceId}:${item.stageItemId}`);
-              return next;
-            });
-          }}
-        />
-      ) : null}
+      <DoctorTodayExerciseCommentsModal
+        open={kpiModal === 'comments'}
+        onClose={() => setKpiModal(null)}
+        items={exerciseCommentItems}
+        onMarkedRead={(item) => {
+          setLocallyReadCommentKeys((current) => {
+            const next = new Set(current);
+            next.add(`${item.instanceId}:${item.stageItemId}`);
+            return next;
+          });
+        }}
+      />
 
       {/* KpiPreviewModal: Сообщения (SEG-02) */}
       <KpiPreviewModal<TodayUnreadConversationItem>
@@ -337,27 +327,25 @@ export function DoctorTodayLeftKpiRow({
       />
 
       {/* KpiPreviewModal: Тесты к проверке (SEG-02) */}
-      {rehabilitationEnabled ? (
-        <KpiPreviewModal<TodayPendingProgramTestItem>
-          open={kpiModal === 'tests'}
-          onClose={() => setKpiModal(null)}
-          title="Тесты к проверке"
-          count={pendingProgramTestsTotal}
-          showCount={false}
-          desktopPresentation="right-sheet"
-          items={pendingProgramTests}
-          renderItem={(item) => (
-            <li>
-              <PendingTestModalItem item={item} />
-            </li>
-          )}
-          emptyState={
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              Нет тестов, ожидающих проверки
-            </p>
-          }
-        />
-      ) : null}
+      <KpiPreviewModal<TodayPendingProgramTestItem>
+        open={kpiModal === 'tests'}
+        onClose={() => setKpiModal(null)}
+        title="Тесты к проверке"
+        count={pendingProgramTestsTotal}
+        showCount={false}
+        desktopPresentation="right-sheet"
+        items={pendingProgramTests}
+        renderItem={(item) => (
+          <li>
+            <PendingTestModalItem item={item} />
+          </li>
+        )}
+        emptyState={
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            Нет тестов, ожидающих проверки
+          </p>
+        }
+      />
 
       <KpiPreviewModal<SpecialistTaskRow>
         open={kpiModal === 'tasks'}

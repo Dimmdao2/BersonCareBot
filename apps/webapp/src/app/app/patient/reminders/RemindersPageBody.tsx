@@ -26,6 +26,7 @@ import {
 import { resolvePromoAccessForPatient } from '@/app-layer/treatment-program/promoMaterializationGate';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { resolveOrganizationWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
+import { isRehabilitationReminderRule } from '@/modules/reminders/rehabProgramLinkedObject';
 
 function mapIconKind(
   linked: NonNullable<ReminderRule['linkedObjectType']>,
@@ -125,13 +126,7 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
     ]);
   const rules = rehabilitationEnabled
     ? storedRules
-    : storedRules.filter(
-        (rule) =>
-          rule.reminderIntent !== 'exercises' &&
-          rule.linkedObjectType !== 'rehab_program' &&
-          rule.linkedObjectType !== 'treatment_program_item' &&
-          rule.linkedObjectType !== 'lfk_complex',
-      );
+    : storedRules.filter((rule) => !isRehabilitationReminderRule(rule));
 
   const patientCalendarDayIana = resolveCalendarDayIanaForPatient(patientIanaRaw, appTz);
   const calendarDateKey = DateTime.now().setZone(patientCalendarDayIana).toISODate()!;

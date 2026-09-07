@@ -48,14 +48,13 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
   const audience = await loadDoctorAnalyticsAudience();
   const rowsPlus = await deps.materialRating.listDoctorSummary({
     organizationId: workspace.organizationId,
+    targetKind: workspaceModules.rehabilitation ? undefined : 'content_page',
     limit: PAGE_SIZE + 1,
     offset,
     excludedUserIds: audience.excludedUserIds,
   });
   const hasNext = rowsPlus.length > PAGE_SIZE;
-  const rows = rowsPlus
-    .slice(0, PAGE_SIZE)
-    .filter((row) => workspaceModules.rehabilitation || row.targetKind === 'content_page');
+  const rows = rowsPlus.slice(0, PAGE_SIZE);
 
   const contentIds = [
     ...new Set(rows.filter((r) => r.targetKind === 'content_page').map((r) => r.targetId)),

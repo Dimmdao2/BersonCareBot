@@ -29,11 +29,13 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const auth = await requireDoctorWorkspaceApiContext();
-  if (!auth.ok) return auth.response;
-
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));
+  const auth = await requireDoctorWorkspaceApiContext({
+    workspaceModule:
+      parsed.success && parsed.data.kind === 'content_page' ? undefined : 'rehabilitation',
+  });
+  if (!auth.ok) return auth.response;
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }

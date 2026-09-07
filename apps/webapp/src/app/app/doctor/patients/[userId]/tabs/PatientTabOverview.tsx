@@ -1112,7 +1112,7 @@ export function PatientTabOverview({
 
     // Conditionally fetch SSR-covered data only when SSR props were not provided
     const fetchClinical =
-      !canOpenProgram || (hasSsrData && ssrSeedRef.current === userId)
+      hasSsrData && ssrSeedRef.current === userId
         ? Promise.resolve(null as ClinicalApiResponse | null)
         : fetch(`/api/doctor/patients/${userId}/clinical`, { credentials: 'include' })
             .then((r) => (r.ok ? (r.json() as Promise<ClinicalApiResponse>) : null))
@@ -1140,7 +1140,7 @@ export function PatientTabOverview({
             .catch(() => null);
 
     const fetchProgramActivity =
-      hasSsrData && ssrSeedRef.current === userId
+      !canOpenProgram || (hasSsrData && ssrSeedRef.current === userId)
         ? Promise.resolve(null as ProgramActivityApiResponse | null)
         : fetch(`/api/doctor/patients/${userId}/program-activity`, { credentials: 'include' })
             .then((r) => (r.ok ? (r.json() as Promise<ProgramActivityApiResponse>) : null))
