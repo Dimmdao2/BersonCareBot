@@ -86,6 +86,10 @@ export type OutgoingDeliveryWorkerDeps = {
   db: DbPort;
   writePort: DbWritePort;
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
+  resolveWorkspaceModuleEnabled?: (input: {
+    organizationId: string;
+    module: 'mailings';
+  }) => Promise<boolean>;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
 };
 
@@ -663,7 +667,8 @@ export async function processOutgoingDeliveryRow(
   row: OutgoingDeliveryQueueRow,
   deps: OutgoingDeliveryWorkerDeps,
 ): Promise<void> {
-  const { db, writePort, dispatchOutgoing, doctorBroadcastMenu } = deps;
+  const { db, writePort, dispatchOutgoing, resolveWorkspaceModuleEnabled, doctorBroadcastMenu } =
+    deps;
   const intent = parseIntentFromPayload(row.payloadJson);
   if (!intent) {
     await queueMarkDead(db, row.id, 'BAD_PAYLOAD');
@@ -961,6 +966,22 @@ export async function processOutgoingDeliveryRow(
       await queueMarkDead(db, row.id, 'MISSING_BROADCAST_AUDIT_ID');
       return;
     }
+    const organizationId = await resolveBroadcastAuditOrganizationId(db, broadcastAuditId);
+    if (!organizationId) {
+      await queueMarkDead(db, row.id, 'BROADCAST_ORGANIZATION_UNRESOLVED');
+      return;
+    }
+    if (
+      resolveWorkspaceModuleEnabled &&
+      !(await resolveWorkspaceModuleEnabled({ organizationId, module: 'mailings' }))
+    ) {
+      await queueMarkDead(db, row.id, 'workspace_mailings_disabled', NOT_DISPATCHED_FAILURE_CLASS);
+      logger.info(
+        { broadcastAuditId, eventId: row.eventId, organizationId },
+        'doctor_broadcast_delivery.workspace_disabled',
+      );
+      return;
+    }
     const maskedRecipient = maskRecipientForDoctorBroadcastLog(row.channel, intent);
     const toSend =
       doctorBroadcastMenu !== undefined
@@ -1178,6 +1199,7 @@ export async function runOutgoingDeliveryWorkerTick(input: {
   db: DbPort;
   writePort: DbWritePort;
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
+  resolveWorkspaceModuleEnabled?: OutgoingDeliveryWorkerDeps['resolveWorkspaceModuleEnabled'];
   batchSize: number;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
 }): Promise<{ claimed: number; processed: number; errors: number }> {
@@ -1193,6 +1215,7 @@ async function runOutgoingDeliveryWorkerTickInner(input: {
   db: DbPort;
   writePort: DbWritePort;
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
+  resolveWorkspaceModuleEnabled?: OutgoingDeliveryWorkerDeps['resolveWorkspaceModuleEnabled'];
   batchSize: number;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
 }): Promise<{ claimed: number; processed: number; errors: number }> {
@@ -1240,6 +1263,9 @@ async function runOutgoingDeliveryWorkerTickInner(input: {
           db: input.db,
           writePort: input.writePort,
           dispatchOutgoing: input.dispatchOutgoing,
+          ...(input.resolveWorkspaceModuleEnabled !== undefined
+            ? { resolveWorkspaceModuleEnabled: input.resolveWorkspaceModuleEnabled }
+            : {}),
           ...(input.doctorBroadcastMenu !== undefined
             ? { doctorBroadcastMenu: input.doctorBroadcastMenu }
             : {}),

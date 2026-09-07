@@ -15,6 +15,7 @@ export const INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS = [
   '/api/integrator/support/question',
   '/api/integrator/support/status',
   '/api/integrator/web-push/subscriptions/delete',
+  '/api/integrator/workspace-module-status',
 ] as const;
 
 export const PAYMENT_WEBHOOK_CSRF_EXEMPT_PATTERNS = [

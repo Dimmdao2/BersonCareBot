@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
-import type { ClientChannelPolicy } from '@/modules/doctor-clients/supportPolicy';
+import {
+  isClientChannelAllowed,
+  type ClientChannelPolicy,
+} from '@/modules/doctor-clients/supportPolicy';
 
 type AppDeps = ReturnType<typeof buildAppDeps>;
 
@@ -56,12 +59,12 @@ export async function resolveDoctorInstanceInWorkspace(
     };
   }
 
-  if (
-    options.clientChannel &&
-    !(await deps.doctorClients.getClientChannelPolicy(instance.patientUserId, {
-      organizationId: ctx.organizationId,
-    }))[options.clientChannel]
-  ) {
+  const policy = options.clientChannel
+    ? await deps.doctorClients.getClientChannelPolicy(instance.patientUserId, {
+        organizationId: ctx.organizationId,
+      })
+    : null;
+  if (options.clientChannel && policy && !isClientChannelAllowed(policy, options.clientChannel)) {
     return {
       ok: false,
       response: NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 }),

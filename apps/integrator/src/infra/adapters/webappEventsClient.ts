@@ -54,6 +54,7 @@ export function createWebappEventsPort(deps: {
   }): Promise<{
     ok: boolean;
     status: number;
+    enabled?: boolean;
     error?: string;
     canonicalWrite?: ParsedCanonicalWrite;
   }> {
@@ -76,6 +77,7 @@ export function createWebappEventsPort(deps: {
       const text = await res.text().catch(() => '');
       let parsed: {
         ok?: boolean;
+        enabled?: boolean;
         error?: string;
         canonicalWrite?: {
           conversationId?: unknown;
@@ -116,6 +118,7 @@ export function createWebappEventsPort(deps: {
       return {
         ok,
         status: res.status,
+        ...(ok && typeof parsed.enabled === 'boolean' ? { enabled: parsed.enabled } : {}),
         ...(canonicalWrite ? { canonicalWrite } : {}),
         ...(ok
           ? {}
@@ -128,6 +131,17 @@ export function createWebappEventsPort(deps: {
   }
 
   return {
+    async getWorkspaceModuleStatus(input: { organizationId: string; module: 'mailings' }) {
+      const body = JSON.stringify(input);
+      return postSignedJson({
+        path: '/api/integrator/workspace-module-status',
+        body,
+        idempotencyKey: `workspace-module-status:${createHash('sha256')
+          .update(body)
+          .digest('hex')}`,
+      });
+    },
+
     async wakeOperatorHealthDigest(input: { wakeId: string }) {
       return postSignedJson({
         path: '/api/integrator/operator-health/digest-wake',

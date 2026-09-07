@@ -15,7 +15,10 @@ import {
   type WorkspaceModuleEffective,
   type WorkspaceModuleKey,
 } from '@/modules/system-settings/doctorWorkspaceComposition';
-import type { ClientChannelPolicy } from '@/modules/doctor-clients/supportPolicy';
+import {
+  isClientChannelAllowed,
+  type ClientChannelPolicy,
+} from '@/modules/doctor-clients/supportPolicy';
 
 type AppDeps = ReturnType<typeof buildAppDeps>;
 
@@ -75,9 +78,20 @@ export function workspaceModuleForApiPath(pathname: string): WorkspaceModuleKey 
     return 'rehabilitation';
   }
   if (
+    /^\/api\/doctor\/treatment-program-instances\/[^/]+\/discussion\/messages\/[^/]+(?:\/|$)/.test(
+      pathname,
+    )
+  ) {
+    return 'program_media';
+  }
+  if (
     pathname.startsWith('/api/doctor/comments') ||
     pathname.startsWith('/api/doctor/exercise-comments') ||
-    /^\/api\/doctor\/patients\/[^/]+\/program-activity(?:\/|$)/.test(pathname) ||
+    /^\/api\/doctor\/patients\/[^/]+\/program-activity(?:\/|$)/.test(pathname)
+  ) {
+    return 'program_comments';
+  }
+  if (
     /^\/api\/doctor\/treatment-program-instances\/[^/]+\/(?:discussion|items\/[^/]+\/(?:discussion|program-note-reply))(?:\/|$)/.test(
       pathname,
     )
@@ -198,9 +212,9 @@ export function applyClientChannelPolicyToWorkspaceModules(
 ): WorkspaceModuleEffective {
   return {
     ...modules,
-    direct_chat: modules.direct_chat && policy.directChatAllowed,
-    program_comments: modules.program_comments && policy.commentsAllowed,
-    program_media: modules.program_media && policy.mediaAllowed && policy.commentsAllowed,
+    direct_chat: modules.direct_chat && isClientChannelAllowed(policy, 'directChatAllowed'),
+    program_comments: modules.program_comments && isClientChannelAllowed(policy, 'commentsAllowed'),
+    program_media: modules.program_media && isClientChannelAllowed(policy, 'mediaAllowed'),
   };
 }
 

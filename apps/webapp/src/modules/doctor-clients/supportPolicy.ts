@@ -25,6 +25,15 @@ export type ClientChannelPolicy = Readonly<{
   mediaAllowed: boolean;
 }>;
 
+export function isClientChannelAllowed(
+  policy: ClientChannelPolicy,
+  channel: keyof ClientChannelPolicy,
+): boolean {
+  return channel === 'mediaAllowed'
+    ? policy.mediaAllowed && policy.commentsAllowed
+    : policy[channel];
+}
+
 /**
  * The one organization-scoped client policy resolver. Explicit profile choices always win;
  * otherwise the corresponding workspace default decides, with `on_support` reading only the
