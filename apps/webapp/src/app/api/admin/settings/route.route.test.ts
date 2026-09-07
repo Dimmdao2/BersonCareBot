@@ -540,6 +540,13 @@ describe('clinic-owner atomic settings readback', () => {
         status: 'pending',
       },
     });
+    expect(fakes.setCustomDomainIntent.mock.calls.at(-1)).toEqual([
+      {
+        organizationId: CLINIC_ORGANIZATION_ID,
+        baseDomain: 'clinic.example.test',
+        placement: 'subdomain',
+      },
+    ]);
   });
 
   it('rejects the platform-owned patient namespace as a clinic custom-domain intent', async () => {
