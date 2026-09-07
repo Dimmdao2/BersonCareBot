@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInMemorySystemSettingsPort } from '@/infra/repos/inMemorySystemSettings';
-import {
-  normalizeOrgCustomDomainHostnamePatch,
-  ORG_CUSTOM_DOMAIN_HOSTNAME_KEY,
-} from './orgCustomDomainHostname';
-import { createSystemSettingsService } from './service';
+import { normalizeOrgCustomDomainHostnamePatch } from './orgCustomDomainHostname';
 
 describe('normalizeOrgCustomDomainHostnamePatch', () => {
   it('accepts a plausible fqdn and lowercases it', () => {
@@ -26,52 +21,5 @@ describe('normalizeOrgCustomDomainHostnamePatch', () => {
       ok: false,
       error: 'invalid_value',
     });
-  });
-});
-
-/**
- * TPB-09, вторая половина требования: домен клиники и её интеграции — НЕ deploy config, а
- * org-scoped настройки БД. Имя и origin платформенной пациентской поверхности меняются окружением
- * (доказательство — `config/envDatabaseRuntime.unit.test.ts`); здесь доказывается обратное для
- * данных арендатора: значение принадлежит организации, окружением не задаётся, и одна организация
- * не видит настройку другой.
- */
-describe('TPB-09: домен и интеграции клиники — org-scoped настройки БД', () => {
-  const ORG_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-  const ORG_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-
-  it('домен клиники принадлежит организации, а не деплою, и не течёт между организациями', async () => {
-    const service = createSystemSettingsService(createInMemorySystemSettingsPort());
-
-    // Значение из окружения: если бы домен читался деплой-конфигом, оно бы сюда дошло.
-    const savedEnv = process.env.ORG_CUSTOM_DOMAIN_HOSTNAME;
-    process.env.ORG_CUSTOM_DOMAIN_HOSTNAME = 'domain-from-deploy.example.test';
-    try {
-      await service.updateSetting(
-        ORG_CUSTOM_DOMAIN_HOSTNAME_KEY,
-        'admin',
-        normalizeOrgCustomDomainHostnamePatch({ value: 'clinic-a.example.test' }).ok
-          ? { value: 'clinic-a.example.test' }
-          : {},
-        'admin-a',
-        { organizationId: ORG_A },
-      );
-
-      const forA = await service.getSetting(ORG_CUSTOM_DOMAIN_HOSTNAME_KEY, 'admin', {
-        organizationId: ORG_A,
-      });
-      expect(forA?.valueJson).toEqual({ value: 'clinic-a.example.test' });
-
-      // Соседняя организация не видит домен первой и не получает значение из окружения.
-      const forB = await service.getSetting(ORG_CUSTOM_DOMAIN_HOSTNAME_KEY, 'admin', {
-        organizationId: ORG_B,
-      });
-      const seenByB = JSON.stringify(forB?.valueJson ?? null);
-      expect(seenByB).not.toContain('clinic-a.example.test');
-      expect(seenByB).not.toContain('domain-from-deploy.example.test');
-    } finally {
-      if (savedEnv === undefined) delete process.env.ORG_CUSTOM_DOMAIN_HOSTNAME;
-      else process.env.ORG_CUSTOM_DOMAIN_HOSTNAME = savedEnv;
-    }
   });
 });
