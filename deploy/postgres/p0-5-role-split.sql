@@ -180,6 +180,7 @@ VALUES
   ('public', 'online_intake_requests', 'SCOPED'),
   ('public', 'online_intake_status_history', 'SCOPED'),
   ('public', 'operator_health_failure_archive', 'SCOPED'),
+  ('public', 'org_custom_domain_bindings', 'SCOPED'),
   ('public', 'org_enrollments', 'SCOPED'),
   ('public', 'organization_member_invites', 'SCOPED'),
   ('public', 'patient_comorbidity', 'SCOPED'),
