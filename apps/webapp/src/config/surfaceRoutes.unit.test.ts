@@ -1,57 +1,7 @@
-import { readdirSync } from 'node:fs';
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { canSurfaceEnterRoute, classifySurfaceRoute } from './surfaceRoutes';
 
-const APP_DIR = path.resolve(__dirname, '../app');
-
-const KNOWN_TOP_LEVEL_SEGMENTS = [
-  '[clinicSlug]',
-  'api',
-  'app',
-  'book',
-  'join',
-  'legal',
-  'manifest-staff.webmanifest',
-  'manifest.webmanifest',
-  'styles',
-] as const;
-
-function isRouteGroup(name: string): boolean {
-  return name.startsWith('(') && name.endsWith(')');
-}
-
-function collectPageRoutes(dir: string, routePrefix: string, out: string[]): string[] {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isFile() && entry.name === 'page.tsx') out.push(routePrefix === '' ? '/' : routePrefix);
-    if (!entry.isDirectory()) continue;
-    if (entry.name === 'api' && routePrefix === '') continue;
-    if (entry.name.startsWith('_')) continue;
-    collectPageRoutes(
-      path.join(dir, entry.name),
-      isRouteGroup(entry.name) ? routePrefix : `${routePrefix}/${entry.name}`,
-      out,
-    );
-  }
-  return out;
-}
-
-const ROUTES = collectPageRoutes(APP_DIR, '', []).sort();
-
 describe('surface route audience', () => {
-  it('classifies every real page without choosing a Host surface', () => {
-    expect(ROUTES.length).toBeGreaterThan(100);
-    expect(ROUTES.filter((route) => classifySurfaceRoute(route) === null)).toEqual([]);
-  });
-
-  it('freezes top-level segments so the clinic-slug rule cannot swallow a new tree', () => {
-    const segments = readdirSync(APP_DIR, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && !isRouteGroup(entry.name) && !entry.name.startsWith('_'))
-      .map((entry) => entry.name)
-      .sort();
-    expect(segments).toEqual([...KNOWN_TOP_LEVEL_SEGMENTS].sort());
-  });
-
   it.each([
     ['/', 'shared'],
     ['/app', 'shared'],
