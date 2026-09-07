@@ -64,19 +64,22 @@ describe('checkDomainCertificateHealth', () => {
     expect(result.issues).toContainEqual({ code: 'cert_expiring_soon', detail: '30' });
   });
 
-  it('does not let matching TLS or routing evidence override a lifecycle DNS mismatch', async () => {
+  it('does not let matching TLS or routing evidence override a mixed apex DNS answer', async () => {
     const result = await checkDomainCertificateHealth(
       'clinic.example',
       [],
       fakeDeps({
-        resolveDns: async () => ['198.51.100.5'],
+        resolveDns: async () => ['203.0.113.10', '198.51.100.5'],
         probeRouting: async () => undefined,
       }),
       { placement: 'apex', edgeIp: '203.0.113.10' },
     );
 
     expect(result).toMatchObject({ dnsReady: false, tlsReady: false, routingReady: false });
-    expect(result.issues).toContainEqual({ code: 'dns_mismatch', detail: '198.51.100.5' });
+    expect(result.issues).toContainEqual({
+      code: 'dns_mismatch',
+      detail: '203.0.113.10,198.51.100.5',
+    });
   });
 
   it('does not accept exact routing when the managed TLS handshake fails', async () => {

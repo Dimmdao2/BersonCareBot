@@ -52,8 +52,8 @@ function entitledPort(): CustomDomainBindingPort {
         activeCustomDomainHostname: 'care.example.test',
         clinicMessengerBots: {
           telegram: {
-            username: 'northstar_bot',
-            deepLink: 'https://t.me/northstar_bot',
+            status: 'ready',
+            publicId: 'northstar_bot',
           },
         },
       };
@@ -113,8 +113,8 @@ describe('custom-domain intent', () => {
       accentToken: 'teal',
       clinicMessengerBots: {
         telegram: {
-          username: 'northstar_bot',
-          deepLink: 'https://t.me/northstar_bot',
+          status: 'ready',
+          publicId: 'northstar_bot',
         },
       },
     });
