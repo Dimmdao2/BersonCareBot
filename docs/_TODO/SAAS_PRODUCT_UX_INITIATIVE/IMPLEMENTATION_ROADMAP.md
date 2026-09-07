@@ -593,15 +593,15 @@ card; запрещено строить временный resolver, второ�
 
 ##### C3M.1 Границы и неизменяемая основа
 
-- не делать переключателями `Сегодня`, расписание/онлайн-запись, список клиентов, базовый `Обзор` с заметками,
-  задачи, файлы и `Учётку`;
+- не делать переключателями `Сегодня`, расписание/онлайн-запись, список клиентов, базовый `Обзор` с заметками и
+  задачи; настраиваемым является только закрытый список модулей C3M.4, всё остальное остаётся в кабинете как сейчас;
 - онлайн-оплата и предоплата остаются в существующих настройках; отдельный workspace toggle для них не добавлять;
 - не менять страницу `Сегодня` в этом stage. Её ссылки не могут обойти новые server-side guards, но состав и
   presentation самой страницы остаются как сейчас;
 - operational выключение кабинета конкретной организации не удаляет глобальную учётку или дневник;
 - существующий switch «Показывать мне врачебные экраны» не является моделью C3M: он снимает всю
-  `clinical.workspace` capability у owner/admin со specialist binding. Не использовать его для настроек отдельных
-  модулей.
+  `clinical.workspace` capability у пользователя со specialist binding (`app-layer/guards/workspaceCapabilities.ts:66-73`).
+  Не использовать его для настроек отдельных модулей.
 
 ##### C3M.2 Подтверждённое текущее состояние
 
@@ -616,7 +616,7 @@ card; запрещено строить временный resolver, второ�
 | Терминология | есть `patient_label`, `resolvePatientTerms` и настройка «Клиент / Пациент» | настройка доходит лишь до части экранов; остальные подписи hardcoded; для `onSupport` нет выбора «Избранные / На сопровождении» |
 | Чат | patient/doctor API, unread polling, карточка и Communications shell | нет org default, support-default или per-client deny; остаются write/read/ensure/unread обходы |
 | Кабинет клиента | invite status `not_activated/invited/linked`, выдача и отзыв pending invite | нельзя запретить новые invites общей настройкой и нельзя operational выключить уже linked org-context |
-| Симптомы | врач назначает tracking; patient diary автоматически показывает все активные назначенные tracking; `is_active` управляет самим tracking | нет отдельного per-tracking разрешения пациенту; клинические симптомы из приёмов ошибочно смешиваются с patient tracking |
+| Симптомы | врач назначает tracking; patient diary автоматически показывает все активные назначенные tracking; `is_active` управляет самим tracking | нет отдельного per-tracking разрешения пациенту: `is_active` одновременно означает «симптом ведётся» и «пациент его видит» |
 | Регистрация | specialist signup после provisioning ведёт в обязательный `/app/account?tab=security` | выбора конфигурации рабочего пространства после security first-run нет |
 | Persistence | per-org `system_settings`; `doctor_patient_support.organization_id` уже есть | support row всё ещё unique только по `patient_user_id`, а lookup/update местами не включают organization |
 
@@ -677,23 +677,21 @@ per-client symptom override и постоянного inheritance resolver не 
 
 ##### C3M.5 Presets и first-run
 
-Presets не привязывать к профессиям: профессия быстро становится неполной ролью и мешает смешанным сценариям.
-Предлагать сценарии работы:
+Owner-контракт пресета целиком: это только стартовая настройка рабочего пространства — не профессия, не роль и не
+постоянная связь. Пресет один раз записывает обычные switches и после этого с ними не связан: каждый пункт дальше
+меняется отдельно. Пресет не расширяет доступность функции; недоступная функция не предлагается как рабочий switch
+и отсутствует в основном интерфейсе.
 
-- **Клиенты и заметки** — только неизменяемая основа;
-- **Приёмы и медицинская карта** — основа + оба независимых switches `medical_record` и `encounters`;
-- **Реабилитация и сопровождение** — основа + clinical/rehabilitation/client portal, а chat/comments/media получают
-  default `on_support`;
-- **Настроить вручную** — тот же список switches без применения пакета.
+До явного выбора для новой организации сохраняется compatibility default «показывать всё доступное»: отсутствие
+preference ничего не скрывает.
 
-Показывать этот шаг не внутри формы регистрации, а после завершения обязательного security first-run и перед
-первым переходом в рабочий кабинет. Причина не UI-вкус: текущий confirm обязан вести в security setup, а preset не
-должен ослаблять или разветвлять этот поток. Шаг можно пропустить; до явного выбора для новой организации
-сохраняется compatibility default «показывать всё доступное».
+Пресет не ослабляет и не разветвляет обязательный security first-run: подтверждение specialist signup сегодня ведёт
+в `/app/account?tab=security` (`app/api/auth/specialist-signup/confirm/route.ts:221,246`), и этот поток остаётся
+обязательным.
 
-В `Настройки → Рабочее пространство` preset можно применить повторно, но только через preview diff + подтверждение.
-Он записывает обычные switches один раз и после этого не связан с ними. Недоступная функция не предлагается как
-рабочий switch и отсутствует в основном интерфейсе.
+⛔ **Owner-gate — не выбирать за владельца и не реализовывать до его ответа:** состав и названия пресетов, место
+шага в онбординге, можно ли шаг пропустить и можно ли применить пресет повторно из настроек. Этих решений владелец
+не давал.
 
 ##### C3M.6 Сопровождение, терминология, defaults и индивидуальные исключения клиента
 
@@ -754,8 +752,8 @@ public booking этой organization продолжает работать.
 - [x] **C3M-00 — current census.** Проверены entitlement registry/resolver, doctor nav/shell, settings/account,
       fixed patient-card tabs/bootstrap, Overview fetches, Communications registry, support policy, patient invite,
       patient messaging, symptom diary и specialist signup redirect; разрывы зафиксированы в C3M.2.
-- [ ] **C3M-01 — contract freeze.** Зафиксировать typed module registry, dependency graph, defaults matrix,
-      disabled-route response codes и точные значения presets.
+- [ ] **C3M-01 — contract freeze.** Зафиксировать typed module registry, dependency graph, defaults matrix и
+      disabled-route response codes.
 - [ ] **C3M-02 — organization-scoped client controls.** Закрепить `onSupport` как единственный источник группы
       «Избранные / На сопровождении»; исправить composite identity support profile, миграцию/backfill/ambiguity report,
       ports/infra/in-memory parity и tenant negatives до добавления новых client overrides. Не создавать отдельный
@@ -764,10 +762,12 @@ public booking этой organization продолжает работать.
       server guards; backfill/absence должны сохранять текущее «всё доступное видно».
 - [ ] **C3M-04 — settings UI.** Создать одну секцию «Рабочее пространство» в каноническом settings hub; перенести
       туда defaults `off | all | on_support` для chat/comments/media, symptom create-time default, два выбора
-      терминологии, presets и dependency states;
+      терминологии и dependency states; место пресета в настройках — часть owner-gate C3M.5;
       убрать дублирующий write UI из Account, не создавая второй endpoint/owner.
-- [ ] **C3M-05 — first-run preset.** После успешного security setup показать один skippable configuration step;
-      повтор/reload идемпотентен, preset применён максимум один раз на подтверждение и не меняет доступность функций.
+- [ ] **C3M-05 — стартовая конфигурация (owner-gate).** Ждёт ответа владельца по составу пресетов и месту шага в
+      онбординге (C3M.5). Инварианты при любом ответе: обязательный security first-run не ослабляется и не
+      разветвляется, повтор/reload идемпотентен, пресет применяется максимум один раз на подтверждение, пишет
+      обычные switches и не меняет доступность функций.
 - [ ] **C3M-06 — specialist shell and routes.** Проецировать resolver в sidebar/mobile nav, direct pages, card tab
       registry, header CTA, lazy bootstrap/fetches и cross-links; OFF не оставляет скрытый poller, badge или preload.
 - [ ] **C3M-07a — medical record slice.** Независимо скрыть/запретить продольную медкарту при OFF, сохранив clients,
@@ -789,7 +789,8 @@ public booking этой organization продолжает работать.
       chat/comments/media и portal с явным reset-to-default. Не создавать вторую механику и не добавлять booking policy.
 - [ ] **C3M-12 — compatibility and acceptance.** Existing orgs сохраняют текущие surfaces; existing linked clients,
       chats, comments/media overrides, symptoms, visits and programs не теряются. Проверить разные уже вычисленные
-      наборы доступности, presets, OFF/ON/re-enable, direct/API bypass, two-org isolation, desktop/mobile и live DEV.
+      наборы доступности, стартовую конфигурацию, OFF/ON/re-enable, direct/API bypass, two-org isolation,
+      desktop/mobile и live DEV.
 
 ##### C3M.8 Минимальная acceptance matrix
 

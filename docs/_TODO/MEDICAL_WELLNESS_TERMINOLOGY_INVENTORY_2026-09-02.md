@@ -34,13 +34,13 @@
 
 | Что | Значение | Доказательство |
 | --- | --- | --- |
-| Ключ | `patient_label` | `apps/webapp/src/modules/system-settings/registry.ts:103` |
+| Ключ | `patient_label` | `apps/webapp/src/modules/system-settings/registry.ts:153` |
 | Определение | `runtime('doctor', 'per_org', 'authenticated_client', 'string', 'Пациенты')` | там же |
 | Хранение | `public.system_settings`, `scope='doctor'`, `organization_id = <клиника>` | `registry.ts` (`legacySource: 'system_settings'`), чтение — `deps.systemSettings.listSettingsByScope('doctor', { organizationId })`, `loadDoctorWorkspaceShell.ts:73` |
-| Значения | ровно два: `'пациент'` / `'клиент'`, свободная строка в БД | `SettingsForm.tsx:144-145` (`<SelectItem value="пациент">` / `"клиент"`) |
+| Значения | ровно два: `'пациент'` / `'клиент'`, свободная строка в БД | `SettingsForm.tsx:141-142` (`<SelectItem value="пациент">` / `"клиент"`) |
 | Резолвер | `resolvePatientTerms(singular)` → `{ patientPluralLabel, patientGenPlural, patientSingularLabel }` | `apps/webapp/src/modules/system-settings/patientTerms.ts` |
-| Запись | `PATCH /api/doctor/settings` (whitelist `DOCTOR_SCOPE_KEYS`), нормализация в `app/api/admin/settings/route.ts:678` | `SettingsForm.tsx:62`, `route.ts:194,678` |
-| Редактор | «Настройки кабинета» → «Как называть клиента: Клиент / Пациент» | `apps/webapp/src/app/app/settings/SettingsForm.tsx:129-153` |
+| Запись | `PATCH /api/doctor/settings` (whitelist `DOCTOR_SCOPE_KEYS`), нормализация в `app/api/admin/settings/route.ts:645` | `SettingsForm.tsx:62`, `route.ts:199-200,645` |
+| Редактор | «Настройки кабинета» → «Как называть клиента: Клиент / Пациент» | `apps/webapp/src/app/app/settings/SettingsForm.tsx:122-145` |
 
 ### 1.2. Читатели — их три файла, и они покрывают четыре экрана
 
@@ -60,7 +60,7 @@ $ grep -rln "resolvePatientTerms" --include=*.ts --include=*.tsx apps/webapp/src
 ### 1.3. Почему это «набор независимых настроек», а не режим — доказательства
 
 1. **Дефолты читателей расходятся между собой.** `resolvePatientTerms` по умолчанию даёт «Пациенты»
-   (`patientTerms.ts:35`), реестр — тоже `'Пациенты'` (`registry.ts:103`), а
+   (`patientTerms.ts:35`), реестр — тоже `'Пациенты'` (`registry.ts:153`), а
    `DoctorAnalyticsClientsPageClient.tsx:63-64` по умолчанию рисует `'Клиенты'` / `'клиентов'`, и
    `DoctorAnalyticsAppointmentsSection.tsx:37` — `'клиентов'`. Один и тот же кабинет при одной и той же
    настройке показывает оба слова.
@@ -479,7 +479,7 @@ treatment-program ошибки уже перечислены в §6.2, а `appoi
 
 ```
 clinic_terminology_mode: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'medical')
-patient_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'пациент')
+patient_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'Пациенты')
 support_group_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'сопровождение')
 ```
 
@@ -492,7 +492,7 @@ support_group_label: runtime('doctor', 'per_org', 'authenticated_client', 'strin
   строки — §5.4.
 - Значения: `clinic_terminology_mode = 'medical' | 'wellness'`, `patient_label = 'пациент' | 'клиент'`,
   `support_group_label = 'сопровождение' | 'избранные'`. Контракт `string`, валидация — в общем normalizer.
-- **Backward compatibility:** отсутствующий `patient_label` означает `пациент`, отсутствующий
+- **Backward compatibility:** отсутствующий `patient_label` резолвится в «Пациенты» (§1.1), отсутствующий
   `support_group_label` — `сопровождение`, отсутствующий mode — `medical`. Значение одного ключа не переписывает
   другой; переключение терминологии не меняет бизнес-данные.
 - **Default для новой клиники** — `medical` (сохраняет сегодняшнее поведение). Развилка §7-Q4.
@@ -546,7 +546,7 @@ packages/terminology/
 | --- | --- |
 | `app/app/doctor/loadDoctorWorkspaceShell.ts:170` | choices терминологии для общего resolver |
 | `app/app/doctor/patients/page.tsx:41` | `terms` вместо трёх пропов |
-| `app/app/settings/page.tsx:203` | режим для редактора настройки |
+| `app/app/settings/page.tsx:210` | режим для редактора настройки |
 | `shared/ui/doctorScreenTitles.ts` | `getDoctorScreenTitle(pathname, terms)` — параметр вместо литералов |
 | `shared/ui/doctor/doctorNavLinks.ts:189` | `terms` вместо `patientLabel` |
 | `modules/notif-templates/notifTemplatesService.ts:44-53` | режим при рендере дефолтных шаблонов (webapp-сторона предпросмотра/управления) |
@@ -661,12 +661,12 @@ classification-`CASE WHEN` на строке ~141) чтение вернёт `NU
 
 | Узел | Что меняется |
 | --- | --- |
-| `modules/system-settings/registry.ts:103` | сохранить `patient_label`, добавить `support_group_label`; общий mode остаётся для остальных терминов после MWT-04 |
+| `modules/system-settings/registry.ts:153` | сохранить `patient_label`, добавить `support_group_label`; общий mode остаётся для остальных терминов после MWT-04 |
 | `modules/system-settings/patientTerms.ts` | заменить общим typed resolver без параллельного page-level пути |
-| `app/api/admin/settings/route.ts:194,678` | whitelist и нормализация обоих явных choices |
-| `app/app/settings/SettingsForm.tsx:62,129-153` | сохранить «Клиент / Пациент», добавить «Избранные / На сопровождении» |
-| `app/app/settings/page.tsx:203` | чтение режима |
-| `app/app/doctor/layout.tsx:32,36` + `loadDoctorWorkspaceShell.ts:170` | режим в shell + монтирование провайдера |
+| `app/api/admin/settings/route.ts:199-200,645` | whitelist и нормализация обоих явных choices |
+| `app/app/settings/SettingsForm.tsx:62,122-145` | сохранить «Клиент / Пациент», добавить «Избранные / На сопровождении» |
+| `app/app/settings/page.tsx:210` | чтение режима |
+| `app/app/doctor/layout.tsx:33,37` + `loadDoctorWorkspaceShell.ts:170` | режим в shell + монтирование провайдера |
 | `app/app/patient/PatientClientLayout.tsx:34` | монтирование провайдера (сегодня пациент режим не видит вообще) |
 | `app/book/[slug]/page.tsx`, `app/book/page.tsx`, `app/book/service/page.tsx`, `app/book/slot/page.tsx`, `app/book/confirm/page.tsx` (+ соответствующие `*Client.tsx`) | монтирование провайдера/передача `terms` **после** `resolvePublicOrganizationBySlugRsc`, не в `app/book/layout.tsx` (§5.4) |
 | `app/app/patient/booking/FormatStepClient.tsx:39,77`, `booking/confirm/ConfirmStepClient.tsx:253`, `cabinet/BookingFormatGrid.tsx:42`, `cabinet/patientBookingLabels.ts:16,27,29`, `[clinicSlug]/booking/BookingEntryClient.tsx:143` | D7 — расширенный файловый список §2.5-C |
