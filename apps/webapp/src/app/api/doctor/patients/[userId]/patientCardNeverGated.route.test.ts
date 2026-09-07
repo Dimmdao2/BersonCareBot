@@ -210,7 +210,9 @@ function setMedicalRecordPreference(enabled: boolean): void {
 }
 
 function request(url: string, method: string): Request {
-  return method === 'GET' ? new Request(url, { method }) : jsonRequest(url, method, {});
+  return method === 'GET' || method === 'HEAD'
+    ? new Request(url, { method })
+    : jsonRequest(url, method, {});
 }
 
 describe('C3M-07a medical-record API independence (#1098)', () => {
