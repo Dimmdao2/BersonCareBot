@@ -55,7 +55,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   const patientUserId = identity.userId;
 
   const physical = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    deps.doctorClients.getPatientPhysical(patientUserId),
+    deps.doctorClients.getPatientPhysical(patientUserId, gate.ctx.organizationId),
   );
 
   if (!physical) {
@@ -110,7 +110,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
   const patientUserId = identity.userId;
 
   await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.patients.physical.update', () =>
-    deps.doctorClients.setPatientPhysical(patientUserId, {
+    deps.doctorClients.setPatientPhysical(patientUserId, gate.ctx.organizationId, {
       ...('heightCm' in data && { heightCm: data.heightCm ?? null }),
       ...('weightKg' in data && { weightKg: data.weightKg ?? null }),
     }),

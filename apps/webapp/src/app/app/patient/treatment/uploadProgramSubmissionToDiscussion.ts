@@ -9,12 +9,12 @@ export async function uploadProgramSubmissionToDiscussion(params: {
   itemId: string;
   file: File;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const uploaded = await uploadProgramSubmissionMedia(params.file);
+  const uploaded = await uploadProgramSubmissionMedia(params.file, params.instanceId);
   if (!uploaded.ok) {
     return { ok: false, error: uploaded.error };
   }
   if (uploaded.isVideo) {
-    const ready = await waitForProgramSubmissionMediaReady(uploaded.mediaId);
+    const ready = await waitForProgramSubmissionMediaReady(uploaded.mediaId, params.instanceId);
     if (!ready) {
       return { ok: false, error: 'video_processing_timeout' };
     }

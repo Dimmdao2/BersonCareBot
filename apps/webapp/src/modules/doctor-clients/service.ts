@@ -129,12 +129,16 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
       };
     },
 
-    async getClientSupport(patientUserId: string): Promise<ClientSupportProfile | null> {
-      return deps.clientsPort.getClientSupport(patientUserId);
+    async getClientSupport(
+      patientUserId: string,
+      organizationId: string,
+    ): Promise<ClientSupportProfile | null> {
+      return deps.clientsPort.getClientSupport(patientUserId, organizationId);
     },
 
     async updateClientSupport(params: {
       patientUserId: string;
+      organizationId: string;
       onSupport?: boolean;
       commentsEnabled?: boolean | null;
       mediaEnabled?: boolean | null;
@@ -143,16 +147,27 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
       return deps.clientsPort.updateClientSupport(params);
     },
 
-    async getPatientCardHeader(userId: string): Promise<PatientCardHeader | null> {
-      return deps.clientsPort.getPatientCardHeader(userId);
+    async getPatientCardHeader(
+      userId: string,
+      organizationId: string,
+    ): Promise<PatientCardHeader | null> {
+      return deps.clientsPort.getPatientCardHeader(userId, organizationId);
     },
 
-    async setPatientBirthDate(userId: string, birthDate: string | null): Promise<void> {
-      return deps.clientsPort.setPatientBirthDate(userId, birthDate);
+    async setPatientBirthDate(
+      userId: string,
+      organizationId: string,
+      birthDate: string | null,
+    ): Promise<void> {
+      return deps.clientsPort.setPatientBirthDate(userId, organizationId, birthDate);
     },
 
-    async setPatientGender(userId: string, gender: 'male' | 'female' | null): Promise<void> {
-      return deps.clientsPort.setPatientGender(userId, gender);
+    async setPatientGender(
+      userId: string,
+      organizationId: string,
+      gender: 'male' | 'female' | null,
+    ): Promise<void> {
+      return deps.clientsPort.setPatientGender(userId, organizationId, gender);
     },
 
     async setPatientNames(
@@ -164,42 +179,35 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
 
     async getPatientPhysical(
       userId: string,
+      organizationId: string,
     ): Promise<{ heightCm: number | null; weightKg: number | null } | null> {
-      return deps.clientsPort.getPatientPhysical(userId);
+      return deps.clientsPort.getPatientPhysical(userId, organizationId);
     },
 
     async setPatientPhysical(
       userId: string,
+      organizationId: string,
       params: { heightCm?: number | null; weightKg?: number | null },
     ): Promise<void> {
-      return deps.clientsPort.setPatientPhysical(userId, params);
+      return deps.clientsPort.setPatientPhysical(userId, organizationId, params);
     },
 
     async getPatientProgramInteractionPolicy(
       patientUserId: string,
-      context?: { organizationId: string },
+      context: { organizationId: string },
     ): Promise<PatientProgramInteractionPolicy> {
-      const profile = await deps.clientsPort.getClientSupport(patientUserId);
-      if (
-        profile?.organizationId &&
-        context?.organizationId &&
-        profile.organizationId !== context.organizationId
-      ) {
-        throw new Error('organization_principal_mismatch');
-      }
+      const profile = await deps.clientsPort.getClientSupport(
+        patientUserId,
+        context.organizationId,
+      );
       if (profile?.onSupport) {
         return resolvePatientProgramInteractionPolicy({
+          organizationId: context.organizationId,
           profile,
           defaultsWithoutSupport: { commentsEnabled: false, mediaEnabled: false },
         });
       }
-      const organizationId = context?.organizationId ?? profile?.organizationId ?? null;
-      if (!organizationId) {
-        return resolvePatientProgramInteractionPolicy({
-          profile,
-          defaultsWithoutSupport: { commentsEnabled: false, mediaEnabled: false },
-        });
-      }
+      const organizationId = context.organizationId;
       const runtimeContext = { patientUserId, organizationId };
       const [commentsDefault, mediaDefault] = await Promise.all([
         deps.getDoctorSupportDefault(
@@ -212,6 +220,7 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
         ),
       ]);
       return resolvePatientProgramInteractionPolicy({
+        organizationId,
         profile,
         defaultsWithoutSupport: {
           commentsEnabled: commentsDefault,

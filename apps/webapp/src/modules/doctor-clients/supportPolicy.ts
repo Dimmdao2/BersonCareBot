@@ -1,8 +1,6 @@
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-
-/** Per-patient row from `doctor_patient_support` (null row = defaults only). */
+/** Per-organization patient row from `doctor_patient_support` (null row = defaults only). */
 export type ClientSupportProfile = {
-  organizationId?: string | null;
+  organizationId: string;
   patientUserId: string;
   onSupport: boolean;
   /** Момент начала сопровождения (ISO); null если не на сопровождении. */
@@ -19,18 +17,21 @@ export type DoctorSupportWithoutSupportDefaults = {
 };
 
 export type PatientProgramInteractionPolicy = {
-  organizationId: string | null;
+  organizationId: string;
   onSupport: boolean;
   commentsAllowed: boolean;
   mediaAllowed: boolean;
 };
 
 export function resolvePatientProgramInteractionPolicy(params: {
+  organizationId: string;
   profile: ClientSupportProfile | null;
   defaultsWithoutSupport: DoctorSupportWithoutSupportDefaults;
 }): PatientProgramInteractionPolicy {
-  const organizationId =
-    params.profile?.organizationId ?? getCurrentDbPrincipalOrganizationId() ?? null;
+  if (params.profile && params.profile.organizationId !== params.organizationId) {
+    throw new Error('support_profile_organization_mismatch');
+  }
+  const organizationId = params.organizationId;
   const onSupport = params.profile?.onSupport ?? false;
   if (onSupport) {
     return {
@@ -40,18 +41,15 @@ export function resolvePatientProgramInteractionPolicy(params: {
       mediaAllowed: params.profile?.mediaEnabled !== false,
     };
   }
-  const hasOrganizationContext = Boolean(organizationId);
   return {
     organizationId,
     onSupport: false,
     commentsAllowed:
-      hasOrganizationContext &&
-      (params.profile?.commentsEnabled === true ||
-        (params.profile?.commentsEnabled == null && params.defaultsWithoutSupport.commentsEnabled)),
+      params.profile?.commentsEnabled === true ||
+      (params.profile?.commentsEnabled == null && params.defaultsWithoutSupport.commentsEnabled),
     mediaAllowed:
-      hasOrganizationContext &&
-      (params.profile?.mediaEnabled === true ||
-        (params.profile?.mediaEnabled == null && params.defaultsWithoutSupport.mediaEnabled)),
+      params.profile?.mediaEnabled === true ||
+      (params.profile?.mediaEnabled == null && params.defaultsWithoutSupport.mediaEnabled),
   };
 }
 

@@ -45,6 +45,7 @@ export type DoctorDashboardMetrics = {
 };
 
 type AudienceArg = { excludedUserIds?: string[]; organizationId?: string };
+type OrganizationAudienceArg = { excludedUserIds?: string[]; organizationId: string };
 
 export type DoctorStatsServiceDeps = {
   getAppointmentStats: (
@@ -60,7 +61,9 @@ export type DoctorStatsServiceDeps = {
     cancellations30d: number;
   }>;
   getClientContactBreakdown: (audience?: AudienceArg) => Promise<ClientContactBreakdown>;
-  getDashboardPatientMetrics: (audience?: AudienceArg) => Promise<DoctorDashboardPatientMetrics>;
+  getDashboardPatientMetrics: (
+    audience: OrganizationAudienceArg,
+  ) => Promise<DoctorDashboardPatientMetrics>;
   getDashboardAppointmentMetrics: (
     audience?: AudienceArg,
   ) => Promise<DoctorDashboardAppointmentMetrics>;
@@ -99,6 +102,9 @@ export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
     },
 
     async getDashboardMetrics(audience: AnalyticsAudienceContext): Promise<DoctorDashboardMetrics> {
+      if (!audience.organizationId) {
+        throw new Error('organization_context_required');
+      }
       const aud = {
         excludedUserIds: audience.excludedUserIds,
         organizationId: audience.organizationId,

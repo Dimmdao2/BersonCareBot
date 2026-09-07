@@ -13,6 +13,10 @@ import { matchesDoctorClientSearch } from '@/modules/doctor-clients/clientSearch
 const STUB_CLIENTS: ClientListItem[] = [];
 const supportProfiles = new Map<string, ClientSupportProfile>();
 
+function supportProfileKey(organizationId: string, patientUserId: string): string {
+  return `${organizationId}:${patientUserId}`;
+}
+
 /** @internal Vitest: seed list rows and reset support profiles. */
 export function __resetInMemoryDoctorClientsForTest(stub: ClientListItem[] = []) {
   STUB_CLIENTS.length = 0;
@@ -83,19 +87,32 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     if (filters.archivedOnly === true) {
       list = [];
     }
+    const supportOrganizationId = filters.organizationId;
     if (filters.supportStatus === 'on') {
-      list = list.filter((item) => supportProfiles.get(item.userId)?.onSupport === true);
+      list = supportOrganizationId
+        ? list.filter(
+            (item) =>
+              supportProfiles.get(supportProfileKey(supportOrganizationId, item.userId))
+                ?.onSupport === true,
+          )
+        : [];
     }
     if (filters.supportStatus === 'programWithoutSupport') {
-      list = list.filter(
-        (item) =>
-          item.activeTreatmentProgram && supportProfiles.get(item.userId)?.onSupport !== true,
-      );
+      list = supportOrganizationId
+        ? list.filter(
+            (item) =>
+              item.activeTreatmentProgram &&
+              supportProfiles.get(supportProfileKey(supportOrganizationId, item.userId))
+                ?.onSupport !== true,
+          )
+        : [];
     }
     return list;
   },
 
-  async getDashboardPatientMetrics(): Promise<DoctorDashboardPatientMetrics> {
+  async getDashboardPatientMetrics(_audience: {
+    organizationId: string;
+  }): Promise<DoctorDashboardPatientMetrics> {
     return {
       totalClients: 0,
       onSupportCount: 0,
@@ -180,17 +197,18 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     /* no-op in memory stub */
   },
 
-  async getPatientCardHeader(_userId: string) {
+  async getPatientCardHeader(_userId: string, _organizationId: string) {
     // In-memory stub — returns null (no data in test environment)
     return null;
   },
 
-  async getClientSupport(patientUserId: string) {
-    return supportProfiles.get(patientUserId) ?? null;
+  async getClientSupport(patientUserId: string, organizationId: string) {
+    return supportProfiles.get(supportProfileKey(organizationId, patientUserId)) ?? null;
   },
 
   async updateClientSupport(params) {
-    const existing = supportProfiles.get(params.patientUserId);
+    const key = supportProfileKey(params.organizationId, params.patientUserId);
+    const existing = supportProfiles.get(key);
     const now = new Date().toISOString();
     const nextOnSupport = params.onSupport ?? existing?.onSupport ?? false;
     let supportStartedAt = existing?.supportStartedAt ?? null;
@@ -199,6 +217,7 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
       else if (!params.onSupport) supportStartedAt = null;
     }
     const profile: ClientSupportProfile = {
+      organizationId: params.organizationId,
       patientUserId: params.patientUserId,
       onSupport: nextOnSupport,
       supportStartedAt,
@@ -211,15 +230,23 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
       updatedAt: now,
       updatedBy: params.actorId,
     };
-    supportProfiles.set(params.patientUserId, profile);
+    supportProfiles.set(key, profile);
     return profile;
   },
 
-  async setPatientBirthDate(_userId: string, _birthDate: string | null): Promise<void> {
+  async setPatientBirthDate(
+    _userId: string,
+    _organizationId: string,
+    _birthDate: string | null,
+  ): Promise<void> {
     /* no-op in memory stub */
   },
 
-  async setPatientGender(_userId: string, _gender: 'male' | 'female' | null): Promise<void> {
+  async setPatientGender(
+    _userId: string,
+    _organizationId: string,
+    _gender: 'male' | 'female' | null,
+  ): Promise<void> {
     /* no-op in memory stub */
   },
 
@@ -232,12 +259,14 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
 
   async getPatientPhysical(
     _userId: string,
+    _organizationId: string,
   ): Promise<{ heightCm: number | null; weightKg: number | null } | null> {
     return { heightCm: null, weightKg: null };
   },
 
   async setPatientPhysical(
     _userId: string,
+    _organizationId: string,
     _params: { heightCm?: number | null; weightKg?: number | null },
   ): Promise<void> {
     /* no-op in memory stub */

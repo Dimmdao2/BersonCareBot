@@ -73,7 +73,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   const patientUserId = identity.userId;
 
   const header = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    deps.doctorClients.getPatientCardHeader(patientUserId),
+    deps.doctorClients.getPatientCardHeader(patientUserId, gate.ctx.organizationId),
   );
 
   if (!header) {
@@ -139,11 +139,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
 
   await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.patients.profile.update', async () => {
     if ('birthDate' in parsed.data) {
-      await deps.doctorClients.setPatientBirthDate(patientUserId, parsed.data.birthDate ?? null);
+      await deps.doctorClients.setPatientBirthDate(
+        patientUserId,
+        gate.ctx.organizationId,
+        parsed.data.birthDate ?? null,
+      );
     }
 
     if ('gender' in parsed.data) {
-      await deps.doctorClients.setPatientGender(patientUserId, parsed.data.gender ?? null);
+      await deps.doctorClients.setPatientGender(
+        patientUserId,
+        gate.ctx.organizationId,
+        parsed.data.gender ?? null,
+      );
     }
 
     const nameFields: {

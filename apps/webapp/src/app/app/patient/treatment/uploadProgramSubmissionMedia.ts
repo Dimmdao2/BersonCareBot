@@ -3,8 +3,7 @@
 import { MIN_PROGRAM_SUBMISSION_VIDEO_DURATION_SECONDS } from '@/modules/media/programSubmissionUploadLimits';
 
 export type ProgramSubmissionUploadResult =
-  | { ok: true; mediaId: string; url: string; isVideo: boolean }
-  | { ok: false; error: string };
+  { ok: true; mediaId: string; url: string; isVideo: boolean } | { ok: false; error: string };
 
 async function readVideoDurationSeconds(file: File): Promise<number | null> {
   if (typeof document === 'undefined' || typeof URL.createObjectURL !== 'function') return null;
@@ -38,6 +37,7 @@ async function readVideoDurationSeconds(file: File): Promise<number | null> {
 
 export async function uploadProgramSubmissionMedia(
   file: File,
+  instanceId: string,
 ): Promise<ProgramSubmissionUploadResult> {
   const mime = (file.type || 'application/octet-stream').toLowerCase();
   const isVideo = mime.startsWith('video/');
@@ -54,6 +54,7 @@ export async function uploadProgramSubmissionMedia(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      instanceId,
       filename: file.name,
       mimeType: mime,
       size: file.size,
@@ -82,7 +83,7 @@ export async function uploadProgramSubmissionMedia(
   const confirmRes = await fetch('/api/patient/media/program-submission/confirm', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mediaId: presignData.mediaId }),
+    body: JSON.stringify({ mediaId: presignData.mediaId, instanceId }),
   });
   const confirmData = (await confirmRes.json().catch(() => null)) as {
     ok?: boolean;
@@ -104,6 +105,7 @@ export async function uploadProgramSubmissionMedia(
 
 export async function waitForProgramSubmissionMediaReady(
   mediaId: string,
+  instanceId: string,
   opts?: { timeoutMs?: number; intervalMs?: number },
 ): Promise<boolean> {
   const timeoutMs = opts?.timeoutMs ?? 120_000;
@@ -111,7 +113,7 @@ export async function waitForProgramSubmissionMediaReady(
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     const res = await fetch(
-      `/api/patient/media/program-submission/${encodeURIComponent(mediaId)}/status`,
+      `/api/patient/media/program-submission/${encodeURIComponent(mediaId)}/status?instanceId=${encodeURIComponent(instanceId)}`,
     );
     const data = (await res.json().catch(() => null)) as {
       ok?: boolean;
