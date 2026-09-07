@@ -415,8 +415,8 @@ export function createPatientBookingService(input: {
       return {
         ok: true,
         allowed: preview.allowed,
+        isFree: preview.isFree,
         messageKey: preview.messageKey,
-        remainingSelfReschedules: preview.remainingSelfReschedules,
       };
     },
 
@@ -515,9 +515,7 @@ export function createPatientBookingService(input: {
         }
         if (
           err === 'not_found' ||
-          err === 'too_late' ||
-          err === 'limit_exceeded' ||
-          err === 'change_not_allowed'
+          err === 'not_allowed'
         ) {
           return { ok: false, error: err };
         }
@@ -568,7 +566,7 @@ export function createPatientBookingService(input: {
       }
       const rescheduleNotify = resolveBookingNotifyTargets(
         'booking.rescheduled',
-        result.reschedulePolicy,
+        result.bookingPolicy,
         lifecycleNotificationSettings,
       );
       try {
@@ -715,11 +713,11 @@ export function createPatientBookingService(input: {
               organizationId: orgId,
               prepaymentRetained: lifecycleResult.eligibility
                 ? !lifecycleResult.eligibility.isFree &&
-                  lifecycleResult.cancelPolicy.lateCancellationBehavior === 'retain_prepayment'
+                  lifecycleResult.bookingPolicy.lateChangeBehavior === 'retain_prepayment'
                 : false,
               prepaymentRefunded: lifecycleResult.eligibility
                 ? lifecycleResult.eligibility.isFree ||
-                  lifecycleResult.cancelPolicy.lateCancellationBehavior === 'refund_prepayment'
+                  lifecycleResult.bookingPolicy.lateChangeBehavior === 'refund_prepayment'
                 : false,
               reason: cancelInput.reason,
             });
@@ -783,7 +781,7 @@ export function createPatientBookingService(input: {
         }
         const cancelNotify = resolveBookingNotifyTargets(
           'booking.cancelled',
-          lifecycleResult.cancelPolicy,
+          lifecycleResult.bookingPolicy,
           lifecycleNotificationSettings,
         );
         try {
@@ -852,9 +850,7 @@ export function createPatientBookingService(input: {
 
         return {
           ok: true,
-          lateCancellation:
-            lifecycleResult.eligibility.reasonCode === 'late' ||
-            lifecycleResult.eligibility.reasonCode === 'forfeited_by_reschedule',
+          lateCancellation: lifecycleResult.eligibility.reasonCode === 'late',
           ...(notificationOutcomeFailed ? { notificationOutcomeFailed: true as const } : {}),
           ...(paymentOutcomeFailed ? { paymentOutcomeFailed: true as const } : {}),
           ...(membershipOutcomeFailed ? { membershipOutcomeFailed: true as const } : {}),

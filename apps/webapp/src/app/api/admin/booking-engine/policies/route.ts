@@ -5,18 +5,13 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
 
-const scopeLevel = z.literal('organization');
-
-const cancelUpsert = z.object({
-  kind: z.literal('cancellation'),
-  id: z.string().uuid().optional(),
-  scopeLevel,
-  scopeEntityId: z.string().uuid().nullable().optional(),
-  title: z.string().min(1),
-  isActive: z.boolean(),
-  freeCancelHoursBefore: z.number().int().min(0),
+const upsertBody = z.object({
+  cancellationPolicyId: z.string().uuid().nullable().optional(),
+  reschedulePolicyId: z.string().uuid().nullable().optional(),
   cancellationAllowed: z.boolean(),
-  lateCancellationBehavior: z.enum([
+  rescheduleAllowed: z.boolean(),
+  freeChangeHoursBefore: z.number().int().min(0),
+  lateChangeBehavior: z.enum([
     'penalty',
     'manual_review',
     'charge_package',
@@ -26,24 +21,7 @@ const cancelUpsert = z.object({
   refundPrepaymentOnLate: z.string().min(1),
   chargePackageSessionOnLate: z.boolean(),
   requiresStaffConfirmation: z.boolean(),
-  sortOrder: z.number().int(),
 });
-
-const rescheduleUpsert = z.object({
-  kind: z.literal('reschedule'),
-  id: z.string().uuid().optional(),
-  scopeLevel,
-  scopeEntityId: z.string().uuid().nullable().optional(),
-  title: z.string().min(1),
-  isActive: z.boolean(),
-  selfRescheduleHoursBefore: z.number().int().min(0),
-  maxSelfReschedules: z.number().int().min(0),
-  limitExceededBehavior: z.enum(['manual_request', 'deny']),
-  requiresStaffConfirmation: z.boolean(),
-  sortOrder: z.number().int(),
-});
-
-const upsertBody = z.discriminatedUnion('kind', [cancelUpsert, rescheduleUpsert]);
 
 export async function GET() {
   const gate = await requireClinicManagementBookingEngine();
@@ -53,11 +31,8 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: 'booking_policies_unavailable' }, { status: 503 });
   }
   const { organizationId } = gate.ctx;
-  const [cancellationPolicies, reschedulePolicies] = await Promise.all([
-    deps.bookingPolicies.listCancellationPolicies(organizationId),
-    deps.bookingPolicies.listReschedulePolicies(organizationId),
-  ]);
-  return NextResponse.json({ ok: true, cancellationPolicies, reschedulePolicies });
+  const policy = await deps.bookingPolicies.getBookingPolicy(organizationId);
+  return NextResponse.json({ ok: true, policy });
 }
 
 export async function POST(request: Request) {
@@ -75,39 +50,15 @@ export async function POST(request: Request) {
   }
   const bookingPolicies = deps.bookingPolicies;
   const { organizationId } = gate.ctx;
-  const scopeEntityId = organizationId;
-
   try {
-    if (parsed.data.kind === 'cancellation') {
-      const data = parsed.data;
-      const policy = await withDoctorWorkspacePrincipal(
-        gate.ctx,
-        'admin.booking-engine.policies.cancellation.upsert',
-        () =>
-          bookingPolicies.upsertCancellationPolicy({
-            ...data,
-            organizationId,
-            scopeEntityId,
-            notifyPatient: true,
-            notifyStaff: true,
-          }),
-      );
-      return NextResponse.json({ ok: true, policy });
-    }
-
-    const data = parsed.data;
     const policy = await withDoctorWorkspacePrincipal(
       gate.ctx,
-      'admin.booking-engine.policies.reschedule.upsert',
+      'admin.booking-engine.policies.upsert',
       () =>
-        bookingPolicies.upsertReschedulePolicy({
-          ...data,
+        bookingPolicies.upsertBookingPolicy({
+          ...parsed.data,
           organizationId,
-          scopeEntityId,
-          allowDifferentBranch: false,
-          allowDifferentCity: false,
-          allowDifferentSpecialist: false,
-          allowDifferentService: false,
+          title: 'Политика отмены и переноса',
           notifyPatient: true,
           notifyStaff: true,
         }),
@@ -118,7 +69,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'policy_not_found' }, { status: 404 });
     }
     console.error('[booking-policy] mutation failed', {
-      kind: parsed.data.kind,
       errorClass: error instanceof Error ? error.name : 'unknown',
     });
     return NextResponse.json(

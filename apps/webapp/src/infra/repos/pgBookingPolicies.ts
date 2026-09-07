@@ -9,28 +9,50 @@ import {
 import { beCancellationPolicies, beReschedulePolicies } from '../../../db/schema/bookingPolicies';
 import type {
   BookingPoliciesPort,
-  UpsertCancellationPolicyInput,
-  UpsertReschedulePolicyInput,
+  UpsertBookingPolicyInput,
 } from '@/modules/booking-policies/ports';
 import {
-  resolveCancellationFromList,
-  resolveRescheduleFromList,
-  withDefaultCancellationPolicy,
-  withDefaultReschedulePolicy,
+  withDefaultBookingPolicy,
 } from '@/modules/booking-policies/service';
 import type {
+  BookingPolicy,
   CancellationPolicy,
   PolicyAppointmentContext,
   ReschedulePolicy,
 } from '@/modules/booking-policies/types';
 
-function normalizeScopeEntityId(
-  scopeLevel: string,
-  scopeEntityId: string | null,
+function combinePolicies(
   organizationId: string,
-): string | null {
-  if (scopeLevel === 'organization') return scopeEntityId ?? organizationId;
-  return scopeEntityId;
+  cancellation: CancellationPolicy | null,
+  reschedule: ReschedulePolicy | null,
+): BookingPolicy {
+  const fallback = withDefaultBookingPolicy(null, organizationId);
+  return {
+    organizationId,
+    cancellationPolicyId: cancellation?.id ?? null,
+    reschedulePolicyId: reschedule?.id ?? null,
+    title: cancellation?.title ?? reschedule?.title ?? fallback.title,
+    cancellationAllowed:
+      cancellation === null
+        ? fallback.cancellationAllowed
+        : cancellation.isActive && cancellation.cancellationAllowed,
+    rescheduleAllowed: reschedule?.isActive ?? fallback.rescheduleAllowed,
+    freeChangeHoursBefore:
+      cancellation?.freeCancelHoursBefore ??
+      reschedule?.selfRescheduleHoursBefore ??
+      fallback.freeChangeHoursBefore,
+    lateChangeBehavior: cancellation?.lateCancellationBehavior ?? fallback.lateChangeBehavior,
+    refundPrepaymentOnLate:
+      cancellation?.refundPrepaymentOnLate ?? fallback.refundPrepaymentOnLate,
+    chargePackageSessionOnLate:
+      cancellation?.chargePackageSessionOnLate ?? fallback.chargePackageSessionOnLate,
+    requiresStaffConfirmation:
+      cancellation?.requiresStaffConfirmation ??
+      reschedule?.requiresStaffConfirmation ??
+      fallback.requiresStaffConfirmation,
+    notifyPatient: cancellation?.notifyPatient ?? reschedule?.notifyPatient ?? fallback.notifyPatient,
+    notifyStaff: cancellation?.notifyStaff ?? reschedule?.notifyStaff ?? fallback.notifyStaff,
+  };
 }
 
 function mapCancel(row: typeof beCancellationPolicies.$inferSelect): CancellationPolicy {
@@ -173,200 +195,170 @@ function mapCurrentPatientReschedulePolicy(
 
 export function createPgBookingPoliciesPort(): BookingPoliciesPort {
   return {
-    async listCancellationPolicies(organizationId) {
+    async getBookingPolicy(organizationId) {
       if (getCurrentDbPrincipal()?.kind === 'patient') {
-        const rows = await readCurrentPatientPolicies<CurrentPatientCancellationPolicyRow>(
-          'cancellation',
-        );
-        const policies = rows.map(mapCurrentPatientCancellationPolicy);
-        if (policies.some((policy) => policy.organizationId !== organizationId)) {
+        const [cancelRows, rescheduleRows] = await Promise.all([
+          readCurrentPatientPolicies<CurrentPatientCancellationPolicyRow>('cancellation'),
+          readCurrentPatientPolicies<CurrentPatientReschedulePolicyRow>('reschedule'),
+        ]);
+        const cancellation =
+          cancelRows
+            .map(mapCurrentPatientCancellationPolicy)
+            .find((policy) => policy.scopeLevel === 'organization') ?? null;
+        const reschedule =
+          rescheduleRows
+            .map(mapCurrentPatientReschedulePolicy)
+            .find((policy) => policy.scopeLevel === 'organization') ?? null;
+        if (
+          cancellation?.organizationId !== undefined &&
+          cancellation.organizationId !== organizationId
+        ) {
           throw new Error('ambiguous_booking_tenant');
         }
-        return policies;
-      }
-      const db = getDrizzle();
-      const rows = await db
-        .select()
-        .from(beCancellationPolicies)
-        .where(eq(beCancellationPolicies.organizationId, organizationId))
-        .orderBy(asc(beCancellationPolicies.sortOrder), asc(beCancellationPolicies.title));
-      return rows.map(mapCancel);
-    },
-
-    async listReschedulePolicies(organizationId) {
-      if (getCurrentDbPrincipal()?.kind === 'patient') {
-        const rows = await readCurrentPatientPolicies<CurrentPatientReschedulePolicyRow>(
-          'reschedule',
-        );
-        const policies = rows.map(mapCurrentPatientReschedulePolicy);
-        if (policies.some((policy) => policy.organizationId !== organizationId)) {
+        if (reschedule?.organizationId !== undefined && reschedule.organizationId !== organizationId) {
           throw new Error('ambiguous_booking_tenant');
         }
-        return policies;
+        return combinePolicies(organizationId, cancellation, reschedule);
       }
-      const db = getDrizzle();
-      const rows = await db
-        .select()
-        .from(beReschedulePolicies)
-        .where(eq(beReschedulePolicies.organizationId, organizationId))
-        .orderBy(asc(beReschedulePolicies.sortOrder), asc(beReschedulePolicies.title));
-      return rows.map(mapReschedule);
-    },
 
-    async upsertCancellationPolicy(input: UpsertCancellationPolicyInput) {
-      const scopeEntityId = normalizeScopeEntityId(
-        input.scopeLevel,
-        input.scopeEntityId,
-        input.organizationId,
+      const db = getDrizzle();
+      const [cancelRows, rescheduleRows] = await Promise.all([
+        db
+          .select()
+          .from(beCancellationPolicies)
+          .where(eq(beCancellationPolicies.organizationId, organizationId))
+          .orderBy(asc(beCancellationPolicies.sortOrder), asc(beCancellationPolicies.title)),
+        db
+          .select()
+          .from(beReschedulePolicies)
+          .where(eq(beReschedulePolicies.organizationId, organizationId))
+          .orderBy(asc(beReschedulePolicies.sortOrder), asc(beReschedulePolicies.title)),
+      ]);
+      const cancellationRow = cancelRows.find((row) => row.scopeLevel === 'organization');
+      const rescheduleRow = rescheduleRows.find((row) => row.scopeLevel === 'organization');
+      return combinePolicies(
+        organizationId,
+        cancellationRow ? mapCancel(cancellationRow) : null,
+        rescheduleRow ? mapReschedule(rescheduleRow) : null,
       );
+    },
+
+    async upsertBookingPolicy(input: UpsertBookingPolicyInput) {
       const now = new Date().toISOString();
-      if (input.id) {
-        const id = input.id;
-        const row = await runWebappTransaction(async (tx) => {
-          await tx
+      return runWebappTransaction(async (tx) => {
+        const [cancelRows, rescheduleRows] = await Promise.all([
+          tx
+            .select()
+            .from(beCancellationPolicies)
+            .where(eq(beCancellationPolicies.organizationId, input.organizationId))
+            .for('update'),
+          tx
+            .select()
+            .from(beReschedulePolicies)
+            .where(eq(beReschedulePolicies.organizationId, input.organizationId))
+            .for('update'),
+        ]);
+        const storedCancellation = cancelRows.find((row) => row.scopeLevel === 'organization');
+        const storedReschedule = rescheduleRows.find((row) => row.scopeLevel === 'organization');
+
+        let cancellationRow: typeof beCancellationPolicies.$inferSelect;
+        if (storedCancellation) {
+          const [updated] = await tx
             .update(beCancellationPolicies)
             .set({
-              scopeLevel: input.scopeLevel,
-              scopeEntityId,
               title: input.title,
-              isActive: input.isActive,
-              freeCancelHoursBefore: input.freeCancelHoursBefore,
+              isActive: true,
+              freeCancelHoursBefore: input.freeChangeHoursBefore,
               cancellationAllowed: input.cancellationAllowed,
-              lateCancellationBehavior: input.lateCancellationBehavior,
+              lateCancellationBehavior: input.lateChangeBehavior,
               refundPrepaymentOnLate: input.refundPrepaymentOnLate,
               chargePackageSessionOnLate: input.chargePackageSessionOnLate,
               requiresStaffConfirmation: input.requiresStaffConfirmation,
               notifyPatient: input.notifyPatient,
               notifyStaff: input.notifyStaff,
-              sortOrder: input.sortOrder,
               updatedAt: now,
             })
-            .where(
-              and(
-                eq(beCancellationPolicies.id, id),
-                eq(beCancellationPolicies.organizationId, input.organizationId),
-              ),
-            );
-          const rows = await tx
-            .select()
-            .from(beCancellationPolicies)
-            .where(eq(beCancellationPolicies.id, id))
-            .limit(1);
-          return rows[0] ? mapCancel(rows[0]) : null;
-        });
-        if (!row) throw new Error('policy_not_found');
-        return row;
-      }
-      const inserted = await runWebappTransaction((tx) =>
-        tx
-          .insert(beCancellationPolicies)
-          .values({
-            organizationId: input.organizationId,
-            scopeLevel: input.scopeLevel,
-            scopeEntityId,
-            title: input.title,
-            isActive: input.isActive,
-            freeCancelHoursBefore: input.freeCancelHoursBefore,
-            cancellationAllowed: input.cancellationAllowed,
-            lateCancellationBehavior: input.lateCancellationBehavior,
-            refundPrepaymentOnLate: input.refundPrepaymentOnLate,
-            chargePackageSessionOnLate: input.chargePackageSessionOnLate,
-            requiresStaffConfirmation: input.requiresStaffConfirmation,
-            notifyPatient: input.notifyPatient,
-            notifyStaff: input.notifyStaff,
-            sortOrder: input.sortOrder,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .returning(),
-      );
-      return mapCancel(inserted[0]!);
-    },
-
-    async upsertReschedulePolicy(input: UpsertReschedulePolicyInput) {
-      const scopeEntityId = normalizeScopeEntityId(
-        input.scopeLevel,
-        input.scopeEntityId,
-        input.organizationId,
-      );
-      const now = new Date().toISOString();
-      if (input.id) {
-        const id = input.id;
-        const row = await runWebappTransaction(async (tx) => {
-          await tx
-            .update(beReschedulePolicies)
-            .set({
-              scopeLevel: input.scopeLevel,
-              scopeEntityId,
+            .where(eq(beCancellationPolicies.id, storedCancellation.id))
+            .returning();
+          cancellationRow = updated!;
+        } else {
+          const [inserted] = await tx
+            .insert(beCancellationPolicies)
+            .values({
+              organizationId: input.organizationId,
+              scopeLevel: 'organization',
+              scopeEntityId: input.organizationId,
               title: input.title,
-              isActive: input.isActive,
-              selfRescheduleHoursBefore: input.selfRescheduleHoursBefore,
-              maxSelfReschedules: input.maxSelfReschedules,
-              allowDifferentBranch: input.allowDifferentBranch,
-              allowDifferentCity: input.allowDifferentCity,
-              allowDifferentSpecialist: input.allowDifferentSpecialist,
-              allowDifferentService: input.allowDifferentService,
-              limitExceededBehavior: input.limitExceededBehavior,
+              isActive: true,
+              freeCancelHoursBefore: input.freeChangeHoursBefore,
+              cancellationAllowed: input.cancellationAllowed,
+              lateCancellationBehavior: input.lateChangeBehavior,
+              refundPrepaymentOnLate: input.refundPrepaymentOnLate,
+              chargePackageSessionOnLate: input.chargePackageSessionOnLate,
               requiresStaffConfirmation: input.requiresStaffConfirmation,
               notifyPatient: input.notifyPatient,
               notifyStaff: input.notifyStaff,
-              sortOrder: input.sortOrder,
+              sortOrder: 0,
+              createdAt: now,
               updatedAt: now,
             })
-            .where(
-              and(
-                eq(beReschedulePolicies.id, id),
-                eq(beReschedulePolicies.organizationId, input.organizationId),
-              ),
-            );
-          const rows = await tx
-            .select()
-            .from(beReschedulePolicies)
-            .where(eq(beReschedulePolicies.id, id))
-            .limit(1);
-          return rows[0] ? mapReschedule(rows[0]) : null;
-        });
-        if (!row) throw new Error('policy_not_found');
-        return row;
-      }
-      const inserted = await runWebappTransaction((tx) =>
-        tx
-          .insert(beReschedulePolicies)
-          .values({
-            organizationId: input.organizationId,
-            scopeLevel: input.scopeLevel,
-            scopeEntityId,
-            title: input.title,
-            isActive: input.isActive,
-            selfRescheduleHoursBefore: input.selfRescheduleHoursBefore,
-            maxSelfReschedules: input.maxSelfReschedules,
-            allowDifferentBranch: input.allowDifferentBranch,
-            allowDifferentCity: input.allowDifferentCity,
-            allowDifferentSpecialist: input.allowDifferentSpecialist,
-            allowDifferentService: input.allowDifferentService,
-            limitExceededBehavior: input.limitExceededBehavior,
-            requiresStaffConfirmation: input.requiresStaffConfirmation,
-            notifyPatient: input.notifyPatient,
-            notifyStaff: input.notifyStaff,
-            sortOrder: input.sortOrder,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .returning(),
-      );
-      return mapReschedule(inserted[0]!);
+            .returning();
+          cancellationRow = inserted!;
+        }
+
+        let rescheduleRow: typeof beReschedulePolicies.$inferSelect;
+        if (storedReschedule) {
+          const [updated] = await tx
+            .update(beReschedulePolicies)
+            .set({
+              title: input.title,
+              isActive: input.rescheduleAllowed,
+              selfRescheduleHoursBefore: input.freeChangeHoursBefore,
+              requiresStaffConfirmation: input.requiresStaffConfirmation,
+              notifyPatient: input.notifyPatient,
+              notifyStaff: input.notifyStaff,
+              updatedAt: now,
+            })
+            .where(eq(beReschedulePolicies.id, storedReschedule.id))
+            .returning();
+          rescheduleRow = updated!;
+        } else {
+          const [inserted] = await tx
+            .insert(beReschedulePolicies)
+            .values({
+              organizationId: input.organizationId,
+              scopeLevel: 'organization',
+              scopeEntityId: input.organizationId,
+              title: input.title,
+              isActive: input.rescheduleAllowed,
+              selfRescheduleHoursBefore: input.freeChangeHoursBefore,
+              maxSelfReschedules: 1,
+              allowDifferentBranch: false,
+              allowDifferentCity: false,
+              allowDifferentSpecialist: false,
+              allowDifferentService: false,
+              limitExceededBehavior: 'manual_request',
+              requiresStaffConfirmation: input.requiresStaffConfirmation,
+              notifyPatient: input.notifyPatient,
+              notifyStaff: input.notifyStaff,
+              sortOrder: 0,
+              createdAt: now,
+              updatedAt: now,
+            })
+            .returning();
+          rescheduleRow = inserted!;
+        }
+
+        return combinePolicies(
+          input.organizationId,
+          mapCancel(cancellationRow),
+          mapReschedule(rescheduleRow),
+        );
+      });
     },
 
-    async resolveCancellationPolicy(ctx) {
-      const policies = await this.listCancellationPolicies(ctx.organizationId);
-      const picked = resolveCancellationFromList(policies, ctx);
-      return withDefaultCancellationPolicy(picked, ctx.organizationId);
-    },
-
-    async resolveReschedulePolicy(ctx) {
-      const policies = await this.listReschedulePolicies(ctx.organizationId);
-      const picked = resolveRescheduleFromList(policies, ctx);
-      return withDefaultReschedulePolicy(picked, ctx.organizationId);
+    async resolveBookingPolicy(ctx) {
+      return this.getBookingPolicy(ctx.organizationId);
     },
   };
 }

@@ -5,10 +5,8 @@ const fakes = vi.hoisted(() => ({
   requireClinicManagementBookingEngine: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
   withDoctorWorkspacePrincipal: vi.fn(),
-  upsertCancellationPolicy: vi.fn(),
-  upsertReschedulePolicy: vi.fn(),
-  listCancellationPolicies: vi.fn(),
-  listReschedulePolicies: vi.fn(),
+  upsertBookingPolicy: vi.fn(),
+  getBookingPolicy: vi.fn(),
 }));
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
@@ -36,19 +34,16 @@ beforeEach(() => {
   });
   fakes.buildAppDeps.mockReturnValue({
     bookingPolicies: {
-      upsertCancellationPolicy: fakes.upsertCancellationPolicy,
-      upsertReschedulePolicy: fakes.upsertReschedulePolicy,
-      listCancellationPolicies: fakes.listCancellationPolicies,
-      listReschedulePolicies: fakes.listReschedulePolicies,
+      upsertBookingPolicy: fakes.upsertBookingPolicy,
+      getBookingPolicy: fakes.getBookingPolicy,
     },
   });
   fakes.withDoctorWorkspacePrincipal.mockImplementation(
     (_ctx: unknown, _source: string, callback: () => Promise<unknown>) => callback(),
   );
-  fakes.upsertCancellationPolicy.mockResolvedValue({ id: 'policy-1' });
+  fakes.upsertBookingPolicy.mockImplementation(async (input) => input);
   fakes.requireEntitlementForMutation.mockResolvedValue({ ok: true });
-  fakes.listCancellationPolicies.mockResolvedValue([]);
-  fakes.listReschedulePolicies.mockResolvedValue([]);
+  fakes.getBookingPolicy.mockResolvedValue({ organizationId: ORGANIZATION_ID });
 });
 
 describe('admin booking-engine policies POST — booking entitlement gate', () => {
@@ -81,20 +76,18 @@ describe('admin booking-engine policies POST — booking entitlement gate', () =
       expect.objectContaining({ organizationId: ORGANIZATION_ID }),
       'booking',
     );
-    expect(fakes.upsertCancellationPolicy).not.toHaveBeenCalled();
+    expect(fakes.upsertBookingPolicy).not.toHaveBeenCalled();
   });
 
-  it('returns an honest empty organization state for the UI to seed', async () => {
+  it('returns the single organization policy', async () => {
     const response = await GET();
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      cancellationPolicies: [],
-      reschedulePolicies: [],
+      policy: { organizationId: ORGANIZATION_ID },
     });
-    expect(fakes.listCancellationPolicies).toHaveBeenCalledWith(ORGANIZATION_ID);
-    expect(fakes.listReschedulePolicies).toHaveBeenCalledWith(ORGANIZATION_ID);
+    expect(fakes.getBookingPolicy).toHaveBeenCalledWith(ORGANIZATION_ID);
   });
 
   it('creates the organization policy without requiring a pre-existing policy id', async () => {
@@ -103,28 +96,24 @@ describe('admin booking-engine policies POST — booking entitlement gate', () =
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          kind: 'cancellation',
-          scopeLevel: 'organization',
-          scopeEntityId: null,
-          title: 'Правила отмены клиники',
-          isActive: true,
-          freeCancelHoursBefore: 72,
           cancellationAllowed: true,
-          lateCancellationBehavior: 'manual_review',
+          rescheduleAllowed: false,
+          freeChangeHoursBefore: 72,
+          lateChangeBehavior: 'manual_review',
           refundPrepaymentOnLate: 'manual',
           chargePackageSessionOnLate: false,
           requiresStaffConfirmation: false,
-          sortOrder: 0,
         }),
       }),
     );
 
     expect(response.status).toBe(200);
-    expect(fakes.upsertCancellationPolicy).toHaveBeenCalledWith(
+    expect(fakes.upsertBookingPolicy).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: ORGANIZATION_ID,
-        scopeLevel: 'organization',
-        scopeEntityId: ORGANIZATION_ID,
+        cancellationAllowed: true,
+        rescheduleAllowed: false,
+        freeChangeHoursBefore: 72,
       }),
     );
   });

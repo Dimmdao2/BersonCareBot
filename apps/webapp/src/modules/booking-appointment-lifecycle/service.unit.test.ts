@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createBookingAppointmentLifecycleService } from './service';
 import type { BeAppointment } from '@/modules/booking-engine/types';
-import {
-  DEFAULT_CANCELLATION_POLICY,
-  DEFAULT_RESCHEDULE_POLICY,
-} from '@/modules/booking-policies/types';
+import { DEFAULT_BOOKING_POLICY } from '@/modules/booking-policies/types';
 
 // W8 (SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md): restores the genuine coverage loss for
 // booking appointment lifecycle. Oracle: the removed `service.test.ts`
@@ -60,12 +57,15 @@ describe('createBookingAppointmentLifecycleService', () => {
       patchLatestNoShowNotifications: vi.fn(),
     };
     const policies = {
-      resolveCancellationPolicy: vi.fn().mockResolvedValue(DEFAULT_CANCELLATION_POLICY),
-      resolveReschedulePolicy: vi.fn().mockResolvedValue(DEFAULT_RESCHEDULE_POLICY),
-      listCancellationPolicies: vi.fn(),
-      listReschedulePolicies: vi.fn(),
-      upsertCancellationPolicy: vi.fn(),
-      upsertReschedulePolicy: vi.fn(),
+      resolveBookingPolicy: vi.fn().mockResolvedValue({
+        ...DEFAULT_BOOKING_POLICY,
+        organizationId: 'org-1',
+        cancellationPolicyId: null,
+        reschedulePolicyId: null,
+        title: 'Политика отмены и переноса',
+      }),
+      getBookingPolicy: vi.fn(),
+      upsertBookingPolicy: vi.fn(),
     };
     const service = createBookingAppointmentLifecycleService({ lifecyclePort, policies });
     const preview = await service.previewPatientCancel('appt-1', 'org-1');
@@ -90,16 +90,13 @@ describe('createBookingAppointmentLifecycleService', () => {
       patchLatestNoShowNotifications: vi.fn(),
     };
     const policies = {
-      resolveCancellationPolicy: vi.fn(),
-      resolveReschedulePolicy: vi.fn(),
-      listCancellationPolicies: vi.fn(),
-      listReschedulePolicies: vi.fn(),
-      upsertCancellationPolicy: vi.fn(),
-      upsertReschedulePolicy: vi.fn(),
+      resolveBookingPolicy: vi.fn(),
+      getBookingPolicy: vi.fn(),
+      upsertBookingPolicy: vi.fn(),
     };
     const service = createBookingAppointmentLifecycleService({ lifecyclePort, policies });
     const preview = await service.previewPatientCancel('appt-missing', 'org-1');
     expect(preview).toEqual({ ok: false, error: 'not_found' });
-    expect(policies.resolveCancellationPolicy).not.toHaveBeenCalled();
+    expect(policies.resolveBookingPolicy).not.toHaveBeenCalled();
   });
 });

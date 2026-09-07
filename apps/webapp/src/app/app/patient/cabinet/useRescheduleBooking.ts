@@ -12,8 +12,7 @@ const ERROR_RU: Record<string, string> = {
   no_canonical: 'Перенос недоступен для этой записи',
   canonical_appointment_incomplete:
     'Перенос недоступен: запись ожидает переноса в канонический календарь',
-  too_late: 'Срок самостоятельного переноса истёк',
-  limit_exceeded: 'Лимит переносов исчерпан',
+  not_allowed: 'Самостоятельный перенос отключён',
   change_not_allowed: 'Такой перенос не разрешён',
   staff_confirmation_required: 'Нужно согласование специалиста',
   slot_overlap: 'Это время уже занято',

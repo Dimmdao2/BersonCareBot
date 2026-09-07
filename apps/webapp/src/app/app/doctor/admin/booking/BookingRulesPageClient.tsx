@@ -65,8 +65,7 @@ export function BookingRulesPageClient({
         </div>
       </DoctorSection>
 
-      <BookingPoliciesSection defaultKind="reschedule" lockKind />
-      <BookingPoliciesSection defaultKind="cancellation" lockKind />
+      <BookingPoliciesSection />
       <BookingEventNotificationsSection layout="compact" />
     </div>
   );

@@ -1,224 +1,86 @@
 import type {
+  BookingActionEligibility,
+  BookingPolicy,
   CancellationDecisionType,
-  CancellationEligibility,
-  CancellationPolicy,
-  PolicyAppointmentContext,
-  PolicyScopeLevel,
-  RescheduleEligibility,
-  RescheduleHistoryEntry,
-  ReschedulePolicy,
 } from './types';
-
-export function pickHighestPriorityPolicy<
-  T extends { scopeLevel: PolicyScopeLevel; isActive: boolean },
->(
-  policies: T[],
-  ctx: PolicyAppointmentContext,
-  matches: (policy: T, ctx: PolicyAppointmentContext) => boolean,
-): T | null {
-  const active = policies.filter((p) => p.isActive && matches(p, ctx));
-  if (active.length === 0) return null;
-  return active[0] ?? null;
-}
-
-export function matchesCancellationPolicy(
-  policy: CancellationPolicy,
-  ctx: PolicyAppointmentContext,
-): boolean {
-  if (policy.scopeLevel === 'organization') {
-    return policy.scopeEntityId === ctx.organizationId || policy.scopeEntityId === null;
-  }
-  return false;
-}
-
-export function matchesReschedulePolicy(
-  policy: ReschedulePolicy,
-  ctx: PolicyAppointmentContext,
-): boolean {
-  if (policy.scopeLevel === 'organization') {
-    return policy.scopeEntityId === ctx.organizationId || policy.scopeEntityId === null;
-  }
-  return false;
-}
 
 export function hoursUntil(isoStart: string, now: Date): number {
   return (new Date(isoStart).getTime() - now.getTime()) / 3_600_000;
 }
 
-/** §8.4: free cancel is measured from original_start_at, forfeited if rescheduled when already late. */
-export function evaluateCancellationEligibility(input: {
+export function evaluateBookingActionEligibility(input: {
+  action: 'cancellation' | 'reschedule';
   referenceStartAt: string;
-  policy: Pick<
-    CancellationPolicy,
-    | 'cancellationAllowed'
-    | 'freeCancelHoursBefore'
-    | 'requiresStaffConfirmation'
-    | 'lateCancellationBehavior'
-    | 'chargePackageSessionOnLate'
-  >;
-  rescheduleHistory: RescheduleHistoryEntry[];
+  policy: BookingPolicy;
   now?: Date;
   manualOverride?: { allowed: boolean; decisionType: CancellationDecisionType };
-}): CancellationEligibility {
+}): BookingActionEligibility {
   const now = input.now ?? new Date();
-  const referenceStartAt = input.referenceStartAt;
-  const hours = hoursUntil(referenceStartAt, now);
+  const hours = hoursUntil(input.referenceStartAt, now);
 
   if (input.manualOverride) {
     return {
+      action: input.action,
       allowed: input.manualOverride.allowed,
       isFree: input.manualOverride.decisionType === 'free',
       requiresStaffConfirmation: false,
       decisionType: input.manualOverride.decisionType,
       reasonCode: 'manual_override',
-      referenceStartAt,
+      referenceStartAt: input.referenceStartAt,
       hoursUntilReference: hours,
     };
   }
 
-  if (!input.policy.cancellationAllowed) {
+  const actionAllowed =
+    input.action === 'cancellation'
+      ? input.policy.cancellationAllowed
+      : input.policy.rescheduleAllowed;
+  if (!actionAllowed) {
     return {
+      action: input.action,
       allowed: false,
       isFree: false,
       requiresStaffConfirmation: false,
       decisionType: 'penalized',
       reasonCode: 'not_allowed',
-      referenceStartAt,
+      referenceStartAt: input.referenceStartAt,
       hoursUntilReference: hours,
     };
   }
 
-  for (const entry of input.rescheduleHistory) {
-    const hoursAtReschedule = hoursUntil(referenceStartAt, new Date(entry.createdAt));
-    if (hoursAtReschedule < input.policy.freeCancelHoursBefore) {
-      return {
-        allowed: true,
-        isFree: false,
-        requiresStaffConfirmation: input.policy.requiresStaffConfirmation,
-        decisionType: resolveLateCancellationDecisionType(input.policy),
-        reasonCode: 'forfeited_by_reschedule',
-        referenceStartAt,
-        hoursUntilReference: hours,
-      };
-    }
-  }
-
-  if (hours >= input.policy.freeCancelHoursBefore) {
+  if (hours >= input.policy.freeChangeHoursBefore) {
     return {
+      action: input.action,
       allowed: true,
       isFree: true,
       requiresStaffConfirmation: false,
       decisionType: 'free',
       reasonCode: 'free',
-      referenceStartAt,
+      referenceStartAt: input.referenceStartAt,
       hoursUntilReference: hours,
     };
   }
 
   return {
+    action: input.action,
     allowed: true,
     isFree: false,
-    requiresStaffConfirmation: input.policy.requiresStaffConfirmation,
-    decisionType: resolveLateCancellationDecisionType(input.policy),
+    requiresStaffConfirmation:
+      input.policy.requiresStaffConfirmation || input.policy.lateChangeBehavior === 'manual_review',
+    decisionType: resolveLateBookingDecisionType(input.policy),
     reasonCode: 'late',
-    referenceStartAt,
+    referenceStartAt: input.referenceStartAt,
     hoursUntilReference: hours,
   };
 }
 
-function mapLateBehaviorToDecision(
-  behavior: CancellationPolicy['lateCancellationBehavior'],
+function resolveLateBookingDecisionType(
+  policy: Pick<BookingPolicy, 'lateChangeBehavior' | 'chargePackageSessionOnLate'>,
 ): CancellationDecisionType {
-  if (behavior === 'charge_package') return 'package_charged';
-  if (behavior === 'retain_prepayment') return 'retain_prepayment';
-  if (behavior === 'refund_prepayment') return 'refund_prepayment';
-  if (behavior === 'penalty') return 'penalized';
+  if (policy.chargePackageSessionOnLate || policy.lateChangeBehavior === 'charge_package') {
+    return 'package_charged';
+  }
+  if (policy.lateChangeBehavior === 'retain_prepayment') return 'retain_prepayment';
+  if (policy.lateChangeBehavior === 'refund_prepayment') return 'refund_prepayment';
   return 'penalized';
-}
-
-function resolveLateCancellationDecisionType(
-  policy: Pick<CancellationPolicy, 'lateCancellationBehavior' | 'chargePackageSessionOnLate'>,
-): CancellationDecisionType {
-  if (policy.chargePackageSessionOnLate) return 'package_charged';
-  return mapLateBehaviorToDecision(policy.lateCancellationBehavior);
-}
-
-export function evaluateRescheduleEligibility(input: {
-  currentStartAt: string;
-  policy: Pick<
-    ReschedulePolicy,
-    | 'selfRescheduleHoursBefore'
-    | 'maxSelfReschedules'
-    | 'requiresStaffConfirmation'
-    | 'limitExceededBehavior'
-    | 'allowDifferentBranch'
-    | 'allowDifferentCity'
-    | 'allowDifferentSpecialist'
-    | 'allowDifferentService'
-  >;
-  rescheduleCount: number;
-  now?: Date;
-  change?: {
-    branchId?: string | null;
-    cityCode?: string | null;
-    specialistId?: string | null;
-    serviceId?: string | null;
-  };
-  current?: {
-    branchId?: string | null;
-    cityCode?: string | null;
-    specialistId?: string | null;
-    serviceId?: string | null;
-  };
-  manualOverride?: boolean;
-}): RescheduleEligibility {
-  const now = input.now ?? new Date();
-  const hours = hoursUntil(input.currentStartAt, now);
-  const remaining = Math.max(0, input.policy.maxSelfReschedules - input.rescheduleCount);
-
-  if (input.manualOverride) {
-    return {
-      allowed: true,
-      reasonCode: 'manual_override',
-      requiresStaffConfirmation: false,
-      limitExceededBehavior: null,
-      remainingSelfReschedules: remaining,
-    };
-  }
-
-  if (hours < input.policy.selfRescheduleHoursBefore) {
-    return {
-      allowed: false,
-      reasonCode: 'too_late',
-      requiresStaffConfirmation: input.policy.requiresStaffConfirmation,
-      limitExceededBehavior: null,
-      remainingSelfReschedules: remaining,
-    };
-  }
-
-  if (remaining <= 0) {
-    return {
-      allowed: false,
-      reasonCode: 'limit_exceeded',
-      requiresStaffConfirmation: input.policy.requiresStaffConfirmation,
-      limitExceededBehavior: input.policy.limitExceededBehavior,
-      remainingSelfReschedules: 0,
-    };
-  }
-
-  return {
-    allowed: true,
-    reasonCode: 'allowed',
-    requiresStaffConfirmation: input.policy.requiresStaffConfirmation,
-    limitExceededBehavior: null,
-    remainingSelfReschedules: remaining,
-  };
-}
-
-export function freeCancellationAvailableAfterReschedule(input: {
-  referenceStartAt: string;
-  policy: Pick<CancellationPolicy, 'freeCancelHoursBefore'>;
-  at: Date;
-}): boolean {
-  return hoursUntil(input.referenceStartAt, input.at) >= input.policy.freeCancelHoursBefore;
 }

@@ -638,7 +638,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
     method: 'POST',
     authContext: 'requireClinicManagementBookingEngine',
     guard: 'requireEntitlementForMutation',
-    serviceBoundary: 'bookingPolicies.upsertCancellationPolicy/upsertReschedulePolicy',
+    serviceBoundary: 'bookingPolicies.upsertBookingPolicy',
   },
   {
     id: 'booking.form-fields.upsert',

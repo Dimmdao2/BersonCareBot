@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { emitPackageCalendarSync } from '@/app-layer/booking/emitPackageCalendarSync';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
-import { withDefaultCancellationPolicy } from '@/modules/booking-policies/service';
+import { withDefaultBookingPolicy } from '@/modules/booking-policies/service';
 import type { PackageDetachOutcome } from '@/modules/memberships/service';
 import { membershipErrorResponse } from './patientPackagesRouteShared';
 
@@ -31,8 +31,8 @@ export async function runPackageDetach(params: {
     serviceId: appt.serviceId,
     productId: null,
   };
-  const resolved = await deps.bookingPolicies?.resolveCancellationPolicy(policyCtx);
-  const policy = withDefaultCancellationPolicy(resolved ?? null, params.organizationId);
+  const resolved = await deps.bookingPolicies?.resolveBookingPolicy(policyCtx);
+  const policy = withDefaultBookingPolicy(resolved ?? null, params.organizationId);
 
   try {
     const detach = () =>
@@ -42,7 +42,7 @@ export async function runPackageDetach(params: {
         createdByPlatformUserId: params.createdByPlatformUserId,
         outcome: params.outcome,
         confirmPastTwice: params.confirmPastTwice,
-        freeCancelHoursBefore: policy.freeCancelHoursBefore,
+        freeCancelHoursBefore: policy.freeChangeHoursBefore,
       });
     const result = params.runDetachMutation
       ? await params.runDetachMutation(detach)

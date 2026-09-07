@@ -1,15 +1,8 @@
-import {
-  matchesCancellationPolicy,
-  matchesReschedulePolicy,
-  pickHighestPriorityPolicy,
-} from './policyResolver';
 import type { BookingPoliciesPort } from './ports';
 import {
-  DEFAULT_CANCELLATION_POLICY,
-  DEFAULT_RESCHEDULE_POLICY,
-  type CancellationPolicy,
+  DEFAULT_BOOKING_POLICY,
+  type BookingPolicy,
   type PolicyAppointmentContext,
-  type ReschedulePolicy,
 } from './types';
 
 type BookingPoliciesServiceDependencies = {
@@ -29,69 +22,27 @@ export function createBookingPoliciesService(
   }
 
   return {
-    listCancellationPolicies: (organizationId: string) =>
-      port.listCancellationPolicies(organizationId),
-    listReschedulePolicies: (organizationId: string) => port.listReschedulePolicies(organizationId),
-    async upsertCancellationPolicy(
-      input: Parameters<BookingPoliciesPort['upsertCancellationPolicy']>[0],
-    ) {
+    getBookingPolicy: (organizationId: string) => port.getBookingPolicy(organizationId),
+    async upsertBookingPolicy(input: Parameters<BookingPoliciesPort['upsertBookingPolicy']>[0]) {
       assertBookingWriteClearance();
-      return port.upsertCancellationPolicy(input);
+      return port.upsertBookingPolicy(input);
     },
-    async upsertReschedulePolicy(
-      input: Parameters<BookingPoliciesPort['upsertReschedulePolicy']>[0],
-    ) {
-      assertBookingWriteClearance();
-      return port.upsertReschedulePolicy(input);
-    },
-    resolveCancellationPolicy: (ctx: PolicyAppointmentContext) =>
-      port.resolveCancellationPolicy(ctx),
-    resolveReschedulePolicy: (ctx: PolicyAppointmentContext) => port.resolveReschedulePolicy(ctx),
+    resolveBookingPolicy: (ctx: PolicyAppointmentContext) => port.resolveBookingPolicy(ctx),
+  };
+}
+
+export function withDefaultBookingPolicy(
+  policy: BookingPolicy | null,
+  organizationId: string,
+): BookingPolicy {
+  if (policy) return policy;
+  return {
+    organizationId,
+    cancellationPolicyId: null,
+    reschedulePolicyId: null,
+    title: 'Политика отмены и переноса',
+    ...DEFAULT_BOOKING_POLICY,
   };
 }
 
 export type BookingPoliciesService = ReturnType<typeof createBookingPoliciesService>;
-
-export function withDefaultCancellationPolicy(
-  policy: CancellationPolicy | null,
-  organizationId: string,
-): CancellationPolicy {
-  if (policy) return policy;
-  return {
-    id: 'default',
-    organizationId,
-    scopeLevel: 'organization',
-    scopeEntityId: organizationId,
-    title: 'По умолчанию',
-    ...DEFAULT_CANCELLATION_POLICY,
-  };
-}
-
-export function withDefaultReschedulePolicy(
-  policy: ReschedulePolicy | null,
-  organizationId: string,
-): ReschedulePolicy {
-  if (policy) return policy;
-  return {
-    id: 'default',
-    organizationId,
-    scopeLevel: 'organization',
-    scopeEntityId: organizationId,
-    title: 'По умолчанию',
-    ...DEFAULT_RESCHEDULE_POLICY,
-  };
-}
-
-export function resolveCancellationFromList(
-  policies: CancellationPolicy[],
-  ctx: PolicyAppointmentContext,
-): CancellationPolicy | null {
-  return pickHighestPriorityPolicy(policies, ctx, matchesCancellationPolicy);
-}
-
-export function resolveRescheduleFromList(
-  policies: ReschedulePolicy[],
-  ctx: PolicyAppointmentContext,
-): ReschedulePolicy | null {
-  return pickHighestPriorityPolicy(policies, ctx, matchesReschedulePolicy);
-}

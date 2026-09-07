@@ -256,9 +256,7 @@ export type PatientBookingService = {
           | 'not_found'
           | 'no_canonical'
           | 'canonical_appointment_incomplete'
-          | 'too_late'
-          | 'limit_exceeded'
-          | 'change_not_allowed'
+          | 'not_allowed'
           | 'staff_confirmation_required'
           | 'slot_overlap'
           | 'sync_failed';
@@ -268,7 +266,7 @@ export type PatientBookingService = {
     userId: string;
     bookingId: string;
   }): Promise<
-    | { ok: true; allowed: boolean; messageKey: string; remainingSelfReschedules: number }
+    | { ok: true; allowed: boolean; isFree: boolean; messageKey: string }
     | { ok: false; error: 'not_found' | 'no_canonical' | 'canonical_appointment_incomplete' }
   >;
   listMyBookings(userId: string): Promise<{

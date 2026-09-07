@@ -20,6 +20,28 @@ export type CancellationDecisionType =
 
 export type AppointmentActorType = 'patient' | 'specialist' | 'admin' | 'system';
 
+/**
+ * One organization policy governs both patient cancellation and patient rescheduling.
+ * The two actions can be enabled independently; the cutoff and late consequence are shared.
+ * `cancellationPolicyId` and `reschedulePolicyId` are persistence details while the two
+ * historical tables are being retained for backward-compatible appointment snapshots.
+ */
+export type BookingPolicy = {
+  organizationId: string;
+  cancellationPolicyId: string | null;
+  reschedulePolicyId: string | null;
+  title: string;
+  cancellationAllowed: boolean;
+  rescheduleAllowed: boolean;
+  freeChangeHoursBefore: number;
+  lateChangeBehavior: LateCancellationBehavior;
+  refundPrepaymentOnLate: string;
+  chargePackageSessionOnLate: boolean;
+  requiresStaffConfirmation: boolean;
+  notifyPatient: boolean;
+  notifyStaff: boolean;
+};
+
 export type CancellationPolicy = {
   id: string;
   organizationId: string;
@@ -65,72 +87,30 @@ export type PolicyAppointmentContext = {
   productId?: string | null;
 };
 
-export type RescheduleHistoryEntry = {
-  actorType: AppointmentActorType;
-  createdAt: string;
-};
+export type BookingAction = 'cancellation' | 'reschedule';
 
-export type CancellationEligibility = {
+export type BookingActionEligibility = {
+  action: BookingAction;
   allowed: boolean;
   isFree: boolean;
   requiresStaffConfirmation: boolean;
   decisionType: CancellationDecisionType;
-  reasonCode:
-    | 'free'
-    | 'late'
-    | 'forfeited_by_reschedule'
-    | 'not_allowed'
-    | 'staff_confirmation_required'
-    | 'manual_override';
+  reasonCode: 'free' | 'late' | 'not_allowed' | 'manual_override';
   referenceStartAt: string;
   hoursUntilReference: number;
 };
 
-export type RescheduleEligibility = {
-  allowed: boolean;
-  reasonCode:
-    | 'allowed'
-    | 'too_late'
-    | 'limit_exceeded'
-    | 'not_allowed'
-    | 'staff_confirmation_required'
-    | 'change_not_allowed'
-    | 'manual_override';
-  requiresStaffConfirmation: boolean;
-  limitExceededBehavior: RescheduleLimitBehavior | null;
-  remainingSelfReschedules: number;
-};
-
-export const DEFAULT_CANCELLATION_POLICY: Omit<
-  CancellationPolicy,
-  'id' | 'organizationId' | 'scopeLevel' | 'scopeEntityId' | 'title'
+export const DEFAULT_BOOKING_POLICY: Omit<
+  BookingPolicy,
+  'organizationId' | 'cancellationPolicyId' | 'reschedulePolicyId' | 'title'
 > = {
-  isActive: true,
-  freeCancelHoursBefore: 72,
   cancellationAllowed: true,
-  lateCancellationBehavior: 'manual_review',
+  rescheduleAllowed: true,
+  freeChangeHoursBefore: 72,
+  lateChangeBehavior: 'manual_review',
   refundPrepaymentOnLate: 'manual',
   chargePackageSessionOnLate: false,
   requiresStaffConfirmation: false,
   notifyPatient: true,
   notifyStaff: true,
-  sortOrder: 0,
-};
-
-export const DEFAULT_RESCHEDULE_POLICY: Omit<
-  ReschedulePolicy,
-  'id' | 'organizationId' | 'scopeLevel' | 'scopeEntityId' | 'title'
-> = {
-  isActive: true,
-  selfRescheduleHoursBefore: 48,
-  maxSelfReschedules: 1,
-  allowDifferentBranch: false,
-  allowDifferentCity: false,
-  allowDifferentSpecialist: false,
-  allowDifferentService: false,
-  limitExceededBehavior: 'manual_request',
-  requiresStaffConfirmation: false,
-  notifyPatient: true,
-  notifyStaff: true,
-  sortOrder: 0,
 };

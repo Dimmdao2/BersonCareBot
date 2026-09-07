@@ -1,12 +1,12 @@
 import type { BeAppointment } from '@/modules/booking-engine/types';
 import type { BookingPoliciesService } from '@/modules/booking-policies/service';
-import {
-  evaluateCancellationEligibility,
-  evaluateRescheduleEligibility,
-  freeCancellationAvailableAfterReschedule,
-  hoursUntil,
-} from '@/modules/booking-policies/policyResolver';
-import type { PolicyAppointmentContext } from '@/modules/booking-policies/types';
+import { evaluateBookingActionEligibility } from '@/modules/booking-policies/policyResolver';
+import type {
+  BookingPolicy,
+  CancellationPolicy,
+  PolicyAppointmentContext,
+  ReschedulePolicy,
+} from '@/modules/booking-policies/types';
 import type { AppointmentLifecyclePort, AppointmentNoShowRecord } from './ports';
 
 export type PreviewCancelResult =
@@ -26,7 +26,7 @@ export type PreviewRescheduleResult =
       allowed: boolean;
       reasonCode: string;
       requiresStaffConfirmation: boolean;
-      remainingSelfReschedules: number;
+      isFree: boolean;
       messageKey: string;
     }
   | { ok: false; error: 'not_found' };
@@ -37,6 +37,48 @@ function policyContext(appt: BeAppointment): PolicyAppointmentContext {
     specialistId: appt.specialistId,
     serviceId: appt.serviceId,
     productId: null,
+  };
+}
+
+function cancellationPolicySnapshot(policy: BookingPolicy): CancellationPolicy {
+  return {
+    id: policy.cancellationPolicyId ?? 'default',
+    organizationId: policy.organizationId,
+    scopeLevel: 'organization',
+    scopeEntityId: policy.organizationId,
+    title: policy.title,
+    isActive: true,
+    freeCancelHoursBefore: policy.freeChangeHoursBefore,
+    cancellationAllowed: policy.cancellationAllowed,
+    lateCancellationBehavior: policy.lateChangeBehavior,
+    refundPrepaymentOnLate: policy.refundPrepaymentOnLate,
+    chargePackageSessionOnLate: policy.chargePackageSessionOnLate,
+    requiresStaffConfirmation: policy.requiresStaffConfirmation,
+    notifyPatient: policy.notifyPatient,
+    notifyStaff: policy.notifyStaff,
+    sortOrder: 0,
+  };
+}
+
+function reschedulePolicySnapshot(policy: BookingPolicy): ReschedulePolicy {
+  return {
+    id: policy.reschedulePolicyId ?? 'default',
+    organizationId: policy.organizationId,
+    scopeLevel: 'organization',
+    scopeEntityId: policy.organizationId,
+    title: policy.title,
+    isActive: policy.rescheduleAllowed,
+    selfRescheduleHoursBefore: policy.freeChangeHoursBefore,
+    maxSelfReschedules: 0,
+    allowDifferentBranch: false,
+    allowDifferentCity: false,
+    allowDifferentSpecialist: false,
+    allowDifferentService: false,
+    limitExceededBehavior: 'deny',
+    requiresStaffConfirmation: policy.requiresStaffConfirmation,
+    notifyPatient: policy.notifyPatient,
+    notifyStaff: policy.notifyStaff,
+    sortOrder: 0,
   };
 }
 
@@ -51,13 +93,11 @@ export function createBookingAppointmentLifecycleService(deps: {
     ): Promise<PreviewCancelResult> {
       const appt = await deps.lifecyclePort.getAppointment(appointmentId, organizationId);
       if (!appt) return { ok: false, error: 'not_found' };
-      const cancelPolicy = await deps.policies.resolveCancellationPolicy(policyContext(appt));
-      const history = await deps.lifecyclePort.listReschedules(appointmentId, organizationId);
-      const referenceStartAt = appt.originalStartAt ?? appt.startAt;
-      const eligibility = evaluateCancellationEligibility({
-        referenceStartAt,
-        policy: cancelPolicy,
-        rescheduleHistory: history.map((h) => ({ actorType: h.actorType, createdAt: h.createdAt })),
+      const policy = await deps.policies.resolveBookingPolicy(policyContext(appt));
+      const eligibility = evaluateBookingActionEligibility({
+        action: 'cancellation',
+        referenceStartAt: appt.startAt,
+        policy,
       });
       return {
         ok: true,
@@ -75,18 +115,18 @@ export function createBookingAppointmentLifecycleService(deps: {
     ): Promise<PreviewRescheduleResult> {
       const appt = await deps.lifecyclePort.getAppointment(appointmentId, organizationId);
       if (!appt) return { ok: false, error: 'not_found' };
-      const reschedulePolicy = await deps.policies.resolveReschedulePolicy(policyContext(appt));
-      const eligibility = evaluateRescheduleEligibility({
-        currentStartAt: appt.startAt,
-        policy: reschedulePolicy,
-        rescheduleCount: appt.rescheduleCount,
+      const policy = await deps.policies.resolveBookingPolicy(policyContext(appt));
+      const eligibility = evaluateBookingActionEligibility({
+        action: 'reschedule',
+        referenceStartAt: appt.startAt,
+        policy,
       });
       return {
         ok: true,
         allowed: eligibility.allowed,
         reasonCode: eligibility.reasonCode,
         requiresStaffConfirmation: eligibility.requiresStaffConfirmation,
-        remainingSelfReschedules: eligibility.remainingSelfReschedules,
+        isFree: eligibility.isFree,
         messageKey: rescheduleMessageKey(eligibility.reasonCode),
       };
     },
@@ -113,25 +153,11 @@ export function createBookingAppointmentLifecycleService(deps: {
       if (appt.platformUserId !== input.userId)
         return { ok: false as const, error: 'not_found' as const };
 
-      const ctx = policyContext(appt);
-      const reschedulePolicy = await deps.policies.resolveReschedulePolicy(ctx);
-      const cancelPolicy = await deps.policies.resolveCancellationPolicy(ctx);
-
-      const eligibility = evaluateRescheduleEligibility({
-        currentStartAt: appt.startAt,
-        policy: reschedulePolicy,
-        rescheduleCount: appt.rescheduleCount,
-        change: {
-          branchId: input.branchId,
-          cityCode: input.cityCode,
-          specialistId: input.specialistId,
-          serviceId: input.serviceId,
-        },
-        current: {
-          branchId: appt.branchId,
-          specialistId: appt.specialistId,
-          serviceId: appt.serviceId,
-        },
+      const policy = await deps.policies.resolveBookingPolicy(policyContext(appt));
+      const eligibility = evaluateBookingActionEligibility({
+        action: 'reschedule',
+        referenceStartAt: appt.startAt,
+        policy,
       });
       if (!eligibility.allowed) {
         return { ok: false as const, error: eligibility.reasonCode };
@@ -140,23 +166,19 @@ export function createBookingAppointmentLifecycleService(deps: {
         return { ok: false as const, error: 'staff_confirmation_required' };
       }
 
-      const referenceStartAt = appt.originalStartAt ?? appt.startAt;
       const now = new Date();
-      const wasInFreeRescheduleWindow =
-        hoursUntil(appt.startAt, now) >= reschedulePolicy.selfRescheduleHoursBefore;
-      const freeCancellationAvailableAtReschedule = evaluateCancellationEligibility({
-        referenceStartAt,
-        policy: cancelPolicy,
-        rescheduleHistory: (
-          await deps.lifecyclePort.listReschedules(input.appointmentId, input.organizationId)
-        ).map((h) => ({ actorType: h.actorType, createdAt: h.createdAt })),
+      const freeCancellationAvailableAtReschedule = evaluateBookingActionEligibility({
+        action: 'cancellation',
+        referenceStartAt: appt.startAt,
+        policy,
         now,
       }).isFree;
-      const freeCancellationAvailableAfter = freeCancellationAvailableAfterReschedule({
-        referenceStartAt,
-        policy: cancelPolicy,
-        at: now,
-      });
+      const freeCancellationAvailableAfter = evaluateBookingActionEligibility({
+        action: 'cancellation',
+        referenceStartAt: input.newStartAt,
+        policy,
+        now,
+      }).isFree;
 
       const updated = await deps.lifecyclePort.applyReschedule({
         appointmentId: input.appointmentId,
@@ -173,20 +195,20 @@ export function createBookingAppointmentLifecycleService(deps: {
         specialistId: input.specialistId ?? appt.specialistId,
         serviceId: input.serviceId ?? appt.serviceId,
         cityCode: input.cityCode,
-        policy: reschedulePolicy,
-        cancellationPolicy: cancelPolicy,
-        wasInFreeRescheduleWindow,
+        policy: reschedulePolicySnapshot(policy),
+        cancellationPolicy: cancellationPolicySnapshot(policy),
+        wasInFreeRescheduleWindow: eligibility.isFree,
         freeCancellationAvailableAtReschedule,
         freeCancellationAvailableAfter,
         notificationsSent: input.notificationsSent ?? {
           policy: {
-            notifyPatient: reschedulePolicy.notifyPatient,
-            notifyStaff: reschedulePolicy.notifyStaff,
+            notifyPatient: policy.notifyPatient,
+            notifyStaff: policy.notifyStaff,
           },
         },
       });
 
-      return { ok: true as const, appointment: updated, reschedulePolicy };
+      return { ok: true as const, appointment: updated, eligibility, bookingPolicy: policy };
     },
 
     async patientCancel(input: {
@@ -204,16 +226,11 @@ export function createBookingAppointmentLifecycleService(deps: {
       if (appt.platformUserId !== input.userId)
         return { ok: false as const, error: 'not_found' as const };
 
-      const cancelPolicy = await deps.policies.resolveCancellationPolicy(policyContext(appt));
-      const history = await deps.lifecyclePort.listReschedules(
-        input.appointmentId,
-        input.organizationId,
-      );
-      const referenceStartAt = appt.originalStartAt ?? appt.startAt;
-      const eligibility = evaluateCancellationEligibility({
-        referenceStartAt,
-        policy: cancelPolicy,
-        rescheduleHistory: history.map((h) => ({ actorType: h.actorType, createdAt: h.createdAt })),
+      const policy = await deps.policies.resolveBookingPolicy(policyContext(appt));
+      const eligibility = evaluateBookingActionEligibility({
+        action: 'cancellation',
+        referenceStartAt: appt.startAt,
+        policy,
       });
 
       if (!eligibility.allowed) return { ok: false as const, error: 'not_allowed' as const };
@@ -231,7 +248,7 @@ export function createBookingAppointmentLifecycleService(deps: {
         actorType: 'patient',
         actorId: input.userId,
         reason: input.reason,
-        policy: cancelPolicy,
+        policy: cancellationPolicySnapshot(policy),
         wasFree: eligibility.isFree,
         wasPenalized: !eligibility.isFree,
         decisionType: eligibility.decisionType,
@@ -239,18 +256,18 @@ export function createBookingAppointmentLifecycleService(deps: {
         packageSessionCharged:
           !eligibility.isFree && eligibility.decisionType === 'package_charged',
         prepaymentRetained:
-          !eligibility.isFree && cancelPolicy.lateCancellationBehavior === 'retain_prepayment',
+          !eligibility.isFree && policy.lateChangeBehavior === 'retain_prepayment',
         prepaymentRefunded:
-          !eligibility.isFree && cancelPolicy.lateCancellationBehavior === 'refund_prepayment',
+          !eligibility.isFree && policy.lateChangeBehavior === 'refund_prepayment',
         notificationsSent: input.notificationsSent ?? {
           policy: {
-            notifyPatient: cancelPolicy.notifyPatient,
-            notifyStaff: cancelPolicy.notifyStaff,
+            notifyPatient: policy.notifyPatient,
+            notifyStaff: policy.notifyStaff,
           },
         },
       });
 
-      return { ok: true as const, appointment: updated, eligibility, cancelPolicy };
+      return { ok: true as const, appointment: updated, eligibility, bookingPolicy: policy };
     },
 
     async staffCancel(input: {
@@ -270,7 +287,7 @@ export function createBookingAppointmentLifecycleService(deps: {
       );
       if (!appt) return { ok: false as const, error: 'not_found' as const };
 
-      const cancelPolicy = await deps.policies.resolveCancellationPolicy(policyContext(appt));
+      const policy = await deps.policies.resolveBookingPolicy(policyContext(appt));
       const wasFree = input.decisionType === 'free';
       const targetStatus: BeAppointment['status'] = wasFree
         ? 'cancelled_by_specialist'
@@ -287,7 +304,7 @@ export function createBookingAppointmentLifecycleService(deps: {
         staffComment: input.staffComment,
         manualOverride: input.manualOverride ?? true,
         decisionType: input.decisionType,
-        policy: cancelPolicy,
+        policy: cancellationPolicySnapshot(policy),
         wasFree,
         wasPenalized: input.decisionType === 'penalized',
         targetStatus,
@@ -297,7 +314,12 @@ export function createBookingAppointmentLifecycleService(deps: {
         notificationsSent: input.notificationsSent,
       });
 
-      return { ok: true as const, appointment: updated, cancelPolicy };
+      return {
+        ok: true as const,
+        appointment: updated,
+        bookingPolicy: policy,
+        cancelPolicy: cancellationPolicySnapshot(policy),
+      };
     },
 
     async staffReschedule(input: {
@@ -324,10 +346,7 @@ export function createBookingAppointmentLifecycleService(deps: {
       );
       if (!appt) return { ok: false as const, error: 'not_found' as const };
 
-      const ctx = policyContext(appt);
-      const reschedulePolicy = await deps.policies.resolveReschedulePolicy(ctx);
-      const cancelPolicy = await deps.policies.resolveCancellationPolicy(ctx);
-      const referenceStartAt = appt.originalStartAt ?? appt.startAt;
+      const policy = await deps.policies.resolveBookingPolicy(policyContext(appt));
       const now = new Date();
 
       const updated = await deps.lifecyclePort.applyReschedule({
@@ -346,24 +365,30 @@ export function createBookingAppointmentLifecycleService(deps: {
         specialistId: input.specialistId ?? appt.specialistId,
         serviceId: input.serviceId ?? appt.serviceId,
         platformUserId: input.platformUserId,
-        policy: reschedulePolicy,
-        cancellationPolicy: cancelPolicy,
+        policy: reschedulePolicySnapshot(policy),
+        cancellationPolicy: cancellationPolicySnapshot(policy),
         wasInFreeRescheduleWindow: input.manualOverride ?? true,
-        freeCancellationAvailableAtReschedule: evaluateCancellationEligibility({
-          referenceStartAt,
-          policy: cancelPolicy,
-          rescheduleHistory: [],
+        freeCancellationAvailableAtReschedule: evaluateBookingActionEligibility({
+          action: 'cancellation',
+          referenceStartAt: appt.startAt,
+          policy,
           now,
         }).isFree,
-        freeCancellationAvailableAfter: freeCancellationAvailableAfterReschedule({
-          referenceStartAt,
-          policy: cancelPolicy,
-          at: now,
-        }),
+        freeCancellationAvailableAfter: evaluateBookingActionEligibility({
+          action: 'cancellation',
+          referenceStartAt: input.newStartAt,
+          policy,
+          now,
+        }).isFree,
         notificationsSent: input.notificationsSent,
       });
 
-      return { ok: true as const, appointment: updated, reschedulePolicy };
+      return {
+        ok: true as const,
+        appointment: updated,
+        bookingPolicy: policy,
+        reschedulePolicy: reschedulePolicySnapshot(policy),
+      };
     },
 
     patchLatestRescheduleNotifications: deps.lifecyclePort.patchLatestRescheduleNotifications.bind(
@@ -422,16 +447,13 @@ export function createBookingAppointmentLifecycleService(deps: {
 }
 
 function cancelMessageKey(reasonCode: string, isFree: boolean): string {
-  if (!isFree && reasonCode === 'forfeited_by_reschedule')
-    return 'cancel_not_free_after_reschedule';
   if (!isFree && reasonCode === 'late') return 'cancel_late_penalty';
   if (reasonCode === 'not_allowed') return 'cancel_not_allowed';
   return 'cancel_free';
 }
 
 function rescheduleMessageKey(reasonCode: string): string {
-  if (reasonCode === 'too_late') return 'reschedule_too_late';
-  if (reasonCode === 'limit_exceeded') return 'reschedule_limit_exceeded';
-  if (reasonCode === 'change_not_allowed') return 'reschedule_change_not_allowed';
+  if (reasonCode === 'late') return 'reschedule_late_penalty';
+  if (reasonCode === 'not_allowed') return 'reschedule_not_allowed';
   return 'reschedule_allowed';
 }
