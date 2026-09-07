@@ -36,7 +36,6 @@ import { DoctorTodayPreferencesSection } from './DoctorTodayPreferencesSection';
 import { ClinicSlugSection } from './ClinicSlugSection';
 import { ClinicPublicCardSection } from './ClinicPublicCardSection';
 import { ClinicBookingLinkSection } from './ClinicBookingLinkSection';
-import { publicBookPaths } from '@/shared/publicBook/paths';
 import { BookingPaymentsSection } from './BookingPaymentsSection';
 import { ClinicDeliveryChannelsSection } from './ClinicDeliveryChannelsSection';
 import { OrgBrandingSection } from './OrgBrandingSection';
@@ -45,7 +44,7 @@ import { SettingsForm } from './SettingsForm';
 import { SettingsTabsNav } from './SettingsTabsNav';
 import type { SettingsTabId } from './settingsTabs';
 import { TeamSection } from './TeamSection';
-import { env } from '@/config/env';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import { isPlatformIntegrationAvailable } from '@/modules/system-settings/platformIntegrationAvailability';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
@@ -88,6 +87,19 @@ function parseTab(raw: string | string[] | undefined): LegacySettingsTab | null 
   return value === 'organization' || value === 'team' || value === 'billing' || value === 'install'
     ? value
     : 'specialist';
+}
+
+function clinicTechnicalRootUrl(slug: string): string {
+  const patientOrigin = new URL(PATIENT_DEFAULT_SURFACE.origin);
+  patientOrigin.hostname = `${slug}.${patientOrigin.hostname}`;
+  patientOrigin.pathname = '/';
+  patientOrigin.search = '';
+  patientOrigin.hash = '';
+  return patientOrigin.toString();
+}
+
+function clinicBookingUrl(slug: string): string {
+  return new URL(`/book/${encodeURIComponent(slug)}`, PATIENT_DEFAULT_SURFACE.origin).toString();
 }
 
 export default async function SettingsPage({
@@ -163,6 +175,7 @@ export default async function SettingsPage({
       bookingLinkOptions,
       customDomainSurface,
       customDomainMutation,
+      customDomainBinding,
       paymentsVisibility,
       paymentsMutation,
       mailingsVisibility,
@@ -207,6 +220,9 @@ export default async function SettingsPage({
         : Promise.resolve(null),
       canManageCustomDomain
         ? getMechanicMutationAvailability(workspace, 'custom_domain')
+        : Promise.resolve(null),
+      canManageCustomDomain && deps.customDomainBinding
+        ? deps.customDomainBinding.getBindingState(workspace.organizationId)
         : Promise.resolve(null),
       getMechanicSurfaceVisibility(workspace, 'payments'),
       getMechanicMutationAvailability(workspace, 'payments'),
@@ -392,17 +408,21 @@ export default async function SettingsPage({
         ) : null}
         {customDomainSurface?.directUrl ? (
           <OrgCustomDomainSection
-            key={`${customDomainMutation?.available ? 'write' : 'read'}:${clinicAdminValue('org_custom_domain_hostname')}`}
-            hostname={clinicAdminValue('org_custom_domain_hostname')}
+            key={`${customDomainMutation?.available ? 'write' : 'read'}:${customDomainBinding?.hostname ?? clinicAdminValue('org_custom_domain_hostname')}`}
+            initialDomain={clinicAdminValue('org_custom_domain_hostname')}
+            initialBinding={customDomainBinding}
             mutationAvailable={customDomainMutation?.available === true}
           />
         ) : null}
         {slugState ? (
-          <ClinicSlugSection initialState={slugState} appBaseUrl={env.APP_BASE_URL} />
+          <ClinicSlugSection
+            initialState={slugState}
+            patientOrigin={PATIENT_DEFAULT_SURFACE.origin}
+          />
         ) : null}
         {slugState?.currentSlug && bookingLinkOptions ? (
           <ClinicBookingLinkSection
-            bookingUrl={`${env.APP_BASE_URL.replace(/\/$/, '')}${publicBookPaths.forSlug(slugState.currentSlug)}`}
+            bookingUrl={clinicBookingUrl(slugState.currentSlug)}
             branches={bookingLinkOptions.branches}
             specialists={bookingLinkOptions.specialists}
           />
@@ -412,9 +432,7 @@ export default async function SettingsPage({
             initialSettings={cardSettings}
             skipPublicCardAtRoot={skipPublicCardAtRoot}
             publicUrl={
-              slugState?.currentSlug
-                ? `${env.APP_BASE_URL.replace(/\/$/, '')}/${encodeURIComponent(slugState.currentSlug)}`
-                : null
+              slugState?.currentSlug ? clinicTechnicalRootUrl(slugState.currentSlug) : null
             }
           />
         ) : null}

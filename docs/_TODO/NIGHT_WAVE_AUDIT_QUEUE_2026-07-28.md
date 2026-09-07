@@ -6,6 +6,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## Custom-domain settings UI #787 — 07.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Настройка и независимая desktop/mobile-приёмка | product `062eb52eb`, acceptance `b48ae835a`, live audit `a6a3dfe83`, queue registration `c01e44176` (`wt/branding-domain-ui-20260907`) | **INDEPENDENT LIVE-VIEW PASS — FOR LAND.** На изолированном candidate `58cdd83c1` владелец клиники видит существующую карточку собственного домена с выбором корневого домена или `app.`; desktop `1440×1100` и mobile `390×844` без обрезки и горизонтального переполнения. Route-acceptance подтверждает, что управляемая браузером метка поддомена не проходит в каноническую запись. Данные клиники, DNS, TLS, TEST и PROD не менялись; общий `:5200` не затронут. Артефакт: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_CUSTOM_DOMAIN_UI_2026-09-07.md`. |
+
 ## Booking acquiring webhook MONEY-13 — 05.09
 
 | слой | коммит | вердикт |
@@ -27,6 +33,12 @@
 | Независимый test-policy и DB audit после authority correction | `4e98c1057` (`wt/saas-period-grid`); артефакт `docs/_TODO/runs/saas-period-grid-20260905/TEST-POLICY-AUDIT.md` | **FAIL — SAME-BRANCH FIXER, DO NOT LAND.** Аудитор удалил все 18 UI shape/copy-oracle, привёл 14 устаревших денежных route-тестов к новой обязательной паре «тариф + период», добавил два слепых поведенческих oracle и получил 351 зелёный целевой тест; kill-set: **убито 8 / непоймано 0**. Блокеры: privilege suite фактически не стартует из-за красных generated-surface checks и двух privilege-тестов; `app_clinic_billing` не доказан на чтение каталога периодов; активные policy/grant-решения остаются вне `declaration.ts`. Owner correction: новый UPDATE-сканер не приземлять, scan-артефакты не должны выводить/расширять гранты; единственный источник прав — декларация, доказательство — живые rollback-only операции под точными ролями. |
 | Финальный privilege fixer после test-policy audit | `5a098ce9e` (`wt/saas-period-grid`); run `saas-period-grid-final-fixer-20260905` | **PARTIAL PASS — AUTHORITY CORRECTION STILL REQUIRED, DO NOT LAND.** Исполнитель удалил INSERT/UPDATE scanners, generators, generated surfaces и scanner-gates; материализовал действующие INSERT-колонки в декларации без изменения generated SQL; закрыл stale `crossesTenantWall` после webhook #215; перевёл чтение каталога периодов в `pgSaasBilling` на существующий named root без broad table grant. `test:db-privileges`: 175 pass / 0 fail / 157 skip; typecheck/lint/generator зелёные. Но обязательный §B brief пропущен сознательно: `declaration.ts` всё ещё импортирует активные Phase-4 targets/predicates из `docs/_TODO/SAAS_FOUNDATION/scripts`, а `test-strict-rls-finalizer.sql` применяет старый самостоятельный Phase-4 artifact. Значит, один executable authority пока не достигнут; нужен bounded continuation без изменения product behavior. |
 | Финальная authority-коррекция SaaS period grid | `1f943dbd3` (`wt/saas-period-grid`); run `saas-period-grid-authority-fixer-20260905` | **PASS AFTER FIX — READY FOR PRE-LAND GATES.** Единственный человеческий источник DB-доступа теперь `deploy/postgres/privileges/declaration.ts`: туда перенесены Phase-4 table targets, policy names, strict/dormant predicates и wall-defaults. `types.ts` оставляет только типизированную грамматику и параметризованный renderer; legacy Phase-4 generator читает декларацию как механический адаптер, а подключаемый finalizer SQL побайтно остаётся её generated-output, не вторым authority. Оба широких INSERT/UPDATE code-surface scanner, их generators/artifacts/gates удалены предыдущим fixer. Generated SQL до/после побайтно идентичен; privilege suite заявлен `175 pass / 0 fail / 157 skip`, strict TypeScript/scoped ESLint/generator checks зелёные. Lead read-only acceptance не нашёл пересечения с текущей соседней doctor-tasks работой; webhook #215 уже в базе ветки. Остались только pre-land validation и rollback-only DEV role proof, без нового blind-audit. |
+
+## Custom-domain settings UI #787 — 07.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Live-view continuation | product `062eb52eb`, acceptance `b48ae835a`, audit `a6a3dfe83`; candidate `58cdd83c1ad5ab1b50325f0a1c63398ea92092c5` (`wt/branding-domain-ui-20260907`) | **INDEPENDENT LIVE-VIEW PASS.** Isolated candidate Next ran on `127.0.0.1:5210` with the sanctioned named DEV env; readiness `GET /api/me` returned unauthenticated `401`, and shared `:5200` stayed untouched. Ordinary clinic-owner login showed the custom-domain card on desktop `1440×1100` and mobile `390×844` without horizontal overflow or clipping. The empty current clinic data has no slug/base-domain/binding, so hostname/DNS/status/recheck and technical/booking targets are correctly absent rather than fabricated. No save/recheck/DNS/TLS/TEST/PROD action occurred; candidate process and listener were removed. Artifact: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_CUSTOM_DOMAIN_UI_2026-09-07.md`. Do not recreate the deleted UI-shape test. |
 
 ## Doctor prepayment settings correction — 05.09
 
