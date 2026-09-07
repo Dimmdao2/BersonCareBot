@@ -4,11 +4,20 @@ import {
   BOOKING_ADMIN_TABS,
   bookingAdminTabFromPathname,
 } from '@/app/app/doctor/admin/booking/bookingAdminTabs';
+import {
+  resolveDoctorClientTerms,
+  type DoctorClientTerms,
+} from '@/modules/system-settings/patientTerms';
 
 /**
  * Заголовки экранов кабинета врача по pathname (сервер и клиент).
  */
-export function getDoctorScreenTitle(pathname: string, patientPluralLabel = 'Пациенты'): string {
+export function getDoctorScreenTitle(
+  pathname: string,
+  terms: Pick<DoctorClientTerms, 'patientPluralLabel' | 'patientSingularLabel'> =
+    resolveDoctorClientTerms(),
+): string {
+  const { patientPluralLabel, patientSingularLabel } = terms;
   const p = pathname.replace(/\/$/, '') || '/app/doctor';
   if (p === '/app/doctor') return 'Сегодня';
 
@@ -70,11 +79,12 @@ export function getDoctorScreenTitle(pathname: string, patientPluralLabel = 'П�
     return 'Настройки записи';
   }
 
-  if (p === '/app/doctor/subscribers') return 'Клиенты';
-  if (p.startsWith('/app/doctor/subscribers/')) return 'Клиент';
+  if (p === '/app/doctor/subscribers') return patientPluralLabel;
+  if (p.startsWith('/app/doctor/subscribers/')) return patientSingularLabel;
   if (/\/treatment-programs\//.test(p) && p.startsWith('/app/doctor/clients/'))
-    return 'Программа пациента';
-  if (p.startsWith('/app/doctor/clients/') && p !== '/app/doctor/clients') return 'Клиент';
+    return `Программа ${patientSingularLabel.toLowerCase()}`;
+  if (p.startsWith('/app/doctor/clients/') && p !== '/app/doctor/clients')
+    return patientSingularLabel;
   if (p.startsWith('/app/doctor/exercises/') && p !== '/app/doctor/exercises/new')
     return 'Редактирование упражнения';
   if (p.startsWith('/app/doctor/clinical-tests/') && p !== '/app/doctor/clinical-tests/new')

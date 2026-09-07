@@ -7,6 +7,7 @@ import type {
   NotifTemplateEvent,
   NotifTemplateAudience,
 } from '@/modules/notif-templates/notifTemplatesService';
+import type { DoctorClientTerms } from '@/modules/system-settings/patientTerms';
 
 export const NOTIF_EVENT_LABELS: Record<NotifTemplateEvent, string> = {
   created: 'Подтверждение записи',
@@ -14,25 +15,26 @@ export const NOTIF_EVENT_LABELS: Record<NotifTemplateEvent, string> = {
   rescheduled: 'Перенос записи',
 };
 
-export const NOTIF_AUDIENCE_LABELS: Record<NotifTemplateAudience, string> = {
-  patient: 'пациенту',
-  doctor: 'специалисту',
-};
-
 export function notifTemplateTitle(
   event: NotifTemplateEvent,
   audience: NotifTemplateAudience,
+  terms: Pick<DoctorClientTerms, 'patientDative'>,
 ): string {
-  return `${NOTIF_EVENT_LABELS[event]} → ${NOTIF_AUDIENCE_LABELS[audience]}`;
+  const audienceLabel = audience === 'patient' ? terms.patientDative : 'специалисту';
+  return `${NOTIF_EVENT_LABELS[event]} → ${audienceLabel}`;
 }
 
 /** Подпись переменной для подсказки-чипа. */
-export const NOTIF_VARIABLE_LABELS: Record<string, string> = {
-  date: 'дата и время',
-  type: 'тип приёма',
-  city: 'город / филиал',
-  name: 'имя пациента',
-  phone: 'телефон',
-  reason: 'причина отмены',
-  organizationName: 'название организации',
-};
+export function notifVariableLabels(
+  terms: Pick<DoctorClientTerms, 'patientGenitive'>,
+): Record<string, string> {
+  return {
+    date: 'дата и время',
+    type: 'тип приёма',
+    city: 'город / филиал',
+    name: `имя ${terms.patientGenitive}`,
+    phone: 'телефон',
+    reason: 'причина отмены',
+    organizationName: 'название организации',
+  };
+}

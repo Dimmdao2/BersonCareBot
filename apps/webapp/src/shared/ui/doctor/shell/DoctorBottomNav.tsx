@@ -36,12 +36,13 @@ export function DoctorBottomNav({
   menuAccess: DoctorMenuAccess;
   patientLabel?: string;
 }) {
-  const { patientPluralLabel } = useDoctorPatientTerms();
+  const terms = useDoctorPatientTerms();
+  const { patientPluralLabel } = terms;
   const pathname = usePathname() ?? routePaths.doctor;
   const { messagesUnread, unreadExerciseComments, overdueTasks, todayTasks } =
     useOptionalDoctorShellBadgeCounts();
   const visibleHrefs = new Set(
-    getDoctorMenuItems(menuAccess, patientLabel).flatMap((item) => (item.href ? [item.href] : [])),
+    getDoctorMenuItems(menuAccess, terms).flatMap((item) => (item.href ? [item.href] : [])),
   );
   const visibleItems = items.filter((item) =>
     visibleHrefs.has('accessHref' in item ? item.accessHref : item.href),

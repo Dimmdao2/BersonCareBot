@@ -22,7 +22,8 @@ import {
   type NotifTemplateChannel,
   type RenderedManagedNotifTemplate,
 } from '@/modules/notif-templates/managedNotifTemplate';
-import { notifTemplateTitle, NOTIF_VARIABLE_LABELS } from './notifTemplateLabels';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notifTemplateTitle, notifVariableLabels } from './notifTemplateLabels';
 
 type Props = Readonly<{
   endpoint: '/api/doctor/notification-templates' | '/api/admin/notification-templates';
@@ -30,11 +31,6 @@ type Props = Readonly<{
   presentation: ManagedNotifPresentationEntry;
   brandingMutationAvailable: boolean;
 }>;
-
-const TEMPLATE_AUDIENCE_GROUPS: Array<{ audience: NotifTemplateAudience; title: string }> = [
-  { audience: 'patient', title: 'Уведомления клиенту' },
-  { audience: 'doctor', title: 'Уведомления специалисту' },
-];
 
 const CHANNEL_LABELS: Record<NotifTemplateChannel, string> = {
   email: 'Email',
@@ -68,6 +64,12 @@ export function NotificationTemplatesPageClient({
   presentation,
   brandingMutationAvailable,
 }: Props) {
+  const terms = useDoctorPatientTerms();
+  const templateAudienceGroups: Array<{ audience: NotifTemplateAudience; title: string }> = [
+    { audience: 'patient', title: `Уведомления ${terms.patientDative}` },
+    { audience: 'doctor', title: 'Уведомления специалисту' },
+  ];
+  const variableLabels = notifVariableLabels(terms);
   const initialChannels = useMemo(() => {
     const map: Record<string, ManagedNotifTemplateChannels> = {};
     for (const entry of templates)
@@ -340,7 +342,7 @@ export function NotificationTemplatesPageClient({
         ))}
       </div>
 
-      {TEMPLATE_AUDIENCE_GROUPS.map(({ audience, title }) => {
+      {templateAudienceGroups.map(({ audience, title }) => {
         const groupTemplates = templateEntries.filter((entry) => entry.audience === audience);
         return (
           <section
@@ -381,7 +383,7 @@ export function NotificationTemplatesPageClient({
                   <Card key={key}>
                     <CardHeader>
                       <CardTitle className="text-sm">
-                        {notifTemplateTitle(entry.event, entry.audience)}
+                        {notifTemplateTitle(entry.event, entry.audience, terms)}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -416,7 +418,7 @@ export function NotificationTemplatesPageClient({
                               }
                               disabled={!brandingMutationAvailable}
                               rows={rows}
-                              aria-label={`${notifTemplateTitle(entry.event, entry.audience)} — ${label}`}
+                              aria-label={`${notifTemplateTitle(entry.event, entry.audience, terms)} — ${label}`}
                             />
                             <span className="flex flex-wrap gap-1.5">
                               {variables.map((variable) => (
@@ -432,7 +434,7 @@ export function NotificationTemplatesPageClient({
                                   className="rounded-md border border-border/60 bg-muted px-2 py-1 text-xs text-muted-foreground"
                                   disabled={!brandingMutationAvailable}
                                 >
-                                  {NOTIF_VARIABLE_LABELS[variable] ?? variable}
+                                  {variableLabels[variable] ?? variable}
                                 </Button>
                               ))}
                             </span>

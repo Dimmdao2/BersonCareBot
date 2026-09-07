@@ -16,7 +16,7 @@ import { doctorInlineMetricValueClass } from '@/shared/ui/doctor/doctorVisual';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import {
   APPOINTMENT_CANCEL_CHARGE_OPTIONS,
-  APPOINTMENT_CANCEL_REASONS,
+  appointmentCancelReasons,
 } from './appointmentCancellationOptions';
 
 export type AppointmentCancelDraft = {
@@ -57,6 +57,7 @@ export function DoctorAppointmentCancelModal({
   onConfirm,
 }: Props) {
   const { patientSingularLabel } = useDoctorPatientTerms();
+  const cancelReasons = appointmentCancelReasons({ patientSingularLabel });
   return (
     <DoctorModal
       open={open}
@@ -96,14 +97,14 @@ export function DoctorAppointmentCancelModal({
               className="w-full"
               aria-label="Причина отмены"
               displayLabel={
-                APPOINTMENT_CANCEL_REASONS.find((option) => option.value === draft.reason)?.label ??
+                cancelReasons.find((option) => option.value === draft.reason)?.label ??
                 'Выберите причину'
               }
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {APPOINTMENT_CANCEL_REASONS.map((option) => (
+              {cancelReasons.map((option) => (
                 <SelectItem key={option.value} value={option.value} label={option.label}>
                   {option.label}
                 </SelectItem>

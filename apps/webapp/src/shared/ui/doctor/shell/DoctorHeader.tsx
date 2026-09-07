@@ -52,8 +52,8 @@ export function DoctorHeader({
   const router = useRouter();
   const pathname = usePathname() ?? '/app/doctor';
   const shellChrome = useDoctorShellChrome();
-  const { patientPluralLabel } = useDoctorPatientTerms();
-  const title = shellChrome?.title ?? getDoctorScreenTitle(pathname, patientPluralLabel);
+  const terms = useDoctorPatientTerms();
+  const title = shellChrome?.title ?? getDoctorScreenTitle(pathname, terms);
   const [menuOpen, setMenuOpen] = useState(false);
   const backHref = shellChrome?.backHref;
   const showBack = Boolean(backHref);

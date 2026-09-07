@@ -5,7 +5,10 @@ import {
   hasLaunchCapability,
   type LaunchCapability,
 } from '@/app-layer/guards/workspaceCapabilities';
-import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
+import {
+  resolveDoctorClientTerms,
+  type DoctorClientTerms,
+} from '@/modules/system-settings/patientTerms';
 import type {
   WorkspaceModuleEffective,
   WorkspaceModuleKey,
@@ -196,14 +199,13 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
  * пункт не попадает в результат.
  *
  * @param access — роль, режим администратора и право управления клиникой.
- * @param patientLabel — значение настройки `patient_label` (raw singular из БД).
- *   Нормализуется через `resolvePatientTerms` — регистронезависимо.
+ * @param terms — resolved organization terminology from the workspace boundary.
  */
 export function getDoctorMenuItems(
   access: DoctorMenuAccess,
-  patientLabel?: string,
+  terms: Pick<DoctorClientTerms, 'patientPluralLabel'> = resolveDoctorClientTerms(),
 ): DoctorMenuLinkItem[] {
-  const { patientPluralLabel } = resolvePatientTerms(patientLabel);
+  const { patientPluralLabel } = terms;
   return RAW_DOCTOR_MENU_ITEMS.filter((item) => isDoctorMenuLinkVisible(item, access))
     .map((item) => {
       if (!item.items) {
