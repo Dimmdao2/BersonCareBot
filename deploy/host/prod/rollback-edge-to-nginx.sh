@@ -7,7 +7,8 @@
 #   bash rollback-edge-to-nginx.sh /path/to/backup  # use a specific one
 #
 # This does not touch the blue-green pipeline, docker, or any deployed colour — only the nginx site
-# file and caddy.service. Whatever colour was live before the cutover is still live after this.
+# file and the Caddy edge service/timer. Whatever colour was live before the cutover is still live
+# after this.
 set -uo pipefail
 
 BCB_PUBLIC_SITE=/etc/nginx/sites-available/bcb
@@ -26,9 +27,9 @@ fi
 [ -n "$BACKUP" ] && [ -f "$BACKUP" ] || die "no bcb.pre-caddy.* backup found; pass one explicitly"
 info "restoring from $BACKUP"
 
-say "stopping caddy"
-systemctl stop caddy 2>/dev/null || true
-systemctl disable caddy 2>/dev/null || true
+say "stopping Caddy edge and its health timer"
+systemctl disable --now bersoncarebot-caddy-edge-health.timer 2>/dev/null || true
+systemctl disable --now bersoncarebot-caddy-edge.service 2>/dev/null || true
 
 say "restoring the public nginx site"
 cp "$BACKUP" "$BCB_PUBLIC_SITE"
@@ -41,7 +42,8 @@ vfail=0
 vcheck() { if eval "$2"; then echo "  ok   $1"; else echo "  FAIL $1"; vfail=1; fi; }
 
 sleep 1
-vcheck "caddy is stopped"          '! systemctl is-active --quiet caddy'
+vcheck "Caddy edge is stopped"     '! systemctl is-active --quiet bersoncarebot-caddy-edge.service'
+vcheck "edge health timer stopped" '! systemctl is-active --quiet bersoncarebot-caddy-edge-health.timer'
 vcheck "nginx listening on 80"     'ss -tlnH | grep -q ":80 "'
 vcheck "nginx listening on 443"    'ss -tlnH | grep -q ":443 "'
 

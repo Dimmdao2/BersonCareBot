@@ -13,10 +13,10 @@
 #
 # What changed from the public version: no TLS, no security headers (Caddy is now the only thing a
 # client's browser ever talks to and owns both), and `listen` is loopback-only on the port Caddy's
-# CADDY_UPSTREAM env value points at. Losing TLS on this hop is intentional, not an oversight: it is
-# a loopback-only, non-routable connection on a host where nothing else is listening on this port,
-# so terminating TLS twice would spend CPU on a boundary that was never crossed by anything but this
-# same machine's own kernel.
+# CADDY_UPSTREAM env value points at. This loopback-only listener is the trusted-proxy boundary:
+# Caddy has already asserted the external Host, HTTPS scheme, direct client address, and forwarding
+# chain. Nginx must preserve those headers verbatim and must never replace them with its own
+# loopback peer or `http` hop values.
 #
 # __BCB_EDGE_INTERNAL_PORT__ is substituted by the cutover script from CADDY_UPSTREAM's port
 # (deploy/env/.env.caddy.prod.example); it is not read from this file at runtime.
@@ -31,10 +31,11 @@ server {
     location / {
         proxy_pass http://bcb_webapp;
         proxy_http_version 1.1;
-        proxy_set_header Host              $host;
-        proxy_set_header X-Real-IP         $remote_addr;
-        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host              $http_host;
+        proxy_set_header X-Real-IP         $http_x_real_ip;
+        proxy_set_header X-Forwarded-For   $http_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $http_x_forwarded_host;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
         proxy_set_header Upgrade           $http_upgrade;
         proxy_set_header Connection        "upgrade";
         # A colour that is being switched away from finishes its in-flight requests; a colour that is

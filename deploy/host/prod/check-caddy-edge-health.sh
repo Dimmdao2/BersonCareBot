@@ -8,9 +8,9 @@
 # hostname probe does.
 #
 # Exit non-zero on: caddy not active, not listening on 80/443, admin API unreachable, or any held
-# certificate within CADDY_CERT_EXPIRY_WARN_DAYS (default 14) of expiring. Not wired into cron or the
-# application's typed background-job manifest by this change — see the runbook for why (this is
-# infra-level, the manifest is application source) and how an operator wires it in.
+# certificate within CADDY_CERT_EXPIRY_WARN_DAYS (default 14) of expiring. It is scheduled by the
+# repository-owned bersoncarebot-caddy-edge-health.timer, separately from the application's external
+# per-domain monitor and without an ad-hoc crontab entry.
 #
 #   bash check-caddy-edge-health.sh [--warn-days N]
 set -uo pipefail
@@ -23,11 +23,11 @@ fail=0
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 bad()  { printf '  \033[31m✗\033[0m %s — %s\n' "$1" "$2"; fail=1; }
 
-if ! systemctl is-active --quiet caddy; then
-  bad "caddy.service" "not active"
+if ! systemctl is-active --quiet bersoncarebot-caddy-edge.service; then
+  bad "bersoncarebot-caddy-edge.service" "not active"
   exit 1
 fi
-ok "caddy.service active"
+ok "bersoncarebot-caddy-edge.service active"
 
 for port in 80 443; do
   if ss -tlnH 2>/dev/null | grep -q ":$port "; then
