@@ -25,8 +25,8 @@ const fakes = vi.hoisted(() => ({
   handleWebhook: vi.fn<AppDeps['patientPayments']['handleAcquiringWebhookEvent']>(),
   getPaymentProviderAdapter:
     vi.fn<typeof import('@/infra/payments/paymentProviderRegistry').getPaymentProviderAdapter>(),
-  readAnonymousPatientSurfaceProjection: vi.fn<
-    NonNullable<AppDeps['customDomainBinding']>['readAnonymousPatientSurfaceProjection']
+  resolvePatientPublicOrigin: vi.fn<
+    NonNullable<AppDeps['customDomainBinding']>['resolvePatientPublicOrigin']
   >(),
 }));
 
@@ -139,7 +139,7 @@ const fakeDeps = {
     getSettings: fakes.getPaymentSettings,
   },
   customDomainBinding: {
-    readAnonymousPatientSurfaceProjection: fakes.readAnonymousPatientSurfaceProjection,
+    resolvePatientPublicOrigin: fakes.resolvePatientPublicOrigin,
   },
 } as unknown as AppDeps;
 
@@ -217,14 +217,7 @@ beforeEach(() => {
   });
   fakes.resolveAcquiringWebhookOrganization.mockResolvedValue(ORGANIZATION_ID);
   fakes.handleWebhook.mockResolvedValue({ ok: true });
-  fakes.readAnonymousPatientSurfaceProjection.mockResolvedValue({
-    clinicSlug: 'clinic-1074',
-    skipPublicCardAtRoot: false,
-    effectiveDisplayName: 'Clinic 1074',
-    patientAppName: 'Clinic 1074',
-    accentToken: '#284da0',
-    activeCustomDomainHostname: 'patient.clinic-1074.example.test',
-  });
+  fakes.resolvePatientPublicOrigin.mockResolvedValue('https://patient.clinic-1074.example.test');
 });
 
 describe('patient acquiring charge HTTP boundary', () => {
