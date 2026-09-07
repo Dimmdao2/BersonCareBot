@@ -60,7 +60,15 @@ log "dead-man timer armed: the firewall reverts in ${ROLLBACK_MIN} min unless co
 cat > "$RULES" <<EOF
 #!/usr/sbin/nft -f
 # Managed by deploy/host/harden-network-and-ssh.sh — edit there, not here.
-flush ruleset
+#
+# Сносится ТОЛЬКО своя таблица, а не весь ruleset. Docker пишет свои цепочки через iptables-nft в
+# тот же движок, и `flush ruleset` уносил бы их вместе с нашими — а восстанавливает их docker лишь
+# при старте демона. Симптом при этом не похож на причину: сборка образа падает на «Unable to locate
+# package», а создание сети — на «iptables: No chain/target/match by that name».
+# Пара «table … / delete table …» делает удаление идемпотентным: первая строка создаёт таблицу, если
+# её ещё нет, поэтому вторая не падает на чистом хосте.
+table inet filter
+delete table inet filter
 
 table inet filter {
   chain input {
