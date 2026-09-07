@@ -57,5 +57,8 @@ the lead perform the separate short result check; do not claim PASS while it is 
 isolated port and ordinary DEV login documented in §1a; do not occupy the shared dev server. Commit explicit paths
 only with `#1098`, candidate SHA, exact commands/evidence and C3M-12 result. Never `git add -A`, never push.
 
+The auditor does not deploy. After its PASS, the lead follows the owner instruction recorded beside C3M-12: one
+full CI on the integrated SHA, then the ordinary code-only TEST deploy. No full reset and no PROD action.
+
 If an existing in-scope test encountered during acceptance checks source/SQL wording, formatting, element/string
 counts, DOM shape or another implementation form instead of durable behavior, remove it; do not adapt or preserve it.
