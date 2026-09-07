@@ -26,7 +26,6 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { patientPublicOriginFromProjection } from '@/modules/custom-domain-binding/service';
 import { routePaths } from '@/app-layer/routes/paths';
 
 const postBodySchema = z.object({
@@ -82,12 +81,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     return NextResponse.json({ ok: false, error: 'invalid_idempotency_key' }, { status: 400 });
   }
 
-  const patientOrigin = deps.customDomainBinding?.resolvePatientPublicOrigin
-    ? await deps.customDomainBinding.resolvePatientPublicOrigin(gate.ctx.organizationId)
-    : await deps.customDomainBinding
-        ?.readAnonymousPatientSurfaceProjection(gate.ctx.organizationId)
-        .then((projection) => (projection ? patientPublicOriginFromProjection(projection) : null));
-  if (!patientOrigin) {
+  if (!deps.customDomainBinding) {
+    return NextResponse.json({ ok: false, reason: 'patient_public_origin_unavailable' }, { status: 503 });
+  }
+  let patientOrigin: string;
+  try {
+    patientOrigin = await deps.customDomainBinding.resolvePatientPublicOrigin(gate.ctx.organizationId);
+  } catch {
     return NextResponse.json({ ok: false, reason: 'patient_public_origin_unavailable' }, { status: 503 });
   }
   // Initiate the charge via the acquiring gateway. This link is handed to the patient (copied or

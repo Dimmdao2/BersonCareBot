@@ -69,9 +69,25 @@ export type CustomDomainBindingService = {
 export function patientPublicOriginFromProjection(
   projection: AnonymousPatientSurfaceProjection,
 ): string {
-  return projection.activeCustomDomainHostname
-    ? `https://${projection.activeCustomDomainHostname}`
-    : `https://${projection.clinicSlug}.therapygo.ru`;
+  if (projection.activeCustomDomainHostname) {
+    return `https://${projection.activeCustomDomainHostname}`;
+  }
+
+  const patientOrigin = new URL(PATIENT_DEFAULT_SURFACE.origin);
+  const staffOrigin = new URL(STAFF_SURFACE.origin);
+  // DEV/TEST deliberately serve both surfaces from one host until cutover. In that configuration
+  // a synthetic slug host cannot resolve, so retain the exact typed patient surface (including port).
+  if (patientOrigin.hostname === staffOrigin.hostname) {
+    return patientOrigin.origin;
+  }
+  patientOrigin.hostname = `${projection.clinicSlug}.${patientOrigin.hostname}`;
+  return patientOrigin.origin;
+}
+
+function hasSharedPatientAndStaffHost(): boolean {
+  return (
+    new URL(PATIENT_DEFAULT_SURFACE.origin).hostname === new URL(STAFF_SURFACE.origin).hostname
+  );
 }
 
 export function createCustomDomainBindingService(
@@ -162,7 +178,13 @@ export function createCustomDomainBindingService(
     },
     async resolvePatientPublicOrigin(organizationId) {
       const projection = await port.readAnonymousPatientSurfaceProjection(organizationId);
-      if (!projection) throw new Error('patient_public_origin_unresolved');
+      if (!projection) {
+        // The current named DEV/TEST tenant has no public-directory projection. Its signed reminder
+        // wake remains a patient delivery path, so the deliberate one-host configuration is the only
+        // case where the typed patient surface is a valid fallback without a clinic slug.
+        if (hasSharedPatientAndStaffHost()) return PATIENT_DEFAULT_SURFACE.origin;
+        throw new Error('patient_public_origin_unresolved');
+      }
       if (projection.activeCustomDomainHostname && !(await isBindingLifecycleEligible(organizationId))) {
         const { activeCustomDomainHostname: _inactiveCustomDomain, ...slugProjection } = projection;
         return patientPublicOriginFromProjection(slugProjection);

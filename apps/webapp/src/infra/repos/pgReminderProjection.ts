@@ -12,7 +12,7 @@ import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getPool } from '@/infra/db/client';
 import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import { buildReminderDeepLink } from '@/modules/reminders/buildReminderDeepLink';
-import { env } from '@/config/env';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { loadWarmupsSectionSlugs } from '@/infra/repos/pgWarmupsSectionSlugs';
 import type {
   ReminderOccurrenceHistoryItem,
@@ -28,7 +28,7 @@ function mapScheduleDataColumn(raw: unknown): Record<string, unknown> | null {
 
 export function createPgReminderProjectionPort(): ReminderProjectionPort {
   return {
-    async listRulesByPlatformUserId(platformUserId: string) {
+    async listRulesByPlatformUserId(platformUserId: string, patientPublicOrigin?: string) {
       const pool = getPool();
       const r = await runWebappSql<{
         integrator_rule_id: string;
@@ -98,7 +98,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
               linkedObjectType: row.linked_object_type,
               linkedObjectId: row.linked_object_id,
               reminderIntent: row.reminder_intent,
-              appBaseUrl: env.APP_BASE_URL,
+              appBaseUrl: patientPublicOrigin ?? PATIENT_DEFAULT_SURFACE.origin,
             },
             deepLinkOpts,
           ),
@@ -108,7 +108,11 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
       });
     },
 
-    async getRuleByPlatformUserIdAndCategory(platformUserId: string, category: string) {
+    async getRuleByPlatformUserIdAndCategory(
+      platformUserId: string,
+      category: string,
+      patientPublicOrigin?: string,
+    ) {
       const pool = getPool();
       const r = await runWebappSql<{
         integrator_rule_id: string;
@@ -178,7 +182,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
             linkedObjectType: row.linked_object_type,
             linkedObjectId: row.linked_object_id,
             reminderIntent: row.reminder_intent,
-            appBaseUrl: env.APP_BASE_URL,
+            appBaseUrl: patientPublicOrigin ?? PATIENT_DEFAULT_SURFACE.origin,
           },
           { warmupsSectionSlugs },
         ),

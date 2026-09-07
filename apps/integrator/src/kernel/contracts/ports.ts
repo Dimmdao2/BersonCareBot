@@ -508,6 +508,7 @@ export type RemindersReadsPort = {
   getRuleForUserAndCategory(
     platformUserId: string,
     category: string,
+    organizationId: string,
   ): Promise<ReminderRuleDetail | null>;
   listHistoryForUser(
     platformUserId: string,
