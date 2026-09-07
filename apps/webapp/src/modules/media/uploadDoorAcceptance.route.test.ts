@@ -85,6 +85,7 @@ vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
 }));
 vi.mock('@bersoncare/db-principal', () => ({
   runWithDbPatientPrincipal: fakes.runWithDbPatientPrincipal,
+  getCurrentObservabilityContext: () => ({}),
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withExplicitOrganizationPrincipal: fakes.withExplicitOrganizationPrincipal,

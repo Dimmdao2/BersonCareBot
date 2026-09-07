@@ -164,6 +164,11 @@ const tabBootstrap: DoctorPatientCardTabBootstrap = {
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    new Response(JSON.stringify({ ok: true, trackings: [], createDefault: true }), {
+      headers: { 'content-type': 'application/json' },
+    }),
+  );
 });
 
 afterEach(() => {
