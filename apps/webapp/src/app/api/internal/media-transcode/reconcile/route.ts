@@ -8,6 +8,7 @@ import {
   runVideoHlsLegacyBackfill,
   VIDEO_HLS_LEGACY_MAX_OBJECT_BYTES,
 } from '@/app-layer/media/videoHlsLegacyBackfill';
+import { enqueueMediaTranscodeJobForService } from '@/app-layer/media/mediaTranscodeJobs';
 import { getConfigBool } from '@/modules/system-settings/configAdapter';
 
 /** Matches `video-hls-backfill-legacy` default max object size (3 GiB). */
@@ -63,18 +64,29 @@ export async function POST(request: Request) {
   const startedAtIso = new Date(reconcileStartedAt).toISOString();
 
   try {
-    const report = await runVideoHlsLegacyBackfill({
-      dryRun: false,
-      limit: cap,
-      batchSize: cap,
-      sleepMsBetweenBatches: 0,
-      cursorAfterMediaId: null,
-      cutoffCreatedBefore: null,
-      includeFailed: false,
-      maxSizeBytes: RECONCILE_MAX_MEDIA_BYTES,
-      requirePipelineEnabled: true,
-      defaultRunCap: RECONCILE_SERVER_CAP,
-    });
+    const report = await runVideoHlsLegacyBackfill(
+      {
+        dryRun: false,
+        limit: cap,
+        batchSize: cap,
+        sleepMsBetweenBatches: 0,
+        cursorAfterMediaId: null,
+        cutoffCreatedBefore: null,
+        includeFailed: false,
+        maxSizeBytes: RECONCILE_MAX_MEDIA_BYTES,
+        requirePipelineEnabled: true,
+        defaultRunCap: RECONCILE_SERVER_CAP,
+      },
+      // This route runs under the infra principal (`enterWithDbInfraPrincipal` above), which the
+      // webapp port-context runtime only accepts for `service`-class doors. The backfill helper's
+      // default `enqueueMediaTranscodeJob` targets `app.enqueue_media_transcode_job_for_staff`
+      // (`staff`-class, same door `mediaTranscodeAutoEnqueue.ts` uses under a real staff session)
+      // — every call threw "Missing unique declared webapp port capability" before reaching SQL,
+      // silently counted as `enqueue.errors` by the empty catch below, with no level-50 log.
+      // The sibling `/api/internal/media-transcode/enqueue` route already uses the service-class
+      // door under the same infra principal; reuse it here.
+      { enqueue: enqueueMediaTranscodeJobForService },
+    );
 
     logger.info(
       {
