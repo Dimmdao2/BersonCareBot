@@ -43,6 +43,9 @@ TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
 [[ -f "$TURN_ENV_FILE" ]] || fail "missing $TURN_ENV_FILE — copy env/coturn-test.env.example there first"
 # shellcheck disable=SC1090
 set -a; source "$TURN_ENV_FILE"; set +a
+COTURN_CONTAINER_UID="${COTURN_CONTAINER_UID:-1000}"
+COTURN_CONTAINER_GID="${COTURN_CONTAINER_GID:-1000}"
+export COTURN_CONTAINER_UID COTURN_CONTAINER_GID
 
 missing=0
 require_var() {
@@ -53,6 +56,13 @@ require_var() {
   fi
 }
 
+for prerequisite in unzip stat node; do
+  if ! command -v "$prerequisite" >/dev/null 2>&1; then
+    echo "  MISSING  $prerequisite — required by bin/install.sh; install it before --apply (this script never installs host packages)"
+    missing=1
+  fi
+done
+
 log "checking required config values are filled in (not printing any value)"
 require_var JITSI_RELEASE_TAG
 require_var ARCHIVE_SHA256
@@ -60,9 +70,18 @@ require_var CONFIG
 require_var XMPP_DOMAIN
 require_var JWT_APP_SECRET
 require_var COTURN_IMAGE_TAG
+require_var COTURN_CONTAINER_UID
+require_var COTURN_CONTAINER_GID
 require_var TURN_EXTERNAL_IP
 [[ "$TURN_EXTERNAL_IP" == 151.241.228.122 ]] || { echo "  MISMATCH TURN_EXTERNAL_IP=$TURN_EXTERNAL_IP, expected 151.241.228.122"; missing=1; }
 [[ "${CONFIG:-}" == /* ]] || { echo "  MISMATCH CONFIG=${CONFIG:-<empty>}, must be an absolute path (see env/jitsi-test.env.example)"; missing=1; }
+for stun_var in P2P_STUN_SERVERS JVB_STUN_SERVERS; do
+  stun_value="${!stun_var:-}"
+  if [[ -z "$stun_value" || "$stun_value" == *://* || "$stun_value" == stun:* || "$stun_value" == turn:* ]]; then
+    echo "  MISMATCH $stun_var must use docker-jitsi-meet's host:port form without a URI scheme"
+    missing=1
+  fi
+done
 
 package_root="/etc/bersoncarebot/jitsi-test"
 resolved_config="$(realpath -m -- "${CONFIG:-/}")"
@@ -75,6 +94,13 @@ resolved_secret_store="$(realpath -m -- "${JITSI_TEST_SECRET_STORE:-$package_roo
   echo "  MISMATCH JITSI_TEST_SECRET_STORE must be an exact descendant of $package_root (resolved: $resolved_secret_store)"
   missing=1
 }
+if ! [[ "${COTURN_CONTAINER_UID:-}" =~ ^[0-9]+$ && "${COTURN_CONTAINER_GID:-}" =~ ^[0-9]+$ ]]; then
+  echo "  MISMATCH COTURN_CONTAINER_UID/COTURN_CONTAINER_GID must be numeric"
+  missing=1
+elif [[ "$(id -u)" != "$COTURN_CONTAINER_UID" || "$(id -g)" != "$COTURN_CONTAINER_GID" ]]; then
+  echo "  MISMATCH run install.sh as UID:GID ${COTURN_CONTAINER_UID}:${COTURN_CONTAINER_GID} so its 0600 rendered config is readable by coturn"
+  missing=1
+fi
 
 # --- 3. DNS prerequisite (NETWORK_POLICY.md) ---
 for host in "meet.test.bersoncare.ru" "turn.test.bersoncare.ru"; do
@@ -84,12 +110,27 @@ for host in "meet.test.bersoncare.ru" "turn.test.bersoncare.ru"; do
   fi
 done
 
-# --- 4. TLS material prerequisite for coturn's own 5349 listener (nginx handles the web vhost's cert) ---
-# This is the exact host path docker-compose.override.test.yml bind-mounts into the coturn container.
-if [[ ! -s /etc/coturn/tls/fullchain.pem || ! -s /etc/coturn/tls/privkey.pem ]]; then
-  echo "  MISSING  /etc/coturn/tls/{fullchain,privkey}.pem — issue a certificate for turn.test.bersoncare.ru first"
+# --- 4. Private TLS copy for coturn's own 5349 listener (nginx handles the web vhost's cert). ---
+# The root-owned ACME source is intentionally not mounted. A certificate hook/operator must stage this
+# exact deploy-owned copy before --apply; coturn gets read-only access through its non-root numeric user.
+coturn_tls_dir="${CONFIG:-}/coturn/tls"
+if [[ ! -d "$coturn_tls_dir" ]]; then
+  echo "  MISSING  $coturn_tls_dir — stage the deploy-owned private TLS copy first; see NETWORK_POLICY.md"
+  missing=1
+elif [[ "$(stat -c '%a:%u:%g' "$coturn_tls_dir")" != "700:${COTURN_CONTAINER_UID:-unknown}:${COTURN_CONTAINER_GID:-unknown}" ]]; then
+  echo "  MISMATCH $coturn_tls_dir must be mode 0700 and owned by ${COTURN_CONTAINER_UID:-unknown}:${COTURN_CONTAINER_GID:-unknown}"
   missing=1
 fi
+for tls_file in fullchain.pem privkey.pem; do
+  tls_path="$coturn_tls_dir/$tls_file"
+  if [[ ! -s "$tls_path" ]]; then
+    echo "  MISSING  $tls_path — stage a certificate for turn.test.bersoncare.ru first"
+    missing=1
+  elif [[ "$(stat -c '%a:%u:%g' "$tls_path")" != "600:${COTURN_CONTAINER_UID:-unknown}:${COTURN_CONTAINER_GID:-unknown}" ]]; then
+    echo "  MISMATCH $tls_path must be mode 0600 and owned by ${COTURN_CONTAINER_UID:-unknown}:${COTURN_CONTAINER_GID:-unknown}"
+    missing=1
+  fi
+done
 
 # --- 5. Upstream release reachable at the pinned tag (read-only network check) ---
 RELEASE_URL="https://github.com/jitsi/docker-jitsi-meet/archive/refs/tags/${JITSI_RELEASE_TAG}.zip"
@@ -210,6 +251,13 @@ for sub in web storage/web storage/transcripts tmp/web-load-test \
            prosody/config prosody/prosody-plugins-custom storage/prosody \
            jicofo jvb; do
   install -d -m 0755 "$CONFIG/$sub" 2>/dev/null || fail "could not create $CONFIG/$sub — operator prerequisite: /etc/bersoncarebot must exist and be writable by this user (same convention as postgres-mtls), see docs/ARCHITECTURE/SERVER CONVENTIONS.md §mTLS"
+done
+
+log "creating coturn writable log/state directories for UID:GID ${COTURN_CONTAINER_UID}:${COTURN_CONTAINER_GID}"
+for coturn_writable_dir in "$HERE/coturn/log" "$HERE/coturn/state"; do
+  install -d -m 0700 "$coturn_writable_dir" || fail "could not create $coturn_writable_dir for coturn logs/state"
+  [[ "$(stat -c '%a:%u:%g' "$coturn_writable_dir")" == "700:${COTURN_CONTAINER_UID}:${COTURN_CONTAINER_GID}" ]] || \
+    fail "$coturn_writable_dir must be mode 0700 and owned by ${COTURN_CONTAINER_UID}:${COTURN_CONTAINER_GID}"
 done
 
 log "rendering secrets + templates (prosody turn_external include, coturn turnserver.conf)"

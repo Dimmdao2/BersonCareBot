@@ -107,7 +107,13 @@ TLS: both new subdomains resolve to the same host as `test.bersoncare.ru`, so th
 automation pattern (`deploy/host/setup-nginx-tls.sh` for the policy half; real certs are issued the same way
 `test.bersoncare.ru`'s own certificate already is — see that vhost's host-managed TLS directives) is reused
 for `meet.test.bersoncare.ru`. `turn.test.bersoncare.ru`'s certificate is requested directly for coturn's TLS
-listener (5349) since coturn is not behind nginx.
+listener (5349) since coturn is not behind nginx. Before Jitsi apply, its renewal owner must copy
+`fullchain.pem` and `privkey.pem` into `${CONFIG}/coturn/tls/`; that directory is `0700` and both files are
+`0600`, owned by TEST deploy UID/GID `1000:1000`. Coturn mounts only this private copy read-only as the same
+non-root numeric user; it never mounts or needs read access to the root-owned ACME source directory. The
+versioned root-only `bin/sync-coturn-tls.sh` is both the initial staging command and the certbot deploy hook:
+it validates both TEST SANs and expiry before replacing either destination file, then restarts only the
+TEST coturn container when it is already running.
 
 Per the plan's own §7 caveat: this does **not** create or touch `*.therapygo.ru` (that wildcard currently
 resolves to the new PROD `135.106.187.95`). The literal

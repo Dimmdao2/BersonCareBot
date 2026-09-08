@@ -19,7 +19,12 @@ if [[ ! -f "$ENV_FILE" ]]; then
   echo "[jitsi-test] $ENV_FILE not present, nothing to stop"
   exit 0
 fi
-JITSI_RELEASE_TAG="$(grep -E '^JITSI_RELEASE_TAG=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 || true)"
+# shellcheck disable=SC1090
+set -a; source "$ENV_FILE"; set +a
+TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
+[[ -f "$TURN_ENV_FILE" ]] || { echo "[jitsi-test] FATAL: missing $TURN_ENV_FILE" >&2; exit 1; }
+# shellcheck disable=SC1090
+set -a; source "$TURN_ENV_FILE"; set +a
 VENDOR_DIR="$HERE/vendor/docker-jitsi-meet-${JITSI_RELEASE_TAG:-unknown}"
 
 if [[ -d "$VENDOR_DIR" ]]; then

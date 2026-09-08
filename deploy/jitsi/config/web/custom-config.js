@@ -25,11 +25,9 @@ config.enableInsecureRoomNameWarning = false; // secure-domain/JWT already gates
 
 // P2P first, our coturn only as fallback, our JVB as last resort (VM-03/VM-04). No entry here duplicates a
 // default Jitsi/Google STUN — the only entries come from P2P_STUN_SERVERS at render time.
-config.p2p = {
-    enabled: true,
-    useStunTurn: true,
-    iceTransportPolicy: 'all', // 'all' so direct P2P is tried before relay; 'relay' would force TURN always
-};
+config.p2p.enabled = true;
+config.p2p.useStunTurn = true;
+config.p2p.iceTransportPolicy = 'all'; // 'all' so direct P2P is tried before relay; 'relay' would force TURN always
 config.useStunTurn = true;
 
 // No third-party avatar/Gravatar (VM-04) — the app's own UI, not Jitsi's, renders participant identity.

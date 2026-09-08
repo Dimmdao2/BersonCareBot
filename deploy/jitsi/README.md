@@ -59,6 +59,8 @@ compose file entirely or explicitly `0`/unset in the env template — see
 | `bin/install.sh` | idempotent apply: preflight (incl. port collisions), fetch + hash-verify pinned release, create the CONFIG tree, render config from templates + secret store, dry-run the merged compose config, bring the stack up |
 | `bin/render-secrets.sh` | generates/loads host-side Prosody/JVB/coturn secrets only (never the app JWT secret); every substitution is argv-safe and atomic |
 | `bin/health-check.sh` | config + network proof: `prosodyctl check`, container + JVB REST health, mandatory credentialed TURN allocation over UDP and TLS |
+| `bin/sync-coturn-tls.sh` | root-only TEST hook: validate the shared ACME certificate, atomically stage a private deploy-owned copy for non-root coturn, and restart coturn if running |
+| `bin/apply-nginx.sh` | TEST-only checked apply for the public meet vhost; validates nginx and restores the previous target if validation/reload fails |
 | `bin/restart.sh` | restart in place (re-render config, recreate containers) |
 | `bin/stop.sh` | plain compose `down` with full context — what the systemd unit's `ExecStop` calls |
 | `bin/rollback.sh` | tear down to the exact pre-apply state by default (see "Design decisions") |
@@ -98,7 +100,8 @@ compose file entirely or explicitly `0`/unset in the env template — see
   `web/rootfs/defaults/default`) compiles the `listen 8443 ssl` block out entirely when `DISABLE_HTTPS=1`;
   nothing ever listens there. The override now publishes only `127.0.0.1:${HTTP_PORT}:8000` (the container's
   real plain-HTTP listener in this mode), and the nginx vhost template proxies to that over plain HTTP.
-- **Real preflight before mutation.** `bin/install.sh --apply` runs `docker compose ... config` against the
+- **Real preflight before mutation.** `bin/install.sh --check` also names a missing `unzip` before any
+  download/unpack mutation (the package never installs host packages). `--apply` runs `docker compose ... config` against the
   full merged upstream+override tree from a hash-verified temporary unpack when the release is not cached,
   before vendor/CONFIG/secrets are written, and fails closed on any merge error. It separately checks every exact host
   port/range this package owns (loopback web, JVB UDP/TCP, TURN UDP/TCP/TLS, the relay range) for an
@@ -160,6 +163,19 @@ compose file entirely or explicitly `0`/unset in the env template — see
   wording ("collective coturn") matches upstream's own turn.md, which assumes an externally-run TURN server.
   `docker-compose.override.test.yml` adds it as an additional service in the same compose project so
   `docker compose ps`/`down`/`restart` cover it together with the Jitsi containers.
+- **coturn stays non-root while retaining its private mounts.** The pinned image runs as the TEST deploy
+  account's numeric UID/GID (`1000:1000`), which is also the account that runs `install.sh` and owns the
+  0600 rendered `turnserver.conf`. Before `--check`/`--apply`, the certificate-renewal owner must stage a
+  private copy at `${CONFIG}/coturn/tls/{fullchain,privkey}.pem`: directory `0700`, both files `0600`, all
+  owned by `1000:1000`. Those are the TEST deploy account defaults; explicit env values remain supported.
+  The root-owned `/etc/coturn/tls` source is never mounted into the container. The
+  package creates private deploy-owned bind mounts for coturn logs and state, avoiding root-created named
+  volumes that this non-root process could not write.
+- **One ACME lineage, two consumers.** nginx reads `/etc/letsencrypt/live/bcb-jitsi-test` directly for
+  `meet.test.bersoncare.ru`; coturn cannot read that root-only tree and instead mounts a `0600` deploy-owned
+  copy under `${CONFIG}/coturn/tls`. Run `bin/sync-coturn-tls.sh` once after issuance and install it as the
+  certbot deploy hook so each successful renewal validates both SANs, atomically refreshes the copy and
+  restarts only the TEST coturn container when it is already running.
 - **Single host, single nginx front door.** `test.bersoncare.ru`'s existing IP-allowlist model (network
   policy lives in the nginx server block, not in a host firewall — see `NETWORK_POLICY.md`) is reused for the
   meet web vhost rather than opening a second, differently-secured entry point. The web container binds only
@@ -174,19 +190,23 @@ compose file entirely or explicitly `0`/unset in the env template — see
 
 ## Status and what remains
 
-Built and reviewed in a clean worktree; **not applied to any host by this worker** (brief explicitly forbids
-provisioning DNS, opening ports, starting shared services, or touching DEV/TEST/PROD from here). Everything in
+The package was applied once on TEST by the lead and immediately stopped after health found the corrections
+documented above; this worker does not provision DNS, open ports, start shared services, or otherwise touch
+DEV/TEST/PROD. Everything in
 [Validation performed](#validation-performed-in-this-worktree) below is static/syntax-level. Before this
 package is "done" against the plan:
 
-1. Nothing in this package has been run against a real host yet — `bin/health-check.sh`'s Prosody/JVB/TURN
+1. The prior TEST apply proved container startup and web/JVB probes, but did not produce a health PASS:
+   coturn ran as `nobody`, could not read its 0600 config/root-owned TLS key, and health used stale Prosody
+   paths. The corrected `bin/health-check.sh` now targets Prosody's `/run/prosody/config/prosody.cfg.lua`
+   and runs STUN/credentialed UDP/TLS allocation probes through the running pinned coturn container.
    checks (grep for `turn_external_secret`/`turn_external_tls_port` inside the running container, the
    Colibri `/about/health` probe, the credentialed TURN allocation probes) are the actual, live-container
    assertions that the CONFIG tree and overrides landed where expected; a human has not yet watched them
    pass on real TEST.
-2. DNS + TLS prerequisites in `NETWORK_POLICY.md` (new `meet.` / `turn.` subdomains) must exist before
-   `bin/install.sh` can request a real certificate; until then `install.sh --check` stops at that gate and
-   names exactly what is missing.
+2. DNS + TLS prerequisites in `NETWORK_POLICY.md` (new `meet.` / `turn.` subdomains and the private
+   deploy-owned TLS copy) must exist before `bin/install.sh --apply`; `--check` also fails closed if the
+   host lacks `unzip`.
 3. `/etc/bersoncarebot` (parent of both the CONFIG tree and the secret store) must exist and be writable by
    whichever user runs `bin/install.sh` — same one-time root bootstrap this host already needed for
    `/etc/bersoncarebot/postgres-mtls/` (`docs/ARCHITECTURE/SERVER CONVENTIONS.md` §mTLS). `bin/install.sh`
