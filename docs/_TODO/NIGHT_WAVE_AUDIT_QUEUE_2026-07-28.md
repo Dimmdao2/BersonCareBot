@@ -6,6 +6,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## Video meetings #1100 — 08.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Video core + tariff/gates — первичный независимый audit-live | product `e0bac698b`, audit/tests `1a0f66cc2` (`wt/video-core-20260908`) | **FAIL — SAME-BRANCH FIXER REQUIRED, DO NOT LAND.** Достижимы config-only fail-open health, отсутствие API ротации/отзыва приглашения, Jitsi-shaped module/route contract, невключённый developer tariff и TDZ в composition root, из-за которого `pnpm webapp:typecheck` красный. Сохранены два поведенческих oracle; fault injection: **убито 2 / непойманных 0**. Migration preflight и privilege parity PASS. Артефакт: `docs/_TODO/VIDEO_MEETINGS_JITSI_AUDIT_2026-09-08.md`. |
+
 ## Split login surfaces #787 — 07.09
 
 | слой | коммит | вердикт |
