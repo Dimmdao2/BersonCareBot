@@ -251,6 +251,8 @@ type AuthFlowV2Props = {
   roleLoginPortal?: RoleLoginPortal | null;
   /** Proxy-resolved surface capabilities; absent only for isolated legacy callers. */
   surfaceAuthPolicy?: SurfaceAuthPolicy;
+  /** Opens email directly while retaining OAuth/passkey as available alternatives. */
+  preferEmailEntry?: boolean;
 };
 
 export function AuthFlowV2({
@@ -262,6 +264,7 @@ export function AuthFlowV2({
   onInteractiveLoginEngaged,
   roleLoginPortal = null,
   surfaceAuthPolicy,
+  preferEmailEntry = false,
 }: AuthFlowV2Props) {
   const router = useRouter();
   const engageInteractive = useCallback(() => {
@@ -376,13 +379,20 @@ export function AuthFlowV2({
     setOauthProviders(oauth);
     const oauthOn = hasAnyOAuthProvider(oauth) || passkeyEnabled;
     if (!emailOtpEnabled && passwordLoginEnabled) setEmailAuthMode('password_login');
-    setStep(oauthOn ? 'oauth_first' : 'email_password');
+    setStep(
+      preferEmailEntry && (emailOtpEnabled || passwordLoginEnabled)
+        ? 'email_password'
+        : oauthOn
+          ? 'oauth_first'
+          : 'email_password',
+    );
   }, [
     prefetchedAuthConfig,
     emailOtpEnabled,
     messengerPhoneEnabled,
     passkeyEnabled,
     passwordLoginEnabled,
+    preferEmailEntry,
     surfaceAllows,
   ]);
 

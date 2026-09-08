@@ -36,6 +36,8 @@ type AppEntryLoginContentProps = {
   alternateRoleLoginHref?: string | null;
   /** Auth methods allowed by proxy's already-resolved surface. */
   surfaceAuthPolicy?: SurfaceAuthPolicy;
+  /** Surface-owned shell supplies its own header and legal footer; auth mechanics stay shared. */
+  embeddedInSurfaceShell?: boolean;
 };
 
 export function AppEntryLoginContent({
@@ -49,11 +51,12 @@ export function AppEntryLoginContent({
   roleLoginSurfaceName,
   alternateRoleLoginHref = null,
   surfaceAuthPolicy,
+  embeddedInSurfaceShell = false,
 }: AppEntryLoginContentProps) {
   return (
     <div id={CLIENT_BOOT_ACTIVE_CONTENT_ID}>
       <div id="app-entry-content" className="flex flex-col gap-6">
-        {roleLoginPortal ? (
+        {roleLoginPortal && !embeddedInSurfaceShell ? (
           <RoleLoginPortalHeader
             portal={roleLoginPortal}
             surfaceName={roleLoginSurfaceName ?? ''}
@@ -71,9 +74,12 @@ export function AppEntryLoginContent({
           routeBoundMiniappEntry={routeBoundMiniappEntry}
           roleLoginPortal={roleLoginPortal}
           surfaceAuthPolicy={surfaceAuthPolicy}
+          preferEmailEntry={embeddedInSurfaceShell}
         />
       </Suspense>
-      <LegalFooterLinks className="mt-8" supportHref={supportContactHref} />
+      {embeddedInSurfaceShell ? null : (
+        <LegalFooterLinks className="mt-8" supportHref={supportContactHref} />
+      )}
     </div>
   );
 }

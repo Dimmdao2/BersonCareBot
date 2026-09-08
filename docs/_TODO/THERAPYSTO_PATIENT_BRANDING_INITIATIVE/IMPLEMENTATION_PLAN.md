@@ -643,8 +643,11 @@ Checkbox закрывается только доказательством, у�
   `specialist-signup/start/route.route.test.ts` доказывает служебную отправку при выключенном passwordless
   email-code; migration `20260907T214444_disable_staff_passwordless_channel_defaults.sql` прошла owner-aware
   rollback-preflight на именованной DEV.
-- [ ] `TPB-22` Patient login на `therapygo.ru`, `<slug>.therapygo.ru` и собственном домене клиники называется
-  «Войти в личный кабинет» и не предлагает выбрать роль или называет человека пациентом/клиентом. На первом
+- [ ] `TPB-22` Patient login на `therapygo.ru`, `<slug>.therapygo.ru` и собственном домене клиники не предлагает
+  выбрать роль. **Уточнение владельца 09.09.2026 для стандартного TherapyGo:** отдельный белый экран с
+  горизонтальным логотипом, меткой «Кабинет клиента», заголовком «Всё, что назначил специалист — рядом» и
+  формой входа сразу под описанием; элементы центрированы, без нижнего цветного блока. Branded-входы сохраняют
+  собственный бренд и не получают оболочку TherapyGo. На первом
   запуске доступны passwordless-код на email и подтверждение телефона через TherapyGo-бота; OAuth/passkey и
   остальные сохранённые механики появляются только когда владелец включил их в patient policy. Этап не меняет
   значения этих переключателей. Patient credentials/contact proof на staff/admin Host не создают сессию.
@@ -653,6 +656,10 @@ Checkbox закрывается только доказательством, у�
   **Кандидат 07.09.2026:** standard patient view проверен wide/narrow; policy-toggle и cross-surface session denial
   зелёные. Галочка остаётся открытой: текущая DEV не имеет активной публичной brand projection для `berson`, поэтому
   production Host seam честно вернул 404 и branded live view нельзя засчитать до runtime-активации клиники.
+  **Доработка 09.09.2026:** standard browser entry получил отдельную TherapyGo-оболочку и сразу открывает
+  email-форму, не отключая разрешённые policy альтернативы. Целевые `AppEntryRsc.unit.test.ts` и
+  `AuthFlowV2.oauthProviders.ui.test.tsx`, webapp typecheck и узкий ESLint зелёные; branded live view по-прежнему
+  остаётся открытым доказательством.
 - [x] `TPB-23` Владелец клиники может включить для всего персонала обязательный второй фактор после email + пароль.
   Сотрудник с подключённым TOTP проходит существующий TOTP factor-step; сотруднику без TOTP отправляется код на
   подтверждённый email. Политика org-scoped, по умолчанию выключена, не управляется пациентской auth-матрицей и не

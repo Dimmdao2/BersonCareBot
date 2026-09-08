@@ -89,6 +89,8 @@ type AuthBootstrapProps = {
   routeBoundMiniappEntry?: boolean;
   roleLoginPortal?: RoleLoginPortal | null;
   surfaceAuthPolicy?: SurfaceAuthPolicy;
+  /** Surface presentation may put the email form first without disabling other auth methods. */
+  preferEmailEntry?: boolean;
 };
 
 const TOKEN_FALLBACK_MS = 1100;
@@ -163,6 +165,7 @@ export function AuthBootstrap({
   routeBoundMiniappEntry = false,
   roleLoginPortal = null,
   surfaceAuthPolicy,
+  preferEmailEntry = false,
 }: AuthBootstrapProps) {
   const surfaceName = useSurfaceName();
   const router = useRouter();
@@ -1150,6 +1153,7 @@ export function AuthBootstrap({
           onInteractiveLoginEngaged={handleInteractiveEngaged}
           roleLoginPortal={roleLoginPortal}
           surfaceAuthPolicy={surfaceAuthPolicy}
+          preferEmailEntry={preferEmailEntry}
         />
       </>
     );
