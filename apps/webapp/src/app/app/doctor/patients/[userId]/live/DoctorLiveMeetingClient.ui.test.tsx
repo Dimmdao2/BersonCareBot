@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -119,6 +119,51 @@ describe('DoctorLiveMeetingClient — Play gates the adapter mount (UI-08)', () 
       expect(stageSessions.some((s) => s?.roomReference === 'play-room')).toBe(true),
     );
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not fire a second create-or-resume POST when Play is clicked while the initial auto-prepare is still in flight', async () => {
+    // Failure: the mount effect's auto-prepare POST (mount=false, no adapter) and a Play click
+    // are guarded by two different flags (`startedRef` vs. `starting`/`session`) that never see
+    // each other. A specialist who clicks Play before that first request resolves (a slow network,
+    // or simply a fast click) fires a second concurrent create-or-resume POST for the same
+    // appointment before either has finished.
+    // Impact: two concurrent create-or-resume calls can both observe "no active meeting yet" and
+    // each independently mint a meeting/invite/notification, or race into two competing sessions —
+    // exactly the "Повторные быстрые нажатия не создают несколько ... app-sessions" UI-08 guarantee,
+    // just from the other side of the mount-vs-Play boundary the existing double-click test doesn't
+    // reach (that test waits for the first POST to resolve before ever clicking Play).
+    let resolveFirst: (value: unknown) => void = () => {};
+    const firstPending = new Promise((resolve) => { resolveFirst = resolve; });
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => firstPending)
+      .mockResolvedValueOnce({ ok: true, json: async () => sessionPayload('play-room') });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <DoctorLiveMeetingClient
+        userId="11111111-1111-4111-8111-111111111111"
+        appointmentId={null}
+        patient={patient}
+        encountersEnabled={false}
+        medicalRecordEnabled={false}
+      />,
+    );
+    // Confirms the auto-prepare POST has actually been issued (not merely scheduled) while it is
+    // still deliberately left unresolved.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const playButton = await screen.findByRole('button', { name: /начать звонок/i });
+
+    try {
+      fireEvent.click(playButton);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      // Let the deliberately stalled first request settle so no update leaks into a later test.
+      await act(async () => {
+        resolveFirst({ ok: true, json: async () => sessionPayload('prepare-room') });
+        await Promise.resolve();
+      });
+    }
   });
 
   it('gives a retryable state without a background retry loop when the prepare request fails', async () => {

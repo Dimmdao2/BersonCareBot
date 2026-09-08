@@ -181,3 +181,44 @@ describe('meeting renderer survives unrelated re-renders (NOTE-08)', () => {
     }
   });
 });
+
+/**
+ * VM-12: the pinned `stable-11146-2` `JitsiMeetExternalAPI` only ever fires `errorOccurred` (wire
+ * event `error-occurred`) for in-conference errors — confirmed against the live bundle census in
+ * `docs/audit/video-live-ui-owner-correction-2026-09-08.md` and re-verified against the current
+ * `meet.test.bersoncare.ru` bundle: no `conferenceError` event exists anywhere in it.
+ */
+describe('diagnostic event wiring uses real pinned External API event names (VM-12)', () => {
+  it('reports an error diagnostic when the pinned "errorOccurred" event fires', async () => {
+    // Failure: the adapter registers its error diagnostic on `conferenceError`, a name the pinned
+    // bundle never emits, instead of the real `errorOccurred` event.
+    // Impact: VM-12 requires join/error/end call diagnostics to actually reach the operational
+    // logger. A dead listener means in-conference provider/connection errors leave zero
+    // operational trace — no crash, no lint, no red test anywhere else catches it.
+    const handlers = new Map<string, () => void>();
+    class FakeApi {
+      constructor(_domain: string, _options: Record<string, unknown>) {}
+      dispose = vi.fn();
+      addEventListener = vi.fn((event: string, handler: () => void) => {
+        handlers.set(event, handler);
+      });
+    }
+    (window as unknown as { JitsiMeetExternalAPI?: unknown }).JitsiMeetExternalAPI = FakeApi;
+
+    try {
+      const onDiagnostic = vi.fn();
+      render(<JitsiMeetingRenderer session={session} onDiagnostic={onDiagnostic} />);
+      await Promise.resolve();
+
+      handlers.get('errorOccurred')?.();
+
+      expect(onDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ event: 'error' }));
+    } finally {
+      delete (window as unknown as { JitsiMeetExternalAPI?: unknown }).JitsiMeetExternalAPI;
+      document
+        .querySelectorAll('script[src="https://meet.example.test/external_api.js"]')
+        .forEach((s) => s.remove());
+      vi.restoreAllMocks();
+    }
+  });
+});

@@ -297,3 +297,48 @@ describe('explicit rotate_invite follows the same notification contract as creat
     expect(invitationNotification.enqueue).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('recordDiagnostic keeps the operational logger closed to identity fields (VM-12)', () => {
+  it('logs only meeting/org/role/event(+optional duration/transport/errorClass) even when the caller merges patient/specialist/actor IDs into the same input object', async () => {
+    // Failure: the doctor PATCH route builds `recordDiagnostic`'s argument by spreading a shared
+    // `lifecycleInput` (meetingId, organizationId, patientUserId, specialistId,
+    // actorPlatformUserId) together with the diagnostic body; `recordDiagnostic` in turn forwards
+    // `{ ...input, role: 'specialist' }` to `logDiagnostic`. A plain object spread copies every
+    // runtime property regardless of the declared parameter type, so TypeScript's structural
+    // typing does not strip the extra identity fields the route actually passes.
+    // Impact: VM-12 requires the technical-diagnostics logger to receive only the closed field set
+    // (meeting/org ID, role, event, optional duration, p2p|relay, error class) and explicitly
+    // forbids patient/specialist/actor IDs from reaching it. Every join/error/end diagnostic PATCH
+    // silently writes patientUserId/specialistId/actorPlatformUserId into structured server logs;
+    // the root logger's redact list (headers/token/secret/phone) does not cover these key names.
+    const store: VideoMeetingStore = {
+      ...storeReturning(false),
+      findSpecialistMeeting: vi.fn().mockResolvedValue(meetingRecord),
+    };
+    const logDiagnostic = vi.fn();
+    const service = createVideoMeetingsService({
+      store,
+      provider: healthyProvider(),
+      logDiagnostic,
+    });
+
+    // Mirrors the exact runtime shape the route assembles (lifecycleInput spread + diagnostic
+    // body); cast past the narrower compile-time parameter type the same way the route's own
+    // object spread already bypasses it.
+    await service.recordDiagnostic({
+      meetingId: meetingRecord.id,
+      organizationId: ids.organization,
+      patientUserId: ids.patient,
+      specialistId: ids.specialist,
+      actorPlatformUserId: ids.specialist,
+      event: 'join',
+    } as Parameters<typeof service.recordDiagnostic>[0]);
+
+    expect(logDiagnostic).toHaveBeenCalledTimes(1);
+    const payload = logDiagnostic.mock.calls[0][0] as Record<string, unknown>;
+    expect(Object.keys(payload).sort()).toEqual(['event', 'meetingId', 'organizationId', 'role']);
+    expect(payload).not.toHaveProperty('patientUserId');
+    expect(payload).not.toHaveProperty('specialistId');
+    expect(payload).not.toHaveProperty('actorPlatformUserId');
+  });
+});
