@@ -42,6 +42,7 @@ import {
 } from '@/app/app/patient/treatment/program-detail/PatientPlanHero';
 import { PatientPlanTabStrip } from '@/app/app/patient/treatment/program-detail/PatientPlanTabStrip';
 import { PatientPlanTabPanels } from '@/app/app/patient/treatment/program-detail/PatientPlanTabPanels';
+import { Tabs } from '@/shared/ui/patient/primitives/tabs';
 import type { PatientPlanTodayRemindersCardProps } from '@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard';
 import { PatientPlanTodayRemindersCard } from '@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard';
 import { PatientPlanSupportCard } from '@/app/app/patient/treatment/program-detail/PatientPlanSupportCard';
@@ -320,7 +321,16 @@ export function PatientTreatmentProgramDetailClient(props: {
   }
 
   return (
-    <div id="patient-treatment-program-detail" className={patientInnerPageStackClass}>
+    <Tabs
+      id="patient-treatment-program-detail"
+      value={activeTab}
+      onValueChange={(tab) => {
+        if (tab === 'program' || tab === 'recommendations' || tab === 'progress') {
+          selectTab(tab);
+        }
+      }}
+      className={patientInnerPageStackClass}
+    >
       <div className="flex flex-col gap-2">
         {detail.status === 'active' && planReminderStrip ? (
           <PatientPlanTodayRemindersCard
@@ -339,8 +349,6 @@ export function PatientTreatmentProgramDetailClient(props: {
         />
 
         <PatientPlanTabStrip
-          activeTab={activeTab}
-          onSelectTab={selectTab}
           programTabSubtitle={programTabSubtitle}
           recommendationListCount={recommendationListCount}
           progressTabProgramDaysLabel={progressTabProgramDaysLabel}
@@ -348,7 +356,6 @@ export function PatientTreatmentProgramDetailClient(props: {
       </div>
 
       <PatientPlanTabPanels
-        activeTab={activeTab}
         detail={detail}
         programTabStage={programTabStage}
         pipelineLength={pipelineLength}
@@ -375,6 +382,6 @@ export function PatientTreatmentProgramDetailClient(props: {
         programMediaInteraction={programMediaInteraction}
       />
 
-    </div>
+    </Tabs>
   );
 }

@@ -53,6 +53,12 @@ import {
 } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
 import {
+  PatientSegmentedPagerDisabledCell,
+  PatientSegmentedPagerLabel,
+  PatientSegmentedPagerLink,
+  PatientSegmentedStrip,
+} from '@/shared/ui/patient/PatientSegmentedStrip';
+import {
   PATIENT_SHELL_CONTAINER_CLASS,
   PATIENT_SHELL_MOBILE_MAX_CLASS,
   patientShellMaxWidthDataAttribute,
@@ -701,16 +707,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#94a3b8]/40',
   );
 
-  const navButtonClass = (enabled: boolean) =>
-    cn(
-      'flex min-h-[2.75rem] flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold outline-none transition-colors duration-150 no-underline',
-      'bg-[#f8f3fd] text-[#444444]',
-      enabled && 'cursor-pointer hover:bg-[#ede8f8] active:bg-[#e4e2ff]',
-      enabled &&
-        'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--patient-color-primary,#284da0)]',
-      !enabled && 'pointer-events-none opacity-40',
-    );
-
   return (
     <div
       id="app-shell-patient"
@@ -800,40 +796,40 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             })()}
       </div>
 
-      <div
-        className="sticky top-0 z-[5] flex shrink-0 items-stretch gap-px border-b border-[var(--patient-border,#ddd6fe)] bg-[var(--patient-border,#ddd6fe)] shadow-sm"
+      <PatientSegmentedStrip
+        className="sticky top-0 z-[5] border-x-0 border-t-0"
         aria-label="Навигация по элементам"
       >
         {item && navEnabled && navPrevHref ? (
-          <Link href={navPrevHref} className={navButtonClass(true)} aria-label="Предыдущий элемент">
+          <PatientSegmentedPagerLink href={navPrevHref} aria-label="Предыдущий элемент">
             <ChevronLeft className="size-4 shrink-0" aria-hidden />
             <span className="sr-only sm:not-sr-only text-xs">Пред.</span>
-          </Link>
+          </PatientSegmentedPagerLink>
         ) : (
-          <span className={navButtonClass(false)} aria-hidden>
+          <PatientSegmentedPagerDisabledCell tone="faded">
             <ChevronLeft className="size-4 shrink-0 opacity-50" aria-hidden />
             <span className="sr-only sm:not-sr-only text-xs">Пред.</span>
-          </span>
+          </PatientSegmentedPagerDisabledCell>
         )}
 
         {navPositionLabel ? (
-          <div className="flex min-h-[2.75rem] items-center justify-center bg-[#f8f3fd] px-3 py-2 text-xs font-medium text-[#555555]">
+          <PatientSegmentedPagerLabel>
             {navPositionLabel}
-          </div>
+          </PatientSegmentedPagerLabel>
         ) : null}
 
         {item && navEnabled && navNextHref ? (
-          <Link href={navNextHref} className={navButtonClass(true)} aria-label="Следующий элемент">
+          <PatientSegmentedPagerLink href={navNextHref} aria-label="Следующий элемент">
             <span className="sr-only sm:not-sr-only text-xs">След.</span>
             <ChevronRight className="size-4 shrink-0" aria-hidden />
-          </Link>
+          </PatientSegmentedPagerLink>
         ) : (
-          <span className={navButtonClass(false)} aria-hidden>
+          <PatientSegmentedPagerDisabledCell tone="faded">
             <span className="sr-only sm:not-sr-only text-xs">След.</span>
             <ChevronRight className="size-4 shrink-0 opacity-50" aria-hidden />
-          </span>
+          </PatientSegmentedPagerDisabledCell>
         )}
-      </div>
+      </PatientSegmentedStrip>
 
       <div
         className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto', patientScrollbarHiddenClass)}
