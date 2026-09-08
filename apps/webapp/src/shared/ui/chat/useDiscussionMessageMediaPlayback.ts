@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
 
+const PENDING_PREVIEW_POLL_MS = 2_500;
+
 export type DiscussionMessageMediaPlayback = {
   /** Резолвнутый playback-JSON именно для запрошенного `mediaId`, иначе `null`. */
   playback: MediaPlaybackPayload | null;
@@ -29,21 +31,30 @@ export function useDiscussionMessageMediaPlayback(
   useEffect(() => {
     if (!mediaId) return;
     let cancelled = false;
-    void fetch(`/api/media/${encodeURIComponent(mediaId)}/playback`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`media playback metadata: ${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
-        if (!cancelled && data && typeof data === 'object' && 'mediaId' in data) {
-          setPlaybackResult({ mediaId, payload: data as MediaPlaybackPayload });
+    let pollId: number | undefined;
+    const load = async () => {
+      try {
+        const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}/playback`);
+        if (!response.ok) throw new Error(`media playback metadata: ${response.status}`);
+        const data: unknown = await response.json();
+        if (!data || typeof data !== 'object' || !('mediaId' in data)) {
+          throw new Error('media playback metadata: invalid payload');
         }
-      })
-      .catch(() => {
+        const payload = data as MediaPlaybackPayload;
+        if (cancelled) return;
+        setPlaybackResult({ mediaId, payload });
+        setFailedMediaId((current) => (current === mediaId ? null : current));
+        if (payload.preview.status === 'pending') {
+          pollId = window.setTimeout(() => void load(), PENDING_PREVIEW_POLL_MS);
+        }
+      } catch {
         if (!cancelled) setFailedMediaId(mediaId);
-      });
+      }
+    };
+    void load();
     return () => {
       cancelled = true;
+      if (pollId !== undefined) window.clearTimeout(pollId);
     };
   }, [mediaId]);
 
