@@ -26,20 +26,20 @@
 and defines these roles; patient code uses the corresponding exports from `patientVisual.ts`, rather
 than new local pixel values.
 
-| Role | Contract | Shared class |
-| --- | --- | --- |
-| Page title | 22/28, 600, heading `#172f62` | `patientPageTitleClass` |
-| Section / modal title | 18/24, 500, heading | `patientSectionTitleClass` |
-| Body / readable form value | 16/24, 400, primary `#111827` | `patientBodyTextClass` |
-| Primary action | 16/20, 600 | `patientActionTextClass` and patient action classes |
-| Secondary body | 14/20, 400 | `patientMutedTextClass` |
-| Form label | 14/20, 500 | `patientFormLabelClass` |
-| Caption / meta | 12/16, 500 | `patientCaptionTextClass` |
-| Micro | 11/16, 500 | `patientMicroTextClass` |
-| Metric / hero number | 28/34, 600 | `patientMetricTextClass` |
-| Home cover display heading | 20/24 mobile, 24/28 from `md`, 600 | `patient-type-home-display` |
-| Home primary hero title | 20/24 mobile; 30/34, 34/38, 36/40 desktop scale, 600 | `patient-type-home-hero-title` |
-| Booking success glyph | 24/28, 400 | `patient-type-booking-success-glyph` |
+| Role                       | Contract                                             | Shared class                                        |
+| -------------------------- | ---------------------------------------------------- | --------------------------------------------------- |
+| Page title                 | 22/28, 600, heading `#172f62`                        | `patientPageTitleClass`                             |
+| Section / modal title      | 18/24, 500, heading                                  | `patientSectionTitleClass`                          |
+| Body / readable form value | 16/24, 400, primary `#111827`                        | `patientBodyTextClass`                              |
+| Primary action             | 16/20, 600                                           | `patientActionTextClass` and patient action classes |
+| Secondary body             | 14/20, 400                                           | `patientMutedTextClass`                             |
+| Form label                 | 14/20, 500                                           | `patientFormLabelClass`                             |
+| Caption / meta             | 12/16, 500                                           | `patientCaptionTextClass`                           |
+| Micro                      | 11/16, 500                                           | `patientMicroTextClass`                             |
+| Metric / hero number       | 28/34, 600                                           | `patientMetricTextClass`                            |
+| Home cover display heading | 20/24 mobile, 24/28 from `md`, 600                   | `patient-type-home-display`                         |
+| Home primary hero title    | 20/24 mobile; 30/34, 34/38, 36/40 desktop scale, 600 | `patient-type-home-hero-title`                      |
+| Booking success glyph      | 24/28, 400                                           | `patient-type-booking-success-glyph`                |
 
 Micro is reserved for badges, counters, graph/calendar axes, and nonessential compact metadata.
 It is not a fallback for readable prose, errors, schedules, form labels, or doctor comments. The
@@ -113,7 +113,7 @@ for compact useful-post overlays.
 
 - не придумывать новый “локальный chrome” в компонентах, если shared слой уже покрывает кейс;
 - не расширять scope в product/content/API/DB/env;
-- deferred-экраны (`/emergency`, `/lessons`, `/address`, `/intake/*`, booking landing) стилизовать только в рамках отдельно подтверждённых фаз App Restructure / профильных инициатив. `/messages` из этого списка выведен: чат ведётся каноническим `PatientModal size="content"` (§8).
+- deferred-экраны (`/emergency`, `/lessons`, `/address`, `/intake/*`, booking landing) стилизовать только в рамках отдельно подтверждённых фаз App Restructure / профильных инициатив. `/messages` из этого списка выведен: чат ведётся самостоятельной страницей кабинета; модалкой остаётся обсуждение упражнения (§8).
 
 ## 7. Когда Кастом Разрешён
 
@@ -141,7 +141,7 @@ for compact useful-post overlays.
   одинаковая геометрия, `env(safe-area-inset-bottom)` и одинаковые по ширине кнопки на mobile. Кнопка
   `type="submit"` из формы связывается с подвалом атрибутом `form`, потому что портал уносит её из DOM формы.
 - **Размеры** `sm | md | lg | content`. `content` отдаёт телу flex-колонку под контент со СВОИМ внутренним
-  скроллом — чат и обсуждения (`PatientMessagesClient`, `ProgramItemDiscussionDialog`).
+  скроллом — например, обсуждение упражнения (`ProgramItemDiscussionDialog`).
 - **Слои и затемнение:** `PatientModalLayerContext` держит вложенные и соседние модалки в одном стеке —
   затемнение рисует только первый открытый слой. Модалка под вложенной остаётся смонтированной, поэтому
   закрытие верхнего слоя возвращает в тот же экран с сохранённым черновиком.

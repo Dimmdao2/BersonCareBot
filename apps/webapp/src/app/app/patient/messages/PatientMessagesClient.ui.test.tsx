@@ -1,6 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { routePaths } from '@/app-layer/routes/paths';
 import type { SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
 import { PatientOrganizationContextProvider } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { PatientMessagesClient } from './PatientMessagesClient';
@@ -16,18 +15,18 @@ vi.mock('@/modules/messaging/hooks/useMessagePolling', () => ({
 }));
 
 /**
- * Владелец (бриф этапа): «Patient support messages must use the same modal conversation
- * experience. The header identifies the doctor or clinic as plain text, never a link. If the
+ * Владелец: чат пациента — обычная самостоятельная страница, не модалка. Шапка треда
+ * identifies the doctor or clinic as plain text, never a link. If the
  * current support contract cannot prove an assigned doctor name, show the active clinic title;
  * do not invent or hardcode a person» + «preserve send/read/poll/read-only behavior».
  *
  * Отказы, которые ловят эти тесты:
- * 1. Обращение переехало в модалку, и отправка перестала уходить на сервер — пациент видит своё
+ * 1. При возврате обращения на страницу отправка перестала уходить на сервер — пациент видит своё
  *    сообщение (или не видит) и считает, что написал в поддержку, а сообщения нет. Дорого и молчаливо.
  * 2. Открытие чата перестало помечать входящие прочитанными — счётчик непрочитанного не гаснет.
  * 3. В закрытом обращении снова появился composer — пациент пишет в тред, который отбивает сервер.
- * 4. В шапке снова появилось имя человека, которого контракт поддержки не отдаёт (до этого этапа
- *    там был захардкоженный «Чат с Дмитрием»), либо шапка стала ссылкой.
+ * 4. В шапке снова появилось имя человека, которого контракт поддержки не отдаёт, либо клиника
+ *    стала ссылкой.
  *
  * Геометрию модалки (закреплённые шапка/подвал, скролл, затемнение) тесты не проверяют — живая приёмка.
  */
@@ -61,9 +60,7 @@ const outgoing = {
   createdAt: '2026-09-01T09:00:00.000Z',
 } as unknown as SerializedSupportMessage;
 
-const replaceMock = vi.hoisted(() => vi.fn());
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: replaceMock, push: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/app/patient/messages',
 }));
 
@@ -132,7 +129,6 @@ function renderChat() {
 }
 
 beforeEach(() => {
-  replaceMock.mockClear();
   polling.tick = null;
   /* jsdom не реализует Element.scrollTo; тред сам себя скроллит вниз при монтировании. */
   if (typeof Element.prototype.scrollTo !== 'function') {
@@ -145,7 +141,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('patient support chat в канонической модалке', () => {
+describe('patient support chat на странице кабинета', () => {
   it('отправляет введённый текст на сервер и показывает его в треде', async () => {
     const calls = stubMessagesApi();
     renderChat();
@@ -213,16 +209,6 @@ describe('patient support chat в канонической модалке', () =
     expect(JSON.parse(String(pollRead.at(-1)?.init?.body))).toEqual({ conversationId });
   });
 
-  it('закрывает модалку на безопасный корень кабинета пациента', async () => {
-    stubMessagesApi();
-    renderChat();
-
-    await screen.findByText('Добрый день, чем помочь?');
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
-
-    expect(replaceMock).toHaveBeenCalledWith(routePaths.patient);
-  });
-
   it('в шапке показывает название активной клиники простым текстом, а не ссылкой', async () => {
     stubMessagesApi();
     renderChat();
@@ -230,8 +216,9 @@ describe('patient support chat в канонической модалке', () =
     const title = await screen.findByText('Клиника Берсона');
     expect(title.closest('a')).toBeNull();
 
-    const header = title.closest('[data-slot="dialog-header"], [data-slot="drawer-header"]');
+    const header = title.closest('section');
     expect(header).not.toBeNull();
     expect(within(header as HTMLElement).queryByRole('link')).toBeNull();
+    expect(title.closest('[data-slot="dialog-content"], [data-slot="drawer-content"]')).toBeNull();
   });
 });

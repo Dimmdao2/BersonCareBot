@@ -146,13 +146,17 @@
   --patient-control-focus-ring: var(--patient-color-primary);
   --patient-action-radius: 0.375rem;
   --patient-action-outline-radius: 0.125rem;
-  --patient-chat-bubble-max-width: min(100%, 24rem);
-  --patient-chat-bubble-radius: var(--patient-card-radius-desktop);
+  --patient-chat-bubble-max-width: min(calc(100% - 2.5rem), 22rem);
+  --patient-chat-bubble-radius: 0.375rem;
   --patient-chat-composer-radius: 1.125rem;
   --patient-chat-composer-submit-size: 2rem;
   --patient-chat-composer-submit-radius: 9999px;
   --patient-chat-composer-submit-inline-offset: 0.1875rem;
   --patient-chat-composer-submit-block-offset: 0.25rem;
+  --patient-messages-page-height-mobile: calc(100dvh - 14.25rem - env(safe-area-inset-bottom, 0px));
+  --patient-messages-page-min-height-mobile: 22rem;
+  --patient-messages-page-height-desktop: min(75vh, 40rem);
+  --patient-messages-page-min-height-desktop: 20rem;
   --patient-segmented-bg: #f8f3fd;
   --patient-segmented-hover-bg: #ede8f8;
   --patient-segmented-active-bg: #e4e2ff;
@@ -595,6 +599,24 @@
 }
 
 @layer utilities {
+  /** The patient button primitive has its own radius; chat send is always the circular control. */
+  .patient-chat-composer-submit {
+    border-radius: var(--patient-chat-composer-submit-radius) !important;
+  }
+
+  /** A page thread owns its scroll; it must not grow to the total height of message history. */
+  .patient-messages-page-thread {
+    height: var(--patient-messages-page-height-mobile);
+    min-height: var(--patient-messages-page-min-height-mobile);
+  }
+
+  @media (min-width: 768px) and (min-height: 600px) {
+    .patient-messages-page-thread {
+      height: var(--patient-messages-page-height-desktop);
+      min-height: var(--patient-messages-page-min-height-desktop);
+    }
+  }
+
   /** Portal-safe semantic typography utilities for patient-local feature markup. */
   .patient-type-page-title {
     font-family: var(--patient-font-family);
@@ -715,46 +737,124 @@
     color: var(--patient-block-caption);
   }
 
-  .patient-text-accent { color: var(--patient-color-primary); }
-  .patient-text-primary { color: var(--patient-text-primary); }
-  .patient-text-secondary { color: var(--patient-text-secondary); }
-  .patient-text-success { color: var(--patient-status-success-text); }
-  .patient-text-info { color: var(--patient-status-info-text); }
-  .patient-text-warning { color: var(--patient-action-warning-text); }
-  .patient-text-danger { color: var(--patient-action-danger-text); }
-  .patient-text-inverse { color: var(--patient-text-inverse); }
-  .patient-text-home-heading { color: var(--patient-block-heading); }
-  .patient-text-home-caption { color: var(--patient-block-caption); }
-  .patient-text-specialist { color: var(--patient-text-specialist); }
-  .patient-text-sos { color: var(--patient-text-sos); }
-  .patient-text-success-accent { color: var(--patient-color-success); }
-  .patient-text-warning-accent { color: var(--patient-color-warning); }
-  .patient-text-danger-accent { color: var(--patient-color-danger); }
-  .patient-text-muted-strong { color: var(--patient-text-muted-strong); }
-  .patient-text-program-stat { color: var(--patient-text-program-stat); }
-  .patient-text-program-group-title { color: var(--patient-text-program-group-title); }
-  .patient-text-mood-1 { color: var(--patient-text-mood-1); }
-  .patient-text-mood-2 { color: var(--patient-text-mood-2); }
-  .patient-text-mood-3 { color: var(--patient-text-mood-3); }
-  .patient-text-mood-4 { color: var(--patient-text-mood-4); }
-  .patient-text-mood-5 { color: var(--patient-text-mood-5); }
-  .patient-text-border { color: var(--patient-border); }
-  .patient-text-segmented { color: var(--patient-segmented-text); }
-  .patient-text-segmented-disabled { color: var(--patient-segmented-disabled-text); }
-  .patient-text-segmented-label { color: var(--patient-segmented-label-text); }
-  .patient-text-segmented-active { color: var(--patient-color-primary); }
-  .patient-text-segmented-tab-label { color: var(--patient-segmented-text); }
-  .patient-text-segmented-tab-subtitle { color: var(--patient-segmented-label-text); }
-  .group\/segmented-tab[data-active] .patient-text-segmented-tab-label { color: var(--patient-color-primary); }
-  .group\/segmented-tab[data-active] .patient-text-segmented-tab-subtitle { color: var(--patient-text-secondary); }
-  .patient-text-navigation-active { color: var(--patient-color-primary); }
-  .patient-text-navigation-inactive { color: var(--patient-text-secondary); }
-  .patient-text-navigation-inactive:hover { color: var(--patient-color-primary); }
-  .group:hover .patient-text-navigation-group-inactive { color: var(--patient-color-primary); }
-  .patient-fill-accent { fill: var(--patient-color-primary); }
-  .patient-text-secondary-data-active-accent[data-active] { color: var(--patient-color-primary); }
+  .patient-text-accent {
+    color: var(--patient-color-primary);
+  }
+  .patient-text-primary {
+    color: var(--patient-text-primary);
+  }
+  .patient-text-secondary {
+    color: var(--patient-text-secondary);
+  }
+  .patient-text-success {
+    color: var(--patient-status-success-text);
+  }
+  .patient-text-info {
+    color: var(--patient-status-info-text);
+  }
+  .patient-text-warning {
+    color: var(--patient-action-warning-text);
+  }
+  .patient-text-danger {
+    color: var(--patient-action-danger-text);
+  }
+  .patient-text-inverse {
+    color: var(--patient-text-inverse);
+  }
+  .patient-text-home-heading {
+    color: var(--patient-block-heading);
+  }
+  .patient-text-home-caption {
+    color: var(--patient-block-caption);
+  }
+  .patient-text-specialist {
+    color: var(--patient-text-specialist);
+  }
+  .patient-text-sos {
+    color: var(--patient-text-sos);
+  }
+  .patient-text-success-accent {
+    color: var(--patient-color-success);
+  }
+  .patient-text-warning-accent {
+    color: var(--patient-color-warning);
+  }
+  .patient-text-danger-accent {
+    color: var(--patient-color-danger);
+  }
+  .patient-text-muted-strong {
+    color: var(--patient-text-muted-strong);
+  }
+  .patient-text-program-stat {
+    color: var(--patient-text-program-stat);
+  }
+  .patient-text-program-group-title {
+    color: var(--patient-text-program-group-title);
+  }
+  .patient-text-mood-1 {
+    color: var(--patient-text-mood-1);
+  }
+  .patient-text-mood-2 {
+    color: var(--patient-text-mood-2);
+  }
+  .patient-text-mood-3 {
+    color: var(--patient-text-mood-3);
+  }
+  .patient-text-mood-4 {
+    color: var(--patient-text-mood-4);
+  }
+  .patient-text-mood-5 {
+    color: var(--patient-text-mood-5);
+  }
+  .patient-text-border {
+    color: var(--patient-border);
+  }
+  .patient-text-segmented {
+    color: var(--patient-segmented-text);
+  }
+  .patient-text-segmented-disabled {
+    color: var(--patient-segmented-disabled-text);
+  }
+  .patient-text-segmented-label {
+    color: var(--patient-segmented-label-text);
+  }
+  .patient-text-segmented-active {
+    color: var(--patient-color-primary);
+  }
+  .patient-text-segmented-tab-label {
+    color: var(--patient-segmented-text);
+  }
+  .patient-text-segmented-tab-subtitle {
+    color: var(--patient-segmented-label-text);
+  }
+  .group\/segmented-tab[data-active] .patient-text-segmented-tab-label {
+    color: var(--patient-color-primary);
+  }
+  .group\/segmented-tab[data-active] .patient-text-segmented-tab-subtitle {
+    color: var(--patient-text-secondary);
+  }
+  .patient-text-navigation-active {
+    color: var(--patient-color-primary);
+  }
+  .patient-text-navigation-inactive {
+    color: var(--patient-text-secondary);
+  }
+  .patient-text-navigation-inactive:hover {
+    color: var(--patient-color-primary);
+  }
+  .group:hover .patient-text-navigation-group-inactive {
+    color: var(--patient-color-primary);
+  }
+  .patient-fill-accent {
+    fill: var(--patient-color-primary);
+  }
+  .patient-text-secondary-data-active-accent[data-active] {
+    color: var(--patient-color-primary);
+  }
   .group:hover .patient-text-secondary-group-hover-inverse,
-  .group:active .patient-text-secondary-group-hover-inverse { color: var(--patient-text-inverse); }
+  .group:active .patient-text-secondary-group-hover-inverse {
+    color: var(--patient-text-inverse);
+  }
   .patient-text-interactive-inverse:hover,
   .patient-text-interactive-inverse:active,
   .patient-text-interactive-inverse:focus-visible,

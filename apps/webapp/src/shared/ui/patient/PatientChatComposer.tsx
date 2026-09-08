@@ -96,7 +96,7 @@ export function PatientChatComposer({
         <Button
           {...props}
           size="icon"
-          className="absolute right-[var(--patient-chat-composer-submit-inline-offset)] bottom-[var(--patient-chat-composer-submit-block-offset)] size-[var(--patient-chat-composer-submit-size)] rounded-[var(--patient-chat-composer-submit-radius)] p-0"
+          className="patient-chat-composer-submit absolute right-[var(--patient-chat-composer-submit-inline-offset)] bottom-[var(--patient-chat-composer-submit-block-offset)] size-[var(--patient-chat-composer-submit-size)] p-0"
         />
       )}
     />

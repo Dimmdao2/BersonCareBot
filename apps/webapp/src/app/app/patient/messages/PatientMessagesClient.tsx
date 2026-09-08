@@ -1,10 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { routePaths } from '@/app-layer/routes/paths';
-import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { ChatView } from '@/modules/messaging/components/ChatView';
 import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
@@ -18,23 +15,24 @@ import {
 import { cn } from '@/lib/utils';
 import {
   patientCaptionTextClass,
+  patientCardClass,
   patientInnerPageStackClass,
   patientMutedTextClass,
+  patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 import { PatientChatComposer } from '@/shared/ui/patient/PatientChatComposer';
 import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 /**
- * 1:1 обращение пациента в канонической модалке `PatientModal size="content"`.
+ * 1:1 обращение пациента на самостоятельной странице кабинета.
  *
- * Шапка — активная организация ПРОСТЫМ ТЕКСТОМ: текущий контракт поддержки
+ * Шапка треда — назначение слева, активная организация простым текстом справа: контракт поддержки
  * (`GET /api/patient/messages`) не отдаёт назначенного врача, поэтому имя человека не
- * выдумывается и не хардкодится. Закрытие возвращает на безопасный маршрут пациента.
+ * выдумывается и не хардкодится.
  */
 export function PatientMessagesClient() {
-  const router = useRouter();
   const organizationContext = usePatientOrganizationContext();
-  const headerTitle = organizationContext?.organization.title.trim() || 'Чат';
+  const organizationTitle = organizationContext?.organization.title.trim() || 'Клиника';
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SerializedSupportMessage[]>([]);
   const [draft, setDraft] = useState('');
@@ -142,12 +140,9 @@ export function PatientMessagesClient() {
       setDraft('');
       if (data.message) {
         setMessages((current) =>
-          reconcileMessagesById(
-            current,
-            [data.message!],
-            sameSerializedSupportMessage,
-            true,
-          ).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+          reconcileMessagesById(current, [data.message!], sameSerializedSupportMessage, true).sort(
+            (a, b) => a.createdAt.localeCompare(b.createdAt),
+          ),
         );
       }
     } catch {
@@ -158,29 +153,29 @@ export function PatientMessagesClient() {
   };
 
   return (
-    <PatientModal
-      open
-      onClose={() => router.replace(routePaths.patient)}
-      title={headerTitle}
-      size="content"
+    <section
+      className={cn(
+        patientCardClass,
+        'patient-messages-page-thread flex flex-col gap-3 overflow-hidden',
+      )}
     >
+      <div className="flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-[var(--patient-border)] pb-3">
+        <h2 className={patientSectionTitleClass}>Сообщения</h2>
+        <p className={cn(patientCaptionTextClass, 'min-w-0 truncate text-right')}>
+          {organizationTitle}
+        </p>
+      </div>
       {loading ? (
         <AppContentLoading className="flex-1 py-6" />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-3 md:h-[min(75vh,40rem)] md:min-h-[20rem] md:flex-none">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
           {error ? (
-            <p
-              className={cn(
-                patientCaptionTextClass,
-                'shrink-0 patient-text-danger-accent',
-              )}
-            >
+            <p className={cn(patientCaptionTextClass, 'shrink-0 patient-text-danger-accent')}>
               {error}
             </p>
           ) : null}
           <ChatView
             variant="patient"
-            relativeFooters
             messages={messages}
             emptyText={
               readOnly
@@ -217,6 +212,6 @@ export function PatientMessagesClient() {
           />
         </div>
       )}
-    </PatientModal>
+    </section>
   );
 }

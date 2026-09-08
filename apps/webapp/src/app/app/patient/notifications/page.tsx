@@ -30,7 +30,6 @@ export default async function PatientNotificationsPage() {
         >
           <ChatView
             variant="patient"
-            relativeFooters
             messages={messages}
             emptyText="Пока нет уведомлений."
             className="min-h-0 flex-1"
