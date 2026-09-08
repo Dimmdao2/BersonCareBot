@@ -66,7 +66,7 @@ export const patientHomeCardHeroClass = patientHeroBookingCardChromeClass;
 
 /** Карточка записи / success tone (`VISUAL_SYSTEM_SPEC §10.3`). */
 export const patientHomeCardSuccessClass = cn(
-  'border border-[#bbf7d0] bg-[var(--patient-color-success-soft)] text-[var(--patient-text-primary)]',
+  'border border-[var(--patient-action-success-border)] bg-[var(--patient-color-success-soft)] text-[var(--patient-text-primary)]',
   patientCardPaddingClass,
   'rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
   'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
@@ -74,7 +74,7 @@ export const patientHomeCardSuccessClass = cn(
 
 /** Напоминание / warning tone (`§10.6`). */
 export const patientHomeCardWarningClass = cn(
-  'border border-[#fde68a] bg-[var(--patient-color-warning-soft)] text-[var(--patient-text-primary)]',
+  'border border-[var(--patient-action-warning-border)] bg-[var(--patient-color-warning-soft)] text-[var(--patient-text-primary)]',
   patientCardPaddingClass,
   'rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
   'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
@@ -82,7 +82,7 @@ export const patientHomeCardWarningClass = cn(
 
 /** SOS / danger tone (`§10.8`). */
 export const patientHomeCardDangerClass = cn(
-  'border border-[#fecaca] bg-[var(--patient-color-danger-soft)] text-[var(--patient-text-primary)]',
+  'border border-[var(--patient-color-danger-border)] bg-[var(--patient-color-danger-soft)] text-[var(--patient-text-primary)]',
   patientCardPaddingClass,
   'rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
   'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
@@ -134,13 +134,13 @@ export {
 export const patientHomeHeroBadgeClass = cn(
   patientHomeFeatureBadgeBaseClass,
   'max-w-[min(100%,9.5rem)] whitespace-nowrap bg-white text-[var(--patient-color-primary)]',
-  'ring-1 ring-inset ring-[#e0e7ff]',
+  'ring-1 ring-inset ring-[var(--patient-color-primary-border)]',
 );
 
 export const patientHomeHeroDurationBadgeClass = cn(
   patientHomeFeatureBadgeBaseClass,
   'max-w-[min(100%,5.5rem)] gap-1 whitespace-nowrap bg-[var(--patient-card-bg)] text-[var(--patient-color-primary)]',
-  'ring-1 ring-inset ring-[#e0e7ff]',
+  'ring-1 ring-inset ring-[var(--patient-color-primary-border)]',
 );
 
 /** Ведущая иконка в карточке — tap area ≥44px (`§9.4` / `§12`). */
@@ -151,7 +151,7 @@ export const patientIconLeadingClass = cn(
 
 export const patientIconLeadingWarningClass = cn(
   'inline-flex size-11 shrink-0 items-center justify-center rounded-full md:size-14',
-  'bg-[#fef3c7] text-[var(--patient-color-warning)]',
+  'bg-[var(--patient-action-warning-hover-bg)] text-[var(--patient-color-warning)]',
 );
 
 export const patientIconLeadingDangerClass = cn(
@@ -501,7 +501,7 @@ export const patientHomeProgressGridClass = cn(
 
 /** Mobile keeps the compact divider; desktop returns the progress circle with more breathing room. */
 export const patientHomeProgressStreakColClass = cn(
-  'flex min-h-0 max-w-full flex-col items-center justify-center border-l border-[#e5e7eb] pl-2 pr-1 text-center md:border-l-0 md:pl-0 md:pr-0',
+  'flex min-h-0 max-w-full flex-col items-center justify-center border-l border-[var(--patient-border)] pl-2 pr-1 text-center md:border-l-0 md:pl-0 md:pr-0',
 );
 
 export const patientHomeProgressValueClass =
@@ -596,7 +596,7 @@ export const patientHomeReminderMobileSubtitleClass = cn(
 /** Next reminder: compact warning card (отдельно от других secondary-карточек). */
 export const patientHomeReminderCardGeometryClass = cn(
   'flex max-md:min-h-[90px] flex-col justify-center gap-1 overflow-hidden',
-  'rounded-[var(--patient-card-radius-mobile)] border border-[#fef3c7] bg-[linear-gradient(135deg,#fff9f0_0%,#fff6e8_48%,#fffbeb_100%)] px-2.5 py-1',
+  'rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-action-warning-hover-bg)] bg-[var(--patient-warning-card-gradient)] px-2.5 py-1',
   /** Mobile: без верхней рамки/скругления (стык к «Сегодня выполнено»); снизу скругление чуть больше базового `patient-card-radius-mobile`. */
   'max-md:mx-[7px] max-md:mt-0 max-md:rounded-t-none max-md:rounded-b-[10px] max-md:border-t-0',
   'md:mx-0 md:mt-0 md:h-[124px] md:min-h-0 md:justify-between md:gap-1.5 md:rounded-[var(--patient-card-radius-desktop)] md:px-4 md:py-2',

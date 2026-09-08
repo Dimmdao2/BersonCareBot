@@ -16,7 +16,7 @@ import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 const TELEGRAM_WIDGET_PENDING_CHROME = cn(
   LOGIN_CTA_HEIGHT_CLASS,
   LOGIN_CTA_WIDTH_CLASS,
-  'inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary,#284da0)] bg-white px-4 text-sm font-normal shadow-none',
+  'inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary)] bg-white px-4 text-sm font-normal shadow-none',
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
   'opacity-70',
 );

@@ -3,7 +3,10 @@
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/patient/primitives/button';
-import { Input } from '@/shared/ui/patient/primitives/input';
+import {
+  Input,
+  patientJournalControlClassName,
+} from '@/shared/ui/patient/primitives/input';
 import { Textarea } from '@/shared/ui/patient/primitives/textarea';
 import {
   Select,
@@ -12,13 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/patient/primitives/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/ui/patient/primitives/dialog';
+import { PatientModal, PatientModalFooter } from '@/shared/ui/patient/PatientModal';
 import { markLfkSession } from './actions';
 import { cn } from '@/lib/utils';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
@@ -119,7 +116,8 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
             items={lfkSessionComplexSelectItems}
           >
             <SelectTrigger
-              className="h-10 w-full min-w-0 rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring"
+              variant="journal"
+              className="min-w-0"
               size="default"
             >
               <SelectValue />
@@ -178,87 +176,78 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
         </div>
       </div>
 
-      <Dialog open={dateOpen} onOpenChange={setDateOpen}>
-        <DialogContent
-          className="rounded-lg border border-[var(--patient-border)] shadow-md sm:max-w-sm"
-          showCloseButton
-        >
-          <DialogHeader>
-            <DialogTitle>Дата занятия</DialogTitle>
-          </DialogHeader>
-          <PatientDatePicker
-            value={dateDraft}
-            onChange={setDateDraft}
-            ariaLabel="Дата занятия"
-            className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          <DialogFooter className="flex flex-row flex-wrap gap-2 sm:justify-between">
-            <Button
-              type="button"
-              variant="secondary"
-              className="flex-1 sm:flex-none"
-              onClick={() => {
-                const t = todayDateParts();
-                setDateDraft(t.date);
-                setSessionDate(t.date);
-              }}
-            >
-              Сегодня
-            </Button>
-            <Button
-              type="button"
-              className="flex-1 sm:flex-none"
-              onClick={() => {
-                setSessionDate(dateDraft);
-                setDateOpen(false);
-              }}
-            >
-              Готово
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PatientModal
+        open={dateOpen}
+        onClose={() => setDateOpen(false)}
+        title="Дата занятия"
+        size="sm"
+      >
+        <PatientDatePicker
+          value={dateDraft}
+          onChange={setDateDraft}
+          ariaLabel="Дата занятия"
+          className={cn(patientJournalControlClassName, 'min-w-0 outline-none')}
+        />
+        <PatientModalFooter>
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1 sm:flex-none"
+            onClick={() => {
+              const t = todayDateParts();
+              setDateDraft(t.date);
+              setSessionDate(t.date);
+            }}
+          >
+            Сегодня
+          </Button>
+          <Button
+            type="button"
+            className="flex-1 sm:flex-none"
+            onClick={() => {
+              setSessionDate(dateDraft);
+              setDateOpen(false);
+            }}
+          >
+            Готово
+          </Button>
+        </PatientModalFooter>
+      </PatientModal>
 
-      <Dialog open={timeOpen} onOpenChange={setTimeOpen}>
-        <DialogContent
-          className="rounded-lg border border-[var(--patient-border)] shadow-md sm:max-w-sm"
-          showCloseButton={false}
-        >
-          <DialogHeader>
-            <DialogTitle>Время</DialogTitle>
-          </DialogHeader>
-          <Input
-            type="time"
-            value={timeDraft}
-            onChange={(e) => setTimeDraft(e.target.value)}
-            className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          <DialogFooter>
-            <Button
-              type="button"
-              className="w-full sm:w-auto"
-              onClick={() => {
-                setSessionTime(timeDraft);
-                setTimeOpen(false);
-              }}
-            >
-              Готово
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PatientModal open={timeOpen} onClose={() => setTimeOpen(false)} title="Время" size="sm">
+        <Input
+          variant="journal"
+          type="time"
+          value={timeDraft}
+          onChange={(e) => setTimeDraft(e.target.value)}
+          className="min-w-0 outline-none"
+        />
+        <PatientModalFooter>
+          <Button
+            type="button"
+            className="w-full sm:w-auto"
+            onClick={() => {
+              setSessionTime(timeDraft);
+              setTimeOpen(false);
+            }}
+          >
+            Готово
+          </Button>
+        </PatientModalFooter>
+      </PatientModal>
 
       <label className="flex flex-col gap-1">
         <span className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
           Длительность (мин)
         </span>
         <Input
+          variant="journal"
           type="number"
           name="durationMinutes"
           min={1}
           max={600}
           placeholder="длительность выполнения"
-          className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-w-0 outline-none"
         />
         <span className={cn(patientMutedTextClass, 'text-xs')}>минут</span>
       </label>
@@ -310,7 +299,9 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
         </span>
         <Textarea name="comment" placeholder="Комментарий" maxLength={200} rows={3} />
       </label>
-      <Button type="submit">Сохранить</Button>
+      <Button type="submit" variant="patient-primary">
+        Сохранить
+      </Button>
     </form>
   );
 }

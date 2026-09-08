@@ -44,7 +44,7 @@ export function PatientWebPushFreshLoginDeniedDialog() {
             type="button"
             className={cn(
               patientButtonSecondaryClass,
-              'border-[#e5e7eb] bg-[#ffffff] hover:bg-[#e8eefb]/40 active:bg-[#e8eefb]/60',
+              'border-[var(--patient-border)] bg-[var(--patient-card-bg)] hover:bg-[var(--patient-color-primary-soft)]/40 active:bg-[var(--patient-color-primary-soft)]/60',
             )}
             disabled={busy}
             onClick={state.dismissFreshLoginDeniedPrompt}

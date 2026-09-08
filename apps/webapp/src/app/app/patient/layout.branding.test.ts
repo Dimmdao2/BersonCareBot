@@ -63,7 +63,10 @@ beforeEach(() => {
     user: { userId: platformUserId, role: 'client', phone: '+79990000000' },
   });
   fakes.buildAppDeps.mockReturnValue({
-    runtimeConfig: { getServerBoolean: vi.fn(async () => false) },
+    runtimeConfig: {
+      getServerBoolean: vi.fn(async () => false),
+      getAuthenticatedString: vi.fn(async () => 'Пациент'),
+    },
     orgEntitlements: {
       resolveCabinetAccess: vi.fn(async () => ({ state: 'full_access' })),
     },

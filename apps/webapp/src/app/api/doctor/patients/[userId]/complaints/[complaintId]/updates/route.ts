@@ -4,6 +4,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { requireDoctorWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { resolvePatientSymptomTrackingDefault } from '@/app-layer/doctor/patientSymptomTrackingVisibility';
 
 const bodySchema = z.object({
   severity: z.number().int().min(0).max(10),
@@ -35,6 +36,12 @@ export async function POST(
     gate.ctx,
   );
   if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  const patientSymptomTrackingEnabled = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    resolvePatientSymptomTrackingDefault(deps, {
+      organizationId: gate.ctx.organizationId,
+      patientUserId: identity.userId,
+    }),
+  );
   const ok = await withDoctorWorkspacePrincipal(
     gate.ctx,
     'doctor.patients.clinical.complaint.update',
@@ -43,6 +50,7 @@ export async function POST(
         patientUserId: identity.userId,
         complaintId,
         ...parsed.data,
+        patientSymptomTrackingEnabled,
       }),
   );
   return ok

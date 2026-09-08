@@ -6,20 +6,21 @@ import toast from 'react-hot-toast';
 import { routePaths } from '@/app-layer/routes/paths';
 import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/PatientOrganizationContext';
-import { Button } from '@/shared/ui/patient/primitives/button';
-import { Textarea } from '@/shared/ui/patient/primitives/textarea';
-import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import { ChatView } from '@/modules/messaging/components/ChatView';
 import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
 import { notifyPatientSupportUnreadCountChanged } from '@/modules/messaging/hooks/useSupportUnreadPolling';
 import type { SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
+import {
+  reconcileMessagesById,
+  reconcileSupportMessages,
+  sameSerializedSupportMessage,
+} from '@/modules/messaging/reconcileMessages';
 import { cn } from '@/lib/utils';
 import {
-  patientChatComposerTextareaClass,
   patientInnerPageStackClass,
   patientMutedTextClass,
-  patientPrimaryActionClass,
 } from '@/shared/ui/patient/patientVisual';
+import { PatientChatComposer } from '@/shared/ui/patient/PatientChatComposer';
 import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 /**
@@ -39,7 +40,6 @@ export function PatientMessagesClient() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [composerExpanded, setComposerExpanded] = useState(false);
   /**
    * Закрытое обращение остаётся видимым и читаемым, но писать в него нельзя. Форму отправки в этом
    * случае не показываем вовсе: кнопка, которая появляется и затем отбивается сервером, хуже, чем
@@ -61,7 +61,7 @@ export function PatientMessagesClient() {
       return;
     }
     setConversationId(data.conversationId);
-    setMessages(data.messages ?? []);
+    setMessages((current) => reconcileSupportMessages(current, data.messages ?? []));
     setReadOnly(data.readOnly === true);
     const readRes = await fetch('/api/patient/messages/read', {
       method: 'POST',
@@ -98,7 +98,8 @@ export function PatientMessagesClient() {
         readOnly?: boolean;
       };
       if (!fullRes.ok || !fullData.ok || !Array.isArray(fullData.messages)) return;
-      setMessages(fullData.messages);
+      const polledMessages = fullData.messages;
+      setMessages((current) => reconcileSupportMessages(current, polledMessages));
       setReadOnly(fullData.readOnly === true);
       const readRes = await fetch('/api/patient/messages/read', {
         method: 'POST',
@@ -111,7 +112,7 @@ export function PatientMessagesClient() {
     }
   }, [conversationId]);
 
-  useMessagePolling(poll, Boolean(conversationId), 18000);
+  useMessagePolling(poll, Boolean(conversationId), 8000, false);
 
   const send = async () => {
     const t = draft.trim();
@@ -138,15 +139,15 @@ export function PatientMessagesClient() {
         return;
       }
       setDraft('');
-      setComposerExpanded(false);
       if (data.message) {
-        setMessages((prev) => {
-          const ids = new Set(prev.map((m) => m.id));
-          if (ids.has(data.message!.id)) return prev;
-          const merged = [...prev, data.message!];
-          merged.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-          return merged;
-        });
+        setMessages((current) =>
+          reconcileMessagesById(
+            current,
+            [data.message!],
+            sameSerializedSupportMessage,
+            true,
+          ).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+        );
       }
     } catch {
       toast.error('Ошибка сети');
@@ -200,43 +201,15 @@ export function PatientMessagesClient() {
                   новое обращение.
                 </p>
               ) : (
-                <MessageComposer
+                <PatientChatComposer
                   value={draft}
                   onValueChange={setDraft}
                   onSubmit={send}
                   submitting={sending}
                   placeholder="Ваше сообщение…"
                   ariaLabel="Текст сообщения"
-                  submitLabel="Отправить"
-                  submittingLabel="Отправка…"
+                  submitAriaLabel="Отправить"
                   maxLength={4000}
-                  className={cn(
-                    'shrink-0 border-t border-[var(--patient-border)] bg-[var(--patient-card-bg)] pt-3 md:pt-4',
-                    patientInnerPageStackClass,
-                  )}
-                  rows={2}
-                  onFocus={() => setComposerExpanded(true)}
-                  onBlur={() => {
-                    if (!draft.trim()) setComposerExpanded(false);
-                  }}
-                  renderTextarea={(props) => (
-                    <Textarea
-                      {...props}
-                      className={cn(
-                        patientChatComposerTextareaClass,
-                        'transition-[min-height] duration-200 ease-out',
-                        composerExpanded || draft.trim().length > 0
-                          ? 'min-h-[112px]'
-                          : 'min-h-[56px]',
-                      )}
-                    />
-                  )}
-                  renderSubmit={(props) => (
-                    <Button
-                      {...props}
-                      className={cn(patientPrimaryActionClass, 'disabled:opacity-55')}
-                    />
-                  )}
                 />
               )
             }

@@ -912,7 +912,7 @@ const patientFilesService = createPatientFilesService({
   assertWriteClearance: assertMechanicWriteClearance,
 });
 const patientClinicalPort = !inMemoryRepos
-  ? createPgPatientClinicalPort()
+  ? createPgPatientClinicalPort({ diaries: symptomDiaryPort })
   : inMemoryPatientClinicalPort;
 const patientClinicalService = createPatientClinicalService({ patientClinicalPort });
 

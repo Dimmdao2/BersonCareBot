@@ -31,7 +31,7 @@ export const patientHeroBookingGradientFillClass =
  * {@link patientHeroBookingSectionClass} добавляет типичный layout блока выбора.
  */
 export const patientHeroBookingCardChromeClass = cn(
-  'overflow-hidden border border-[#ddd6fe]',
+  'overflow-hidden border border-[var(--patient-stage-goals-border)]',
   'rounded-[var(--patient-hero-radius-mobile)] md:rounded-[var(--patient-hero-radius-desktop)]',
   patientHeroBookingGradientFillClass,
   'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
@@ -113,10 +113,10 @@ export const patientCardListSectionClass = cn(
 
 /**
  * Шапка коллапса «Рекомендации» (этап 0 на дашборде программы) и «Рекомендации этапа»:
- * лёгкий вертикальный градиент на основе #dffeca.
+ * лёгкий вертикальный градиент patient stage goals.
  */
 export const patientRecommendationCollapsibleTriggerClass = cn(
-  'cursor-pointer bg-gradient-to-b from-[#dffeca] via-[#e8fcd3] to-[#f2fee8]',
+  'cursor-pointer bg-[var(--patient-stage-goals-gradient)]',
   'text-[var(--patient-text-primary)]',
 );
 
@@ -128,7 +128,7 @@ export const patientRecommendationCollapsiblePanelClass = 'bg-[rgba(228,251,213,
  */
 export const patientStageGoalsCollapsibleTriggerClass = cn(
   'flex w-full cursor-pointer items-center px-3 py-2.5 text-left md:px-4 md:py-3',
-  'bg-white text-[13px] font-semibold leading-tight text-[#444444]',
+  'bg-white text-[13px] font-semibold leading-tight text-[var(--patient-program-text)]',
 );
 
 /** Раскрытый блок «Цели и задачи». */
@@ -246,17 +246,16 @@ export const patientLineClamp2Class = 'line-clamp-2 min-w-0';
 export const patientLineClamp3Class = 'line-clamp-3 min-w-0';
 
 export const patientButtonPrimaryClass = cn(
-  'inline-flex min-h-[var(--patient-touch)] w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition-colors',
-  // Fallback hex: Dialog/portal вне `#app-shell-patient`, там `--patient-color-primary` не задан.
-  'bg-[var(--patient-color-primary,#284da0)] hover:bg-[#1f3d82] active:bg-[#1f3d82]',
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]',
+  'inline-flex min-h-[var(--patient-touch)] w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 text-sm font-semibold text-white transition-colors',
+  'bg-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-hover)] active:bg-[var(--patient-color-primary-hover)]',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
 );
 
 export const patientButtonSuccessClass = cn(
-  'inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition-colors sm:min-h-12',
-  'bg-[var(--patient-color-success,#16a34a)] hover:bg-[#15803d] active:bg-[#15803d]',
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-success,#16a34a)]',
+  'inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 text-sm font-semibold text-white transition-colors sm:min-h-12',
+  'bg-[var(--patient-color-success)] hover:bg-[var(--patient-action-success-hover)] active:bg-[var(--patient-action-success-hover)]',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-success)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
 );
 
@@ -274,7 +273,7 @@ export const patientButtonGhostLinkClass = cn(
 );
 
 export const patientButtonDangerOutlineClass = cn(
-  'inline-flex min-h-10 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-sm border border-[var(--patient-color-danger)] bg-[var(--patient-card-bg)] px-4 text-sm font-bold text-[#dc2626] transition-colors',
+  'inline-flex min-h-10 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-outline-radius)] border border-[var(--patient-color-danger)] bg-[var(--patient-card-bg)] px-4 text-sm font-bold text-[var(--patient-action-danger-text)] transition-colors',
   'hover:bg-[var(--patient-color-danger-soft)] active:bg-[var(--patient-color-danger-soft)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-danger)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
@@ -284,48 +283,48 @@ export const patientButtonDangerOutlineClass = cn(
  * Кнопка «Пропустить» в модалке элемента программы — кирпичный/терракотовый тон.
  */
 export const patientButtonSkipClass = cn(
-  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[#c2410c]/40 bg-[#fff7ed] px-3 font-semibold text-[#c2410c] transition-colors',
+  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--patient-action-skip-border)] bg-[var(--patient-action-skip-bg)] px-3 font-semibold text-[var(--patient-action-skip-text)] transition-colors',
   'min-h-[var(--patient-touch)] text-sm',
-  'hover:bg-[#ffedd5] active:bg-[#fed7aa]',
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c2410c]',
+  'hover:bg-[var(--patient-action-skip-hover-bg)] active:bg-[var(--patient-action-skip-active-bg)]',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-action-skip-text)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
 );
 
 /** Warning-toned button-like link (напоминания, §10.6). */
 export const patientButtonWarningOutlineClass = cn(
-  'inline-flex min-h-10 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-sm border border-[#fde68a] bg-[#fffbeb] px-4 text-sm font-bold text-[#d97706] transition-colors',
-  'hover:bg-[#fef3c7]/80 active:bg-[#fef3c7]',
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f59e0b]',
+  'inline-flex min-h-10 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-outline-radius)] border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-4 text-sm font-bold text-[var(--patient-action-warning-text)] transition-colors',
+  'hover:bg-[var(--patient-action-warning-hover-bg)]/80 active:bg-[var(--patient-action-warning-hover-bg)]',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-warning)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
 );
 
 /** Primary badge — синий тон, мягкий фон. */
 export const patientBadgePrimaryClass = cn(
   'inline-flex h-7 min-w-0 max-w-full items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none',
-  'bg-[var(--patient-color-primary-soft)] text-[#3730a3]',
+  'bg-[var(--patient-color-primary-soft)] text-[var(--patient-badge-primary-text)]',
 );
 
 /** Success badge — зелёный тон. */
 export const patientBadgeSuccessClass = cn(
   'inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none',
-  'bg-[#dcfce7] text-[#166534]',
+  'bg-[var(--patient-action-success-badge-bg)] text-[var(--patient-action-success-badge-text)]',
 );
 
 /** Warning badge — жёлтый тон. */
 export const patientBadgeWarningClass = cn(
   'inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none',
-  'bg-[#fef3c7] text-[#92400e]',
+  'bg-[var(--patient-action-warning-hover-bg)] text-[var(--patient-action-warning-badge-text)]',
 );
 
 /** Danger badge — красный тон. */
 export const patientBadgeDangerClass = cn(
   'inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none',
-  'bg-[#fee2e2] text-[#b91c1c]',
+  'bg-[var(--patient-action-danger-badge-bg)] text-[var(--patient-action-danger-badge-text)]',
 );
 
 /** Duration badge — нейтральный, primary текст (hero-слот, карточки курсов). */
 export const patientBadgeDurationClass = cn(
-  'inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] border border-[#e0e7ff] bg-[var(--patient-card-bg)] px-2.5 text-xs font-medium leading-none text-[var(--patient-color-primary)]',
+  'inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] border border-[var(--patient-badge-duration-border)] bg-[var(--patient-card-bg)] px-2.5 text-xs font-medium leading-none text-[var(--patient-color-primary)]',
 );
 
 /**
@@ -334,9 +333,9 @@ export const patientBadgeDurationClass = cn(
  * а не полноширинная CTA. Размер (`h-8`, `h-9`, `w-auto`) задаётся в месте использования.
  */
 export const patientCompactActionClass = cn(
-  'inline-flex min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold text-white transition-colors',
-  'bg-[var(--patient-color-primary,#284da0)] hover:bg-[#1f3d82] active:bg-[#1f3d82]',
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]',
+  'inline-flex min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-3 text-sm font-semibold text-white transition-colors',
+  'bg-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-hover)] active:bg-[var(--patient-color-primary-hover)]',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
 );
 
@@ -363,8 +362,8 @@ export const patientHeroPrimaryActionClass = patientButtonPrimaryClass;
  * Статус на главной после недавней разминки дня: бледно-зелёная «кнопка» без навигации (не CTA).
  */
 export const patientHeroWarmupDoneCtaClass = cn(
-  'inline-flex max-w-full min-h-9 min-w-0 shrink-0 cursor-default items-center justify-center gap-1.5 rounded-md border border-[#bbf7d0] bg-[#ecfdf5] px-3 py-1.5',
-  'text-xs font-medium leading-tight tracking-tight text-[#166534] whitespace-nowrap sm:min-h-10 sm:gap-2 sm:px-3.5 sm:py-2 sm:text-sm',
+  'inline-flex max-w-full min-h-9 min-w-0 shrink-0 cursor-default items-center justify-center gap-1.5 rounded-[var(--patient-action-radius)] border border-[var(--patient-status-success-border)] bg-[var(--patient-status-success-bg)] px-3 py-1.5',
+  'text-xs font-medium leading-tight tracking-tight text-[var(--patient-status-success-text)] whitespace-nowrap sm:min-h-10 sm:gap-2 sm:px-3.5 sm:py-2 sm:text-sm',
   'md:min-h-11 md:w-[22rem] md:justify-start md:px-4 xl:w-[24rem]',
 );
 
@@ -427,17 +426,22 @@ export const patientProgramItemHeroTitleClass = cn(
 /**
  * Строка «N повторений × M подходов» на странице пункта (hero): размер задаётся родителем (`text-[0.8rem]`).
  */
-export const patientProgramItemPrimaryStatTextClass = cn('font-normal text-[#435370]');
+export const patientProgramItemPrimaryStatTextClass = cn(
+  'font-normal text-[var(--patient-program-stat-text)]',
+);
 
 /**
- * Заголовок группы в «Состав этапа»: чуть теплее холодного `#284da0` (индиго-синий).
+ * Заголовок группы в «Состав этапа»: отдельный более тёплый program tone.
  */
-export const patientCompositionGroupTitleClass = 'text-sm font-medium text-[#2c4c8c]';
+export const patientCompositionGroupTitleClass =
+  'text-sm font-medium text-[var(--patient-program-group-title)]';
 
 /**
  * Выбранная строка состава этапа: тонкое кольцо, тёмный синий, лёгкий нейтральный фон.
  */
-export const patientCompositionCurrentRowChromeClass = cn('bg-muted/40 ring-1 ring-[#1e3a5f]');
+export const patientCompositionCurrentRowChromeClass = cn(
+  'bg-muted/40 ring-1 ring-[var(--patient-program-current-ring)]',
+);
 
 /** Квадратный слот превью/плейсхолдера в строках «Состав этапа». */
 export const patientCompositionListThumbSlotClass =
@@ -473,14 +477,13 @@ export const patientScrollbarHiddenClass = cn(
 
 /**
  * Primary CTA внутри patient `Dialog` portal (вне `#app-shell-patient`):
- * {@link patientButtonPrimaryClass} использует `var(--patient-color-primary)` с fallback hex — иначе в портале
- * фон не резолвится, остаётся белый `bg-background` модалки, а `text-white` не виден до hover.
+ * Портал видит те же root-scoped semantic tokens, что и patient shell.
  */
 export const patientModalPortalPrimaryCtaClass = cn(
-  'inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors md:min-h-12 md:text-base',
-  'bg-[#284da0] hover:bg-[#1f3d82] active:bg-[#1f3d82]',
-  'shadow-[0_6px_14px_rgba(40,77,160,0.24)]',
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#284da0]',
+  'inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 py-2 text-sm font-semibold text-white transition-colors md:min-h-12 md:text-base',
+  'bg-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-hover)] active:bg-[var(--patient-color-primary-hover)]',
+  'shadow-[var(--patient-shadow-primary-cta)]',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
 );
 

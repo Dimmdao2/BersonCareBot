@@ -6,6 +6,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## Patient UI system audit — 08.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Patient UI primitives, symptom history, canonical chat/comment modals and media acceptance | candidate chain `a553b672e`, `596c59252`, `1cf811846`, `9e8a2550c`, `106d24642`, `f530e23e4`, `2ec27e0a8`, `3e7740295`, `398e9ed20`, `047ac6675`, `804b3051f`, `3d1041096`, `f467e1f1a`, `01e240f23`, `456bc94cf`, `5049c8673`, `ad563e5bc`, `cec338b35`, `5c6d4eb6c`, `77f5bfe0b`, `eee55e2d8`, accepted registry/domain corrections `340049195`, `2c7f16c54`, final evidence `a2c4f9cd9` on `wt/patient-ui-system-audit-20260907` | **LEAD ACCEPTED AFTER INDEPENDENT AUDIT, LIVE VISUAL ACCEPTANCE AND FULL CI; FOR LAND.** Patient primitives/tokens replace duplicated equivalent controls and hardcoded visual values without importing doctor styling; assigned symptoms support instant patient entries and horizontally scrollable history; message and exercise-comment layers reuse the accepted doctor interaction/layout while preserving patient colors/typography; mobile modal transitions/close paths and responsive fullscreen video were accepted from patient-only screenshots. Auditor findings were closed and the exact final candidate passed rollback-only DEV migration preflight, targeted behavior tests, lint, TypeScript typecheck, builds and the canonical locked full `pnpm run ci` (`520s`, exit `0`). Artifact: `docs/_TODO/runs/patient-ui-system-audit-20260907/PATIENT_UI_SYSTEM_AUDIT.md`; screenshots: `docs/_TODO/runs/patient-ui-system-audit-20260907/screenshots/`. No TEST deploy. |
+
 ## Video meetings #1100 — 08.09
 
 | слой | коммит | вердикт |

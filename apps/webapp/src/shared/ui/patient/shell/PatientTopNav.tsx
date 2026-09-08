@@ -218,7 +218,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
           PATIENT_TOP_NAV_FIXED_MOBILE_CLASS,
           /* desktop: липкая полоска в колонке shell */
           'patient-desktop:sticky patient-desktop:top-[env(safe-area-inset-top,0px)] patient-desktop:left-auto patient-desktop:right-auto patient-desktop:max-w-none patient-desktop:translate-x-0',
-          'border-b border-[var(--patient-border)] bg-[rgba(255,255,255,0.96)] backdrop-blur-md patient-desktop:bg-white',
+          'border-b border-[var(--patient-border)] bg-[var(--patient-shell-chrome-surface)] backdrop-blur-md patient-desktop:bg-white',
           compact
             ? 'shadow-md patient-desktop:shadow-sm'
             : 'shadow-[var(--patient-shadow-nav)] patient-desktop:shadow-sm',
@@ -276,7 +276,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
           <div className="flex shrink-0 items-center gap-1">
             <PatientNotificationInboxButton
               className={TOP_ICON_BTN}
-              badgeClassName="ring-2 ring-[rgba(255,255,255,0.96)]"
+              badgeClassName="ring-2 ring-[var(--patient-shell-chrome-surface)]"
             />
             {directChatEnabled ? (
               <Link
@@ -293,7 +293,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
                 {chatUnread > 0 ? (
                   <PatientNavCountBadge
                     count={chatUnread}
-                    className="ring-2 ring-[rgba(255,255,255,0.96)]"
+                    className="ring-2 ring-[var(--patient-shell-chrome-surface)]"
                   />
                 ) : null}
               </Link>

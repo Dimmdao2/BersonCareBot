@@ -20,10 +20,10 @@ function BookingServiceDescription({ text }: { text: string }) {
   if (!trimmed) return null;
 
   const inheritedDescWrap = cn(
-    'mt-1 w-full min-w-0 font-normal text-sm leading-snug text-[var(--patient-text-secondary,#475569)] transition-colors',
-    'group-hover:text-[#eee] group-active:text-[#eee] group-focus-visible:text-[#eee]',
-    'group-hover:[&_.markdown-preview]:!text-[#eee] group-focus-visible:[&_.markdown-preview]:!text-[#eee] group-active:[&_.markdown-preview]:!text-[#eee]',
-    'group-hover:[&_*]:!text-[#eee] group-focus-visible:[&_*]:!text-[#eee] group-active:[&_*]:!text-[#eee]',
+    'mt-1 w-full min-w-0 font-normal text-sm leading-snug text-[var(--patient-text-secondary)] transition-colors',
+    'group-hover:text-white group-active:text-white group-focus-visible:text-white',
+    'group-hover:[&_.markdown-preview]:!text-white group-focus-visible:[&_.markdown-preview]:!text-white group-active:[&_.markdown-preview]:!text-white',
+    'group-hover:[&_*]:!text-white group-focus-visible:[&_*]:!text-white group-active:[&_*]:!text-white',
     '[&_a]:underline',
   );
 

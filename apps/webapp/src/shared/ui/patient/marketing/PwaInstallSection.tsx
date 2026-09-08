@@ -89,7 +89,7 @@ export function PwaInstallSection() {
     >
       <h2
         id="pwa-install-heading"
-        className="font-sans text-lg font-semibold text-[#284da0]"
+        className="font-sans text-lg font-semibold text-[var(--patient-color-primary)]"
       >
         Установить приложение
       </h2>
@@ -118,7 +118,7 @@ export function PwaInstallSection() {
             <Button
               type="button"
               onClick={() => void onInstallClick()}
-              className="bg-[#284da0] hover:bg-[#1f3d85]"
+              className="bg-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-hover)]"
             >
               Установить
             </Button>

@@ -3,12 +3,11 @@
 @custom-variant patient-desktop (@media (min-width: 768px) and (min-height: 600px));
 @custom-variant patient-mobile (@media ((max-width: 767px) or (max-height: 599px)));
 
-/**
- * Legacy patient tokens on :root (MASTER_PLAN §6) + portal fallbacks for modals outside shell.
- */
+/** Patient theme is portal-safe; the shell only supplies the optional clinic brand override. */
 :root {
   --patient-bg: #ffffff;
   --patient-surface: #ffffff;
+  --patient-page-bg: #ffffff;
   --patient-radius: 12px;
   --patient-radius-lg: 16px;
   --patient-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
@@ -27,8 +26,109 @@
   --patient-card-radius-desktop: 8px;
   --patient-hero-radius-mobile: 8px;
   --patient-hero-radius-desktop: 10px;
+  --patient-pill-radius: 6px;
   --patient-shadow-card-mobile: 0 4px 14px rgba(15, 23, 42, 0.04);
   --patient-shadow-card-desktop: 0 8px 24px rgba(15, 23, 42, 0.05);
+  --patient-shadow-nav: 0 -4px 16px rgba(15, 23, 42, 0.04);
+  --patient-color-primary-default: #284da0;
+  --patient-color-primary: var(--patient-color-primary-default);
+  --patient-color-primary-hover: #1f3d82;
+  --patient-color-primary-soft: #e8eefb;
+  --patient-color-primary-border: #e0e7ff;
+  --patient-shadow-primary-cta: 0 6px 14px rgba(40, 77, 160, 0.24);
+  --patient-color-success: #16a34a;
+  --patient-color-success-soft: #ecfdf3;
+  --patient-action-success-hover: #15803d;
+  --patient-action-success-border: #bbf7d0;
+  --patient-action-success-badge-bg: #dcfce7;
+  --patient-action-success-badge-text: #166534;
+  --patient-color-warning: #f59e0b;
+  --patient-color-warning-soft: #fffaeb;
+  --patient-action-warning-border: #fde68a;
+  --patient-action-warning-bg: #fffbeb;
+  --patient-action-warning-text: #d97706;
+  --patient-action-warning-hover-bg: #fef3c7;
+  --patient-action-warning-badge-text: #92400e;
+  --patient-warning-card-gradient: linear-gradient(135deg, #fff9f0 0%, #fff6e8 48%, #fffbeb 100%);
+  --patient-stage-goals-border: #ddd6fe;
+  --patient-stage-goals-gradient: linear-gradient(to bottom, #dffeca, #e8fcd3, #f2fee8);
+  --patient-program-text: #444444;
+  --patient-program-stat-text: #435370;
+  --patient-program-group-title: #2c4c8c;
+  --patient-program-current-ring: #1e3a5f;
+  --patient-action-skip-border: rgba(194, 65, 12, 0.4);
+  --patient-action-skip-bg: #fff7ed;
+  --patient-action-skip-text: #c2410c;
+  --patient-action-skip-hover-bg: #ffedd5;
+  --patient-action-skip-active-bg: #fed7aa;
+  --patient-color-danger: #ef4444;
+  --patient-color-danger-soft: #fef2f2;
+  --patient-color-danger-border: #fecaca;
+  --patient-action-danger-text: #dc2626;
+  --patient-action-danger-badge-bg: #fee2e2;
+  --patient-action-danger-badge-text: #b91c1c;
+  --patient-badge-primary-text: #3730a3;
+  --patient-badge-duration-border: var(--patient-color-primary-border);
+  --patient-status-success-bg: #ecfdf5;
+  --patient-status-success-border: #bbf7d0;
+  --patient-status-success-text: #166534;
+  --patient-control-height: 2.5rem;
+  --patient-control-radius: 0.75rem;
+  --patient-control-border: var(--patient-border);
+  --patient-control-bg: var(--patient-card-bg);
+  --patient-control-padding-inline: 0.75rem;
+  --patient-control-text: var(--patient-text-primary);
+  --patient-control-focus-border: var(--patient-color-primary);
+  --patient-control-focus-ring: var(--patient-color-primary);
+  --patient-action-radius: 0.375rem;
+  --patient-action-outline-radius: 0.125rem;
+  --patient-chat-bubble-max-width: min(100%, 24rem);
+  --patient-chat-bubble-radius: var(--patient-card-radius-desktop);
+  --patient-chat-composer-radius: 1.125rem;
+  --patient-chat-composer-submit-size: 2rem;
+  --patient-chat-composer-submit-radius: 9999px;
+  --patient-chat-composer-submit-inline-offset: 0.1875rem;
+  --patient-chat-composer-submit-block-offset: 0.25rem;
+  --patient-segmented-bg: #f8f3fd;
+  --patient-segmented-hover-bg: #ede8f8;
+  --patient-segmented-active-bg: #e4e2ff;
+  --patient-segmented-border: #ddd6fe;
+  --patient-segmented-text: #444444;
+  --patient-segmented-label-text: #555555;
+  --patient-segmented-disabled-bg: #faf9fc;
+  --patient-segmented-disabled-text: #d4d0e0;
+  --patient-rating-fill-on: #f7965c;
+  --patient-rating-fill-off: #fff7ed;
+  --patient-rating-stroke-on: #bb5e26;
+  --patient-rating-stroke-off: #eda76a;
+  --patient-shell-chrome-surface: rgba(255, 255, 255, 0.96);
+  --patient-modal-footer-bg: rgba(248, 250, 252, 0.9);
+  --patient-simple-complete-done-bg: rgba(74, 152, 110, 0.76);
+  --patient-simple-complete-done-text: rgba(255, 255, 255, 0.93);
+  --patient-text-secondary: #667085;
+  --patient-text-muted-strong: #6d7789;
+  --patient-block-caption: #465880;
+  --patient-shell-heading-font-weight: 300;
+  --patient-surface-neutral-bg: var(--patient-card-bg);
+  --patient-surface-neutral-border: var(--patient-border);
+  --patient-surface-neutral-text: var(--patient-text-primary);
+  --patient-surface-neutral-accent: var(--patient-color-primary);
+  --patient-surface-info-bg: var(--patient-color-primary-soft);
+  --patient-surface-info-border: color-mix(in srgb, var(--patient-color-primary) 32%, #ffffff);
+  --patient-surface-info-text: var(--patient-text-primary);
+  --patient-surface-info-accent: var(--patient-color-primary);
+  --patient-surface-success-bg: var(--patient-color-success-soft);
+  --patient-surface-success-border: var(--patient-action-success-border);
+  --patient-surface-success-text: var(--patient-text-primary);
+  --patient-surface-success-accent: var(--patient-color-success);
+  --patient-surface-warning-bg: var(--patient-color-warning-soft);
+  --patient-surface-warning-border: var(--patient-action-warning-border);
+  --patient-surface-warning-text: var(--patient-text-primary);
+  --patient-surface-warning-accent: var(--patient-color-warning);
+  --patient-surface-danger-bg: var(--patient-color-danger-soft);
+  --patient-surface-danger-border: #fecaca;
+  --patient-surface-danger-text: var(--patient-text-primary);
+  --patient-surface-danger-accent: var(--patient-color-danger);
 }
 
 #app-shell-patient {
@@ -96,60 +196,8 @@
   --patient-content-dvh: calc(
     var(--patient-shell-inner-dvh) - var(--patient-bottom-nav-content-gap)
   );
-  --patient-page-bg: #ffffff;
-  --patient-card-bg: #ffffff;
-  --patient-border: #e5e7eb;
-  --patient-card-radius-mobile: 6px;
-  --patient-card-radius-desktop: 8px;
-  --patient-hero-radius-mobile: 8px;
-  --patient-hero-radius-desktop: 10px;
-  --patient-pill-radius: 6px;
-  --patient-shadow-card-mobile: 0 4px 14px rgba(15, 23, 42, 0.04);
-  --patient-shadow-card-desktop: 0 8px 24px rgba(15, 23, 42, 0.05);
-  --patient-shadow-nav: 0 -4px 16px rgba(15, 23, 42, 0.04);
-  --patient-color-primary: var(--patient-brand-accent, #284da0);
-  --patient-color-primary-soft: #e8eefb;
-  --patient-color-success: #16a34a;
-  --patient-color-success-soft: #ecfdf3;
-  --patient-simple-complete-done-bg: rgba(74, 152, 110, 0.76);
-  --patient-simple-complete-done-text: rgba(255, 255, 255, 0.93);
-  --patient-color-warning: #f59e0b;
-  --patient-color-warning-soft: #fffaeb;
-  --patient-color-danger: #ef4444;
-  --patient-color-danger-soft: #fef2f2;
-  --patient-text-primary: #111827;
-  --patient-text-secondary: #667085;
-  --patient-text-muted: #98a2b3;
-  --patient-text-muted-strong: #6d7789;
-  --patient-block-heading: #172f62;
-  --patient-block-heading-font-size: 1rem;
-  --patient-block-heading-line-height: 1.5rem;
-  --patient-block-heading-font-weight: 400;
-  --patient-shell-heading-font-weight: 300;
-  --patient-block-caption: #465880;
-  --patient-surface-neutral-bg: var(--patient-card-bg);
-  --patient-surface-neutral-border: var(--patient-border);
-  --patient-surface-neutral-text: var(--patient-text-primary);
-  --patient-surface-neutral-accent: var(--patient-color-primary);
-  --patient-surface-info-bg: var(--patient-color-primary-soft);
-  --patient-surface-info-border: color-mix(in srgb, var(--patient-color-primary) 32%, #ffffff);
-  --patient-surface-info-text: var(--patient-text-primary);
-  --patient-surface-info-accent: var(--patient-color-primary);
-  --patient-surface-success-bg: var(--patient-color-success-soft);
-  --patient-surface-success-border: #bbf7d0;
-  --patient-surface-success-text: var(--patient-text-primary);
-  --patient-surface-success-accent: var(--patient-color-success);
-  --patient-surface-warning-bg: var(--patient-color-warning-soft);
-  --patient-surface-warning-border: #fde68a;
-  --patient-surface-warning-text: var(--patient-text-primary);
-  --patient-surface-warning-accent: var(--patient-color-warning);
-  --patient-surface-danger-bg: var(--patient-color-danger-soft);
-  --patient-surface-danger-border: #fecaca;
-  --patient-surface-danger-text: var(--patient-text-primary);
-  --patient-surface-danger-accent: var(--patient-color-danger);
-  --patient-bg: #ffffff;
-  --patient-surface: #ffffff;
-  background-color: #ffffff;
+  --patient-color-primary: var(--patient-brand-accent, var(--patient-color-primary-default));
+  background-color: var(--patient-page-bg);
 }
 
 @media (min-width: 431px) and (max-width: 767px) {
@@ -207,7 +255,7 @@
 }
 
 #app-shell-patient > main#app-shell-content {
-  background-color: #ffffff;
+  background-color: var(--patient-page-bg);
 }
 
 /**
@@ -274,10 +322,10 @@
 }
 
 .material-rating-stars.rr--group {
-  --rr--fill-on-color: #f7965c;
-  --rr--fill-off-color: #fff7ed;
-  --rr--stroke-on-color: #bb5e26;
-  --rr--stroke-off-color: #eda76a;
+  --rr--fill-on-color: var(--patient-rating-fill-on);
+  --rr--fill-off-color: var(--patient-rating-fill-off);
+  --rr--stroke-on-color: var(--patient-rating-stroke-on);
+  --rr--stroke-off-color: var(--patient-rating-stroke-off);
   display: flex;
   position: relative;
   flex-wrap: nowrap;

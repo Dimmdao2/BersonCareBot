@@ -7,10 +7,11 @@ import {
   boolean,
   timestamp,
   index,
+  uniqueIndex,
   foreignKey,
   check,
 } from 'drizzle-orm/pg-core';
-import { platformUsers } from './schema';
+import { platformUsers, symptomTrackings } from './schema';
 import { beAppointments, beOrganizations } from './bookingEngine';
 
 /**
@@ -142,6 +143,13 @@ export const clinicalComplaint = pgTable(
     status: text('status').default('active').notNull(),
     /** Null when the specialist records the symptom directly from the patient card. */
     sourceVisitId: uuid('source_visit_id'),
+    /**
+     * Дневник симптомов пациента для этой жалобы: ровно одно отслеживание на жалобу
+     * (частичный uniq ниже) и обратно. Связь durable — по id, НЕ по совпадению названия.
+     * NULL допустим только у жалобы, чей трекинг ещё не заведён (или был удалён врачом
+     * из вкладки дневника); ближайшая запись severity заводит его заново.
+     */
+    symptomTrackingId: uuid('symptom_tracking_id'),
     resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -150,6 +158,9 @@ export const clinicalComplaint = pgTable(
   (table) => [
     index('idx_clinical_complaint_organization_id').on(table.organizationId),
     index('idx_clinical_complaint_patient_user_id').on(table.patientUserId),
+    uniqueIndex('uq_clinical_complaint_symptom_tracking_id')
+      .on(table.symptomTrackingId)
+      .where(sql`symptom_tracking_id IS NOT NULL`),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
@@ -165,6 +176,11 @@ export const clinicalComplaint = pgTable(
       foreignColumns: [clinicalVisit.id],
       name: 'clinical_complaint_source_visit_id_fkey',
     }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.symptomTrackingId],
+      foreignColumns: [symptomTrackings.id],
+      name: 'clinical_complaint_symptom_tracking_id_fkey',
+    }).onDelete('set null'),
     check(
       'clinical_complaint_status_check',
       sql`status = ANY (ARRAY['active'::text, 'resolved'::text])`,

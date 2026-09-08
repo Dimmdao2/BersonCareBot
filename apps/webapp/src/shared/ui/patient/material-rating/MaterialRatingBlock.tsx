@@ -12,6 +12,7 @@ import { ruRatingCountLabel } from '@/shared/lib/ruRatingCountLabel';
 import type { MaterialRatingTargetKind } from '@/modules/material-rating/types';
 import { MaterialRatingNativeStars } from './MaterialRatingNativeStars';
 import { usePatientRuntimeFeatures } from '@/shared/ui/patient/PatientRuntimeFeaturesContext';
+import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
 
 export type MaterialRatingBlockProps = {
   targetKind: MaterialRatingTargetKind;
@@ -65,10 +66,10 @@ function fetchApiUrl(pathWithLeadingSlash: string): string {
 const MATERIAL_RATING_ITEM_STYLES = {
   itemShapes: RatingStarShape,
   itemStrokeWidth: 2,
-  activeFillColor: '#f7965c',
-  inactiveFillColor: '#fff7ed',
-  activeStrokeColor: '#bb5e26',
-  inactiveStrokeColor: '#eda76a',
+  activeFillColor: 'var(--patient-rating-fill-on)',
+  inactiveFillColor: 'var(--patient-rating-fill-off)',
+  activeStrokeColor: 'var(--patient-rating-stroke-on)',
+  inactiveStrokeColor: 'var(--patient-rating-stroke-off)',
 } as const;
 
 type SmastromBoundaryProps = {
@@ -116,6 +117,7 @@ function EnabledMaterialRatingBlock({
   const [value, setValue] = useState(0);
   /** После подтверждения «Изменить оценку» — снова полноразмерный выбор (до сохранения новой). */
   const [editRatingPicker, setEditRatingPicker] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const interactive = !readOnly && !guest && !needsActivation;
@@ -299,8 +301,16 @@ function EnabledMaterialRatingBlock({
                   key={n}
                   size={15}
                   className="shrink-0"
-                  fill={filled ? '#f7965c' : '#fff7ed'}
-                  stroke={filled ? '#bb5e26' : '#eda76a'}
+                  fill={
+                    filled
+                      ? 'var(--patient-rating-fill-on)'
+                      : 'var(--patient-rating-fill-off)'
+                  }
+                  stroke={
+                    filled
+                      ? 'var(--patient-rating-stroke-on)'
+                      : 'var(--patient-rating-stroke-off)'
+                  }
                   strokeWidth={1.5}
                 />
               );
@@ -314,11 +324,7 @@ function EnabledMaterialRatingBlock({
                 patientMutedTextClass,
                 'cursor-pointer border-0 bg-transparent p-0 text-[11px] font-normal underline decoration-muted-foreground/55 underline-offset-2 hover:opacity-90',
               )}
-              onClick={() => {
-                if (!window.confirm('Сбросить вашу прошлую оценку?')) return;
-                setEditRatingPicker(true);
-                setValue(0);
-              }}
+              onClick={() => setResetConfirmOpen(true)}
             >
               Изменить оценку
             </Button>
@@ -342,6 +348,20 @@ function EnabledMaterialRatingBlock({
           />
         </MaterialRatingSmastromBoundary>
       ) : null}
+      <PatientConfirmModal
+        open={resetConfirmOpen}
+        onClose={() => setResetConfirmOpen(false)}
+        onConfirm={() => {
+          setResetConfirmOpen(false);
+          setEditRatingPicker(true);
+          setValue(0);
+        }}
+        title="Изменить оценку?"
+        confirmLabel="Изменить"
+        nested
+      >
+        Прошлая оценка будет заменена после выбора нового значения.
+      </PatientConfirmModal>
     </div>
   );
 }

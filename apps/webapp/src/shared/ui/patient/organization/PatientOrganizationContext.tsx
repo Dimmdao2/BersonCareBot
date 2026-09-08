@@ -23,6 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/patient/primitives/select';
+import {
+  patientListItemClass,
+  patientSurfaceInfoClass,
+  patientSurfaceWarningClass,
+} from '@/shared/ui/patient/patientVisual';
+import { cn } from '@/lib/utils';
 
 export type PatientOrganizationClientContext = {
   organization: PatientOrganizationSummary;
@@ -168,7 +174,10 @@ export function PatientOrganizationContextBar() {
   return (
     <div className="grid w-full min-w-0 shrink-0 gap-2 patient-shell-above-slot-pad">
       <div
-        className="mx-auto flex w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-[var(--patient-border)] bg-white/95 px-3 py-2 text-sm shadow-sm"
+        className={cn(
+          patientListItemClass,
+          'mx-auto flex w-full min-w-0 items-center justify-between gap-2 bg-white/95 px-3 py-2 text-sm shadow-sm',
+        )}
         data-testid="patient-organization-context"
       >
         <Link
@@ -211,7 +220,7 @@ export function PatientOrganizationContextBar() {
       {context.contextChangeNotice ? (
         <div
           role="status"
-          className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-950"
+          className={cn(patientSurfaceInfoClass, 'px-3 py-2 text-sm')}
           data-testid="patient-organization-changed-notice"
         >
           Открыта организация «{context.organization.title}».{' '}
@@ -265,7 +274,7 @@ export function PatientOrganizationRecoveryScreen({
           : 'Сейчас у аккаунта нет активной связи с организацией. Обратитесь к своему специалисту.'}
       </p>
       {invalidRememberedOrganization ? (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <p className={cn(patientSurfaceWarningClass, 'px-3 py-2 text-sm')}>
           Ранее выбранная организация больше недоступна. Выберите другую.
         </p>
       ) : null}

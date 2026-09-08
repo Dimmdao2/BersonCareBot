@@ -3,11 +3,11 @@ import { Badge } from '@/shared/ui/patient/primitives/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/primitives/card';
 import { cn } from '@/lib/utils';
 import { routePaths } from '@/app-layer/routes/paths';
-import { patientCardClass, patientPrimaryActionClass } from '@/shared/ui/patient/patientVisual';
+import { patientPrimaryActionClass } from '@/shared/ui/patient/patientVisual';
 
 export function CabinetBookingEntry() {
   return (
-    <Card className={cn(patientCardClass, 'ring-0')}>
+    <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base">Новая запись</CardTitle>

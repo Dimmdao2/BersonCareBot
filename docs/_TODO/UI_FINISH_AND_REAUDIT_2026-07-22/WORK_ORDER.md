@@ -1,5 +1,9 @@
 # WORK ORDER — довести Doctor/SaaS UI до настоящего PASS и вычистить интегратор (Track D)
 
+> **OWNER CORRECTION 2026-09-08:** требования этого документа восстановить Design DNA v1.0/v1.1,
+> Nunito и выведенные из DNA exact visual tokens **SUPERSEDED**. Архивный DNA не исполнять; текущий
+> doctor visual layer определяется `AGENTS.md` §16, doctor style guide и живыми doctor primitives/tokens.
+
 **Владелец:** Dmitry Berson · **Создан:** 2026-07-22 · **Эта машина = DEV + TEST, прода здесь нет.**
 
 ---

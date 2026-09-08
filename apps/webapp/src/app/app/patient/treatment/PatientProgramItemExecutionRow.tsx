@@ -33,7 +33,7 @@ function ExecutionDots(props: {
           key={i}
           className={cn(
             'size-2 shrink-0 rounded-full',
-            green ? 'bg-[#16a34a]' : 'bg-muted-foreground/35',
+            green ? 'bg-[var(--patient-color-success)]' : 'bg-muted-foreground/35',
           )}
           aria-hidden
         />

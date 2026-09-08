@@ -8,8 +8,7 @@ import { PatientProgramPassageStatisticsSection } from '@/app/app/patient/treatm
 import { PatientProgramControlCard } from '@/app/app/patient/treatment/program-detail/PatientProgramControlCard';
 import { patientInnerPageStackClass } from '@/shared/ui/patient/patientVisual';
 import { AppContentLoading } from '@/shared/ui/AppContentLoading';
-import { cn } from '@/lib/utils';
-import type { PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab';
+import { PatientSegmentedTabPanel } from '@/shared/ui/patient/PatientSegmentedStrip';
 
 const PatientTreatmentTabProgramLazy = lazy(() =>
   import('@/app/app/patient/treatment/PatientTreatmentTabProgram').then((m) => ({
@@ -25,7 +24,6 @@ const PatientTreatmentTabRecommendationsLazy = lazy(() =>
 type StageRow = TreatmentProgramInstanceDetail['stages'][number];
 
 export function PatientPlanTabPanels(props: {
-  activeTab: PatientPlanTab;
   detail: TreatmentProgramInstanceDetail;
   programTabStage: StageRow | null;
   pipelineLength: number;
@@ -52,7 +50,6 @@ export function PatientPlanTabPanels(props: {
   programMediaInteraction: { visible: boolean; enabled: boolean };
 }) {
   const {
-    activeTab,
     detail,
     programTabStage,
     pipelineLength,
@@ -77,11 +74,7 @@ export function PatientPlanTabPanels(props: {
 
   return (
     <>
-      <div
-        className={cn(activeTab !== 'program' && 'hidden')}
-        role="tabpanel"
-        aria-label="Программа"
-      >
+      <PatientSegmentedTabPanel value="program">
         <Suspense fallback={<AppContentLoading className="py-10" />}>
           <PatientTreatmentTabProgramLazy
             instanceId={detail.id}
@@ -99,13 +92,9 @@ export function PatientPlanTabPanels(props: {
             programMediaInteraction={programMediaInteraction}
           />
         </Suspense>
-      </div>
+      </PatientSegmentedTabPanel>
 
-      <div
-        className={cn(activeTab !== 'recommendations' && 'hidden')}
-        role="tabpanel"
-        aria-label="Рекомендации"
-      >
+      <PatientSegmentedTabPanel value="recommendations">
         <Suspense fallback={<AppContentLoading className="py-10" />}>
           <PatientTreatmentTabRecommendationsLazy
             instanceId={detail.id}
@@ -114,13 +103,9 @@ export function PatientPlanTabPanels(props: {
             itemLinksPlanTab="recommendations"
           />
         </Suspense>
-      </div>
+      </PatientSegmentedTabPanel>
 
-      <div
-        className={cn(activeTab !== 'progress' && 'hidden')}
-        role="tabpanel"
-        aria-label="Прогресс"
-      >
+      <PatientSegmentedTabPanel value="progress">
         <div className={patientInnerPageStackClass}>
           {stagesTimeline.length > 0 ? (
             <div className="min-w-0">
@@ -149,7 +134,7 @@ export function PatientPlanTabPanels(props: {
             refreshToken={statsRefreshToken}
           />
         </div>
-      </div>
+      </PatientSegmentedTabPanel>
     </>
   );
 }

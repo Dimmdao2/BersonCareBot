@@ -4,6 +4,12 @@ import { useRef, useState } from 'react';
 import type { PatientOrganizationSummary } from '@/modules/patient-organization/service';
 import { routePaths } from '@/app-layer/routes/paths';
 import { Button } from '@/shared/ui/patient/primitives/button';
+import {
+  patientListItemClass,
+  patientSurfaceNeutralClass,
+  patientSurfaceWarningClass,
+} from '@/shared/ui/patient/patientVisual';
+import { cn } from '@/lib/utils';
 
 type Navigate = (href: string) => void;
 
@@ -49,7 +55,7 @@ export function PatientOrganizationRelationships({
   return (
     <div className="grid gap-3">
       {invalidRememberedOrganization || destinationUnavailable || reminderTargetMissing ? (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+        <p className={cn(patientSurfaceWarningClass, 'px-3 py-2 text-sm')}>
           {reminderTargetMissing
             ? 'Не удалось определить организацию из этой ссылки. Выберите её вручную.'
             : 'Ранее выбранная организация больше недоступна. Выберите доступную.'}
@@ -63,7 +69,10 @@ export function PatientOrganizationRelationships({
             return (
               <div
                 key={organization.organizationId}
-                className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[var(--patient-border)] bg-white px-4 py-3"
+                className={cn(
+                  patientListItemClass,
+                  'flex min-w-0 items-center justify-between gap-3 bg-white px-4 py-3',
+                )}
               >
                 <div className="min-w-0">
                   <p className="truncate font-medium text-[var(--patient-text-primary)]">
@@ -93,7 +102,7 @@ export function PatientOrganizationRelationships({
           })}
         </div>
       ) : (
-        <div className="rounded-xl border border-[var(--patient-border)] bg-white px-4 py-4">
+        <div className={cn(patientSurfaceNeutralClass, 'bg-white px-4 py-4')}>
           <p className="font-medium text-[var(--patient-text-primary)]">Нет активных организаций</p>
           <p className="mt-1 text-sm text-[var(--patient-text-secondary)]">
             Обратитесь к специалисту или клинике, чтобы восстановить сопровождение.

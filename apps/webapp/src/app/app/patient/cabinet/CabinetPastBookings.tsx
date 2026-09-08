@@ -15,8 +15,6 @@ import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTi
 import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
 import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
 import {
-  patientCardClass,
-  patientListItemClass,
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
 import { bookingProvenancePrefix, nativeBookingSubtitle } from './patientBookingLabels';
@@ -45,7 +43,7 @@ function nativePastStatusRight(status: PatientBookingRecord['status']): ReactNod
 
 export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
   return (
-    <Card className={cn(patientCardClass, 'ring-0')}>
+    <Card>
       <Collapsible defaultOpen={items.length > 0}>
         <CardHeader className="pb-2">
           <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 text-left">
@@ -70,11 +68,11 @@ export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
                   appDisplayTimeZone,
                 );
                 return (
-                <div
+                <Card
                   key={booking.id}
+                  variant="list"
                   className={cn(
-                    patientListItemClass,
-                    'flex items-center justify-between gap-2 !px-3 !py-2',
+                    'flex items-center justify-between gap-2 px-3 py-2',
                   )}
                 >
                   <div className="min-w-0">
@@ -91,7 +89,7 @@ export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
                     </p>
                   </div>
                   {nativePastStatusRight(booking.status)}
-                </div>
+                </Card>
                 );
               })
             )}

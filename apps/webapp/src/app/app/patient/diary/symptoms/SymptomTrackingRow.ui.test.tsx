@@ -76,4 +76,22 @@ describe('SymptomTrackingRow: manual symptom entry', () => {
       window.removeEventListener(DIARY_SYMPTOM_ENTRY_SAVED_EVENT, saved);
     }
   });
+
+  it('requires an in-app confirmation before saving a second instant entry', async () => {
+    const user = await openModalAndPick('4');
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(fakes.addSymptomEntry).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole('button', { name: '5' }));
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    expect(fakes.addSymptomEntry).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('dialog', { name: 'Повторная запись' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить ещё одну' }));
+    await waitFor(() => expect(fakes.addSymptomEntry).toHaveBeenCalledTimes(2));
+    const sent = fakes.addSymptomEntry.mock.calls[1]![0] as FormData;
+    expect(sent.get('value')).toBe('5');
+  });
 });

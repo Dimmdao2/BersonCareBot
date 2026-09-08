@@ -20,6 +20,11 @@ import {
   patientChatMetaLineClass,
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
+import {
+  patientChatBubbleClass,
+  patientChatBubbleRowClass,
+  patientChatMetaWidthClass,
+} from '@/shared/ui/patient/patientChatVisual';
 import { chatMessageDeliveryStatus } from '../chatMessageDeliveryStatus';
 import {
   formatChatMessageTimeRu,
@@ -34,9 +39,6 @@ function isAlignedRight(senderRole: string, variant: Variant): boolean {
   if (variant === 'patient') return senderRole === 'user';
   return senderRole === 'admin';
 }
-
-const bubbleRadiusPatientChatClass =
-  'rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]';
 
 const URL_RE = /(https?:\/\/[^\s<>"']+)/gi;
 const TRAILING_URL_PUNCTUATION_RE = /[),.;:!?]+$/;
@@ -135,18 +137,6 @@ export function ChatView({
     variant === 'doctor' && 'px-4',
   );
 
-  const patientBubbleMine = cn(
-    'max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]',
-    bubbleRadiusPatientChatClass,
-    chatBubbleOwnClass,
-  );
-
-  const patientBubbleOther = cn(
-    'max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]',
-    bubbleRadiusPatientChatClass,
-    chatBubblePeerClass,
-  );
-
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)}>
       <div
@@ -176,11 +166,16 @@ export function ChatView({
               >
                 <div
                   className={cn(
-                    'flex max-w-[min(100%,22rem)]',
+                    patientChatBubbleRowClass,
                     mine ? 'justify-end' : 'justify-start',
                   )}
                 >
-                  <div className={mine ? patientBubbleMine : patientBubbleOther}>
+                  <div
+                    className={cn(
+                      patientChatBubbleClass,
+                      mine ? chatBubbleOwnClass : chatBubblePeerClass,
+                    )}
+                  >
                     {m.mediaUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -213,7 +208,7 @@ export function ChatView({
                 {!mine ? (
                   <p
                     className={cn(
-                      'max-w-[min(100%,22rem)] md:max-w-[min(100%,24rem)]',
+                      patientChatMetaWidthClass,
                       patientRelative
                         ? patientChatMetaLineClass
                         : 'text-[11px] leading-snug tabular-nums text-muted-foreground',

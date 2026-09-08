@@ -116,7 +116,12 @@ export function PatientSupportForm({
           {message.length} / {MAX_LEN}
         </p>
       </div>
-      <Button type="button" onClick={() => void submit()} disabled={loading}>
+      <Button
+        type="button"
+        variant="patient-primary"
+        onClick={() => void submit()}
+        disabled={loading}
+      >
         {loading ? 'Отправка…' : 'Отправить'}
       </Button>
     </div>

@@ -16,6 +16,8 @@ import {
 } from '@/shared/ui/patient/primitives/dropdown-menu';
 import { Input } from '@/shared/ui/patient/primitives/input';
 import { Textarea } from '@/shared/ui/patient/primitives/textarea';
+import { PatientField } from '@/shared/ui/patient/PatientField';
+import { patientFieldLabelClassName } from '@/shared/ui/patient/primitives/label';
 import {
   Select,
   SelectContent,
@@ -30,6 +32,7 @@ import { JournalMonthNav } from '../../JournalMonthNav';
 import { deleteSymptomJournalEntry, updateSymptomJournalEntry } from '../actions';
 import { isSymptomJournalEntryEditable } from '../symptomJournalEditWindow';
 import { patientListItemClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
 
 function pad2(n: number) {
   return String(n).padStart(2, '0');
@@ -53,6 +56,7 @@ export function SymptomsJournalClient(props: {
   const { entries, trackings, activeTrackingId, monthYm, period, offset } = props;
   const router = useRouter();
   const [editEntry, setEditEntry] = useState<SymptomEntry | null>(null);
+  const [deleteEntry, setDeleteEntry] = useState<SymptomEntry | null>(null);
   const [pending, startTransition] = useTransition();
 
   const symptomJournalTrackingSelectItems = useMemo(
@@ -90,7 +94,7 @@ export function SymptomsJournalClient(props: {
             }}
             items={symptomJournalTrackingSelectItems}
           >
-            <SelectTrigger className="h-10 w-full min-w-[200px] rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
+            <SelectTrigger variant="journal">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -105,9 +109,7 @@ export function SymptomsJournalClient(props: {
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <span className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
-          Период (календарный месяц)
-        </span>
+        <span className={patientFieldLabelClassName}>Период (календарный месяц)</span>
         <JournalMonthNav
           basePath={routePaths.diarySymptomsJournal}
           monthYm={monthYm}
@@ -165,23 +167,7 @@ export function SymptomsJournalClient(props: {
                         Редактировать
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onClick={() => {
-                        if (!window.confirm('Удалить эту запись?')) return;
-                        startTransition(async () => {
-                          const fd = new FormData();
-                          fd.set('entryId', e.id);
-                          const res = await deleteSymptomJournalEntry(fd);
-                          if (res.ok) {
-                            toast.success('Запись удалена');
-                            router.refresh();
-                          } else {
-                            toast.error(res.message ?? 'Не удалось удалить');
-                          }
-                        });
-                      }}
-                    >
+                    <DropdownMenuItem variant="destructive" onClick={() => setDeleteEntry(e)}>
                       Удалить
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -237,16 +223,10 @@ export function SymptomsJournalClient(props: {
                 });
               }}
             >
-              <label className="flex flex-col gap-1">
-                <span
-                  className={cn(
-                    patientMutedTextClass,
-                    'text-xs font-medium uppercase tracking-wide',
-                  )}
-                >
-                  Интенсивность (0–10)
-                </span>
+              <PatientField label="Интенсивность (0–10)" htmlFor="symptom-journal-value">
                 <Input
+                  id="symptom-journal-value"
+                  variant="journal"
                   type="number"
                   name="value"
                   min={0}
@@ -254,40 +234,37 @@ export function SymptomsJournalClient(props: {
                   required
                   defaultValue={editEntry.value0_10}
                 />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span
-                  className={cn(
-                    patientMutedTextClass,
-                    'text-xs font-medium uppercase tracking-wide',
-                  )}
-                >
-                  Дата и время
-                </span>
+              </PatientField>
+              <PatientField label="Дата и время" htmlFor="symptom-journal-recorded-at">
                 <Input
+                  id="symptom-journal-recorded-at"
+                  variant="journal"
                   type="datetime-local"
                   name="recordedAtLocal"
                   required
                   defaultValue={toDatetimeLocalValue(editEntry.recordedAt)}
                 />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span
-                  className={cn(
-                    patientMutedTextClass,
-                    'text-xs font-medium uppercase tracking-wide',
-                  )}
-                >
-                  Заметки
-                </span>
-                <Textarea name="notes" rows={3} defaultValue={editEntry.notes ?? ''} />
-              </label>
+              </PatientField>
+              <PatientField label="Заметки" htmlFor="symptom-journal-notes">
+                <Textarea
+                  id="symptom-journal-notes"
+                  name="notes"
+                  variant="journal"
+                  rows={3}
+                  defaultValue={editEntry.notes ?? ''}
+                />
+              </PatientField>
               <PatientModalFooter>
                 <Button type="button" variant="outline" onClick={() => setEditEntry(null)}>
                   Отмена
                 </Button>
                 {/* Футер живёт вне DOM-дерева формы (портал), поэтому связь — атрибутом `form`. */}
-                <Button type="submit" form={SYMPTOM_JOURNAL_EDIT_FORM_ID} disabled={pending}>
+                <Button
+                  type="submit"
+                  variant="patient-primary"
+                  form={SYMPTOM_JOURNAL_EDIT_FORM_ID}
+                  disabled={pending}
+                >
                   Сохранить
                 </Button>
               </PatientModalFooter>
@@ -295,6 +272,32 @@ export function SymptomsJournalClient(props: {
           )
         ) : null}
       </PatientModal>
+      <PatientConfirmModal
+        open={deleteEntry !== null}
+        onClose={() => setDeleteEntry(null)}
+        onConfirm={() => {
+          if (!deleteEntry) return;
+          const entryId = deleteEntry.id;
+          startTransition(async () => {
+            const fd = new FormData();
+            fd.set('entryId', entryId);
+            const res = await deleteSymptomJournalEntry(fd);
+            if (res.ok) {
+              toast.success('Запись удалена');
+              setDeleteEntry(null);
+              router.refresh();
+            } else {
+              toast.error(res.message ?? 'Не удалось удалить');
+            }
+          });
+        }}
+        title="Удалить запись?"
+        confirmLabel="Удалить"
+        pending={pending}
+        destructive
+      >
+        Это действие нельзя отменить.
+      </PatientConfirmModal>
     </div>
   );
 }

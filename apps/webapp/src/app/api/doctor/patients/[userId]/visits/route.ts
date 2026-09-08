@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { requireDoctorWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { resolvePatientSymptomTrackingDefault } from '@/app-layer/doctor/patientSymptomTrackingVisibility';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 const severitySchema = z.number().int().min(0).max(10);
@@ -140,6 +141,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   }
   const patientUserId = identity.userId;
 
+  const patientSymptomTrackingEnabled = writesMedicalRecord
+    ? await withDoctorWorkspacePrincipal(gate.ctx, () =>
+        resolvePatientSymptomTrackingDefault(deps, {
+          organizationId: gate.ctx.organizationId,
+          patientUserId,
+        }),
+      )
+    : false;
+
   let visitId: string;
   try {
     visitId = await withDoctorWorkspacePrincipal(gate.ctx, () =>
@@ -161,6 +171,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
         diagnoses: b.diagnoses,
         complaintUpdates: b.complaintUpdates,
         diagnosisUpdates: b.diagnosisUpdates,
+        patientSymptomTrackingEnabled,
       }),
     );
   } catch (error) {

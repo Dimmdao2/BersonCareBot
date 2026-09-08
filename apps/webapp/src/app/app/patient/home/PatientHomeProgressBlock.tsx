@@ -155,7 +155,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                 </div>
                 {showGoal ? (
                   <div
-                    className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#e5e7eb]"
+                    className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[var(--patient-border)]"
                     role="progressbar"
                     aria-valuenow={displayDone}
                     aria-valuemin={0}

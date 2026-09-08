@@ -3,6 +3,7 @@
 import {
   createContext,
   type ReactNode,
+  type RefObject,
   useContext,
   useLayoutEffect,
   useMemo,
@@ -34,7 +35,7 @@ import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
  * по ширине кнопки на mobile. Живёт здесь, чтобы у экранов не появлялось локальных копий.
  */
 const patientModalFooterBarClass =
-  'grid shrink-0 grid-flow-col auto-cols-fr gap-2 border-t border-[var(--patient-border)] bg-[rgba(248,250,252,0.9)] px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] [&>*]:min-w-0 [&>*]:w-full max-sm:[&>div]:contents max-sm:[&>div>*]:w-full sm:flex sm:justify-end sm:[&>*]:w-auto';
+  'grid shrink-0 grid-flow-col auto-cols-fr gap-2 border-t border-[var(--patient-border)] bg-[var(--patient-modal-footer-bg)] px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] [&>*]:min-w-0 [&>*]:w-full max-sm:[&>div]:contents max-sm:[&>div>*]:w-full sm:flex sm:justify-end sm:[&>*]:w-auto';
 
 type PatientModalFooterSlot = {
   container: HTMLElement | null;
@@ -101,6 +102,8 @@ type PatientModalProps = {
   nested?: boolean;
   /** Полноэкранный просмотр медиа, оставляющий нижнюю модалку смонтированной. */
   presentation?: PatientModalPresentation;
+  /** Куда вернуть фокус после закрытия программно открытой модалки. */
+  returnFocusRef?: RefObject<HTMLElement | null>;
 };
 
 /**
@@ -133,6 +136,7 @@ export function PatientModal({
   bodyVariant = 'default',
   nested = false,
   presentation = 'standard',
+  returnFocusRef,
 }: PatientModalProps) {
   const isMobile = useIsMobileViewport();
   const { isNestedLayer, parentDepth } = usePatientModalLayer(nested);
@@ -235,6 +239,7 @@ export function PatientModal({
         <PatientModalLayerProvider depth={layerDepth}>
           <Drawer open={open} onOpenChange={handleOpenChange}>
             <DrawerContent
+              finalFocus={returnFocusRef}
               showCloseButton={false}
               showHandle
               showOverlay={showOverlay}
@@ -252,6 +257,7 @@ export function PatientModal({
       <PatientModalLayerProvider depth={layerDepth}>
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogContent
+            finalFocus={returnFocusRef}
             fullScreen
             showCloseButton={false}
             showOverlay={showOverlay}
@@ -270,6 +276,7 @@ export function PatientModal({
       <PatientModalLayerProvider depth={layerDepth}>
         <Drawer open={open} onOpenChange={handleOpenChange}>
           <DrawerContent
+            finalFocus={returnFocusRef}
             showCloseButton={false}
             showOverlay={showOverlay}
             className="gap-0 bg-[var(--patient-card-bg)] p-0"
@@ -298,6 +305,7 @@ export function PatientModal({
     <PatientModalLayerProvider depth={layerDepth}>
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent
+          finalFocus={returnFocusRef}
           showCloseButton
           showOverlay={showOverlay}
           className={cn(

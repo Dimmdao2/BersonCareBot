@@ -44,7 +44,7 @@ export function PatientWebPushOnboardingCard() {
       size="sm"
       headerAction={
         <span
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#e8eefb] text-[#284da0]"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-color-primary-soft)] text-[var(--patient-color-primary)]"
           aria-hidden
         >
           <Bell className="size-5" />
@@ -75,7 +75,7 @@ function PushOnboardingActions({
         type="button"
         className={cn(
           patientButtonSecondaryClass,
-          'border-[#e5e7eb] bg-[#ffffff] hover:bg-[#e8eefb]/40 active:bg-[#e8eefb]/60',
+          'border-[var(--patient-border)] bg-[var(--patient-card-bg)] hover:bg-[var(--patient-color-primary-soft)]/40 active:bg-[var(--patient-color-primary-soft)]/60',
         )}
         disabled={busy}
         onClick={onDismiss}

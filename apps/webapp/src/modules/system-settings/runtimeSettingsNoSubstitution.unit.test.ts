@@ -139,6 +139,28 @@ describe('DB-backed product values', () => {
     );
   });
 
+  it('reads the organization patient label through its declared doctor scope', async () => {
+    const getEffective = vi.fn().mockResolvedValue({
+      key: 'patient_label',
+      scope: 'doctor',
+      organizationId: 'org-1',
+      audience: 'authenticated_client',
+      valueJson: { value: 'Клиенты' },
+    });
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(provider.getAuthenticatedString('patient_label', 'org-1')).resolves.toBe(
+      'Клиенты',
+    );
+    expect(getEffective).toHaveBeenCalledWith({
+      key: 'patient_label',
+      scope: 'doctor',
+      organizationId: 'org-1',
+      allowedAudiences: ['authenticated_client', 'public'],
+      operationFamily: 'patient_runtime_config',
+    });
+  });
+
   it('propagates a runtime-settings database error without substituting a value', async () => {
     const databaseError = new Error('database_unavailable');
     const provider = createRuntimeConfigProvider({

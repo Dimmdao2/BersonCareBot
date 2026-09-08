@@ -15,11 +15,11 @@ export const AUTH_LOGIN_ACCENT_TEXT_CLASS = 'text-[#1a3366]';
  * Общее «лицо» кнопок веб-входа: белый фон, синяя обводка и текст, `font-normal` (на ступень легче `font-medium`).
  */
 export const AUTH_LOGIN_BUTTON_FACE_CLASS = cn(
-  'rounded-md border border-[var(--patient-color-primary,#284da0)] bg-white text-sm font-normal shadow-none',
+  'rounded-md border border-[var(--patient-color-primary)] bg-white text-sm font-normal shadow-none',
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
   'hover:bg-[var(--patient-color-primary-soft)]/35 hover:text-[#1a3366]',
   'active:bg-[var(--patient-color-primary-soft)]/55 active:text-[#1a3366]',
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
 );
 
 /** OAuth / email / формы — фиксированная ширина ~242px в рядах OAuth-first при необходимости. */

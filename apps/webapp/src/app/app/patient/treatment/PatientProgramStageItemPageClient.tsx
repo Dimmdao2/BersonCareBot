@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Check, Camera, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { RecommendationMediaItem } from '@/modules/recommendations/types';
 import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 import { parseTestSetSnapshotTests } from '@/modules/treatment-program/testSetSnapshotView';
 import {
@@ -20,11 +19,6 @@ import type { PatientProgramItemNavMode } from '@/app/app/patient/treatment/pati
 import type { PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab';
 import { resolvePatientProgramItemPage } from '@/app/app/patient/treatment/patientProgramItemPageResolve';
 import { MarkdownContent } from '@/shared/ui/patient/markdown/MarkdownContent';
-import { PatientMediaPlaybackVideo } from '@/shared/ui/patient/media/PatientMediaPlaybackVideo';
-import { HostedVideoEmbed } from '@/shared/ui/patient/media/HostedVideoEmbed';
-import { MediaThumb } from '@/shared/ui/patient/media/MediaThumb';
-import { recommendationMediaItemToPreviewUi } from '@/shared/ui/patient/media/mediaPreviewUiModel';
-import { parseApiMediaIdFromPlayableUrl } from '@/shared/lib/parseApiMediaIdFromPlayableUrl';
 import {
   mergeLastActivityDisplayedIso,
   patientExerciseLoadTypeLabelRu,
@@ -52,6 +46,12 @@ import {
   patientSimpleCompleteDoneButtonToneClass,
 } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
+import {
+  PatientSegmentedPagerDisabledCell,
+  PatientSegmentedPagerLabel,
+  PatientSegmentedPagerLink,
+  PatientSegmentedStrip,
+} from '@/shared/ui/patient/PatientSegmentedStrip';
 import {
   PATIENT_SHELL_CONTAINER_CLASS,
   PATIENT_SHELL_MOBILE_MAX_CLASS,
@@ -81,6 +81,7 @@ import {
   postProgramItemComplete,
 } from '@/app/app/patient/treatment/postProgramItemComplete';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
+import { PatientProgramMediaBlock } from '@/app/app/patient/treatment/PatientProgramMediaBlock';
 
 const EMPTY_ORDERED_ITEM_IDS: string[] = [];
 
@@ -170,65 +171,6 @@ function pickFirstFiniteNum(...vals: unknown[]): number | null {
 }
 
 const ITEM_MAX_TODAY_DOTS = 24;
-
-function ModalMediaBlock(props: { media: RecommendationMediaItem | null; title: string }) {
-  const { media, title } = props;
-  if (!media) return null;
-
-  /*
-   * Внешнее видео занимает тот же слот, что и файловый плеер: у нас нет ни файла, ни HLS —
-   * ролик показывает сам хост в `<iframe>` (решение владельца 19.08). Проверка стоит до
-   * файловой ветки: та ищет id медиатеки в URL и на ссылку хостинга ответила бы отказом
-   * «видео без привязки к медиатеке».
-   */
-  if (media.mediaType === 'hosted_video') {
-    return (
-      <HostedVideoEmbed url={media.mediaUrl} title={title} className="shrink-0 rounded-none" />
-    );
-  }
-
-  if (media.mediaType === 'video') {
-    const mediaId = parseApiMediaIdFromPlayableUrl(media.mediaUrl);
-    if (!mediaId) {
-      return (
-        <div className="relative flex aspect-video w-full shrink-0 items-center justify-center bg-muted/30 px-3">
-          <p className={cn(patientMutedTextClass, 'text-center text-sm')}>
-            Видео без привязки к медиатеке нельзя воспроизвести здесь.
-          </p>
-        </div>
-      );
-    }
-    return (
-      <PatientMediaPlaybackVideo
-        mediaId={mediaId}
-        title={title}
-        initialPlayback={null}
-        shellClassName="relative aspect-video w-full shrink-0 overflow-hidden bg-black"
-      />
-    );
-  }
-
-  /**
-   * Through the door, not around it (owner ruling 19.08,
-   * `docs/_TODO/GET_IMAGE_ACCESSOR_2026-08-19.md`): `MediaThumb` decides thumbnail vs. stored
-   * re-encode vs. «готовится» vs. error from `media`'s true rendition state. The previous
-   * `media.previewMdUrl ?? media.previewSmUrl ?? media.mediaUrl` fallback always rendered an
-   * `<img>`, including for a file that was never converted — exactly the raw upload the standard
-   * rendition exists to keep off the wire.
-   */
-  return (
-    <div className="relative aspect-video w-full shrink-0 overflow-hidden bg-muted/20">
-      <MediaThumb
-        media={recommendationMediaItemToPreviewUi(media)}
-        className="h-full w-full"
-        imgClassName="h-full w-full object-contain"
-        alt={title}
-        lazy={false}
-        sizes="100vw"
-      />
-    </div>
-  );
-}
 
 function ModalDescriptionSection(props: { item: StageItem }) {
   const { item } = props;
@@ -701,16 +643,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#94a3b8]/40',
   );
 
-  const navButtonClass = (enabled: boolean) =>
-    cn(
-      'flex min-h-[2.75rem] flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold outline-none transition-colors duration-150 no-underline',
-      'bg-[#f8f3fd] text-[#444444]',
-      enabled && 'cursor-pointer hover:bg-[#ede8f8] active:bg-[#e4e2ff]',
-      enabled &&
-        'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--patient-color-primary,#284da0)]',
-      !enabled && 'pointer-events-none opacity-40',
-    );
-
   return (
     <div
       id="app-shell-patient"
@@ -800,45 +732,45 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             })()}
       </div>
 
-      <div
-        className="sticky top-0 z-[5] flex shrink-0 items-stretch gap-px border-b border-[var(--patient-border,#ddd6fe)] bg-[var(--patient-border,#ddd6fe)] shadow-sm"
+      <PatientSegmentedStrip
+        className="sticky top-0 z-[5] border-x-0 border-t-0"
         aria-label="Навигация по элементам"
       >
         {item && navEnabled && navPrevHref ? (
-          <Link href={navPrevHref} className={navButtonClass(true)} aria-label="Предыдущий элемент">
+          <PatientSegmentedPagerLink href={navPrevHref} aria-label="Предыдущий элемент">
             <ChevronLeft className="size-4 shrink-0" aria-hidden />
             <span className="sr-only sm:not-sr-only text-xs">Пред.</span>
-          </Link>
+          </PatientSegmentedPagerLink>
         ) : (
-          <span className={navButtonClass(false)} aria-hidden>
+          <PatientSegmentedPagerDisabledCell tone="faded">
             <ChevronLeft className="size-4 shrink-0 opacity-50" aria-hidden />
             <span className="sr-only sm:not-sr-only text-xs">Пред.</span>
-          </span>
+          </PatientSegmentedPagerDisabledCell>
         )}
 
         {navPositionLabel ? (
-          <div className="flex min-h-[2.75rem] items-center justify-center bg-[#f8f3fd] px-3 py-2 text-xs font-medium text-[#555555]">
+          <PatientSegmentedPagerLabel>
             {navPositionLabel}
-          </div>
+          </PatientSegmentedPagerLabel>
         ) : null}
 
         {item && navEnabled && navNextHref ? (
-          <Link href={navNextHref} className={navButtonClass(true)} aria-label="Следующий элемент">
+          <PatientSegmentedPagerLink href={navNextHref} aria-label="Следующий элемент">
             <span className="sr-only sm:not-sr-only text-xs">След.</span>
             <ChevronRight className="size-4 shrink-0" aria-hidden />
-          </Link>
+          </PatientSegmentedPagerLink>
         ) : (
-          <span className={navButtonClass(false)} aria-hidden>
+          <PatientSegmentedPagerDisabledCell tone="faded">
             <span className="sr-only sm:not-sr-only text-xs">След.</span>
             <ChevronRight className="size-4 shrink-0 opacity-50" aria-hidden />
-          </span>
+          </PatientSegmentedPagerDisabledCell>
         )}
-      </div>
+      </PatientSegmentedStrip>
 
       <div
         className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto', patientScrollbarHiddenClass)}
       >
-        <ModalMediaBlock media={primaryMedia} title={title} />
+        <PatientProgramMediaBlock media={primaryMedia} title={title} />
 
         {navMode === 'tests' && resolvedTestId
           ? (() => {
