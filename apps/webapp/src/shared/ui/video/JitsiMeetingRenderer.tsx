@@ -9,8 +9,6 @@ type JitsiApi = {
 };
 type JitsiConstructor = new (domain: string, options: Record<string, unknown>) => JitsiApi;
 
-const JITSI_SCRIPT_LOAD_TIMEOUT_MS = 15_000;
-
 declare global {
   interface Window {
     JitsiMeetExternalAPI?: JitsiConstructor;
@@ -35,7 +33,6 @@ async function loadJitsi(endpoint: string): Promise<JitsiConstructor> {
     const finish = (constructor?: JitsiConstructor) => {
       if (settled) return;
       settled = true;
-      window.clearTimeout(timeoutId);
       script.removeEventListener('load', loaded);
       script.removeEventListener('error', failed);
       if (constructor) {
@@ -49,7 +46,6 @@ async function loadJitsi(endpoint: string): Promise<JitsiConstructor> {
     };
     const loaded = () => finish(window.JitsiMeetExternalAPI);
     const failed = () => finish();
-    const timeoutId = window.setTimeout(failed, JITSI_SCRIPT_LOAD_TIMEOUT_MS);
     script.addEventListener('load', loaded, { once: true });
     script.addEventListener('error', failed, { once: true });
   });
@@ -66,15 +62,20 @@ async function loadJitsi(endpoint: string): Promise<JitsiConstructor> {
 export function JitsiMeetingRenderer({
   session,
   onHangup,
+  onDiagnostic,
 }: {
   session: VideoMeetingRenderSession;
   onHangup?: () => void;
+  onDiagnostic?: (diagnostic: { event: 'join' | 'error' | 'end'; durationMs?: number; transport?: 'p2p' | 'relay'; errorClass?: 'connection' | 'media' | 'provider' }) => void;
 }) {
   const targetRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<JitsiApi | null>(null);
   const onHangupRef = useRef(onHangup);
+  const onDiagnosticRef = useRef(onDiagnostic);
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+  const [retryNonce, setRetryNonce] = useState(0);
   onHangupRef.current = onHangup;
+  onDiagnosticRef.current = onDiagnostic;
   const endpoint = session.endpoint;
   const roomReference = session.roomReference;
 
@@ -84,6 +85,7 @@ export function JitsiMeetingRenderer({
       return;
     }
     let disposed = false;
+    let joinedAt: number | null = null;
     setState('loading');
     void loadJitsi(endpoint)
       .then((JitsiMeetExternalAPI) => {
@@ -96,16 +98,27 @@ export function JitsiMeetingRenderer({
             prejoinConfig: { enabled: false },
             disableDeepLinking: true,
             enableWelcomePage: false,
+            disableConferenceSubject: true,
           },
           interfaceConfigOverwrite: {
-            TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup'],
+            // The deployment configuration is the broad allowlist. iframe overrides only narrow
+            // it to controls exposed by the pinned External API bundle.
+            TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup', 'desktop', 'toggle-camera', 'fullscreen', 'settings', 'filmstrip', 'tileview', 'videoquality', 'select-background'],
             SHOW_JITSI_WATERMARK: false,
             SHOW_BRAND_WATERMARK: false,
             SHOW_POWERED_BY: false,
           },
         });
         apiRef.current = api;
-        api.addEventListener('readyToClose', () => onHangupRef.current?.());
+        api.addEventListener('videoConferenceJoined', () => {
+          joinedAt = Date.now();
+          onDiagnosticRef.current?.({ event: 'join' });
+        });
+        api.addEventListener('conferenceError', () => onDiagnosticRef.current?.({ event: 'error', errorClass: 'provider' }));
+        api.addEventListener('readyToClose', () => {
+          onDiagnosticRef.current?.({ event: 'end', ...(joinedAt ? { durationMs: Date.now() - joinedAt } : {}) });
+          onHangupRef.current?.();
+        });
         // Once Jitsi owns the iframe it must also own the connecting/error UI. Waiting for a
         // conference event here can permanently cover an already-rendering call when the automatic
         // join outruns External API listener registration.
@@ -121,14 +134,25 @@ export function JitsiMeetingRenderer({
     };
     // Token renewal is in-memory; dispose only when this joined room or its endpoint is replaced.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endpoint, roomReference]);
+  }, [endpoint, roomReference, retryNonce]);
 
   return (
     <div className="relative min-h-[320px] bg-black">
       <div ref={targetRef} className="min-h-[320px] w-full" />
       {state !== 'ready' ? (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-sm text-white">
-          {state === 'unavailable' ? 'Не удалось подключиться к звонку' : 'Подключение…'}
+          {state === 'unavailable' ? (
+            <div className="flex flex-col items-center gap-3">
+              <span>Не удалось подключиться к звонку</span>
+              <button
+                type="button"
+                className="rounded bg-white px-3 py-1.5 text-sm text-black"
+                onClick={() => setRetryNonce((value) => value + 1)}
+              >
+                Повторить
+              </button>
+            </div>
+          ) : 'Подключение…'}
         </div>
       ) : null}
     </div>

@@ -164,9 +164,9 @@ export function createVideoMeetingInvitationNotification(deps: {
             deps.outboundMessageQueue.enqueue({
               organizationId: input.organizationId,
               purpose: INVITATION_PURPOSE,
-              // The durable queue has one transport slot per row. The meeting id is safe and
-              // stable; neither this key nor the event id contains the invite fragment.
-              idempotencyKey: `${input.meetingId}:${target.channel}`,
+              // A newly rotated invite is a distinct delivery intent. Neither this key nor the
+              // event id contains its fragment.
+              idempotencyKey: `${input.inviteId ?? input.meetingId}:${target.channel}`,
               channel: target.channel as OutboundMessageChannel,
               recipient: target.recipient,
               content: target.content,
@@ -188,7 +188,9 @@ export function createVideoMeetingInvitationNotification(deps: {
           }
         });
         return {
-          status: hasFailure ? 'partially_queued' : 'queued',
+          status: queuedChannels.length === 0
+            ? (hasFailure ? 'unavailable' : 'skipped')
+            : (hasFailure ? 'partially_queued' : 'queued'),
           selectedChannels,
           queuedChannels,
           deduplicatedChannels,

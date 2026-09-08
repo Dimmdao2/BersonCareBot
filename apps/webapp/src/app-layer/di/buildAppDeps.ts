@@ -970,6 +970,7 @@ const videoMeetingsService = !inMemoryRepos
         outboundMessageQueue: createPgOutboundMessageQueue(),
       }),
       resolvePatientPublicOrigin,
+      logDiagnostic: (payload) => logger.info(payload, 'video_meeting_diagnostic'),
     })
   : null;
 const specialistTasksPort = !inMemoryRepos

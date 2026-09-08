@@ -145,5 +145,13 @@ export function createPgVideoMeetingStore(): VideoMeetingStore {
         .limit(1);
       return row ? mapMeeting(row) : null;
     },
+    async findSpecialistMeeting(input) {
+      const [row] = await getDrizzle().select().from(videoMeetings).where(and(
+        eq(videoMeetings.id, input.meetingId),
+        eq(videoMeetings.organizationId, input.organizationId),
+        eq(videoMeetings.specialistId, input.specialistId),
+      )).limit(1);
+      return row ? mapMeeting(row) : null;
+    },
   };
 }

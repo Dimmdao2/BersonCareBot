@@ -9,7 +9,20 @@ import { VideoMeetingStage } from '@/shared/ui/video/VideoMeetingStage';
 import { DoctorNotesPanel } from '@/app/app/doctor/clients/DoctorNotesPanel';
 import { EncounterPageClient } from '../visits/EncounterPageClient';
 
-type SessionResponse = { ok?: boolean; meetingId?: string; session?: VideoMeetingRenderSession; guestUrl?: string | null };
+type NotificationResult = {
+  status: 'queued' | 'partially_queued' | 'skipped' | 'unavailable';
+  selectedChannels: string[];
+  queuedChannels: string[];
+  deduplicatedChannels: string[];
+};
+type SessionResponse = {
+  ok?: boolean;
+  meetingId?: string;
+  session?: VideoMeetingRenderSession;
+  guestUrl?: string | null;
+  resumed?: boolean;
+  notification?: NotificationResult;
+};
 
 export function DoctorLiveMeetingClient({
   userId,
@@ -32,42 +45,85 @@ export function DoctorLiveMeetingClient({
   const startedRef = useRef(false);
   const meetingIdRef = useRef<string | null>(null);
   const [session, setSession] = useState<VideoMeetingRenderSession | null>(null);
+  const [preparedMeetingId, setPreparedMeetingId] = useState<string | null>(null);
   const [guestUrl, setGuestUrl] = useState<string | null>(null);
+  const [notification, setNotification] = useState<NotificationResult | null>(null);
   const [error, setError] = useState(false);
+  const [starting, setStarting] = useState(false);
+
+  const prepare = useCallback(async (mount: boolean) => {
+    const response = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appointmentId }),
+    });
+    const data = await response.json() as SessionResponse;
+    if (!response.ok || !data.ok || !data.session || !data.meetingId) throw new Error('prepare_failed');
+    meetingIdRef.current = data.meetingId;
+    setPreparedMeetingId(data.meetingId);
+    setGuestUrl(data.guestUrl ?? null);
+    setNotification(data.notification ?? null);
+    if (mount) setSession(data.session);
+  }, [appointmentId, userId]);
 
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
-    void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ appointmentId }),
-    }).then(async (response) => ({ response, data: await response.json() as SessionResponse }))
-      .then(({ response, data }) => {
-        if (!response.ok || !data.ok || !data.session || !data.meetingId) { setError(true); return; }
-        meetingIdRef.current = data.meetingId;
-        setSession(data.session);
-        setGuestUrl(data.guestUrl ?? null);
-      }).catch(() => setError(true));
-  }, [appointmentId, userId]);
+    queueMicrotask(() => { void prepare(false).catch(() => setError(true)); });
+  }, [prepare]);
+
+  const start = useCallback(() => {
+    if (starting || session) return;
+    setStarting(true);
+    setError(false);
+    void prepare(true).catch(() => setError(true)).finally(() => setStarting(false));
+  }, [prepare, session, starting]);
+
+  const retryPrepare = useCallback(() => {
+    setError(false);
+    void prepare(false).catch(() => setError(true));
+  }, [prepare]);
 
   const end = useCallback(() => {
     const meetingId = meetingIdRef.current;
     if (!meetingId) return;
     meetingIdRef.current = null;
+    setPreparedMeetingId(null);
     void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings/${encodeURIComponent(meetingId)}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'end' }),
     });
   }, [userId]);
 
+  const reportDiagnostic = useCallback((diagnostic: { event: 'join' | 'error' | 'end'; durationMs?: number; transport?: 'p2p' | 'relay'; errorClass?: 'connection' | 'media' | 'provider' }) => {
+    const meetingId = meetingIdRef.current;
+    if (!meetingId) return;
+    void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings/${encodeURIComponent(meetingId)}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ diagnostic }),
+    });
+  }, [userId]);
+
   return (
-    <main className="grid min-h-[calc(100vh-4rem)] grid-cols-1 gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_420px]">
-      <section className="min-w-0 overflow-hidden rounded-lg bg-black"><VideoMeetingStage session={session} onHangup={end} /></section>
+    <main className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_420px]">
+      <section className="relative min-w-0 overflow-hidden rounded-lg bg-black">
+        <VideoMeetingStage session={session} onHangup={end} onDiagnostic={reportDiagnostic} />
+        {!session ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Button type="button" size="lg" disabled={starting} onClick={start}>Начать звонок</Button>
+          </div>
+        ) : null}
+      </section>
       <aside className="min-w-0 overflow-hidden rounded-lg border bg-card p-3">
-        {error ? <p className="text-sm text-destructive">Не удалось начать звонок</p> : null}
+        {error ? <div className="mb-3 flex items-center gap-2 text-sm text-destructive"><span>Не удалось начать звонок</span><Button type="button" size="sm" variant="outline" onClick={retryPrepare}>Повторить</Button></div> : null}
+        {notification ? <p className="mb-3 text-sm text-muted-foreground">{notification.status === 'queued' || notification.status === 'partially_queued' ? 'Приглашение поставлено в очередь' : 'Приглашение не отправлено автоматически'}</p> : null}
         <div className="mb-3 flex justify-end">
-          <Button type="button" size="sm" variant="outline" disabled={!guestUrl} onClick={() => { if (guestUrl) void navigator.clipboard.writeText(guestUrl); }}>
-            <Copy className="size-4" /> Скопировать ссылку
-          </Button>
+          {guestUrl ? <Button type="button" size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(guestUrl)}><Copy className="size-4" /> Скопировать ссылку</Button> : null}
+          {!guestUrl && preparedMeetingId ? <Button type="button" size="sm" variant="outline" onClick={() => {
+            const meetingId = meetingIdRef.current;
+            if (!meetingId) return;
+            void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings/${encodeURIComponent(meetingId)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'rotate_invite' }) })
+              .then(async (response) => ({ response, data: await response.json() as { ok?: boolean; guestUrl?: string | null; notification?: NotificationResult } }))
+              .then(({ response, data }) => { if (response.ok && data.ok) { setGuestUrl(data.guestUrl ?? null); setNotification(data.notification ?? null); } else setError(true); })
+              .catch(() => setError(true));
+          }}>Выпустить новую ссылку</Button> : null}
         </div>
         <Tabs defaultValue="note">
           <TabsList className={`grid w-full ${encountersEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
