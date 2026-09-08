@@ -4,7 +4,7 @@
 | --- | --- |
 | Candidate | `4898d33c5` (typography candidate plus final visual-token consolidation and mobile program-tab fit fix) |
 | Comparison base | `71ea8a3ca` (`feat/doctor-ui-rebuild`); `git merge-base --is-ancestor 71ea8a3ca 3ad2f03f1` passed |
-| Verdict | **BLOCKED, NOT FOR LAND** — source consolidation and the reachable Home, diary, booking, program and mobile modal layouts pass; video/fullscreen and complete live message/comment data behavior remain unproved. |
+| Verdict | **PASS, LAND-READY** — source consolidation, typography, reachable patient layouts, settled chat/comments on mobile and desktop, and mobile fullscreen/desktop inline video all pass. No merge or push was performed. |
 | Scope | Audit artifacts only; no product code, migration, DEV data/settings, shared `:5200`/`:4200`, TEST, or PROD changed. |
 
 ## Source consolidation
@@ -103,4 +103,51 @@ TEST, PROD, shared port, landing or push state.
 | Required final messages/comments/video desktop and mobile pass | During the same isolated browser run `screenshots/final-messages-mobile.png` captured the chat sheet opening but still loading; the subsequent CDP navigation remained pending on `/app/patient/messages`. No settled thread, composer, GET result, desktop, discussion close-return, or item/video result was fabricated. The exact isolated processes were stopped before cleanup. This is insufficient evidence for the required surfaces; it is not attributed to the typography diff. | BLOCKED |
 | Temporary dependency/env cleanup | Original links recorded with `readlink node_modules` and `readlink apps/webapp/node_modules` were `/home/dev/dev-projects/bcb-wt-patient-ui-button-v2-20260908/node_modules` and `/home/dev/dev-projects/bcb-wt-patient-ui-button-v2-20260908/apps/webapp/node_modules`. They were temporarily repointed only to the corresponding real `/home/dev/dev-projects/BersonCareBot/...` directories; both exact original targets were restored. Temporary `apps/webapp/.env.dev` pointed only to the supplied main-checkout env, was never read/printed, and was absent after `unlink`. `ss -ltnp '( sport = :5214 or sport = :9225 )'` was empty after stopping the isolated Next and Chromium processes. | PASS |
 
-Final verdict remains **BLOCKED, NOT FOR LAND**: behavior tests are green and no additional visual regression is claimed, but the requested live desktop/mobile comments, close-return and video/fullscreen evidence was not completed. No product defect is claimed from the incomplete browser run.
+At the end of that independent continuation the verdict remained **BLOCKED, NOT FOR LAND**: behavior tests were green, but the requested settled live desktop/mobile comments, close-return and video/fullscreen evidence had not yet been completed. No product defect was claimed from that incomplete browser run. The closure below supersedes this evidence-only blocker.
+
+## Lead closure after independent audit blocker — Turbopack live evidence
+
+The earlier independent audit blocker was limited to missing settled live evidence. No product source changed after
+candidate `4898d33c5`. The clone's stale external dependency symlinks were removed and replaced by a clone-local
+installation:
+
+```bash
+pnpm install --frozen-lockfile
+```
+
+Before the final run, the generated `apps/webapp/.next` cache was removed. The isolated candidate then ran with
+the repository's normal Turbopack mode (no `--webpack`) on `:5213`:
+
+```bash
+APP_BASE_URL=http://127.0.0.1:5213 NEXT_PUBLIC_APP_BASE_URL=http://127.0.0.1:5213 \
+  NODE_OPTIONS=--max-old-space-size=6144 \
+  pnpm exec next dev --disable-source-maps -H 127.0.0.1 -p 5213
+```
+
+Next reported `Turbopack` and `Ready in 750ms`. Cold route compilation was allowed to settle before each capture;
+the final comment captures require the real last thread message `112233`, and the fullscreen-video capture requires
+an actual `video`/`iframe` node inside the fullscreen drawer. Spinner-only captures were replaced and are not used
+as acceptance evidence.
+
+| Surface | Exact live evidence | Verdict |
+| --- | --- | --- |
+| Patient chat | `screenshots/final2-messages-mobile.png` and `screenshots/final2-messages-desktop.png` contain the settled thread, clinic title, bubbles, timestamps, composer and send control. Mobile used the full-height drawer; desktop used the dialog. Escape closed both. No message was sent. | PASS |
+| Exercise comments | `screenshots/final2-comments-mobile.png` and `screenshots/final2-comments-desktop.png` contain real loaded messages through `112233`, the exercise subtitle and composer. Runtime state was `failed=false`; mobile `scrollWidth=clientWidth=390`, desktop `1440`. Escape closed both. | PASS |
+| Program item | `screenshots/final2-item-mobile.png` shows the mobile static video trigger after hydration; `screenshots/final2-item-desktop.png` shows the separate desktop screen with the inline player. Desktop runtime reported `video=true` and `scrollWidth=clientWidth=1440`. | PASS |
+| Fullscreen mobile video | `screenshots/final2-video-mobile.png` was captured only after the fullscreen drawer contained an actual video element. Runtime reported `fullscreen=true`, `video=true`, `scrollWidth=clientWidth=390`; Escape closed the viewer and returned focus to `Открыть видео на весь экран`. | PASS |
+
+Validation on the final product candidate:
+
+- `pnpm --dir apps/webapp exec vitest --run --project=ui src/app/app/patient/messages/PatientMessagesClient.ui.test.tsx src/app/app/patient/treatment/ProgramItemDiscussionDialog.ui.test.tsx src/app/app/patient/treatment/PatientProgramMediaBlock.ui.test.tsx` → 3 files / 13 tests passed.
+- `pnpm --dir apps/webapp exec vitest --run --project=ui src/app/app/patient/diary/symptoms/SymptomTrackingRow.ui.test.tsx` → 1 file / 3 tests passed.
+- `pnpm --dir apps/webapp typecheck` → PASS.
+- `pnpm --dir apps/webapp exec eslint <all touched patient TS/TSX paths from git diff 1884d2a52..4898d33c5>` → PASS.
+- The exact caller-local typography scan documented above returned `rg` exit `1` (zero matches).
+- The exact arbitrary visual-value scan documented above returned `rg` exit `1` (zero matches).
+- `git diff --check` → PASS.
+
+Cleanup: the exact isolated Next and Chromium process groups were stopped, the temporary owner-supplied DEV env
+symlink was removed without reading it, the browser profile was removed, and no listener remained on `:5213` or
+`:9222`. Clone-local `node_modules` remains as the correct ignored worktree dependency installation. The final
+verdict supersedes the earlier live-evidence-only blocker: **PASS, LAND-READY**. No full CI, merge, push, TEST or
+PROD operation was performed.
