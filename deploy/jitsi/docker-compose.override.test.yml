@@ -76,6 +76,10 @@ services:
     image: "coturn/coturn:${COTURN_IMAGE_TAG}@sha256:aa68aab64a3b929d57fc2924c98ea447bf996cf8dade2508e7b71eaf23f1f14e"
     container_name: bcb-jitsi-test-coturn
     restart: "${RESTART_POLICY:-unless-stopped}"
+    # The rendered config and the private TLS copy are both 0600 and owned by the deploy account
+    # (UID/GID 1000 on TEST). Do not replace this with root or relax either file to 0644: the explicit
+    # numeric user is the least-privilege boundary that lets coturn read only its own mounted assets.
+    user: "${COTURN_CONTAINER_UID}:${COTURN_CONTAINER_GID}"
     # coturn needs to see real client source ports for its relay allocations; host networking is the
     # standard, documented coturn deployment mode (bridging coturn behind Docker NAT breaks the
     # candidate/relay address it hands back to clients). This is the one intentional exception to "no host
@@ -84,20 +88,16 @@ services:
     network_mode: host
     volumes:
       - ./coturn/turnserver.rendered.conf:/etc/coturn/turnserver.conf:ro
-      # Bind-mounts the same host path bin/install.sh's preflight already requires to exist and be
-      # non-empty (/etc/coturn/tls/{fullchain,privkey}.pem — see NETWORK_POLICY.md's TLS prerequisite).
-      # A named volume here (the previous shape of this line) starts out empty and is never populated by
-      # anything in this package, so coturn's TLS listener would come up with no certificate at all —
-      # replaced with the actual host material the preflight already verified is present.
-      - /etc/coturn/tls:/etc/coturn/tls:ro
-      - jitsi-test-turn-logs:/var/log/coturn
+      # Never mount the root-owned ACME source directory. The operator stages a 0600 UID/GID-1000 copy
+      # under CONFIG and install.sh fails closed if that ownership/mode is not present.
+      - "${CONFIG}/coturn/tls:/etc/coturn/tls:ro"
+      # coturn runs as UID/GID 1000, so its writable log/state directories must be deploy-owned bind mounts
+      # rather than root-created named volumes.
+      - ./coturn/log:/var/log/coturn
+      - ./coturn/state:/var/lib/coturn
     command: ["-c", "/etc/coturn/turnserver.conf"]
     healthcheck:
       test: ["CMD", "turnutils_stunclient", "-p", "${TURN_LISTEN_PORT:-3478}", "127.0.0.1"]
       interval: 30s
       timeout: 5s
       retries: 3
-
-volumes:
-  jitsi-test-turn-logs:
-    name: bcb-jitsi-test-turn-logs

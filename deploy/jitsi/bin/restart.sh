@@ -13,7 +13,13 @@ done
 [[ "$on_dev_test_host" == 1 ]] || { echo "FATAL: not on 151.241.228.122" >&2; exit 1; }
 
 ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
-JITSI_RELEASE_TAG="$(grep -E '^JITSI_RELEASE_TAG=' "$ENV_FILE" | cut -d= -f2)"
+[[ -f "$ENV_FILE" ]] || { echo "FATAL: missing $ENV_FILE" >&2; exit 1; }
+# shellcheck disable=SC1090
+set -a; source "$ENV_FILE"; set +a
+TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
+[[ -f "$TURN_ENV_FILE" ]] || { echo "FATAL: missing $TURN_ENV_FILE" >&2; exit 1; }
+# shellcheck disable=SC1090
+set -a; source "$TURN_ENV_FILE"; set +a
 VENDOR_DIR="$HERE/vendor/docker-jitsi-meet-${JITSI_RELEASE_TAG}"
 [[ -d "$VENDOR_DIR" ]] || { echo "FATAL: $VENDOR_DIR missing — run bin/install.sh --apply first" >&2; exit 1; }
 

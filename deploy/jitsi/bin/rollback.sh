@@ -34,6 +34,10 @@ ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
 [[ -f "$ENV_FILE" ]] || { echo "FATAL: missing $ENV_FILE" >&2; exit 1; }
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
+TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
+[[ -f "$TURN_ENV_FILE" ]] || { echo "FATAL: missing $TURN_ENV_FILE" >&2; exit 1; }
+# shellcheck disable=SC1090
+set -a; source "$TURN_ENV_FILE"; set +a
 CONFIG_DIR="$(realpath -m -- "${CONFIG:-/}")"
 SECRET_STORE_DIR="$(realpath -m -- "${JITSI_TEST_SECRET_STORE:-/etc/bersoncarebot/jitsi-test/secrets}")"
 PACKAGE_ROOT="/etc/bersoncarebot/jitsi-test"
@@ -47,8 +51,8 @@ PACKAGE_ROOT="/etc/bersoncarebot/jitsi-test"
 }
 VENDOR_DIR="$HERE/vendor/docker-jitsi-meet-${JITSI_RELEASE_TAG:-unknown}"
 
-# `down -v` removes this project's own named volumes (bcb-jitsi-test-turn-logs) as part of the exact
-# restore; it never touches an external/unmanaged volume because none is declared external here.
+# `down -v` removes upstream's project-owned volumes. Coturn's private bind-mounted log/state directories
+# are removed below as part of the exact restore; no external/unmanaged volume is declared here.
 if [[ -d "$VENDOR_DIR" ]]; then
   docker compose \
     -f "$VENDOR_DIR/docker-compose.yml" \
@@ -60,16 +64,17 @@ else
   # Vendor dir gone but containers might still exist under the project name — remove by project label only.
   docker compose -p bcb-jitsi-test down --remove-orphans -v 2>/dev/null || true
 fi
-echo "[jitsi-test] stack stopped, removed, and this project's named volumes dropped"
+echo "[jitsi-test] stack stopped and removed with this project's named volumes"
 
 if [[ "$MODE" == "--keep-cache" ]]; then
   echo "[jitsi-test] --keep-cache: leaving vendor/ and the secret store in place (NOT an exact pre-apply restore)"
 else
   rm -rf "$HERE/vendor"
   rm -f "$HERE/config/prosody/conf.d/00-turn-external.rendered.cfg.lua" "$HERE/coturn/turnserver.rendered.conf"
+  rm -rf "$HERE/coturn/log" "$HERE/coturn/state"
   rm -rf "$SECRET_STORE_DIR"
   rm -rf "$CONFIG_DIR"
-  echo "[jitsi-test] purged vendor/, rendered config, secret store, and CONFIG tree — pre-apply state restored"
+  echo "[jitsi-test] purged vendor/, rendered config, coturn log/state, secret store, and CONFIG tree — pre-apply state restored"
 fi
 
 echo "[jitsi-test] unchanged by this script (external to this package, per NETWORK_POLICY.md): DNS records, TLS certificates, the host nginx vhost, and the host firewall"

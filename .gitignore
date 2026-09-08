@@ -113,3 +113,5 @@ runs/ci-last.json
 deploy/jitsi/vendor/
 deploy/jitsi/config/prosody/conf.d/*.rendered.cfg.lua
 deploy/jitsi/coturn/turnserver.rendered.conf
+deploy/jitsi/coturn/log/
+deploy/jitsi/coturn/state/

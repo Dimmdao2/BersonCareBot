@@ -82,27 +82,27 @@ echo
 echo "[Prosody config actually landed — not assumed]"
 prosody_cid="$(docker compose "${COMPOSE_ARGS[@]}" ps -q prosody 2>/dev/null || true)"
 if [[ -n "$prosody_cid" ]]; then
-  if docker exec "$prosody_cid" grep -rq "turn_external_secret" /config/conf.d/ 2>/dev/null; then
+  if docker exec "$prosody_cid" grep -rq "turn_external_secret" /run/prosody/config/conf.d/ 2>/dev/null; then
     ok "turn_external override file is present inside the running container's conf.d"
   else
     bad "turn_external override file NOT found inside the running container — CONFIG tree/bind-mount did not land; see README.md 'Design decisions'"
   fi
-  if docker exec "$prosody_cid" grep -q "turn_external_tls_port" /config/conf.d/00-turn-external.cfg.lua 2>/dev/null; then
+  if docker exec "$prosody_cid" grep -q "turn_external_tls_port" /run/prosody/config/conf.d/00-turn-external.cfg.lua 2>/dev/null; then
     ok "rendered config advertises turn_external_tls_port (TLS/TURNS fallback candidate)"
   else
     bad "rendered config does not advertise turn_external_tls_port — a UDP-restricted client would have no TLS fallback candidate (finding F2)"
   fi
-  if docker exec "$prosody_cid" prosodyctl check turn >/tmp/jitsi-test-prosodyctl-turn.log 2>&1; then
+  if docker exec "$prosody_cid" prosodyctl --config /run/prosody/config/prosody.cfg.lua check turn >/tmp/jitsi-test-prosodyctl-turn.log 2>&1; then
     ok "prosodyctl check turn passed (log: /tmp/jitsi-test-prosodyctl-turn.log)"
   else
     bad "prosodyctl check turn failed — see /tmp/jitsi-test-prosodyctl-turn.log"
   fi
-  if docker exec "$prosody_cid" prosodyctl check config >/tmp/jitsi-test-prosodyctl-config.log 2>&1; then
+  if docker exec "$prosody_cid" prosodyctl --config /run/prosody/config/prosody.cfg.lua check config >/tmp/jitsi-test-prosodyctl-config.log 2>&1; then
     ok "prosodyctl check config passed"
   else
     bad "prosodyctl check config failed — see /tmp/jitsi-test-prosodyctl-config.log"
   fi
-  if docker exec "$prosody_cid" grep -q 'muc_max_occupants = "2"' /config/conf.d/jitsi-meet.cfg.lua 2>/dev/null; then
+  if docker exec "$prosody_cid" grep -q 'muc_max_occupants = "2"' /run/prosody/config/conf.d/jitsi-meet.cfg.lua 2>/dev/null; then
     ok "rendered MUC config carries muc_max_occupants = \"2\""
   else
     bad "rendered MUC config does not show muc_max_occupants = \"2\" — MAX_PARTICIPANTS may not have been read; this is a config-presence check only, the authoritative proof is RUNBOOK.md's live third-participant refusal"
@@ -113,35 +113,46 @@ fi
 
 echo
 echo "[coturn — mandatory STUN + real credentialed TURN allocation over UDP and TLS]"
-if ! command -v turnutils_stunclient >/dev/null 2>&1 || ! command -v turnutils_uclient >/dev/null 2>&1; then
-  bad "turnutils_stunclient/turnutils_uclient not installed on this host (coturn-utils package) — TURN probes are mandatory, not skippable"
+coturn_cid="$(docker compose "${COMPOSE_ARGS[@]}" ps -q coturn 2>/dev/null || true)"
+if [[ -z "$coturn_cid" ]]; then
+  bad "coturn container not found, cannot run mandatory STUN/TURN probes"
+elif ! docker exec --user "${COTURN_CONTAINER_UID}:${COTURN_CONTAINER_GID}" "$coturn_cid" sh -c 'command -v turnutils_stunclient >/dev/null && command -v turnutils_uclient >/dev/null' >/dev/null 2>&1; then
+  bad "pinned coturn container lacks turnutils_stunclient/turnutils_uclient — TURN probes are mandatory, not skippable"
 else
-  if turnutils_uclient -y -n 1 -p "${TURN_LISTEN_PORT:-3478}" 127.0.0.1 >/dev/null 2>&1; then
+  if docker exec --user "${COTURN_CONTAINER_UID}:${COTURN_CONTAINER_GID}" "$coturn_cid" turnutils_stunclient -p "${TURN_LISTEN_PORT:-3478}" 127.0.0.1 >/dev/null 2>&1; then
     ok "coturn answers STUN binding requests on 127.0.0.1:${TURN_LISTEN_PORT:-3478}"
   else
     bad "coturn did not answer a STUN binding request"
   fi
 
-  turn_secret_file="${JITSI_TEST_SECRET_STORE:-/etc/bersoncarebot/jitsi-test/secrets}/turn-shared-secret"
-  if [[ ! -s "$turn_secret_file" ]]; then
-    bad "TURN shared secret file missing at $turn_secret_file — cannot prove a real credentialed allocation (run bin/render-secrets.sh first)"
+  # The host never reads or passes the TURN secret. This non-root exec reads the already-mounted 0600
+  # rendered config inside coturn, derives the same ephemeral credential as a client, and prints nothing.
+  run_turn_allocation() {
+    local port="$1" transport="$2"
+    docker exec --user "${COTURN_CONTAINER_UID}:${COTURN_CONTAINER_GID}" "$coturn_cid" sh -ceu '
+      turn_secret=""
+      while IFS= read -r line; do
+        case "$line" in
+          static-auth-secret=*) turn_secret="${line#*=}"; break ;;
+        esac
+      done < /etc/coturn/turnserver.conf
+      [[ -n "$turn_secret" ]]
+      case "$2" in
+        udp) turnutils_uclient -y -n 1 -u healthcheck -W "$turn_secret" -p "$1" 127.0.0.1 ;;
+        tls) turnutils_uclient -y -n 1 -S -u healthcheck -W "$turn_secret" -p "$1" 127.0.0.1 ;;
+        *) exit 64 ;;
+      esac
+    ' sh "$port" "$transport" >/dev/null 2>&1
+  }
+  if run_turn_allocation "${TURN_LISTEN_PORT:-3478}" udp; then
+    ok "coturn accepted a real ephemeral-credential TURN allocation over UDP (${TURN_LISTEN_PORT:-3478})"
   else
-    turn_secret="$(cat "$turn_secret_file")"
-    # -W hands turnutils_uclient the raw shared secret; it derives ephemeral REST-API-style
-    # username/password itself (same mechanism coturn's --use-auth-secret verifies against, and the same
-    # one Prosody's mod_turn_external hands the real client) and performs an actual ALLOCATE + a
-    # client-to-client relay round trip (-y), not just an unauthenticated STUN binding.
-    if turnutils_uclient -y -n 1 -u healthcheck -W "$turn_secret" -p "${TURN_LISTEN_PORT:-3478}" 127.0.0.1 >/dev/null 2>&1; then
-      ok "coturn accepted a real ephemeral-credential TURN allocation over UDP (${TURN_LISTEN_PORT:-3478})"
-    else
-      bad "coturn rejected a real ephemeral-credential TURN allocation over UDP — shared secret mismatch or ALLOCATE failure"
-    fi
-    if turnutils_uclient -y -n 1 -S -u healthcheck -W "$turn_secret" -p "${TURN_TLS_LISTEN_PORT:-5349}" 127.0.0.1 >/dev/null 2>&1; then
-      ok "coturn accepted a real ephemeral-credential TURN allocation over TLS (${TURN_TLS_LISTEN_PORT:-5349}) — required UDP-restricted-network fallback"
-    else
-      bad "coturn rejected a real ephemeral-credential TURN allocation over TLS — TLS fallback (VM-03/VM-04, finding F2) is not actually usable"
-    fi
-    unset turn_secret
+    bad "coturn rejected a real ephemeral-credential TURN allocation over UDP — shared secret mismatch or ALLOCATE failure"
+  fi
+  if run_turn_allocation "${TURN_TLS_LISTEN_PORT:-5349}" tls; then
+    ok "coturn accepted a real ephemeral-credential TURN allocation over TLS (${TURN_TLS_LISTEN_PORT:-5349}) — required UDP-restricted-network fallback"
+  else
+    bad "coturn rejected a real ephemeral-credential TURN allocation over TLS — TLS fallback (VM-03/VM-04, finding F2) is not actually usable"
   fi
 fi
 
