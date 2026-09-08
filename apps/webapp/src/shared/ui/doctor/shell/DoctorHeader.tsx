@@ -31,6 +31,7 @@ type DoctorHeaderProps = {
   hideMenuOnDesktop?: boolean;
   /** Which item source `DoctorMenuAccordion` renders. See `DoctorMenuAccordionProps.menuKind`. */
   menuKind?: 'doctor' | 'platform' | 'management';
+  showWorkspaceModeSwitch?: boolean;
   globalActions?: ReactNode;
 };
 
@@ -47,6 +48,7 @@ export function DoctorHeader({
   patientLabel,
   hideMenuOnDesktop,
   menuKind = 'doctor',
+  showWorkspaceModeSwitch,
   globalActions,
 }: DoctorHeaderProps) {
   const router = useRouter();
@@ -141,6 +143,7 @@ export function DoctorHeader({
                 patientLabel={patientLabel}
                 onNavigate={closeMenu}
                 menuKind={menuKind}
+                showWorkspaceModeSwitch={showWorkspaceModeSwitch}
               />
             </nav>
             <div className="shrink-0 border-t border-border/70 py-2">

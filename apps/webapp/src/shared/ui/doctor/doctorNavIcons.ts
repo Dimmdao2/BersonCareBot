@@ -2,6 +2,7 @@ import type { ElementType } from 'react';
 import {
   Activity,
   Archive,
+  ArrowLeftRight,
   BarChart3,
   Bell,
   BookOpen,
@@ -58,6 +59,8 @@ export function getDoctorMenuIcon(id: string): ElementType | null {
       return BarChart3;
     case 'management':
       return BriefcaseBusiness;
+    case 'workspace-mode':
+      return ArrowLeftRight;
     case 'account':
       return UserRound;
     case 'settings':

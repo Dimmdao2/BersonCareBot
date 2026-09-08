@@ -11,7 +11,6 @@ import { DoctorWorkspaceViewport } from '@/shared/ui/doctor/shell/DoctorWorkspac
 import { DoctorShellChromeProvider } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { DoctorPatientTermsProvider } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { DoctorSupportUnreadProvider } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
-import { DoctorWorkspaceModeSwitch } from '@/shared/ui/doctor/shell/DoctorWorkspaceModeSwitch';
 import { getDoctorShellHomeHref } from '@/shared/ui/doctor/doctorNavLinks';
 import type { UserRole } from '@/shared/types/session';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
@@ -113,13 +112,11 @@ export function DoctorWorkspaceShell({
   const homeHref = getDoctorShellHomeHref(menuAccess);
   const showClinicalShortcuts = capabilities.includes('clinical.workspace');
   const clinicalRuntimeEnabled = enableTenantRuntime && showClinicalShortcuts;
-  const modeSwitch =
+  const showWorkspaceModeSwitch =
     workspaceComposition === 'clinic' &&
     workspaceContext?.canManageOrganization &&
     workspaceContext.specialistId !== null &&
-    workspaceContext.canAccessClinicalWorkspace ? (
-      <DoctorWorkspaceModeSwitch />
-    ) : null;
+    workspaceContext.canAccessClinicalWorkspace;
 
   return (
     <DoctorSupportUnreadProvider
@@ -150,12 +147,8 @@ export function DoctorWorkspaceShell({
               patientLabel,
               hideMenuOnDesktop: showDoctorDesktopNav,
               menuKind,
-              globalActions: (
-                <>
-                  {modeSwitch}
-                  {mobileHeaderActions}
-                </>
-              ),
+              showWorkspaceModeSwitch,
+              globalActions: mobileHeaderActions,
             }}
             sidebar={
               showDoctorDesktopNav ? (
@@ -166,7 +159,7 @@ export function DoctorWorkspaceShell({
                   homeHref={homeHref}
                   brand={brand}
                   menuKind={menuKind}
-                  modeSwitch={modeSwitch}
+                  showWorkspaceModeSwitch={showWorkspaceModeSwitch}
                 />
               ) : undefined
             }

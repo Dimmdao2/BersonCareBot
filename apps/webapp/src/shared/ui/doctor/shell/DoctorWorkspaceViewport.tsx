@@ -14,6 +14,7 @@ type DoctorWorkspaceViewportProps = {
     patientLabel?: string;
     hideMenuOnDesktop: boolean;
     menuKind: 'doctor' | 'platform' | 'management';
+    showWorkspaceModeSwitch?: boolean;
     globalActions?: ReactNode;
   };
   sidebar?: ReactNode;

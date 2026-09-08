@@ -147,6 +147,8 @@ export type DoctorMenuAccordionProps = {
   menuKind?: 'doctor' | 'platform' | 'management';
   /** Whether the tablet sidebar rail is expanded over the page. */
   tabletExpanded?: boolean;
+  /** Show the contextual link between clinical and clinic-management workspaces. */
+  showWorkspaceModeSwitch?: boolean;
 };
 
 /**
@@ -469,6 +471,7 @@ export function DoctorMenuAccordion({
   onNavigate,
   menuKind = 'doctor',
   tabletExpanded = false,
+  showWorkspaceModeSwitch = false,
 }: DoctorMenuAccordionProps) {
   const terms = useDoctorPatientTerms();
   const items = useMemo(() => {
@@ -479,10 +482,29 @@ export function DoctorMenuAccordion({
           ? getManagementMenuItems(menuAccess)
           : getDoctorMenuItems(menuAccess, terms);
 
-    if (variant === 'sidebar') return menuItems.filter((item) => item.id !== 'account');
-    if (menuKind !== 'doctor') return menuItems;
-    return menuItems.filter((item) => !MOBILE_SHELL_NAV_IDS.has(item.id));
-  }, [menuKind, menuAccess, terms, variant]);
+    const visibleItems =
+      variant === 'sidebar'
+        ? menuItems.filter((item) => item.id !== 'account')
+        : menuKind !== 'doctor'
+          ? menuItems
+          : menuItems.filter((item) => !MOBILE_SHELL_NAV_IDS.has(item.id));
+
+    if (!showWorkspaceModeSwitch) return visibleItems;
+
+    const managementActive =
+      pathname.startsWith('/app/manage') || pathname.startsWith('/app/settings');
+    const workspaceModeItem: DoctorMenuLinkItem = managementActive
+      ? { id: 'workspace-mode', label: 'Работа специалиста', href: '/app/doctor' }
+      : { id: 'workspace-mode', label: 'Управление клиникой', href: '/app/manage' };
+    const settingsIndex = visibleItems.findIndex((item) => item.id === 'settings');
+
+    if (settingsIndex < 0) return [...visibleItems, workspaceModeItem];
+    return [
+      ...visibleItems.slice(0, settingsIndex),
+      workspaceModeItem,
+      ...visibleItems.slice(settingsIndex),
+    ];
+  }, [menuKind, menuAccess, pathname, showWorkspaceModeSwitch, terms, variant]);
 
   const {
     messagesUnread,
