@@ -60,6 +60,7 @@ compose file entirely or explicitly `0`/unset in the env template — see
 | `bin/render-secrets.sh` | generates/loads host-side Prosody/JVB/coturn secrets only (never the app JWT secret); every substitution is argv-safe and atomic |
 | `bin/health-check.sh` | config + network proof: `prosodyctl check`, container + JVB REST health, mandatory credentialed TURN allocation over UDP and TLS |
 | `bin/sync-coturn-tls.sh` | root-only TEST hook: validate the shared ACME certificate, atomically stage a private deploy-owned copy for non-root coturn, and restart coturn if running |
+| `bin/apply-nginx.sh` | TEST-only checked apply for the public meet vhost; validates nginx and restores the previous target if validation/reload fails |
 | `bin/restart.sh` | restart in place (re-render config, recreate containers) |
 | `bin/stop.sh` | plain compose `down` with full context — what the systemd unit's `ExecStop` calls |
 | `bin/rollback.sh` | tear down to the exact pre-apply state by default (see "Design decisions") |
