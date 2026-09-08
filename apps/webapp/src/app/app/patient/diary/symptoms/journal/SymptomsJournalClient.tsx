@@ -242,6 +242,7 @@ export function SymptomsJournalClient(props: {
               <PatientField label="Интенсивность (0–10)" htmlFor="symptom-journal-value">
                 <Input
                   id="symptom-journal-value"
+                  variant="journal"
                   type="number"
                   name="value"
                   min={0}
@@ -253,6 +254,7 @@ export function SymptomsJournalClient(props: {
               <PatientField label="Дата и время" htmlFor="symptom-journal-recorded-at">
                 <Input
                   id="symptom-journal-recorded-at"
+                  variant="journal"
                   type="datetime-local"
                   name="recordedAtLocal"
                   required

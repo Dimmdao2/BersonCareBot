@@ -60,6 +60,5 @@ secrets. Do not edit patient visual/modal files. Do not implement author/source 
 - Implement the complete bounded behavior above in one coherent pass.
 - `git diff --check`, targeted typecheck/lint or narrower checks pass; report unrelated pre-existing failures
   honestly.
-- Commit only this stage's explicit paths on `wt/patient-symptom-bridge-20260908`; no push.
+- Commit only this stage's explicit paths on `wt/patient-symptom-clinical-bridge-20260908`; no push.
 - Final report names commit, changed architecture, migration, checks, and any remaining owner question.
-

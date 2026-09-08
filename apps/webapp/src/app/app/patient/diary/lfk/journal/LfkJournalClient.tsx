@@ -227,6 +227,7 @@ export function LfkJournalClient(props: {
             <PatientField label="Дата и время" htmlFor="lfk-journal-completed-at">
               <Input
                 id="lfk-journal-completed-at"
+                variant="journal"
                 type="datetime-local"
                 name="completedAtLocal"
                 required
@@ -236,6 +237,7 @@ export function LfkJournalClient(props: {
             <PatientField label="Длительность (мин)" htmlFor="lfk-journal-duration">
               <Input
                 id="lfk-journal-duration"
+                variant="journal"
                 type="number"
                 name="durationMinutes"
                 min={1}
@@ -247,6 +249,7 @@ export function LfkJournalClient(props: {
             <PatientField label="Сложность 0–10" htmlFor="lfk-journal-difficulty">
               <Input
                 id="lfk-journal-difficulty"
+                variant="journal"
                 type="number"
                 name="difficulty0_10"
                 min={0}
@@ -258,6 +261,7 @@ export function LfkJournalClient(props: {
             <PatientField label="Боль 0–10" htmlFor="lfk-journal-pain">
               <Input
                 id="lfk-journal-pain"
+                variant="journal"
                 type="number"
                 name="pain0_10"
                 min={0}

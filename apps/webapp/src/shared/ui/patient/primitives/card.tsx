@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import {
   patientCardClass,
   patientCardCompactClass,
-  patientCardListSectionClass,
+  patientListItemClass,
 } from '@/shared/ui/patient/patientVisual';
 
 type CardVariant = 'default' | 'compact' | 'list' | 'flush';
@@ -12,7 +12,7 @@ type CardVariant = 'default' | 'compact' | 'list' | 'flush';
 const cardVariantClass: Record<CardVariant, string> = {
   default: patientCardClass,
   compact: patientCardCompactClass,
-  list: patientCardListSectionClass,
+  list: patientListItemClass,
   flush: cn(patientCardClass, 'p-0'),
 };
 

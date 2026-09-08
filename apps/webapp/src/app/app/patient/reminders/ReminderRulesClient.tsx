@@ -19,6 +19,7 @@ import {
 import { Switch } from '@/shared/ui/patient/primitives/switch';
 import toast from 'react-hot-toast';
 import { PatientModal } from '@/shared/ui/patient/PatientModal';
+import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
 import { ReminderCreateDialog } from '@/modules/reminders/components/ReminderCreateDialog';
 import type { ReminderRule, ReminderCategory } from '@/modules/reminders/types';
 import { clampIntervalMinutes } from '@/modules/reminders/reminderIntervalBounds';
@@ -260,34 +261,17 @@ function PersonalReminderCard({
         </CardHeader>
       </Card>
 
-      <PatientModal
+      <PatientConfirmModal
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
+        onConfirm={confirmDelete}
         title="Удалить напоминание?"
-        size="sm"
-        footer={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDeleteOpen(false)}
-              disabled={isPending}
-            >
-              Отмена
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={confirmDelete}
-              disabled={isPending}
-            >
-              Удалить
-            </Button>
-          </>
-        }
+        confirmLabel="Удалить"
+        pending={isPending}
+        destructive
       >
-        <p className={patientMutedTextClass}>Это действие нельзя отменить.</p>
-      </PatientModal>
+        Это действие нельзя отменить.
+      </PatientConfirmModal>
     </>
   );
 }
@@ -654,38 +638,19 @@ export function ReminderRulesClient({
         </>
       ) : null}
 
-      <PatientModal
+      <PatientConfirmModal
         open={blockDeleteTarget != null}
         onClose={() => setBlockDeleteTarget(null)}
+        onConfirm={confirmBlockDelete}
         title="Удалить напоминание?"
-        size="sm"
-        footer={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setBlockDeleteTarget(null)}
-              disabled={blockPending}
-            >
-              Отмена
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={confirmBlockDelete}
-              disabled={blockPending}
-            >
-              Удалить
-            </Button>
-          </>
-        }
+        confirmLabel="Удалить"
+        pending={blockPending}
+        destructive
       >
-        <p className={patientMutedTextClass}>
-          {blockDeleteTarget?.title
-            ? `«${blockDeleteTarget.title}» — это действие нельзя отменить.`
-            : 'Это действие нельзя отменить.'}
-        </p>
-      </PatientModal>
+        {blockDeleteTarget?.title
+          ? `«${blockDeleteTarget.title}» — это действие нельзя отменить.`
+          : 'Это действие нельзя отменить.'}
+      </PatientConfirmModal>
 
       {renderEditDialog()}
     </div>
