@@ -48,10 +48,8 @@ import type {
 import { unwrapBootstrapEnvelope } from '../doctorPatientCardBootstrapShared';
 import type { FileRecord } from './tabs/PatientTabFiles';
 import type { SupplementaryContact } from './tabs/PatientTabAccount';
-import type { PatientProgramInteractionPolicy } from '@/modules/doctor-clients/supportPolicy';
 import type { PatientPortalStatus } from '@/modules/patient-invites/ports';
 import { PatientPortalInviteControls } from './PatientPortalInviteControls';
-import { PatientSymptomTrackingControls } from './PatientSymptomTrackingControls';
 import toast from 'react-hot-toast';
 import { DoctorShellMobileBottomTabsRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { DateTime } from 'luxon';
@@ -617,8 +615,6 @@ export function PatientCardClient({
                 />
               ) : null}
 
-              <PatientSymptomTrackingControls patientUserId={identity.userId} />
-
               {workspaceModules?.encounters !== false ? (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <Button
@@ -789,7 +785,6 @@ function PatientCardTabPanels({
             initialExerciseCalendarSnapshot={tab.initialExerciseCalendarSnapshot}
             initialMessagesSnapshot={tab.initialMessagesSnapshot}
             membershipsVisible={membershipsVisible}
-            initialSupportEffectivePolicy={tab.initialSupportEffectivePolicy}
             specialistTasksAvailable={specialistTasksAvailable}
             specialistTasksReadable={specialistTasksReadable}
             tasksDisplayIana={shellMeta.displayIana}

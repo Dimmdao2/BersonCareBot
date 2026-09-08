@@ -7,12 +7,13 @@
  *  1. Личные данные     — read-only canonical ФИО + дата рождения + пол; edit via standard modal
  *     (PATCH /api/doctor/patients/[userId]/fio — the same endpoint the old header inline-edit used).
  *  2. Контакты и каналы — only actually-existing contacts/bindings.
+ *  2.5. Сопровождение   — «Настроить» opens `DoctorClientSupportPanel` in a `DoctorModal` (owner live
+ *     TEST 08.09: settings only live here, behind a button; Overview keeps only the read-only marker).
  *  3. Доступ к аккаунту — two equal-width Заблокировать/В архив buttons, no heading.
  *  4. Администрирование — AdminMergeAccountsPanel (collapsed by default) + audit log (admin-only,
  *     untouched — out of scope for this pass).
  *
  * Removed from here (moved to other tabs, pre-existing):
- *  - Сопровождение → PatientTabOverview
  *  - Платежи       → PatientTabRecords
  */
 
@@ -41,6 +42,7 @@ import { cn } from '@/lib/utils';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { formatTelegramUsernameMention } from '@/modules/messaging/patientTelegramUsernameMention';
 import { AdminMergeAccountsPanel } from '@/app/app/doctor/clients/AdminMergeAccountsPanel';
+import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientSupportPanel';
 import { AdminClientAuditHistorySection } from '@/app/app/doctor/clients/AdminClientAuditHistorySection';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
@@ -107,7 +109,7 @@ function SectionCard({
 }: {
   title?: string;
   titleRight?: React.ReactNode;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -688,7 +690,7 @@ export function PatientTabAccount({
   initialSupplementaryContacts,
   isAdmin = false,
 }: Props) {
-  const { patientSingularLabel, patientGenitive } = useDoctorPatientTerms();
+  const { patientSingularLabel, patientGenitive, supportGroupLabel } = useDoctorPatientTerms();
   const router = useRouter();
   const identity = header?.identity;
 
@@ -713,6 +715,7 @@ export function PatientTabAccount({
   const emailConfirmed = Boolean(identity?.emailVerifiedAt);
 
   const [personalDataModalOpen, setPersonalDataModalOpen] = useState(false);
+  const [supportModalOpen, setSupportModalOpen] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Block state (optimistic from header; confirmed by POST)
@@ -895,6 +898,16 @@ export function PatientTabAccount({
           RIGHT COLUMN
       ==================================================================== */}
       <div className="flex flex-col gap-3">
+        {/* ── 2.5. Сопровождение (owner live TEST 08.09: только модалка отсюда) ─ */}
+        <SectionCard
+          title={supportGroupLabel}
+          titleRight={
+            <Button type="button" variant="outline" size="sm" onClick={() => setSupportModalOpen(true)}>
+              Настроить
+            </Button>
+          }
+        />
+
         {/* ── 3. Доступ к аккаунту (ACCESS-01..04) ─────────────────── */}
         <SectionCard>
           {isBlocked && (
@@ -1027,6 +1040,15 @@ export function PatientTabAccount({
         gender={gender}
         onSaved={() => router.refresh()}
       />
+
+      <DoctorModal
+        open={supportModalOpen}
+        onClose={() => setSupportModalOpen(false)}
+        title={supportGroupLabel}
+        size="md"
+      >
+        <DoctorClientSupportPanel patientUserId={userId} />
+      </DoctorModal>
     </div>
   );
 }
