@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Captures DNS resolutions and outbound connections made by the running Jitsi/coturn containers during a
-# live call and asserts every destination is either our own stack (151.241.228.122) or a loopback/internal
-# address. Meant to be started before RUNBOOK.md's two-browser scenario and stopped after hangup.
+# Captures traffic on the dedicated Jitsi compose bridge during a live call and asserts every address is
+# either our own stack (151.241.228.122) or a loopback/internal address. Capturing the host egress device
+# is deliberately forbidden: that device also carries unrelated app/Telegram/DNS traffic and would
+# attribute other services' destinations to Jitsi. Browser requests are checked separately by the live
+# acceptance scenario, while coturn/JVB public listeners are covered by health-check allocations.
 #
-#   bin/probe-no-foreign-endpoints.sh start   begin capture (tcpdump on the docker bridge + host interface)
+#   bin/probe-no-foreign-endpoints.sh start   begin capture (tcpdump on the dedicated compose bridge)
 #   bin/probe-no-foreign-endpoints.sh stop    stop capture, print every distinct remote IP/host seen,
 #                                              fail if any is outside the allowed set
 set -euo pipefail
@@ -16,12 +18,24 @@ ALLOWED_IPS=("151.241.228.122" "127.0.0.1")
 case "${1:-}" in
   start)
     command -v tcpdump >/dev/null || { echo "FATAL: tcpdump not installed" >&2; exit 1; }
-    iface="$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if ($i=="dev") print $(i+1)}')"
-    [[ -n "$iface" ]] || { echo "FATAL: could not determine egress interface" >&2; exit 1; }
+    if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+      echo "FATAL: capture already running with pid $(cat "$PID_FILE")" >&2
+      exit 1
+    fi
+    network_id="$(docker network inspect bcb-jitsi-test_meet.jitsi --format '{{.Id}}' 2>/dev/null || true)"
+    [[ -n "$network_id" ]] || { echo "FATAL: bcb-jitsi-test compose network is absent" >&2; exit 1; }
+    iface="br-${network_id:0:12}"
+    ip link show "$iface" >/dev/null 2>&1 || { echo "FATAL: compose bridge $iface is absent" >&2; exit 1; }
+    rm -f "$CAPTURE_FILE"
     nohup tcpdump -i "$iface" -w "$CAPTURE_FILE" \
-      "udp port 3478 or udp port 5349 or tcp port 5349 or udp portrange ${TURN_RELAY_MIN:-49152}-${TURN_RELAY_MAX:-49252} or udp port ${JVB_PORT:-10000} or tcp port ${JVB_TCP_PORT:-4443} or port 443 or port 53" \
       >/tmp/jitsi-test-no-foreign-endpoints.log 2>&1 &
     echo $! > "$PID_FILE"
+    sleep 1
+    if ! kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+      echo "FATAL: tcpdump failed to start: $(tail -n 1 /tmp/jitsi-test-no-foreign-endpoints.log)" >&2
+      rm -f "$PID_FILE"
+      exit 1
+    fi
     echo "[probe] capture started on $iface, pid $(cat "$PID_FILE"), writing $CAPTURE_FILE"
     ;;
   stop)
@@ -33,7 +47,7 @@ case "${1:-}" in
 
     remotes="$(tcpdump -nr "$CAPTURE_FILE" 2>/dev/null \
       | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' \
-      | sort -u)"
+      | sort -u || true)"
 
     foreign=0
     while IFS= read -r ip; do
