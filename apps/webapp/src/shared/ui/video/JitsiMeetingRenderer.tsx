@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { VideoMeetingRenderSession } from '@/modules/video-meetings/ports';
 
-type JitsiApi = { dispose: () => void; addEventListener: (event: string, listener: () => void) => void };
+type JitsiApi = {
+  dispose: () => void;
+  addEventListener: (event: string, listener: () => void) => void;
+  getNumberOfParticipants?: () => number;
+};
 type JitsiConstructor = new (domain: string, options: Record<string, unknown>) => JitsiApi;
 
 declare global { interface Window { JitsiMeetExternalAPI?: JitsiConstructor } }
@@ -36,6 +40,7 @@ export function JitsiMeetingRenderer({ session, onHangup }: { session: VideoMeet
   useEffect(() => {
     if (!endpoint || !targetRef.current) { setState('unavailable'); return; }
     let disposed = false;
+    let readinessTimer: ReturnType<typeof setInterval> | null = null;
     setState('loading');
     void loadJitsi(endpoint).then((JitsiMeetExternalAPI) => {
       if (disposed || !targetRef.current) return;
@@ -51,8 +56,22 @@ export function JitsiMeetingRenderer({ session, onHangup }: { session: VideoMeet
       apiRef.current = api;
       api.addEventListener('videoConferenceJoined', () => { if (!disposed) setState('ready'); });
       api.addEventListener('readyToClose', () => onHangupRef.current?.());
+      // With prejoin disabled, current Jitsi can join before External API delivers the joined event.
+      // The public participant-count command is a stable secondary signal that the local participant exists.
+      readinessTimer = setInterval(() => {
+        if (!disposed && (api.getNumberOfParticipants?.() ?? 0) > 0) {
+          setState('ready');
+          if (readinessTimer) clearInterval(readinessTimer);
+          readinessTimer = null;
+        }
+      }, 250);
     }).catch(() => { if (!disposed) setState('unavailable'); });
-    return () => { disposed = true; apiRef.current?.dispose(); apiRef.current = null; };
+    return () => {
+      disposed = true;
+      if (readinessTimer) clearInterval(readinessTimer);
+      apiRef.current?.dispose();
+      apiRef.current = null;
+    };
     // Token renewal is in-memory; dispose only when this joined room or its endpoint is replaced.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpoint, roomReference]);
