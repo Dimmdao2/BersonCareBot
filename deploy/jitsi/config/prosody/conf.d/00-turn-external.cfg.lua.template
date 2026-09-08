@@ -1,0 +1,24 @@
+-- Prosody core mod_turn_external (XEP-0215 time-limited TURN credentials), TEST (#1100 stream C).
+--
+-- Source of truth for these option names: https://prosody.im/doc/modules/mod_turn_external
+-- (core module since Prosody 0.12; the third-party mod_turncredentials it obsoletes explicitly says so on
+-- its own doc page at https://modules.prosody.im/mod_turncredentials.html — we use the core module, not the
+-- obsoleted community one).
+--
+-- Filename is prefixed "00-" so it sorts and Includes before the generated "jitsi-meet.cfg.lua" in the same
+-- conf.d directory: these three assignments below any VirtualHost/Component block are Prosody *global*
+-- settings, inherited by "turn_external" wherever that module is enabled (main VirtualHost, via
+-- XMPP_MODULES=turn_external in jitsi-test.env.example) even though the module itself is switched on by a
+-- file generated afterward. bin/install.sh verifies this landed (see assert_turn_override_mounted) instead
+-- of assuming the Include/ordering behavior blind — see README.md "Design decisions".
+--
+-- The secret/host/port values below are substituted by bin/render-secrets.sh from the host TEST secret
+-- store; this file as checked into git contains only placeholder tokens, never a real value.
+
+turn_external_secret = "__TURN_SHARED_SECRET__";
+turn_external_host = "__TURN_HOST__";
+turn_external_port = __TURN_PORT__;
+-- coturn also answers TURNS on 5349; mod_turn_external only advertises one host:port pair for the
+-- unencrypted UDP/TCP listener, TLS discovery is handled by the client falling back to the TLS port on the
+-- same host when UDP ICE gathering fails (RUNBOOK.md scenario "forced TURN / TLS fallback").
+turn_external_ttl = 3600; -- short-lived on purpose: a 1:1 room's own capability/session lifetime is short too

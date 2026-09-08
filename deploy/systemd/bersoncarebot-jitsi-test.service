@@ -1,0 +1,22 @@
+[Unit]
+Description=BersonCareBot self-hosted Jitsi/coturn stack (Test, #1100 stream C)
+Documentation=file:/opt/projects/bersoncarebot-test/deploy/jitsi/README.md
+After=network-online.target docker.service
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=deploy
+Group=deploy
+WorkingDirectory=/opt/projects/bersoncarebot-test
+EnvironmentFile=/opt/env/bersoncarebot/jitsi.test
+ExecStart=/usr/bin/bash deploy/jitsi/bin/install.sh --apply
+ExecStop=/usr/bin/docker compose -p bcb-jitsi-test down
+ExecReload=/usr/bin/bash deploy/jitsi/bin/restart.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

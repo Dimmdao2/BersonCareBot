@@ -1,0 +1,53 @@
+# coturn config for TEST (#1100 stream C). Placeholders (__LIKE_THIS__) are substituted by
+# bin/render-secrets.sh from env/coturn-test.env.example + the host TEST secret store; this file as checked
+# into git has no real values. Option names/semantics follow coturn's own documented reference
+# (turnserver.conf.default in the coturn source tree) and the official Jitsi turn.md guidance on
+# shared-secret authentication.
+
+listening-port=__TURN_LISTEN_PORT__
+tls-listening-port=__TURN_TLS_LISTEN_PORT__
+min-port=__TURN_RELAY_MIN__
+max-port=__TURN_RELAY_MAX__
+
+# Time-limited credentials only (XEP-0215/shared-secret mechanism) — never a static long-term user/password.
+use-auth-secret
+static-auth-secret=__TURN_SHARED_SECRET__
+realm=__TURN_REALM__
+
+# Fixed public address; no STUN self-discovery of our own relay (VM-04: no third-party discovery of
+# anything in this stack, including coturn's own address).
+external-ip=__TURN_EXTERNAL_IP__
+listening-ip=0.0.0.0
+relay-ip=__TURN_EXTERNAL_IP__
+
+# TLS material for the 5349 listener (turn.test.bersoncare.ru — see NETWORK_POLICY.md DNS prerequisite).
+cert=/etc/coturn/tls/fullchain.pem
+pkey=/etc/coturn/tls/privkey.pem
+cipher-list="HIGH"
+no-tlsv1
+no-tlsv1_1
+
+# Never relay to loopback/RFC1918/link-local/etc — coturn must only move ICE media between the two jitsi
+# participants, never act as a general pivot into the host's own network. TURN_DENY_PEER_RANGES in
+# env/coturn-test.env.example is exploded into repeated denied-peer-ip lines here.
+__DENIED_PEER_IP_LINES__
+
+# TEST-scale cap: never more than one active 1:1 relayed call plus headroom for the runbook's forced-TURN
+# and JVB-fallback scenarios running back to back.
+user-quota=8
+total-quota=__TURN_MAX_ALLOCATIONS__
+
+# No CLI/telnet admin interface, no built-in web admin — nothing beyond the TURN/STUN protocol surface
+# itself is reachable.
+no-cli
+no-tcp-relay
+no-multicast-peers
+no-loopback-peers
+no-stdout-log
+log-file=/var/log/coturn/turnserver.log
+simple-log
+
+# fingerprint/mobility are protocol-correctness options recommended by coturn's own docs for browser
+# WebRTC clients, not third-party integrations.
+fingerprint
+stale-nonce=600
