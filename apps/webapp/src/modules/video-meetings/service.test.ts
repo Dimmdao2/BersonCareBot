@@ -1,12 +1,49 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createVideoMeetingsService } from './service';
-import type { VideoMeetingProvider, VideoMeetingStore } from './ports';
+import type {
+  VideoMeetingInvitationNotification,
+  VideoMeetingProvider,
+  VideoMeetingStore,
+} from './ports';
 
 const ids = {
   organization: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   patient: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   specialist: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
 } as const;
+
+const meetingRecord = {
+  id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  organizationId: ids.organization,
+  patientUserId: ids.patient,
+  specialistId: ids.specialist,
+  providerRoomRef: 'opaque-room',
+  status: 'active' as const,
+  expiresAt: '2099-09-08T02:00:00.000Z',
+};
+
+function healthyProvider(): VideoMeetingProvider {
+  return {
+    health: vi.fn().mockResolvedValue({ ok: true }),
+    issueJoinMaterial: vi.fn().mockResolvedValue({
+      renderer: 'embedded_conference',
+      endpoint: null,
+      roomReference: 'room-ref',
+      accessToken: 'token',
+      expiresAt: '2099-09-08T02:00:00.000Z',
+    }),
+  };
+}
+
+function storeReturning(created: boolean): VideoMeetingStore {
+  return {
+    findOrCreateActive: vi.fn().mockResolvedValue({ meeting: meetingRecord, created }),
+    rotateInvite: vi.fn().mockResolvedValue(true),
+    revokeInvite: vi.fn().mockResolvedValue(true),
+    findGuestMeeting: vi.fn().mockResolvedValue(null),
+    findPatientMeeting: vi.fn().mockResolvedValue(null),
+  };
+}
 
 describe('video meeting provider health gate', () => {
   it('does not create a meeting while the configured provider is unhealthy', async () => {
@@ -49,5 +86,100 @@ describe('video meeting provider health gate', () => {
       }),
     ).resolves.toEqual({ ok: false, error: 'provider_unhealthy' });
     expect(store.findOrCreateActive).not.toHaveBeenCalled();
+  });
+});
+
+describe('video meeting invitation notification dedup (ACC-05)', () => {
+  it('enqueues exactly one invitation notification for a newly created meeting', async () => {
+    // Failure: a resumed/retried meeting re-triggers the invitation, or a fresh meeting silently
+    // sends none. Impact: the patient is spammed on every reconnect, or never learns about the call.
+    const invitationNotification: VideoMeetingInvitationNotification = {
+      enqueue: vi.fn().mockResolvedValue({
+        status: 'queued',
+        selectedChannels: ['telegram'],
+        queuedChannels: ['telegram'],
+        deduplicatedChannels: [],
+      }),
+    };
+    const service = createVideoMeetingsService({
+      store: storeReturning(true),
+      provider: healthyProvider(),
+      onlineGate: { isOnlineLocationActive: vi.fn().mockResolvedValue(true) },
+      invitationNotification,
+      resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
+    });
+
+    const result = await service.createOrResume({
+      organizationId: ids.organization,
+      patientUserId: ids.patient,
+      specialistId: ids.specialist,
+      specialistPlatformUserId: ids.specialist,
+    });
+
+    expect(invitationNotification.enqueue).toHaveBeenCalledTimes(1);
+    expect(invitationNotification.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: ids.organization,
+        patientUserId: ids.patient,
+        meetingId: meetingRecord.id,
+        guestUrl: expect.stringMatching(/^https:\/\/clinic\.therapygo\.ru\/live#/),
+      }),
+    );
+    expect(result.ok && result.notification?.status).toBe('queued');
+  });
+
+  it('does not enqueue a second invitation notification when the active meeting is resumed', async () => {
+    const invitationNotification: VideoMeetingInvitationNotification = {
+      enqueue: vi.fn().mockResolvedValue({
+        status: 'queued',
+        selectedChannels: ['telegram'],
+        queuedChannels: ['telegram'],
+        deduplicatedChannels: [],
+      }),
+    };
+    const service = createVideoMeetingsService({
+      store: storeReturning(false),
+      provider: healthyProvider(),
+      onlineGate: { isOnlineLocationActive: vi.fn().mockResolvedValue(true) },
+      invitationNotification,
+      resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
+    });
+
+    const result = await service.createOrResume({
+      organizationId: ids.organization,
+      patientUserId: ids.patient,
+      specialistId: ids.specialist,
+      specialistPlatformUserId: ids.specialist,
+    });
+
+    expect(invitationNotification.enqueue).not.toHaveBeenCalled();
+    expect(result.ok && 'notification' in result).toBe(false);
+  });
+
+  it('keeps the copyable invite link and lifecycle intact when notification delivery throws', async () => {
+    // Failure: a queue/channel/origin failure aborts meeting creation or hides the invite fragment.
+    // Impact: the specialist loses the only copyable link because an unrelated delivery step failed
+    // (GATE-04 bounded best-effort).
+    const invitationNotification: VideoMeetingInvitationNotification = {
+      enqueue: vi.fn().mockRejectedValue(new Error('queue unavailable')),
+    };
+    const service = createVideoMeetingsService({
+      store: storeReturning(true),
+      provider: healthyProvider(),
+      onlineGate: { isOnlineLocationActive: vi.fn().mockResolvedValue(true) },
+      invitationNotification,
+      resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
+    });
+
+    const result = await service.createOrResume({
+      organizationId: ids.organization,
+      patientUserId: ids.patient,
+      specialistId: ids.specialist,
+      specialistPlatformUserId: ids.specialist,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.inviteFragment).toEqual(expect.any(String));
+    expect(result.ok && result.notification?.status).toBe('unavailable');
   });
 });
