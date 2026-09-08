@@ -201,7 +201,7 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
                 patientActionTextClass,
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
                 isSelected
-                  ? 'border-[var(--patient-color-primary)] bg-[var(--patient-color-primary)] text-primary-foreground'
+                  ? 'border-[var(--patient-color-primary)] bg-[var(--patient-color-primary)] patient-text-inverse'
                   : 'border-[var(--patient-border,#d8deef)] bg-[var(--patient-card-bg)]',
                 !isSelected && hasSlots && !isPast && day.inCurrentMonth
                   ? 'hover:border-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-soft)]'

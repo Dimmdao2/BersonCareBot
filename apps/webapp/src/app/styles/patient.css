@@ -729,6 +729,17 @@
   .patient-text-secondary-data-active-accent[data-active] { color: var(--patient-color-primary); }
   .group:hover .patient-text-secondary-group-hover-inverse,
   .group:active .patient-text-secondary-group-hover-inverse { color: var(--patient-text-inverse); }
+  .patient-text-interactive-inverse:hover,
+  .patient-text-interactive-inverse:active,
+  .patient-text-interactive-inverse:focus-visible,
+  .group:hover .patient-text-group-interactive-inverse,
+  .group:active .patient-text-group-interactive-inverse,
+  .group:focus-visible .patient-text-group-interactive-inverse,
+  .group:hover .patient-text-group-interactive-inverse *,
+  .group:active .patient-text-group-interactive-inverse *,
+  .group:focus-visible .patient-text-group-interactive-inverse * {
+    color: var(--patient-text-inverse) !important;
+  }
 
   .safe-padding-patient {
     padding-left: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px));

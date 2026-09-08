@@ -14,6 +14,7 @@ import {
 } from '@/shared/ui/patient/primitives/select';
 import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
+import { cn } from '@/lib/utils';
 import { addSymptomEntry } from './symptoms/actions';
 import { notifyDiarySymptomEntrySaved } from '@/modules/diaries/symptomDiaryClientEvents';
 import {

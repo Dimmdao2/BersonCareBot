@@ -23,11 +23,8 @@ function BookingServiceDescription({ text }: { text: string }) {
   if (!trimmed) return null;
 
   const inheritedDescWrap = cn(
-    'mt-1 w-full min-w-0 transition-colors',
+    'mt-1 w-full min-w-0 patient-text-group-interactive-inverse transition-colors',
     patientMutedTextClass,
-    'group-hover:text-primary-foreground group-active:text-primary-foreground group-focus-visible:text-primary-foreground',
-    'group-hover:[&_.markdown-preview]:!text-primary-foreground group-focus-visible:[&_.markdown-preview]:!text-primary-foreground group-active:[&_.markdown-preview]:!text-primary-foreground',
-    'group-hover:[&_*]:!text-primary-foreground group-focus-visible:[&_*]:!text-primary-foreground group-active:[&_*]:!text-primary-foreground',
     '[&_a]:underline',
   );
 

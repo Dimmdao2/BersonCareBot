@@ -18,6 +18,7 @@ import {
   patientBodyTextClass,
   patientFormLabelClass,
   patientInlineLinkClass,
+  patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
 
 export type OtpConfirmResult =

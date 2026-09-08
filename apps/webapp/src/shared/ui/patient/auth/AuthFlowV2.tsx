@@ -1955,7 +1955,7 @@ export function AuthFlowV2({
                         patientCaptionTextClass,
                         specialistSignupSlugStatus === 'error'
                           ? 'patient-text-danger'
-                          : patientMutedTextClass,
+                          : 'patient-text-secondary',
                       )}
                     >
                       {specialistSignupSlugMessage}
@@ -2031,7 +2031,7 @@ export function AuthFlowV2({
                           patientCaptionTextClass,
                           specialistSignupSlugStatus === 'error'
                             ? 'patient-text-danger'
-                            : patientMutedTextClass,
+                            : 'patient-text-secondary',
                         )}
                       >
                         {specialistSignupSlugMessage}

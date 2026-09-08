@@ -5,8 +5,6 @@ import { ChevronDown } from 'lucide-react';
 import { Badge } from '@/shared/ui/patient/primitives/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/primitives/card';
 import {
-  patientBodyTextClass,
-  patientCaptionTextClass,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -17,6 +15,8 @@ import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTi
 import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
 import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
 import {
+  patientBodyTextClass,
+  patientCaptionTextClass,
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
 import { bookingProvenancePrefix, nativeBookingSubtitle } from './patientBookingLabels';
