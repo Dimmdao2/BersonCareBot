@@ -1,5 +1,10 @@
 # High Opus plan delta audit — #1100 appointment delivery format
 
+## Тест или взгляд
+
+Это качество разового действия — полнота и непротиворечивость новой plan-delta до реализации. Проверять чтением
+итогового plan-candidate и фактических canonical choke points в коде; тесты не писать и не запускать.
+
 Audit the exact committed plan candidate at `0ae2c2ebc` before any implementation worker starts. Read the
 `AGENTS.md` heading map, then full relevant §1 migration rules, §5, §§10a/10b, §12, §§16/21/22 and §24. Read
 `docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md`, especially the second owner-correction dated 08.09.2026 and
