@@ -93,9 +93,16 @@ export function createVideoMeetingsService(deps: {
         specialistId: input.specialistId, actorPlatformUserId: input.specialistPlatformUserId,
       });
       if (!inviteIssued) throw new Error('video_meeting_invite_issue_failed');
-      const guestUrl = deps.resolvePatientPublicOrigin
-        ? buildGuestUrl(await deps.resolvePatientPublicOrigin(input.organizationId), inviteSecret)
-        : null;
+      let guestUrl: string | null = null;
+      try {
+        guestUrl = deps.resolvePatientPublicOrigin
+          ? buildGuestUrl(await deps.resolvePatientPublicOrigin(input.organizationId), inviteSecret)
+          : null;
+      } catch {
+        // A missing branded patient origin may withhold a copyable link and notification, never
+        // the already-issued meeting or specialist session.
+        guestUrl = null;
+      }
       let notification: VideoMeetingInvitationNotificationResult | undefined;
       if (result.created) {
         if (!deps.invitationNotification || !guestUrl) {
@@ -136,9 +143,14 @@ export function createVideoMeetingsService(deps: {
         specialistId: input.specialistId, actorPlatformUserId: input.actorPlatformUserId,
       });
       if (!ok) return { ok: false as const, error: 'meeting_unavailable' as const };
-      const guestUrl = deps.resolvePatientPublicOrigin
-        ? buildGuestUrl(await deps.resolvePatientPublicOrigin(input.organizationId), secret)
-        : undefined;
+      let guestUrl: string | undefined;
+      try {
+        guestUrl = deps.resolvePatientPublicOrigin
+          ? buildGuestUrl(await deps.resolvePatientPublicOrigin(input.organizationId), secret)
+          : undefined;
+      } catch {
+        guestUrl = undefined;
+      }
       return { ok: true as const, inviteFragment: secret, ...(guestUrl ? { guestUrl } : {}) };
     },
 

@@ -264,3 +264,25 @@ typecheck cannot go green until it is closed as well.
 
 Also note: `pnpm --dir apps/webapp typecheck` fails with `TS2307: Cannot find module '@bersoncare/*'` in a
 fresh worktree until `pnpm -r --filter "./packages/*" build` has been run once.
+
+## 9. Fixer correction evidence — 2026-09-08
+
+Fixer candidate: follow-up to `8ebdbf2f6` on `wt/video-meeting-ui-v3-20260908`.
+
+- **Finding 5.** `live/page.tsx` projects the existing effective `encounters` and `medical_record` values from
+  `loadDoctorWorkspaceShell`; the client omits the «Приём» tab unless `encounters` is effective and passes
+  `medicalRecordEnabled` into the canonical `EncounterPageClient`. The video and note surfaces remain outside
+  either condition.
+- **Finding 6.** `DoctorCalendarEventPanel` retains the selected `onCreated` continuation while the overlap
+  confirmation is open and reuses it for the confirmed canonical create. Offline still opens the encounter;
+  online still opens the call; the nested footer itself is unchanged.
+- **Finding 7.** The non-video select/without footer is restored to «Отмена» plus primary «Начать приём».
+  The create branch continues to use the canonical appointment footer. The enabled branch retains the two
+  modality actions through all three modes.
+- **Finding 8.** Authenticated patient live parameterizes the existing patient live client with existing
+  `PatientDiaryAuthenticatedMain` and `PatientTreatmentProgramsListClient` read presentations only when the
+  canonical effective `client_portal` gate succeeds; rehabilitation further narrows the program panel. The
+  pane is rendered only after the existing server-matched patient join returns a session. Guest `/live` remains
+  the separate fragment-only client with no patient panes; video is still available when `client_portal` is off.
+
+This is inspection evidence for composition requirements, not new DOM/CSS/copy/button-count coverage.

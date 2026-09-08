@@ -13,5 +13,18 @@ export default async function DoctorLiveMeetingPage({ params, searchParams }: { 
   const identity = await buildAppDeps().doctorClientsPort.getClientIdentityForOrganization(userId, shell.workspaceAccess.organizationId, shell.workspaceAccess);
   if (!identity) notFound();
   const appointmentId = (await searchParams).appointmentId;
-  return <DoctorLiveMeetingClient userId={userId} appointmentId={z.string().uuid().safeParse(appointmentId).success ? appointmentId! : null} patient={{ displayName: identity.displayName, firstName: identity.firstName ?? null, lastName: identity.lastName ?? null, phone: identity.phone }} />;
+  return (
+    <DoctorLiveMeetingClient
+      userId={userId}
+      appointmentId={z.string().uuid().safeParse(appointmentId).success ? appointmentId! : null}
+      patient={{
+        displayName: identity.displayName,
+        firstName: identity.firstName ?? null,
+        lastName: identity.lastName ?? null,
+        phone: identity.phone,
+      }}
+      encountersEnabled={shell.workspaceModules.encounters}
+      medicalRecordEnabled={shell.workspaceModules.medical_record}
+    />
+  );
 }

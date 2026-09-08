@@ -35,13 +35,24 @@ export async function POST(request: Request, context: { params: Promise<{ userId
     gate.ctx,
   );
   if (!patient) return noStore({ ok: false, error: 'not_found' }, 404);
+  const requestedAppointmentId = body.data.appointmentId ?? null;
+  const appointment = requestedAppointmentId
+    ? await deps.bookingEngine?.getAppointment(requestedAppointmentId)
+    : null;
+  // `bookingEngine` is the canonical appointment read seam. Do not bind an id unless it proves
+  // the same client and active organization; the uniform null binding avoids an existence oracle.
+  const appointmentId =
+    appointment?.organizationId === gate.ctx.organizationId &&
+    appointment.platformUserId === patient.userId
+      ? appointment.id
+      : null;
   const result = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.video-meeting.create-or-resume', () =>
     deps.videoMeetings!.createOrResume({
       organizationId: gate.ctx.organizationId,
       patientUserId: patient.userId,
       specialistId: gate.ctx.specialistId!,
       specialistPlatformUserId: gate.ctx.session.user.userId,
-      appointmentId: body.data.appointmentId ?? null,
+      appointmentId,
     }),
   );
   if (!result.ok) return noStore({ ok: false, error: result.error }, 503);

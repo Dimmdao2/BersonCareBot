@@ -307,6 +307,7 @@ function DoctorCalendarEventPanelInner({
   onClose,
   onChanged,
   onCreated,
+  createContinuation,
   onUpdated,
   startInCreate = false,
   createInitialStart = null,
@@ -331,6 +332,9 @@ function DoctorCalendarEventPanelInner({
   const [cancelOpen, setCancelOpen] = useState(false);
   /** ENCOUNTER-APPOINTMENT-05: подтверждение конфликта показывается ДО сохранения. */
   const [overlapConfirmOpen, setOverlapConfirmOpen] = useState(false);
+  const [overlapContinuation, setOverlapContinuation] = useState<
+    { onCreated?: (appointmentId: string) => void } | null
+  >(null);
   const [cancelDraft, setCancelDraft] = useState<AppointmentCancelDraft>(EMPTY_CANCEL_DRAFT);
   const [message, setMessage] = useState<string | null>(null);
   // APPT-FORM-13: правка идёт двумя контрактами (запись и комментарий). Отказ комментария
@@ -560,6 +564,7 @@ function DoctorCalendarEventPanelInner({
         // Подтверждение предлагается только там, где согласие ИСПОЛНИМО: у канонической ручной
         // двери. Дверь нового пациента им не расширялась, и обещать там наложение нельзя.
         if (json.error === 'slot_overlap' && !isNewPatient && !options?.allowOverlap) {
+          setOverlapContinuation({ onCreated: options?.onCreated });
           setOverlapConfirmOpen(true);
           return;
         }
@@ -652,14 +657,19 @@ function DoctorCalendarEventPanelInner({
               type="button"
               variant="outline"
               disabled={pending}
-              onClick={() => setOverlapConfirmOpen(false)}
+              onClick={() => {
+                setOverlapContinuation(null);
+                setOverlapConfirmOpen(false);
+              }}
             >
               Отмена
             </Button>
             <Button
               type="button"
               disabled={pending}
-              onClick={() => submitCreate({ allowOverlap: true })}
+              onClick={() =>
+                submitCreate({ allowOverlap: true, onCreated: overlapContinuation?.onCreated })
+              }
             >
               Создать наложение
             </Button>

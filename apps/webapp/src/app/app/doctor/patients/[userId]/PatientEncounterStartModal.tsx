@@ -186,8 +186,44 @@ export function PatientEncounterStartModal({
   const footer =
     mode === 'create' ? undefined : (
       <DoctorModalFooter>
-        <Button type="button" variant="outline" disabled={mode === 'select' && !selectedAppointmentId} onClick={() => openEncounter(mode === 'select' ? (selectedAppointmentId ?? undefined) : undefined)}>Очный приём</Button>
-        {videoMeetingsEnabled ? <Button type="button" disabled={mode === 'select' && !selectedAppointmentId} onClick={() => openOnline(mode === 'select' ? (selectedAppointmentId ?? undefined) : undefined)}>Онлайн-приём</Button> : null}
+        {videoMeetingsEnabled ? (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={mode === 'select' && !selectedAppointmentId}
+              onClick={() =>
+                openEncounter(mode === 'select' ? (selectedAppointmentId ?? undefined) : undefined)
+              }
+            >
+              Очный приём
+            </Button>
+            <Button
+              type="button"
+              disabled={mode === 'select' && !selectedAppointmentId}
+              onClick={() =>
+                openOnline(mode === 'select' ? (selectedAppointmentId ?? undefined) : undefined)
+              }
+            >
+              Онлайн-приём
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              disabled={mode === 'select' && !selectedAppointmentId}
+              onClick={() =>
+                openEncounter(mode === 'select' ? (selectedAppointmentId ?? undefined) : undefined)
+              }
+            >
+              Начать приём
+            </Button>
+          </>
+        )}
       </DoctorModalFooter>
     );
 

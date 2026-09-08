@@ -11,7 +11,24 @@ import { EncounterPageClient } from '../visits/EncounterPageClient';
 
 type SessionResponse = { ok?: boolean; meetingId?: string; session?: VideoMeetingRenderSession; guestUrl?: string | null };
 
-export function DoctorLiveMeetingClient({ userId, appointmentId, patient }: { userId: string; appointmentId: string | null; patient: { displayName: string; firstName: string | null; lastName: string | null; phone: string | null } }) {
+export function DoctorLiveMeetingClient({
+  userId,
+  appointmentId,
+  patient,
+  encountersEnabled,
+  medicalRecordEnabled,
+}: {
+  userId: string;
+  appointmentId: string | null;
+  patient: {
+    displayName: string;
+    firstName: string | null;
+    lastName: string | null;
+    phone: string | null;
+  };
+  encountersEnabled: boolean;
+  medicalRecordEnabled: boolean;
+}) {
   const startedRef = useRef(false);
   const meetingIdRef = useRef<string | null>(null);
   const [session, setSession] = useState<VideoMeetingRenderSession | null>(null);
@@ -53,9 +70,26 @@ export function DoctorLiveMeetingClient({ userId, appointmentId, patient }: { us
           </Button>
         </div>
         <Tabs defaultValue="note">
-          <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="note">Заметка</TabsTrigger><TabsTrigger value="encounter">Приём</TabsTrigger></TabsList>
-          <TabsContent value="note" forceMount className="mt-3 data-[state=inactive]:hidden"><DoctorNotesPanel userId={userId} embedded /></TabsContent>
-          <TabsContent value="encounter" forceMount className="mt-3 data-[state=inactive]:hidden"><EncounterPageClient mode="create" userId={userId} patient={patient} boundAppointmentId={appointmentId} embedded onComplete={() => undefined} /></TabsContent>
+          <TabsList className={`grid w-full ${encountersEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <TabsTrigger value="note">Заметка</TabsTrigger>
+            {encountersEnabled ? <TabsTrigger value="encounter">Приём</TabsTrigger> : null}
+          </TabsList>
+          <TabsContent value="note" keepMounted className="mt-3 data-[state=inactive]:hidden">
+            <DoctorNotesPanel userId={userId} embedded />
+          </TabsContent>
+          {encountersEnabled ? (
+            <TabsContent value="encounter" keepMounted className="mt-3 data-[state=inactive]:hidden">
+              <EncounterPageClient
+                mode="create"
+                userId={userId}
+                patient={patient}
+                boundAppointmentId={appointmentId}
+                medicalRecordEnabled={medicalRecordEnabled}
+                embedded
+                onComplete={() => undefined}
+              />
+            </TabsContent>
+          ) : null}
         </Tabs>
       </aside>
     </main>
