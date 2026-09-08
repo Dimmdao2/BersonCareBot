@@ -142,6 +142,14 @@ export function createVideoMeetingsService(deps: {
     },
 
     async rotateInvite(input: { meetingId: string; organizationId: string; patientUserId: string; specialistId: string; actorPlatformUserId: string }) {
+      const meeting = await deps.store.findSpecialistMeeting?.({
+        meetingId: input.meetingId,
+        organizationId: input.organizationId,
+        specialistId: input.specialistId,
+      });
+      if (!meeting || meeting.patientUserId !== input.patientUserId) {
+        return { ok: false as const, error: 'meeting_unavailable' as const };
+      }
       const secret = opaque();
       const inviteId = randomUUID();
       const ok = await deps.store.rotateInvite({

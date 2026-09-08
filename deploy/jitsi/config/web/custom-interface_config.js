@@ -14,7 +14,7 @@ interfaceConfig.PROVIDER_NAME = '';
 
 // Toolbar allowlist mirrors config.js's toolbarButtons; kept here too since some Jitsi releases read the
 // button list from interfaceConfig instead.
-interfaceConfig.TOOLBAR_BUTTONS = ['microphone', 'camera', 'hangup', 'desktop', 'toggle-camera', 'fullscreen', 'settings', 'filmstrip', 'tileview', 'videoquality', 'select-background'];
+interfaceConfig.TOOLBAR_BUTTONS = ['microphone', 'camera', 'hangup', 'desktop', 'toggle-camera', 'fullscreen', 'settings', 'tileview', 'videoquality', 'select-background'];
 interfaceConfig.SETTINGS_SECTIONS = ['devices', 'more'];
 interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS = true;
 interfaceConfig.DISABLE_TRANSCRIPTION_SUBTITLES = true;

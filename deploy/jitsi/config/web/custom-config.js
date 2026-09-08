@@ -7,7 +7,7 @@
 //
 // VM-06 owner allowlist. The browser adapter may only narrow this set when a capability is
 // unavailable; product UI never draws a second toolbar.
-config.toolbarButtons = ['microphone', 'camera', 'hangup', 'desktop', 'toggle-camera', 'fullscreen', 'settings', 'filmstrip', 'tileview', 'videoquality', 'select-background'];
+config.toolbarButtons = ['microphone', 'camera', 'hangup', 'desktop', 'toggle-camera', 'fullscreen', 'settings', 'tileview', 'videoquality', 'select-background'];
 
 // No third-party requests of any kind (VM-04).
 config.disableThirdPartyRequests = true;
@@ -32,11 +32,18 @@ config.disableChat = true;
 config.disableReactions = true;
 config.disablePolls = true;
 config.transcribingEnabled = false;
-config.localRecording = false;
+config.localRecording = {
+  disable: true,
+  notifyAllParticipants: false,
+  disableSelfRecording: true,
+};
 config.fileSharing = { enabled: false };
 config.etherpad_base = undefined;
 config.whiteboard = { enabled: false };
 config.virtualBackground = { enableV2: true };
+config.disableShowMoreStats = true;
+config.hideParticipantsStats = true;
+config.connectionIndicators = { disabled: true, disableDetails: true };
 
 // P2P first, our coturn only as fallback, our JVB as last resort (VM-03/VM-04). No entry here duplicates a
 // default Jitsi/Google STUN — the only entries come from P2P_STUN_SERVERS at render time.

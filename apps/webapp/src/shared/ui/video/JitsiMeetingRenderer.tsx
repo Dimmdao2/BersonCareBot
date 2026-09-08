@@ -6,6 +6,7 @@ import type { VideoMeetingRenderSession } from '@/modules/video-meetings/ports';
 type JitsiApi = {
   dispose: () => void;
   addEventListener: (event: string, listener: (payload?: unknown) => void) => void;
+  executeCommand: (command: string, ...arguments_: unknown[]) => void;
 };
 type JitsiConstructor = new (domain: string, options: Record<string, unknown>) => JitsiApi;
 
@@ -30,12 +31,11 @@ function errorClassFromJitsiEvent(payload: unknown): 'connection' | 'media' | 'p
   return 'provider';
 }
 
-function isP2pStatus(payload: unknown): boolean {
-  return Boolean(
-    payload
-      && typeof payload === 'object'
-      && (payload as Record<string, unknown>).isP2p === true,
-  );
+function transportFromP2pStatus(payload: unknown): 'p2p' | 'relay' | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const isP2p = (payload as Record<string, unknown>).isP2p;
+  if (typeof isP2p !== 'boolean') return null;
+  return isP2p ? 'p2p' : 'relay';
 }
 
 async function loadJitsi(endpoint: string): Promise<JitsiConstructor> {
@@ -124,22 +124,50 @@ export function JitsiMeetingRenderer({
           interfaceConfigOverwrite: {
             // The deployment configuration is the broad allowlist. iframe overrides only narrow
             // it to controls exposed by the pinned External API bundle.
-            TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup', 'desktop', 'toggle-camera', 'fullscreen', 'settings', 'filmstrip', 'tileview', 'videoquality', 'select-background'],
+            TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup', 'desktop', 'toggle-camera', 'fullscreen', 'settings', 'tileview', 'videoquality', 'select-background'],
             SHOW_JITSI_WATERMARK: false,
             SHOW_BRAND_WATERMARK: false,
             SHOW_POWERED_BY: false,
           },
         });
         apiRef.current = api;
+        const remoteParticipants = new Set<string>();
+        let filmstripVisible = true;
+        const setFilmstripVisible = (visible: boolean) => {
+          if (filmstripVisible === visible) return;
+          filmstripVisible = visible;
+          api.executeCommand('toggleFilmStrip');
+        };
         api.addEventListener('videoConferenceJoined', () => {
           joinedAt = Date.now();
+          if (remoteParticipants.size === 0) setFilmstripVisible(false);
           onDiagnosticRef.current?.({ event: 'join' });
+        });
+        api.addEventListener('filmstripDisplayChanged', (payload) => {
+          if (!payload || typeof payload !== 'object') return;
+          const visible = (payload as Record<string, unknown>).visible;
+          if (typeof visible === 'boolean') filmstripVisible = visible;
+        });
+        api.addEventListener('participantJoined', (payload) => {
+          if (payload && typeof payload === 'object') {
+            const id = (payload as Record<string, unknown>).id;
+            if (typeof id === 'string') remoteParticipants.add(id);
+          }
+          setFilmstripVisible(true);
+        });
+        api.addEventListener('participantLeft', (payload) => {
+          if (payload && typeof payload === 'object') {
+            const id = (payload as Record<string, unknown>).id;
+            if (typeof id === 'string') remoteParticipants.delete(id);
+          }
+          if (remoteParticipants.size === 0) setFilmstripVisible(false);
         });
         api.addEventListener('errorOccurred', (payload) => {
           onDiagnosticRef.current?.({ event: 'error', errorClass: errorClassFromJitsiEvent(payload) });
         });
         api.addEventListener('p2pStatusChanged', (payload) => {
-          onDiagnosticRef.current?.({ event: 'join', transport: isP2pStatus(payload) ? 'p2p' : 'relay' });
+          const transport = transportFromP2pStatus(payload);
+          if (transport) onDiagnosticRef.current?.({ event: 'join', transport });
         });
         api.addEventListener('cameraError', () => onDiagnosticRef.current?.({ event: 'error', errorClass: 'media' }));
         api.addEventListener('micError', () => onDiagnosticRef.current?.({ event: 'error', errorClass: 'media' }));

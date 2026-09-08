@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Copy } from 'lucide-react';
+import { Copy, Play } from 'lucide-react';
 import type { VideoMeetingRenderSession } from '@/modules/video-meetings/ports';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
@@ -63,8 +63,8 @@ export function DoctorLiveMeetingClient({
       if (!response.ok || !data.ok || !data.session || !data.meetingId) throw new Error('prepare_failed');
       meetingIdRef.current = data.meetingId;
       setPreparedMeetingId(data.meetingId);
-      setGuestUrl(data.guestUrl ?? null);
-      setNotification(data.notification ?? null);
+      if (data.guestUrl) setGuestUrl(data.guestUrl);
+      if (data.notification) setNotification(data.notification);
       if (mount) setSession(data.session);
     };
     const previous = prepareInFlightRef.current;
@@ -122,15 +122,15 @@ export function DoctorLiveMeetingClient({
 
   return (
     <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden">
-      <section className="relative flex min-h-0 min-w-0 overflow-hidden rounded-lg bg-black">
+      <section className="relative flex min-h-[320px] min-w-0 overflow-hidden rounded-lg bg-black lg:min-h-0">
         <VideoMeetingStage className="relative flex min-h-0 flex-1 bg-black" session={session} onHangup={end} onDiagnostic={reportDiagnostic} />
         {!session ? (
           <div className="absolute inset-0 flex items-center justify-center">
-            <Button type="button" size="lg" disabled={starting} onClick={start}>Начать звонок</Button>
+            <Button type="button" size="lg" disabled={starting} onClick={start}><Play className="size-5" /> Начать звонок</Button>
           </div>
         ) : null}
       </section>
-      <aside className="min-w-0 overflow-hidden rounded-lg border bg-card p-3">
+      <aside className="min-w-0 overflow-y-auto rounded-lg border bg-card p-3">
         {error ? <div className="mb-3 flex items-center gap-2 text-sm text-destructive"><span>Не удалось начать звонок</span><Button type="button" size="sm" variant="outline" onClick={retryPrepare}>Повторить</Button></div> : null}
         {notification ? <p className="mb-3 text-sm text-muted-foreground">{notification.status === 'queued' || notification.status === 'partially_queued' ? 'Приглашение поставлено в очередь' : 'Приглашение не отправлено автоматически'}</p> : null}
         <div className="mb-3 flex justify-end">

@@ -43,6 +43,7 @@ function storeReturning(created: boolean): VideoMeetingStore {
     revokeInvite: vi.fn().mockResolvedValue(true),
     findGuestMeeting: vi.fn().mockResolvedValue(null),
     findPatientMeeting: vi.fn().mockResolvedValue(null),
+    findSpecialistMeeting: vi.fn().mockResolvedValue(meetingRecord),
   };
 }
 
@@ -269,17 +270,20 @@ describe('explicit rotate_invite follows the same notification contract as creat
     // rotates A's invite then sends its guest capability to B.
     // Impact: patient B can join patient A's call, while A's already-delivered link is silently
     // invalidated (ACC-07/ACC-08 invite-to-meeting-patient binding).
+    const rotateInvite = vi.fn().mockResolvedValue(true);
     const store: VideoMeetingStore = {
       ...storeReturning(true),
+      rotateInvite,
       findSpecialistMeeting: vi.fn().mockResolvedValue(meetingRecord),
     };
+    const enqueue = vi.fn().mockResolvedValue({
+      status: 'queued' as const,
+      selectedChannels: ['telegram'] as const,
+      queuedChannels: ['telegram'] as const,
+      deduplicatedChannels: [],
+    });
     const invitationNotification: VideoMeetingInvitationNotification = {
-      enqueue: vi.fn().mockResolvedValue({
-        status: 'queued',
-        selectedChannels: ['telegram'],
-        queuedChannels: ['telegram'],
-        deduplicatedChannels: [],
-      }),
+      enqueue,
     };
     const service = createVideoMeetingsService({
       store,
@@ -298,8 +302,8 @@ describe('explicit rotate_invite follows the same notification contract as creat
 
     expect({
       result,
-      rotated: store.rotateInvite.mock.calls.length,
-      notifications: invitationNotification.enqueue.mock.calls.length,
+      rotated: rotateInvite.mock.calls.length,
+      notifications: enqueue.mock.calls.length,
     }).toEqual({
       result: { ok: false, error: 'meeting_unavailable' },
       rotated: 0,
