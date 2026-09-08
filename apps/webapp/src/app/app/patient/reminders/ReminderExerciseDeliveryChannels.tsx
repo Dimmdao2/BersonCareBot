@@ -74,7 +74,7 @@ export function ReminderExerciseDeliveryChannels({ deliveryChannelLabels }: Prop
         {deliveryChannelLabels.length === 0 ? (
           <>
             {' '}
-            <Link href={routePaths.notificationSettings} className="text-primary underline">
+            <Link href={routePaths.notificationSettings} className="patient-text-accent underline">
               Настроить
             </Link>
           </>
@@ -83,7 +83,7 @@ export function ReminderExerciseDeliveryChannels({ deliveryChannelLabels }: Prop
 
       {showPushWarning ? (
         <div className="rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/30">
-          <p className={cn(patientCaptionTextClass, 'text-[var(--patient-surface-warning-text)]')}>
+          <p className={cn(patientCaptionTextClass, 'patient-text-primary')}>
             {pushState.uiStatus === 'denied_system'
               ? 'Push-уведомления отключены в настройках устройства.'
               : 'Push-уведомления не включены — напоминания могут не доходить в приложение.'}

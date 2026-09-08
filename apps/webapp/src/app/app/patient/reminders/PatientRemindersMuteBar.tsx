@@ -70,7 +70,7 @@ export function PatientRemindersMuteBar({
             type="button"
             size="sm"
             variant="outline"
-            className="shrink-0 border-[var(--patient-surface-warning-border)] bg-[var(--patient-card-bg)] text-[var(--patient-surface-warning-accent)] hover:bg-[var(--patient-surface-warning-bg)]"
+            className="shrink-0 border-[var(--patient-surface-warning-border)] bg-[var(--patient-card-bg)] patient-text-warning-accent hover:bg-[var(--patient-surface-warning-bg)]"
             disabled={pending}
             onClick={() => callMute({ mutedUntilIso: null })}
           >

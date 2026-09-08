@@ -262,7 +262,7 @@ export function PatientInstanceStageItemCard(props: {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className={cn(patientActionTextClass, 'h-7 px-2 text-[var(--patient-text-secondary)] underline-offset-2 hover:underline')}
+                  className={cn(patientActionTextClass, 'h-7 px-2 patient-text-secondary underline-offset-2 hover:underline')}
                   disabled={markingViewed}
                   onClick={async (e) => {
                     e.stopPropagation();
@@ -318,7 +318,7 @@ export function PatientInstanceStageItemCard(props: {
             <p className={cn(patientMutedTextClass, 'mt-1')}>
               Элемент:{' '}
               {item.completedAt ? (
-                <span className={cn(patientCaptionTextClass, 'text-[var(--patient-color-success)]')}>выполнен</span>
+                <span className={cn(patientCaptionTextClass, 'patient-text-success-accent')}>выполнен</span>
               ) : (
                 <span>не выполнен</span>
               )}
@@ -328,7 +328,7 @@ export function PatientInstanceStageItemCard(props: {
           {item.itemType !== 'recommendation' ? (
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
               {(discussionSummary?.totalCount ?? 0) > 0 ? (
-                <span className="inline-flex items-center gap-1 patient-type-caption text-muted-foreground">
+                <span className="inline-flex items-center gap-1 patient-type-caption patient-text-secondary">
                   <MessageCircle className="size-3.5 shrink-0" aria-hidden />
                   <span className="tabular-nums">{discussionSummary!.totalCount}</span>
                   {(discussionSummary?.unreadCount ?? 0) > 0 ? (
@@ -341,7 +341,7 @@ export function PatientInstanceStageItemCard(props: {
               ) : null}
               {Boolean((item.snapshot as Record<string, unknown>)?.contraindications) ? (
                 <AlertTriangle
-                  className="size-3.5 shrink-0 text-amber-500"
+                  className="size-3.5 shrink-0 patient-text-warning-accent"
                   aria-label="Противопоказания"
                 />
               ) : null}
@@ -399,7 +399,7 @@ export function PatientInstanceStageItemCard(props: {
             ) : null
           ) : null}
           {!contentBlocked && readOnly && item.itemType === 'clinical_test' ? (
-            <p className={cn(patientCaptionTextClass, 'mt-2 text-[var(--patient-color-success)]')}>
+            <p className={cn(patientCaptionTextClass, 'mt-2 patient-text-success-accent')}>
               {item.completedAt ? 'Тест пройден.' : 'Тест не выполнялся.'}
             </p>
           ) : null}

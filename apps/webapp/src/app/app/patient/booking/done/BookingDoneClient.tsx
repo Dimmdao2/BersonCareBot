@@ -99,7 +99,7 @@ export function BookingDoneClient({
     <div className="flex flex-col gap-4">
       {/* Success header */}
       <div className={cn(patientCardClass, 'flex flex-col gap-2 text-center')}>
-        <p className="text-2xl">✓</p>
+        <p className="patient-type-booking-success-glyph">✓</p>
         <p className={cn(patientSectionTitleClass, 'text-center')}>Запись подтверждена</p>
         <ul className={cn(patientMutedTextClass, 'mt-1 list-none text-center')}>
           <li className={patientCaptionTextClass}>{serviceTitle}</li>

@@ -20,7 +20,7 @@ const scheduleCardChrome = cn(
   'overflow-visible rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
   'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
   'border border-[var(--patient-action-warning-hover-bg)] bg-[var(--patient-warning-card-gradient)]',
-  'text-[var(--patient-text-primary)]',
+  'patient-text-primary',
 );
 
 /** Продолжение хром подписи карточки при раскрытии (полная ширина колонки страницы). */
@@ -45,7 +45,7 @@ export type PatientPlanTodayRemindersCardProps = {
 
 /** Без `w-full` / `min-h-10` из `patientButtonWarningOutlineClass` — узкая CTA у правого края. */
 const configureScheduleButtonClass = cn(
-  'inline-flex shrink-0 items-center justify-center self-start rounded-sm border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-2 py-1 patient-type-caption text-[var(--patient-action-warning-text)] transition-colors',
+  'inline-flex shrink-0 items-center justify-center self-start rounded-sm border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-2 py-1 patient-type-caption patient-text-warning transition-colors',
   'hover:bg-[var(--patient-action-warning-hover-bg)]/80 active:bg-[var(--patient-action-warning-hover-bg)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-warning)]',
 );
@@ -81,7 +81,7 @@ export function PatientPlanTodayRemindersCard({
         >
           <span className="flex min-w-0 flex-1 items-center gap-2">
             <Bell
-              className="size-[18px] shrink-0 text-[var(--patient-color-primary)]"
+              className="size-[18px] shrink-0 patient-text-accent"
               strokeWidth={NAV_STRIP_ICON_STROKE}
               aria-hidden
             />
@@ -90,7 +90,7 @@ export function PatientPlanTodayRemindersCard({
             </h2>
           </span>
           <ChevronDown
-            className="size-3.5 shrink-0 text-[var(--patient-color-primary)] transition-transform group-data-[open]/collapsible:rotate-180"
+            className="size-3.5 shrink-0 patient-text-accent transition-transform group-data-[open]/collapsible:rotate-180"
             aria-hidden
           />
         </CollapsibleTrigger>
@@ -102,20 +102,20 @@ export function PatientPlanTodayRemindersCard({
             <div className="min-w-0 flex-1 space-y-1">
               {variant === 'trainingsToday' ? (
                 <>
-                  <p className={cn(patientCaptionTextClass, 'text-[var(--patient-block-heading)]')}>
+                  <p className={cn(patientCaptionTextClass, 'patient-text-home-heading')}>
                     Тренировки на сегодня
                   </p>
-                  <p className={cn(patientCaptionTextClass, 'text-[var(--patient-color-primary)]')}>
+                  <p className={cn(patientCaptionTextClass, 'patient-text-accent')}>
                     {rehabTodayLine}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className={cn(patientCaptionTextClass, 'text-[var(--patient-color-primary)]')}>
+                  <p className={cn(patientCaptionTextClass, 'patient-text-accent')}>
                     Тренировки: {rehabTodayLine}
                   </p>
                   {warmupTodayLine != null ? (
-                    <p className={cn(patientCaptionTextClass, 'text-[var(--patient-color-primary)]')}>
+                    <p className={cn(patientCaptionTextClass, 'patient-text-accent')}>
                       Разминки: {warmupTodayLine}
                     </p>
                   ) : null}

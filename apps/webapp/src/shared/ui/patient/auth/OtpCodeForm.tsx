@@ -224,7 +224,7 @@ export function OtpCodeForm({
           aria-invalid={!!error}
         />
       </div>
-      {error ? <p className={cn(patientBodyTextClass, 'text-[var(--patient-color-danger)]')}>{error}</p> : null}
+      {error ? <p className={cn(patientBodyTextClass, 'patient-text-danger-accent')}>{error}</p> : null}
       <Button
         type="submit"
         variant="outline"

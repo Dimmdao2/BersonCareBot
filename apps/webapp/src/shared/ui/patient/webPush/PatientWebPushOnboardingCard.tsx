@@ -44,7 +44,7 @@ export function PatientWebPushOnboardingCard() {
       size="sm"
       headerAction={
         <span
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-color-primary-soft)] text-[var(--patient-color-primary)]"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-color-primary-soft)] patient-text-accent"
           aria-hidden
         >
           <Bell className="size-5" />

@@ -13,7 +13,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const splitHeadingClass =
-  'patient-type-home-card-title tracking-tight text-[var(--patient-block-heading)]';
+  'patient-type-home-card-title tracking-tight patient-text-home-heading';
 
 const dangerHalfBgClass = 'bg-[var(--patient-color-danger-soft)]';
 const successHalfBgClass = 'bg-[var(--patient-color-success-soft)]';
@@ -24,13 +24,13 @@ const outerChromeClass = cn(
 );
 
 const sosIconShellClass =
-  'inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-color-danger)] text-white md:size-10';
+  'inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-color-danger)] patient-text-inverse md:size-10';
 const bookingIconShellClass =
-  'inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-action-success-badge-bg)] text-[var(--patient-color-success)] md:size-10';
+  'inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-action-success-badge-bg)] patient-text-success-accent md:size-10';
 
 const sosButtonClass = cn(
   patientButtonDangerOutlineClass,
-  '!min-h-8 shrink-0 px-2.5 py-1.5 patient-type-action text-[var(--patient-status-sos-text)]',
+  '!min-h-8 shrink-0 px-2.5 py-1.5 patient-type-action patient-text-sos',
   'border-[#d8a3a3] hover:bg-[#fff1f1]/80 active:bg-[#fee7e7]/80',
 );
 

@@ -21,4 +21,4 @@ export const bookingChoiceRowClass = cn(
 
 /** Иконки слева в рядах «город / онлайн». */
 export const bookingChoiceRowIconClass =
-  'size-5 shrink-0 text-[var(--patient-text-muted)] transition-colors group-hover:text-primary-foreground group-active:text-primary-foreground';
+  'size-5 shrink-0 patient-text-secondary patient-text-secondary-group-hover-inverse transition-colors';

@@ -40,7 +40,7 @@ export function FormatStepClient({ cities, onlineLocation, catalogError }: Forma
         </p>
         {catalogError ? (
           <div className="flex flex-col gap-2">
-            <p className={cn(patientMutedTextClass, 'text-destructive')}>{catalogError}</p>
+            <p className={cn(patientMutedTextClass, 'patient-text-danger')}>{catalogError}</p>
             <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>
               Повторить
             </Button>

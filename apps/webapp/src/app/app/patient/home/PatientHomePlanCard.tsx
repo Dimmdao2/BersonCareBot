@@ -37,7 +37,7 @@ function LeadingPlanIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | n
         alt=""
         className="size-5 rounded-full object-cover"
         loading="lazy"
-        fallback={<ClipboardList className="size-5 text-[var(--patient-color-primary)]" />}
+        fallback={<ClipboardList className="size-5 patient-text-accent" />}
       />
     </div>
   );

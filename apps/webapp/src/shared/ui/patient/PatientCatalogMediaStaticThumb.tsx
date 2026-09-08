@@ -31,7 +31,7 @@ export function PatientCatalogMediaStaticThumb(props: PatientCatalogMediaStaticT
   if (!media) {
     return (
       <div className={cn(shell, 'flex items-center justify-center bg-muted/25')} aria-hidden>
-        <ImageIcon className={cn(iconClassName, 'text-muted-foreground')} />
+        <ImageIcon className={cn(iconClassName, 'patient-text-secondary')} />
       </div>
     );
   }

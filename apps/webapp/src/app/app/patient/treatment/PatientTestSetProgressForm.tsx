@@ -63,7 +63,7 @@ function AttemptHistoryCollapsibleList(props: {
               </span>
               <ChevronDown
                 className={cn(
-                  'size-3.5 shrink-0 text-[var(--patient-text-muted)] transition-transform duration-200',
+                  'size-3.5 shrink-0 patient-text-secondary transition-transform duration-200',
                   'group-data-[panel-open]:rotate-180',
                 )}
                 aria-hidden

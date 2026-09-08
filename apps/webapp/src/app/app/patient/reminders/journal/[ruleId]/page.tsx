@@ -60,7 +60,7 @@ export default async function PatientReminderJournalPage({ params }: Props) {
             <li key={e.id}>
               <Card
                 className={cn(
-                  'rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] bg-[var(--patient-card-bg)] !py-0 text-[var(--patient-text-primary)] shadow-[var(--patient-shadow-card-mobile)] ring-0 lg:rounded-[var(--patient-card-radius-desktop)] lg:shadow-[var(--patient-shadow-card-desktop)]',
+                  'rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] bg-[var(--patient-card-bg)] !py-0 patient-text-primary shadow-[var(--patient-shadow-card-mobile)] ring-0 lg:rounded-[var(--patient-card-radius-desktop)] lg:shadow-[var(--patient-shadow-card-desktop)]',
                 )}
               >
                 <CardContent className="flex flex-wrap items-center justify-between gap-2 py-3">

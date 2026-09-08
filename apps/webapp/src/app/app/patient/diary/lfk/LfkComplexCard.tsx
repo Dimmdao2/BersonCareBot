@@ -81,7 +81,7 @@ export function LfkComplexCard({
                       <li key={l.id} className={patientCaptionTextClass}>
                         <span>{l.exerciseTitle}</span>
                         {l.effectiveComment?.trim() ? (
-                          <span className="text-[var(--patient-text-muted)]">
+                          <span className="patient-text-secondary">
                             {' '}
                             — {l.effectiveComment.trim()}
                           </span>
@@ -95,7 +95,7 @@ export function LfkComplexCard({
                   type="button"
                   variant="link"
                   size="sm"
-                  className={cn(patientCaptionTextClass, 'h-auto p-0 text-[var(--patient-color-primary)]')}
+                  className={cn(patientCaptionTextClass, 'h-auto p-0 patient-text-accent')}
                   onClick={onEditScheduleClick}
                 >
                   Изменить расписание
@@ -115,8 +115,8 @@ export function LfkComplexCard({
                 className={cn(
                   'size-5',
                   hasReminder
-                    ? 'fill-[var(--patient-color-primary)] text-[var(--patient-color-primary)]'
-                    : 'text-[var(--patient-text-muted)]',
+                    ? 'patient-fill-accent patient-text-accent'
+                    : 'patient-text-secondary',
                 )}
                 strokeWidth={hasReminder ? 1.25 : 2}
               />

@@ -37,8 +37,8 @@ function profileIconBtnClass(isActive: boolean): string {
   return cn(
     CHROME_ICON_BTN_BASE,
     isActive
-      ? 'text-[var(--patient-color-primary)]'
-      : 'text-[var(--patient-text-secondary)] hover:text-[var(--patient-color-primary)]',
+      ? 'patient-text-navigation-active'
+      : 'patient-text-navigation-inactive',
   );
 }
 
@@ -108,7 +108,7 @@ export function PatientShellTopChrome({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-9 shrink-0 text-[var(--patient-text-secondary)] hover:text-[var(--patient-color-primary)]"
+                  className="size-9 shrink-0 patient-text-navigation-inactive"
                   onClick={goBack}
                   aria-label={backLabel}
                 >
@@ -128,7 +128,7 @@ export function PatientShellTopChrome({
                 {shellTitleBadge ? (
                   <span
                     data-testid="patient-header-title-badge"
-                    className="max-w-[38%] shrink-0 truncate rounded-full border border-border bg-muted/70 px-1.5 py-px patient-type-caption text-foreground"
+                    className="max-w-[38%] shrink-0 truncate rounded-full border border-border bg-muted/70 px-1.5 py-px patient-type-caption patient-text-primary"
                     title={shellTitleBadge}
                   >
                     {shellTitleBadge}

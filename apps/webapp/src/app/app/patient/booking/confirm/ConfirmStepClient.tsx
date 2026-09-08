@@ -375,7 +375,7 @@ export function ConfirmStepClient({
               required
             />
           </label>
-          {error ? <p className={cn(patientBodyTextClass, 'text-destructive')}>{error}</p> : null}
+          {error ? <p className={cn(patientBodyTextClass, 'patient-text-danger')}>{error}</p> : null}
           <Button type="submit" className={patientButtonPrimaryClass} disabled={submitting}>
             {submitting ? 'Проверяем код...' : 'Подтвердить запись'}
           </Button>
@@ -543,7 +543,7 @@ export function ConfirmStepClient({
           </label>
         ) : null}
 
-        {error ? <p className={cn(patientBodyTextClass, 'text-destructive')}>{error}</p> : null}
+        {error ? <p className={cn(patientBodyTextClass, 'patient-text-danger')}>{error}</p> : null}
         <Button type="submit" className={patientButtonPrimaryClass} disabled={!canSubmit}>
           {submitting ? 'Создаём запись...' : 'Подтвердить запись'}
         </Button>

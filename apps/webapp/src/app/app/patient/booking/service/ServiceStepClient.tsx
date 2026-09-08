@@ -86,7 +86,7 @@ export function ServiceStepClient({
     <div className={bookingChoiceSectionClass}>
       {catalogError ? (
         <div className="flex flex-col gap-2">
-          <p className={cn(patientBodyTextClass, 'text-destructive')}>{catalogError}</p>
+          <p className={cn(patientBodyTextClass, 'patient-text-danger')}>{catalogError}</p>
           <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>
             Повторить
           </Button>

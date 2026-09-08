@@ -28,7 +28,7 @@ export function PatientShellPageTitleWithHistoryBack({
         type="button"
         variant="ghost"
         size="icon"
-        className="-ml-2.5 size-10 shrink-0 text-[var(--patient-text-primary)]"
+        className="-ml-2.5 size-10 shrink-0 patient-text-primary"
         onClick={goBack}
         aria-label={backLabel}
       >

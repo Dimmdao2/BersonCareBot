@@ -149,7 +149,7 @@ function StageDescriptionBlock(props: { text: string | null | undefined }) {
             type="button"
             className={cn(
               patientInlineLinkClass,
-              'text-[var(--patient-text-secondary)]',
+              'patient-text-secondary',
             )}
             onClick={() => setExpanded((e) => !e)}
           >
@@ -325,11 +325,11 @@ export function PatientTreatmentProgramStagePageClient(props: {
       <CollapsibleTrigger className={patientStageGoalsCollapsibleTriggerClass}>
         <div className="mb-0 flex min-w-0 w-full items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <ScrollText className="size-3.5 shrink-0 text-neutral-400" aria-hidden />
+            <ScrollText className="size-3.5 shrink-0 patient-text-secondary" aria-hidden />
             <span className="truncate">Цели и задачи</span>
           </div>
           <ChevronDown
-            className="size-3.5 shrink-0 text-neutral-400 transition-transform group-data-[open]/collapsible:rotate-180"
+            className="size-3.5 shrink-0 patient-text-secondary transition-transform group-data-[open]/collapsible:rotate-180"
             aria-hidden
           />
         </div>

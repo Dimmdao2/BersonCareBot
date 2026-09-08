@@ -151,7 +151,7 @@ export function SlotStepClient(props: Props) {
       {slotsState.loading ? <AppContentLoading className="py-4" /> : null}
       {slotsState.error ? (
         <div className="flex flex-col gap-2">
-          <p className={`${patientMutedTextClass} text-destructive`}>{slotsState.error}</p>
+          <p className={`${patientMutedTextClass} patient-text-danger`}>{slotsState.error}</p>
           <Button
             type="button"
             variant="outline"

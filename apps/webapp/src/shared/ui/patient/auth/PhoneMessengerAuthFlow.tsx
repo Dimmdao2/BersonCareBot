@@ -487,7 +487,7 @@ export function PhoneMessengerAuthFlow({
             {bindManualCommand ? (
               <p className={patientCaptionTextClass}>
                 Если бот открылся без запроса контакта, отправьте команду:{' '}
-                <span className="font-mono text-[var(--patient-text-primary)]">
+                <span className="font-mono patient-text-primary">
                   {bindManualCommand}
                 </span>
               </p>

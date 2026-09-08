@@ -73,17 +73,17 @@ export function PatientTreatmentProgramsListClient(props: {
           <p className={cn(patientMutedTextClass, 'mt-2')}>
             {hero.currentStageTitle ? (
               <>
-                Текущий этап: <span className="text-foreground">{hero.currentStageTitle}</span>
+                Текущий этап: <span className="patient-text-primary">{hero.currentStageTitle}</span>
               </>
             ) : (
               <>
-                Текущий этап: <span className="text-foreground">—</span>
+                Текущий этап: <span className="patient-text-primary">—</span>
               </>
             )}
           </p>
           {hero.planUpdatedLabel?.trim() ? (
             <p className={cn(patientBodyTextClass, 'mt-2 flex items-center gap-1.5')} role="status">
-              <span className="text-destructive" aria-hidden="true">
+              <span className="patient-text-danger" aria-hidden="true">
                 ●
               </span>
               <span>{hero.planUpdatedLabel.trim()}</span>

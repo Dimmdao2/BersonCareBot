@@ -946,7 +946,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               <button
                 type="button"
                 className={cn(
-                  'inline-flex size-9 min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors',
+                  'inline-flex size-9 min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white patient-text-secondary transition-colors',
                   mediaPickerEnabled
                     ? 'cursor-pointer hover:bg-slate-100 active:bg-slate-200'
                     : 'cursor-not-allowed opacity-60',

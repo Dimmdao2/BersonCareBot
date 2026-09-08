@@ -108,7 +108,7 @@ export function PwaInstallSection() {
             Меню <strong>Поделиться</strong> → <strong>На экран «Домой»</strong> (в Safari шаги
             такие; в Chrome на iOS названия могут отличаться — ищите добавление на домашний экран).
           </p>
-          <p className="text-muted-foreground">После установки ярлык откроет кабинет {patientGenitive}.</p>
+          <p className="patient-text-secondary">После установки ярлык откроет кабинет {patientGenitive}.</p>
         </div>
       ) : null}
 

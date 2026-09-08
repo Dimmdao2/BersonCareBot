@@ -11,11 +11,11 @@ import { cn } from '@/lib/utils';
 export function PatientTreatmentProgramsListPromoRetry() {
   const router = useRouter();
   return (
-    <p className={cn(patientMutedTextClass, 'text-[var(--patient-color-danger)]')} role="alert">
+    <p className={cn(patientMutedTextClass, 'patient-text-danger-accent')} role="alert">
       Не удалось открыть программу.{' '}
       <button
         type="button"
-        className={cn(patientInlineLinkClass, 'text-[var(--patient-color-danger)]')}
+        className={cn(patientInlineLinkClass, 'patient-text-danger-accent')}
         onClick={() => router.refresh()}
       >
         Повторить

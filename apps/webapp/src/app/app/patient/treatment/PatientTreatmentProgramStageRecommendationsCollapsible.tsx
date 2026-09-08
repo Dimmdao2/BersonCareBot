@@ -59,7 +59,7 @@ export function PatientTreatmentProgramStageRecommendationsCollapsible(props: {
       >
         <div className="mb-0 flex min-w-0 w-full items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <Shield className="size-4 shrink-0 text-emerald-800/85" aria-hidden />
+            <Shield className="size-4 shrink-0 patient-text-success opacity-[0.85]" aria-hidden />
             <span className={patientSectionTitleClass}>Рекомендации этапа</span>
           </div>
           <ChevronDown

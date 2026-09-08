@@ -44,7 +44,7 @@ type Props = {
 function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
   return (
     <div
-      className="inline-flex size-[4.5rem] shrink-0 items-center justify-center rounded-full bg-[var(--patient-action-warning-bg)] text-[var(--patient-color-warning)] md:size-24"
+      className="inline-flex size-[4.5rem] shrink-0 items-center justify-center rounded-full bg-[var(--patient-action-warning-bg)] patient-text-warning-accent md:size-24"
       aria-hidden
     >
       <PatientHomeSafeImage

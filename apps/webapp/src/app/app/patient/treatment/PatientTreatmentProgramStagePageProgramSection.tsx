@@ -120,7 +120,7 @@ function ProgramTileHintButton(props: { ariaLabel: string; icon: ReactNode; chil
       <PopoverTrigger
         type="button"
         className={cn(
-          'inline-flex size-9 min-h-[40px] min-w-[40px] shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground outline-none transition-colors',
+          'inline-flex size-9 min-h-[40px] min-w-[40px] shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-md border-0 bg-transparent patient-text-secondary outline-none transition-colors',
           'hover:bg-muted/50 active:bg-muted/70',
           'focus-visible:ring-2 focus-visible:ring-[var(--patient-border)] focus-visible:ring-offset-2',
         )}
@@ -629,7 +629,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                 )}
               >
                 <span className="flex min-w-0 flex-1 items-start text-left">
-                  <span className="line-clamp-2 break-words patient-type-secondary text-foreground">
+                  <span className="line-clamp-2 break-words patient-type-secondary patient-text-primary">
                     {tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}
                   </span>
                 </span>

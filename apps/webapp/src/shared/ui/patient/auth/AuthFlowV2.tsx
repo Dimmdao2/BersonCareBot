@@ -1954,7 +1954,7 @@ export function AuthFlowV2({
                       className={cn(
                         patientCaptionTextClass,
                         specialistSignupSlugStatus === 'error'
-                          ? 'text-destructive'
+                          ? 'patient-text-danger'
                           : patientMutedTextClass,
                       )}
                     >
@@ -2030,7 +2030,7 @@ export function AuthFlowV2({
                         className={cn(
                           patientCaptionTextClass,
                           specialistSignupSlugStatus === 'error'
-                            ? 'text-destructive'
+                            ? 'patient-text-danger'
                             : patientMutedTextClass,
                         )}
                       >

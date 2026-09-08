@@ -213,7 +213,7 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
               <span>{day.dayOfMonth}</span>
               {isToday ? (
                 <span
-                  className={cn('mt-0.5 patient-type-micro', isSelected ? 'text-primary-foreground' : 'text-primary')}
+                  className={cn('mt-0.5 patient-type-micro', isSelected ? 'patient-text-inverse' : 'patient-text-accent')}
                 >
                   Сегодня
                 </span>

@@ -118,7 +118,7 @@ export const patientHomeFeatureBadgeBaseClass = cn(
  */
 export const patientHomeUsefulPostCoverBadgeClass = cn(
   patientHomeFeatureBadgeBaseClass,
-  'max-w-[min(100%,11rem)] truncate text-white shadow-md',
+  'max-w-[min(100%,11rem)] truncate patient-text-inverse shadow-md',
   'bg-[#c0392b] ring-1 ring-inset ring-white/40',
 );
 
@@ -156,7 +156,7 @@ export const patientIconLeadingWarningClass = cn(
 
 export const patientIconLeadingDangerClass = cn(
   'inline-flex size-11 shrink-0 items-center justify-center rounded-full md:size-14',
-  'bg-[var(--patient-color-danger)] text-white',
+  'bg-[var(--patient-color-danger)] patient-text-inverse',
 );
 
 // --- Phase 1 visual contracts: fixed slots + clamps (patient home «Сегодня») ---
@@ -403,11 +403,11 @@ export const patientHomeHeroTextColumnClass = cn(
   'pr-[100px] min-[380px]:pr-[124px] min-[415px]:pr-[160px] md:pr-[200px] lg:pr-[244px] xl:pr-[268px]',
 );
 
-/** Hero: заголовок (крупнее на mobile), line-clamp-2 — база {@link patientHeroTitleBaseClass}, адаптивные размеры под макет главной. */
+/** Hero: primary home hierarchy and line-clamp-2; the responsive scale lives in `patient-type-home-hero-title`. */
 export const patientHomeHeroTitleClampClass = cn(
   'min-w-0',
   patientHeroTitleBaseClass,
-  'mt-2 max-w-[min(100%,240px)] patient-type-page-title md:mt-4 md:max-w-[min(100%,320px)] md:line-clamp-2 lg:max-w-[min(100%,390px)]',
+  'mt-2 max-w-[min(100%,240px)] patient-type-home-hero-title md:mt-4 md:max-w-[min(100%,320px)] md:line-clamp-2 lg:max-w-[min(100%,390px)]',
 );
 
 /** Hero: summary, line-clamp-2. */
@@ -513,7 +513,7 @@ export const patientHomeProgressValueSuffixClass =
 export const patientHomeProgressStreakValueClass =
   'patient-type-metric text-[var(--patient-text-primary)]';
 
-/** Двухколоночный блок настроения: подзаголовки как у блоков главной (цвет), чуть компактнее и `font-medium`. */
+/** Двухколоночный блок настроения: подзаголовки используют общий section-title role. */
 export const patientHomeMoodColumnHeadingClass = cn(
   'patient-type-section-title',
   'text-[var(--patient-block-heading)]',

@@ -106,7 +106,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
               <Popover>
                 <PopoverTrigger
                   type="button"
-                  className="inline-flex shrink-0 rounded-sm p-0.5 text-[var(--patient-text-muted)] hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]"
+                  className="inline-flex shrink-0 rounded-sm p-0.5 patient-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]"
                   aria-label="Как считается прогресс"
                 >
                   <Info className="size-4" aria-hidden />
@@ -185,7 +185,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                   loading="lazy"
                   fallback={
                     <span className="inline-flex size-8 items-center justify-center rounded-full bg-[#fff7ed]">
-                      <Flame className="size-4 shrink-0 text-[#f97316] md:size-5" />
+                      <Flame className="size-4 shrink-0 patient-text-warning-accent md:size-5" />
                     </span>
                   }
                 />

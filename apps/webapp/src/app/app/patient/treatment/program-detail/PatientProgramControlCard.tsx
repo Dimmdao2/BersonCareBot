@@ -36,7 +36,7 @@ export function PatientProgramControlCard(props: {
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex min-w-0 items-center gap-2">
             <CalendarCheck
-              className="size-4 shrink-0 text-[var(--patient-color-warning)]"
+              className="size-4 shrink-0 patient-text-warning-accent"
               aria-hidden
             />
             <h3 className={cn(patientSectionTitleClass, 'mb-0')}>
@@ -62,7 +62,7 @@ export function PatientProgramControlCard(props: {
             className={cn(
               patientCaptionTextClass,
               'mt-0',
-              noSelfServiceTests && 'text-[var(--patient-color-warning)]',
+              noSelfServiceTests && 'patient-text-warning-accent',
             )}
           >
             {noSelfServiceTests

@@ -38,6 +38,8 @@ than new local pixel values.
 | Micro | 11/16, 500 | `patientMicroTextClass` |
 | Metric / hero number | 28/34, 600 | `patientMetricTextClass` |
 | Home cover display heading | 20/24 mobile, 24/28 from `md`, 600 | `patient-type-home-display` |
+| Home primary hero title | 20/24 mobile; 30/34, 34/38, 36/40 desktop scale, 600 | `patient-type-home-hero-title` |
+| Booking success glyph | 24/28, 400 | `patient-type-booking-success-glyph` |
 
 Micro is reserved for badges, counters, graph/calendar axes, and nonessential compact metadata.
 It is not a fallback for readable prose, errors, schedules, form labels, or doctor comments. The
@@ -47,6 +49,8 @@ Patient shell page titles use `patientPageTitleClass` on both mobile and desktop
 16px. Status tones remain semantic tokens, not duplicated direct text hex values.
 The home cover display role is reserved for media-overlay headings; it is controlled by the same
 patient typography panel and is not a responsive override of the page-title role.
+The Home primary hero title is a distinct responsive role for the main dashboard hero; it is not used
+for compact useful-post overlays.
 
 ## 1a. Responsive: patient shell (`md`)
 

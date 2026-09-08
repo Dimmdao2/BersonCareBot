@@ -31,7 +31,7 @@ type Props = {
 function nativePastStatusRight(status: PatientBookingRecord['status']): ReactNode {
   if (status === 'confirmed') return null;
   if (status === 'cancelled') {
-    return <span className={cn(patientBodyTextClass, 'shrink-0 text-destructive')}>Отменена</span>;
+    return <span className={cn(patientBodyTextClass, 'shrink-0 patient-text-danger')}>Отменена</span>;
   }
   if (status === 'completed') return <Badge variant="outline">Завершена</Badge>;
   if (status === 'rescheduled') return <Badge variant="outline">Перенесена</Badge>;
@@ -52,7 +52,7 @@ export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
           <CardTitle>Журнал прошедших приёмов</CardTitle>
             <ChevronDown
               className={cn(
-                'size-4 shrink-0 text-[var(--patient-text-muted)] transition-transform',
+                'size-4 shrink-0 patient-text-secondary transition-transform',
                 'group-data-[panel-open]:rotate-180',
               )}
             />

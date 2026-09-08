@@ -29,7 +29,7 @@ export function PatientDailyWarmupHeroCover({ imageUrl, anonymousGuest }: Props)
         loading="lazy"
         fallback={
           <div className="mb-1.5 mr-1.5 flex size-[80px] items-center justify-center rounded-[42%] bg-white/50 ring-1 ring-[var(--patient-color-primary-border)] min-[380px]:size-[90px] lg:mb-2 lg:size-[150px] xl:size-[162px]">
-            <Sparkles className="size-9 text-[var(--patient-color-primary)] opacity-80 min-[380px]:size-10 lg:size-[3.25rem] xl:size-14" />
+            <Sparkles className="size-9 patient-text-accent opacity-80 min-[380px]:size-10 lg:size-[3.25rem] xl:size-14" />
           </div>
         }
       />

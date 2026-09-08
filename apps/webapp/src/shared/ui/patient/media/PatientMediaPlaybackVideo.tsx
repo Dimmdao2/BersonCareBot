@@ -509,7 +509,7 @@ function PlaybackEngine({
           <>
             {loading ? (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50">
-                <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden />
+                <Loader2 className="size-8 animate-spin patient-text-secondary" aria-hidden />
               </div>
             ) : null}
             <NoContextMenuVideo
@@ -640,7 +640,7 @@ export function PatientMediaPlaybackVideo({
         }}
       >
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50">
-          <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden />
+          <Loader2 className="size-8 animate-spin patient-text-secondary" aria-hidden />
         </div>
       </div>
     );

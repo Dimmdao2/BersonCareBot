@@ -112,7 +112,7 @@ export function PatientAppShell({
                     {shellTitleBadge ? (
                       <span
                         data-testid="patient-header-title-badge"
-                        className="inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 patient-type-caption text-foreground"
+                        className="inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 patient-type-caption patient-text-primary"
                         title={shellTitleBadge}
                       >
                         {shellTitleBadge}

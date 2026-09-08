@@ -288,7 +288,7 @@ export function TelegramLoginButton({
           )}
         />
       </div>
-      {error ? <p className={cn(patientBodyTextClass, 'text-[var(--patient-color-danger)]')}>{error}</p> : null}
+      {error ? <p className={cn(patientBodyTextClass, 'patient-text-danger-accent')}>{error}</p> : null}
       {busy ? <p className={patientMutedTextClass}>Вход…</p> : null}
     </div>
   );

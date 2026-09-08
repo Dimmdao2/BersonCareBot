@@ -26,7 +26,7 @@ export function LegalFooterLinks({ className, supportHref }: LegalFooterLinksPro
       >
         Условия использования
       </Link>
-      <span className="text-[var(--patient-border)]" aria-hidden>
+      <span className="patient-text-border" aria-hidden>
         ·
       </span>
       <Link
@@ -37,7 +37,7 @@ export function LegalFooterLinks({ className, supportHref }: LegalFooterLinksPro
       </Link>
       {support ? (
         <>
-          <span className="text-[var(--patient-border)]" aria-hidden>
+          <span className="patient-text-border" aria-hidden>
             ·
           </span>
           <SupportContactLink

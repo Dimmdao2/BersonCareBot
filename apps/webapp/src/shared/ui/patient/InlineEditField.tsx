@@ -17,7 +17,7 @@ export type InlineEditFieldProps = {
   onSave: (next: string) => void | Promise<void>;
   className?: string;
   disabled?: boolean;
-  /** Доп. классы для подписи поля (например `font-normal` в профиле пациента). */
+  /** Доп. semantic classes for the field label. */
   labelClassName?: string;
   /** Доп. классы для ссылки «Изменить» / «Добавить». */
   editLinkClassName?: string;

@@ -35,6 +35,11 @@
   /* Home cover headings are a distinct display role, not a responsive page-title override. */
   --patient-font-size-home-display: 20px;
   --patient-line-height-home-display: 24px;
+  /* Home's primary hero has its own hierarchy; it is not an inner-page title. */
+  --patient-font-size-home-hero-title: 20px;
+  --patient-line-height-home-hero-title: 24px;
+  --patient-font-size-booking-success-glyph: 24px;
+  --patient-line-height-booking-success-glyph: 28px;
   --patient-font-weight-regular: 400;
   --patient-font-weight-medium: 500;
   --patient-font-weight-semibold: 600;
@@ -44,6 +49,7 @@
   --patient-text-caption: #667085;
   --patient-text-micro: #667085;
   --patient-text-specialist: #714c2f;
+  --patient-text-inverse: #ffffff;
   /** Legacy aliases retained for existing patient callers. */
   --patient-block-heading: var(--patient-text-heading);
   --patient-block-heading-font-size: var(--patient-font-size-section-title);
@@ -138,6 +144,14 @@
   --patient-simple-complete-done-bg: rgba(74, 152, 110, 0.76);
   --patient-simple-complete-done-text: rgba(255, 255, 255, 0.93);
   --patient-text-muted-strong: #6d7789;
+  --patient-text-sos: var(--patient-status-sos-text);
+  --patient-text-program-stat: var(--patient-program-stat-text);
+  --patient-text-program-group-title: var(--patient-program-group-title);
+  --patient-text-mood-1: #dc2626;
+  --patient-text-mood-2: #ea580c;
+  --patient-text-mood-3: var(--patient-color-warning);
+  --patient-text-mood-4: #65a30d;
+  --patient-text-mood-5: var(--patient-color-success);
   --patient-block-caption: #465880;
   --patient-shell-heading-font-weight: 300;
   --patient-surface-neutral-bg: var(--patient-card-bg);
@@ -241,6 +255,22 @@
   :root {
     --patient-font-size-home-display: 24px;
     --patient-line-height-home-display: 28px;
+    --patient-font-size-home-hero-title: 30px;
+    --patient-line-height-home-hero-title: 34px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --patient-font-size-home-hero-title: 34px;
+    --patient-line-height-home-hero-title: 38px;
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --patient-font-size-home-hero-title: 36px;
+    --patient-line-height-home-hero-title: 40px;
   }
 }
 
@@ -632,6 +662,20 @@
     line-height: var(--patient-line-height-home-display);
   }
 
+  .patient-type-home-hero-title {
+    font-family: var(--patient-font-family);
+    font-size: var(--patient-font-size-home-hero-title);
+    font-weight: var(--patient-font-weight-semibold);
+    line-height: var(--patient-line-height-home-hero-title);
+    color: var(--patient-text-heading);
+  }
+
+  .patient-type-booking-success-glyph {
+    font-size: var(--patient-font-size-booking-success-glyph);
+    font-weight: var(--patient-font-weight-regular);
+    line-height: var(--patient-line-height-booking-success-glyph);
+  }
+
   .patient-type-home-compact-action {
     font-size: var(--patient-font-size-secondary);
     font-weight: var(--patient-font-weight-semibold);
@@ -652,10 +696,39 @@
   .patient-text-info { color: var(--patient-status-info-text); }
   .patient-text-warning { color: var(--patient-action-warning-text); }
   .patient-text-danger { color: var(--patient-action-danger-text); }
-  .patient-text-inverse { color: #ffffff; }
+  .patient-text-inverse { color: var(--patient-text-inverse); }
   .patient-text-home-heading { color: var(--patient-block-heading); }
   .patient-text-home-caption { color: var(--patient-block-caption); }
   .patient-text-specialist { color: var(--patient-text-specialist); }
+  .patient-text-sos { color: var(--patient-text-sos); }
+  .patient-text-success-accent { color: var(--patient-color-success); }
+  .patient-text-warning-accent { color: var(--patient-color-warning); }
+  .patient-text-danger-accent { color: var(--patient-color-danger); }
+  .patient-text-muted-strong { color: var(--patient-text-muted-strong); }
+  .patient-text-program-stat { color: var(--patient-text-program-stat); }
+  .patient-text-program-group-title { color: var(--patient-text-program-group-title); }
+  .patient-text-mood-1 { color: var(--patient-text-mood-1); }
+  .patient-text-mood-2 { color: var(--patient-text-mood-2); }
+  .patient-text-mood-3 { color: var(--patient-text-mood-3); }
+  .patient-text-mood-4 { color: var(--patient-text-mood-4); }
+  .patient-text-mood-5 { color: var(--patient-text-mood-5); }
+  .patient-text-border { color: var(--patient-border); }
+  .patient-text-segmented { color: var(--patient-segmented-text); }
+  .patient-text-segmented-disabled { color: var(--patient-segmented-disabled-text); }
+  .patient-text-segmented-label { color: var(--patient-segmented-label-text); }
+  .patient-text-segmented-active { color: var(--patient-color-primary); }
+  .patient-text-segmented-tab-label { color: var(--patient-segmented-text); }
+  .patient-text-segmented-tab-subtitle { color: var(--patient-segmented-label-text); }
+  .group\/segmented-tab[data-active] .patient-text-segmented-tab-label { color: var(--patient-color-primary); }
+  .group\/segmented-tab[data-active] .patient-text-segmented-tab-subtitle { color: var(--patient-text-secondary); }
+  .patient-text-navigation-active { color: var(--patient-color-primary); }
+  .patient-text-navigation-inactive { color: var(--patient-text-secondary); }
+  .patient-text-navigation-inactive:hover { color: var(--patient-color-primary); }
+  .group:hover .patient-text-navigation-group-inactive { color: var(--patient-color-primary); }
+  .patient-fill-accent { fill: var(--patient-color-primary); }
+  .patient-text-secondary-data-active-accent[data-active] { color: var(--patient-color-primary); }
+  .group:hover .patient-text-secondary-group-hover-inverse,
+  .group:active .patient-text-secondary-group-hover-inverse { color: var(--patient-text-inverse); }
 
   .safe-padding-patient {
     padding-left: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px));

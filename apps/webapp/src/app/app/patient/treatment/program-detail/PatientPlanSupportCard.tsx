@@ -19,7 +19,7 @@ export function PatientPlanSupportCard(props: { messagesHref?: string }) {
         'border border-[var(--patient-surface-info-border)] bg-white px-3 py-2',
         'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
         patientActionTextClass,
-        'whitespace-nowrap text-[var(--patient-color-primary)]',
+        'whitespace-nowrap patient-text-accent',
         'ring-offset-background focus-visible:ring-2 focus-visible:ring-[var(--patient-border)] focus-visible:ring-offset-2 focus-visible:outline-none',
       )}
     >

@@ -255,7 +255,7 @@ export function ProgramItemDiscussionDialog(props: {
       {/* Mobile: колонка занимает drawer целиком; desktop: комфортная фиксированная высота треда. */}
       <div className="flex min-h-0 flex-1 flex-col gap-2 md:h-[min(75vh,34rem)] md:min-h-[20rem] md:flex-none">
         {error ? (
-          <p className={cn(patientMutedTextClass, 'text-[var(--patient-color-danger)]')}>
+          <p className={cn(patientMutedTextClass, 'patient-text-danger-accent')}>
             {error}
           </p>
         ) : null}

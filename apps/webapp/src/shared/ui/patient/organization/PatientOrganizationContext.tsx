@@ -183,7 +183,7 @@ export function PatientOrganizationContextBar() {
       >
         <Link
           href={routePaths.patientOrganizations}
-          className="min-w-0 truncate text-[var(--patient-text-secondary)] underline-offset-4 hover:underline"
+          className="min-w-0 truncate patient-text-secondary underline-offset-4 hover:underline"
         >
           Организация
         </Link>

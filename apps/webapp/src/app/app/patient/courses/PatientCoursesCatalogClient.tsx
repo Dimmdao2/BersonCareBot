@@ -76,7 +76,7 @@ export function PatientCoursesCatalogClient(props: {
   return (
     <div id="patient-courses-catalog" className="flex flex-col gap-4">
       {error ? (
-        <p className={`rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive ${patientBodyTextClass}`}>
+        <p className={`rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 patient-text-danger ${patientBodyTextClass}`}>
           {error}
         </p>
       ) : null}

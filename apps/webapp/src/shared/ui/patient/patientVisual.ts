@@ -179,7 +179,7 @@ export const patientSectionTitleClass = cn(
 
 /**
  * Заголовок секции без полужирного веса: те же размер/интерлиньяж/цвет, что {@link patientSectionTitleClass},
- * но `font-normal` — для «Описание» и других вторичных заголовков на детальных экранах.
+ * for «Описание» and other secondary headings on detail pages.
  */
 export const patientSectionTitleNormalClass = cn(
   'font-[family-name:var(--patient-font-family)] font-[var(--patient-font-weight-medium)]',
@@ -206,9 +206,9 @@ export const patientMetricTextClass =
 
 /**
  * Текст чуть темнее {@link patientMutedTextClass}: токен `--patient-text-muted-strong` под `#app-shell-patient`.
- * Размер (`text-xs` и т.п.) задаётся в месте использования.
+ * Размер выбирается вместе с одним из semantic typography roles.
  */
-export const patientMutedTextStrongClass = 'text-[var(--patient-text-muted-strong)]';
+export const patientMutedTextStrongClass = 'patient-text-muted-strong';
 
 /** Контейнер пустого состояния (центрирование + типичный вертикальный ритм). */
 export const patientEmptyStateClass = cn(
@@ -264,7 +264,7 @@ export const patientLineClamp2Class = 'line-clamp-2 min-w-0';
 export const patientLineClamp3Class = 'line-clamp-3 min-w-0';
 
 export const patientButtonPrimaryClass = cn(
-  'inline-flex min-h-[var(--patient-touch)] w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 text-white transition-colors',
+  'inline-flex min-h-[var(--patient-touch)] w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 patient-text-inverse transition-colors',
   patientActionTextClass,
   'bg-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-hover)] active:bg-[var(--patient-color-primary-hover)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
@@ -272,7 +272,7 @@ export const patientButtonPrimaryClass = cn(
 );
 
 export const patientButtonSuccessClass = cn(
-  'inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 text-white transition-colors sm:min-h-12',
+  'inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 patient-text-inverse transition-colors sm:min-h-12',
   patientActionTextClass,
   'bg-[var(--patient-color-success)] hover:bg-[var(--patient-action-success-hover)] active:bg-[var(--patient-action-success-hover)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-success)]',
@@ -363,7 +363,7 @@ export const patientBadgeDurationClass = cn(
  * а не полноширинная CTA. Размер (`h-8`, `h-9`, `w-auto`) задаётся в месте использования.
  */
 export const patientCompactActionClass = cn(
-  'inline-flex min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-3 text-white transition-colors',
+  'inline-flex min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-3 patient-text-inverse transition-colors',
   patientActionTextClass,
   'bg-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-hover)] active:bg-[var(--patient-color-primary-hover)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
@@ -459,7 +459,7 @@ export const patientProgramItemHeroTitleClass = cn(
 );
 
 /**
- * Строка «N повторений × M подходов» на странице пункта (hero): размер задаётся родителем (`text-[0.8rem]`).
+ * Строка «N повторений × M подходов» на странице пункта использует the surrounding semantic type role.
  */
 export const patientProgramItemPrimaryStatTextClass = cn(
   'font-[var(--patient-font-weight-regular)] text-[var(--patient-program-stat-text)]',
@@ -517,7 +517,7 @@ export const patientScrollbarHiddenClass = cn(
  * Портал видит те же root-scoped semantic tokens, что и patient shell.
  */
 export const patientModalPortalPrimaryCtaClass = cn(
-  'inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 py-2 text-white transition-colors md:min-h-12',
+  'inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 py-2 patient-text-inverse transition-colors md:min-h-12',
   patientActionTextClass,
   'bg-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-hover)] active:bg-[var(--patient-color-primary-hover)]',
   'shadow-[var(--patient-shadow-primary-cta)]',

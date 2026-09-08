@@ -172,7 +172,7 @@ export function PatientMessagesClient() {
             <p
               className={cn(
                 patientCaptionTextClass,
-                'shrink-0 text-[var(--patient-color-danger)]',
+                'shrink-0 patient-text-danger-accent',
               )}
             >
               {error}

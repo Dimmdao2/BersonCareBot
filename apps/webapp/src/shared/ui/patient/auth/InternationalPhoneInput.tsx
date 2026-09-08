@@ -116,7 +116,7 @@ export function InternationalPhoneInput({
         />
       </div>
       {showError ? (
-        <p className={cn(patientBodyTextClass, 'text-[var(--patient-color-danger)]')}>
+        <p className={cn(patientBodyTextClass, 'patient-text-danger-accent')}>
           Введите корректный номер
         </p>
       ) : null}

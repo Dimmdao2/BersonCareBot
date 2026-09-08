@@ -115,7 +115,7 @@ function PatientCompositionModalMediaLeading(props: {
         className={cn(patientCompositionListThumbSlotClass, 'flex items-center justify-center')}
         aria-hidden
       >
-        <Dumbbell className="size-4 text-muted-foreground" strokeWidth={2} />
+        <Dumbbell className="size-4 patient-text-secondary" strokeWidth={2} />
       </div>
     );
   }
@@ -125,7 +125,7 @@ function PatientCompositionModalMediaLeading(props: {
         className={cn(patientCompositionListThumbSlotClass, 'flex items-center justify-center')}
         aria-hidden
       >
-        <ScrollText className="size-4 text-muted-foreground" strokeWidth={2} />
+        <ScrollText className="size-4 patient-text-secondary" strokeWidth={2} />
       </div>
     );
   }
@@ -177,11 +177,11 @@ function PatientCompositionItemProgressAside(props: {
 
   return (
     <div className="flex max-w-[11rem] shrink-0 flex-col items-end justify-center gap-0.5 text-right">
-      <span className="w-full patient-type-caption text-muted-foreground">
+      <span className="w-full patient-type-caption patient-text-secondary">
         {doneSummaryLine}
       </span>
       <div className="flex items-center gap-1.5">
-        <span className="patient-type-caption text-muted-foreground">
+        <span className="patient-type-caption patient-text-secondary">
           Сегодня:
         </span>
         <div
@@ -199,7 +199,7 @@ function PatientCompositionItemProgressAside(props: {
               ))}
               {dotOverflow > 0 ? (
                 <span
-                  className="patient-type-caption text-muted-foreground"
+                  className="patient-type-caption patient-text-secondary"
                   aria-hidden
                 >
                   +{dotOverflow}

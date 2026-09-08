@@ -89,7 +89,7 @@ export function PatientPackagePayClient({ patientPackageId }: Props) {
       <div className={patientCardClass}>
         <p className={patientActionTextClass}>Оплата абонемента</p>
         {amountRub ? <p className={`mt-2 ${patientBodyTextClass}`}>К оплате: {amountRub}</p> : null}
-        {error ? <p className={`mt-2 text-destructive ${patientBodyTextClass}`}>{error}</p> : null}
+        {error ? <p className={`mt-2 patient-text-danger ${patientBodyTextClass}`}>{error}</p> : null}
       </div>
       {view === 'succeeded' ? (
         <div className={patientSurfaceSuccessClass}>

@@ -44,7 +44,7 @@ export function PatientSegmentedPagerLink({
     <Link
       className={cn(
         patientSegmentedPagerCellClass,
-        'cursor-pointer bg-[var(--patient-segmented-bg)] text-[var(--patient-segmented-text)] hover:bg-[var(--patient-segmented-hover-bg)] active:bg-[var(--patient-segmented-active-bg)]',
+        'cursor-pointer bg-[var(--patient-segmented-bg)] patient-text-segmented hover:bg-[var(--patient-segmented-hover-bg)] active:bg-[var(--patient-segmented-active-bg)]',
         'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--patient-color-primary)]',
         className,
       )}
@@ -69,8 +69,8 @@ export function PatientSegmentedPagerDisabledCell({
         patientSegmentedPagerCellClass,
         'pointer-events-none',
         tone === 'token' &&
-          'bg-[var(--patient-segmented-disabled-bg)] text-[var(--patient-segmented-disabled-text)]',
-        tone === 'faded' && 'bg-[var(--patient-segmented-bg)] text-[var(--patient-segmented-text)] opacity-40',
+          'bg-[var(--patient-segmented-disabled-bg)] patient-text-segmented-disabled',
+        tone === 'faded' && 'bg-[var(--patient-segmented-bg)] patient-text-segmented opacity-40',
         className,
       )}
     >
@@ -91,7 +91,7 @@ export function PatientSegmentedPagerLabel({
   return (
     <div
       className={cn(
-        'flex min-h-[2.75rem] min-w-0 items-center justify-center bg-[var(--patient-segmented-bg)] px-3 py-2 text-center patient-type-navigation-label text-[var(--patient-segmented-label-text)]',
+        'flex min-h-[2.75rem] min-w-0 items-center justify-center bg-[var(--patient-segmented-bg)] px-3 py-2 text-center patient-type-navigation-label patient-text-segmented-label',
         width === 'compact' && 'flex-[1.4]',
         width === 'wide' && 'flex-[2]',
         className,
@@ -134,17 +134,17 @@ export function PatientSegmentedTab({
     <TabsTrigger
       className={cn(
         'group/segmented-tab relative flex !h-auto min-h-[3.25rem] !rounded-none !border-0 px-1 py-2 text-center !shadow-none lg:min-h-[3.5rem] lg:px-2',
-        'bg-[var(--patient-segmented-bg)] text-[var(--patient-segmented-text)] hover:bg-[var(--patient-segmented-hover-bg)] data-active:!bg-[var(--patient-segmented-active-bg)] data-active:!text-[var(--patient-color-primary)] data-active:!shadow-none',
+        'bg-[var(--patient-segmented-bg)] patient-text-segmented hover:bg-[var(--patient-segmented-hover-bg)] data-active:!bg-[var(--patient-segmented-active-bg)] data-active:!shadow-none',
         'focus-visible:!border-[var(--patient-color-primary)] focus-visible:!ring-2 focus-visible:!ring-inset focus-visible:!ring-[var(--patient-color-primary)]',
         'after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-[1] after:h-0.5 after:bg-[var(--patient-color-primary)] after:opacity-0 data-active:after:opacity-100',
         className,
       )}
       {...props}
     >
-      <span className="patient-type-navigation group-data-[active]/segmented-tab:text-[var(--patient-color-primary)]">
+      <span className="patient-type-navigation patient-text-segmented-tab-label">
         {label}
       </span>
-      <span className="patient-type-navigation-label text-[var(--patient-segmented-label-text)] group-data-[active]/segmented-tab:text-[var(--patient-text-secondary)]">
+      <span className="patient-type-navigation-label patient-text-segmented-tab-subtitle">
         {subtitle}
       </span>
     </TabsTrigger>

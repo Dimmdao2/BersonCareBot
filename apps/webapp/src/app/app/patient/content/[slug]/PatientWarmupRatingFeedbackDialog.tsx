@@ -133,8 +133,8 @@ export function PatientWarmupRatingFeedbackDialog({
                   'rounded-full px-3 py-1.5',
                   patientActionTextClass,
                   active
-                    ? 'border-[var(--patient-accent)] bg-[var(--patient-accent)]/10 text-foreground hover:bg-[var(--patient-accent)]/20'
-                    : 'border-[var(--patient-border)] bg-background text-foreground hover:bg-muted/40',
+                    ? 'border-[var(--patient-accent)] bg-[var(--patient-accent)]/10 patient-text-primary hover:bg-[var(--patient-accent)]/20'
+                    : 'border-[var(--patient-border)] bg-background patient-text-primary hover:bg-muted/40',
                 )}
               >
                 {MATERIAL_RATING_FEEDBACK_REASON_LABELS[code]}
@@ -155,7 +155,7 @@ export function PatientWarmupRatingFeedbackDialog({
           aria-label="Комментарий"
         />
 
-        {error ? <p className={cn(patientCaptionTextClass, 'text-destructive')}>{error}</p> : null}
+        {error ? <p className={cn(patientCaptionTextClass, 'patient-text-danger')}>{error}</p> : null}
       </div>
     </PatientModal>
   );

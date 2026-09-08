@@ -27,7 +27,7 @@ export function LogoutSection() {
           type="submit"
           variant="outline"
           className={cn(
-            'w-full border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive active:bg-destructive/15',
+            'w-full border-destructive/50 patient-text-danger hover:bg-destructive/10 active:bg-destructive/15',
           )}
         >
           Выйти из профиля

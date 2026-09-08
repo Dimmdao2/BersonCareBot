@@ -68,7 +68,7 @@ export function BookingConfirmationForm({
         <span className={patientCaptionTextClass}>Email (опционально)</span>
         <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       </label>
-      {error ? <p className={cn(patientMutedTextClass, 'text-destructive')}>{error}</p> : null}
+      {error ? <p className={cn(patientMutedTextClass, 'patient-text-danger')}>{error}</p> : null}
       <Button type="submit" disabled={!canSubmit}>
         {submitting ? 'Создаём запись...' : 'Подтвердить запись'}
       </Button>

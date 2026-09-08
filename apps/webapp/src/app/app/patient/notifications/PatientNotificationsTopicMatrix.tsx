@@ -159,7 +159,7 @@ export function PatientNotificationsTopicMatrix({ initialTopics, pushEffective }
                   return (
                     <td
                       key={ch.code}
-                      className="px-2 py-3 text-center align-middle text-muted-foreground"
+                      className="px-2 py-3 text-center align-middle patient-text-secondary"
                     >
                       —
                     </td>

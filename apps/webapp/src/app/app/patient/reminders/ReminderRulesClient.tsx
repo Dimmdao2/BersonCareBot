@@ -69,7 +69,7 @@ function formatScheduleSummary(rule: ReminderRule): string {
 }
 
 function TypeIcon({ kind }: { kind: PersonalReminderIconKind }) {
-  const cls = 'size-5 shrink-0 text-primary';
+  const cls = 'size-5 shrink-0 patient-text-accent';
   switch (kind) {
     case 'lfk':
       return <Dumbbell className={cls} aria-hidden />;
@@ -142,7 +142,7 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
             }}
           />
 
-          {error && <p className={cn(patientCaptionTextClass, 'mt-2 text-destructive')}>{error}</p>}
+          {error && <p className={cn(patientCaptionTextClass, 'mt-2 patient-text-danger')}>{error}</p>}
         </CardContent>
       )}
     </Card>
@@ -249,7 +249,7 @@ function PersonalReminderCard({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="text-destructive hover:text-destructive"
+                  className="patient-text-danger"
                   onClick={() => setDeleteOpen(true)}
                   disabled={isPending}
                 >
@@ -257,7 +257,7 @@ function PersonalReminderCard({
                   Удалить
                 </Button>
               </div>
-              {error ? <p className={cn(patientCaptionTextClass, 'mt-2 text-destructive')}>{error}</p> : null}
+              {error ? <p className={cn(patientCaptionTextClass, 'mt-2 patient-text-danger')}>{error}</p> : null}
             </div>
           </div>
         </CardHeader>
@@ -500,7 +500,7 @@ export function ReminderRulesClient({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="text-destructive hover:text-destructive"
+                  className="patient-text-danger"
                   disabled={blockPending}
                   onClick={() =>
                     setBlockDeleteTarget({ id: rehabRuleForBlock.id, title: activeProgram.title })
@@ -572,7 +572,7 @@ export function ReminderRulesClient({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="text-destructive hover:text-destructive"
+                  className="patient-text-danger"
                   disabled={blockPending}
                   onClick={() =>
                     setBlockDeleteTarget({ id: warmupRuleForBlock.id, title: warmupsSectionTitle })

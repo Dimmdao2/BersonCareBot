@@ -31,7 +31,7 @@ type Props = {
 function nativePastStatusRight(status: PatientBookingRecord['status']): ReactNode {
   if (status === 'confirmed') return null;
   if (status === 'cancelled') {
-    return <span className={cn('shrink-0 text-destructive', patientActionTextClass)}>Отменена</span>;
+    return <span className={cn('shrink-0 patient-text-danger', patientActionTextClass)}>Отменена</span>;
   }
   if (status === 'completed') return <Badge variant="outline">Завершена</Badge>;
   if (status === 'rescheduled') return <Badge variant="outline">Перенесена</Badge>;
@@ -83,7 +83,7 @@ export function BookingPastHistorySection({ items, appDisplayTimeZone }: Props) 
   return (
     <div className={patientSectionSurfaceClass}>
       <div className="flex min-w-0 items-center gap-3">
-        <History className="size-5 shrink-0 text-[var(--patient-color-primary)]" aria-hidden />
+        <History className="size-5 shrink-0 patient-text-accent" aria-hidden />
         <h3 className={cn(patientSectionTitleClass, 'min-w-0')}>История посещений</h3>
       </div>
       <Button type="button" variant="outline" className="w-full" onClick={() => setOpen(true)}>

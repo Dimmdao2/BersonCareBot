@@ -63,7 +63,7 @@ export function AppointmentReminderPreference({ appointmentId }: { appointmentId
           )}
         </SelectContent>
       </Select>
-      {error ? <p className={`mt-1 text-destructive ${patientMutedTextClass}`}>{error}</p> : null}
+      {error ? <p className={`mt-1 patient-text-danger ${patientMutedTextClass}`}>{error}</p> : null}
     </div>
   );
 }
