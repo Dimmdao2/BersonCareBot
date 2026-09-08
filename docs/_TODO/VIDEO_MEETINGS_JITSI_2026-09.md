@@ -2,8 +2,9 @@
 
 Дата решения владельца: **2026-09-08**.
 Taskdb: **#1100**.
-Статус: **приложение и TEST deploy готовы на `ecf9dcbb2037`; Jitsi/coturn runtime ожидает два внешних DNS A-record
-и доверенный TLS, поэтому медиасоединение и runtime-пункты VM-01..06 пока не приняты**.
+Статус: **базовое приложение развёрнуто на TEST на `ecf9dcbb2037`; исправленный Jitsi/coturn runtime приземлён в
+`feat/doctor-ui-rebuild` на `800f58f21`, дважды прошёл health вокруг restart и доступен по доверенному TEST HTTPS.
+Финальный app deploy с форматом записи и browser-to-browser acceptance ещё не выполнены**.
 Интеграционная ветка лида: `feat/doctor-ui-rebuild`; исходная база исполнения:
 `b0eb1e45a56deee9f6cb6b0e9948e831f429b5c6`.
 PROD вне scope. Разрешены реализация, независимая приёмка и выкладка на именованный TEST.
@@ -12,7 +13,9 @@ Owner-correction 08.09.2026 для будущего PROD: каноническа
 `meet.therapysto.ru` + `turn.therapysto.ru`; специалист остаётся внутри кабинета Therapysto, а публичная клиентская
 страница `https://<clinic-slug>.therapygo.ru/live#<opaque-secret>` встраивает тот же видеохост. Дублировать
 `meet/turn` в зоне `therapygo.ru` не требуется. Это фиксирует целевое именование, но не расширяет текущий TEST-only
-deploy scope на PROD.
+deploy scope на PROD. На новом PROD с Docker blue/green переключаются только app-контейнеры; Jitsi/coturn живут
+отдельным singleton-контуром со своим lifecycle, поэтому смена app-color не занимает повторно медиапорты и не
+перезапускает текущие звонки.
 
 Owner-correction 08.09.2026 по записям: у записи есть явный формат `очно` / `онлайн`. Онлайн-филиал только
 подставляет `онлайн` по умолчанию при создании записи, физический филиал — `очно`; специалист может изменить формат.
@@ -354,12 +357,16 @@ encounter tab  --> existing canonical encounter form/service/write-path
   tenant gate `status=okay coverage=complete`. Живой POST врача дошёл через auth, entitlement и workspace gate до
   ожидаемого `503 provider_unhealthy`, то есть DB-настройки Jitsi читаются и единственный текущий отказ — ещё не
   запущенный endpoint.
-- `deploy/jitsi/bin/install.sh --check` не меняет хост и сейчас называет ровно три отсутствующих prerequisite:
-  DNS A для `meet.test.bersoncare.ru`, DNS A для `turn.test.bersoncare.ru` и доверенный сертификат coturn в
-  `/etc/coturn/tls/{fullchain,privkey}.pem`. Контейнеры `bcb-jitsi-test` не запускались.
-- После появления DNS лид может без участия владельца выпустить TLS, применить nginx/Jitsi/coturn на разрешённом
-  TEST-хосте и выполнить `RUNBOOK.md`. До этого остаются открыты VM-01..06, runtime-часть ACC-06, live visual
-  acceptance и пункты §6.8–§6.9; кодовые/DB/UI проверки не объявляются доказательством реального звонка.
+- DNS A для `meet.test.bersoncare.ru` и `turn.test.bersoncare.ru` указывают на `151.241.228.122`; единый Let's
+  Encrypt lineage покрывает оба SAN и действителен до 07.12.2026. Exact candidate `86f08711a` применён на TEST:
+  persisted gate `/tmp/jitsi-gate-86f08711a.status` дал `first=0 restart=0 second=0`; оба health-прохода проверили
+  web/JVB/Prosody/MUC, ephemeral TURN allocation по UDP/TLS, browser-visible собственный STUN и отсутствие известных
+  внешних endpoints. Nginx apply + direct loopback SNI HTTPS дали 200; evidence —
+  `docs/audit/jitsi-live-infra-2026-09-08.md`, integrated merge `800f58f21`.
+- После отдельного live-check certbot hook научен пропускать чужие `RENEWED_LINEAGE` (`2f90d28bd`) и повторный
+  Jitsi health вернул 0. Открыты не инфраструктурные prerequisites, а реальные browser scenarios: call двух
+  контекстов, server-side отказ третьему, выбранные P2P/TURN/JVB ICE пары и end-to-end capture без внешнего трафика.
+  Кодовые/health проверки не объявляются доказательством этих сценариев.
 
 - TEST с синтетическими данными и владельцевыми тестовыми аккаунтами разрешён этим планом.
 - Реальный production rollout не входит в поручение и остаётся заблокирован соответствующими open gates
