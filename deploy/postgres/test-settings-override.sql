@@ -152,6 +152,11 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
 -- A fresh PROD dump can legitimately predate commercial assignment. Keep the product's
 -- tariff-less = blocked rule intact and make only the named TEST clinic suitable for the required
 -- live walkthrough. The tariff itself is part of the reviewed target baseline, not invented here.
+UPDATE public.saas_tariffs
+SET mechanics = mechanics || '{"video_meetings": true}'::jsonb,
+    updated_at = statement_timestamp()
+WHERE id = 'd1156dc6-e71e-4225-ad94-93c9d423c9e1'::uuid;
+
 UPDATE public.be_organizations
 SET tariff_id = 'd1156dc6-e71e-4225-ad94-93c9d423c9e1'::uuid,
     updated_at = statement_timestamp()
@@ -166,8 +171,9 @@ BEGIN
     WHERE organization.id = 'a0000000-0000-4000-8000-000000000001'::uuid
       AND tariff.id = 'd1156dc6-e71e-4225-ad94-93c9d423c9e1'::uuid
       AND tariff.is_active = true
+      AND COALESCE((tariff.mechanics ->> 'video_meetings')::boolean, false) = true
   ) THEN
-    RAISE EXCEPTION 'named TEST owner clinic is not assigned the reviewed developer tariff';
+    RAISE EXCEPTION 'named TEST owner clinic is not assigned the reviewed video-enabled developer tariff';
   END IF;
 END
 $test_owner_clinic_tariff_gate$;
