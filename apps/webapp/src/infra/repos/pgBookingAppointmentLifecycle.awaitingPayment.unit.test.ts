@@ -96,7 +96,11 @@ function runTransactionOver(row: Record<string, unknown>) {
       update: () => ({
         set: (values: Record<string, unknown>) => {
           sets.push(values);
-          return { where: async () => undefined };
+          return {
+            where: () => ({
+              returning: async () => [reread()],
+            }),
+          };
         },
       }),
       insert: () => ({
@@ -169,5 +173,47 @@ describe('applyReschedule и запись в ожидании предоплат
     await createPgBookingAppointmentLifecyclePort().applyReschedule(RESCHEDULE_INPUT as never);
 
     expect(sets[1]?.status).toBe('confirmed');
+  });
+
+  it('смена только формата не создаёт перенос и не меняет его состояние', async () => {
+    const { sets, inserted } = runTransactionOver(appointmentRow({ deliveryFormat: 'in_person' }));
+
+    const result = await createPgBookingAppointmentLifecyclePort().applyReschedule({
+      ...RESCHEDULE_INPUT,
+      newStartAt: '2026-09-10T08:00:00.000Z',
+      newEndAt: '2026-09-10T09:00:00.000Z',
+      deliveryFormat: 'online',
+    } as never);
+
+    expect(result).toMatchObject({
+      deliveryFormat: 'online',
+      status: 'awaiting_payment',
+      rescheduleCount: 0,
+    });
+    expect(sets).toEqual([
+      expect.objectContaining({ deliveryFormat: 'online' }),
+    ]);
+    expect(sets[0]).not.toHaveProperty('status');
+    expect(sets[0]).not.toHaveProperty('rescheduleCount');
+    expect(inserted).toEqual([]);
+  });
+
+  it('изменение окончания при неизменном начале остаётся настоящим переносом', async () => {
+    const { sets, inserted } = runTransactionOver(appointmentRow({ deliveryFormat: 'in_person' }));
+
+    const result = await createPgBookingAppointmentLifecyclePort().applyReschedule({
+      ...RESCHEDULE_INPUT,
+      newStartAt: '2026-09-10T08:00:00.000Z',
+      newEndAt: '2026-09-10T09:30:00.000Z',
+      durationMinutes: 90,
+    } as never);
+
+    expect(result).toMatchObject({
+      endAt: '2026-09-10T09:30:00.000Z',
+      durationMinutes: 90,
+      rescheduleCount: 1,
+    });
+    expect(sets[0]).toMatchObject({ status: 'rescheduled' });
+    expect(inserted.some((row) => row.eventType === 'rescheduled')).toBe(true);
   });
 });
