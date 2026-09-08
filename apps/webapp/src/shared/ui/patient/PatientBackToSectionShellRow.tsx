@@ -22,7 +22,7 @@ export function PatientBackToSectionShellRow({ sectionSlug, className }: Props) 
       data-testid="patient-back-to-section-link"
       className={cn(
         patientInlineLinkClass,
-        'inline-flex min-h-10 max-w-full items-center gap-1.5 py-1 text-sm no-underline hover:underline',
+        'inline-flex min-h-10 max-w-full items-center gap-1.5 py-1 patient-type-secondary no-underline hover:underline',
         className,
       )}
     >

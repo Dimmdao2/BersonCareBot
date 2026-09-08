@@ -55,7 +55,7 @@ export function PatientOrganizationRelationships({
   return (
     <div className="grid gap-3">
       {invalidRememberedOrganization || destinationUnavailable || reminderTargetMissing ? (
-        <p className={cn(patientSurfaceWarningClass, 'px-3 py-2 text-sm')}>
+        <p className={cn(patientSurfaceWarningClass, 'px-3 py-2 patient-type-secondary')}>
           {reminderTargetMissing
             ? 'Не удалось определить организацию из этой ссылки. Выберите её вручную.'
             : 'Ранее выбранная организация больше недоступна. Выберите доступную.'}
@@ -75,15 +75,15 @@ export function PatientOrganizationRelationships({
                 )}
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-[var(--patient-text-primary)]">
+                  <p className="truncate patient-type-navigation patient-text-primary">
                     {organization.title}
                   </p>
-                  <p className="text-sm text-[var(--patient-text-secondary)]">
+                  <p className="patient-type-secondary">
                     {current ? 'Открыта сейчас' : 'Активная связь'}
                   </p>
                 </div>
                 {current ? (
-                  <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-900">
+                  <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 patient-type-caption patient-text-accent">
                     Текущая
                   </span>
                 ) : (
@@ -103,14 +103,14 @@ export function PatientOrganizationRelationships({
         </div>
       ) : (
         <div className={cn(patientSurfaceNeutralClass, 'bg-white px-4 py-4')}>
-          <p className="font-medium text-[var(--patient-text-primary)]">Нет активных организаций</p>
-          <p className="mt-1 text-sm text-[var(--patient-text-secondary)]">
+          <p className="patient-type-navigation patient-text-primary">Нет активных организаций</p>
+          <p className="mt-1 patient-type-secondary">
             Обратитесь к специалисту или клинике, чтобы восстановить сопровождение.
           </p>
         </div>
       )}
 
-      <p className="text-sm text-[var(--patient-text-secondary)]">
+      <p className="patient-type-secondary">
         Недоступные и завершённые связи не открывают медицинские данные. Если нужной организации нет
         в списке, обратитесь к ней напрямую.
       </p>

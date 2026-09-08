@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
  * классы собраны вручную без него.
  */
 const reminderCtaBaseClass = cn(
-  'inline-flex min-w-0 items-center justify-center gap-2 rounded-md border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] font-bold text-[var(--patient-action-warning-text)] transition-colors',
+  'inline-flex min-w-0 items-center justify-center gap-2 rounded-md border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] patient-type-action patient-text-warning transition-colors',
   'hover:bg-[var(--patient-action-warning-hover-bg)]/80 active:bg-[var(--patient-action-warning-hover-bg)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-warning)]',
 );
@@ -29,7 +29,7 @@ const reminderCtaMobileClass = cn(
 );
 const reminderCtaDesktopClass = cn(
   reminderCtaBaseClass,
-  'min-h-9 min-w-[7.5rem] self-end px-3 text-sm max-md:hidden',
+  'min-h-9 min-w-[7.5rem] self-end px-3 patient-type-home-compact-action max-md:hidden',
 );
 
 type Props = {

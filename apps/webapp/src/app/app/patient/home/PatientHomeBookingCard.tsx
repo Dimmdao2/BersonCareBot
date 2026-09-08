@@ -89,14 +89,14 @@ export function PatientHomeBookingCard({
             <Link
               href={bookingHref}
               prefetch={false}
-              className={cn(patientButtonSuccessClass, 'min-h-10 flex-1 px-3 text-sm')}
+              className={cn(patientButtonSuccessClass, 'min-h-10 flex-1 px-3 patient-type-home-compact-action')}
             >
               Записаться
             </Link>
             <Link
               href={hubHref}
               prefetch={false}
-              className={cn(patientButtonSecondaryClass, 'min-h-10 flex-1 px-3 text-sm')}
+              className={cn(patientButtonSecondaryClass, 'min-h-10 flex-1 px-3 patient-type-home-compact-action')}
             >
               Мои записи
             </Link>

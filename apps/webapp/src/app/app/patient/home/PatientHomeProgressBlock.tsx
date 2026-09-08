@@ -68,7 +68,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
     <>
       <Link
         href={appLoginWithNextHref(routePaths.patient)}
-        className="font-medium text-primary underline-offset-4 hover:underline"
+        className="patient-type-home-card-title patient-text-accent underline-offset-4 hover:underline"
       >
         Войдите
       </Link>
@@ -111,7 +111,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                 >
                   <Info className="size-4" aria-hidden />
                 </PopoverTrigger>
-                <PopoverContent className="max-w-[min(18rem,calc(100vw_-_2rem))] text-xs leading-snug">
+                <PopoverContent className="max-w-[min(18rem,calc(100vw_-_2rem))] patient-type-caption">
                   {PROGRESS_HINT}
                 </PopoverContent>
               </Popover>
@@ -124,7 +124,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
               <>
                 <div className="mt-0.5 flex flex-row flex-nowrap items-start gap-x-3">
                   <p
-                    className="m-0 shrink-0 tabular-nums leading-none"
+                    className="m-0 shrink-0 tabular-nums"
                     aria-label={progressAriaLabel}
                   >
                     <span className={patientHomeProgressValueClass}>{displayDone}</span>
@@ -137,7 +137,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                   </p>
                   {showBreakdown ? (
                     <div
-                      className="min-w-0 shrink pt-0.5 patient-type-caption text-[var(--patient-text-muted)]"
+                      className="min-w-0 shrink pt-0.5 patient-type-caption"
                       aria-hidden
                     >
                       {showWarmupBreakdown ? (
@@ -192,7 +192,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
               </span>
               {goalsFlameCaption ? (
                 <p
-                  className="m-0 max-w-[5.25rem] text-center patient-type-caption text-[var(--patient-block-caption)] md:max-w-[7.25rem]"
+                  className="m-0 max-w-[5.25rem] text-center patient-type-home-caption md:max-w-[7.25rem]"
                   aria-label={goalsFlameCaption}
                 >
                   {goalsFlameCaption}

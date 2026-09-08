@@ -149,7 +149,7 @@ export function ConnectMessengersBlock({
               : 'Мессенджеры'}
         </h2>
       ) : null}
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? <p className="patient-type-secondary patient-text-danger">{error}</p> : null}
       <div id="connect-messengers-grid" className="grid grid-cols-2 gap-3 md:grid-cols-2">
         {cards.map((card) => (
           <div
@@ -159,7 +159,7 @@ export function ConnectMessengersBlock({
           >
             <strong>{card.title}</strong>
             {card.isLinked ? (
-              <Badge variant="secondary" className="w-fit cursor-default font-normal opacity-90">
+              <Badge variant="secondary" className="w-fit cursor-default patient-type-caption opacity-90">
                 Уже подключено
               </Badge>
             ) : card.code === 'telegram' ? (
@@ -184,12 +184,12 @@ export function ConnectMessengersBlock({
                   {busy === 'max' ? '…' : 'Подключить'}
                 </Button>
                 {maxOpenUrl ? (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="patient-type-caption">
                     Если окно не открылось:{' '}
                     <Button
                       type="button"
                       variant="link"
-                      className="inline h-auto min-h-0 p-0 text-xs font-normal text-primary underline"
+                      className="inline h-auto min-h-0 p-0 patient-type-caption patient-text-accent underline"
                       onClick={() =>
                         finishChannelLinkNavigation({
                           blankWin: null,
@@ -204,13 +204,13 @@ export function ConnectMessengersBlock({
                   </p>
                 ) : null}
                 {maxManualCommand ? (
-                  <div className="text-xs text-muted-foreground">
+                  <div className="patient-type-caption">
                     <p className="m-0">В чате с ботом MAX отправьте команду:</p>
                     <code className="block rounded bg-muted px-2 py-1">{maxManualCommand}</code>
                     <Button
                       type="button"
                       variant="link"
-                      className="h-auto min-h-0 px-0 py-0 text-xs font-normal"
+                      className="h-auto min-h-0 px-0 py-0 patient-type-caption"
                       onClick={() => void copyMaxCommand(maxManualCommand)}
                     >
                       Скопировать команду

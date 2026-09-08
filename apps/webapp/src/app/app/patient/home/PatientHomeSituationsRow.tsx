@@ -70,7 +70,7 @@ export function PatientHomeSituationsRow({ chips }: Props) {
                     loading="lazy"
                     decoding="async"
                     fallback={
-                      <span className="text-xs font-semibold leading-none">
+                      <span className="patient-type-home-caption">
                         {initials(c.title)}
                       </span>
                     }

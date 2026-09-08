@@ -37,6 +37,7 @@ than new local pixel values.
 | Caption / meta | 12/16, 500 | `patientCaptionTextClass` |
 | Micro | 11/16, 500 | `patientMicroTextClass` |
 | Metric / hero number | 28/34, 600 | `patientMetricTextClass` |
+| Home cover display heading | 20/24 mobile, 24/28 from `md`, 600 | `patient-type-home-display` |
 
 Micro is reserved for badges, counters, graph/calendar axes, and nonessential compact metadata.
 It is not a fallback for readable prose, errors, schedules, form labels, or doctor comments. The
@@ -44,6 +45,8 @@ readable secondary/muted role is `#667085` or darker; `#98a2b3` is not a readabl
 Patient shell page titles use `patientPageTitleClass` on both mobile and desktop. Modal titles use
 `patientSectionTitleClass`. Form primitives apply the body contract so mobile values remain at least
 16px. Status tones remain semantic tokens, not duplicated direct text hex values.
+The home cover display role is reserved for media-overlay headings; it is controlled by the same
+patient typography panel and is not a responsive override of the page-title role.
 
 ## 1a. Responsive: patient shell (`md`)
 

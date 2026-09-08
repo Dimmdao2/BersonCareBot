@@ -32,6 +32,9 @@
   --patient-line-height-micro: 16px;
   --patient-font-size-metric: 28px;
   --patient-line-height-metric: 34px;
+  /* Home cover headings are a distinct display role, not a responsive page-title override. */
+  --patient-font-size-home-display: 20px;
+  --patient-line-height-home-display: 24px;
   --patient-font-weight-regular: 400;
   --patient-font-weight-medium: 500;
   --patient-font-weight-semibold: 600;
@@ -231,6 +234,33 @@
 @media (min-width: 431px) and (max-width: 767px) {
   #app-shell-patient {
     --patient-shell-inline-pad: 1.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --patient-font-size-home-display: 24px;
+    --patient-line-height-home-display: 28px;
+  }
+}
+
+@media (min-width: 640px) {
+  .patient-type-home-status {
+    font-size: var(--patient-font-size-secondary);
+    font-weight: var(--patient-font-weight-regular);
+    line-height: var(--patient-line-height-secondary);
+  }
+
+  .patient-type-navigation {
+    font-size: var(--patient-font-size-secondary);
+    font-weight: var(--patient-font-weight-medium);
+    line-height: var(--patient-line-height-secondary);
+  }
+
+  .patient-type-navigation-label {
+    font-size: var(--patient-font-size-caption);
+    font-weight: var(--patient-font-weight-medium);
+    line-height: var(--patient-line-height-caption);
   }
 }
 
@@ -573,11 +603,58 @@
     line-height: var(--patient-line-height-metric);
   }
 
+  /** Home-only semantic roles keep dashboard text centralized without leaking its geometry to inner pages. */
+  .patient-type-home-card-title {
+    font-size: var(--patient-font-size-secondary);
+    font-weight: var(--patient-font-weight-medium);
+    line-height: var(--patient-line-height-secondary);
+    color: var(--patient-text-primary);
+  }
+
+  .patient-type-home-secondary {
+    font-size: var(--patient-font-size-secondary);
+    font-weight: var(--patient-font-weight-regular);
+    line-height: var(--patient-line-height-secondary);
+    color: var(--patient-block-caption);
+  }
+
+  .patient-type-home-caption {
+    font-size: var(--patient-font-size-caption);
+    font-weight: var(--patient-font-weight-medium);
+    line-height: var(--patient-line-height-caption);
+    color: var(--patient-block-caption);
+  }
+
+  .patient-type-home-display {
+    font-family: var(--patient-font-family);
+    font-size: var(--patient-font-size-home-display);
+    font-weight: var(--patient-font-weight-semibold);
+    line-height: var(--patient-line-height-home-display);
+  }
+
+  .patient-type-home-compact-action {
+    font-size: var(--patient-font-size-secondary);
+    font-weight: var(--patient-font-weight-semibold);
+    line-height: var(--patient-line-height-secondary);
+  }
+
+  .patient-type-home-status {
+    font-size: var(--patient-font-size-caption);
+    font-weight: var(--patient-font-weight-medium);
+    line-height: var(--patient-line-height-caption);
+    color: var(--patient-block-caption);
+  }
+
   .patient-text-accent { color: var(--patient-color-primary); }
+  .patient-text-primary { color: var(--patient-text-primary); }
+  .patient-text-secondary { color: var(--patient-text-secondary); }
   .patient-text-success { color: var(--patient-status-success-text); }
   .patient-text-info { color: var(--patient-status-info-text); }
   .patient-text-warning { color: var(--patient-action-warning-text); }
   .patient-text-danger { color: var(--patient-action-danger-text); }
+  .patient-text-inverse { color: #ffffff; }
+  .patient-text-home-heading { color: var(--patient-block-heading); }
+  .patient-text-home-caption { color: var(--patient-block-caption); }
   .patient-text-specialist { color: var(--patient-text-specialist); }
 
   .safe-padding-patient {

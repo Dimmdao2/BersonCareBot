@@ -194,7 +194,7 @@ export function PatientHeader({
     <div className="flex min-w-0 max-w-[min(100%,280px)] flex-col items-center gap-0.5 px-1">
       {titleBadgeEl}
       <p
-        className="m-0 w-full truncate text-center text-base font-medium tracking-tight text-foreground"
+        className="m-0 w-full truncate text-center patient-type-section-title tracking-tight text-foreground"
         title={pageTitle}
       >
         {pageTitle}

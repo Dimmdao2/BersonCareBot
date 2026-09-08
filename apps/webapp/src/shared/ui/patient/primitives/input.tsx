@@ -9,7 +9,7 @@ export type PatientControlVariant = 'default' | 'journal';
 
 /** Readable form values use the patient body contract, including in portalled controls. */
 export const patientControlTypographyClassName =
-  'text-[length:var(--patient-font-size-body)] font-[var(--patient-font-weight-regular)] leading-[var(--patient-line-height-body)] text-[var(--patient-control-text)]';
+  'patient-type-body';
 
 /** Shared 40px journal field chrome, backed by patient-theme control tokens. */
 export const patientJournalControlClassName = cn(

@@ -44,7 +44,7 @@ function LeadingPlanIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | n
 }
 
 const planCtaClass = cn(
-  'inline-flex min-h-8 shrink-0 items-center justify-center rounded-md border border-[#b4bae4] bg-[#ffffff] px-3 text-xs font-medium text-[#1b4585] shadow-[0_2px_8px_rgba(40,77,160,0.1)] transition-colors sm:min-h-9 sm:px-4 sm:text-sm',
+  'inline-flex min-h-8 shrink-0 items-center justify-center rounded-md border border-[#b4bae4] bg-[#ffffff] px-3 patient-type-home-compact-action patient-text-accent shadow-[0_2px_8px_rgba(40,77,160,0.1)] transition-colors sm:min-h-9 sm:px-4',
   'hover:bg-[#f4dcd6] active:bg-[#f4dcd6]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1b4585]/35',
 );
@@ -83,7 +83,7 @@ export function PatientHomePlanCard({
               <p
                 className={cn(
                   patientMutedTextClass,
-                  'truncate patient-type-caption text-foreground',
+                  'truncate patient-type-home-caption',
                 )}
               >
                 {planUpdatedLabel.trim()}
@@ -91,7 +91,7 @@ export function PatientHomePlanCard({
             ) : null}
             {progressDay != null ? (
               <div
-                className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 patient-type-caption text-[var(--patient-block-heading)]"
+                className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 patient-type-home-caption patient-text-home-heading"
                 aria-label={
                   todayPracticeDone
                     ? 'Сегодня занятие отмечено'
@@ -99,7 +99,7 @@ export function PatientHomePlanCard({
                 }
               >
                 <span className="tabular-nums">День {progressDay}</span>
-                <span className="text-[var(--patient-block-caption)]" aria-hidden>
+                <span className="patient-text-home-caption" aria-hidden>
                   ·
                 </span>
                 <span className="inline-flex items-center gap-1">

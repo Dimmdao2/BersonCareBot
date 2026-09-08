@@ -4,8 +4,7 @@ import { cn } from '@/lib/utils';
 import { patientInlineLinkClass } from '@/shared/ui/patient/patientVisual';
 
 /** Тот же вид, что у приветствия на главной (не стиль заголовка шапки). */
-export const PATIENT_HOME_GREETING_TITLE_CLASS =
-  'm-0 text-sm font-normal leading-snug tracking-tight text-[var(--patient-text-secondary)] md:text-base md:leading-snug';
+export const PATIENT_HOME_GREETING_TITLE_CLASS = 'm-0 patient-type-secondary tracking-tight';
 
 export type PatientGreetingPrefix = 'Доброе утро' | 'Добрый день' | 'Добрый вечер' | 'Доброй ночи';
 
@@ -71,7 +70,7 @@ export function PatientHomeGreeting({
         {title}
       </h1>
       {showUnreadHint ? (
-        <p className="m-0 mt-1 text-sm leading-snug text-[var(--patient-text-secondary)]">
+        <p className="m-0 mt-1 patient-type-secondary">
           У вас есть новое сообщение{' '}
           <Link href={routePaths.patientMessages} className={patientInlineLinkClass}>
             в чате

@@ -163,7 +163,7 @@ export function PatientHomeMoodCheckin({
               <p className={patientHomeMoodStatusSlotClass}>
                 <Link
                   href={appLoginWithNextHref(routePaths.patient)}
-                  className="font-medium text-primary underline-offset-4 hover:underline"
+                  className="patient-type-home-card-title patient-text-accent underline-offset-4 hover:underline"
                 >
                   Войдите
                 </Link>
@@ -225,7 +225,7 @@ export function PatientHomeMoodCheckin({
               <div className="mt-3 flex shrink-0 justify-end">
                 <Link
                   href={routePaths.diary}
-                  className="text-xs font-normal text-[var(--patient-block-heading)] underline-offset-2 hover:underline"
+                  className="patient-type-home-caption patient-text-home-heading underline-offset-2 hover:underline"
                 >
                   Подробная статистика
                 </Link>

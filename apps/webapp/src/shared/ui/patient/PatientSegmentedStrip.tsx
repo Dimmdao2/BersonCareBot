@@ -30,7 +30,7 @@ export function PatientSegmentedStrip({
 }
 
 const patientSegmentedPagerCellClass =
-  'flex min-h-[2.75rem] flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold outline-none transition-colors duration-150 no-underline';
+  'flex min-h-[2.75rem] flex-1 items-center justify-center gap-1.5 px-3 py-2 patient-type-navigation outline-none transition-colors duration-150 no-underline';
 
 type PatientSegmentedPagerLinkProps = Omit<ComponentProps<typeof Link>, 'className'> & {
   className?: string;
@@ -91,7 +91,7 @@ export function PatientSegmentedPagerLabel({
   return (
     <div
       className={cn(
-        'flex min-h-[2.75rem] min-w-0 items-center justify-center bg-[var(--patient-segmented-bg)] px-3 py-2 text-center text-xs font-medium leading-tight text-[var(--patient-segmented-label-text)]',
+        'flex min-h-[2.75rem] min-w-0 items-center justify-center bg-[var(--patient-segmented-bg)] px-3 py-2 text-center patient-type-navigation-label text-[var(--patient-segmented-label-text)]',
         width === 'compact' && 'flex-[1.4]',
         width === 'wide' && 'flex-[2]',
         className,
@@ -141,10 +141,10 @@ export function PatientSegmentedTab({
       )}
       {...props}
     >
-      <span className="text-xs font-semibold group-data-[active]/segmented-tab:text-[var(--patient-color-primary)] lg:text-sm">
+      <span className="patient-type-navigation group-data-[active]/segmented-tab:text-[var(--patient-color-primary)]">
         {label}
       </span>
-      <span className="patient-type-caption text-[var(--patient-segmented-label-text)] group-data-[active]/segmented-tab:text-[var(--patient-text-secondary)]">
+      <span className="patient-type-navigation-label text-[var(--patient-segmented-label-text)] group-data-[active]/segmented-tab:text-[var(--patient-text-secondary)]">
         {subtitle}
       </span>
     </TabsTrigger>

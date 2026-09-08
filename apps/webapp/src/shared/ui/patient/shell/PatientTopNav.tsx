@@ -124,9 +124,10 @@ export function PatientTopNav(_props: PatientTopNavProps) {
           'transition-[gap,padding-block] [transition-property:gap,padding-block]',
           NAV_COMPACT_EASE,
           compact ? 'gap-0 py-2.5' : 'gap-1 py-1.5',
+          'patient-type-navigation',
           isActive
-            ? 'font-medium text-[var(--patient-color-primary)]'
-            : 'font-normal text-[var(--patient-text-secondary)] hover:font-normal hover:text-[var(--patient-color-primary)]',
+            ? 'text-[var(--patient-color-primary)]'
+            : 'text-[var(--patient-text-secondary)] hover:text-[var(--patient-color-primary)]',
         )}
       >
         <span className="relative inline-flex shrink-0">
@@ -169,7 +170,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         aria-label={showChatBadge ? `${item.label}, ${chatUnread} новых` : item.label}
         aria-current={isActive ? 'page' : undefined}
         className={cn(
-          'inline-flex min-h-0 items-center gap-1.5 rounded-lg px-2.5 font-normal text-sm',
+          'inline-flex min-h-0 items-center gap-1.5 rounded-lg px-2.5 patient-type-navigation',
           'transition-[gap,padding-block] [transition-property:gap,padding-block]',
           NAV_COMPACT_EASE,
           compact ? 'gap-0 py-2' : 'gap-1.5 py-2',
@@ -259,7 +260,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
               />
               <span
                 className={cn(
-                  'font-semibold tracking-tight text-lg transition-[opacity,max-height] [transition-property:opacity,max-height]',
+                  'patient-type-section-title tracking-tight transition-[opacity,max-height] [transition-property:opacity,max-height]',
                   NAV_COMPACT_EASE,
                   compact
                     ? 'inline-block max-h-0 overflow-hidden opacity-0'

@@ -132,7 +132,7 @@ export function PatientHomeDailyWarmupCard({
                   <p
                     className={cn(
                       patientMutedTextClass,
-                      'max-w-full text-xs leading-snug -mb-2 md:-mb-3',
+                      'max-w-full patient-type-home-caption -mb-2 md:-mb-3',
                     )}
                   >
                     {warmupCooldownCaption.trim()}
@@ -145,7 +145,7 @@ export function PatientHomeDailyWarmupCard({
                 prefetch={false}
                 className={cn(
                   patientHeroPrimaryActionClass,
-                  'min-h-11 w-fit shrink-0 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] md:min-h-12 md:w-[22rem] md:pr-5 md:text-base xl:w-[24rem]',
+                  'min-h-11 w-fit shrink-0 px-4 py-2 patient-type-action shadow-[0_6px_14px_rgba(40,77,160,0.24)] md:min-h-12 md:w-[22rem] md:pr-5 xl:w-[24rem]',
                 )}
               >
                 <PlayCircle className="size-5 shrink-0 md:size-6" aria-hidden />
