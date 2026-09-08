@@ -16,7 +16,13 @@ for address in $(hostname -I 2>/dev/null || true); do
   [[ "$address" == 151.241.228.122 ]] && on_dev_test_host=1
 done
 [[ "$on_dev_test_host" == 1 ]] || fail "this hook targets only DEV/RELAY/TEST host 151.241.228.122"
-[[ "$LINEAGE" == "$EXPECTED_LINEAGE" ]] || fail "unexpected certificate lineage: $LINEAGE"
+if [[ "$LINEAGE" != "$EXPECTED_LINEAGE" ]]; then
+  if [[ -n "${RENEWED_LINEAGE:-}" ]]; then
+    echo "[jitsi-test-tls] skipping unrelated renewed lineage"
+    exit 0
+  fi
+  fail "unexpected certificate lineage: $LINEAGE"
+fi
 [[ -f "$ENV_FILE" ]] || fail "missing $ENV_FILE"
 [[ -f "$TURN_ENV_FILE" ]] || fail "missing $TURN_ENV_FILE"
 # shellcheck disable=SC1090
