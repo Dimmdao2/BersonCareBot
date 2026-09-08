@@ -597,7 +597,7 @@ test('schedule grants cover the default columns emitted by Drizzle inserts', () 
     'public.be_appointments': [
       'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
       'appointment_reminder_selection_source', 'attribution_json', 'branch_id', 'chain_id',
-      'chain_position', 'created_at', 'deleted_at', 'duration_minutes', 'end_at', 'id',
+      'chain_position', 'created_at', 'deleted_at', 'delivery_format', 'duration_minutes', 'end_at', 'id',
       'organization_id', 'original_start_at', 'overlap_confirmed_end_at',
       'overlap_confirmed_start_at', 'package_usage_ref', 'payment_deadline_at',
       'payment_ref', 'phone_normalized', 'platform_user_id', 'prepayment_amount_minor',
