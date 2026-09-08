@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import {
+  STAFF_BROWSER_ICON_32,
   STAFF_PWA_APPLE_TOUCH,
   STAFF_PWA_ICON_192,
   STAFF_PWA_ICON_512,
@@ -24,9 +25,11 @@ export const staffPwaLayoutMetadata: Metadata = {
   },
   icons: {
     icon: [
+      { url: STAFF_BROWSER_ICON_32, sizes: '32x32', type: 'image/png' },
       { url: STAFF_PWA_ICON_192, sizes: '192x192', type: 'image/png' },
       { url: STAFF_PWA_ICON_512, sizes: '512x512', type: 'image/png' },
     ],
+    shortcut: [{ url: STAFF_BROWSER_ICON_32, sizes: '32x32', type: 'image/png' }],
     apple: [{ url: STAFF_PWA_APPLE_TOUCH, sizes: '180x180' }],
   },
 };

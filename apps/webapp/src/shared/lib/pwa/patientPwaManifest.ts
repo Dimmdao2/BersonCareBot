@@ -1,10 +1,8 @@
 import type { MetadataRoute } from 'next';
-import {
-  surfaceDisplayName,
-  type ResolvedSurface,
-} from '@/shared/lib/surface/requestSurface';
+import { surfaceDisplayName, type ResolvedSurface } from '@/shared/lib/surface/requestSurface';
 
 export const PATIENT_PWA_MANIFEST_PATH = '/manifest.webmanifest';
+export const PATIENT_BROWSER_ICON_32 = '/therapygo-favicon-32.png';
 
 /**
  * Манифест установленного пациентского приложения.

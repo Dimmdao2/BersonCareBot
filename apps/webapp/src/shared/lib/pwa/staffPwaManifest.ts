@@ -3,6 +3,7 @@ import { STAFF_SURFACE } from '@/config/productSurfaces';
 import type { ResolvedSurface } from '@/shared/lib/surface/requestSurface';
 
 export const STAFF_PWA_MANIFEST_PATH = '/manifest-staff.webmanifest';
+export const STAFF_BROWSER_ICON_32 = '/therapysto-favicon-32.png';
 export const STAFF_PWA_ICON_192 = '/staff-pwa-icon-192.png';
 export const STAFF_PWA_ICON_512 = '/staff-pwa-icon-512.png';
 export const STAFF_PWA_APPLE_TOUCH = '/staff-pwa-apple-touch.png';

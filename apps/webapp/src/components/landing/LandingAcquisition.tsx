@@ -77,6 +77,33 @@ const audiences = [
   'специалистов по движению',
 ] as const;
 
+const practiceModes = [
+  {
+    crop: 'massage',
+    title: 'Запись и общение',
+    text: 'Расписание, карточка клиента и переписка остаются в одном рабочем контексте.',
+    alt: 'Специалист проводит сеанс массажа',
+  },
+  {
+    crop: 'movement',
+    title: 'Программы и сопровождение',
+    text: 'Упражнения с видео, рекомендации и выполнение между встречами собраны в программе клиента.',
+    alt: 'Специалист помогает клиентке выполнять упражнение',
+  },
+  {
+    crop: 'conversation',
+    title: 'Заметки и история встреч',
+    text: 'Контекст сохраняется в карточке клиента — его не приходится восстанавливать перед следующим приёмом.',
+    alt: 'Специалист беседует с клиенткой и ведёт записи',
+  },
+  {
+    crop: 'online',
+    title: 'Очно и дистанционно',
+    text: 'Видеовстреча, сообщения и назначенная работа продолжаются в том же пространстве.',
+    alt: 'Клиент участвует в видеовстрече со специалистом',
+  },
+] as const;
+
 export function LandingAcquisition() {
   return (
     <main className="main-site">
@@ -143,6 +170,66 @@ export function LandingAcquisition() {
             <Link className="main-secondary" href="#workspace">
               Посмотреть, как устроено
             </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="practices-section" aria-labelledby="practices-title">
+        <div className="section-shell">
+          <div className="practices-intro">
+            <p className="section-kicker">Для разных практик</p>
+            <h2 id="practices-title">
+              Забота может быть разной. Therapysto — одно пространство для всех.
+            </h2>
+            <p>
+              Приём может проходить в кабинете, в зале или по видео. Therapysto связывает рабочие
+              процессы вокруг клиента, не заставляя специалиста подстраивать практику под сервис.
+            </p>
+          </div>
+          <div className="practices-grid">
+            {practiceModes.map((practice) => (
+              <article
+                className={`practice-item practice-item-${practice.crop}`}
+                key={practice.crop}
+              >
+                <figure className={`practice-visual practice-crop-${practice.crop}`}>
+                  <Image
+                    alt={practice.alt}
+                    fill
+                    sizes="(max-width: 720px) 94vw, 44vw"
+                    src="/landing/care-practices.jpg"
+                    unoptimized
+                  />
+                </figure>
+                <div className="practice-copy">
+                  <h3>{practice.title}</h3>
+                  <p>{practice.text}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="time-section" aria-labelledby="time-title">
+        <div className="time-stage">
+          <figure className="time-visual">
+            <Image
+              alt="Специалист за рабочим столом — больше времени на главное"
+              fill
+              sizes="100vw"
+              src="/landing/time-for-what-matters.jpg"
+              unoptimized
+            />
+          </figure>
+          <div className="time-copy">
+            <p className="section-kicker">Рабочее пространство</p>
+            <h2 id="time-title">Запись, заметки и назначения — части одного процесса.</h2>
+            <p>
+              Не нужно помнить, где лежит история клиента, как отправить программу и в каком чате
+              осталось сообщение. Открываете карточку и продолжаете работу с того места, где
+              остановились.
+            </p>
           </div>
         </div>
       </section>
