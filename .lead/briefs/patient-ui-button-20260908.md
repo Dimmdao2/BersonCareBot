@@ -49,5 +49,5 @@ other patient page. Concurrent work owns those areas.
 6. No source/count/class formatting tests. Test only observable submit/disabled behavior if needed.
 
 Run `git diff --check`, targeted ESLint and cheapest relevant existing behavior tests. Commit only allowed paths
-on `wt/patient-ui-button-20260908`; no push/landing. Finish the single turn with SHA and checks; do not wait on a
+on `wt/patient-ui-button-v2-20260908`; no push/landing. Finish the single turn with SHA and checks; do not wait on a
 background process.
