@@ -24,7 +24,12 @@ import {
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
   AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
 } from '@/shared/ui/patient/auth/loginChrome';
-import { patientInlineLinkClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientCaptionTextClass,
+  patientInlineLinkClass,
+  patientMutedTextClass,
+  patientSectionTitleClass,
+} from '@/shared/ui/patient/patientVisual';
 
 const WEB_CHAT_ID_KEY = 'bersoncare_web_chat_id';
 const POLL_MS = 2500;
@@ -382,7 +387,7 @@ export function PhoneMessengerAuthFlow({
             Назад
           </Button>
         ) : null}
-        <h2 className="text-center text-lg font-semibold text-[var(--patient-text-primary)]">
+        <h2 className={cn(patientSectionTitleClass, 'text-center')}>
           {title}
         </h2>
         <InternationalPhoneInput
@@ -480,7 +485,7 @@ export function PhoneMessengerAuthFlow({
           <>
             <p className={patientMutedTextClass}>{waitingDescription}</p>
             {bindManualCommand ? (
-              <p className={cn(patientMutedTextClass, 'text-xs')}>
+              <p className={patientCaptionTextClass}>
                 Если бот открылся без запроса контакта, отправьте команду:{' '}
                 <span className="font-mono text-[var(--patient-text-primary)]">
                   {bindManualCommand}
@@ -593,7 +598,7 @@ export function PhoneMessengerAuthFlow({
             type="button"
             variant="link"
             className={cn(
-              'border-none bg-transparent text-sm font-medium underline-offset-2',
+              'border-none bg-transparent underline-offset-2',
               patientInlineLinkClass,
               AUTH_LOGIN_ACCENT_TEXT_CLASS,
             )}

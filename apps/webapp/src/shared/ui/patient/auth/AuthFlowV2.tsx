@@ -54,6 +54,8 @@ import {
 import { getBrowserCalendarIanaForAuth } from '@/shared/lib/browserCalendarIana';
 import {
   patientHeroBookingSectionClass,
+  patientCaptionTextClass,
+  patientFormLabelClass,
   patientInnerPageStackClass,
   patientInlineLinkClass,
   patientMutedTextClass,
@@ -125,14 +127,13 @@ const authStepMutedParagraphClass = cn(patientMutedTextClass, 'text-balance');
 
 const authLinkButtonClass = cn(
   'border-none bg-transparent',
-  'h-auto min-h-0 px-0 py-0 text-sm',
+  'h-auto min-h-0 px-0 py-0',
   patientInlineLinkClass,
   'underline-offset-2',
-  'font-medium',
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
 );
 
-const authFormFieldLabelClass = cn(patientMutedTextClass, 'text-sm');
+const authFormFieldLabelClass = patientFormLabelClass;
 const authEmailInputClass = 'w-full bg-white';
 
 function getWebChatId(): string {
@@ -1421,7 +1422,7 @@ export function AuthFlowV2({
             <p className={patientMutedTextClass}>
               Аккаунт с этой почтой уже есть. Подтвердите email и задайте пароль для входа.
             </p>
-            <p className={cn(patientMutedTextClass, 'break-all text-sm')}>
+            <p className={cn(patientMutedTextClass, 'break-all')}>
               {emailSetupPromptEmail}
             </p>
             <Button
@@ -1944,14 +1945,14 @@ export function AuthFlowV2({
                     aria-invalid={specialistSignupSlugStatus === 'error'}
                     className={authEmailInputClass}
                   />
-                  <span className={cn(patientMutedTextClass, 'text-xs')}>
+                  <span className={patientCaptionTextClass}>
                     /book/{specialistSignupOrganizationSlug || 'adres-kliniki'}
                   </span>
                   {specialistSignupSlugMessage ? (
                     <span
                       role={specialistSignupSlugStatus === 'error' ? 'alert' : 'status'}
                       className={cn(
-                        'text-xs',
+                        patientCaptionTextClass,
                         specialistSignupSlugStatus === 'error'
                           ? 'text-destructive'
                           : patientMutedTextClass,
@@ -2020,14 +2021,14 @@ export function AuthFlowV2({
                       aria-invalid={specialistSignupSlugStatus === 'error'}
                       className={authEmailInputClass}
                     />
-                    <span className={cn(patientMutedTextClass, 'text-xs')}>
+                    <span className={patientCaptionTextClass}>
                       /book/{specialistSignupOrganizationSlug || 'adres-kliniki'}
                     </span>
                     {specialistSignupSlugMessage ? (
                       <span
                         role={specialistSignupSlugStatus === 'error' ? 'alert' : 'status'}
                         className={cn(
-                          'text-xs',
+                          patientCaptionTextClass,
                           specialistSignupSlugStatus === 'error'
                             ? 'text-destructive'
                             : patientMutedTextClass,
@@ -2464,7 +2465,7 @@ export function AuthFlowV2({
                   hideBack
                 />
                 <div className="mt-3 flex flex-col gap-2">
-                  <p className={cn(patientMutedTextClass, 'break-all text-sm')}>
+                  <p className={cn(patientMutedTextClass, 'break-all')}>
                     Код отправлен на {emailLoginEmail.trim()}
                   </p>
                   <Button

@@ -7,7 +7,10 @@ import { Rating, Star as RatingStarShape } from '@smastrom/react-rating';
 import '@smastrom/react-rating/style.css';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientCaptionTextClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
 import { ruRatingCountLabel } from '@/shared/lib/ruRatingCountLabel';
 import type { MaterialRatingTargetKind } from '@/modules/material-rating/types';
 import { MaterialRatingNativeStars } from './MaterialRatingNativeStars';
@@ -253,13 +256,13 @@ function EnabledMaterialRatingBlock({
 
   if (isDoctorCompact) {
     if (loading && !aggregate) {
-      return <p className={cn('text-xs text-muted-foreground', className)}>…</p>;
+      return <p className={cn(patientCaptionTextClass, className)}>…</p>;
     }
     if (!aggregate || aggregate.count === 0) {
-      return <p className={cn('text-xs text-muted-foreground', className)}>Нет оценок</p>;
+      return <p className={cn(patientCaptionTextClass, className)}>Нет оценок</p>;
     }
     return (
-      <p className={cn('text-xs text-muted-foreground tabular-nums', className)}>
+      <p className={cn(patientCaptionTextClass, 'tabular-nums', className)}>
         Средняя {aggregate.avg != null ? aggregate.avg.toFixed(1) : '—'} · {aggregate.count}{' '}
         {ruRatingCountLabel(aggregate.count)}
       </p>
@@ -268,7 +271,7 @@ function EnabledMaterialRatingBlock({
 
   if (loading && !aggregate) {
     return (
-      <div className={cn(patientMutedTextClass, 'text-sm', className)} aria-busy>
+      <div className={cn(patientMutedTextClass, className)} aria-busy>
         …
       </div>
     );
@@ -291,8 +294,8 @@ function EnabledMaterialRatingBlock({
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
       {showSummaryRow ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-normal leading-snug">
-          <span className={cn(patientMutedTextClass, 'font-normal')}>Ваша оценка:</span>
+        <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1', patientCaptionTextClass)}>
+          <span className={patientMutedTextClass}>Ваша оценка:</span>
           <span className="inline-flex items-center gap-1.5" aria-hidden>
             {[1, 2, 3, 4, 5].map((n) => {
               const filled = n <= (myStars ?? 0);

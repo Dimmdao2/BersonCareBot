@@ -96,7 +96,7 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
             variant="link"
             className={cn(
               patientInlineLinkClass,
-              'w-fit bg-transparent p-0 text-left text-sm font-normal underline disabled:pointer-events-none disabled:opacity-50',
+              'w-fit bg-transparent p-0 text-left underline disabled:pointer-events-none disabled:opacity-50',
               AUTH_LOGIN_ACCENT_TEXT_CLASS,
             )}
             disabled={disabled}

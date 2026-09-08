@@ -23,7 +23,11 @@ import { NoContextMenuVideo } from '@/shared/ui/patient/media/NoContextMenuVideo
 import { useNativeHlsPlayback } from '@/shared/lib/nativeHls';
 import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
 import type { MediaAvailableQuality } from '@/modules/media/types';
-import { patientBodyTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientBodyTextClass,
+  patientCaptionTextClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
 import { initialPlaybackSourceKind } from '@/shared/ui/patient/media/patientPlaybackSourceKind';
 import {
@@ -497,7 +501,7 @@ function PlaybackEngine({
             >
               {retryBusy ? 'Загрузка…' : 'Повторить'}
             </Button>
-            <p className={cn(patientMutedTextClass, 'text-xs')}>
+            <p className={patientCaptionTextClass}>
               Если ошибка повторяется, обновите страницу или проверьте, что вы вошли в аккаунт.
             </p>
           </div>
@@ -525,7 +529,7 @@ function PlaybackEngine({
       </div>
       {!error && showHlsJsQualityControls ? (
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <span className={cn(patientMutedTextClass, 'text-xs tabular-nums')} aria-live="polite">
+          <span className={cn(patientCaptionTextClass, 'tabular-nums')} aria-live="polite">
             Сейчас: {hlsCurrentLabel ?? '—'}
           </span>
           <Select value={hlsQualityChoice} onValueChange={onHlsQualityValueChange}>
@@ -666,7 +670,7 @@ export function PatientMediaPlaybackVideo({
           >
             {bootRetryBusy ? 'Загрузка…' : 'Повторить'}
           </Button>
-          <p className={cn(patientMutedTextClass, 'text-xs')}>
+          <p className={patientCaptionTextClass}>
             Если вы не вошли в аккаунт, видео будет недоступно.
           </p>
         </div>

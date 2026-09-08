@@ -7,7 +7,10 @@ import { isValidPhoneNumber } from 'libphonenumber-js/min';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
 import { AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS } from '@/shared/ui/patient/auth/loginChrome';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientBodyTextClass,
+  patientFormLabelClass,
+} from '@/shared/ui/patient/patientVisual';
 import 'react-phone-number-input/style.css';
 import './international-phone-input.css';
 
@@ -91,7 +94,7 @@ export function InternationalPhoneInput({
   return (
     <form className={cn('mx-auto flex w-full max-w-sm flex-col gap-2')} onSubmit={handleSubmit}>
       <label
-        className={cn(patientMutedTextClass, 'text-xs font-normal uppercase tracking-wide')}
+        className={cn(patientFormLabelClass, 'uppercase tracking-wide')}
         htmlFor={id}
       >
         Номер телефона
@@ -113,7 +116,9 @@ export function InternationalPhoneInput({
         />
       </div>
       {showError ? (
-        <p className="text-sm text-[var(--patient-color-danger)]">Введите корректный номер</p>
+        <p className={cn(patientBodyTextClass, 'text-[var(--patient-color-danger)]')}>
+          Введите корректный номер
+        </p>
       ) : null}
       <Button
         type="submit"

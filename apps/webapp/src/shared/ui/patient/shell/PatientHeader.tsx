@@ -23,7 +23,7 @@ import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/
 /** Единый стиль пунктов бокового меню (Sheet). */
 const SHEET_NAV_LINK_CLASS = cn(
   buttonVariants({ variant: 'ghost' }),
-  'h-auto w-full justify-start px-3 py-2 font-normal',
+  'h-auto w-full justify-start px-3 py-2',
 );
 
 /** Touch target ≥ 44px (WCAG); `size="icon"` в дизайн-системе = 32px — переопределяем. */
@@ -292,7 +292,7 @@ export function PatientHeader({
               <Button
                 type="button"
                 variant="ghost"
-                className="h-auto w-full justify-start px-3 py-2 font-normal"
+                className="h-auto w-full justify-start px-3 py-2"
                 onClick={shareWithFriend}
               >
                 Поделиться с другом
@@ -306,7 +306,7 @@ export function PatientHeader({
                       type="submit"
                       variant="ghost"
                       id="patient-menu-logout"
-                      className="h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      className="h-auto w-full justify-start px-3 py-2 patient-text-danger hover:bg-destructive/10 hover:patient-text-danger"
                       onClick={closeMenu}
                     >
                       Выйти

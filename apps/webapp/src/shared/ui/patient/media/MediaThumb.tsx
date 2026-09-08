@@ -2,6 +2,7 @@
 
 import { ImageOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { patientCaptionTextClass } from '@/shared/ui/patient/patientVisual';
 import type { MediaThumbPhase } from './mediaThumbState';
 import { getMediaThumbPhase } from './mediaThumbState';
 import type { MediaPreviewUiModel } from './mediaPreviewUiModel';
@@ -82,7 +83,8 @@ export function MediaThumb({
     return (
       <div
         className={cn(
-          'flex flex-col items-center justify-center gap-1 bg-muted/20 text-xs text-muted-foreground',
+          'flex flex-col items-center justify-center gap-1 bg-muted/20',
+          patientCaptionTextClass,
           className,
         )}
       >
@@ -101,7 +103,8 @@ export function MediaThumb({
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center gap-1 bg-muted/30 text-xs text-muted-foreground',
+        'flex flex-col items-center justify-center gap-1 bg-muted/30',
+        patientCaptionTextClass,
         className,
       )}
       role="status"

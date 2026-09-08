@@ -212,7 +212,8 @@ export const patientMutedTextStrongClass = 'text-[var(--patient-text-muted-stron
 
 /** Контейнер пустого состояния (центрирование + типичный вертикальный ритм). */
 export const patientEmptyStateClass = cn(
-  'flex flex-col items-center justify-center gap-2 py-8 text-center text-sm text-[var(--patient-text-muted)]',
+  'flex flex-col items-center justify-center gap-2 py-8 text-center',
+  patientMutedTextClass,
 );
 
 /** Textarea блока отправки сообщения — те же радиус и токены, что у patient-карточки. */
@@ -243,7 +244,8 @@ export const patientPillClass = cn(
  * Для кнопкообразных действий используйте `patientButtonGhostLinkClass` / secondary.
  */
 export const patientInlineLinkClass = cn(
-  'cursor-pointer font-semibold text-[var(--patient-color-primary)] underline-offset-2 hover:underline',
+  'cursor-pointer text-[var(--patient-color-primary)] underline-offset-2 hover:underline',
+  patientActionTextClass,
   'focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
 );
 
@@ -304,7 +306,7 @@ export const patientButtonDangerOutlineClass = cn(
  * Кнопка «Пропустить» в модалке элемента программы — кирпичный/терракотовый тон.
  */
 export const patientButtonSkipClass = cn(
-  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--patient-action-skip-border)] bg-[var(--patient-action-skip-bg)] px-3 font-semibold text-[var(--patient-action-skip-text)] transition-colors',
+  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--patient-action-skip-border)] bg-[var(--patient-action-skip-bg)] px-3 text-[var(--patient-action-skip-text)] transition-colors',
   'min-h-[var(--patient-touch)]',
   patientActionTextClass,
   'hover:bg-[var(--patient-action-skip-hover-bg)] active:bg-[var(--patient-action-skip-active-bg)]',
@@ -460,14 +462,16 @@ export const patientProgramItemHeroTitleClass = cn(
  * Строка «N повторений × M подходов» на странице пункта (hero): размер задаётся родителем (`text-[0.8rem]`).
  */
 export const patientProgramItemPrimaryStatTextClass = cn(
-  'font-normal text-[var(--patient-program-stat-text)]',
+  'font-[var(--patient-font-weight-regular)] text-[var(--patient-program-stat-text)]',
 );
 
 /**
  * Заголовок группы в «Состав этапа»: отдельный более тёплый program tone.
  */
-export const patientCompositionGroupTitleClass =
-  'text-sm font-medium text-[var(--patient-program-group-title)]';
+export const patientCompositionGroupTitleClass = cn(
+  patientFormLabelClass,
+  'text-[var(--patient-program-group-title)]',
+);
 
 /**
  * Выбранная строка состава этапа: тонкое кольцо, тёмный синий, лёгкий нейтральный фон.

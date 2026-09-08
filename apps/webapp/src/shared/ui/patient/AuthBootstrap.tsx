@@ -37,7 +37,12 @@ import {
   AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS,
 } from '@/shared/ui/patient/auth/loginChrome';
 import { MaxBridgeScript } from '@/shared/ui/patient/MaxBridgeScript';
-import { patientInlineLinkClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientInlineLinkClass,
+  patientMicroTextClass,
+  patientMutedTextClass,
+  patientSectionTitleClass,
+} from '@/shared/ui/patient/patientVisual';
 import { SupportContactLink } from '@/shared/ui/patient/SupportContactLink';
 import { persistMessengerBindingCandidate } from '@/shared/lib/messengerBindingCandidate';
 import {
@@ -1106,7 +1111,7 @@ export function AuthBootstrap({
             <div>
               <h1
                 id="specialist-signup-unavailable-title"
-                className="text-lg font-semibold text-foreground"
+                className={patientSectionTitleClass}
               >
                 Регистрация кабинета сейчас недоступна
               </h1>
@@ -1198,7 +1203,7 @@ export function AuthBootstrap({
               <a
                 className={cn(
                   patientInlineLinkClass,
-                  'font-medium underline',
+                  'underline',
                   AUTH_LOGIN_ACCENT_TEXT_CLASS,
                 )}
                 href={miniappHelpLinks.telegram}
@@ -1212,7 +1217,7 @@ export function AuthBootstrap({
               <a
                 className={cn(
                   patientInlineLinkClass,
-                  'font-medium underline',
+                  'underline',
                   AUTH_LOGIN_ACCENT_TEXT_CLASS,
                 )}
                 href={miniappHelpLinks.max}
@@ -1240,7 +1245,7 @@ export function AuthBootstrap({
           </div>
         ) : null}
         {debug && debugInfo && (
-          <pre className={cn(patientMutedTextClass, 'whitespace-pre-wrap text-left text-xs')}>
+          <pre className={cn(patientMicroTextClass, 'whitespace-pre-wrap text-left')}>
             [debug] correlation: {correlationId} status: {debugInfo.status ?? '—'}{' '}
             {debugInfo.message ?? ''}
           </pre>
@@ -1256,7 +1261,7 @@ export function AuthBootstrap({
         {token ? 'Проверяем токен интегратора и создаем сессию...' : 'Проверяем вход...'}
       </p>
       {debug && (
-        <p className={cn(patientMutedTextClass, 'text-xs')}>
+        <p className={patientMicroTextClass}>
           [debug] state: {state} correlation: {correlationId}
         </p>
       )}

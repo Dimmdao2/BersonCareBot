@@ -52,7 +52,7 @@ export function PatientWebPushOnboardingCard() {
       }
       footer={<PushOnboardingActions busy={busy} onEnable={onEnable} onDismiss={onDismiss} />}
     >
-      <p className={cn(patientMutedTextClass, 'text-sm leading-relaxed')}>
+      <p className={patientMutedTextClass}>
         Так вы сможете получать напоминания о тренировках, обновления плана и важные сообщения по
         программе.
       </p>

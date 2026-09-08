@@ -10,13 +10,18 @@ import {
   LOGIN_CTA_WIDTH_CLASS,
 } from '@/shared/ui/patient/auth/loginChrome';
 import { cn } from '@/lib/utils';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientActionTextClass,
+  patientBodyTextClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
 
 /** Пока виджет Telegram не вставил iframe / не пришёл `load` (CDN заблокирован, нет сети и т.д.) — тот же тёмно-синий текст, слегка приглушённый. */
 const TELEGRAM_WIDGET_PENDING_CHROME = cn(
   LOGIN_CTA_HEIGHT_CLASS,
   LOGIN_CTA_WIDTH_CLASS,
-  'inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary)] bg-white px-4 text-sm font-normal shadow-none',
+  'inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary)] bg-white px-4 shadow-none',
+  patientActionTextClass,
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
   'opacity-70',
 );
@@ -283,7 +288,7 @@ export function TelegramLoginButton({
           )}
         />
       </div>
-      {error ? <p className="text-sm text-[var(--patient-color-danger)]">{error}</p> : null}
+      {error ? <p className={cn(patientBodyTextClass, 'text-[var(--patient-color-danger)]')}>{error}</p> : null}
       {busy ? <p className={patientMutedTextClass}>Вход…</p> : null}
     </div>
   );

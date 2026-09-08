@@ -3,6 +3,7 @@
 import { Maximize, Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { useRef, type RefObject } from 'react';
 import { cn } from '@/lib/utils';
+import { patientBodyTextClass, patientCaptionTextClass } from '@/shared/ui/patient/patientVisual';
 import {
   isHostedVideoEmbedSrc,
   parseHostedVideoLink,
@@ -87,19 +88,19 @@ function CustomPlayerChrome({
           loading="lazy"
         />
       </div>
-      <div className="flex h-11 shrink-0 items-center gap-1.5 bg-black px-2 text-white">
+      <div className="flex h-11 shrink-0 items-center gap-1.5 bg-black px-2 patient-text-inverse">
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="size-8 shrink-0 text-white hover:bg-white/15 hover:text-white"
+          className="size-8 shrink-0 patient-text-inverse hover:bg-white/15 hover:patient-text-inverse"
           disabled={!player.ready}
           onClick={player.togglePlayback}
           aria-label={player.playing ? 'Пауза' : 'Воспроизвести'}
         >
           {player.playing ? <Pause className="size-4" /> : <Play className="size-4" />}
         </Button>
-        <span className="min-w-10 text-center text-xs tabular-nums">
+        <span className={cn('min-w-10 text-center tabular-nums', patientCaptionTextClass)}>
           {formatTime(player.currentTime)}
         </span>
         <input
@@ -113,14 +114,14 @@ function CustomPlayerChrome({
           className="min-w-0 flex-1 accent-white"
           aria-label="Позиция видео"
         />
-        <span className="hidden min-w-10 text-center text-xs tabular-nums sm:inline">
+        <span className={cn('hidden min-w-10 text-center tabular-nums sm:inline', patientCaptionTextClass)}>
           {formatTime(player.duration)}
         </span>
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="size-8 shrink-0 text-white hover:bg-white/15 hover:text-white"
+          className="size-8 shrink-0 patient-text-inverse hover:bg-white/15 hover:patient-text-inverse"
           disabled={!player.ready}
           onClick={player.toggleMuted}
           aria-label={player.muted ? 'Включить звук' : 'Выключить звук'}
@@ -142,7 +143,7 @@ function CustomPlayerChrome({
           type="button"
           variant="ghost"
           size="icon"
-          className="size-8 shrink-0 text-white hover:bg-white/15 hover:text-white"
+          className="size-8 shrink-0 patient-text-inverse hover:bg-white/15 hover:patient-text-inverse"
           onClick={() => void shellRef.current?.requestFullscreen()}
           aria-label="Во весь экран"
         >
@@ -214,7 +215,8 @@ export function HostedVideoEmbed({ url, title, className, onFirstPlaying }: Host
     return (
       <div
         className={cn(
-          'flex aspect-video w-full items-center justify-center bg-muted/30 px-3 text-center text-sm text-muted-foreground',
+          'flex aspect-video w-full items-center justify-center bg-muted/30 px-3 text-center',
+          patientBodyTextClass,
           className,
         )}
       >

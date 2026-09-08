@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { Textarea } from '@/shared/ui/patient/primitives/textarea';
+import { patientBodyTextClass } from '@/shared/ui/patient/patientVisual';
 
 type PatientChatComposerProps = {
   value: string;
@@ -85,7 +86,10 @@ export function PatientChatComposer({
       renderTextarea={(props) => (
         <Textarea
           {...props}
-          className="min-h-10 flex-1 resize-none rounded-[var(--patient-chat-composer-radius)] py-2 pr-10 pl-3 leading-5"
+          className={cn(
+            'min-h-10 flex-1 resize-none rounded-[var(--patient-chat-composer-radius)] py-2 pr-10 pl-3',
+            patientBodyTextClass,
+          )}
         />
       )}
       renderSubmit={(props) => (
