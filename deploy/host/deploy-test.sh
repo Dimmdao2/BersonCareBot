@@ -170,7 +170,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --reapply)
       [[ -n "${2:-}" ]] || fail '--reapply needs the tag of a migration file'
-      [[ "$2" =~ ^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$ ]] || fail "--reapply tag is not a migration name: $2"
+      [[ "$2" =~ ^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$ || "$2" =~ ^[0-9]{8}T[0-9]{6}_[a-z0-9_]+$ ]] \
+        || fail "--reapply tag is not a migration name: $2"
       REAPPLY_ARGS+=(--reapply "$2")
       shift 2
       ;;
