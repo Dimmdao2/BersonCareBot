@@ -3,14 +3,14 @@
 #
 # Scope is deliberately narrow:
 #   - current DEV/RELAY/TEST host 151.241.228.122 only
-#   - awg1 / 10.9.1.1 only
+#   - awg1 / 172.31.9.1 only
 #   - test.bersoncare.ru only
 #   - default action is dry-run; --apply is required to touch /etc or systemd
 set -euo pipefail
 
 EXPECTED_HOST_IP="151.241.228.122"
 VPN_INTERFACE="awg1"
-VPN_ADDRESS="10.9.1.1"
+VPN_ADDRESS="172.31.9.1"
 SERVER_NAME="test.bersoncare.ru"
 DNSMASQ_CONF="/etc/dnsmasq.d/awg-test.conf"
 OBSOLETE_SYSTEMD_DROPIN="/etc/systemd/system/dnsmasq.service.d/bersoncare-test-awg1.conf"
@@ -26,7 +26,7 @@ Usage:
 
 Default is --dry-run. --apply installs the TEST-only dnsmasq split-DNS
 configuration and redirects awg1 DNS traffic to the split resolver. New awg1
-clients should use DNS 10.9.1.1 directly.
+clients should use DNS 172.31.9.1 directly.
 EOF
 }
 
@@ -61,7 +61,7 @@ done
 assert_test_only() {
   [ "$EXPECTED_HOST_IP" = "151.241.228.122" ] || fatal "unexpected TEST host guard"
   [ "$VPN_INTERFACE" = "awg1" ] || fatal "VPN_INTERFACE must be awg1"
-  [ "$VPN_ADDRESS" = "10.9.1.1" ] || fatal "VPN_ADDRESS must be the awg1 gateway"
+  [ "$VPN_ADDRESS" = "172.31.9.1" ] || fatal "VPN_ADDRESS must be the awg1 gateway"
   [ "$SERVER_NAME" = "test.bersoncare.ru" ] || fatal "SERVER_NAME must be test.bersoncare.ru"
 
   ip -4 -o address show scope global | awk '{print $4}' | cut -d/ -f1 \
@@ -79,8 +79,8 @@ no-hosts
 # TEST shares the VPN endpoint's public IP. Resolve it to the in-tunnel awg1
 # gateway so iOS does not follow the endpoint-exclusion route around the VPN.
 bind-dynamic
-listen-address=10.9.1.1
-address=/test.bersoncare.ru/10.9.1.1
+listen-address=172.31.9.1
+address=/test.bersoncare.ru/172.31.9.1
 no-resolv
 server=1.1.1.1
 server=8.8.8.8
@@ -98,10 +98,10 @@ After=awg-quick@awg1.service dnsmasq.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/sbin/iptables -t nat -A PREROUTING -i awg1 -p udp --dport 53 -j DNAT --to-destination 10.9.1.1:53
-ExecStart=/usr/sbin/iptables -t nat -A PREROUTING -i awg1 -p tcp --dport 53 -j DNAT --to-destination 10.9.1.1:53
-ExecStop=-/usr/sbin/iptables -t nat -D PREROUTING -i awg1 -p udp --dport 53 -j DNAT --to-destination 10.9.1.1:53
-ExecStop=-/usr/sbin/iptables -t nat -D PREROUTING -i awg1 -p tcp --dport 53 -j DNAT --to-destination 10.9.1.1:53
+ExecStart=/usr/sbin/iptables -t nat -A PREROUTING -i awg1 -p udp --dport 53 -j DNAT --to-destination 172.31.9.1:53
+ExecStart=/usr/sbin/iptables -t nat -A PREROUTING -i awg1 -p tcp --dport 53 -j DNAT --to-destination 172.31.9.1:53
+ExecStop=-/usr/sbin/iptables -t nat -D PREROUTING -i awg1 -p udp --dport 53 -j DNAT --to-destination 172.31.9.1:53
+ExecStop=-/usr/sbin/iptables -t nat -D PREROUTING -i awg1 -p tcp --dport 53 -j DNAT --to-destination 172.31.9.1:53
 
 [Install]
 WantedBy=multi-user.target
