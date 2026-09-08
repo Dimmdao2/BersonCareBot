@@ -4,14 +4,14 @@
 # Scope is deliberately narrow:
 #   - current DEV/RELAY/TEST host 151.241.228.122 only
 #   - awg1 / 172.31.9.1 only
-#   - test.bersoncare.ru only
+#   - legacy TEST plus the Therapysto/Therapygo TEST suffixes
 #   - default action is dry-run; --apply is required to touch /etc or systemd
 set -euo pipefail
 
 EXPECTED_HOST_IP="151.241.228.122"
 VPN_INTERFACE="awg1"
 VPN_ADDRESS="172.31.9.1"
-SERVER_NAME="test.bersoncare.ru"
+SERVER_NAMES=("test.bersoncare.ru" "test.therapysto.ru" "test.therapygo.ru")
 DNSMASQ_CONF="/etc/dnsmasq.d/awg-test.conf"
 OBSOLETE_SYSTEMD_DROPIN="/etc/systemd/system/dnsmasq.service.d/bersoncare-test-awg1.conf"
 DNS_REDIRECT_UNIT="/etc/systemd/system/bersoncare-test-vpn-dns-redirect.service"
@@ -62,7 +62,8 @@ assert_test_only() {
   [ "$EXPECTED_HOST_IP" = "151.241.228.122" ] || fatal "unexpected TEST host guard"
   [ "$VPN_INTERFACE" = "awg1" ] || fatal "VPN_INTERFACE must be awg1"
   [ "$VPN_ADDRESS" = "172.31.9.1" ] || fatal "VPN_ADDRESS must be the awg1 gateway"
-  [ "$SERVER_NAME" = "test.bersoncare.ru" ] || fatal "SERVER_NAME must be test.bersoncare.ru"
+  [ "${SERVER_NAMES[*]}" = "test.bersoncare.ru test.therapysto.ru test.therapygo.ru" ] \
+    || fatal "unexpected TEST split-DNS names"
 
   ip -4 -o address show scope global | awk '{print $4}' | cut -d/ -f1 \
     | grep -Fxq "$EXPECTED_HOST_IP" \
@@ -81,6 +82,8 @@ no-hosts
 bind-dynamic
 listen-address=172.31.9.1
 address=/test.bersoncare.ru/172.31.9.1
+address=/test.therapysto.ru/172.31.9.1
+address=/test.therapygo.ru/172.31.9.1
 no-resolv
 server=1.1.1.1
 server=8.8.8.8
@@ -135,7 +138,7 @@ if [ "$ACTION" = "dry-run" ]; then
   log "dry-run OK"
   echo "   dnsmasq: $DNSMASQ_CONF"
   echo "   redirect: $DNS_REDIRECT_UNIT"
-  echo "   answer:  $SERVER_NAME -> $VPN_ADDRESS"
+  echo "   answers: ${SERVER_NAMES[*]} -> $VPN_ADDRESS"
   echo "   apply:   bash deploy/host/apply-test-vpn-dns.sh --apply"
   exit 0
 fi
@@ -171,13 +174,15 @@ sudo systemctl restart bersoncare-test-vpn-dns-redirect.service
 systemctl is-active --quiet bersoncare-test-vpn-dns-redirect.service \
   || fatal "TEST VPN DNS redirect is not active"
 
-answer="$(dig +short +time=2 +tries=1 @"$VPN_ADDRESS" "$SERVER_NAME" A | tail -n 1)"
-[ "$answer" = "$VPN_ADDRESS" ] \
-  || fatal "unexpected split-DNS answer: ${answer:-<empty>}"
+for server_name in "${SERVER_NAMES[@]}" admin.test.therapysto.ru berson.test.therapygo.ru; do
+  answer="$(dig +short +time=2 +tries=1 @"$VPN_ADDRESS" "$server_name" A | tail -n 1)"
+  [ "$answer" = "$VPN_ADDRESS" ] \
+    || fatal "unexpected split-DNS answer for $server_name: ${answer:-<empty>}"
+done
 sudo iptables -t nat -C PREROUTING -i "$VPN_INTERFACE" -p udp --dport 53 \
   -j DNAT --to-destination "${VPN_ADDRESS}:53"
 sudo iptables -t nat -C PREROUTING -i "$VPN_INTERFACE" -p tcp --dport 53 \
   -j DNAT --to-destination "${VPN_ADDRESS}:53"
 
 log "apply OK"
-echo "   $SERVER_NAME -> $answer via DNS $VPN_ADDRESS"
+echo "   ${SERVER_NAMES[*]} and their subdomains -> $VPN_ADDRESS via DNS $VPN_ADDRESS"
