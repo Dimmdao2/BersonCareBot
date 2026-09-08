@@ -11999,6 +11999,24 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       }
     ],
     "invocation": "runtime"
+  },
+  "app.exchange_video_meeting_invite(text)": {
+    "owner": "app_seam_patient_invite_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "STABLE",
+    "parallel": "RESTRICTED",
+    "proconfig": ["search_path=pg_catalog"],
+    "execute": ["app_patient"],
+    "purpose": "looks up one active hash-only guest video invite without exposing patient data or room existence",
+    "typedArgs": ["text"],
+    "databases": ["bersoncarebot_test", "bcb_webapp_dev"],
+    "relationSurfaces": [
+      { "relation": "public.video_meeting_invites", "columns": ["meeting_id", "secret_hash", "status", "expires_at"], "operations": ["SELECT"], "evidence": "pg16-function-body-lexical-upper-bound" },
+      { "relation": "public.video_meetings", "columns": ["id", "organization_id", "patient_user_id", "specialist_id", "provider_room_ref", "status", "expires_at"], "operations": ["SELECT"], "evidence": "pg16-function-body-lexical-upper-bound" }
+    ],
+    "invocation": "runtime"
   }
 };
 
@@ -15620,6 +15638,31 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": "table"
       }
+    ]
+  },
+  "public.video_meetings": {
+    "kind": "direct",
+    "purpose": "организационная сессия видеовстречи один-на-один; room reference не является публичным API",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgVideoMeetings.ts"
+    ],
+    "grants": [
+      { "role": "app_staff", "operations": ["SELECT"], "columns": "table" },
+      { "role": "app_staff", "operations": ["INSERT"], "columns": ["id", "organization_id", "patient_user_id", "specialist_id", "appointment_id", "provider_room_ref", "status", "expires_at", "ended_at", "revoked_at", "created_at", "updated_at"] },
+      { "role": "app_staff", "operations": ["UPDATE"], "columns": ["status", "ended_at", "revoked_at", "updated_at"] },
+      { "role": "app_patient", "operations": ["SELECT"], "columns": ["id", "organization_id", "patient_user_id", "provider_room_ref", "status", "expires_at"] }
+    ]
+  },
+  "public.video_meeting_invites": {
+    "kind": "direct",
+    "purpose": "ротируемая hash-only capability гостя видеовстречи",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgVideoMeetings.ts"
+    ],
+    "grants": [
+      { "role": "app_staff", "operations": ["SELECT"], "columns": "table" },
+      { "role": "app_staff", "operations": ["INSERT"], "columns": ["id", "meeting_id", "organization_id", "secret_hash", "status", "expires_at", "revoked_at", "revoked_by_platform_user_id", "superseded_by_invite_id", "created_at", "updated_at"] },
+      { "role": "app_staff", "operations": ["UPDATE"], "columns": ["status", "revoked_at", "revoked_by_platform_user_id", "superseded_by_invite_id", "updated_at"] }
     ]
   },
   "public.doctor_notes": {
@@ -23857,6 +23900,8 @@ const TABLE_ROWS: TableRow[] = [
     why: 'Разделы CMS — навигация пациентского контента',
     pol: 'то же, что content_pages (I5 / C18)', defect: ['I5-two-org-accessors'], code: ['C18'] },
   { t: 'public.courses', cls: 'C', org: true, why: 'Курсы клиники — платный/бесплатный курс как продукт клиники' },
+  { t: 'public.video_meetings', cls: 'P', org: true, wall: 'clinic+patient', why: 'сессия видеовстречи: сотрудник своей клиники и только её пациент получают роль в одном звонке' },
+  { t: 'public.video_meeting_invites', cls: 'P', org: true, wall: 'clinic', wallWhy: 'гость не получает табличного доступа; hash проверяет узкий capability seam, а обычная строка доступна только сотруднику клиники', why: 'hash-only invite capability; гостевой обмен не получает табличного доступа и оформляется отдельным узким seam' },
   { t: 'public.doctor_notes', cls: 'P', org: true, why: 'Заметки врача о пациенте — личные пометки врача по клиенту' },
   { t: 'public.doctor_patient_support', cls: 'P', org: true, why: 'Клинический профиль пациента — демография и '
     + 'флаги сопровождения под стеной клиники' },

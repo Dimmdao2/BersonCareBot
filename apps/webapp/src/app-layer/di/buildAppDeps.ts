@@ -427,6 +427,10 @@ import { createOrganizationInvitesService } from '@/modules/organization-invites
 import { createPgPatientInvitesPort } from '@/infra/repos/pgPatientInvites';
 import { createInMemoryPatientInvitesPort } from '@/infra/repos/inMemoryPatientInvites';
 import { createPatientInvitesService } from '@/modules/patient-invites/service';
+import { createPgVideoMeetingStore } from '@/infra/repos/pgVideoMeetings';
+import { createVideoMeetingsService } from '@/modules/video-meetings/service';
+import { createJitsiVideoMeetingProvider } from '@/infra/video/jitsiVideoMeetingProvider';
+import { findBuiltInOnlineLocation } from '@/modules/booking-engine/onlineLocation';
 import { createClinicSeatsService } from '@/modules/clinic-seats/service';
 import { createDoctorWorkspaceDirectoryService } from '@/modules/doctor-workspace/service';
 import { createPgBookingEnginePort } from '@/infra/repos/pgBookingEngine';
@@ -946,6 +950,21 @@ const systemSettingsService = wrapSystemSettingsServiceWithRequestLocalScopeRead
     assertMechanicWriteClearance,
   ),
 );
+const videoMeetingsService = !inMemoryRepos && bookingEngineCorePort
+  ? createVideoMeetingsService({
+      store: createPgVideoMeetingStore(),
+      provider: createJitsiVideoMeetingProvider(systemSettingsService),
+      onlineGate: {
+        async isOnlineLocationActive(organizationId) {
+          const location = findBuiltInOnlineLocation(
+            await bookingEngineCorePort.listBranches(organizationId),
+            organizationId,
+          );
+          return location?.isActive === true;
+        },
+      },
+    })
+  : null;
 const specialistTasksPort = !inMemoryRepos
   ? createPgSpecialistTasksPort((task) =>
       prepareSpecialistTaskReminderDeliveries(task, {
@@ -2120,6 +2139,7 @@ function _buildAppDeps() {
     staffSecurity: staffSecurityService,
     organizationInvites: organizationInvitesService,
     patientInvites: patientInvitesService,
+    videoMeetings: videoMeetingsService,
     clinicSeats: clinicSeatsService,
     doctorWorkspace: doctorWorkspaceDirectoryService,
     materialRating: materialRatingService,
