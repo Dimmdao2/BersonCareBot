@@ -251,6 +251,8 @@
     "app.exchange_patient_invite(text,text,timestamp with time zone) -> public.be_organizations",
     "app.exchange_patient_invite(text,text,timestamp with time zone) -> public.org_enrollments",
     "app.exchange_patient_invite(text,text,timestamp with time zone) -> public.patient_invites",
+    "app.exchange_video_meeting_invite(text) -> public.video_meeting_invites",
+    "app.exchange_video_meeting_invite(text) -> public.video_meetings",
     "app.find_platform_user_ids_by_any_confirmed_email(text) -> public.platform_users",
     "app.find_platform_user_ids_by_any_confirmed_email(text) -> public.user_contacts",
     "app.list_active_booking_cities() -> public.booking_cities",

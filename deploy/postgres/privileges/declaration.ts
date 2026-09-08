@@ -25011,6 +25011,14 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.be_organizations': 'название клиники приглашения для экрана предъявителя',
   },
 
+  // Гостевой видеозвонок адресуется только секретом приглашения. До обмена у гостя нет аккаунта,
+  // patient principal или организации, поэтому tenant wall здесь заменяет точная capability-связка
+  // secret_hash -> invite -> meeting; произвольный идентификатор встречи API не принимает.
+  'app.exchange_video_meeting_invite(text)': {
+    'public.video_meeting_invites': 'гостевое приглашение находится только по неугадываемому secret_hash; у гостя до обмена нет организации для сравнения',
+    'public.video_meetings': 'встреча читается только по meeting_id найденного секретом приглашения; произвольный meeting id вызывающий не передаёт',
+  },
+
   // Опознание человека на входе: почта и канал — это то, ЧЕМ человек себя называет, пока клиника
   // ещё не выбрана. Организационного контекста в этот момент нет ни у одного вызывающего.
   'app.find_platform_user_ids_by_any_confirmed_email(text)': {

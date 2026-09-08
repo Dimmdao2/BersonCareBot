@@ -755,7 +755,8 @@ test('clinic-owner mutation grants include every default column emitted by Drizz
     'updated_at',
   ]);
   exactColumns('public.doctor_notes', 'app_staff', 'INSERT', [
-    'author_id', 'created_at', 'id', 'organization_id', 'text', 'updated_at', 'user_id',
+    'author_id', 'created_at', 'id', 'note_date', 'organization_id', 'revision', 'text',
+    'updated_at', 'user_id',
   ]);
   exactColumns('public.platform_user_contacts', 'app_staff', 'INSERT', [
     'contact_type', 'created_at', 'id', 'organization_id', 'platform_user_id', 'source',
