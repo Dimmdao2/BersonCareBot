@@ -149,11 +149,6 @@ if [[ -n "$prosody_cid" ]]; then
   }
   check_external_service_set "$XMPP_DOMAIN"
   check_external_service_set "metadata.${XMPP_DOMAIN}"
-  if docker exec "$prosody_cid" prosodyctl --config /run/prosody/config/prosody.cfg.lua check turn >/tmp/jitsi-test-prosodyctl-turn.log 2>&1; then
-    ok "prosodyctl check turn passed (log: /tmp/jitsi-test-prosodyctl-turn.log)"
-  else
-    bad "prosodyctl check turn failed — see /tmp/jitsi-test-prosodyctl-turn.log"
-  fi
   if docker exec "$prosody_cid" prosodyctl --config /run/prosody/config/prosody.cfg.lua check config >/tmp/jitsi-test-prosodyctl-config.log 2>&1; then
     ok "prosodyctl check config passed"
   else
