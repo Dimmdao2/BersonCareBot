@@ -564,6 +564,18 @@ export function ScheduleSetupTab({
     setupPackagesOnly ? 'packages' : resolveSectionId(deepLinkParams.section, sectionVisibility),
   );
 
+  // MGMT-UI-01: this tab instance stays mounted while the deep-link `section` changes
+  // externally (clinic management menu navigation rewrites the query param without
+  // remounting the tab), so the initial-only useState above is not enough — follow the
+  // external value here. Internal clicks (setActiveSection below) push the same id back
+  // into deepLinkParams, so this effect is a no-op for that path.
+  const resolvedExternalSection = setupPackagesOnly
+    ? 'packages'
+    : resolveSectionId(deepLinkParams.section, sectionVisibility);
+  useEffect(() => {
+    setActiveSectionState((prev) => (prev === resolvedExternalSection ? prev : resolvedExternalSection));
+  }, [resolvedExternalSection]);
+
   const visibleSections = useMemo(
     () =>
       SETUP_SECTIONS.filter(
