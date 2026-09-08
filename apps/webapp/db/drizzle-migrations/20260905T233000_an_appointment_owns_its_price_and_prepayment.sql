@@ -679,7 +679,7 @@ SET search_path = pg_catalog
 AS $function$
 DECLARE
   v_now timestamptz := pg_catalog.clock_timestamp();
-  v_limit integer := pg_catalog.least(pg_catalog.greatest(COALESCE(p_limit, 50), 1), 500);
+  v_limit integer := least(greatest(COALESCE(p_limit, 50), 1), 500);
   v_expired text[] := ARRAY[]::text[];
   v_appointment_id uuid;
   v_organization_id uuid;
