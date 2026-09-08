@@ -49,3 +49,4 @@ export * from './orgBranding';
 export * from './doctorPatientSupport';
 export * from './saasIsolationDiagnostics';
 export * from './relations';
+export * from './videoMeetings';

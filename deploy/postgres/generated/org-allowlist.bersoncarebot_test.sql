@@ -145,7 +145,9 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'treatment_program_instance_stage_groups'),
   ('public', 'treatment_program_instance_stage_items'),
   ('public', 'treatment_program_instance_stages'),
-  ('public', 'treatment_program_instances')
+  ('public', 'treatment_program_instances'),
+  ('public', 'video_meeting_invites'),
+  ('public', 'video_meetings')
 ),
 inserted AS (
   INSERT INTO app_control.org_table_allowlist (schema_name, table_name)

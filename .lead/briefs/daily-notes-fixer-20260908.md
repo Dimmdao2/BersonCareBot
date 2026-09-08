@@ -7,9 +7,9 @@ migration/privileges, §5 architecture, §§7/9/10a/10b/11, §§16/17/21 and §2
 `docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md`, NOTE-01..09 and Wave 1 stream B. Read
 `docs/audit/daily-notes-1100-independent-audit-2026-09-08.md` in full.
 
-Источник оракула: `docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md` §2 — «Всё введённое автоматически и надёжно
-сохраняется» и owner clarification in the task: «что напечатал то и сохранилось», including closing and reopening
-the note/call surface on the same calendar day.
+Источник оракула: `docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md` NOTE-04 — «каждое изменение автоматически и надёжно
+сохраняется»; the owner clarification in the assigned task additionally requires closing and reopening the note/call
+surface on the same calendar day without losing the last input.
 
 Workers do not write, edit, rename or delete tests. Preserve all auditor acceptance files exactly; make the existing
 red collapse oracle green. Do not create another kill-set/audit. Do not push, land, deploy, start a shared server,
