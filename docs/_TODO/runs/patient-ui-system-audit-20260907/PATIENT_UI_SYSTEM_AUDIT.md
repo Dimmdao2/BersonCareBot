@@ -572,3 +572,45 @@ preview и home-only geometry намеренно не включены.
 
 Эта карта — инвентарь и порядок миграции, не source-based test/gate. Проверять будущие изменения нужно
 наблюдаемым поведением control/modal/tab, а не числом классов, hex или строк исходника.
+
+## Статус реализации 2026-09-08
+
+Работа идёт в `wt/patient-ui-system-audit-20260907`; в `feat` ничего не приземлено и не отправлено.
+Новый визуальный target не выбирался: сохранены текущие Manrope, patient blue и существующая геометрия.
+
+Готово в committed candidate:
+
+- `9e8a2550c`: оставшиеся feature-диалоги журнала/быстрого добавления/завершения элемента переведены на
+  `PatientModal`/`PatientModalFooter`; прямой `DialogContent` после этого остаётся только внутри самого
+  `PatientModal`.
+- `106d24642`: patient messages и комментарии получили общий patient composer и doctor-like conversation
+  behavior; polling примиряет строки по id и сохраняет identity неизменившихся сообщений, обсуждение программы
+  сохраняет загруженную пагинацию.
+- `f530e23e4`: повторяемые patient colors/radii/surfaces перенесены в portal-safe semantic tokens без изменения
+  выбранных значений.
+- `2ec27e0a8` + `398e9ed20`: Input/Textarea/Select/Label стали patient adapters; одинаковые поля двух журналов
+  используют один `journal` variant и общий `PatientField`.
+- `3e7740295` + `398e9ed20`: Card стал patient adapter с `default/compact/list/flush`; одинаковые cabinet/
+  organization surfaces переведены на него; confirm-диалоги напоминаний сведены в `PatientConfirmModal`.
+
+Личная проверка кандидата:
+
+```text
+pnpm --dir apps/webapp exec eslint <изменённые patient UI/chat файлы>
+EXIT=0
+
+pnpm --dir apps/webapp exec vitest run \
+  src/app/app/patient/messages/PatientMessagesClient.ui.test.tsx \
+  src/app/app/patient/treatment/ProgramItemDiscussionDialog.ui.test.tsx
+Test Files 2 passed; Tests 11 passed
+```
+
+`pnpm --dir apps/webapp typecheck` сейчас не является зелёным evidence: TypeScript падает на синтаксически
+повреждённых generated `.next/dev/types/routes.d.ts` и `.next/dev/types/validator.ts`. Эти generated-файлы не
+менялись кандидатом; итоговый сигнал даст полный CI через общий host-lock после сведения всех потоков.
+
+В работе отдельными непересекающимися потоками:
+
+- clinical complaint → patient symptom tracking bridge (symptom history);
+- независимый audit UI/modals/chat candidate;
+- следующий единичный primitive-pass: patient Button adapter и повторяющиеся primary submit actions.
