@@ -1,6 +1,6 @@
 # Video guest tenant gate — lead fix evidence
 
-Date: 2026-09-08  
+Date: 2026-09-08
 Audit: `0a0d51b57` (`MUST FIX`)
 
 ## Result
