@@ -53,8 +53,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     actorPlatformUserId: gate.ctx.session.user.userId,
   };
   if (!('action' in body.data)) {
+    const diagnosticInput = {
+      meetingId: params.data.meetingId,
+      organizationId: gate.ctx.organizationId,
+      specialistId: gate.ctx.specialistId,
+      event: body.data.diagnostic.event,
+      ...(body.data.diagnostic.durationMs !== undefined ? { durationMs: body.data.diagnostic.durationMs } : {}),
+      ...(body.data.diagnostic.transport !== undefined ? { transport: body.data.diagnostic.transport } : {}),
+      ...(body.data.diagnostic.errorClass !== undefined ? { errorClass: body.data.diagnostic.errorClass } : {}),
+    };
     const ok = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.video-meeting.lifecycle', () =>
-      deps.videoMeetings!.recordDiagnostic({ ...lifecycleInput, ...body.data.diagnostic }),
+      deps.videoMeetings!.recordDiagnostic(diagnosticInput),
     );
     return ok ? noStore({ ok: true }) : noStore({ ok: false, error: 'meeting_unavailable' }, 404);
   }

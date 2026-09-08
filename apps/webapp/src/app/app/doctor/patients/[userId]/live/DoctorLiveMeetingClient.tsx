@@ -43,6 +43,8 @@ export function DoctorLiveMeetingClient({
   medicalRecordEnabled: boolean;
 }) {
   const startedRef = useRef(false);
+  const mountRequestedRef = useRef(false);
+  const prepareInFlightRef = useRef<Promise<void> | null>(null);
   const meetingIdRef = useRef<string | null>(null);
   const [session, setSession] = useState<VideoMeetingRenderSession | null>(null);
   const [preparedMeetingId, setPreparedMeetingId] = useState<string | null>(null);
@@ -51,18 +53,29 @@ export function DoctorLiveMeetingClient({
   const [error, setError] = useState(false);
   const [starting, setStarting] = useState(false);
 
-  const prepare = useCallback(async (mount: boolean) => {
-    const response = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ appointmentId }),
+  const prepare = useCallback((mount: boolean) => {
+    const request = async () => {
+      const response = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentId }),
+      });
+      const data = await response.json() as SessionResponse;
+      if (!response.ok || !data.ok || !data.session || !data.meetingId) throw new Error('prepare_failed');
+      meetingIdRef.current = data.meetingId;
+      setPreparedMeetingId(data.meetingId);
+      setGuestUrl(data.guestUrl ?? null);
+      setNotification(data.notification ?? null);
+      if (mount) setSession(data.session);
+    };
+    const previous = prepareInFlightRef.current;
+    const current = previous ? previous.catch(() => undefined).then(request) : request();
+    prepareInFlightRef.current = current;
+    void current.then(() => {
+      if (prepareInFlightRef.current === current) prepareInFlightRef.current = null;
+    }, () => {
+      if (prepareInFlightRef.current === current) prepareInFlightRef.current = null;
     });
-    const data = await response.json() as SessionResponse;
-    if (!response.ok || !data.ok || !data.session || !data.meetingId) throw new Error('prepare_failed');
-    meetingIdRef.current = data.meetingId;
-    setPreparedMeetingId(data.meetingId);
-    setGuestUrl(data.guestUrl ?? null);
-    setNotification(data.notification ?? null);
-    if (mount) setSession(data.session);
+    return current;
   }, [appointmentId, userId]);
 
   useEffect(() => {
@@ -72,11 +85,17 @@ export function DoctorLiveMeetingClient({
   }, [prepare]);
 
   const start = useCallback(() => {
-    if (starting || session) return;
+    if (mountRequestedRef.current || session) return;
+    mountRequestedRef.current = true;
     setStarting(true);
     setError(false);
-    void prepare(true).catch(() => setError(true)).finally(() => setStarting(false));
-  }, [prepare, session, starting]);
+    void prepare(true)
+      .catch(() => {
+        mountRequestedRef.current = false;
+        setError(true);
+      })
+      .finally(() => setStarting(false));
+  }, [prepare, session]);
 
   const retryPrepare = useCallback(() => {
     setError(false);
@@ -102,9 +121,9 @@ export function DoctorLiveMeetingClient({
   }, [userId]);
 
   return (
-    <main className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_420px]">
-      <section className="relative min-w-0 overflow-hidden rounded-lg bg-black">
-        <VideoMeetingStage session={session} onHangup={end} onDiagnostic={reportDiagnostic} />
+    <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden">
+      <section className="relative flex min-h-0 min-w-0 overflow-hidden rounded-lg bg-black">
+        <VideoMeetingStage className="relative flex min-h-0 flex-1 bg-black" session={session} onHangup={end} onDiagnostic={reportDiagnostic} />
         {!session ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <Button type="button" size="lg" disabled={starting} onClick={start}>Начать звонок</Button>

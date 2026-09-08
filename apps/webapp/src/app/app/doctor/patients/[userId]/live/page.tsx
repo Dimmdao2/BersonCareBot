@@ -15,7 +15,7 @@ export default async function DoctorLiveMeetingPage({ params, searchParams }: { 
   if (!identity) notFound();
   const appointmentId = (await searchParams).appointmentId;
   return (
-    <PatientEncounterPageShell userId={userId} title="Видеовстреча" workspaceModules={shell.workspaceModules}>
+    <PatientEncounterPageShell userId={userId} title="Видеовстреча" workspaceModules={shell.workspaceModules} layout="full-height">
       <DoctorLiveMeetingClient
         userId={userId}
         appointmentId={z.string().uuid().safeParse(appointmentId).success ? appointmentId! : null}

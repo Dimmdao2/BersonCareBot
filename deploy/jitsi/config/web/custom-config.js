@@ -24,8 +24,19 @@ config.enableCalendarIntegration = false;
 config.disableInviteFunctions = true;
 config.enableInsecureRoomNameWarning = false; // secure-domain/JWT already gates room creation
 config.prejoinConfig = { enabled: false }; // embedded TherapyGo screen joins immediately
-config.disableConferenceSubject = true;
+config.hideConferenceSubject = true;
 config.disableSelfView = false;
+config.disableSelfViewSettings = false;
+config.disableShortcuts = true;
+config.disableChat = true;
+config.disableReactions = true;
+config.disablePolls = true;
+config.transcribingEnabled = false;
+config.localRecording = false;
+config.fileSharing = { enabled: false };
+config.etherpad_base = undefined;
+config.whiteboard = { enabled: false };
+config.virtualBackground = { enableV2: true };
 
 // P2P first, our coturn only as fallback, our JVB as last resort (VM-03/VM-04). No entry here duplicates a
 // default Jitsi/Google STUN — the only entries come from P2P_STUN_SERVERS at render time.

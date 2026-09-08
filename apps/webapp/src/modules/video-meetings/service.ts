@@ -212,7 +212,17 @@ export function createVideoMeetingsService(deps: {
     }) {
       const meeting = await deps.store.findSpecialistMeeting?.(input);
       if (!meeting) return false;
-      deps.logDiagnostic?.({ ...input, role: 'specialist' });
+      // This is a closed operational log vocabulary. Do not spread `input`: route callers can
+      // carry lifecycle-only authorization fields at runtime that must never reach structured logs.
+      deps.logDiagnostic?.({
+        meetingId: input.meetingId,
+        organizationId: input.organizationId,
+        role: 'specialist',
+        event: input.event,
+        ...(input.durationMs !== undefined ? { durationMs: input.durationMs } : {}),
+        ...(input.transport !== undefined ? { transport: input.transport } : {}),
+        ...(input.errorClass !== undefined ? { errorClass: input.errorClass } : {}),
+      });
       return true;
     },
   };

@@ -5,7 +5,7 @@ import type { VideoMeetingRenderSession } from '@/modules/video-meetings/ports';
 
 type JitsiApi = {
   dispose: () => void;
-  addEventListener: (event: string, listener: () => void) => void;
+  addEventListener: (event: string, listener: (payload?: unknown) => void) => void;
 };
 type JitsiConstructor = new (domain: string, options: Record<string, unknown>) => JitsiApi;
 
@@ -17,6 +17,25 @@ declare global {
 
 function scriptUrl(endpoint: string): string {
   return `${endpoint.replace(/\/$/, '')}/external_api.js`;
+}
+
+function errorClassFromJitsiEvent(payload: unknown): 'connection' | 'media' | 'provider' {
+  if (!payload || typeof payload !== 'object') return 'provider';
+  const details = payload as Record<string, unknown>;
+  const value = [details.name, details.type, details.error]
+    .find((candidate): candidate is string => typeof candidate === 'string')
+    ?.toLowerCase() ?? '';
+  if (/(camera|mic|media|device|permission)/.test(value)) return 'media';
+  if (/(connection|network|ice|conference)/.test(value)) return 'connection';
+  return 'provider';
+}
+
+function isP2pStatus(payload: unknown): boolean {
+  return Boolean(
+    payload
+      && typeof payload === 'object'
+      && (payload as Record<string, unknown>).isP2p === true,
+  );
 }
 
 async function loadJitsi(endpoint: string): Promise<JitsiConstructor> {
@@ -63,10 +82,12 @@ export function JitsiMeetingRenderer({
   session,
   onHangup,
   onDiagnostic,
+  className,
 }: {
   session: VideoMeetingRenderSession;
   onHangup?: () => void;
   onDiagnostic?: (diagnostic: { event: 'join' | 'error' | 'end'; durationMs?: number; transport?: 'p2p' | 'relay'; errorClass?: 'connection' | 'media' | 'provider' }) => void;
+  className?: string;
 }) {
   const targetRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<JitsiApi | null>(null);
@@ -98,7 +119,7 @@ export function JitsiMeetingRenderer({
             prejoinConfig: { enabled: false },
             disableDeepLinking: true,
             enableWelcomePage: false,
-            disableConferenceSubject: true,
+            hideConferenceSubject: true,
           },
           interfaceConfigOverwrite: {
             // The deployment configuration is the broad allowlist. iframe overrides only narrow
@@ -114,7 +135,14 @@ export function JitsiMeetingRenderer({
           joinedAt = Date.now();
           onDiagnosticRef.current?.({ event: 'join' });
         });
-        api.addEventListener('conferenceError', () => onDiagnosticRef.current?.({ event: 'error', errorClass: 'provider' }));
+        api.addEventListener('errorOccurred', (payload) => {
+          onDiagnosticRef.current?.({ event: 'error', errorClass: errorClassFromJitsiEvent(payload) });
+        });
+        api.addEventListener('p2pStatusChanged', (payload) => {
+          onDiagnosticRef.current?.({ event: 'join', transport: isP2pStatus(payload) ? 'p2p' : 'relay' });
+        });
+        api.addEventListener('cameraError', () => onDiagnosticRef.current?.({ event: 'error', errorClass: 'media' }));
+        api.addEventListener('micError', () => onDiagnosticRef.current?.({ event: 'error', errorClass: 'media' }));
         api.addEventListener('readyToClose', () => {
           onDiagnosticRef.current?.({ event: 'end', ...(joinedAt ? { durationMs: Date.now() - joinedAt } : {}) });
           onHangupRef.current?.();
@@ -137,8 +165,8 @@ export function JitsiMeetingRenderer({
   }, [endpoint, roomReference, retryNonce]);
 
   return (
-    <div className="relative min-h-[320px] bg-black">
-      <div ref={targetRef} className="min-h-[320px] w-full" />
+    <div className={className ?? 'relative min-h-[320px] bg-black'}>
+      <div ref={targetRef} className={className ? 'h-full w-full' : 'min-h-[320px] w-full'} />
       {state !== 'ready' ? (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-sm text-white">
           {state === 'unavailable' ? (
