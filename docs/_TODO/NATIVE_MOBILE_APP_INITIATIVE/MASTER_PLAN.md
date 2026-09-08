@@ -68,11 +68,10 @@ CORS-allowlist» **отменены решением 2026-09-09** — отдел
   закреплёнными в RuStore до owner-controlled создания карточек.
 - Release start URLs: `https://therapygo.ru/app/patient` и `https://therapysto.ru/app/doctor`; TEST — соответствующие
   `test.*` hosts. Redirect внутри того же first-party surface разрешён, другой origin — внешний браузер.
-- **Origin приложения не константа из двух доменов.** `proxy.ts:101` выдаёт 308 на активный custom-domain клиники,
-  а поверхность `patient_branded` резолвится по host из БД (`shared/lib/surface/requestSurface.ts`). Поэтому
-  «собственный разрешённый origin» (§1 п.6) обязан приходить с сервера из того же surface-резолвера, а не быть
-  вшит в bundle; статическим в приложении остаётся только bootstrap-origin запуска. Продуктовая развилка —
-  §6a `G-2`.
+- Первый Android-релиз допускает внутри привилегированного WebView только exact platform bootstrap-origin своего
+  build variant. Custom-domain клиники остаётся полноценной browser/PWA-поверхностью, но из Android shell
+  открывается внешним браузером без bridge/plugins. Это решение `G-2`; динамического origin allowlist в первом
+  релизе нет.
 
 ## 3a. Измеренный baseline (база `a40a1a211`, 2026-09-09)
 
@@ -109,16 +108,19 @@ Worker `done` и audit `PASS` сами по себе чекбокс не зак�
 
 ### M0 — authority, archive and measured baseline
 
-- [ ] **M0-01.** Старый local-bundle план перемещён в архив, снабжён forward-link, все его открытые чекбоксы явно
+- [x] **M0-01.** Старый local-bundle план перемещён в архив, снабжён forward-link, все его открытые чекбоксы явно
       отменены owner-решением 2026-09-09; `CURRENT_AUTHORITY_MAP`, `docs/README.md` и taskdb `#915` указывают только
       на этот план. Материально выполнено коммитом `a40a1a211` (`docs/CURRENT_AUTHORITY_MAP.md:66-72`,
       `docs/README.md:13`, `rg -c '^\s*- \[ \]' docs/archive/2026-09-native-mobile-local-bundle-retirement/*.md` = 0).
-      Остаточное действие лида до закрытия строки: снять с карточки `#915` устаревший `question` MOB-00 (пункты
-      (a) и (b) отменены §2; (c) переехал в §6/`M2-00`) и вернуть `owner_waiting=false`.
-- [ ] **M0-02.** Зафиксирован baseline §3a на текущей базе исполнения: каждая строка таблицы пересчитана своей
-      командой, расхождения с базой `a40a1a211` выписаны. Отдельная строка отчёта — какие внешние provider gates
-      §6 на этот момент закрыты, а какие нет.
-- [ ] **M0-03.** Независимый Opus review проверил полноту плана, отсутствие копии webapp/domain logic, границы
+      Taskdb-портом `node /home/dev/brain/tools/taskdb.mjs set 915 question ""` снят отменённый MOB-00,
+      `owner_waiting=false`; toolchain перенесён в исполняемый M2-00.
+- [x] **M0-02.** Зафиксирован baseline §3a на текущей базе исполнения: каждая строка таблицы пересчитана своей
+      командой. На SHA `18b61f52b` пересчёт дал: архивных open-checkbox `0`, active plan `37`, шесть file inputs,
+      шесть файлов со ссылкой на `VideoMeetingStage` (три production callers, два tests, один stage), Android
+      artifacts `0`; Node `v22.22.3`, pnpm `10.33.0`, JRE `21.0.12`, без `javac`/SDK. После plan/dependency commits
+      продуктовые baseline-точки не менялись. RuStore cards/tokens/signing/physical device/PROD остаются external;
+      DEV Android toolchain разрешён владельцем и выполняется M2-00.
+- [x] **M0-03.** Независимый Opus review проверил полноту плана, отсутствие копии webapp/domain logic, границы
       workstreams и реальные owner blockers; принятые усиления внесены до запуска product workers.
 
 ### M1 — two PWA identities and install surfaces
@@ -149,20 +151,23 @@ Scope: `apps/webapp/src/shared/lib/pwa/**`, `shared/lib/surface/surfaceLayoutMet
       иконки из `patientLayoutMetadata`, поэтому подмена файла молча перекрасила бы каждую клинику — это прямо
       запрещено owner-пунктом §1.5 «clinic-brand assets не подменять». Доказательство — снимок метаданных обеих
       поверхностей на именованном DEV.
-- [ ] **M1-05.** Platform-admin (`admin.<staff-host>`) не получает install prompt и не подменяется пациентским
-      приложением: `platformAdminLayoutMetadata` продолжает отдавать `manifest: null`/`appleWebApp: null`, а
-      `/manifest.webmanifest` продолжает отвечать 404 на этой поверхности. Существующий чёрный admin asset не
-      удаляется. Это строка о сохранении уже действующего поведения — доказывается проверкой на DEV, а не новой
-      реализацией.
-- [ ] **M1-06.** Существующие install-страницы `/app/patient/install` и `/app/doctor/install` (плюс секция в
-      `/app/account`) дают краткую корректную инструкцию для текущей surface: iOS Safari и Android browser.
-      Второй install-страницы, маршрута `/setup` и второго install-компонента не заводится — правятся
-      `PwaInstallSection` и `StaffPwaInstallSection`.
-- [ ] **M1-07.** Внутри Capacitor install-инструкция, install prompt и PWA/service-worker подсказки скрыты одним
-      детектором среды. Детектор — расширение существующего клиентского контекста среды
-      (`shared/lib/platform.ts` + `PlatformProvider` + `messengerMiniApp.ts`, где уже живут режимы `bot`/`mobile`/
-      `desktop` и мини-приложения Telegram/MAX), а не второй параллельный провайдер. Если расширить существующую
-      точку нельзя — причина названа в строке доказательства (`AGENTS.md` §5).
+- [ ] **M1-05.** Platform-admin полностью исключён из patient/staff PWA-пути: `surfaceLayoutMetadata` для
+      `platform_admin` не возвращает `staffPwaLayoutMetadata`; metadata `/app/admin/**` не содержит staff
+      manifest/apple-web-app/staff icons; оба manifest route отвечают 404 на admin surface. `DoctorWorkspaceShell`
+      на admin surface не монтирует `StaffPwaBootstrap`, а account/install UI не показывается ни при каком tab.
+      Существующий чёрный admin asset сохраняется. Сегодня это НЕ готовое поведение: root resolver, staff manifest,
+      account install section и bootstrap пропускают platform-admin, поэтому проверяется каждый вход.
+- [ ] **M1-06.** Единственные пользовательские install-поверхности — `/app/patient/install` и
+      `/app/account?tab=install` для специалиста. `/app/doctor/install` остаётся совместимым redirect специалиста
+      на account install и не показывает UI platform-admin; новый `/setup` не создаётся. Patient использует
+      существующий `PwaInstallSection`, staff — `StaffPwaInstallSection`; обе дают краткие инструкции iOS Safari и
+      Android browser без второго параллельного install-компонента.
+- [ ] **M1-07.** Все install prompts, web-push controls и регистрации `/sw.js` проходят через один typed
+      `NativeRuntime` detector из M3. В Capacitor он скрывает install UI, не подписывается на
+      `beforeinstallprompt` и возвращает no-op из общей service-worker registration door; browser/PWA остаётся
+      прежним. Проверены все сегодняшние обходы: `LandingPwaClientBootstrap`, `StaffPwaBootstrap`,
+      `PwaInstallSection`, `registerPatientServiceWorker` и install-page push controls. `PlatformMode`
+      (`bot|mobile|desktop`) и `messengerMiniApp` остаются ортогональными, не вторым Capacitor detector.
 
 ### M2 — reproducible shared Android/Capacitor shell
 
@@ -170,15 +175,16 @@ Scope: `apps/mobile-shell/**`, `pnpm-workspace.yaml`, root workspace wiring, bui
 
 - [ ] **M2-00.** Android toolchain доступен и зафиксирован: SDK/cmdline-tools установлены, лицензии приняты,
       `ANDROID_HOME` задан, `sdkmanager --list_installed` и `adb --version` печатают версии, занятое место названо
-      числом. Сегодня на боксе SDK нет (§3a), поэтому строка закрывается только после owner/infra-решения §6a `G-1`.
-      Ни одна другая строка M2/M7, требующая сборки APK, до этого закрыта быть не может.
+      числом. Установка на DEV-бокс разрешена решением §6a `G-1`; ни одна другая строка M2/M7, требующая сборки
+      APK, до фактической проверки toolchain закрыта быть не может.
 - [ ] **M2-00a.** Для `M7-04` дополнительно: установлен system image эмулятора и пользователь агента добавлен в
       группу `kvm` (сегодня он в неё не входит — §3a). Без KVM эмулятор запускается программной эмуляцией и как
       приёмочный инструмент непригоден. Это привилегированное host-действие: выполняется порт-агентом по решению
       `G-1`, не из рабочего хода.
 - [ ] **M2-01.** Создан один workspace package на pin-compatible Capacitor 8 с Android source artifacts, двумя
-      product flavors `therapygo`/`therapysto` и environment dimension `test`/`production`; четыре unsigned build
-      variants воспроизводимы на Linux.
+      product flavors `therapygo`/`therapysto` и environment dimension `test`/`production`. Четыре логические
+      brand×environment комбинации воспроизводимы: debug APK честно отмечены как debug-key signed, release APK/AAB
+      собираются unsigned без внешнего release keystore; стандартные debug/release build types не удаляются.
 - [ ] **M2-02.** Пакет корректно встроен в monorepo: добавлен в `pnpm-workspace.yaml`, и корневые
       `pnpm -r --parallel run typecheck`, `eslint .` и `pnpm run ci` проходят с ним — либо потому, что пакет
       несёт реальные скрипты, либо потому, что их отсутствие объявлено явно. Gradle/Android артефакты и локальные
@@ -189,13 +195,14 @@ Scope: `apps/mobile-shell/**`, `pnpm-workspace.yaml`, root workspace wiring, bui
       back/navigation и не обещает offline business data. HTTP/WebView cache используется штатно, video cache не
       добавляется.
 - [ ] **M2-05.** Один navigation policy является chokepoint: first-party surface остаётся в WebView; `http(s)` на
-      другой origin, `mailto`, `tel` и custom external schemes уходят в системный browser/app; intent/file schemes
-      без явного allowlist отклоняются. Правило одно и параметризуется набором origin — второй проверки «а ещё
-      здесь» в плагинах не заводится.
-- [ ] **M2-06.** Набор разрешённых origin не вшит в bundle парой доменов: policy §M2-05 берёт его из одного
-      серверного ответа, производного от того же surface-резолвера, что и `proxy.ts`/`requestSurface.ts`; в
-      bundle остаётся только bootstrap-origin. Поведение при 308 на custom-domain клиники соответствует решению
-      §6a `G-2`, а не додумке исполнителя. Fail-closed: не подтверждённый сервером origin трактуется как внешний.
+      другой origin, cleartext `http`, `mailto` и `tel` уходят в системный browser/app; другие custom schemes,
+      `intent`, `file`, `content`, `javascript` и userinfo без отдельного owner-approved exact allowlist отклоняются.
+      Правило одно и параметризуется build config — второй проверки «а ещё здесь» не заводится.
+- [ ] **M2-06.** Первый Android-релиз разрешает внутри привилегированного WebView только один platform bootstrap
+      origin конкретного build variant: Therapy Go — patient platform origin, Therapysto — staff platform origin;
+      TEST и production раздельны. Runtime/server-discovered расширения allowlist и custom-domain origin нет. 308
+      или навигация на custom-domain проходит через M2-05 во внешний браузер; bridge/plugins там недоступны.
+      Неизвестный, cross-surface или неподтверждённый origin fail-closed считается внешним.
 - [ ] **M2-07.** Bridge и каждый plugin fail closed для недоверенного origin. Cleartext traffic запрещён release-
       конфигурацией; logs не содержат cookies, fragment secrets, Jitsi JWT, push tokens или media presigned URLs.
 - [ ] **M2-08.** README содержит точные команды sync/build, расположение APK, требования JDK/Android SDK и процесс
@@ -284,10 +291,14 @@ Scope: provider-neutral native target model, server delivery adapter, Kotlin Uni
 authority нельзя: он частично отменён владельцем 27.07. Конфигурация — `AGENTS.md` §2–§4; ownership новых данных —
 §4a; единственный проход — §5.
 
-- [ ] **M6-01.** Native targets хранятся отдельно от `user_web_push_subscriptions`; target принадлежит platform
-      user/device/app/provider, несёт выбранный по `AGENTS.md` §4a ownership path (организация не «глобально по
-      умолчанию»), шифрует восстановимый token material и использует несекретный хеш для идемпотентной
-      уникальности. Разбор прав миграции — по `AGENTS.md` §1 «Перед приземлением миграции».
+- [ ] **M6-01.** Native targets хранятся отдельно от `user_web_push_subscriptions` и принадлежат каноническому
+      `platform_user` через прямой `user_id`: установка имеет `app_id`/`provider`/несекретный
+      `installation_id_hash`, token material — ciphertext плюс несекретный hash для rotation/idempotency.
+      Шифрование идёт через объявленный native-push модулем `NativePushTokenCipher` port; production adapter
+      получает отдельный process-bootstrap keyring с key id/rotation, не импортирует `staff-security/crypto.ts`,
+      не использует `STAFF_SECURITY_KEYRING_JSON`, `system_settings` или app bundle. Org-scoped выдача target всегда
+      повторно доказывает membership/enrollment по `(organizationId,userId)`; target не дублируется по организациям.
+      Разбор прав миграции — по `AGENTS.md` §1.
 - [ ] **M6-02.** Native push НЕ становится новым видимым пользователю каналом: для получателя это тот же класс
       «push», а native target — его транспорт. Поэтому `CHECK`-ограничение `user_notification_topic_channels`
       (`telegram|max|vk|email|web_push`) и профильные переключатели не расщепляются. Если резолвер §21 структурно
@@ -299,19 +310,22 @@ authority нельзя: он частично отменён владельце�
       реализации), включает RuStore-провайдер и сообщает availability/new token/message/errors через типизированный
       мост. Точная версия SDK не декларируется планом заранее: исполнитель фиксирует разрешённую версию и команду,
       которой она получена. FCM/HMS остаются добавляемыми провайдерами без передела JS-контракта и схемы.
-- [ ] **M6-05.** Существующий chokepoint доставки получает `rustore_universal_push` adapter: новый
-      `DeliveryAdapter` в реестре `createDefaultDispatchPort` (`apps/integrator/src/infra/adapters/dispatchPort.ts`)
-      плюс расширение `Channel`/`NotificationChannelCode` в `kernel/contracts/**`. Event-producer'ы провайдера не
-      зовут и канал не называют (`OWNER_PRODUCT_RULES` §21). Второго пути отправки не появляется.
-- [ ] **M6-06.** 🔴 Новый канал закрыт тем же единственным dev/TEST предохранителем, что и остальные: он добавлен
-      в allowlist `readChannel()` и в `applyPreForkEnvironmentDeliveryPolicy`/`isTestDeliveryRecipientAllowed`
-      (`dispatchPort.ts`). Доказательство — поведенческое: при `TEST=true` отправка не тестовому адресату
-      подавляется до вызова провайдера, а на локальном dev провайдер не вызывается вовсе (`AGENTS.md` §1b,
-      `OWNER_PRODUCT_RULES` §23 в редакции 27.08.2026). Без этой строки DEV/TEST начнёт слать реальные push.
-- [ ] **M6-07.** У механики есть рубильник в кабинете глобального админа: провайдер заводится записью в
-      `modules/system-settings/platformIntegrationAvailability.ts` рядом с существующим `web_push`, и выключенный
-      провайдер не выбирается диспетчером (`OWNER_PRODUCT_RULES` §27: механика без рубильника — решение за
-      владельца). Безопасное значение по умолчанию выбирает исполнитель, состояние тумблера в план не пишется.
+- [ ] **M6-05.** `web_push` остаётся единственным логическим каналом «Push» в contracts, preferences, queue rows и
+      UI. Существующий `DeliveryAdapter` для `web_push` становится composite app-push adapter и внутри одного
+      `createDefaultDispatchPort` fan-out'ит browser Web Push и native RuStore transport по targets/config.
+      `rustore_universal_push` не появляется как второй logical channel. Intent получает typed
+      `pushSurface=therapygo|therapysto`; event-producer называет тип/получателя, не provider, и transport не
+      вызывается в обход chokepoint (`OWNER_PRODUCT_RULES` §21, `AGENTS.md` §5).
+- [ ] **M6-06.** 🔴 Оба транспорта logical `web_push` проходят неизменённые `assertOutboundMessagePolicy` и
+      единственный `applyPreForkEnvironmentDeliveryPolicy` ДО composite provider fork; второго `readChannel` или
+      TEST-gate для RuStore нет. Текущий `TEST_ACCOUNT_WEB_PUSH_USER_IDS` применяется к browser/native одинаково.
+      Поведенческое доказательство: `TEST=true` подавляет non-test recipient до любого transport, local DEV не
+      вызывает ни Web Push, ни Universal Push provider (`AGENTS.md` §1b, owner §23).
+- [ ] **M6-07.** Глобальный админ управляет одним логическим каналом через существующий
+      `platform_integration_availability.web_push`; отдельного пользовательского/provider toggle нет. Выключенный
+      `web_push` блокирует оба transport до fork. Внутри включённого composite отсутствие VAPID не блокирует
+      настроенный Universal Push, отсутствие RuStore credentials/target не блокирует Web Push, отсутствие обоих
+      даёт typed no-active-target. UI-label меняется с «Web Push» на «Push», persisted code не меняется.
 - [ ] **M6-08.** Project ID / auth token / endpoint живут только в restricted DB-backed `system_settings`:
       объявлены в `modules/system-settings/registry.ts` как `restricted('admin','global',…)`, секрет — типом
       `secret_envelope` с `redacted`, ключи добавлены в `ALLOWED_KEYS` (`types.ts`), чтение — только через
@@ -325,10 +339,12 @@ authority нельзя: он частично отменён владельце�
 - [ ] **M6-10.** Android notification permission и стабильные каналы реализованы. Напоминания, звонки и сообщения
       могут использовать отдельно настроенные bundled sounds; пользовательские настройки каналов Android остаются
       главнее.
-- [ ] **M6-11.** Отказ в разрешении, отсутствие провайдера или отсутствие активного target не ломают модель §21:
-      набор каналов остаётся пересечением «доступно ∩ разрешено получателем», пустое пересечение — законный исход,
-      который виден в приложении записью о событии и посчитан в метрике, а не потерян молча и не подменён каналом,
-      который получатель не разрешал.
+- [ ] **M6-11.** Denied Android permission, отсутствующая transport-конфигурация или active browser/native target
+      дают typed non-secret skipped/no-active-target outcome и метрику logical `web_push`; provider не вызывается,
+      raw token не логируется, unauthorized messenger fallback не включается. Существующий canonical domain/in-app
+      source конкретного сценария остаётся источником факта и не удаляется из-за недоставленного push. Строка НЕ
+      создаёт универсальную notification-event таблицу и не разрешает общий notification-family refactor; сценарий
+      без уже существующего canonical source остаётся за действующим notification workstream.
 
 ### M7 — independent audits and integration gate
 
@@ -363,12 +379,15 @@ authority нельзя: он частично отменён владельце�
 | 1 | Shell/native foundation | `apps/mobile-shell/**`, `pnpm-workspace.yaml`, root build docs | M2 | `M2-00` (toolchain) |
 | 2 | Native capabilities | только `apps/mobile-shell/**` | M4 (native половина), M5-02/03, M6-04, M6-10 | 1; для M4 — приземление `#1100` |
 | 3 | Web/PWA adapters | `apps/webapp/src/shared/lib/pwa/**`, `shared/lib/surface/**`, `config/productSurfaceNames.ts`, `public/**`, install-страницы, `shared/ui/video/**`, медиа-UI и `app-layer/media/**` | M1, M3, M4-01/04/05, M5-01/04/05/06 | 1; `#1100` для `shared/ui/video/**` |
-| 4 | Push backend | `apps/webapp/db/schema/**` + миграция, `modules/**` push-таргетов, `app/api/**` регистрации, `modules/system-settings/**`, `apps/integrator/src/**` | M6-01/02/03/05/06/07/08/09/11 | 1 (контракт моста), 3 (`NativeRuntime` для клиента регистрации) |
+| 4 | Push backend | `apps/webapp/db/schema/**` + migration, `modules/**` native-push target/cipher port, `app/api/**` registration/M2M access, `modules/system-settings/**`, `apps/integrator/src/**` composite app-push/provider delivery | M6-01/02/03/05/06/07/08/09/11 | 1 — frozen `app_id`/`provider`/`installation_id_hash` и token-event contract; не зависит от `NativeRuntime` landing |
 
 Пересечения, которые нельзя игнорировать:
 
 - `shared/ui/video/**` принадлежит потоку 3 и одновременно живому `#1100` — сериализуется, не параллелится.
-- `NativeRuntime` (M3) нужен и потоку 3, и потоку 4: он landится первым из потока 3, дальше поток 4 его потребляет.
+- `NativeRuntime` (поток 3), Universal Push client bridge (поток 2) и push backend (поток 4) идут параллельно после
+  фиксации общего typed contract. Поток 4 не импортирует и не ждёт `NativeRuntime`: он строит server endpoints,
+  target lifecycle и composite delivery. Единственное пересечение — lead-owned integration M3-03 после landing
+  трёх audited candidates: runtime передаёт token event в готовый register/rotate/revoke API.
 - Поток 4 трогает **оба** приложения (webapp и integrator) — это не «backend без UI», а сквозной канал; общий
   dev-сервер и полные прогоны под ним сериализуются.
 
@@ -386,8 +405,8 @@ Lead приземляет проверенные ветки по одной, р�
 - Release keystore/signing, signed AAB/APK and store submission.
 - Physical Android real-device acceptance and final notification delivery through RuStore infrastructure.
 - PROD credentials/configuration/deploy and any Google Play/App Store work.
-- **Android SDK на dev-боксе** — сегодня отсутствует (§3a). Это последний живой пункт owner-вопроса MOB-00 (c):
-  ставить SDK на общий бокс или заводить отдельный runner. Блокирует `M2-00` и всё, что собирает APK.
+- Android SDK/JDK/emulator setup на DEV-боксе разрешён владельцем 2026-09-09 и исполняется как M2-00/M2-00a;
+  это больше не owner gate.
 
 Repository code, unsigned TEST APKs, mocks/fakes against published protocols, PWA behavior, documentation и
 security/audit gates идут без этих входов. Отсутствующий внешний вход фиксируется блокером конкретной строки,
@@ -399,9 +418,9 @@ security/audit gates идут без этих входов. Отсутствую
 
 | ID | Развилка | Рекомендация | Safe default, если ответа нет | Блокирует |
 |---|---|---|---|---|
-| `G-1` | Android SDK + эмулятор: ставить на общий dev-бокс или заводить отдельный runner | Поставить на бокс — он единственный потребитель, отдельный runner дороже сопровождения. Но решение денежное: SDK + build-tools + system image займут порядка 12–20 ГБ при свободных 22 ГБ (§3a), то есть сначала уборка диска либо расширение | Не ставить; идут все строки, не собирающие APK | `M2-00`, `M2-00a`, `M2-01`, `M7-03`, `M7-04` |
-| `G-2` | Входят ли клиники с собственным доменом/брендом в первый Android-релиз | Первый релиз — только платформенные поверхности; 308 на custom-domain открывается внешним браузером | Внешний браузер (fail-closed) | `M2-06` |
-| `G-3` | Виден ли пользователю native push отдельным переключателем от web push | Нет: один класс «push», native — транспорт (`M6-02`) | Один класс «push» | `M6-02` |
+| `G-1` | **РЕШЕНО владельцем 2026-09-09:** SDK/JDK/emulator ставятся под отдельный user-owned prefix на DEV-боксе; unrelated caches не чистятся, PROD не затрагивается | — | — | не блокирует; исполняется M2-00/M2-00a |
+| `G-2` | **РЕШЕНО владельцем 2026-09-09:** первый Android-релиз — только platform origins; custom-domain открывается внешним браузером | — | — | не блокирует |
+| `G-3` | **РЕШЕНО owner canon §21:** один пользовательский класс «Push», native — transport внутри него | — | — | не блокирует |
 
 Развилки, которые владельцу НЕ выносятся (инженерные, решаются по мировой практике и канону): выбор точки
 консолидации, форма моста, схема хранения токена, порядок этапов, набор тестов.
@@ -410,6 +429,7 @@ security/audit gates идут без этих входов. Отсутствую
 
 | ID | Status | Evidence |
 |---|---|---|
-| M0-01 | open | Материально закрыто `a40a1a211`; остаётся снять устаревший `question` MOB-00 с `#915`. |
-| M0-03 | open | Независимый Opus plan review 2026-09-09 против `a40a1a211` выполнен; усиления внесены в этот файл. Закрывает лид. |
-| M0-02, M1-01…M7-07 | open | Заполняет только лид после committed implementation + независимой приёмки. |
+| M0-01 | done | Archive/authority/icon commit `a40a1a211`; taskdb `#915` question cleared and `owner_waiting=false` through taskdb port on 2026-09-09. |
+| M0-02 | done | Exact commands/results are recorded in §3a and M0-02; lead recalculated them on `18b61f52b`. |
+| M0-03 | done | Independent high-Opus plan candidate `0864df016`, landed by port as `229a243e7`; lead corrected two contradictions exposed by read-only architecture mapping before product launch. |
+| M1-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
