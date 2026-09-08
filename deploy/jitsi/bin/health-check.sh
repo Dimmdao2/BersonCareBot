@@ -152,6 +152,42 @@ else
     bad "coturn did not answer a STUN binding request"
   fi
 
+  # turnutils_uclient's client-to-client mode leaves several allocations alive until their normal TURN
+  # expiry and quickly consumes this TEST stack's deliberately small quota. Run a real permitted peer on
+  # the host's public address instead: uclient then completes normally and deletes its allocation, so the
+  # health check is repeatable without restarting coturn or disturbing an active call. The peer PID file is
+  # unique to this health process, and cleanup only kills that exact process.
+  turn_peer_addr="${TURN_EXTERNAL_IP:-151.241.228.122}"
+  turn_peer_port="$((35000 + ($$ % 10000)))"
+  turn_peer_pid_file="/tmp/bcb-jitsi-health-peer-$$.pid"
+  stop_turn_peer() {
+    docker exec "$coturn_cid" sh -ceu '
+      pid_file="$1"
+      if [ -s "$pid_file" ]; then
+        pid="$(cat "$pid_file")"
+        kill "$pid" 2>/dev/null || true
+        rm -f "$pid_file"
+      fi
+    ' sh "$turn_peer_pid_file" >/dev/null 2>&1 || true
+  }
+  trap stop_turn_peer EXIT
+  docker exec --user "${COTURN_CONTAINER_UID}:${COTURN_CONTAINER_GID}" -d "$coturn_cid" sh -ceu '
+    pid_file="$1"; peer_addr="$2"; peer_port="$3"
+    echo "$$" > "$pid_file"
+    exec turnutils_peer -L "$peer_addr" -p "$peer_port"
+  ' sh "$turn_peer_pid_file" "$turn_peer_addr" "$turn_peer_port"
+  turn_peer_ready=0
+  for _ in $(seq 1 20); do
+    if docker exec "$coturn_cid" test -s "$turn_peer_pid_file" >/dev/null 2>&1; then
+      turn_peer_ready=1
+      break
+    fi
+    sleep 0.1
+  done
+  if [[ "$turn_peer_ready" != 1 ]]; then
+    bad "temporary TURN health peer did not start"
+  fi
+
   # The host never reads or passes the TURN secret. This non-root exec reads the already-mounted 0600
   # rendered config inside coturn, derives the same ephemeral credential as a client, and prints nothing.
   run_turn_allocation() {
@@ -165,11 +201,11 @@ else
       done < /etc/coturn/turnserver.conf
       [ -n "$turn_secret" ]
       case "$2" in
-        udp) turnutils_uclient -y -n 1 -u healthcheck -W "$turn_secret" -p "$1" 127.0.0.1 ;;
-        tls) turnutils_uclient -y -n 1 -t -S -u healthcheck -W "$turn_secret" -p "$1" 127.0.0.1 ;;
+        udp) turnutils_uclient -c -n 1 -u "healthcheck-$$" -W "$turn_secret" -e "$3" -r "$4" -p "$1" 127.0.0.1 ;;
+        tls) turnutils_uclient -c -n 1 -t -S -u "healthcheck-$$" -W "$turn_secret" -e "$3" -r "$4" -p "$1" 127.0.0.1 ;;
         *) exit 64 ;;
       esac
-    ' sh "$port" "$transport" >/dev/null 2>&1
+    ' sh "$port" "$transport" "$turn_peer_addr" "$turn_peer_port" >/dev/null 2>&1
   }
   if run_turn_allocation "${TURN_LISTEN_PORT:-3478}" udp; then
     ok "coturn accepted a real ephemeral-credential TURN allocation over UDP (${TURN_LISTEN_PORT:-3478})"
@@ -181,6 +217,8 @@ else
   else
     bad "coturn rejected a real ephemeral-credential TURN allocation over TLS — TLS fallback (VM-03/VM-04, finding F2) is not actually usable"
   fi
+  stop_turn_peer
+  trap - EXIT
 fi
 
 echo
