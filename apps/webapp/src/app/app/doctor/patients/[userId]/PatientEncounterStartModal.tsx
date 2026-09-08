@@ -65,6 +65,7 @@ export function PatientEncounterStartModal({
   todayIso,
   initialAppointmentId,
   appointmentsManageOwn = true,
+  videoMeetingsEnabled = false,
   onClose,
 }: {
   open: boolean;
@@ -74,6 +75,7 @@ export function PatientEncounterStartModal({
   todayIso: string;
   initialAppointmentId: string | null;
   appointmentsManageOwn?: boolean;
+  videoMeetingsEnabled?: boolean;
   onClose: () => void;
 }) {
   const { patientGenitive } = useDoctorPatientTerms();
@@ -175,22 +177,17 @@ export function PatientEncounterStartModal({
     onClose();
     router.push(`/app/doctor/patients/${encodeURIComponent(userId)}/visits/new?${params}`);
   };
+  const openOnline = (appointmentId?: string) => {
+    const params = appointmentId ? `?${new URLSearchParams({ appointmentId })}` : '';
+    onClose();
+    router.push(`/app/doctor/patients/${encodeURIComponent(userId)}/live${params}`);
+  };
 
   const footer =
     mode === 'create' ? undefined : (
       <DoctorModalFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
-          Отмена
-        </Button>
-        <Button
-          type="button"
-          disabled={mode === 'select' && !selectedAppointmentId}
-          onClick={() =>
-            openEncounter(mode === 'select' ? (selectedAppointmentId ?? undefined) : undefined)
-          }
-        >
-          Начать приём
-        </Button>
+        <Button type="button" variant="outline" disabled={mode === 'select' && !selectedAppointmentId} onClick={() => openEncounter(mode === 'select' ? (selectedAppointmentId ?? undefined) : undefined)}>Очный приём</Button>
+        {videoMeetingsEnabled ? <Button type="button" disabled={mode === 'select' && !selectedAppointmentId} onClick={() => openOnline(mode === 'select' ? (selectedAppointmentId ?? undefined) : undefined)}>Онлайн-приём</Button> : null}
       </DoctorModalFooter>
     );
 
@@ -273,6 +270,7 @@ export function PatientEncounterStartModal({
           appointmentsManageOwn={appointmentsManageOwn}
           onClose={onClose}
           onCreated={openEncounter}
+          createContinuation={videoMeetingsEnabled ? { onOffline: openEncounter, onOnline: openOnline } : undefined}
         />
       ) : (
         <p className="py-4 text-sm text-foreground">Будет создан новый приём без записи.</p>

@@ -63,6 +63,9 @@ type Props = {
   /** Только для mode="edit": визит, загруженный сервером. */
   initialVisit?: Visit;
   medicalRecordEnabled?: boolean;
+  /** Embedded meeting pane keeps the call mounted after canonical visit save/cancel. */
+  embedded?: boolean;
+  onComplete?: () => void;
 };
 
 type RepeatComplaintUpdate = {
@@ -174,6 +177,8 @@ export function EncounterPageClient({
   boundAppointmentId,
   initialVisit,
   medicalRecordEnabled = true,
+  embedded = false,
+  onComplete,
 }: Props) {
   const { patientSingularLabel } = useDoctorPatientTerms();
   const router = useRouter();
@@ -436,8 +441,11 @@ export function EncounterPageClient({
         throw new Error(`status ${res.status}${text ? `: ${text}` : ''}`);
       }
       toast.success('Приём сохранён');
-      router.push(backHref);
-      router.refresh();
+      if (embedded) onComplete?.();
+      else {
+        router.push(backHref);
+        router.refresh();
+      }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Ошибка сохранения');
     } finally {
@@ -470,8 +478,11 @@ export function EncounterPageClient({
         throw new Error(`status ${res.status}${text ? `: ${text}` : ''}`);
       }
       toast.success('Изменения сохранены');
-      router.push(backHref);
-      router.refresh();
+      if (embedded) onComplete?.();
+      else {
+        router.push(backHref);
+        router.refresh();
+      }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Ошибка сохранения');
     } finally {
@@ -887,7 +898,7 @@ export function EncounterPageClient({
         >
           {saving ? 'Сохранение…' : 'Сохранить приём'}
         </Button>
-        <Button type="button" variant="outline" onClick={() => router.push(backHref)}>
+        <Button type="button" variant="outline" onClick={() => embedded ? onComplete?.() : router.push(backHref)}>
           Отмена
         </Button>
       </div>

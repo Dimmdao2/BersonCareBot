@@ -7,7 +7,7 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { requireDoctorWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
 
 const paramsSchema = z.object({ userId: z.string().uuid() });
-const bodySchema = z.object({}).strict();
+const bodySchema = z.object({ appointmentId: z.string().uuid().nullable().optional() }).strict();
 
 function noStore(body: Record<string, unknown>, status = 200) {
   const response = NextResponse.json(body, { status });
@@ -41,9 +41,9 @@ export async function POST(request: Request, context: { params: Promise<{ userId
       patientUserId: patient.userId,
       specialistId: gate.ctx.specialistId!,
       specialistPlatformUserId: gate.ctx.session.user.userId,
-      appointmentId: null,
+      appointmentId: body.data.appointmentId ?? null,
     }),
   );
   if (!result.ok) return noStore({ ok: false, error: result.error }, 503);
-  return noStore({ ok: true, meetingId: result.meetingId, resumed: result.resumed, session: result.session, inviteFragment: result.inviteFragment });
+  return noStore({ ok: true, meetingId: result.meetingId, resumed: result.resumed, session: result.session, guestUrl: result.guestUrl ?? null });
 }

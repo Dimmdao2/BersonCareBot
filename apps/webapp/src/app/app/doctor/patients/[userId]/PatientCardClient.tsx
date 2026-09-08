@@ -28,7 +28,7 @@ import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { cn } from '@/lib/utils';
-import { MessageCircle, Send, Mail, Phone, Copy } from 'lucide-react';
+import { MessageCircle, Send, Mail, Phone, Copy, Video } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorOpenChatButton } from '@/shared/ui/doctor/DoctorOpenChatButton';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
@@ -615,8 +615,10 @@ export function PatientCardClient({
                 />
               ) : null}
 
-              {workspaceModules?.encounters !== false ? (
-                <div className="mt-3 grid grid-cols-2 gap-2">
+              {workspaceModules?.encounters !== false || workspaceModules?.video_meetings ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {workspaceModules?.encounters !== false ? (
+                    <>
                   <Button
                     type="button"
                     variant="outline"
@@ -628,6 +630,11 @@ export function PatientCardClient({
                   <Button type="button" size="sm" onClick={() => openEncounterStart()}>
                     Начать приём
                   </Button>
+                    </>
+                  ) : null}
+                  {workspaceModules?.video_meetings ? (
+                    <Link className={buttonVariants({ size: 'sm', className: 'size-9 p-0' })} href={`/app/doctor/patients/${encodeURIComponent(identity.userId)}/live`} title="Начать видеозвонок" aria-label="Начать видеозвонок"><Video className="size-4" /></Link>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -694,6 +701,7 @@ export function PatientCardClient({
           }
           initialAppointmentId={encounterStartAppointmentId}
           appointmentsManageOwn={appointmentsManageOwn}
+          videoMeetingsEnabled={workspaceModules?.video_meetings ?? false}
           onClose={() => setEncounterStartOpen(false)}
         />
       ) : null}

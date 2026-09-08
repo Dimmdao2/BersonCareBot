@@ -14,13 +14,15 @@ import {
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { formatDoctorFioShortLabel } from '@/shared/lib/fio';
 import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
+import { Video } from 'lucide-react';
 
 type Props = {
   appointment: TodayNextAppointmentItem | null;
   displayIana: string;
+  videoMeetingsEnabled?: boolean;
 };
 
-export function DoctorTodayNextAppointment({ appointment, displayIana }: Props) {
+export function DoctorTodayNextAppointment({ appointment, displayIana, videoMeetingsEnabled = false }: Props) {
   const router = useRouter();
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -80,12 +82,12 @@ export function DoctorTodayNextAppointment({ appointment, displayIana }: Props) 
             ) : null}
           </div>
 
-          <div className="grid w-full min-w-0 grid-cols-2 items-center gap-1.5">
+          <div className="flex w-full min-w-0 items-center gap-1.5">
             <Button
               type="button"
               size="sm"
               variant="outline"
-              className="w-full min-w-0"
+              className="min-w-0 flex-1"
               onClick={() => setDetailsOpen(true)}
             >
               Детали записи
@@ -101,10 +103,11 @@ export function DoctorTodayNextAppointment({ appointment, displayIana }: Props) 
                 Начать приём
               </Link>
             ) : (
-              <Button size="sm" className="w-full min-w-0" disabled>
+              <Button size="sm" className="min-w-0 flex-1" disabled>
                 Начать приём
               </Button>
             )}
+            {videoMeetingsEnabled && appointment.clientUserId ? <Link className={buttonVariants({ size: 'sm', className: 'size-9 shrink-0 p-0' })} href={`/app/doctor/patients/${encodeURIComponent(appointment.clientUserId)}/live?${new URLSearchParams({ appointmentId: appointment.id })}`} title="Начать видеозвонок" aria-label="Начать видеозвонок"><Video className="size-4" /></Link> : null}
           </div>
         </div>
       ) : (

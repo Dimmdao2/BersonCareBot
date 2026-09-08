@@ -48,7 +48,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
       () => deps.videoMeetings!.rotateInvite(lifecycleInput),
     );
     if (!result.ok) return noStore({ ok: false, error: 'meeting_unavailable' }, 404);
-    return noStore({ ok: true, inviteFragment: result.inviteFragment });
+    return noStore({ ok: true, guestUrl: result.guestUrl ?? null });
   }
   const ok = await withDoctorWorkspacePrincipal(
     gate.ctx,

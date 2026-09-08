@@ -118,6 +118,7 @@ async function DoctorTodayDashboardSection({
       specialistTasksAvailable={specialistTasksAvailable}
       specialistTasksReadable={specialistTasksReadable}
       appointmentsManageOwn={workspace.appointmentsManageOwn}
+      videoMeetingsEnabled={workspaceModules.video_meetings}
     />
   );
 }
