@@ -6,6 +6,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## Therapy Go + Therapysto mobile #915 — 09.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| **Thin Capacitor/PWA plan — `LEAD ACCEPTED AFTER INDEPENDENT HIGH-OPUS REVIEW, FOR LAND`** | initial owner-aligned plan `a40a1a211`, independent plan correction `0864df016` on `wt/mobile-plan-opus-20260909`; run `/home/dev/brain/runs/agent-port/mobile-plan-opus-review-20260909.json` | High-Opus сверил план с действующим кодом, authority map и owner-rules до запуска product workers. Приняты исправления, без которых реализация разошлась бы с системой: реальные install surfaces вместо отсутствующего `/setup`, сохранение branded patient identity, server-derived origin policy, client-side выбор native Jitsi без расширения server renderer, обязательный общий DEV/TEST delivery guard и platform-admin integration switch для Universal Push, явная последовательность `NativeRuntime` между потоками и граница с живым `#1100`. Старый local-bundle/mobile-transport authority не возвращён; product-код и тесты не менялись. Lead прочитал exact one-file diff, `git diff --check a40a1a211..0864df016` PASS; M0 baseline и taskdb correction выполняются лидом отдельно. |
+
 ## Patient UI system audit — 08.09
 
 | слой | коммит | вердикт |
