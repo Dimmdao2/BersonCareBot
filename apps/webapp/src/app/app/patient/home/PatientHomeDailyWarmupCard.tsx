@@ -21,7 +21,6 @@ import {
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
-import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 
 type Props = {
   warmup: ResolvedPatientHomeBlockItem | null;
@@ -34,6 +33,13 @@ type Props = {
   warmupRecentlyCompletedHero?: boolean;
   /** Подпись под «Разминка выполнена» (cooldown). */
   warmupCooldownCaption?: string | null;
+  /**
+   * Родительный падеж терминологии пациента («пациента»/«клиента»), уже разрешённый сервером
+   * (`resolvePatientTerms`, `PatientHomeToday`). Этот компонент — серверный (без `'use client'`),
+   * поэтому клиентский хук `usePatientTerms()` здесь вызывать нельзя: React бросает «Attempted to
+   * call usePatientTerms() from the server».
+   */
+  patientGenitive: string;
 };
 
 const FALLBACK_DURATION_BADGE_LABEL = '5 мин';
@@ -64,8 +70,8 @@ export function PatientHomeDailyWarmupCard({
   anonymousGuest,
   warmupRecentlyCompletedHero = false,
   warmupCooldownCaption = null,
+  patientGenitive,
 }: Props) {
-  const { patientGenitive } = usePatientTerms();
   const page = warmup?.page;
 
   if (!page) {

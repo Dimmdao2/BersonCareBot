@@ -1,5 +1,6 @@
 import type { UserRole } from '@/shared/types/session';
 import type { RequestSurface } from '@/shared/lib/surface/requestSurface';
+import type { SurfaceAuthPolicyName } from '@/shared/lib/surface/surfaceAuthPolicy';
 
 export type RoleLoginPortal = 'doctor' | 'patient' | 'admin';
 
@@ -21,6 +22,24 @@ export function roleCanUsePortal(role: UserRole, portal: RoleLoginPortal): boole
   if (portal === 'patient') return role === 'client';
   if (portal === 'doctor') return role === 'doctor';
   return role === 'admin';
+}
+
+const PORTAL_AUTH_POLICY_NAME: Record<RoleLoginPortal, SurfaceAuthPolicyName> = {
+  doctor: 'staff',
+  patient: 'patient',
+  admin: 'platform_admin',
+};
+
+/**
+ * A role-login door (`/app/{doctor,patient,admin}/login`) knows its own audience from the route
+ * itself, which stays correct even while Host cannot: the transitional single-Host DEV/TEST
+ * deployment resolves every Host-based surface lookup to `staff` (`resolveRequestSurface`'s
+ * `isSharedStaffAndPatientHost` branch), so the Host-derived auth policy always carries the staff
+ * method set. Without this mapping the patient login door inherited staff's `password` method and
+ * its "for clinic staff" copy (TEST acceptance 2026-09-08, item 2).
+ */
+export function authPolicyNameForRoleLoginPortal(portal: RoleLoginPortal): SurfaceAuthPolicyName {
+  return PORTAL_AUTH_POLICY_NAME[portal];
 }
 
 /** The Host-resolved product audience is independent from the path/portal audience. */
