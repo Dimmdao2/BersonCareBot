@@ -9,6 +9,7 @@ import type {
 const ids = {
   organization: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   patient: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  otherPatient: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
   specialist: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
 } as const;
 
@@ -42,6 +43,7 @@ function storeReturning(created: boolean): VideoMeetingStore {
     revokeInvite: vi.fn().mockResolvedValue(true),
     findGuestMeeting: vi.fn().mockResolvedValue(null),
     findPatientMeeting: vi.fn().mockResolvedValue(null),
+    findSpecialistMeeting: vi.fn().mockResolvedValue(meetingRecord),
   };
 }
 
@@ -205,5 +207,186 @@ describe('video meeting invitation notification dedup (ACC-05)', () => {
 
     expect(result.ok).toBe(true);
     expect(result.ok && result.session).toBeTruthy();
+  });
+});
+
+describe('createOrResume never rotates the invite on resume (ACC-08)', () => {
+  it('does not rotate the invite and returns guestUrl=null when the active meeting already existed', async () => {
+    // Failure: `createOrResume` calls `store.rotateInvite` unconditionally on every call, so a
+    // plain resume (opening/re-opening the live page while a call is active) silently replaces
+    // the already-delivered invite secret and hands back a fresh guestUrl.
+    // Impact: the link the patient already received stops working the moment the specialist's
+    // page re-renders or is reopened, without any explicit "Выпустить новую ссылку" action; raw
+    // secrets are not stored, so a resumed session cannot legitimately reconstruct the original
+    // guestUrl at all — it must come back as `null`.
+    const store = storeReturning(false);
+    const service = createVideoMeetingsService({
+      store,
+      provider: healthyProvider(),
+      invitationNotification: { enqueue: vi.fn() },
+      resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
+    });
+
+    const result = await service.createOrResume({
+      organizationId: ids.organization,
+      patientUserId: ids.patient,
+      specialistId: ids.specialist,
+      specialistPlatformUserId: ids.specialist,
+    });
+
+    expect(store.rotateInvite).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(result.ok && (result.guestUrl ?? null)).toBeNull();
+  });
+
+  it('still rotates the invite exactly once when a new meeting is created', async () => {
+    // Guard for the fix above: refusing to rotate on every call is safe, refusing to ever issue
+    // the first invite on create is not (ACC-08: "Invite выпускается ровно один раз при создании
+    // встречи").
+    const store = storeReturning(true);
+    const service = createVideoMeetingsService({
+      store,
+      provider: healthyProvider(),
+      invitationNotification: { enqueue: vi.fn().mockResolvedValue({ status: 'queued', selectedChannels: [], queuedChannels: [], deduplicatedChannels: [] }) },
+      resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
+    });
+
+    const result = await service.createOrResume({
+      organizationId: ids.organization,
+      patientUserId: ids.patient,
+      specialistId: ids.specialist,
+      specialistPlatformUserId: ids.specialist,
+    });
+
+    expect(store.rotateInvite).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.guestUrl).toEqual(expect.stringMatching(/^https:\/\/clinic\.therapygo\.ru\/live#/));
+  });
+});
+
+describe('explicit rotate_invite follows the same notification contract as create (ACC-08)', () => {
+  it('refuses a route patient that does not own the specialist meeting before rotating or notifying', async () => {
+    // Failure: a specialist pairs meeting A with patient B's doctor-route URL; the lifecycle
+    // rotates A's invite then sends its guest capability to B.
+    // Impact: patient B can join patient A's call, while A's already-delivered link is silently
+    // invalidated (ACC-07/ACC-08 invite-to-meeting-patient binding).
+    const rotateInvite = vi.fn().mockResolvedValue(true);
+    const store: VideoMeetingStore = {
+      ...storeReturning(true),
+      rotateInvite,
+      findSpecialistMeeting: vi.fn().mockResolvedValue(meetingRecord),
+    };
+    const enqueue = vi.fn().mockResolvedValue({
+      status: 'queued' as const,
+      selectedChannels: ['telegram'] as const,
+      queuedChannels: ['telegram'] as const,
+      deduplicatedChannels: [],
+    });
+    const invitationNotification: VideoMeetingInvitationNotification = {
+      enqueue,
+    };
+    const service = createVideoMeetingsService({
+      store,
+      provider: healthyProvider(),
+      invitationNotification,
+      resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
+    });
+
+    const result = await service.rotateInvite({
+      meetingId: meetingRecord.id,
+      organizationId: ids.organization,
+      patientUserId: ids.otherPatient,
+      specialistId: ids.specialist,
+      actorPlatformUserId: ids.specialist,
+    });
+
+    expect({
+      result,
+      rotated: rotateInvite.mock.calls.length,
+      notifications: enqueue.mock.calls.length,
+    }).toEqual({
+      result: { ok: false, error: 'meeting_unavailable' },
+      rotated: 0,
+      notifications: 0,
+    });
+  });
+
+  it('enqueues exactly one invitation notification through the ACC-07 contract when the specialist explicitly rotates the invite', async () => {
+    // Failure: the standalone `rotateInvite` lifecycle action mints a new secret/guestUrl but
+    // never calls the notification port, so "Выпустить новую ссылку" replaces the capability
+    // without ever telling the patient the old link stopped working.
+    // Impact: the specialist copies a fresh link that the patient was never notified about, or —
+    // if the patient only had the original delivered link — has no way to learn it changed.
+    const store = storeReturning(true);
+    const invitationNotification: VideoMeetingInvitationNotification = {
+      enqueue: vi.fn().mockResolvedValue({
+        status: 'queued',
+        selectedChannels: ['telegram'],
+        queuedChannels: ['telegram'],
+        deduplicatedChannels: [],
+      }),
+    };
+    const service = createVideoMeetingsService({
+      store,
+      provider: healthyProvider(),
+      invitationNotification,
+      resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
+    });
+
+    const rotateInput = {
+      meetingId: meetingRecord.id,
+      organizationId: ids.organization,
+      patientUserId: ids.patient,
+      specialistId: ids.specialist,
+      actorPlatformUserId: ids.specialist,
+    };
+    await service.rotateInvite(rotateInput);
+
+    expect(invitationNotification.enqueue).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('recordDiagnostic keeps the operational logger closed to identity fields (VM-12)', () => {
+  it('logs only meeting/org/role/event(+optional duration/transport/errorClass) even when the caller merges patient/specialist/actor IDs into the same input object', async () => {
+    // Failure: the doctor PATCH route builds `recordDiagnostic`'s argument by spreading a shared
+    // `lifecycleInput` (meetingId, organizationId, patientUserId, specialistId,
+    // actorPlatformUserId) together with the diagnostic body; `recordDiagnostic` in turn forwards
+    // `{ ...input, role: 'specialist' }` to `logDiagnostic`. A plain object spread copies every
+    // runtime property regardless of the declared parameter type, so TypeScript's structural
+    // typing does not strip the extra identity fields the route actually passes.
+    // Impact: VM-12 requires the technical-diagnostics logger to receive only the closed field set
+    // (meeting/org ID, role, event, optional duration, p2p|relay, error class) and explicitly
+    // forbids patient/specialist/actor IDs from reaching it. Every join/error/end diagnostic PATCH
+    // silently writes patientUserId/specialistId/actorPlatformUserId into structured server logs;
+    // the root logger's redact list (headers/token/secret/phone) does not cover these key names.
+    const store: VideoMeetingStore = {
+      ...storeReturning(false),
+      findSpecialistMeeting: vi.fn().mockResolvedValue(meetingRecord),
+    };
+    const logDiagnostic = vi.fn();
+    const service = createVideoMeetingsService({
+      store,
+      provider: healthyProvider(),
+      logDiagnostic,
+    });
+
+    // Mirrors the exact runtime shape the route assembles (lifecycleInput spread + diagnostic
+    // body); cast past the narrower compile-time parameter type the same way the route's own
+    // object spread already bypasses it.
+    await service.recordDiagnostic({
+      meetingId: meetingRecord.id,
+      organizationId: ids.organization,
+      patientUserId: ids.patient,
+      specialistId: ids.specialist,
+      actorPlatformUserId: ids.specialist,
+      event: 'join',
+    } as Parameters<typeof service.recordDiagnostic>[0]);
+
+    expect(logDiagnostic).toHaveBeenCalledTimes(1);
+    const payload = logDiagnostic.mock.calls[0][0] as Record<string, unknown>;
+    expect(Object.keys(payload).sort()).toEqual(['event', 'meetingId', 'organizationId', 'role']);
+    expect(payload).not.toHaveProperty('patientUserId');
+    expect(payload).not.toHaveProperty('specialistId');
+    expect(payload).not.toHaveProperty('actorPlatformUserId');
   });
 });

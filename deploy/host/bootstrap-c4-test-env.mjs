@@ -29,7 +29,10 @@ const TEST_ACCOUNT_ENV = new Map([
   ['TEST_ACCOUNT_PHONES', '+79643805480,+79189000782,+12025550101,+12025550102'],
   ['TEST_ACCOUNT_TELEGRAM_IDS', '364943522,7924656602'],
   ['TEST_ACCOUNT_MAX_IDS', '89002800,207278131'],
-  ['TEST_ACCOUNT_EMAILS', 'dimmdao@gmail.com,dimmdao@yandex.ru,kinesiospace@gmail.com'],
+  [
+    'TEST_ACCOUNT_EMAILS',
+    'dimmdao@gmail.com,dimmdao@yandex.ru,kinesiospace@gmail.com,dmitry.blednykh@gmail.com',
+  ],
   [
     'TEST_ACCOUNT_WEB_PUSH_USER_IDS',
     '9c40e322-5823-4dba-ba98-84b1e9b3aeba,b0021a38-fb86-45e9-9aec-d85014e932d4,1c312a64-fab8-4b75-b24e-88a1d6ebe4e0',

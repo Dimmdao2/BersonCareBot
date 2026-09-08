@@ -56,5 +56,19 @@ export async function POST(request: Request, context: { params: Promise<{ userId
     }),
   );
   if (!result.ok) return noStore({ ok: false, error: result.error }, 503);
-  return noStore({ ok: true, meetingId: result.meetingId, resumed: result.resumed, session: result.session, guestUrl: result.guestUrl ?? null });
+  return noStore({
+    ok: true,
+    meetingId: result.meetingId,
+    resumed: result.resumed,
+    session: result.session,
+    guestUrl: result.guestUrl,
+    ...(result.notification ? {
+      notification: {
+        status: result.notification.status,
+        selectedChannels: result.notification.selectedChannels,
+        queuedChannels: result.notification.queuedChannels,
+        deduplicatedChannels: result.notification.deduplicatedChannels,
+      },
+    } : {}),
+  });
 }

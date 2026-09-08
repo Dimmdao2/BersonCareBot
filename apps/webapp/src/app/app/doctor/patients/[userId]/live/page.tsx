@@ -4,6 +4,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireWorkspaceModuleForPage } from '@/app-layer/guards/workspaceModuleAccess';
 import { loadDoctorWorkspaceShell } from '../../../loadDoctorWorkspaceShell';
 import { DoctorLiveMeetingClient } from './DoctorLiveMeetingClient';
+import { PatientEncounterPageShell } from '../visits/PatientEncounterPageShell';
 
 export default async function DoctorLiveMeetingPage({ params, searchParams }: { params: Promise<{ userId: string }>; searchParams: Promise<{ appointmentId?: string }> }) {
   const { userId } = await params;
@@ -14,17 +15,19 @@ export default async function DoctorLiveMeetingPage({ params, searchParams }: { 
   if (!identity) notFound();
   const appointmentId = (await searchParams).appointmentId;
   return (
-    <DoctorLiveMeetingClient
-      userId={userId}
-      appointmentId={z.string().uuid().safeParse(appointmentId).success ? appointmentId! : null}
-      patient={{
-        displayName: identity.displayName,
-        firstName: identity.firstName ?? null,
-        lastName: identity.lastName ?? null,
-        phone: identity.phone,
-      }}
-      encountersEnabled={shell.workspaceModules.encounters}
-      medicalRecordEnabled={shell.workspaceModules.medical_record}
-    />
+    <PatientEncounterPageShell userId={userId} title="Видеовстреча" workspaceModules={shell.workspaceModules} layout="full-height">
+      <DoctorLiveMeetingClient
+        userId={userId}
+        appointmentId={z.string().uuid().safeParse(appointmentId).success ? appointmentId! : null}
+        patient={{
+          displayName: identity.displayName,
+          firstName: identity.firstName ?? null,
+          lastName: identity.lastName ?? null,
+          phone: identity.phone,
+        }}
+        encountersEnabled={shell.workspaceModules.encounters}
+        medicalRecordEnabled={shell.workspaceModules.medical_record}
+      />
+    </PatientEncounterPageShell>
   );
 }

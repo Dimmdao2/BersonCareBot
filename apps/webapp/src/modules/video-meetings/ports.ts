@@ -49,6 +49,7 @@ export type VideoMeetingStore = {
   endMeeting?(input: { meetingId: string; organizationId: string; specialistId: string; actorPlatformUserId: string }): Promise<boolean>;
   findGuestMeeting(secretHash: string): Promise<VideoMeetingRecord | null>;
   findPatientMeeting(input: { meetingId: string; organizationId: string; patientUserId: string }): Promise<VideoMeetingRecord | null>;
+  findSpecialistMeeting?(input: { meetingId: string; organizationId: string; specialistId: string }): Promise<VideoMeetingRecord | null>;
 };
 
 export type VideoMeetingProvider = {
@@ -72,6 +73,7 @@ export type VideoMeetingInvitationNotification = {
     organizationId: string;
     patientUserId: string;
     meetingId: string;
+    inviteId?: string;
     guestUrl: string;
   }): Promise<VideoMeetingInvitationNotificationResult>;
 };

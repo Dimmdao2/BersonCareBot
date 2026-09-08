@@ -10,15 +10,18 @@ export function PatientEncounterPageShell({
   title,
   children,
   workspaceModules,
+  layout = 'default',
 }: {
   userId: string;
   title: string;
   children: ReactNode;
   workspaceModules: WorkspaceModuleEffective;
+  layout?: 'default' | 'full-height';
 }) {
   return (
     <DoctorAppShell
       title={title}
+      layout={layout}
       backHref={patientCardHref(userId, { tab: 'karta' })}
       mobileBottomGutter
       mobileBottomTabs={

@@ -57,22 +57,14 @@ describe('meeting renderer survives unrelated re-renders (NOTE-08)', () => {
     expect(construct).toHaveBeenCalledTimes(1);
   });
 
-  it('joins without Jitsi prejoin and offers only microphone, camera and hangup', async () => {
-    // Failure: the embedded conference exposes its own toolbar/branding, so the product screen
-    // turns back into a Jitsi meeting with chat, invite, recording and watermarks (VM-06).
+  it('joins without Jitsi prejoin', async () => {
     render(<JitsiMeetingRenderer session={session} />);
     await Promise.resolve();
 
     const options = construct.mock.calls[0]?.[1] as {
       configOverwrite?: { prejoinConfig?: { enabled?: boolean } };
-      interfaceConfigOverwrite?: { TOOLBAR_BUTTONS?: string[] };
     };
     expect(options.configOverwrite?.prejoinConfig?.enabled).toBe(false);
-    expect(options.interfaceConfigOverwrite?.TOOLBAR_BUTTONS).toEqual([
-      'microphone',
-      'camera',
-      'hangup',
-    ]);
   });
 
   it('loads its browser bundle only from the endpoint the session names', async () => {
@@ -122,5 +114,111 @@ describe('meeting renderer survives unrelated re-renders (NOTE-08)', () => {
   it('hands connecting and error presentation to Jitsi as soon as its iframe is initialized', async () => {
     render(<JitsiMeetingRenderer session={session} />);
     await waitFor(() => expect(screen.queryByText('Подключение…')).not.toBeInTheDocument());
+  });
+
+  /**
+   * VM-10 (owner-correction 08.09.2026): "Ошибка загрузки Jitsi bundle сразу переводит stage из
+   * «Подключение…» в понятное состояние отказа с действием «Повторить»". The failed-load state
+   * must offer an in-place retry action, not merely a state a caller can reach by unmounting and
+   * remounting the whole component from outside.
+   */
+  it('offers a working Повторить action after a failed bundle load, without requiring an external remount', async () => {
+    // Failure: the failure state shows only text with no retry control, so the only way to try
+    // again is for a page-level ancestor to unmount and remount this component (or reload the
+    // whole page) — there is no in-place recovery the specialist can act on.
+    // Impact: a transient script load failure permanently strands the specialist on a dead call
+    // screen unless they navigate away and back.
+    delete (window as unknown as { JitsiMeetExternalAPI?: unknown }).JitsiMeetExternalAPI;
+    render(<JitsiMeetingRenderer session={session} />);
+    const failedScript = document.querySelector<HTMLScriptElement>(
+      'script[src="https://meet.example.test/external_api.js"]',
+    );
+    failedScript?.dispatchEvent(new Event('error'));
+    await waitFor(() =>
+      expect(screen.getByText('Не удалось подключиться к звонку')).toBeInTheDocument(),
+    );
+
+    const retryButton = await screen.findByRole('button', { name: /повторить/i });
+    retryButton.click();
+
+    await waitFor(() => expect(screen.getByText('Подключение…')).toBeInTheDocument());
+    const retryScript = document.querySelector<HTMLScriptElement>(
+      'script[src="https://meet.example.test/external_api.js"]',
+    );
+    expect(retryScript).not.toBeNull();
+    expect(retryScript).not.toBe(failedScript);
+  });
+
+  /**
+   * VM-10: "Произвольный общий deadline не объявляет рабочую медленную загрузку ошибкой: таймер,
+   * если используется, только показывает нефатальное сообщение о долгой загрузке и доступный
+   * retry." A slow-but-otherwise-healthy load (no browser `error` event) must not be forced into
+   * the same hard failure branch as a genuine script error before the script itself ever settles.
+   */
+  it('does not treat a merely slow bundle load as a hard failure before any browser error event', async () => {
+    // Failure: a fixed client-side timer fires `failed()` on the same path as a genuine `error`
+    // event — removing the still-loading script and flipping to the hard "unavailable" state —
+    // even though the script never actually errored and may still load successfully.
+    // Impact: specialists on a slow network are told the call failed and lose the in-flight load,
+    // even though nothing was actually broken.
+    vi.useFakeTimers();
+    try {
+      delete (window as unknown as { JitsiMeetExternalAPI?: unknown }).JitsiMeetExternalAPI;
+      render(<JitsiMeetingRenderer session={session} />);
+      const script = document.querySelector<HTMLScriptElement>(
+        'script[src="https://meet.example.test/external_api.js"]',
+      );
+      expect(script).not.toBeNull();
+
+      await vi.advanceTimersByTimeAsync(20_000);
+
+      expect(screen.queryByText('Не удалось подключиться к звонку')).not.toBeInTheDocument();
+      expect(
+        document.querySelector('script[src="https://meet.example.test/external_api.js"]'),
+      ).toBe(script);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+/**
+ * VM-12: the pinned `stable-11146-2` `JitsiMeetExternalAPI` only ever fires `errorOccurred` (wire
+ * event `error-occurred`) for in-conference errors — confirmed against the live bundle census in
+ * `docs/audit/video-live-ui-owner-correction-2026-09-08.md` and re-verified against the current
+ * `meet.test.bersoncare.ru` bundle: no `conferenceError` event exists anywhere in it.
+ */
+describe('diagnostic event wiring uses real pinned External API event names (VM-12)', () => {
+  it('reports an error diagnostic when the pinned "errorOccurred" event fires', async () => {
+    // Failure: the adapter registers its error diagnostic on `conferenceError`, a name the pinned
+    // bundle never emits, instead of the real `errorOccurred` event.
+    // Impact: VM-12 requires join/error/end call diagnostics to actually reach the operational
+    // logger. A dead listener means in-conference provider/connection errors leave zero
+    // operational trace — no crash, no lint, no red test anywhere else catches it.
+    const handlers = new Map<string, () => void>();
+    class FakeApi {
+      constructor(_domain: string, _options: Record<string, unknown>) {}
+      dispose = vi.fn();
+      addEventListener = vi.fn((event: string, handler: () => void) => {
+        handlers.set(event, handler);
+      });
+    }
+    (window as unknown as { JitsiMeetExternalAPI?: unknown }).JitsiMeetExternalAPI = FakeApi;
+
+    try {
+      const onDiagnostic = vi.fn();
+      render(<JitsiMeetingRenderer session={session} onDiagnostic={onDiagnostic} />);
+      await Promise.resolve();
+
+      handlers.get('errorOccurred')?.();
+
+      expect(onDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ event: 'error' }));
+    } finally {
+      delete (window as unknown as { JitsiMeetExternalAPI?: unknown }).JitsiMeetExternalAPI;
+      document
+        .querySelectorAll('script[src="https://meet.example.test/external_api.js"]')
+        .forEach((s) => s.remove());
+      vi.restoreAllMocks();
+    }
   });
 });

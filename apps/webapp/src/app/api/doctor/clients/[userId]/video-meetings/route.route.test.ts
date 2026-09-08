@@ -121,3 +121,75 @@ describe('POST doctor video meeting appointment binding boundary (ACC-01)', () =
     expect(createOrResume).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * ACC-07: "Doctor UI получает безопасный итог queued/partially queued/skipped/unavailable...
+ * Doctor HTTP route сериализует только безопасный статус и виды каналов без адресов."
+ */
+describe('POST doctor video meeting notification surfacing (ACC-07)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fakes.requireDoctorWorkspaceApiContext.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: ORGANIZATION_ID,
+        specialistId: SPECIALIST_ID,
+        session: { user: { userId: AUTHOR_ID } },
+      },
+    });
+    fakes.withDoctorWorkspacePrincipal.mockImplementation(
+      <T>(...args: unknown[]): T => (args.at(-1) as () => T)(),
+    );
+    fakes.requireEntitlementForMutation.mockResolvedValue({ ok: true });
+    fakes.requireDoctorWorkspaceModuleForApi.mockResolvedValue({ ok: true });
+  });
+
+  function request(body: Record<string, unknown>) {
+    return POST(
+      new Request(`https://app.example.test/api/doctor/clients/${CLIENT_ID}/video-meetings`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+      { params: Promise.resolve({ userId: CLIENT_ID }) },
+    );
+  }
+
+  it('surfaces only the safe notification status/channels the service returned, without inventing or dropping it', async () => {
+    // Failure: the route reads meetingId/resumed/session/guestUrl from the service result but
+    // drops `notification` entirely, so the doctor UI can never distinguish queued from
+    // unavailable and always falls back to "copy manually" even when delivery actually queued.
+    // Impact: ACC-07's required safe status never reaches the client at all.
+    const createOrResume = vi.fn().mockResolvedValue({
+      ok: true,
+      meetingId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      resumed: false,
+      session: {
+        renderer: 'embedded_conference',
+        endpoint: 'https://meet.example.test',
+        roomReference: 'room-ref',
+        accessToken: 'token',
+        expiresAt: '2099-09-08T02:00:00.000Z',
+      },
+      guestUrl: 'https://clinic.example.test/live#secret',
+      notification: {
+        status: 'partially_queued',
+        selectedChannels: ['telegram', 'email'],
+        queuedChannels: ['telegram'],
+        deduplicatedChannels: [],
+      },
+    });
+    fakes.buildAppDeps.mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: CLIENT_ID }),
+      },
+      videoMeetings: { createOrResume },
+    });
+
+    const response = await request({});
+    const body = (await response.json()) as { notification?: { status?: string } };
+
+    expect(body.notification?.status).toBe('partially_queued');
+    expect(JSON.stringify(body)).not.toMatch(/@|\+7|internal/i);
+  });
+});

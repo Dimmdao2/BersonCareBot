@@ -5,11 +5,10 @@ import type { VideoMeetingRenderSession } from '@/modules/video-meetings/ports';
 
 type JitsiApi = {
   dispose: () => void;
-  addEventListener: (event: string, listener: () => void) => void;
+  addEventListener: (event: string, listener: (payload?: unknown) => void) => void;
+  executeCommand: (command: string, ...arguments_: unknown[]) => void;
 };
 type JitsiConstructor = new (domain: string, options: Record<string, unknown>) => JitsiApi;
-
-const JITSI_SCRIPT_LOAD_TIMEOUT_MS = 15_000;
 
 declare global {
   interface Window {
@@ -19,6 +18,24 @@ declare global {
 
 function scriptUrl(endpoint: string): string {
   return `${endpoint.replace(/\/$/, '')}/external_api.js`;
+}
+
+function errorClassFromJitsiEvent(payload: unknown): 'connection' | 'media' | 'provider' {
+  if (!payload || typeof payload !== 'object') return 'provider';
+  const details = payload as Record<string, unknown>;
+  const value = [details.name, details.type, details.error]
+    .find((candidate): candidate is string => typeof candidate === 'string')
+    ?.toLowerCase() ?? '';
+  if (/(camera|mic|media|device|permission)/.test(value)) return 'media';
+  if (/(connection|network|ice|conference)/.test(value)) return 'connection';
+  return 'provider';
+}
+
+function transportFromP2pStatus(payload: unknown): 'p2p' | 'relay' | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const isP2p = (payload as Record<string, unknown>).isP2p;
+  if (typeof isP2p !== 'boolean') return null;
+  return isP2p ? 'p2p' : 'relay';
 }
 
 async function loadJitsi(endpoint: string): Promise<JitsiConstructor> {
@@ -35,7 +52,6 @@ async function loadJitsi(endpoint: string): Promise<JitsiConstructor> {
     const finish = (constructor?: JitsiConstructor) => {
       if (settled) return;
       settled = true;
-      window.clearTimeout(timeoutId);
       script.removeEventListener('load', loaded);
       script.removeEventListener('error', failed);
       if (constructor) {
@@ -49,7 +65,6 @@ async function loadJitsi(endpoint: string): Promise<JitsiConstructor> {
     };
     const loaded = () => finish(window.JitsiMeetExternalAPI);
     const failed = () => finish();
-    const timeoutId = window.setTimeout(failed, JITSI_SCRIPT_LOAD_TIMEOUT_MS);
     script.addEventListener('load', loaded, { once: true });
     script.addEventListener('error', failed, { once: true });
   });
@@ -66,15 +81,22 @@ async function loadJitsi(endpoint: string): Promise<JitsiConstructor> {
 export function JitsiMeetingRenderer({
   session,
   onHangup,
+  onDiagnostic,
+  className,
 }: {
   session: VideoMeetingRenderSession;
   onHangup?: () => void;
+  onDiagnostic?: (diagnostic: { event: 'join' | 'error' | 'end'; durationMs?: number; transport?: 'p2p' | 'relay'; errorClass?: 'connection' | 'media' | 'provider' }) => void;
+  className?: string;
 }) {
   const targetRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<JitsiApi | null>(null);
   const onHangupRef = useRef(onHangup);
+  const onDiagnosticRef = useRef(onDiagnostic);
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+  const [retryNonce, setRetryNonce] = useState(0);
   onHangupRef.current = onHangup;
+  onDiagnosticRef.current = onDiagnostic;
   const endpoint = session.endpoint;
   const roomReference = session.roomReference;
 
@@ -84,6 +106,7 @@ export function JitsiMeetingRenderer({
       return;
     }
     let disposed = false;
+    let joinedAt: number | null = null;
     setState('loading');
     void loadJitsi(endpoint)
       .then((JitsiMeetExternalAPI) => {
@@ -96,16 +119,66 @@ export function JitsiMeetingRenderer({
             prejoinConfig: { enabled: false },
             disableDeepLinking: true,
             enableWelcomePage: false,
+            hideConferenceSubject: true,
+            // Jitsi falls back to the opaque room id when no subject exists. Keep a neutral
+            // product label as a second line of defence for clients that still render it.
+            subject: 'Видеовстреча',
+            localSubject: 'Видеовстреча',
           },
           interfaceConfigOverwrite: {
-            TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup'],
+            // The deployment configuration is the broad allowlist. iframe overrides only narrow
+            // it to controls exposed by the pinned External API bundle.
+            TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup', 'desktop', 'toggle-camera', 'fullscreen', 'settings', 'tileview', 'videoquality', 'select-background'],
             SHOW_JITSI_WATERMARK: false,
             SHOW_BRAND_WATERMARK: false,
             SHOW_POWERED_BY: false,
           },
         });
         apiRef.current = api;
-        api.addEventListener('readyToClose', () => onHangupRef.current?.());
+        const remoteParticipants = new Set<string>();
+        let filmstripVisible = true;
+        const setFilmstripVisible = (visible: boolean) => {
+          if (filmstripVisible === visible) return;
+          filmstripVisible = visible;
+          api.executeCommand('toggleFilmStrip');
+        };
+        api.addEventListener('videoConferenceJoined', () => {
+          joinedAt = Date.now();
+          if (remoteParticipants.size === 0) setFilmstripVisible(false);
+          onDiagnosticRef.current?.({ event: 'join' });
+        });
+        api.addEventListener('filmstripDisplayChanged', (payload) => {
+          if (!payload || typeof payload !== 'object') return;
+          const visible = (payload as Record<string, unknown>).visible;
+          if (typeof visible === 'boolean') filmstripVisible = visible;
+        });
+        api.addEventListener('participantJoined', (payload) => {
+          if (payload && typeof payload === 'object') {
+            const id = (payload as Record<string, unknown>).id;
+            if (typeof id === 'string') remoteParticipants.add(id);
+          }
+          setFilmstripVisible(true);
+        });
+        api.addEventListener('participantLeft', (payload) => {
+          if (payload && typeof payload === 'object') {
+            const id = (payload as Record<string, unknown>).id;
+            if (typeof id === 'string') remoteParticipants.delete(id);
+          }
+          if (remoteParticipants.size === 0) setFilmstripVisible(false);
+        });
+        api.addEventListener('errorOccurred', (payload) => {
+          onDiagnosticRef.current?.({ event: 'error', errorClass: errorClassFromJitsiEvent(payload) });
+        });
+        api.addEventListener('p2pStatusChanged', (payload) => {
+          const transport = transportFromP2pStatus(payload);
+          if (transport) onDiagnosticRef.current?.({ event: 'join', transport });
+        });
+        api.addEventListener('cameraError', () => onDiagnosticRef.current?.({ event: 'error', errorClass: 'media' }));
+        api.addEventListener('micError', () => onDiagnosticRef.current?.({ event: 'error', errorClass: 'media' }));
+        api.addEventListener('readyToClose', () => {
+          onDiagnosticRef.current?.({ event: 'end', ...(joinedAt ? { durationMs: Date.now() - joinedAt } : {}) });
+          onHangupRef.current?.();
+        });
         // Once Jitsi owns the iframe it must also own the connecting/error UI. Waiting for a
         // conference event here can permanently cover an already-rendering call when the automatic
         // join outruns External API listener registration.
@@ -121,14 +194,25 @@ export function JitsiMeetingRenderer({
     };
     // Token renewal is in-memory; dispose only when this joined room or its endpoint is replaced.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endpoint, roomReference]);
+  }, [endpoint, roomReference, retryNonce]);
 
   return (
-    <div className="relative min-h-[320px] bg-black">
-      <div ref={targetRef} className="min-h-[320px] w-full" />
+    <div className={className ?? 'relative min-h-[320px] bg-black'}>
+      <div ref={targetRef} className={className ? 'h-full w-full' : 'min-h-[320px] w-full'} />
       {state !== 'ready' ? (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-sm text-white">
-          {state === 'unavailable' ? 'Не удалось подключиться к звонку' : 'Подключение…'}
+          {state === 'unavailable' ? (
+            <div className="flex flex-col items-center gap-3">
+              <span>Не удалось подключиться к звонку</span>
+              <button
+                type="button"
+                className="rounded bg-white px-3 py-1.5 text-sm text-black"
+                onClick={() => setRetryNonce((value) => value + 1)}
+              >
+                Повторить
+              </button>
+            </div>
+          ) : 'Подключение…'}
         </div>
       ) : null}
     </div>

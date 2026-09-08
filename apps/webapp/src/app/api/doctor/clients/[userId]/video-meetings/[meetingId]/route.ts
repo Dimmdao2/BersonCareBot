@@ -7,7 +7,17 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { requireDoctorWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
 
 const paramsSchema = z.object({ userId: z.string().uuid(), meetingId: z.string().uuid() });
-const bodySchema = z.object({ action: z.enum(['rotate_invite', 'revoke_invite', 'end']) }).strict();
+const bodySchema = z.union([
+  z.object({ action: z.enum(['rotate_invite', 'revoke_invite', 'end']) }).strict(),
+  z.object({
+    diagnostic: z.object({
+      event: z.enum(['join', 'error', 'end']),
+      durationMs: z.number().int().min(0).max(24 * 60 * 60 * 1000).optional(),
+      transport: z.enum(['p2p', 'relay']).optional(),
+      errorClass: z.enum(['connection', 'media', 'provider']).optional(),
+    }).strict(),
+  }).strict(),
+]);
 
 function noStore(body: Record<string, unknown>, status = 200) {
   const response = NextResponse.json(body, { status });
@@ -38,22 +48,48 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
   const lifecycleInput = {
     meetingId: params.data.meetingId,
     organizationId: gate.ctx.organizationId,
+    patientUserId: patient.userId,
     specialistId: gate.ctx.specialistId,
     actorPlatformUserId: gate.ctx.session.user.userId,
   };
-  if (body.data.action === 'rotate_invite') {
+  if (!('action' in body.data)) {
+    const diagnosticInput = {
+      meetingId: params.data.meetingId,
+      organizationId: gate.ctx.organizationId,
+      specialistId: gate.ctx.specialistId,
+      event: body.data.diagnostic.event,
+      ...(body.data.diagnostic.durationMs !== undefined ? { durationMs: body.data.diagnostic.durationMs } : {}),
+      ...(body.data.diagnostic.transport !== undefined ? { transport: body.data.diagnostic.transport } : {}),
+      ...(body.data.diagnostic.errorClass !== undefined ? { errorClass: body.data.diagnostic.errorClass } : {}),
+    };
+    const ok = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.video-meeting.lifecycle', () =>
+      deps.videoMeetings!.recordDiagnostic(diagnosticInput),
+    );
+    return ok ? noStore({ ok: true }) : noStore({ ok: false, error: 'meeting_unavailable' }, 404);
+  }
+  const action = body.data.action;
+  if (action === 'rotate_invite') {
     const result = await withDoctorWorkspacePrincipal(
       gate.ctx,
       'doctor.video-meeting.lifecycle',
       () => deps.videoMeetings!.rotateInvite(lifecycleInput),
     );
     if (!result.ok) return noStore({ ok: false, error: 'meeting_unavailable' }, 404);
-    return noStore({ ok: true, guestUrl: result.guestUrl ?? null });
+    return noStore({
+      ok: true,
+      guestUrl: result.guestUrl,
+      notification: {
+        status: result.notification.status,
+        selectedChannels: result.notification.selectedChannels,
+        queuedChannels: result.notification.queuedChannels,
+        deduplicatedChannels: result.notification.deduplicatedChannels,
+      },
+    });
   }
   const ok = await withDoctorWorkspacePrincipal(
     gate.ctx,
     'doctor.video-meeting.lifecycle',
-    () => body.data.action === 'revoke_invite'
+    () => action === 'revoke_invite'
       ? deps.videoMeetings!.revokeInvite(lifecycleInput)
       : deps.videoMeetings!.endMeeting(lifecycleInput),
   );
