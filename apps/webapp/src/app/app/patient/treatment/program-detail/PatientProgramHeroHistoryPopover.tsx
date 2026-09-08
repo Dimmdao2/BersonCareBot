@@ -44,14 +44,14 @@ export function PatientProgramHeroHistoryPopover(props: {
           side="bottom"
           align="end"
           sideOffset={6}
-          className="w-[min(100%,18.5rem)] max-w-full max-h-[min(70vh,24rem)] overflow-y-auto p-3 text-[11px] leading-snug text-foreground"
+          className="w-[min(100%,18.5rem)] max-w-full max-h-[min(70vh,24rem)] overflow-y-auto p-3 patient-type-secondary text-foreground"
         >
-          <p className="m-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="m-0 patient-type-caption uppercase tracking-wide text-muted-foreground">
             Важные даты
           </p>
           <ul className="mt-2 max-w-full list-none space-y-1.5 p-0 [word-break:break-word]">
             {narrative.map((line, i) => (
-              <li key={i} className="text-[11px] leading-snug text-foreground">
+              <li key={i} className="patient-type-secondary text-foreground">
                 {line}
               </li>
             ))}
@@ -59,12 +59,12 @@ export function PatientProgramHeroHistoryPopover(props: {
           {eventsForPatient.length > 0 ? (
             <>
               <hr className="my-2.5 border-border/60" />
-              <p className="m-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="m-0 patient-type-caption uppercase tracking-wide text-muted-foreground">
                 События
               </p>
               <ul className="mt-2 max-w-full list-none space-y-1 p-0 [word-break:break-word]">
                 {eventsForPatient.map((e) => (
-                  <li key={e.id} className="text-[10px] leading-snug text-muted-foreground">
+                  <li key={e.id} className="patient-type-caption text-muted-foreground">
                     {formatBookingDateTimeShortStyleRu(e.createdAt, appDisplayTimeZone)} —{' '}
                     {formatTreatmentProgramEventTypeRu(e.eventType)}
                   </li>

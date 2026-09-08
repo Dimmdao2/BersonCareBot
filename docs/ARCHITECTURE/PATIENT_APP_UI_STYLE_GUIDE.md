@@ -19,6 +19,31 @@
 
 `apps/webapp/src/app/app/patient/home/patientHomeCardStyles.ts` — это отдельный home-specific слой. Его fixed geometry, hero-обвязку и dashboard-позиционирование нельзя механически переносить на внутренние страницы.
 
+## 1b. Typography: patient semantic scale
+
+`patient.css` is the portal-safe source of truth for patient typography. Its `--patient-font-*`,
+`--patient-line-height-*`, `--patient-font-weight-*`, and `--patient-text-*` panel applies Manrope
+and defines these roles; patient code uses the corresponding exports from `patientVisual.ts`, rather
+than new local pixel values.
+
+| Role | Contract | Shared class |
+| --- | --- | --- |
+| Page title | 22/28, 600, heading `#172f62` | `patientPageTitleClass` |
+| Section / modal title | 18/24, 500, heading | `patientSectionTitleClass` |
+| Body / readable form value | 16/24, 400, primary `#111827` | `patientBodyTextClass` |
+| Primary action | 16/20, 600 | `patientActionTextClass` and patient action classes |
+| Secondary body | 14/20, 400 | `patientMutedTextClass` |
+| Caption / meta | 12/16, 500 | `patientCaptionTextClass` |
+| Micro | 11/16, 500 | `patientMicroTextClass` |
+| Metric / hero number | 28/34, 600 | `patientMetricTextClass` |
+
+Micro is reserved for badges, counters, graph/calendar axes, and nonessential compact metadata.
+It is not a fallback for readable prose, errors, schedules, form labels, or doctor comments. The
+readable secondary/muted role is `#667085` or darker; `#98a2b3` is not a readable-text default.
+Patient shell page titles use `patientPageTitleClass` on both mobile and desktop. Modal titles use
+`patientSectionTitleClass`. Form primitives apply the body contract so mobile values remain at least
+16px. Status tones remain semantic tokens, not duplicated direct text hex values.
+
 ## 1a. Responsive: patient shell (`md`)
 
 - **Порог широкой колонки:** Tailwind **`md`** (768px). У `#app-shell-patient` (`AppShell` с `variant="patient"` / `patient-wide`): ниже `md` — узкая колонка `max-w-[430px]`; с **`md`** — до **`max-w-[min(1180px,calc(100vw-2rem))]`** (как в коде `AppShell`).
@@ -46,7 +71,7 @@
 
 - Surfaces: `patientCardClass`, `patientCardCompactClass`, `patientListItemClass`, `patientSectionSurfaceClass`, `patientFormSurfaceClass`.
 - Semantic tones: `patientSurfaceNeutralClass`, `patientSurfaceInfoClass`, `patientSurfaceSuccessClass`, `patientSurfaceWarningClass`, `patientSurfaceDangerClass`.
-- Typography/layout: `patientSectionTitleClass`, `patientBodyTextClass`, `patientMutedTextClass`, `patientPageTitleClass`, `patientPageSubtitleClass`, `patientPageHeaderClass`, `patientInnerPageStackClass`, `patientInnerCardGridClass`.
+- Typography/layout: `patientPageTitleClass`, `patientSectionTitleClass`, `patientBodyTextClass`, `patientMutedTextClass`, `patientCaptionTextClass`, `patientMicroTextClass`, `patientActionTextClass`, `patientMetricTextClass`, `patientPageSubtitleClass`, `patientPageHeaderClass`, `patientInnerPageStackClass`, `patientInnerCardGridClass`.
 - Actions/links: `patientPrimaryActionClass`, `patientSecondaryActionClass`, `patientDangerActionClass`, `patientInlineLinkClass`, `patientInfoLinkTileClass`.
 - Pills/empty: `patientPillClass`, `patientEmptyStateClass`.
 
@@ -134,6 +159,6 @@ Patient-модалки и их примитивы **не импортируют*
 ### Портал вне `#app-shell-patient`
 
 Модалка рендерится в портал на `<body>`, поэтому доступны только `:root`-токены `patient.css`
-(`--patient-card-bg`, `--patient-border`, `--patient-text-*`, `--patient-block-heading`). `--patient-color-primary`
+(`--patient-card-bg`, `--patient-border`, `--patient-font-*`, `--patient-text-*`). `--patient-color-primary`
 объявлен на `#app-shell-patient` и в портале **не резолвится** — для primary CTA внутри модалки использовать
 `patientModalPortalPrimaryCtaClass`.

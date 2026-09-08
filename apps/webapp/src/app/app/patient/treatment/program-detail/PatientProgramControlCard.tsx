@@ -45,7 +45,7 @@ export function PatientProgramControlCard(props: {
             <p className="mt-0 text-sm font-semibold leading-snug text-foreground">
               <span>{dateLine}</span>
               {remainderDays != null ? (
-                <span className="text-[11px] font-normal leading-snug text-neutral-700 dark:text-neutral-400">
+                <span className="patient-type-secondary text-neutral-700 dark:text-neutral-400">
                   {' '}
                   (через {remainderDays} {ruDaysWordN(remainderDays)})
                 </span>

@@ -39,7 +39,7 @@ export function PatientHomeBookingCard({
     : routePaths.bookingNew;
 
   const footer = anonymousGuest ? (
-    <p className="line-clamp-1 text-[11px] md:text-xs">
+    <p className="line-clamp-1 patient-type-caption">
       Запись откроется после входа
       <Link href={appLoginWithNextHref(routePaths.patient)} className="sr-only">
         Войти

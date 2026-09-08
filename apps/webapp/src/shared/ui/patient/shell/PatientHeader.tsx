@@ -171,7 +171,7 @@ export function PatientHeader({
   const titleBadgeEl = titleBadge?.trim() ? (
     <span
       data-testid="patient-header-title-badge"
-      className="max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
+      className="max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 patient-type-caption text-foreground"
       title={titleBadge.trim()}
     >
       {titleBadge.trim()}
@@ -182,7 +182,7 @@ export function PatientHeader({
     <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-center">
       {titleBadgeEl}
       <p
-        className="m-0 w-full truncate text-[13px] font-normal text-muted-foreground"
+        className="m-0 w-full truncate patient-type-secondary text-muted-foreground"
         title={pageTitle}
       >
         {pageTitle}

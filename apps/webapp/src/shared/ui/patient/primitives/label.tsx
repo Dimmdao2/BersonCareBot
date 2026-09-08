@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 export type PatientLabelVariant = 'default' | 'field';
 
 export const patientFieldLabelClassName =
-  'text-xs font-medium uppercase tracking-wide text-[var(--patient-text-muted)]';
+  'text-[length:var(--patient-font-size-caption)] font-[var(--patient-font-weight-medium)] leading-[var(--patient-line-height-caption)] uppercase tracking-wide text-[var(--patient-text-caption)]';
 
 type PatientLabelProps = React.ComponentProps<typeof LabelPrimitive> & {
   variant?: PatientLabelVariant;

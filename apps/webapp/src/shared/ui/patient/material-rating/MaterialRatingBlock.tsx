@@ -322,7 +322,7 @@ function EnabledMaterialRatingBlock({
               variant="ghost"
               className={cn(
                 patientMutedTextClass,
-                'cursor-pointer border-0 bg-transparent p-0 text-[11px] font-normal underline decoration-muted-foreground/55 underline-offset-2 hover:opacity-90',
+                'cursor-pointer border-0 bg-transparent p-0 patient-type-caption underline decoration-muted-foreground/55 underline-offset-2 hover:opacity-90',
               )}
               onClick={() => setResetConfirmOpen(true)}
             >

@@ -6,6 +6,11 @@ import { XIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from './button';
+import {
+  patientBodyTextClass,
+  patientMutedTextClass,
+  patientSectionTitleClass,
+} from '@/shared/ui/patient/patientVisual';
 
 /**
  * Канонический мобильный bottom-drawer patient-зоны.
@@ -48,7 +53,8 @@ function DrawerContent({
         <DrawerPrimitive.Popup
           data-slot="drawer-content"
           className={cn(
-            'pointer-events-auto relative flex h-[calc(100dvh-1.75rem)] max-h-[calc(100dvh-1.75rem)] w-full max-w-[min(100%,430px)] translate-y-[calc(var(--drawer-snap-point-offset)+var(--drawer-swipe-movement-y))] flex-col overflow-hidden rounded-t-2xl border border-b-0 border-[var(--patient-border)] bg-[var(--patient-card-bg)] bg-clip-padding text-sm shadow-lg transition-transform duration-300 ease-out data-ending-style:translate-y-full data-starting-style:translate-y-full data-swiping:duration-0',
+            'pointer-events-auto relative flex h-[calc(100dvh-1.75rem)] max-h-[calc(100dvh-1.75rem)] w-full max-w-[min(100%,430px)] translate-y-[calc(var(--drawer-snap-point-offset)+var(--drawer-swipe-movement-y))] flex-col overflow-hidden rounded-t-2xl border border-b-0 border-[var(--patient-border)] bg-[var(--patient-card-bg)] bg-clip-padding shadow-lg transition-transform duration-300 ease-out data-ending-style:translate-y-full data-starting-style:translate-y-full data-swiping:duration-0',
+            patientBodyTextClass,
             className,
           )}
           {...props}
@@ -92,7 +98,7 @@ function DrawerTitle({ className, ...props }: DrawerPrimitive.Title.Props) {
     <DrawerPrimitive.Title
       data-slot="drawer-title"
       className={cn(
-        'font-sans text-base font-normal text-[var(--patient-text-primary)]',
+        patientSectionTitleClass,
         className,
       )}
       {...props}
@@ -104,7 +110,7 @@ function DrawerDescription({ className, ...props }: DrawerPrimitive.Description.
   return (
     <DrawerPrimitive.Description
       data-slot="drawer-description"
-      className={cn('text-sm text-[var(--patient-text-muted)]', className)}
+      className={cn(patientMutedTextClass, className)}
       {...props}
     />
   );

@@ -7,7 +7,7 @@ import {
   shouldShowPatientMobileHeaderBack,
 } from '@/app-layer/routes/navigation';
 import { cn } from '@/lib/utils';
-import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
+import { patientPageTitleClass } from '@/shared/ui/patient/patientVisual';
 import { PatientBottomNav } from '@/shared/ui/patient/shell/PatientBottomNav';
 import { PatientShellTopChrome } from '@/shared/ui/patient/shell/PatientShellTopChrome';
 import { PatientShellPageTitleStrip } from '@/shared/ui/patient/shell/PatientShellPageTitleStrip';
@@ -82,7 +82,7 @@ export function PatientBottomShellFrame({
                 {shellTitleBadge ? (
                   <span
                     data-testid="patient-header-title-badge"
-                    className="mb-2 inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
+                    className="mb-2 inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 patient-type-caption text-foreground"
                     title={shellTitleBadge}
                   >
                     {shellTitleBadge}
@@ -99,7 +99,7 @@ export function PatientBottomShellFrame({
                 {shellTitleBadge ? (
                   <span
                     data-testid="patient-header-title-badge"
-                    className="inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
+                    className="inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 patient-type-caption text-foreground"
                     title={shellTitleBadge}
                   >
                     {shellTitleBadge}
@@ -107,7 +107,7 @@ export function PatientBottomShellFrame({
                 ) : null}
                 {shellTitle ? (
                   <h1
-                    className={cn(patientSectionTitleClass, 'min-w-0', shellTitleBadge && 'mt-2')}
+                    className={cn(patientPageTitleClass, 'min-w-0', shellTitleBadge && 'mt-2')}
                   >
                     {shellTitle}
                   </h1>

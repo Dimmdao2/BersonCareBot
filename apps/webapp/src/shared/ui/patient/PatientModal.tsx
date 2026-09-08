@@ -28,7 +28,11 @@ import {
   usePatientModalLayer,
   usePatientModalOverlay,
 } from '@/shared/ui/patient/PatientModalLayerContext';
-import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientCaptionTextClass,
+  patientMutedTextClass,
+  patientSectionTitleClass,
+} from '@/shared/ui/patient/patientVisual';
 
 /**
  * Единая нижняя панель действий модалки: одинаковая геометрия, safe area и равные
@@ -199,7 +203,7 @@ export function PatientModal({
   ) : null;
 
   const titleSubjectNode = titleSubject ? (
-    <p className="truncate text-xs text-[var(--patient-text-muted)]">{titleSubject}</p>
+    <p className={cn(patientCaptionTextClass, 'truncate')}>{titleSubject}</p>
   ) : null;
 
   const headerTrailingNode = headerAction ? (
@@ -322,7 +326,7 @@ export function PatientModal({
               {headerTrailingNode}
             </div>
             {description ? (
-              <p className="text-sm text-[var(--patient-text-muted)]">{description}</p>
+              <p className={patientMutedTextClass}>{description}</p>
             ) : null}
           </DialogHeader>
           {bodyHeaderNode}

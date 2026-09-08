@@ -57,7 +57,7 @@ function AttemptHistoryCollapsibleList(props: {
             className="rounded-md border border-[var(--patient-border)]/50 bg-[var(--patient-card-bg)]/80"
           >
             <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left">
-              <span className={cn(patientMutedTextClass, 'text-[11px]')}>
+              <span className={patientMutedTextClass}>
                 {bundle.submittedAt ? `Отправлено ${bundle.submittedAt.slice(0, 10)}` : '—'}
                 {bundle.acceptedAt ? ` · принято ${bundle.acceptedAt.slice(0, 10)}` : ''}
               </span>
@@ -80,7 +80,7 @@ function AttemptHistoryCollapsibleList(props: {
                       className="rounded border border-[var(--patient-border)]/40 px-2 py-1"
                     >
                       <span className="text-xs font-medium">{t.title ?? t.testId}</span>
-                      <p className={cn(patientMutedTextClass, 'mt-0.5 mb-0 text-[11px]')}>
+                      <p className={cn(patientMutedTextClass, 'mt-0.5 mb-0')}>
                         Итог: {formatNormalizedTestDecisionRu(row.normalizedDecision)}
                         {row.decidedBy ? ' (уточнено врачом)' : ''}
                       </p>
@@ -410,7 +410,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
         ) : snapRO ? (
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {snapRO.attemptHistory.map((a) => (
-              <li key={a.id} className={cn(patientMutedTextClass, 'text-[11px]')}>
+              <li key={a.id} className={patientMutedTextClass}>
                 {a.submittedAt
                   ? `Отправлено ${a.submittedAt.slice(0, 10)}`
                   : `Начато ${a.startedAt.slice(0, 10)}`}
@@ -462,7 +462,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                   <span className="text-xs font-medium">
                     {t.title ?? row.testTitle ?? t.testId}
                   </span>
-                  <p className={cn(patientMutedTextClass, 'mt-1 mb-0 text-[11px]')}>
+                  <p className={cn(patientMutedTextClass, 'mt-1 mb-0')}>
                     Итог: {formatNormalizedTestDecisionRu(row.normalizedDecision)}
                     {row.decidedBy ? ' (уточнено врачом)' : ''}
                   </p>
@@ -505,7 +505,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
       onKeyDown={(e) => e.stopPropagation()}
     >
       {testIds.length > 0 ? (
-        <p className={cn(patientMutedTextClass, 'm-0 text-[11px]')}>
+        <p className={cn(patientMutedTextClass, 'm-0')}>
           Сохранено тестов: {savedCount} / {testIds.length}
         </p>
       ) : null}
@@ -533,15 +533,15 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-medium">{t.title ?? t.testId}</span>
                 {saved ? (
-                  <span className={cn(patientMutedTextClass, 'text-[10px]')}>Сохранено</span>
+                  <span className={patientMutedTextClass}>Сохранено</span>
                 ) : null}
               </div>
               {!activeTestId && t.comment ? (
-                <p className={cn(patientMutedTextClass, 'mt-0.5 text-[11px]')}>
+                <p className={cn(patientMutedTextClass, 'mt-0.5')}>
                   Комментарий к позиции: <span className="text-foreground">{t.comment}</span>
                 </p>
               ) : null}
-              {testErr ? <p className="m-0 text-[11px] text-destructive">{testErr}</p> : null}
+              {testErr ? <p className="m-0 patient-type-secondary text-destructive">{testErr}</p> : null}
               {autoFromScore ? (
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-wrap items-center gap-2">
@@ -625,7 +625,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                     </button>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Label className={cn(patientMutedTextClass, 'text-[11px]')}>
+                    <Label className={patientMutedTextClass}>
                       Комментарий (необязательно)
                     </Label>
                     <Textarea
@@ -643,7 +643,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
               ) : (
                 <div className="mt-1 flex flex-col gap-2">
                   <div className="flex flex-col gap-1">
-                    <Label className={cn(patientMutedTextClass, 'text-[11px]')}>Итог</Label>
+                    <Label className={patientMutedTextClass}>Итог</Label>
                     <Select
                       value={qualDecisions[t.testId] || undefined}
                       onValueChange={(v) =>
@@ -669,7 +669,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                     </Select>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Label className={cn(patientMutedTextClass, 'text-[11px]')}>
+                    <Label className={patientMutedTextClass}>
                       Комментарий (необязательно)
                     </Label>
                     <Textarea

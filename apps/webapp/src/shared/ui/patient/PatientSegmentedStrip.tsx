@@ -144,7 +144,7 @@ export function PatientSegmentedTab({
       <span className="text-xs font-semibold group-data-[active]/segmented-tab:text-[var(--patient-color-primary)] lg:text-sm">
         {label}
       </span>
-      <span className="text-[10px] leading-tight text-[var(--patient-segmented-label-text)] group-data-[active]/segmented-tab:text-[var(--patient-text-secondary)] lg:text-xs">
+      <span className="patient-type-caption text-[var(--patient-segmented-label-text)] group-data-[active]/segmented-tab:text-[var(--patient-text-secondary)]">
         {subtitle}
       </span>
     </TabsTrigger>

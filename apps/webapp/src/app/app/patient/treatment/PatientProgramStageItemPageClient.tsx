@@ -700,7 +700,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               return (
                 <>
                   {metaLine ? (
-                    <p className="mt-2 text-[13px] font-normal leading-snug text-neutral-700">
+                    <p className="mt-2 patient-type-secondary text-neutral-700">
                       {metaLine}
                     </p>
                   ) : null}
@@ -856,7 +856,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                         >
                           <span className="min-w-0 truncate">Комментарии</span>
                           {discussionPreview.totalCount > 0 ? (
-                            <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[#1d4ed8]">
+                            <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 patient-type-caption text-[var(--patient-status-info-text)]">
                               {discussionPreview.totalCount}
                             </span>
                           ) : null}

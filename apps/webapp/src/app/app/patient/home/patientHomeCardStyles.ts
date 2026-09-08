@@ -109,7 +109,7 @@ export const patientHomeMoodCheckinShellClass = cn(
 /** Shared 24px pill metrics for top-card labels (hero / useful post). */
 export const patientHomeFeatureBadgeBaseClass = cn(
   'inline-flex h-6 min-w-0 max-w-full shrink-0 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5',
-  'text-[11px] font-semibold uppercase leading-none tracking-[0.02em]',
+  'patient-type-caption uppercase tracking-[0.02em]',
 );
 
 /**
@@ -319,7 +319,7 @@ export const patientHomeTodayCardScrollRowBleedClass = cn(
 
 /** Мелкая подпись (caption) — общий токен `--patient-block-caption`. */
 export const patientHomeBlockCaptionTypographyClass =
-  'text-[12px] font-medium leading-snug text-[var(--patient-block-caption)]';
+  'patient-type-caption text-[var(--patient-block-caption)]';
 
 /** Вторичный абзац / подпись под заголовком в блоках «Сегодня» (sm, `--patient-block-caption`). */
 export const patientHomeBlockBodySmClass = 'text-sm leading-5 text-[var(--patient-block-caption)]';
@@ -388,7 +388,7 @@ export const patientDailyWarmupDetailMarkdownClass = cn(
 export const patientDailyWarmupDetailHeroTitleClampClass = cn(
   'min-w-0',
   patientHeroTitleBaseClass,
-  'mt-2 max-w-[min(100%,260px)] text-[16px] leading-[22px] min-[380px]:text-[17px] min-[380px]:leading-6 md:mt-3 md:max-w-[min(100%,360px)] md:line-clamp-2 md:text-[26px] md:leading-8 xl:text-[28px] xl:leading-9',
+  'mt-2 max-w-[min(100%,260px)] patient-type-page-title md:mt-3 md:max-w-[min(100%,360px)] md:line-clamp-2',
 );
 
 /**
@@ -407,13 +407,13 @@ export const patientHomeHeroTextColumnClass = cn(
 export const patientHomeHeroTitleClampClass = cn(
   'min-w-0',
   patientHeroTitleBaseClass,
-  'mt-2 max-w-[min(100%,240px)] text-[18px] leading-6 min-[380px]:text-[20px] min-[380px]:leading-[26px] md:mt-4 md:max-w-[min(100%,320px)] md:line-clamp-2 md:text-[30px] md:leading-9 lg:max-w-[min(100%,390px)] lg:text-[34px] lg:leading-10 xl:text-[36px] xl:leading-[42px]',
+  'mt-2 max-w-[min(100%,240px)] patient-type-page-title md:mt-4 md:max-w-[min(100%,320px)] md:line-clamp-2 lg:max-w-[min(100%,390px)]',
 );
 
 /** Hero: summary, line-clamp-2. */
 export const patientHomeHeroSummaryClampClass = cn(
   'min-w-0',
-  'mt-1 max-w-[min(100%,235px)] text-[12px] leading-4 text-[var(--patient-text-secondary)] min-[380px]:max-w-[min(100%,240px)] min-[380px]:text-[13px] min-[380px]:leading-[18px] md:mt-4 md:max-w-[min(100%,330px)] md:line-clamp-2 md:text-[15px] md:leading-[22px]',
+  'mt-1 max-w-[min(100%,235px)] patient-type-secondary min-[380px]:max-w-[min(100%,240px)] md:mt-4 md:max-w-[min(100%,330px)] md:line-clamp-2',
 );
 
 /** Hero: фиксированный слот картинки / декора справа снизу. */
@@ -505,18 +505,18 @@ export const patientHomeProgressStreakColClass = cn(
 );
 
 export const patientHomeProgressValueClass =
-  'text-[22px] font-semibold leading-7 text-[var(--patient-color-primary)]';
+  'patient-type-metric text-[var(--patient-color-primary)]';
 
 export const patientHomeProgressValueSuffixClass =
-  'text-[17px] font-semibold leading-7 text-[var(--patient-color-primary)]';
+  'patient-type-section-title text-[var(--patient-color-primary)]';
 
 export const patientHomeProgressStreakValueClass =
-  'text-[22px] font-semibold leading-7 text-[var(--patient-text-primary)]';
+  'patient-type-metric text-[var(--patient-text-primary)]';
 
 /** Двухколоночный блок настроения: подзаголовки как у блоков главной (цвет), чуть компактнее и `font-medium`. */
 export const patientHomeMoodColumnHeadingClass = cn(
-  'font-sans font-medium',
-  'text-[13px] leading-snug text-[var(--patient-block-heading)]',
+  'patient-type-section-title',
+  'text-[var(--patient-block-heading)]',
   'mb-2',
 );
 
@@ -584,7 +584,6 @@ export const patientHomeSosSubtitleClampClass = cn(
 /** Заголовок блока напоминания на mobile — компактнее стандартного секционного. */
 export const patientHomeReminderMobileHeadingClass = cn(
   patientHomeBlockHeadingClass,
-  'max-md:text-[13px] max-md:leading-snug max-md:font-medium',
 );
 
 /** Одна подпись под заголовком напоминания (mobile): как caption блоков «Сегодня». */

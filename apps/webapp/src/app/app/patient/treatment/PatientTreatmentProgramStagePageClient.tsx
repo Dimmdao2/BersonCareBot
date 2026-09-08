@@ -334,7 +334,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
         {stageForUi.goals?.trim() ? (
           <div>
             <h3 className="text-xs font-semibold text-[var(--patient-program-text)]">Цель</h3>
-            <p className="mt-1 whitespace-pre-wrap text-[13px] leading-snug text-[var(--patient-program-text)]">
+            <p className="mt-1 whitespace-pre-wrap patient-type-secondary text-[var(--patient-program-text)]">
               {stageForUi.goals.trim()}
             </p>
           </div>
@@ -342,7 +342,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
         {stageForUi.objectives?.trim() ? (
           <div className={stageForUi.goals?.trim() ? 'mt-3' : ''}>
             <h3 className="text-xs font-semibold text-[var(--patient-program-text)]">Задачи</h3>
-            <p className="mt-1 whitespace-pre-wrap text-[13px] leading-snug text-[var(--patient-program-text)]">
+            <p className="mt-1 whitespace-pre-wrap patient-type-secondary text-[var(--patient-program-text)]">
               {stageForUi.objectives.trim()}
             </p>
           </div>

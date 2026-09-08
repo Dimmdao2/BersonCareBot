@@ -320,7 +320,7 @@ export function PatientInstanceStageItemCard(props: {
           {item.itemType !== 'recommendation' ? (
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
               {(discussionSummary?.totalCount ?? 0) > 0 ? (
-                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1 patient-type-caption text-muted-foreground">
                   <MessageCircle className="size-3.5 shrink-0" aria-hidden />
                   <span className="tabular-nums">{discussionSummary!.totalCount}</span>
                   {(discussionSummary?.unreadCount ?? 0) > 0 ? (

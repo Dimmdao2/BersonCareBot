@@ -30,7 +30,7 @@ const bookingIconShellClass =
 
 const sosButtonClass = cn(
   patientButtonDangerOutlineClass,
-  '!min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold text-[#8a3a3a]',
+  '!min-h-8 shrink-0 px-2.5 py-1.5 patient-type-action text-[var(--patient-status-sos-text)]',
   'border-[#d8a3a3] hover:bg-[#fff1f1]/80 active:bg-[#fee7e7]/80',
 );
 
@@ -65,14 +65,14 @@ export function PatientHomeSosBookingSplitCard({
   const sosCopy = 'Рекомендации по облегчению боли';
 
   const bookingFooter = anonymousGuest ? (
-    <p className="text-[10px] leading-tight text-[var(--patient-block-caption)]">
+    <p className="patient-type-caption text-[var(--patient-block-caption)]">
       Запись откроется после входа
       <Link href={appLoginWithNextHref(routePaths.patient)} className="sr-only">
         Войти
       </Link>
     </p>
   ) : !personalTierOk ? (
-    <p className="min-w-0 text-[10px] leading-tight">
+    <p className="min-w-0 patient-type-caption">
       <Link
         href={`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.patient)}`}
         className={patientButtonGhostLinkClass}

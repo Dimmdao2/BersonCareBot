@@ -168,7 +168,7 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
         {WEEKDAY_LABELS.map((label) => (
           <div
             key={label}
-            className="py-1 text-center text-[11px] font-medium text-muted-foreground"
+            className="py-1 text-center patient-type-micro text-muted-foreground"
           >
             {label}
           </div>
@@ -206,7 +206,7 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
               <span>{day.dayOfMonth}</span>
               {isToday ? (
                 <span
-                  className={cn('mt-0.5 text-[10px]', isSelected ? 'text-white' : 'text-primary')}
+                  className={cn('mt-0.5 patient-type-micro', isSelected ? 'text-white' : 'text-primary')}
                 >
                   Сегодня
                 </span>

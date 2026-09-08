@@ -137,7 +137,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                   </p>
                   {showBreakdown ? (
                     <div
-                      className="min-w-0 shrink pt-0.5 text-[10px] leading-tight text-[var(--patient-text-muted)] md:text-xs"
+                      className="min-w-0 shrink pt-0.5 patient-type-caption text-[var(--patient-text-muted)]"
                       aria-hidden
                     >
                       {showWarmupBreakdown ? (
@@ -192,7 +192,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
               </span>
               {goalsFlameCaption ? (
                 <p
-                  className="m-0 max-w-[5.25rem] text-center text-[10px] font-semibold leading-[11px] text-[var(--patient-block-caption)] md:max-w-[7.25rem] md:text-[11px] md:leading-3"
+                  className="m-0 max-w-[5.25rem] text-center patient-type-caption text-[var(--patient-block-caption)] md:max-w-[7.25rem]"
                   aria-label={goalsFlameCaption}
                 >
                   {goalsFlameCaption}

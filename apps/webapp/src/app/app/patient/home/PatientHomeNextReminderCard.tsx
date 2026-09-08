@@ -25,7 +25,7 @@ const reminderCtaBaseClass = cn(
 );
 const reminderCtaMobileClass = cn(
   reminderCtaBaseClass,
-  'min-h-8 min-w-[5rem] self-end px-2 text-[12px] md:hidden',
+  'min-h-8 min-w-[5rem] self-end px-2 patient-type-action md:hidden',
 );
 const reminderCtaDesktopClass = cn(
   reminderCtaBaseClass,

@@ -14,6 +14,7 @@ import { LegalFooterLinks } from '@/shared/ui/patient/LegalFooterLinks';
 import { cn } from '@/lib/utils';
 import {
   patientInnerPageStackClass,
+  patientPageTitleClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 import { loadBookingCitiesForPatientRsc } from './bookingCatalogRsc';
@@ -104,7 +105,7 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
       shellTitleSlot={
         <div className="flex min-w-0 flex-col gap-8">
           <BookingFormatPromoBanner />
-          <h1 className={cn(patientSectionTitleClass, 'min-w-0')}>Запись</h1>
+          <h1 className={cn(patientPageTitleClass, 'min-w-0')}>Запись</h1>
         </div>
       }
       step={1}

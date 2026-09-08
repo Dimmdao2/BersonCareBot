@@ -41,7 +41,7 @@ export type PatientPlanTodayRemindersCardProps = {
 
 /** Без `w-full` / `min-h-10` из `patientButtonWarningOutlineClass` — узкая CTA у правого края. */
 const configureScheduleButtonClass = cn(
-  'inline-flex shrink-0 items-center justify-center self-start rounded-sm border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-2 py-1 text-[11px] font-normal leading-none text-[var(--patient-action-warning-text)] transition-colors',
+  'inline-flex shrink-0 items-center justify-center self-start rounded-sm border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-2 py-1 patient-type-caption text-[var(--patient-action-warning-text)] transition-colors',
   'hover:bg-[var(--patient-action-warning-hover-bg)]/80 active:bg-[var(--patient-action-warning-hover-bg)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-warning)]',
 );

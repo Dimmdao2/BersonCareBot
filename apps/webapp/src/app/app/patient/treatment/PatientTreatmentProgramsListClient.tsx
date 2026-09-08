@@ -20,6 +20,7 @@ import {
   patientInnerHeroListPrimaryTitleClass,
   patientMutedTextClass,
   patientInnerPageStackClass,
+  patientPageTitleClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 import { PatientTreatmentProgramsListPromoRetry } from './PatientTreatmentProgramsListPromoRetry';
@@ -52,7 +53,7 @@ export function PatientTreatmentProgramsListClient(props: {
 
   return (
     <div className={patientInnerPageStackClass}>
-      <h1 className={cn(patientSectionTitleClass, 'hidden min-w-0 patient-desktop:block')}>
+      <h1 className={cn(patientPageTitleClass, 'hidden min-w-0 patient-desktop:block')}>
         {PATIENT_PLAN_TAB_UI_LABEL}
       </h1>
       {promoEnsureFailed ? <PatientTreatmentProgramsListPromoRetry /> : null}

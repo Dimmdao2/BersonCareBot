@@ -39,7 +39,7 @@ function ExecutionDots(props: {
         />
       ))}
       {dotOverflow > 0 ? (
-        <span className="text-[10px] font-medium leading-none text-muted-foreground" aria-hidden>
+        <span className="patient-type-caption text-muted-foreground" aria-hidden>
           +{dotOverflow}
         </span>
       ) : null}

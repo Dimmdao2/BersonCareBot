@@ -11,7 +11,7 @@ import { PatientBottomShellFrame } from '@/shared/ui/patient/shell/PatientBottom
 import { PatientShellPageTitleStrip } from '@/shared/ui/patient/shell/PatientShellPageTitleStrip';
 import { PATIENT_SHELL_NAV_VARIANT } from '@/shared/ui/patient/patientShellNavVariant';
 import { cn } from '@/lib/utils';
-import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
+import { patientPageTitleClass } from '@/shared/ui/patient/patientVisual';
 import {
   PATIENT_SHELL_CONTAINER_CLASS,
   PATIENT_SHELL_CONTAINER_BOTTOM_NAV_CLASS,
@@ -112,7 +112,7 @@ export function PatientAppShell({
                     {shellTitleBadge ? (
                       <span
                         data-testid="patient-header-title-badge"
-                        className="inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
+                        className="inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 patient-type-caption text-foreground"
                         title={shellTitleBadge}
                       >
                         {shellTitleBadge}
@@ -121,7 +121,7 @@ export function PatientAppShell({
                     {shellTitle ? (
                       <h1
                         className={cn(
-                          patientSectionTitleClass,
+                          patientPageTitleClass,
                           'min-w-0',
                           shellTitleBadge && 'mt-2',
                         )}

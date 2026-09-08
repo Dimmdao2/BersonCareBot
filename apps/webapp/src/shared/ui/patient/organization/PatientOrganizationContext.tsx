@@ -29,6 +29,7 @@ import {
   patientSurfaceWarningClass,
 } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
+import { patientPageTitleClass } from '@/shared/ui/patient/patientVisual';
 
 export type PatientOrganizationClientContext = {
   organization: PatientOrganizationSummary;
@@ -265,7 +266,7 @@ export function PatientOrganizationRecoveryScreen({
 
   return (
     <main className="mx-auto flex min-h-[65vh] w-full max-w-lg flex-col justify-center gap-4 px-4 py-8">
-      <h1 className="text-xl font-semibold text-[var(--patient-text-primary)]">
+      <h1 className={patientPageTitleClass}>
         {organizations.length > 0 ? 'Выберите организацию' : 'Нет активного сопровождения'}
       </h1>
       <p className="text-sm text-[var(--patient-text-secondary)]">

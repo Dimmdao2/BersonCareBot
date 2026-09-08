@@ -6,6 +6,7 @@ import { routePaths } from '@/app-layer/routes/paths';
 import {
   patientCardClass,
   patientMutedTextClass,
+  patientPageTitleClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 
@@ -76,7 +77,7 @@ export function PatientPackageDetailClient({ patientPackageId }: Props) {
         Назад
       </Link>
       <div className={patientCardClass}>
-        <h1 className={patientSectionTitleClass}>{detail.package.title}</h1>
+        <h1 className={patientPageTitleClass}>{detail.package.title}</h1>
         <p className={patientMutedTextClass}>{detail.package.status}</p>
         <ul className={patientMutedTextClass}>
           {detail.package.balance.items.map((it) => (

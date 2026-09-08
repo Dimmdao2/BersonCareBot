@@ -312,7 +312,7 @@ export function CompletionMetricsPanel(props: {
               </div>
               <div className="grid grid-cols-3 gap-1.5">
                 <label className="flex min-w-0 flex-col gap-1">
-                  <span className={cn(patientMutedTextClass, 'text-[11px]')}>повторы</span>
+                  <span className={patientMutedTextClass}>повторы</span>
                   <input
                     value={draft.repsRaw}
                     inputMode="numeric"
@@ -325,7 +325,7 @@ export function CompletionMetricsPanel(props: {
                   />
                 </label>
                 <label className="flex min-w-0 flex-col gap-1">
-                  <span className={cn(patientMutedTextClass, 'text-[11px]')}>подходы</span>
+                  <span className={patientMutedTextClass}>подходы</span>
                   <input
                     value={draft.setsRaw}
                     inputMode="numeric"
@@ -338,7 +338,7 @@ export function CompletionMetricsPanel(props: {
                   />
                 </label>
                 <label className="flex min-w-0 flex-col gap-1">
-                  <span className={cn(patientMutedTextClass, 'text-[11px]')}>вес, кг</span>
+                  <span className={patientMutedTextClass}>вес, кг</span>
                   <input
                     value={draft.weightRaw}
                     inputMode="decimal"
@@ -629,12 +629,12 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                 )}
               >
                 <span className="flex min-w-0 flex-1 items-start text-left">
-                  <span className="line-clamp-2 break-words text-[13px] font-normal leading-tight text-foreground">
+                  <span className="line-clamp-2 break-words patient-type-secondary text-foreground">
                     {tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}
                   </span>
                 </span>
                 {repsSetsBadge ? (
-                  <span className="shrink-0 self-end rounded-md border border-neutral-300 bg-white px-1.5 py-0.5 text-[10px] font-medium leading-none tabular-nums text-neutral-800">
+                  <span className="shrink-0 self-end rounded-md border border-neutral-300 bg-white px-1.5 py-0.5 patient-type-micro tabular-nums text-neutral-800">
                     {repsSetsBadge}
                   </span>
                 ) : null}
@@ -715,7 +715,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                 >
                   <span className="leading-tight">Комментарии</span>
                   {discussionCount > 0 ? (
-                    <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[#1d4ed8]">
+                    <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 patient-type-caption text-[var(--patient-status-info-text)]">
                       {discussionCount}
                     </span>
                   ) : null}
@@ -772,7 +772,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
             >
               <p className="text-sm font-semibold text-foreground">{seg.group.title}</p>
               {seg.group.scheduleText?.trim() ? (
-                <p className="mt-1 text-[13px] leading-snug text-[#444444]">
+                <p className="mt-1 patient-type-secondary text-[#444444]">
                   {seg.group.scheduleText.trim()}
                 </p>
               ) : null}

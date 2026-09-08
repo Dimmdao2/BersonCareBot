@@ -83,7 +83,7 @@ export function PatientHomePlanCard({
               <p
                 className={cn(
                   patientMutedTextClass,
-                  'truncate text-[11px] font-medium text-foreground',
+                  'truncate patient-type-caption text-foreground',
                 )}
               >
                 {planUpdatedLabel.trim()}
@@ -91,7 +91,7 @@ export function PatientHomePlanCard({
             ) : null}
             {progressDay != null ? (
               <div
-                className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-normal leading-snug text-[var(--patient-block-heading)]"
+                className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 patient-type-caption text-[var(--patient-block-heading)]"
                 aria-label={
                   todayPracticeDone
                     ? 'Сегодня занятие отмечено'

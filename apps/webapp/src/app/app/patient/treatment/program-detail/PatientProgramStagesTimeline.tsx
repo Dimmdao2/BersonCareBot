@@ -91,7 +91,7 @@ export function PatientProgramStagesTimeline(props: {
           const titleBlock = (
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               {isActive ? (
-                <span className="text-[10px] font-semibold uppercase leading-none tracking-wide text-[var(--patient-color-primary)]/75">
+                <span className="patient-type-caption uppercase tracking-wide text-[var(--patient-color-primary)]/75">
                   Активный этап
                 </span>
               ) : null}
@@ -119,7 +119,7 @@ export function PatientProgramStagesTimeline(props: {
                 <span
                   className={cn(
                     patientBadgePrimaryClass,
-                    'h-6 max-w-full shrink-0 truncate border border-[var(--patient-color-primary)]/18 bg-[color-mix(in_srgb,var(--patient-card-bg)_92%,var(--patient-color-primary-soft)_8%)] px-2 text-[10px]',
+                    'h-6 max-w-full shrink-0 truncate border border-[var(--patient-color-primary)]/18 bg-[color-mix(in_srgb,var(--patient-card-bg)_92%,var(--patient-color-primary-soft)_8%)] px-2 patient-type-caption',
                   )}
                 >
                   {stage.sortOrder} из {stageCountNonZero}

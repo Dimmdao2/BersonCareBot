@@ -112,7 +112,7 @@ export function PatientPrimaryNavStrip({ className, variant = 'bottom' }: Props)
           />
           {showChatBadge ? <PatientNavCountBadge count={chatUnread} /> : null}
         </span>
-        <span className="w-full truncate text-center text-[10px] leading-3">{item.label}</span>
+        <span className="w-full truncate text-center patient-type-caption">{item.label}</span>
       </Link>
     );
   };

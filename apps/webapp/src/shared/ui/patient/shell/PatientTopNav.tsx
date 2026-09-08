@@ -144,7 +144,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         </span>
         <span
           className={cn(
-            'w-full truncate text-center text-[10px] leading-3 transition-[opacity,max-height] [transition-property:opacity,max-height]',
+            'w-full truncate text-center patient-type-caption transition-[opacity,max-height] [transition-property:opacity,max-height]',
             NAV_COMPACT_EASE,
             compact
               ? 'pointer-events-none max-h-0 overflow-hidden opacity-0'

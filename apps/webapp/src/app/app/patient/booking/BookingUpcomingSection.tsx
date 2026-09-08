@@ -28,7 +28,7 @@ const bookingReminderSectionSurfaceClass = cn(
 
 /** CTA как у напоминания на главной (`PatientHomeNextReminderCard` — `reminderCtaBaseClass`). */
 const bookingReminderManageCtaClass = cn(
-  'inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-3 text-[13px] font-bold text-[var(--patient-action-warning-text)] transition-colors sm:text-sm',
+  'inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-3 patient-type-action text-[var(--patient-action-warning-text)] transition-colors',
   'hover:bg-[var(--patient-action-warning-hover-bg)]/80 active:bg-[var(--patient-action-warning-hover-bg)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-warning)]',
 );

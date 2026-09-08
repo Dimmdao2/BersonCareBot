@@ -173,11 +173,11 @@ function PatientCompositionItemProgressAside(props: {
 
   return (
     <div className="flex max-w-[11rem] shrink-0 flex-col items-end justify-center gap-0.5 text-right">
-      <span className="w-full text-[10px] font-normal leading-tight text-muted-foreground">
+      <span className="w-full patient-type-caption text-muted-foreground">
         {doneSummaryLine}
       </span>
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] font-normal leading-tight text-muted-foreground">
+        <span className="patient-type-caption text-muted-foreground">
           Сегодня:
         </span>
         <div
@@ -195,7 +195,7 @@ function PatientCompositionItemProgressAside(props: {
               ))}
               {dotOverflow > 0 ? (
                 <span
-                  className="text-[10px] font-medium leading-none text-muted-foreground"
+                  className="patient-type-caption text-muted-foreground"
                   aria-hidden
                 >
                   +{dotOverflow}
