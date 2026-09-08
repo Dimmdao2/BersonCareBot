@@ -18,7 +18,9 @@ Owner-correction 08.09.2026 по записям: у записи есть явн
 подставляет `онлайн` по умолчанию при создании записи, физический филиал — `очно`; специалист может изменить формат.
 Формат записи управляет основным действием этой записи на странице «Сегодня», но не является доступом к модулю:
 видеосвязь по-прежнему разрешается только тарифом и настройкой состава кабинета, а внеплановый звонок остаётся
-доступен из карточки пациента без записи.
+доступен из карточки пациента без записи. Пациентский online booking также сохраняется как `онлайн`, хотя его
+каноническая запись не несёт `branch_id`; в модалке немедленного старта выбор «Онлайн-приём»/«Очный приём» сохраняет
+тот же формат, а не расходится с ним.
 
 ## 1. Результат для человека
 
@@ -101,13 +103,16 @@ WebRTC P2P; если прямое соединение невозможно, м�
   переключать доступные ему дневник симптомов, выполнения и назначенную программу через существующие read-paths.
 - [ ] **UI-03.** На странице «Приём» клиента рядом с «Начать приём» добавлена квадратная синяя кнопка видеозвонка.
 - [ ] **UI-04.** На странице «Сегодня» в блоке «Следующая запись» онлайн-запись показывает одним основным действием
-  «Начать созвон» вместо «Начать приём»; очная запись показывает «Начать приём» без отдельной камеры.
+  «Начать созвон» вместо «Начать приём» только при эффективном доступе к `video_meetings` и привязанном аккаунте
+  пациента; иначе она безопасно показывает обычное «Начать приём». Очная запись показывает «Начать приём» без
+  отдельной камеры. Этот UI fallback не меняет сохранённый формат.
 - [ ] **UI-05.** В модалке начала приёма нижняя зона содержит два действия: «Очный приём» и «Онлайн-приём»; прежняя
   кнопка отмены в этой позиции не остаётся. Это сохраняет внеплановый выбор из карточки пациента без обязательной
   записи.
 - [ ] **UI-06.** У канонической записи хранится формат `очно` / `онлайн`; он выбирается в существующей форме деталей
-  записи. Онлайн-филиал задаёт `онлайн` по умолчанию, физический — `очно`, но пользователь может изменить значение.
-  Филиал не включает и не выключает модуль видеосвязи и не запрещает внеплановый звонок.
+  записи. Онлайн-филиал или online patient-booking path задаёт `онлайн` по умолчанию, физический филиал — `очно`,
+  но пользователь может изменить значение. В модалке немедленного старта выбранное действие сохраняет совпадающий
+  формат. Филиал не включает и не выключает модуль видеосвязи и не запрещает внеплановый звонок.
 - [ ] **UI-07.** Кроме перечисленных кнопок, новых live-страниц и контейнеров заметки/приёма/разрешённых пациентских
   вкладок другие страницы и элементы интерфейса не меняются.
 
@@ -211,6 +216,12 @@ encounter tab  --> existing canonical encounter form/service/write-path
    `/home/dev/brain/runs/agent-port/video-gate-delta-opus-audit-20260908.json`; verdict `MUST FIX`: landed core ещё
    сохраняет Online-gate, workspace registry/settings availability не расширены, C3M.4 не обновлён. Исправления
    назначены отдельному потоку A2 до интеграции UI.
+5. Owner-delta формата записи проверил отдельный `claude-opus-5`, effort `high`, run
+   `/home/dev/brain/runs/agent-port/video-appointment-format-plan-opus-20260908.json`; verdict `MUST FIX`. До worker-
+   запуска лид внёс пять corrections: online patient flow без `branch_id`, одна format-aware дверь обновления без
+   ложных reschedule-effects, privilege/SECURITY DEFINER declaration, безопасный CTA fallback и единый canonical
+   source для `patient_bookings.booking_type`. Owner-вопрос аудита закрыт прямым смыслом UI-05/UI-06: действие
+   немедленного старта сохраняет выбранный формат.
 
 ### Волна 1 — три параллельных независимых кандидата
 
@@ -248,11 +259,31 @@ encounter tab  --> existing canonical encounter form/service/write-path
 - **Поток F — integration mechanic:** устранение только фактических стыков типов/routes/config после D/E, без
   расширения UI и без тестов.
 - **Поток G — формат записи и основной CTA:** расширить существующую каноническую запись полем формата
-  `in_person` / `online`, провести его через существующие create/update/read-paths и форму деталей записи. Значение
-  по умолчанию выводится из уже выбранного филиала, но остаётся редактируемым. `DoctorTodayNextAppointment`
-  параметризуется этим полем: онлайн-запись запускает видеовстречу одним основным действием, очная — обычный приём
-  без отдельной камеры. Быстрая камера в карточке пациента и server-side доступ к видео остаются независимы от
-  формата и филиала. Перед worker-запуском эту owner-delta отдельно проверяет `claude-opus-5`, effort `high`.
+  `in_person` / `online`, провести его через существующие create/read-paths и форму деталей записи. Server-side
+  default — `online`, если выбран встроенный Онлайн-филиал **или** запрос пришёл из online patient-booking path,
+  который штатно хранит `branch_id = NULL`; иначе `in_person`. Backfill использует тот же союз: Онлайн-филиал или
+  связанная `patient_bookings.booking_type = 'online'`, затем поле становится `NOT NULL DEFAULT 'in_person'`;
+  data-only часть маркируется `BCB-MIGRATION-BACKFILL`. Клиент получает явный per-branch online-флаг, вычисленный
+  сервером через существующий `isBuiltInOnlineLocation`, и не угадывает его по label.
+
+  Редактирование идёт через единственную существующую дверь `manual-reschedule`, расширенную формат-параметром, без
+  второго endpoint. `rescheduleCount`, `be_appointment_reschedules`, `status = 'rescheduled'`, уведомление
+  `booking.rescheduled`, отмена reminders и payment carry-over выполняются только при реальном изменении времени;
+  смена одного формата не уведомляет пациента и не создаёт артефактов переноса. В create-модалке нажатие
+  «Онлайн-приём»/«Очный приём» сохраняет соответствующий формат как явный override.
+
+  Новая колонка сначала описывается в `deploy/postgres/privileges/declaration.ts`: `app_staff` INSERT/UPDATE,
+  пять whole-row SECURITY DEFINER relation surfaces и patient-booking insert seam; canonical privilege-артефакты
+  регенерируются и проверяются. Миграция grants не содержит и проходит owner-aware rollback-only preflight из
+  exact candidate. Индекс не нужен: формат не участвует в `WHERE`/`JOIN`/`ORDER BY`. Legacy-проекция
+  `patient_bookings.booking_type` выводится из canonical appointment format в существующем
+  `ensureStaffBookingProjection`, а не хранит hardcoded `in_person` как второй источник истины.
+
+  `DoctorTodayNextAppointment` параметризуется этим полем: онлайн-запись запускает видеовстречу одним основным
+  действием только при effective `video_meetings` и связанном patient account; иначе показывает обычное «Начать
+  приём». Очная запись показывает обычный приём без отдельной камеры. Быстрая камера в карточке пациента и server-
+  side доступ к видео остаются независимы от формата и филиала. Перед worker-запуском эту owner-delta проверил
+  `claude-opus-5`, effort `high`; исправленная дельта — authority реализации без повторного plan-audit (§24.6).
 
 ### Волна 3 — независимая приёмка
 
@@ -271,7 +302,10 @@ encounter tab  --> existing canonical encounter form/service/write-path
 - external ICE/telemetry request и невозможность TURN/JVB fallback;
 - remount video/focus loss при autosave и переключении правой панели.
 - потеря/неверный default формата записи, смена формата без сохранения и расхождение CTA «Сегодня» с сохранённым
-  форматом; ошибочная привязка самого доступа к видео к филиалу или формату записи.
+  форматом; ошибочная привязка самого доступа к видео к филиалу или формату записи;
+- online patient booking без `branch_id`, ложные reschedule-status/count/history/notification/reminder/payment
+  side effects при format-only edit, отсутствие column privileges/definer surface, мёртвый CTA без effective module
+  или patient account и расхождение canonical format с `patient_bookings.booking_type`.
 
 После исправлений новый слепой круг не запускается: исполнитель доводит тот же kill-set до green, лид проверяет diff
 и evidence. Новый audit нужен только для новой поверхности или оставшихся нетестовых findings.
@@ -294,7 +328,8 @@ encounter tab  --> existing canonical encounter form/service/write-path
 6. Живая проверка владельцевыми TEST-аккаунтами клиники «Дмитрий Берсон», специалиста и пациента:
    entitlement/workspace-module on/off, независимость от состояния филиала «Онлайн», создание встречи из трёх entry
    points, guest fragment link, authenticated patient page, notes continuity, past-note edit, encounter tab,
-   notification intent.
+   notification intent; online-default из Онлайн-филиала и patient online flow, ручной override без признаков
+   переноса, совпадение пациентского label и canonical format, CTA fallback при module off/нет patient account.
 7. По ACC-02 код отдельно доказывает fragment-link, branded-origin builder и `/live` surface-rule; живая проверка до
    появления отдельного patient-origin выполняется на разрешённом однохостовом `https://test.bersoncare.ru/live`.
 8. Два browser contexts с synthetic media подтверждают successful call; третий независимый context доказывает
