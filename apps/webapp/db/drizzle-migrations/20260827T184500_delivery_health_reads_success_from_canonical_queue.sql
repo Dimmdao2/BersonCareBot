@@ -160,8 +160,6 @@ safe_jobs AS MATERIALIZED (
             'consecutiveFailRuns', CASE
               WHEN COALESCE(meta_json->>'consecutiveFailRuns', '') ~ '^[0-9]{1,9}$'
               THEN (meta_json->>'consecutiveFailRuns')::integer ELSE 0 END,
-            'rubitime', CASE WHEN meta_json->>'rubitime' IN ('ok','fail','skipped_not_configured')
-              THEN meta_json->>'rubitime' ELSE 'no_data' END,
             'telegram', CASE WHEN meta_json->>'telegram' IN ('ok','fail','skipped_not_configured')
               THEN meta_json->>'telegram' ELSE 'no_data' END,
             'max', CASE WHEN meta_json->>'max' IN ('ok','fail','skipped_not_configured')
@@ -324,7 +322,7 @@ webhook_status AS MATERIALIZED (
     'httpStatusReturned', http_status_returned
   ) ORDER BY source), '[]'::jsonb) AS value
   FROM public.integration_webhook_last_status
-  WHERE source IN ('rubitime','telegram','max')
+  WHERE source IN ('telegram','max')
 ),
 digest AS MATERIALIZED (
   SELECT max(sent_at) FILTER (WHERE dedup_key LIKE 'digest:%') AS last_sent_at
