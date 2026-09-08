@@ -8,6 +8,10 @@ migration/rights, §§2–5 configuration and Clean Architecture, §§7/9/10, an
 `docs/_TODO/VIDEO_MEETINGS_JITSI_AUDIT_2026-09-08.md` in full. Fix the findings; do not reinterpret the audit as an
 optional recommendation.
 
+Источник оракула: `docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md` §2 — «Приложение работает через provider-neutral
+контракт. Страницы, права, приглашения, тарифы и заметки не знают о Jitsi room/JWT API; Jitsi — сменный
+adapter/renderer».
+
 Workers do not write, edit, rename or delete tests. Preserve the auditor's two acceptance tests exactly and run them
 after correction. Do not create a second blind audit or new kill-set. Do not push, land, deploy, execute a migration,
 mutate DEV/TEST/PROD, start a shared server, or run full CI. Do not change owner checkboxes.
