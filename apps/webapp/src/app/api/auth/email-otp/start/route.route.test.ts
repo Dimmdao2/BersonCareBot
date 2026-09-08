@@ -91,11 +91,14 @@ vi.mock('@/shared/lib/surface/requestSurface', async (importOriginal) => {
 
 import { POST } from './route';
 
-function request(email = 'person@example.test'): Request {
+function request(
+  email = 'person@example.test',
+  roleLoginPortal?: 'doctor' | 'patient' | 'admin',
+): Request {
   return new Request('https://app.example.test/api/auth/email-otp/start', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-real-ip': '203.0.113.12' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, ...(roleLoginPortal ? { roleLoginPortal } : {}) }),
   });
 }
 
@@ -117,6 +120,7 @@ beforeEach(() => {
   };
   fakes.publicValues.set('auth_surface_staff_email_enabled', true);
   fakes.publicValues.set('auth_surface_patient_email_enabled', true);
+  fakes.publicValues.set('auth_surface_platform_admin_email_enabled', true);
   fakes.getPublicRuntimeBool.mockImplementation(async (key) => {
     const value = fakes.publicValues.get(key);
     if (value === undefined) throw new Error(`missing public projection: ${key}`);
@@ -137,6 +141,22 @@ afterEach(() => {
 });
 
 describe('public email OTP start anti-enumeration', () => {
+  it('uses the explicit patient/admin portal policy on a shared staff host', async () => {
+    fakes.publicValues.set('auth_surface_staff_email_enabled', false);
+    fakes.publicValues.set('auth_surface_patient_email_enabled', true);
+    fakes.publicValues.set('auth_surface_platform_admin_email_enabled', true);
+
+    const patientResponse = await resolveAfterPublicFloor(
+      POST(request('patient@example.test', 'patient')),
+    );
+    const adminResponse = await resolveAfterPublicFloor(
+      POST(request('admin@example.test', 'admin')),
+    );
+
+    expect([patientResponse.status, adminResponse.status]).toEqual([200, 200]);
+    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenCalledTimes(2);
+  });
+
   it('uses the resolved-surface header as the sole delivery gate in both directions', async () => {
     fakes.publicValues.set('auth_surface_staff_email_enabled', true);
     fakes.publicValues.set('auth_surface_patient_email_enabled', false);

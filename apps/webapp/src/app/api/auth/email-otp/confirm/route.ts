@@ -21,11 +21,16 @@ import {
 } from '@/modules/auth/otpConstants';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
+import {
+  authPolicyNameForRoleLoginPortal,
+  roleCanUsePortal,
+} from '@/modules/auth/roleLogin';
 
 const bodySchema = z.object({
   email: z.string().min(1),
   code: z.string().trim().min(1),
   browserCalendarIana: z.string().max(120).optional(),
+  roleLoginPortal: z.enum(['doctor', 'patient', 'admin']).optional(),
 });
 
 /**
@@ -54,9 +59,6 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!(await isAuthChannelEnabled('email'))) {
-    return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
-  }
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
@@ -64,6 +66,16 @@ export async function POST(request: Request) {
       { ok: false, error: 'email_and_code_required', message: 'Email и код обязательны' },
       { status: 400 },
     );
+  }
+  if (
+    !(await isAuthChannelEnabled(
+      'email',
+      parsed.data.roleLoginPortal
+        ? authPolicyNameForRoleLoginPortal(parsed.data.roleLoginPortal)
+        : undefined,
+    ))
+  ) {
+    return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
 
   const { email, code } = parsed.data;
@@ -108,6 +120,12 @@ export async function POST(request: Request) {
   // historical persisted owner-email artifact.
   const role = (await isVerifiedEmailGlobalAdminAsync(email)) ? 'admin' : user.role;
   const sessionUser = role === user.role ? user : { ...user, role };
+  if (
+    parsed.data.roleLoginPortal &&
+    !roleCanUsePortal(sessionUser.role, parsed.data.roleLoginPortal)
+  ) {
+    return NextResponse.json({ ok: false, error: 'portal_access_denied' }, { status: 403 });
+  }
 
   await setSessionFromUser(sessionUser);
 

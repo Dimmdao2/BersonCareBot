@@ -221,10 +221,11 @@ describe('email/password forgot HTTP boundary', () => {
 });
 
 describe('email/password login HTTP boundary', () => {
-  const request = () =>
+  const request = (roleLoginPortal?: 'doctor' | 'patient' | 'admin') =>
     jsonRequest('/api/auth/email-password/login', {
       email: 'person@example.test',
       password: 'not-a-real-credential',
+      ...(roleLoginPortal ? { roleLoginPortal } : {}),
     });
 
   it('keeps credential failure and a missing identity projection on the same public failure', async () => {
@@ -294,6 +295,49 @@ describe('email/password login HTTP boundary', () => {
       'doctor',
       { organizationId: '00000000-0000-4000-8000-000000000301' },
     );
+  });
+
+  it('allows a correct password on its matching explicit staff portal', async () => {
+    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
+    fakes.findUser.mockResolvedValue(user);
+    fakes.getSecurityStatus.mockResolvedValue({
+      enrolled: false,
+      recoveryConfirmed: false,
+      replacementRequired: false,
+      lockedUntil: null,
+      sessionVersion: 1,
+    });
+
+    const response = await login(request('doctor'));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      redirectTo: '/app/doctor',
+      role: 'doctor',
+    });
+    expect(fakes.setSession).toHaveBeenCalledOnce();
+  });
+
+  it('denies a correct password on an incompatible explicit portal before session minting', async () => {
+    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
+    fakes.findUser.mockResolvedValue(user);
+    fakes.getSecurityStatus.mockResolvedValue({
+      enrolled: false,
+      recoveryConfirmed: false,
+      replacementRequired: false,
+      lockedUntil: null,
+      sessionVersion: 1,
+    });
+
+    const response = await login(request('patient'));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'portal_access_denied',
+    });
+    expect(fakes.setSession).not.toHaveBeenCalled();
   });
 
   it('sends a global admin without an enrolled factor to the admin cabinet', async () => {
