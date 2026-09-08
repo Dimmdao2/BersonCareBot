@@ -30,6 +30,7 @@ export const RESERVED_ORGANIZATION_SLUGS = new Set([
   'join',
   'landing',
   'legal',
+  'live',
   'manifest',
   'patient',
   'robots',

@@ -49,7 +49,7 @@
  * `apps/webapp/src/modules/db-retention/journalLifecycleRegistry.contract.test.ts` and, physically,
  * by `apps/webapp/src/infra/platformUserFullPurge.devDbProof.test.ts`.
  *
- * Current partition: 221 declared physical tables = 57 registry entries + 164 structured decisions.
+ * Current partition: 226 declared physical tables = 57 registry entries + 169 structured decisions.
  * (`public.user_email_setup_tokens` left the declaration on 2026-08-28: it existed in no managed
  * database and had no writer, reader or human path, so it was a policy for nothing — see the comment
  * where its row used to be in `declaration.ts`.)
@@ -1884,6 +1884,16 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   'public.treatment_program_templates': {
     reason: 'reference template',
     userPurge: { kind: 'anonymised', column: 'created_by' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.video_meeting_invites': {
+    reason: 'a hash-only guest capability is a live pending object, superseded or revoked in place',
+    userPurge: { kind: 'via-parent', parent: 'public.video_meetings' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.video_meetings': {
+    reason: 'a video session is the call fact itself, ended or revoked in place rather than an append-only journal of another object',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.user_channel_bindings': {

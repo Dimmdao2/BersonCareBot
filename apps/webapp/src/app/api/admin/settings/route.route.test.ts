@@ -414,6 +414,7 @@ describe('clinic-owner atomic settings readback', () => {
         mailings: false,
         analytics: true,
         client_portal: true,
+        video_meetings: true,
       },
     };
     const defaults = {

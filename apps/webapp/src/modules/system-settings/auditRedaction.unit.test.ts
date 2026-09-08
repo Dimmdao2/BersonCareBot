@@ -275,8 +275,8 @@ describe('integration credential audit redaction', () => {
       (key) => SYSTEM_SETTING_REGISTRY[key].valueContract === 'secret_envelope',
     );
 
-    it('has exactly 31 secret_envelope-labeled keys', () => {
-      expect(SECRET_ENVELOPE_KEYS.length).toBe(31);
+    it('has exactly 32 secret_envelope-labeled keys', () => {
+      expect(SECRET_ENVELOPE_KEYS.length).toBe(32);
     });
 
     it('every secret_envelope key carries an explicit, non-default-only secretAudit policy', () => {
@@ -292,11 +292,11 @@ describe('integration credential audit redaction', () => {
       expect(noneKeys).toEqual([...PUBLIC_OAUTH_IDENTIFIER_KEYS].sort());
     });
 
-    it('classifies exactly the 19 scalar secrets as whole_value', () => {
+    it('classifies exactly the 20 scalar secrets as whole_value', () => {
       const wholeValueKeys = SECRET_ENVELOPE_KEYS.filter(
         (key) => SYSTEM_SETTING_REGISTRY[key].secretAudit.kind === 'whole_value',
       );
-      expect(wholeValueKeys.length).toBe(19);
+      expect(wholeValueKeys.length).toBe(20);
       for (const key of wholeValueKeys) {
         expect(redactSettingValueForAudit(key, { value: `${key}-secret` })).toBe('[REDACTED]');
       }
