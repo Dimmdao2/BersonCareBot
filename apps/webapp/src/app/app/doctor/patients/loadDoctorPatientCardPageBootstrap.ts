@@ -320,8 +320,10 @@ export async function loadDoctorPatientCardShellMeta(
           ).catch(() => null),
       workspaceModules?.rehabilitation === false
         ? Promise.resolve(null)
-        : (programInstancesPromise ??
-            loadDoctorPatientProgramInstances(deps, workspace, patientUserId))
+        : (
+            programInstancesPromise ??
+            loadDoctorPatientProgramInstances(deps, workspace, patientUserId)
+          )
             .then((instances) => pickOpenTreatmentProgramInstance(instances)?.createdAt ?? null)
             .catch(() => null),
       getAppDisplayTimeZone(),
@@ -387,7 +389,7 @@ export async function loadDoctorPatientCardTabBootstrap(
       medicalRecordEnabled ? Promise.allSettled([loadClinicalState()]) : Promise.resolve(null),
       encountersEnabled ? Promise.allSettled([loadVisits()]) : Promise.resolve(null),
       Promise.allSettled([
-        deps.doctorNotes.listForUser(patientUserId),
+        deps.doctorNotes.listForUser(patientUserId, session.user.userId),
         specialistTasksReadable
           ? deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false)
           : Promise.resolve([]),

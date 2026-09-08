@@ -6,9 +6,12 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { resolveDoctorCalendarDate } from '@/app-layer/booking/resolveDoctorCalendarIana';
 
 const postBodySchema = z.object({
-  text: z.string().min(1).max(8000),
+  text: z.string().max(8000),
+  noteDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  expectedRevision: z.number().int().min(0).optional(),
 });
 
 export async function GET(_request: Request, context: { params: Promise<{ userId: string }> }) {
@@ -31,9 +34,10 @@ export async function GET(_request: Request, context: { params: Promise<{ userId
   }
 
   const notes = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    deps.doctorNotes.listForUser(identity.userId),
+    deps.doctorNotes.listForUser(identity.userId, gate.ctx.session.user.userId),
   );
-  return NextResponse.json({ ok: true, notes });
+  const today = await resolveDoctorCalendarDate(gate.ctx.session.user.userId);
+  return NextResponse.json({ ok: true, notes, today });
 }
 
 export async function POST(request: Request, context: { params: Promise<{ userId: string }> }) {
@@ -63,18 +67,21 @@ export async function POST(request: Request, context: { params: Promise<{ userId
   }
 
   try {
-    const note = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.doctorNotes.create({
+    const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.doctorNotes.saveDaily({
         userId: identity.userId,
         authorId: session.user.userId,
-        text: parsed.data.text,
+        ...parsed.data,
       }),
     );
-    return NextResponse.json({ ok: true, note });
-  } catch (e) {
-    if (e instanceof Error && e.message === 'empty_note') {
-      return NextResponse.json({ ok: false, error: 'empty_note' }, { status: 400 });
+    if (result.kind === 'conflict') {
+      return NextResponse.json(
+        { ok: false, error: 'revision_conflict', note: result.note },
+        { status: 409 },
+      );
     }
+    return NextResponse.json({ ok: true, note: result.note });
+  } catch (e) {
     throw e;
   }
 }

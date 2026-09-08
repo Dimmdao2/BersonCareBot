@@ -1335,7 +1335,9 @@ export const doctorNotes = pgTable(
     organizationId: uuid('organization_id'),
     userId: uuid('user_id').notNull(),
     authorId: uuid('author_id').notNull(),
+    noteDate: date('note_date', { mode: 'string' }).notNull(),
     text: text().notNull(),
+    revision: integer().default(0).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -1352,6 +1354,12 @@ export const doctorNotes = pgTable(
       'btree',
       table.userId.asc().nullsLast().op('timestamptz_ops'),
       table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
+    uniqueIndex('uq_doctor_notes_daily_author').on(
+      table.organizationId,
+      table.userId,
+      table.authorId,
+      table.noteDate,
     ),
     foreignKey({
       columns: [table.authorId],
@@ -1407,11 +1415,13 @@ export const symptomTrackings = pgTable(
       table.userId.asc().nullsLast().op('bool_ops'),
       table.isActive.asc().nullsLast().op('bool_ops'),
     ),
-    index('idx_symptom_trackings_patient_visible').using(
-      'btree',
-      table.platformUserId.asc().nullsLast().op('uuid_ops'),
-      table.updatedAt.desc().nullsLast().op('timestamptz_ops'),
-    ).where(sql`(deleted_at IS NULL AND is_active = true AND patient_tracking_enabled = true)`),
+    index('idx_symptom_trackings_patient_visible')
+      .using(
+        'btree',
+        table.platformUserId.asc().nullsLast().op('uuid_ops'),
+        table.updatedAt.desc().nullsLast().op('timestamptz_ops'),
+      )
+      .where(sql`(deleted_at IS NULL AND is_active = true AND patient_tracking_enabled = true)`),
     foreignKey({
       columns: [table.diagnosisRefId],
       foreignColumns: [referenceItems.id],
