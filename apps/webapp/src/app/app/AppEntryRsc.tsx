@@ -53,9 +53,12 @@ export async function AppEntryRsc({
     token: rawToken,
     switchParam: switchParam ?? null,
   });
+  const roleLoginAuthPolicyName = roleLoginPortal
+    ? authPolicyNameForRoleLoginPortal(roleLoginPortal)
+    : undefined;
   const [prefetchedPublicAuth, platformEntry, messengerSurface, unsupportedClientFallbackEnabled] =
     await Promise.all([
-      buildPrefetchedPublicAuthConfig(),
+      buildPrefetchedPublicAuthConfig(roleLoginAuthPolicyName),
       getPlatformEntry(),
       getMessengerSurfaceHint(),
       getUnsupportedClientFallbackEnabled(),
@@ -92,8 +95,8 @@ export async function AppEntryRsc({
   // which stays correct under the transitional single-Host DEV/TEST deployment where Host-based
   // surface resolution collapses staff and patient to `staff` (see `authPolicyNameForRoleLoginPortal`
   // doc comment). The generic `/app` entry has no portal yet, so it keeps the Host-resolved policy.
-  const surfaceAuthPolicy = roleLoginPortal
-    ? DEFAULT_SURFACE_AUTH_POLICY_CONFIG[authPolicyNameForRoleLoginPortal(roleLoginPortal)]
+  const surfaceAuthPolicy = roleLoginAuthPolicyName
+    ? DEFAULT_SURFACE_AUTH_POLICY_CONFIG[roleLoginAuthPolicyName]
     : resolvedSurface.authPolicy;
 
   return (

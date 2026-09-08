@@ -27,6 +27,7 @@ import {
 import type { SessionUser } from '@/shared/types/session';
 import { startEmailChallenge } from '@/modules/auth/emailAuth';
 import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
+import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
 
 const bodySchema = z.object({
   email: z.string().email().max(320),
@@ -71,10 +72,15 @@ async function clinicRequiresStaffSecondFactor(
   deps: ReturnType<typeof buildAppDeps>,
   userId: string,
 ): Promise<boolean> {
-  if (!deps.organizationMembership) return false;
-  const membership = await deps.organizationMembership.resolveOrganizationForUser({
-    platformUserId: userId,
-  });
+  const organizationMembership = deps.organizationMembership;
+  if (!organizationMembership) return false;
+  const membership = await runWithDbBootstrapPrincipal(
+    { source: 'api/auth/email-password/login:staff-workspace-resolve' },
+    () =>
+      organizationMembership.resolveOrganizationForUser({
+        platformUserId: userId,
+      }),
+  );
   if (!membership.ok) return false;
   const setting = await deps.systemSettings.getSetting(
     'doctor_staff_second_factor_required',
