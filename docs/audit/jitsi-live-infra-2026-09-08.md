@@ -245,3 +245,62 @@ fixed and `health-check.sh` returns a true `RESULT: PASS`, since a health PASS i
 - F-C: have `apply-nginx.sh --check`'s certificate check either require root up front (matching `--apply`) or
   test-and-report the actual cause (`[[ -r ... ]]` failing vs. file truly absent) instead of one generic
   "missing" message for both.
+
+## Lead correction acceptance — PASS on `86f08711a`
+
+The original audit above remains the historical one-pass finding record. The lead accepted the corrections against
+the same kill-set without starting a second blind pass, as required by `AGENTS.md` §24.5–§24.6. Exact correction
+commits after the audited candidate:
+
+- `5afb3ef87`: replaced the non-POSIX inline test and made root ownership explicit for nginx checking;
+- `6663bf704`: gave the Jitsi bridge a fixed configurable subnet/gateway and mapped the Prosody TURN hostname to
+  that gateway, eliminating the connected-UDP hairpin source mismatch; added bounded container readiness;
+- `727591204`: replaced quota-leaking `turnutils_uclient -y` probes with a real temporary public-address peer and
+  normal client completion, so credentialed allocations are repeatable without restarting coturn;
+- `33105c169`: corrected docker-jitsi-meet's host:port STUN env shape, stopped custom config from overwriting the
+  upstream `p2p.stunServers`, and made install reject scheme-prefixed values;
+- `86f08711a`: health now evaluates the actual served `/config.js` and proves its browser-visible STUN URL instead
+  of looking for a generated file at a path the web image does not use.
+
+Host identity before every live action remained `151.241.228.122`. The exact candidate was exported with
+`git archive 86f08711a` to `/tmp/bcb-jitsi-candidate-86f08711a`, owned by `deploy`, then applied with:
+
+```text
+sudo bash /tmp/bcb-jitsi-candidate-86f08711a/deploy/jitsi/bin/sync-coturn-tls.sh
+sudo -u deploy bash /tmp/bcb-jitsi-candidate-86f08711a/deploy/jitsi/bin/install.sh --apply
+```
+
+The final bounded gate ran first health, `restart.sh`, then second health from that exact candidate and persisted the
+three exit codes independently:
+
+```text
+cat /tmp/jitsi-gate-86f08711a.status
+→ first=0 restart=0 second=0
+```
+
+Both health outputs ended `RESULT: PASS`. Each pass proved all five containers running, coturn Docker health,
+loopback web response, JVB `/about/health` 200, Prosody `check turn` and `check config`, rendered two-person MUC cap,
+credentialed ephemeral TURN allocation over UDP 3478 and TLS 5349, the evaluated served P2P STUN URL exactly
+`stun:turn.test.bersoncare.ru:3478`, and no known foreign endpoint in static, merged, or served runtime config.
+
+The nginx gate then passed and was applied from the same candidate:
+
+```text
+sudo bash /tmp/bcb-jitsi-candidate-86f08711a/deploy/jitsi/bin/apply-nginx.sh --check
+→ prerequisites and rendered vhost are valid; no host file changed
+sudo bash /tmp/bcb-jitsi-candidate-86f08711a/deploy/jitsi/bin/apply-nginx.sh --apply
+→ nginx -t successful; vhost applied and nginx reloaded
+curl --noproxy '*' --resolve meet.test.bersoncare.ru:443:127.0.0.1 https://meet.test.bersoncare.ru/
+→ HTTP 200
+```
+
+`openssl s_client -connect 127.0.0.1:443 -servername meet.test.bersoncare.ru` returned the Let's Encrypt lineage with
+SANs `meet.test.bersoncare.ru` and `turn.test.bersoncare.ru`; evaluating HTTPS `/config.js` returned
+`[{"urls":"stun:turn.test.bersoncare.ru:3478"}]`. An earlier `curl --resolve` without `--noproxy '*'` reached the
+configured outbound HTTPS proxy and saw its unrelated certificate; direct loopback SNI proved the host vhost itself
+is correct.
+
+**Final correction verdict: PASS TO LAND.** The stack and TEST nginx vhost are left running at the exact accepted
+candidate pending integration landing/final documented TEST installation. Browser-to-browser call, third-seat
+refusal and ICE selected-pair observations remain separate application/runtime acceptance; this gate does not claim
+them.
