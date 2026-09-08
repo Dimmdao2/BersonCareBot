@@ -51,7 +51,6 @@ compose file entirely or explicitly `0`/unset in the env template — see
 | `env/jitsi-test.env.example` | non-secret Jitsi/JVB/Prosody config template |
 | `env/coturn-test.env.example` | non-secret coturn config template |
 | `config/web/custom-config.js`, `custom-interface_config.js` | minimal UI, no branding, no third-party requests |
-| `config/prosody/conf.d/00-turn-external.cfg.lua.template` | Prosody core `mod_turn_external` (XEP-0215) wiring |
 | `coturn/turnserver.conf.template` | coturn shared-secret + TLS + relay-range config |
 | `docker-compose.override.test.yml` | TEST-only overlay (ports, no host network, resource limits) over the vendored upstream compose file |
 | `nginx/meet-test.vhost.template.conf` | new nginx vhost for the meet web endpoint, same template style as the existing webapp vhost |
@@ -120,27 +119,18 @@ compose file entirely or explicitly `0`/unset in the env template — see
   we do not bind-mount a custom Lua plugin for this requirement. Proof is a live third-context join attempt
   in `RUNBOOK.md`, not just the rendered config value — a config string is not evidence that Prosody enforced
   it against a live `muc-occupant-pre-join` event.
-- **Ephemeral TURN credentials via Prosody's own core `mod_turn_external` (XEP-0215), not docker-jitsi-meet's
-  `TURN_HOST`/`TURN_PORT`/`TURN_CREDENTIALS` env vars.** Those upstream env vars render a *static* TURN
-  entry into the web client's `config.js` `p2p.stunServers` list — exactly the "static browser credentials"
-  the plan forbids. `mod_turn_external` is a Prosody core module since 0.12 (the community `mod_turncredentials`
-  it obsoletes is explicitly marked obsolete by its own doc page); it signs short-lived HMAC credentials
-  per session per XEP-0215 and hands them to the client over the authenticated XMPP session, never as a
-  fixed value in a served JS file. docker-jitsi-meet's template has no built-in hook for
-  `turn_external_secret/host/port`, so `config/prosody/conf.d/00-turn-external.cfg.lua.template` is dropped
-  into the same `conf.d/` directory the generated `jitsi-meet.cfg.lua` lives in, filename-prefixed to sort
-  and load before it, setting these as global Prosody options that the module picks up wherever it's enabled
-  (`turn_external` is added to `XMPP_MODULES` on the main VirtualHost). The template also sets
-  `turn_external_tls_port` (verified directly against `mod_turn_external`'s own source and
-  `https://prosody.im/doc/modules/mod_turn_external`) so a UDP-restricted client is actually handed a
-  `turns:` candidate for TLS fallback on 5349 — independent audit finding F2 was that only the UDP entry was
-  ever advertised, so a client that could not use UDP had no advertised fallback to try even though coturn's
-  TLS listener was already configured. `bin/health-check.sh` runs the upstream-documented
-  `prosodyctl check turn`, greps the *rendered* config inside the running container for both the secret/host
-  lines and `turn_external_tls_port`, and performs a real ephemeral-credential TURN allocation over both UDP
-  and TLS (`turnutils_uclient -W`) before declaring the stack healthy — this package does not trust its own
-  assumption about Prosody's file layout or protocol behavior without checking it against the live
-  container, and fails closed if the override did not land where expected or an allocation is rejected.
+- **Ephemeral TURN credentials use pinned docker-jitsi-meet's global `external_services` configuration.** The
+  env template supplies only our STUN, TURN/UDP and TURNS/TCP endpoints to the upstream Prosody container;
+  `TURN_CREDENTIALS` is synchronized from the single coturn HMAC secret by `render-secrets.sh` and makes
+  upstream generate short-lived TURN REST credentials for each XMPP session. `TURN_USERNAME` and
+  `TURN_PASSWORD` remain unset, so no static credential can be put in served JavaScript. This must be the
+  upstream *global* configuration rather than a module enabled only on the main VirtualHost: direct XEP-0215
+  IQ uses the main host, while Jitsi's initial room metadata is assembled through
+  `metadata.<XMPP_DOMAIN>`; both contexts must see the same three service records. `bin/health-check.sh`
+  queries the upstream module for both hosts, asserts own STUN, TURN/UDP and TURNS/TCP records plus two
+  generated username/password/expiry triplets without printing them, then retains the real credentialed
+  coturn UDP and TLS allocation probes. A populated main host paired with an empty metadata host fails as
+  the original split-context regression.
 - **Secrets are rendered without ever appearing in a subprocess's argv.** Every substitution in
   `bin/render-secrets.sh` is bash's own `${var//pattern/repl}` string replacement or the `printf` builtin —
   never `sed -e "s#...#${secret}#"`, which puts the secret in a command line any same-host process can read
@@ -207,10 +197,9 @@ package is "done" against the plan:
    coturn ran as `nobody`, could not read its 0600 config/root-owned TLS key, and health used stale Prosody
    paths. The corrected `bin/health-check.sh` now targets Prosody's `/run/prosody/config/prosody.cfg.lua`
    and runs STUN/credentialed UDP/TLS allocation probes through the running pinned coturn container.
-   checks (grep for `turn_external_secret`/`turn_external_tls_port` inside the running container, the
-   Colibri `/about/health` probe, the credentialed TURN allocation probes) are the actual, live-container
-   assertions that the CONFIG tree and overrides landed where expected; a human has not yet watched them
-   pass on real TEST.
+   checks (global `external_services` service records on both the main and metadata hosts, the Colibri
+   `/about/health` probe, and credentialed TURN allocation probes) are the actual, live-container assertions
+   that the configuration landed where expected; a human has not yet watched them pass on real TEST.
 2. DNS + TLS prerequisites in `NETWORK_POLICY.md` (new `meet.` / `turn.` subdomains and the private
    deploy-owned TLS copy) must exist before `bin/install.sh --apply`; `--check` also fails closed if the
    host lacks `unzip`.

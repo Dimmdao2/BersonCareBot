@@ -23,6 +23,7 @@ done
 # let a misconfigured deployment report PASS against ports nothing is listening on.
 ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
 [[ -f "$ENV_FILE" ]] || { echo "FATAL: missing $ENV_FILE" >&2; exit 1; }
+unset TURN_USERNAME TURN_PASSWORD
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
 TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
@@ -123,16 +124,54 @@ echo
 echo "[Prosody config actually landed — not assumed]"
 prosody_cid="$(docker compose "${COMPOSE_ARGS[@]}" ps -q prosody 2>/dev/null || true)"
 if [[ -n "$prosody_cid" ]]; then
-  if docker exec "$prosody_cid" grep -rq "turn_external_secret" /run/prosody/config/conf.d/ 2>/dev/null; then
-    ok "turn_external override file is present inside the running container's conf.d"
+  if docker exec "$prosody_cid" grep -Fq '"external_services";' /run/prosody/config/prosody.cfg.lua 2>/dev/null; then
+    ok "upstream external_services is enabled from the global Prosody configuration"
   else
-    bad "turn_external override file NOT found inside the running container — CONFIG tree/bind-mount did not land; see README.md 'Design decisions'"
+    bad "upstream external_services is absent from global Prosody configuration"
   fi
-  if docker exec "$prosody_cid" grep -q "turn_external_tls_port" /run/prosody/config/conf.d/00-turn-external.cfg.lua 2>/dev/null; then
-    ok "rendered config advertises turn_external_tls_port (TLS/TURNS fallback candidate)"
-  else
-    bad "rendered config does not advertise turn_external_tls_port — a UDP-restricted client would have no TLS fallback candidate (finding F2)"
+
+  # `services list` is mod_external_services' own shell command. Capture its output rather than printing it:
+  # the command intentionally includes per-query username/password values, and health evidence must never
+  # disclose them. Query both the main XMPP host and room-metadata component, because Jitsi uses the latter
+  # while assembling initial room JSON; a host-local module used to populate only the former.
+  query_external_services() {
+    local host="$1"
+    docker exec "$prosody_cid" prosodyctl --config /run/prosody/config/prosody.cfg.lua shell services list "$host" 2>&1
+  }
+  main_services="$(query_external_services "$XMPP_DOMAIN" || true)"
+  metadata_host="metadata.${XMPP_DOMAIN}"
+  metadata_services="$(query_external_services "$metadata_host" || true)"
+  service_count() {
+    sed -nE 's/^([0-9]+) services$/\1/p' <<< "$1" | tail -n 1
+  }
+  main_service_count="$(service_count "$main_services")"
+  metadata_service_count="$(service_count "$metadata_services")"
+  if [[ "$main_service_count" == "3" && "$metadata_service_count" == "0" ]]; then
+    bad "split-context regression: $XMPP_DOMAIN has three external services but $metadata_host has none"
   fi
+  check_external_service_set() {
+    local host="$1" services="$2" count="$3" field_count
+    if [[ "$count" != "3" ]]; then
+      bad "$host exposes ${count:-unknown} external services (expected exactly own STUN, TURN/UDP, TURNS/TCP)"
+      return
+    fi
+    if ! grep -Eq "stun \\(udp\\).*${STUN_HOST//./\\.}:${STUN_PORT}" <<< "$services" \
+      || ! grep -Eq "turn \\(udp\\).*${TURN_HOST//./\\.}:${TURN_PORT}" <<< "$services" \
+      || ! grep -Eq "turns \\(tcp\\).*${TURNS_HOST//./\\.}:${TURNS_PORT}" <<< "$services"; then
+      bad "$host does not expose exactly the configured own STUN, TURN/UDP and TURNS/TCP endpoints"
+      return
+    fi
+    for credential_field in username password expires; do
+      field_count="$(grep -Ec "^[[:space:]]*${credential_field}:[[:space:]]+[^[:space:]]+" <<< "$services" || true)"
+      if [[ "$field_count" != "2" ]]; then
+        bad "$host did not return two non-static ephemeral TURN $credential_field values"
+        return
+      fi
+    done
+    ok "$host exposes own STUN plus secret-backed ephemeral TURN/UDP and TURNS/TCP credentials"
+  }
+  check_external_service_set "$XMPP_DOMAIN" "$main_services" "$main_service_count"
+  check_external_service_set "$metadata_host" "$metadata_services" "$metadata_service_count"
   if docker exec "$prosody_cid" prosodyctl --config /run/prosody/config/prosody.cfg.lua check turn >/tmp/jitsi-test-prosodyctl-turn.log 2>&1; then
     ok "prosodyctl check turn passed (log: /tmp/jitsi-test-prosodyctl-turn.log)"
   else

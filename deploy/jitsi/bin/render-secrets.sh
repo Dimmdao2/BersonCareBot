@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generates/loads host-side Prosody/JVB/coturn secrets and renders the two config templates that need them.
+# Generates/loads host-side Prosody/JVB/coturn secrets and renders coturn's private config template.
 # Scope is exactly the boundary in README.md: this script owns internal XMPP passwords and the coturn shared
 # secret; it never touches, generates, or reads the app JWT signing secret (JWT_APP_SECRET), which is an
 # externally supplied input already present in the sourced env file by the time this script runs.
@@ -64,24 +64,6 @@ write_env_var_inplace() {
   mv -f "$tmp" "$file"
 }
 
-# Renders $template to $out by replacing every `__KEY__` placeholder with the matching value from the
-# associative array named $3 (passed by name), then chmod 0600 + atomic rename. Pure bash throughout: the
-# `while read` loop and `${line//pattern/repl}` are both builtins, no subprocess ever sees a secret value.
-render_template() {
-  local template="$1" out="$2"
-  local -n placeholders_ref="$3"
-  local tmp; tmp="$(mktemp "$(dirname "$out")/.$(basename "$out").tmp.XXXXXX")"
-  local line key
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    for key in "${!placeholders_ref[@]}"; do
-      line="${line//__${key}__/${placeholders_ref[$key]}}"
-    done
-    printf '%s\n' "$line"
-  done < "$template" > "$tmp"
-  chmod 0600 "$tmp"
-  mv -f "$tmp" "$out"
-}
-
 # Internal-only credentials this package fully owns.
 gen_if_missing "jicofo-auth-password"
 gen_if_missing "jvb-auth-password"
@@ -91,27 +73,20 @@ JICOFO_AUTH_PASSWORD="$(cat "$STORE/jicofo-auth-password")"
 JVB_AUTH_PASSWORD="$(cat "$STORE/jvb-auth-password")"
 TURN_SHARED_SECRET="$(cat "$STORE/turn-shared-secret")"
 
-# --- Patch the rendered app env file that install.sh's `docker compose --env-file` actually reads ---
+# --- Patch the private app env file that install.sh's `docker compose --env-file` actually reads ---
 # We do not overwrite the operator-edited jitsi.test file's non-secret values; we only patch in the
-# generated internal passwords, in place, idempotently, and without a secret ever appearing in argv.
+# generated internal passwords and the coturn HMAC key, in place, idempotently, and without a secret ever
+# appearing in argv. The key is consumed only by upstream Prosody's global external_services template as
+# TURN_CREDENTIALS; it is never served to the browser as a static TURN username/password.
 ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
-if [[ -w "$ENV_FILE" ]]; then
-  write_env_var_inplace "$ENV_FILE" JICOFO_AUTH_PASSWORD "$JICOFO_AUTH_PASSWORD"
-  write_env_var_inplace "$ENV_FILE" JVB_AUTH_PASSWORD "$JVB_AUTH_PASSWORD"
-fi
-
-# --- Render Prosody's turn_external include ---
-declare -A prosody_placeholders=(
-  [TURN_SHARED_SECRET]="$TURN_SHARED_SECRET"
-  [TURN_HOST]="${TURN_CERT_DOMAIN:-turn.test.bersoncare.ru}"
-  [TURN_PORT]="${TURN_LISTEN_PORT:-3478}"
-  [TURN_TLS_PORT]="${TURN_TLS_LISTEN_PORT:-5349}"
-)
-render_template \
-  "$HERE/config/prosody/conf.d/00-turn-external.cfg.lua.template" \
-  "$HERE/config/prosody/conf.d/00-turn-external.rendered.cfg.lua" \
-  prosody_placeholders
-log "rendered config/prosody/conf.d/00-turn-external.rendered.cfg.lua"
+[[ -w "$ENV_FILE" ]] || { echo "FATAL: $ENV_FILE must be writable to synchronize private Jitsi credentials" >&2; exit 1; }
+[[ "$(stat -c '%a' "$ENV_FILE")" == "600" ]] || {
+  echo "FATAL: $ENV_FILE must be mode 0600 before storing TURN_CREDENTIALS" >&2
+  exit 1
+}
+write_env_var_inplace "$ENV_FILE" JICOFO_AUTH_PASSWORD "$JICOFO_AUTH_PASSWORD"
+write_env_var_inplace "$ENV_FILE" JVB_AUTH_PASSWORD "$JVB_AUTH_PASSWORD"
+write_env_var_inplace "$ENV_FILE" TURN_CREDENTIALS "$TURN_SHARED_SECRET"
 
 # --- Render coturn's turnserver.conf ---
 denied_lines=""
