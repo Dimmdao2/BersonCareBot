@@ -8,16 +8,19 @@ import { getAnonymousLoginAlternativesPublicConfig } from '@/modules/auth/loginA
 import { getSpecialistSignupEnabled } from '@/modules/auth/specialistSignupRollout';
 import { OAUTH_PROVIDERS, type OAuthProviderFlags } from '@/modules/auth/oauthProviderRegistry';
 import type { PrefetchedPublicAuthConfig } from '@/shared/ui/patient/auth/AuthFlowV2';
+import type { SurfaceAuthPolicyName } from '@/shared/lib/surface/surfaceAuthPolicy';
 
-export async function buildPrefetchedPublicAuthConfig(): Promise<PrefetchedPublicAuthConfig> {
+export async function buildPrefetchedPublicAuthConfig(
+  surface?: SurfaceAuthPolicyName,
+): Promise<PrefetchedPublicAuthConfig> {
   const [oauthEntries, passkeyEnabled, alt, specialistSignupEnabled] = await Promise.all([
     Promise.all(
       OAUTH_PROVIDERS.map(
-        async (provider) => [provider, await isOAuthProviderEnabled(provider)] as const,
+        async (provider) => [provider, await isOAuthProviderEnabled(provider, surface)] as const,
       ),
     ),
-    isIndependentAuthMethodEnabled('passkey'),
-    getAnonymousLoginAlternativesPublicConfig(),
+    isIndependentAuthMethodEnabled('passkey', surface),
+    getAnonymousLoginAlternativesPublicConfig(surface),
     getSpecialistSignupEnabled(),
   ]);
   const oauthProviders = Object.fromEntries(oauthEntries) as OAuthProviderFlags;

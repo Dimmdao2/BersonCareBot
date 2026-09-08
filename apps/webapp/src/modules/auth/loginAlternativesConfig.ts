@@ -9,6 +9,7 @@ import {
   type AuthChannelPolicy,
 } from '@/modules/auth/authChannelPolicy';
 import { getAnonymousClientVisibleAuthChannelPolicy } from '@/modules/auth/anonymousAuthChannelPolicy';
+import type { SurfaceAuthPolicyName } from '@/shared/lib/surface/surfaceAuthPolicy';
 
 export type LoginAlternativesPublicConfig = {
   telegramBotUsername: string | null;
@@ -54,6 +55,8 @@ export function getLoginAlternativesPublicConfig(): Promise<LoginAlternativesPub
 }
 
 /** Anonymous RSC path: only public projections/capabilities are in its dependency graph. */
-export function getAnonymousLoginAlternativesPublicConfig(): Promise<LoginAlternativesPublicConfig> {
-  return buildLoginAlternativesPublicConfig(getAnonymousClientVisibleAuthChannelPolicy());
+export function getAnonymousLoginAlternativesPublicConfig(
+  surface?: SurfaceAuthPolicyName,
+): Promise<LoginAlternativesPublicConfig> {
+  return buildLoginAlternativesPublicConfig(getAnonymousClientVisibleAuthChannelPolicy(surface));
 }
