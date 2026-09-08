@@ -7,6 +7,7 @@
 import { cache } from 'react';
 import {
   getCurrentDbPrincipal,
+  runWithDbBootstrapPrincipal,
   runWithDbClinicBillingPrincipal,
   runWithDbPatientPrincipal,
 } from '@bersoncare/db-principal';
@@ -750,7 +751,10 @@ const customDomainBindingService = !inMemoryRepos
     })
   : null;
 const resolvePatientPublicOrigin = customDomainBindingService
-  ? (organizationId: string) => customDomainBindingService.resolvePatientPublicOrigin(organizationId)
+  ? (organizationId: string) =>
+      runWithDbBootstrapPrincipal({ source: 'patient-public-origin.resolve' }, () =>
+        customDomainBindingService.resolvePatientPublicOrigin(organizationId),
+      )
   : undefined;
 const bookingEngineCorePort = !inMemoryRepos ? createPgBookingEnginePort() : null;
 const doctorAppointmentsCanonicalPort =
