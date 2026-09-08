@@ -79,7 +79,7 @@ export function LfkComplexCard({
                     .filter((l) => l.effectiveComment?.trim())
                     .map((l) => (
                       <li key={l.id} className={patientCaptionTextClass}>
-                        <span className="font-medium">{l.exerciseTitle}</span>
+                        <span>{l.exerciseTitle}</span>
                         {l.effectiveComment?.trim() ? (
                           <span className="text-[var(--patient-text-muted)]">
                             {' '}

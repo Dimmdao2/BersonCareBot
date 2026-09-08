@@ -17,6 +17,7 @@ import {
 } from '@/modules/messaging/reconcileMessages';
 import { cn } from '@/lib/utils';
 import {
+  patientCaptionTextClass,
   patientInnerPageStackClass,
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -170,8 +171,8 @@ export function PatientMessagesClient() {
           {error ? (
             <p
               className={cn(
-                patientMutedTextClass,
-                'shrink-0 font-medium text-[var(--patient-color-danger)]',
+                patientCaptionTextClass,
+                'shrink-0 text-[var(--patient-color-danger)]',
               )}
             >
               {error}

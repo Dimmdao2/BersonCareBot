@@ -31,7 +31,12 @@ import type { SymptomEntry } from '@/modules/diaries/types';
 import { JournalMonthNav } from '../../JournalMonthNav';
 import { deleteSymptomJournalEntry, updateSymptomJournalEntry } from '../actions';
 import { isSymptomJournalEntryEditable } from '../symptomJournalEditWindow';
-import { patientListItemClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientActionTextClass,
+  patientBodyTextClass,
+  patientListItemClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
 import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
 
 function pad2(n: number) {
@@ -78,14 +83,14 @@ export function SymptomsJournalClient(props: {
       <div className="flex flex-wrap items-center gap-2">
         <Link
           href={`${routePaths.diary}?tab=symptoms`}
-          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'inline-flex text-xs')}
+          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'inline-flex', patientActionTextClass)}
         >
           ← К статистике
         </Link>
       </div>
 
       {trackings.length > 1 ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2">
           <span className={patientMutedTextClass}>Симптом</span>
           <Select
             value={activeTrackingId}
@@ -145,7 +150,7 @@ export function SymptomsJournalClient(props: {
                       minute: '2-digit',
                     })}
                   </div>
-                  {e.notes ? <p className="mt-1 text-sm">{e.notes}</p> : null}
+                  {e.notes ? <p className={cn(patientBodyTextClass, 'mt-1')}>{e.notes}</p> : null}
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger

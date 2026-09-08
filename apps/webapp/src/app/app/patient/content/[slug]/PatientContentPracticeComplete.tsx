@@ -14,6 +14,8 @@ import type { PracticeSource } from '@/modules/patient-practice/types';
 import { cn } from '@/lib/utils';
 import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import {
+  patientActionTextClass,
+  patientBodyTextClass,
   patientButtonPrimaryClass,
   patientButtonSuccessClass,
   patientCardClass,
@@ -241,7 +243,7 @@ export function PatientContentPracticeComplete({
             )}
           >
             <Check className="size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
-            <span className="font-semibold">Разминка выполнена</span>
+            <span className={patientActionTextClass}>Разминка выполнена</span>
           </div>
         </section>
       );
@@ -253,7 +255,7 @@ export function PatientContentPracticeComplete({
             className="size-5 shrink-0 text-[var(--patient-color-success)]"
             aria-hidden
           />
-          <p className="text-sm font-medium text-[var(--patient-surface-success-text)]">
+          <p className={cn(patientBodyTextClass, 'text-[var(--patient-surface-success-text)]')}>
             Практика отмечена выполненной.
           </p>
         </div>
@@ -291,7 +293,8 @@ export function PatientContentPracticeComplete({
               variant="ghost"
               disabled={submitting}
               className={cn(
-                'px-4 py-2 text-sm text-[var(--patient-text-muted)]',
+                'px-4 py-2 text-[var(--patient-text-muted)]',
+                patientActionTextClass,
                 'hover:bg-[var(--patient-color-primary-soft)]/50',
               )}
               onClick={() => void submitWithFeeling(null)}

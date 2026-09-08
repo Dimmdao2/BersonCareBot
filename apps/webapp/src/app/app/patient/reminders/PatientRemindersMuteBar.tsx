@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
 import {
   patientMutedTextClass,
+  patientCaptionTextClass,
   patientBodyTextClass,
   PatientShimmerLine,
   patientSurfaceWarningClass,
@@ -80,7 +81,7 @@ export function PatientRemindersMuteBar({
 
       {!muted ? (
         <div className="flex flex-col gap-2">
-          <p className={cn(patientMutedTextClass, 'text-xs')}>На паузу:</p>
+          <p className={patientCaptionTextClass}>На паузу:</p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"

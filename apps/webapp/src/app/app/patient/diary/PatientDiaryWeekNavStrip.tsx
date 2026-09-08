@@ -42,7 +42,7 @@ export function PatientDiaryWeekNavStrip({ nav }: { nav: PatientDiaryWeekNavMode
 
         <PatientSegmentedPagerLabel
           width="wide"
-          className="px-2 leading-snug sm:text-sm"
+          className="px-2"
         >
           {nav.weekRangeLabelRu}
         </PatientSegmentedPagerLabel>

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import {
+  patientActionTextClass,
   patientBodyTextClass,
   patientSecondaryActionClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -53,12 +54,13 @@ export function JournalMonthNav(props: {
         aria-label="Предыдущий месяц"
         className={cn(
           patientSecondaryActionClass,
-          '!w-auto shrink-0 min-h-9 px-3 py-2 text-xs no-underline',
+          '!w-auto shrink-0 min-h-9 px-3 py-2 no-underline',
+          patientActionTextClass,
         )}
       >
         ← Месяц
       </Link>
-      <span className={cn(patientBodyTextClass, 'font-medium capitalize')}>
+      <span className={cn(patientBodyTextClass, 'capitalize')}>
         {monthTitleRu(monthYm)}
       </span>
       <Link
@@ -66,7 +68,8 @@ export function JournalMonthNav(props: {
         aria-label="Следующий месяц"
         className={cn(
           patientSecondaryActionClass,
-          '!w-auto shrink-0 min-h-9 px-3 py-2 text-xs no-underline',
+          '!w-auto shrink-0 min-h-9 px-3 py-2 no-underline',
+          patientActionTextClass,
         )}
       >
         Месяц →

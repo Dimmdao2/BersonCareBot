@@ -21,7 +21,10 @@ import {
   type LastSymptomSaveMeta,
 } from './symptoms/symptomEntryDedup';
 import { markLfkSession } from './lfk/actions';
-import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientCaptionTextClass,
+  patientSectionTitleClass,
+} from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   trackings: { id: string; title: string }[];
@@ -160,7 +163,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                   max={10}
                   value={symValue}
                   onChange={setSymValue}
-                  chipClassName="size-8 text-xs"
+                  chipClassName={cn('size-8', patientCaptionTextClass)}
                 />
                 <input
                   type="hidden"

@@ -231,7 +231,7 @@ function PersonalReminderCard({
                   </span>{' '}
                   отложено
                 </span>
-                <Badge variant="outline" className="font-normal">
+                <Badge variant="outline" className={patientCaptionTextClass}>
                   за 30 дней
                 </Badge>
               </div>
@@ -479,7 +479,7 @@ export function ReminderRulesClient({
         >
           <h2 className={patientSectionTitleNormalClass}>Тренировки</h2>
           <p className={patientCaptionTextClass}>{activeProgram.title}</p>
-          <p className={cn(patientMutedTextClass, 'text-sm')}>Сегодня: {rehabCalendarLine}</p>
+          <p className={patientMutedTextClass}>Сегодня: {rehabCalendarLine}</p>
           <ReminderExerciseDeliveryChannels deliveryChannelLabels={exerciseDeliveryChannelLabels} />
           {rehabRuleForBlock ? (
             <div className="space-y-2">
@@ -551,7 +551,7 @@ export function ReminderRulesClient({
           className={cn(patientHeroBookingSectionClass, 'mb-4 !gap-3')}
         >
           <h2 className={patientSectionTitleNormalClass}>{warmupsSectionTitle}</h2>
-          <p className={cn(patientMutedTextClass, 'text-sm')}>Сегодня: {warmupCalendarLine}</p>
+          <p className={patientMutedTextClass}>Сегодня: {warmupCalendarLine}</p>
           <ReminderExerciseDeliveryChannels deliveryChannelLabels={exerciseDeliveryChannelLabels} />
           {warmupRuleForBlock ? (
             <div className="space-y-2">
