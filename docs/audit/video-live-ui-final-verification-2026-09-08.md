@@ -1,13 +1,44 @@
 # Final live verification — #1100 video live UI
 
+Final candidate: `f70e8db21` on `wt/video-live-ui-correction-20260908`.
+
+## Final continuation verdict: **PASS ON DEV; TEST rollout remains**
+
+The original blocked pass below was resumed after the developer tariff and the five restricted
+Jitsi provider settings were configured through the ordinary admin APIs on named DEV. No raw SQL,
+auth bypass, disposable database, or foreign conferencing endpoint was used.
+
+Live Chromium acceptance with synthetic media proved:
+
+- desktop `1440x1000` and mobile `390x844` render the normal patient shell, the note/encounter
+  panel and exactly one centred Play action; before Play the page has `iframe=0` and makes no
+  `external_api.js`, Jitsi or media request;
+- the mobile stage measured `366x438` before Play; after Play one iframe measured `366x396` and
+  loaded only `meet.test.therapysto.ru` conference resources;
+- the idle one-party render shows one large local picture, without a duplicate visible thumbnail;
+  moving over the call shows microphone, camera and hangup controls along the lower edge;
+- forced failure of the first `external_api.js` request renders `Не удалось подключиться к звонку`
+  and `Повторить`; the patient navigation remains visible and retry creates exactly one iframe
+  without reloading the application;
+- two independent browser contexts joined the same room and rendered each other. A final repeat
+  after the lead correction reported `neutralTitle=true`, `opaqueRoomVisible=false`,
+  `connected=true`: Jitsi no longer exposes the opaque room token and uses `Видеовстреча` if a
+  client still renders a subject;
+- the retained behavior suite is green: `5 files / 29 tests`; scoped ESLint and the TEST-account
+  env bootstrap self-test are green.
+
+Physical iPhone/macOS camera selection, native Picture-in-Picture and device permissions remain
+the owner's final device acceptance after TEST rollout; headless Chromium does not substitute for
+those device-specific checks.
+
+## Initial attempt: **BLOCKED (historical evidence)**
+
 Candidate: `e08326702c25c43aa514723ab7460b29618a6fe4` on
 `wt/video-live-ui-correction-20260908`.
 
 Authority: `docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md` — VM-06, VM-10, VM-11,
 VM-12, UI-08, UI-09, UI-10. This is a one-time live/runtime pass; no tests,
 production code, configuration, plan, taskdb, or audit queue were changed.
-
-## Verdict: **BLOCKED**
 
 The exact candidate cannot render the doctor live stage in the supplied named
 DEV environment. A normal authenticated doctor session, using a patient returned
