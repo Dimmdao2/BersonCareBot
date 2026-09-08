@@ -35,4 +35,3 @@ All temporary production mutations were reverted before this artifact was writte
 - `pnpm --dir apps/webapp typecheck` — PASS.
 - `node deploy/postgres/privileges/generate-cli.mjs --check && node deploy/postgres/privileges/generate-cli.mjs --all --check --port-context-only` — PASS.
 - Already supplied exact-SHA evidence was reused, not repeated: `bash deploy/host/migrate-dev.sh --preflight --runtime-env-root /home/dev/dev-projects/BersonCareBot` — PASS, rollback-only.
-
