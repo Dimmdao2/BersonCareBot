@@ -75,6 +75,7 @@ const bodySchema = z.object({
    * согласие снимает один запрет пересечения, а не валидацию.
    */
   allowOverlap: z.boolean().optional(),
+  deliveryFormat: z.enum(['in_person', 'online']).optional(),
 });
 
 export async function POST(request: Request) {
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
   const deps = buildAppDeps();
   const syncPort = createBookingSyncPort();
 
-  // Staff manual creates are in-person and MUST have a concrete specialist.
+  // Staff manual creates MUST have a concrete specialist even when their delivery is online.
   // A NULL specialist_id bypasses the be_appointments_specialist_no_overlap
   // exclusion constraint (it only covers non-null), letting a booking land on
   // any occupied slot. ONLINE patient bookings legitimately use NULL, but they
@@ -178,6 +179,7 @@ export async function POST(request: Request) {
           durationMinutes: parsed.data.durationMinutes,
           source: 'admin_manual',
           status: initialStatus,
+          deliveryFormat: parsed.data.deliveryFormat,
           phoneNormalized: parsed.data.phoneNormalized ?? null,
           actorId: ctx.session.user.userId,
           appointmentReminderAllowedPresetIds: reminderSettings?.allowedPresetIds ?? [],

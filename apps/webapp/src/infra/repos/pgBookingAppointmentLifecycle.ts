@@ -50,6 +50,7 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     durationMinutes: row.durationMinutes,
     source: row.source as BeAppointment['source'],
     status: row.status as BeAppointment['status'],
+    deliveryFormat: row.deliveryFormat as BeAppointment['deliveryFormat'],
     originalStartAt: row.originalStartAt ?? null,
     rescheduleCount: row.rescheduleCount,
     paymentRef: row.paymentRef ?? null,
@@ -152,6 +153,7 @@ type CurrentPatientAppointmentRow = {
   duration_minutes: number;
   source: string;
   status: string;
+  delivery_format: string;
   original_start_at: string | null;
   reschedule_count: number;
   payment_ref: string | null;
@@ -211,6 +213,7 @@ function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppo
     durationMinutes: row.duration_minutes,
     source: row.source as BeAppointment['source'],
     status: row.status as BeAppointment['status'],
+    deliveryFormat: row.delivery_format as BeAppointment['deliveryFormat'],
     originalStartAt: row.original_start_at,
     rescheduleCount: row.reschedule_count,
     paymentRef: row.payment_ref,
@@ -386,6 +389,25 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
         if (terminal.has(fromStatus)) {
           throw new Error('state_conflict');
         }
+        const timeChanged =
+          input.newStartAt !== current.startAt ||
+          input.newEndAt !== current.endAt ||
+          input.durationMinutes !== current.durationMinutes;
+        if (!timeChanged) {
+          const updated = await tx
+            .update(beAppointments)
+            .set({
+              branchId: input.branchId ?? current.branchId,
+              roomId: input.roomId ?? current.roomId,
+              specialistId: input.specialistId ?? current.specialistId,
+              serviceId: input.serviceId ?? current.serviceId,
+              deliveryFormat: input.deliveryFormat ?? current.deliveryFormat,
+              updatedAt: now,
+            })
+            .where(eq(beAppointments.id, input.appointmentId))
+            .returning();
+          return mapAppointment(updated[0]!);
+        }
         if (fromStatus !== 'rescheduled') {
           assertValidAppointmentStatusTransition(fromStatus, 'rescheduled');
         }
@@ -455,6 +477,7 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
             roomId: input.roomId ?? current.roomId,
             specialistId: nextSpecialistId,
             serviceId: input.serviceId ?? current.serviceId,
+            deliveryFormat: input.deliveryFormat ?? current.deliveryFormat,
             ...(patientChanged
               ? { platformUserId: nextPatientUserId, phoneNormalized: nextPhoneNormalized }
               : {}),

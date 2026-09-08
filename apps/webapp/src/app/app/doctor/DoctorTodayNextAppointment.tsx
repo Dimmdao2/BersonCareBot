@@ -14,7 +14,6 @@ import {
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { formatDoctorFioShortLabel } from '@/shared/lib/fio';
 import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
-import { Video } from 'lucide-react';
 
 type Props = {
   appointment: TodayNextAppointmentItem | null;
@@ -38,6 +37,10 @@ export function DoctorTodayNextAppointment({ appointment, displayIana, videoMeet
   const patientLabel = appointment
     ? formatDoctorFioShortLabel(appointment.clientLabel, appointment.clientLabel)
     : null;
+  const videoCallHref =
+    appointment?.deliveryFormat === 'online' && videoMeetingsEnabled && appointment.clientUserId
+      ? `/app/doctor/patients/${encodeURIComponent(appointment.clientUserId)}/live?${new URLSearchParams({ appointmentId: appointment.id })}`
+      : null;
 
   return (
     <DoctorSection id="doctor-today-next-appointment">
@@ -92,7 +95,14 @@ export function DoctorTodayNextAppointment({ appointment, displayIana, videoMeet
             >
               Детали записи
             </Button>
-            {createVisitHref ? (
+            {videoCallHref ? (
+              <Link
+                className={buttonVariants({ size: 'sm', className: 'w-full min-w-0' })}
+                href={videoCallHref}
+              >
+                Начать созвон
+              </Link>
+            ) : createVisitHref ? (
               <Link
                 className={buttonVariants({
                   size: 'sm',
@@ -107,7 +117,6 @@ export function DoctorTodayNextAppointment({ appointment, displayIana, videoMeet
                 Начать приём
               </Button>
             )}
-            {videoMeetingsEnabled && appointment.clientUserId ? <Link className={buttonVariants({ size: 'sm', className: 'size-9 shrink-0 p-0' })} href={`/app/doctor/patients/${encodeURIComponent(appointment.clientUserId)}/live?${new URLSearchParams({ appointmentId: appointment.id })}`} title="Начать видеозвонок" aria-label="Начать видеозвонок"><Video className="size-4" /></Link> : null}
           </div>
         </div>
       ) : (

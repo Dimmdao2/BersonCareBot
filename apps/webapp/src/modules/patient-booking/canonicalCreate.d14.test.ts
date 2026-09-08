@@ -162,6 +162,34 @@ describe('booking.created: пациентское сообщение стави�
   });
 });
 
+describe('UI-06 canonical patient online booking', () => {
+  /**
+   * Owner oracle UI-06 / Flow G: an online patient booking has no branch_id on its canonical
+   * appointment, so the online format must travel as an explicit create value. Losing it makes a
+   * successful patient online booking indistinguishable from an in-person appointment.
+   */
+  it('persists online as the canonical delivery format for a branchless patient booking', async () => {
+    const createOnlineAppointmentsIfAvailable = vi.fn(async () => [
+      { id: 'appt-1', organizationId: 'org-1', startAt: createInput.slotStart, endAt: createInput.slotEnd },
+    ]);
+    const deps = buildDeps(async () => undefined, {
+      bookingEngine: {
+        createOnlineAppointmentsIfAvailable,
+      } as unknown as CanonicalBookingDeps['bookingEngine'],
+    });
+
+    await createBookingOnCanonicalEngine(deps, createInput);
+
+    const [appointments] = createOnlineAppointmentsIfAvailable.mock.calls[0] as unknown as [
+      Array<Record<string, unknown>>,
+    ];
+    expect(appointments[0]).toMatchObject({
+      branchId: null,
+      deliveryFormat: 'online',
+    });
+  });
+});
+
 describe('D14, часть 5: booking.created отправляет doctorNotify/doctorMessageText/calendarAction/calendarTitleMarker', () => {
   it('кладёт врачебный текст и действие/пометку календаря для нового события', async () => {
     const events: Array<Record<string, unknown>> = [];

@@ -12361,6 +12361,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "chain_position",
           "created_at",
           "deleted_at",
+          "delivery_format",
           "duration_minutes",
           "end_at",
           "id",
@@ -12400,6 +12401,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "appointment_reminder_selection_source",
           "branch_id",
           "deleted_at",
+          "delivery_format",
           "duration_minutes",
           "end_at",
           "original_start_at",
@@ -28303,7 +28305,7 @@ const REV10_CONTEXT = {
       relationSurfaces: [
         { relation: 'public.be_appointments', columns: [
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
-          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'delivery_format',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
           'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
@@ -29187,7 +29189,7 @@ const REV10_CONTEXT = {
           operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointments', columns: [
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
-          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'delivery_format',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
           'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
@@ -29218,7 +29220,7 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointments', columns: [
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
-          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'delivery_format',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
           'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
@@ -29396,7 +29398,7 @@ const REV10_CONTEXT = {
         // переносит и отменяет запись, но не переписывает её стоимость и условие предоплаты.
         { relation: 'public.be_appointments', columns: [
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
-          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'delivery_format',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
           'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
@@ -29442,7 +29444,7 @@ const REV10_CONTEXT = {
         // переносит и отменяет запись, но не переписывает её стоимость и условие предоплаты.
         { relation: 'public.be_appointments', columns: [
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
-          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'delivery_format',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
           'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',

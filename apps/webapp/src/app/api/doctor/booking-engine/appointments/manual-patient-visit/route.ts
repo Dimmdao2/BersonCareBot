@@ -82,6 +82,7 @@ const bodySchema = z.discriminatedUnion('kind', [
       startAt: z.string().min(1),
       endAt: z.string().min(1),
       durationMinutes: z.number().int().positive(),
+      deliveryFormat: z.enum(['in_person', 'online']).optional(),
     })
     .strict(),
   identitySchema
@@ -181,6 +182,7 @@ export async function POST(request: Request) {
                     startAt: parsed.data.startAt,
                     endAt: parsed.data.endAt,
                     durationMinutes: parsed.data.durationMinutes,
+                    deliveryFormat: parsed.data.deliveryFormat,
                     source: 'admin_manual',
                     status: 'confirmed',
                     actorId: ctx.session.user.userId,

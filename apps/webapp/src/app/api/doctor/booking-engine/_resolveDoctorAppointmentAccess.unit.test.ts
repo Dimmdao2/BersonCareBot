@@ -25,6 +25,7 @@ function appointment(specialistId: string | null, organizationId = ORGANIZATION_
     durationMinutes: 30,
     source: 'admin_manual',
     status: 'confirmed',
+    deliveryFormat: 'in_person',
     originalStartAt: null,
     rescheduleCount: 0,
     paymentRef: null,

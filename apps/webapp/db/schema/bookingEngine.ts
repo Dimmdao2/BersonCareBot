@@ -550,6 +550,7 @@ export const beAppointments = pgTable(
     chainPosition: integer('chain_position'),
     source: text().notNull(),
     status: text().notNull(),
+    deliveryFormat: text('delivery_format').notNull().default('in_person'),
     originalStartAt: timestamp('original_start_at', { withTimezone: true, mode: 'string' }),
     rescheduleCount: integer('reschedule_count').default(0).notNull(),
     paymentRef: text('payment_ref'),

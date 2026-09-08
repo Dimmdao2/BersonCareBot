@@ -310,6 +310,7 @@ export function createPatientBookingService(input: {
       if (existing) {
         const updated = await input.bookingsPort.updateStaffProjection({
           bookingId: existing.id,
+          bookingType: appointment.deliveryFormat,
           slotStart: appointment.startAt,
           slotEnd: appointment.endAt,
           city: branch.cityCode,
@@ -326,7 +327,7 @@ export function createPatientBookingService(input: {
       const pending = await input.bookingsPort.createPending({
         organizationId: appointment.organizationId,
         userId: appointment.platformUserId,
-        bookingType: 'in_person',
+        bookingType: appointment.deliveryFormat,
         city: branch.cityCode,
         category: 'general',
         slotStart: appointment.startAt,

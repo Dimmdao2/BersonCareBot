@@ -237,6 +237,7 @@ const EMPTY_DRAFT: AppointmentFormDraft = {
   patient: null,
   comment: '',
   status: null,
+  deliveryFormat: 'in_person',
   priceRubles: '',
   priceOverridden: false,
   prepayment: null,
@@ -449,6 +450,10 @@ function DoctorCalendarEventPanelInner({
       branchId: nextBranchId,
       serviceId,
       patient: createInitialPatient,
+      deliveryFormat:
+        filterMeta.branches.find((branch) => branch.id === createInitialBranchId)?.isOnline === true
+          ? 'online'
+          : 'in_person',
       ...serviceFinancialDefaults(filterMeta.services, serviceId),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -484,7 +489,11 @@ function DoctorCalendarEventPanelInner({
    * время отбивается `slot_overlap`, форма показывает подтверждение, и отказ подтверждения не
    * создаёт ничего.
    */
-  const submitCreate = (options?: { allowOverlap?: boolean; onCreated?: (appointmentId: string) => void }) => {
+  const submitCreate = (options?: {
+    allowOverlap?: boolean;
+    onCreated?: (appointmentId: string) => void;
+    deliveryFormat?: AppointmentFormDraft['deliveryFormat'];
+  }) => {
     setMessage(null);
     const submission = resolveCalendarCreateSubmission({
       start: draft.start,
@@ -538,11 +547,13 @@ function DoctorCalendarEventPanelInner({
                   patronymic: patient.patronymic ?? null,
                   phone: patient.phone,
                   email: patient.email ?? null,
+                  deliveryFormat: options?.deliveryFormat ?? draft.deliveryFormat,
                 }
               : {
                   platformUserId: patient?.id ?? null,
                   phoneNormalized: patient?.phone?.trim() || null,
                   ...financials,
+                  deliveryFormat: options?.deliveryFormat ?? draft.deliveryFormat,
                   ...(options?.allowOverlap ? { allowOverlap: true } : {}),
                 }),
             startAt,
@@ -632,8 +643,8 @@ function DoctorCalendarEventPanelInner({
         />
         {createContinuation ? (
           <DoctorModalFooter>
-            <Button type="button" variant="outline" disabled={pending} onClick={() => submitCreate({ onCreated: createContinuation.onOffline })}>Очный приём</Button>
-            <Button type="button" disabled={pending} onClick={() => submitCreate({ onCreated: createContinuation.onOnline })}>Онлайн-приём</Button>
+            <Button type="button" variant="outline" disabled={pending} onClick={() => submitCreate({ onCreated: createContinuation.onOffline, deliveryFormat: 'in_person' })}>Очный приём</Button>
+            <Button type="button" disabled={pending} onClick={() => submitCreate({ onCreated: createContinuation.onOnline, deliveryFormat: 'online' })}>Онлайн-приём</Button>
           </DoctorModalFooter>
         ) : (
           <DoctorModalFooter>
@@ -732,6 +743,7 @@ function DoctorCalendarEventPanelInner({
       },
       comment: primaryComment,
       status: selected.status,
+      deliveryFormat: selected.deliveryFormat,
       // PAY-APPT-01/03: правка открывается на СНИМКЕ САМОЙ записи, а не на текущей цене каталога:
       // сохранённая врачом стоимость не должна уезжать за прайсом при первом же открытии формы.
       ...appointmentSnapshotDraftMoney(selected, filterMeta.services),
@@ -767,6 +779,7 @@ function DoctorCalendarEventPanelInner({
       nextDurationMinutes !== durationMinutes ||
       draft.branchId !== selected.branchId ||
       draft.serviceId !== selected.serviceId ||
+      draft.deliveryFormat !== selected.deliveryFormat ||
       patientChanged;
     const commentChanged = draft.comment.trim() !== primaryComment.trim();
     const statusChanged = draft.status !== null && draft.status !== selected.status;
@@ -792,6 +805,7 @@ function DoctorCalendarEventPanelInner({
       nextDurationMinutes,
       draft.branchId,
       draft.serviceId,
+      draft.deliveryFormat,
       nextPatientId,
       financials,
     ]);
@@ -809,6 +823,7 @@ function DoctorCalendarEventPanelInner({
               durationMinutes: nextDurationMinutes,
               branchId: draft.branchId,
               serviceId: draft.serviceId,
+              deliveryFormat: draft.deliveryFormat,
               // APPT-FORM-13: пациента меняет тот же lifecycle-контракт, отдельного endpoint нет.
               ...(patientChanged ? { platformUserId: nextPatientId } : {}),
               ...financials,
@@ -862,6 +877,7 @@ function DoctorCalendarEventPanelInner({
         branchColor: nextBranch?.color ?? selected.branchColor,
         serviceId: draft.serviceId,
         serviceTitle: nextService?.label ?? selected.serviceTitle,
+        deliveryFormat: draft.deliveryFormat,
         platformUserId: draft.patient?.id ?? selected.platformUserId,
         patientName: draft.patient?.displayName ?? selected.patientName,
         patientPhone: draft.patient?.phone ?? selected.patientPhone,

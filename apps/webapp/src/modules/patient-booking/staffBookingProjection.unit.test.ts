@@ -105,6 +105,7 @@ describe('staff booking payment projection', () => {
       durationMinutes: 60,
       source: 'admin_manual',
       status: 'confirmed',
+      deliveryFormat: 'in_person',
       originalStartAt: null,
       rescheduleCount: 0,
       paymentRef: null,

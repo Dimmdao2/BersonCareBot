@@ -16,6 +16,7 @@ import type {
   CalendarServiceFilterOption,
 } from '@/modules/booking-calendar/types';
 import type { PrepaymentMode } from '@/modules/payments/types';
+import type { AppointmentDeliveryFormat } from '@/modules/booking-engine/types';
 import { minorToRublesInput } from '@/app/app/settings/bookingSoloAdminApi';
 import type { CalendarCreateActiveFilters } from '@/modules/booking-calendar/calendarCreateFieldMode';
 import { resolveCalendarCreateFieldMode } from '@/modules/booking-calendar/calendarCreateFieldMode';
@@ -45,6 +46,7 @@ export type AppointmentFormDraft = {
   patient: CalendarPatientOption | null;
   comment: string;
   status: string | null;
+  deliveryFormat: AppointmentDeliveryFormat;
   /** PAY-APPT-01: стоимость в рублях ровно как её набирает врач; в копейки переводит отправка. */
   priceRubles: string;
   /**
@@ -66,6 +68,10 @@ const PREPAYMENT_MODE_LABELS: Record<PrepaymentMode, string> = {
   fixed_minor: 'Фиксированная сумма',
 };
 const OVERRIDABLE_PREPAYMENT_MODES: PrepaymentMode[] = ['disabled', 'percent', 'full_price'];
+const DELIVERY_FORMAT_LABELS: Record<AppointmentDeliveryFormat, string> = {
+  in_person: 'Очный приём',
+  online: 'Онлайн-приём',
+};
 
 export function prepaymentPercentFromBps(percentBps: number | null): string {
   if (percentBps == null) return '';
@@ -198,8 +204,33 @@ export function DoctorAppointmentForm({
         noneLabel="Филиал"
         emptyLabel="Нет доступных филиалов."
         disabled={pending}
-        onChange={(branchId) => onDraftChange({ branchId })}
+        onChange={(branchId) =>
+          onDraftChange({
+            branchId,
+            deliveryFormat:
+              filterMeta.branches.find((branch) => branch.id === branchId)?.isOnline === true
+                ? 'online'
+                : 'in_person',
+          })
+        }
       />
+
+      <div className="flex flex-col gap-1">
+        <Label>Формат</Label>
+        <Select
+          value={draft.deliveryFormat}
+          disabled={pending}
+          onValueChange={(value) =>
+            onDraftChange({ deliveryFormat: value as AppointmentDeliveryFormat })
+          }
+        >
+          <SelectTrigger displayLabel={DELIVERY_FORMAT_LABELS[draft.deliveryFormat]} />
+          <SelectContent>
+            <SelectItem value="in_person">Очный приём</SelectItem>
+            <SelectItem value="online">Онлайн-приём</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       <DoctorCalendarCreateFormField
         fieldLabel="Сеанс"

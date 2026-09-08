@@ -36,6 +36,7 @@ function appointment(id: string): CalendarAppointmentEvent {
     startAt: '2026-09-05T09:00:00.000Z',
     endAt: '2026-09-05T10:00:00.000Z',
     status: 'confirmed',
+    deliveryFormat: 'in_person',
     source: 'canonical',
     specialistId: null,
     specialistName: null,

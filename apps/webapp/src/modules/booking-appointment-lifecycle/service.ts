@@ -1,4 +1,4 @@
-import type { BeAppointment } from '@/modules/booking-engine/types';
+import type { AppointmentDeliveryFormat, BeAppointment } from '@/modules/booking-engine/types';
 import type { BookingPoliciesService } from '@/modules/booking-policies/service';
 import { evaluateBookingActionEligibility } from '@/modules/booking-policies/policyResolver';
 import type {
@@ -336,6 +336,7 @@ export function createBookingAppointmentLifecycleService(deps: {
       branchId?: string | null;
       specialistId?: string | null;
       serviceId?: string | null;
+      deliveryFormat?: AppointmentDeliveryFormat;
       /** APPT-FORM-13: смена пациента записи в пределах той же клиники. */
       platformUserId?: string | null;
       notificationsSent?: Record<string, unknown>;
@@ -364,6 +365,7 @@ export function createBookingAppointmentLifecycleService(deps: {
         roomId: appt.roomId,
         specialistId: input.specialistId ?? appt.specialistId,
         serviceId: input.serviceId ?? appt.serviceId,
+        deliveryFormat: input.deliveryFormat ?? appt.deliveryFormat,
         platformUserId: input.platformUserId,
         policy: reschedulePolicySnapshot(policy),
         cancellationPolicy: cancellationPolicySnapshot(policy),

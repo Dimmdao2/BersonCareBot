@@ -39,6 +39,7 @@ const bodySchema = z.object({
    */
   priceMinor: z.number().int().min(0).nullable().optional(),
   prepayment: prepaymentOverrideSchema.nullable().optional(),
+  deliveryFormat: z.enum(['in_person', 'online']).optional(),
 });
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -115,6 +116,7 @@ export async function POST(request: Request, context: RouteContext) {
           branchId: parsed.data.branchId,
           specialistId: appointment.specialistId,
           serviceId: parsed.data.serviceId,
+          deliveryFormat: parsed.data.deliveryFormat,
           ...(patientChanged ? { platformUserId: parsed.data.platformUserId ?? null } : {}),
           manualOverride: true,
         }),
@@ -256,6 +258,11 @@ export async function POST(request: Request, context: RouteContext) {
       });
     }
   }
+  const timeChanged =
+    appointment.startAt !== currentAppointment.startAt ||
+    appointment.endAt !== currentAppointment.endAt ||
+    appointment.durationMinutes !== currentAppointment.durationMinutes;
+  if (!timeChanged) return NextResponse.json({ ok: true, appointment: currentAppointment });
   const { loadBookingLifecycleNotificationsFromSystemSettings } =
     await import('@/modules/booking-notifications/settings');
   const lifecycleNotificationSettings = await loadBookingLifecycleNotificationsFromSystemSettings(

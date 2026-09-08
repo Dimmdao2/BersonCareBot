@@ -419,7 +419,8 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     const result = await runWebappSql<Row>(
       getWebappSqlDb(),
       sql`UPDATE patient_bookings
-       SET slot_start = ${input.slotStart}::timestamptz,
+       SET booking_type = COALESCE(${input.bookingType ?? null}::text, booking_type),
+           slot_start = ${input.slotStart}::timestamptz,
            slot_end = ${input.slotEnd}::timestamptz,
            city = ${input.city},
            city_code_snapshot = ${input.cityCodeSnapshot},

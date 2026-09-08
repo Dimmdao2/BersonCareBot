@@ -28,6 +28,7 @@ function fakeAppointment(overrides: Partial<BeAppointment> = {}): BeAppointment 
     durationMinutes: 30,
     source: 'native',
     status: 'confirmed',
+    deliveryFormat: 'in_person',
     originalStartAt: null,
     rescheduleCount: 0,
     paymentRef: null,

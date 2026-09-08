@@ -19,6 +19,9 @@ export const APPOINTMENT_STATUSES = [
 
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
 
+export const APPOINTMENT_DELIVERY_FORMATS = ['in_person', 'online'] as const;
+export type AppointmentDeliveryFormat = (typeof APPOINTMENT_DELIVERY_FORMATS)[number];
+
 export type BeOrganization = {
   id: string;
   title: string;
@@ -114,6 +117,7 @@ export type BeAppointment = {
   chainPosition?: number | null;
   source: 'native' | 'imported' | 'admin_manual' | 'public_widget';
   status: AppointmentStatus;
+  deliveryFormat: AppointmentDeliveryFormat;
   originalStartAt: string | null;
   rescheduleCount: number;
   paymentRef: string | null;
@@ -171,6 +175,8 @@ export type CreateAppointmentInput = {
   chainPosition?: number | null;
   source: BeAppointment['source'];
   status?: AppointmentStatus;
+  /** Explicit staff override or server-derived default for the appointment delivery. */
+  deliveryFormat?: AppointmentDeliveryFormat;
   phoneNormalized?: string | null;
   actorId?: string | null;
   attributionJson?: Record<string, unknown>;

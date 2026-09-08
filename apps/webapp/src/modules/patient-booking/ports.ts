@@ -157,6 +157,7 @@ export type PatientBookingsPort = {
   }): Promise<PatientBookingRecord | null>;
   updateStaffProjection(input: {
     bookingId: string;
+    bookingType?: BookingType;
     slotStart: string;
     slotEnd: string;
     city: string;

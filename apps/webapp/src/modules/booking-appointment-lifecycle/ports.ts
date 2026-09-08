@@ -1,4 +1,4 @@
-import type { BeAppointment } from '@/modules/booking-engine/types';
+import type { AppointmentDeliveryFormat, BeAppointment } from '@/modules/booking-engine/types';
 import type {
   AppointmentActorType,
   CancellationDecisionType,
@@ -88,6 +88,7 @@ export type RescheduleAppointmentInput = {
   roomId?: string | null;
   specialistId?: string | null;
   serviceId?: string | null;
+  deliveryFormat?: AppointmentDeliveryFormat;
   /**
    * APPT-FORM-13: правка записи умеет менять пациента в той же клинике. Undefined оставляет
    * текущего; новый пациент проходит те же tenant-проверки, что и создание записи, а запись
