@@ -9,7 +9,7 @@ import { Textarea } from '@/shared/ui/patient/primitives/textarea';
 import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
 import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { patientCaptionTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 const MAX_LEN = 4000;
 
@@ -82,7 +82,7 @@ export function PatientSupportForm({
       <div className="flex flex-col gap-2">
         <label
           htmlFor="support-email"
-          className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+          className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}
         >
           Email для ответа
         </label>
@@ -99,7 +99,7 @@ export function PatientSupportForm({
       <div className="flex flex-col gap-2">
         <label
           htmlFor="support-message"
-          className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+          className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}
         >
           Сообщение
         </label>
@@ -112,7 +112,7 @@ export function PatientSupportForm({
           maxLength={MAX_LEN}
           disabled={loading}
         />
-        <p className={cn(patientMutedTextClass, 'text-xs')}>
+        <p className={patientCaptionTextClass}>
           {message.length} / {MAX_LEN}
         </p>
       </div>

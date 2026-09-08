@@ -381,10 +381,10 @@ export function MiniAppShareContactGate({
         aria-labelledby="mini-app-contact-gate-title"
         aria-describedby="mini-app-contact-gate-desc"
       >
-        <h1 id="mini-app-contact-gate-title" className="text-lg font-semibold">
+        <h1 id="mini-app-contact-gate-title" className="patient-type-section-title">
           Подтверждение номера недоступно
         </h1>
-        <p id="mini-app-contact-gate-desc" className="max-w-md text-sm text-muted-foreground">
+        <p id="mini-app-contact-gate-desc" className="max-w-md patient-type-secondary">
           Этот способ подтверждения временно отключён.
         </p>
       </div>

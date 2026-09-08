@@ -6,6 +6,8 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { routePaths } from '@/app-layer/routes/paths';
 import {
   patientButtonPrimaryClass,
+  patientActionTextClass,
+  patientBodyTextClass,
   patientCardClass,
   patientMutedTextClass,
   patientSurfaceDangerClass,
@@ -86,21 +88,21 @@ export function PatientBookingPayClient({ bookingId }: Props) {
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className={patientCardClass}>
-        <p className="font-semibold">Оплата записи</p>
-        {amountRub ? <p className="mt-2 text-sm">К оплате: {amountRub}</p> : null}
-        {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
+        <p className={patientActionTextClass}>Оплата записи</p>
+        {amountRub ? <p className={`mt-2 ${patientBodyTextClass}`}>К оплате: {amountRub}</p> : null}
+        {error ? <p className={`mt-2 patient-text-danger ${patientBodyTextClass}`}>{error}</p> : null}
       </div>
       {view === 'succeeded' ? (
         <div className={patientSurfaceSuccessClass}>
-          <p className="text-sm font-medium">Оплата прошла</p>
+          <p className={patientActionTextClass}>Оплата прошла</p>
         </div>
       ) : view === 'failed' ? (
         <div className={patientSurfaceDangerClass}>
-          <p className="text-sm font-medium">Оплата не прошла</p>
+          <p className={patientActionTextClass}>Оплата не прошла</p>
         </div>
       ) : intentId && !checkoutUrl ? (
         <div className={patientSurfaceWarningClass}>
-          <p className="text-sm font-medium">Платёжный провайдер не настроен</p>
+          <p className={patientActionTextClass}>Платёжный провайдер не настроен</p>
         </div>
       ) : (
         <>

@@ -39,7 +39,7 @@ export function PatientHomeBookingCard({
     : routePaths.bookingNew;
 
   const footer = anonymousGuest ? (
-    <p className="line-clamp-1 text-[11px] md:text-xs">
+    <p className="line-clamp-1 patient-type-caption">
       Запись откроется после входа
       <Link href={appLoginWithNextHref(routePaths.patient)} className="sr-only">
         Войти
@@ -65,7 +65,7 @@ export function PatientHomeBookingCard({
         <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-between gap-4 md:gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <div
-              className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-[var(--patient-action-success-badge-bg)] text-[var(--patient-color-success)] md:size-14"
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-[var(--patient-action-success-badge-bg)] patient-text-success-accent md:size-14"
               aria-hidden
             >
               <PatientHomeSafeImage
@@ -89,14 +89,14 @@ export function PatientHomeBookingCard({
             <Link
               href={bookingHref}
               prefetch={false}
-              className={cn(patientButtonSuccessClass, 'min-h-10 flex-1 px-3 text-sm')}
+              className={cn(patientButtonSuccessClass, 'min-h-10 flex-1 px-3 patient-type-home-compact-action')}
             >
               Записаться
             </Link>
             <Link
               href={hubHref}
               prefetch={false}
-              className={cn(patientButtonSecondaryClass, 'min-h-10 flex-1 px-3 text-sm')}
+              className={cn(patientButtonSecondaryClass, 'min-h-10 flex-1 px-3 patient-type-home-compact-action')}
             >
               Мои записи
             </Link>

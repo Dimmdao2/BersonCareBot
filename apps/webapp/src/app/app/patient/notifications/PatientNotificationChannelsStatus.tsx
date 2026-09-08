@@ -14,7 +14,7 @@ import {
 } from '@/shared/lib/webPush/subscribePatientWebPush';
 import { unsubscribePatientWebPush } from '@/shared/lib/webPush/unsubscribePatientWebPush';
 import { reportWebPushSubscribeFailure } from '@/shared/lib/webPush/webPushSubscribeFeedback';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { patientBodyTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 const PUSH_STATUS: Record<WebPushUiStatus, string> = {
   unsupported: 'Не поддерживается на этом устройстве',
@@ -44,7 +44,7 @@ function ChannelRow({
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-[var(--patient-border)]/80 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <p className="text-sm font-medium text-[var(--patient-text-primary)]">{label}</p>
+        <p className={patientBodyTextClass}>{label}</p>
         <p className={patientMutedTextClass}>{status}</p>
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}

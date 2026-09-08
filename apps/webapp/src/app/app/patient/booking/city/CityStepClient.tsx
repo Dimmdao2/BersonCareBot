@@ -29,7 +29,7 @@ export function CityStepClient({ cities, catalogError }: CityStepClientProps) {
     <div className={patientSectionSurfaceClass}>
       {catalogError ? (
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-destructive">{catalogError}</p>
+          <p className={`${patientMutedTextClass} patient-text-danger`}>{catalogError}</p>
           <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>
             Повторить
           </Button>

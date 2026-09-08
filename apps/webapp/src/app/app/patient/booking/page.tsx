@@ -14,6 +14,9 @@ import { LegalFooterLinks } from '@/shared/ui/patient/LegalFooterLinks';
 import { cn } from '@/lib/utils';
 import {
   patientInnerPageStackClass,
+  patientInlineLinkClass,
+  patientPageTitleClass,
+  patientSecondaryActionClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 import { loadBookingCitiesForPatientRsc } from './bookingCatalogRsc';
@@ -104,7 +107,7 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
       shellTitleSlot={
         <div className="flex min-w-0 flex-col gap-8">
           <BookingFormatPromoBanner />
-          <h1 className={cn(patientSectionTitleClass, 'min-w-0')}>Запись</h1>
+          <h1 className={cn(patientPageTitleClass, 'min-w-0')}>Запись</h1>
         </div>
       }
       step={1}
@@ -120,7 +123,7 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
         {records.upcoming.length > 0 && (
           <Link
             href={addressHref}
-            className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+            className={cn(patientInlineLinkClass, 'inline-flex items-center gap-1 underline-offset-4')}
           >
             Адрес кабинета
           </Link>
@@ -141,10 +144,8 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
             href={routePaths.patientMessages}
             prefetch={false}
             className={cn(
-              'inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border px-5 text-sm font-semibold transition-colors',
-              'border-[#aeb8d8] bg-[var(--patient-card-bg)] text-[#394574]',
-              'hover:border-[#98a6cf] hover:bg-[var(--patient-color-primary-soft)]/45 hover:text-[var(--patient-color-primary)]',
-              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
+              patientSecondaryActionClass,
+              'w-auto px-5',
             )}
           >
             Задать вопрос в чате

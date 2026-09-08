@@ -2,6 +2,11 @@
 
 import type { AppointmentRecordStatus } from '@/modules/appointments/service';
 import { cn } from '@/lib/utils';
+import {
+  patientBadgeDangerClass,
+  patientBadgePrimaryClass,
+  patientBadgeSuccessClass,
+} from '@/shared/ui/patient/patientVisual';
 import { Badge } from '@/shared/ui/patient/primitives/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/patient/primitives/tooltip';
 
@@ -31,17 +36,17 @@ export function AppointmentStatusBadge({ status, cancelReason, mode = 'upcoming'
   const displayLabel = isUpcomingBooked ? 'Записан' : LABEL[status];
 
   const toneClass = isUpcomingBooked
-    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100'
+    ? patientBadgeSuccessClass
     : status === 'cancelled'
-      ? 'border-destructive/30 bg-destructive/15 text-destructive'
-      : status === 'rescheduled'
-        ? 'border-purple-500/40 bg-purple-500/10 text-purple-800 dark:text-purple-200'
-        : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100';
+      ? patientBadgeDangerClass
+    : status === 'rescheduled'
+        ? patientBadgePrimaryClass
+        : patientBadgeSuccessClass;
 
   const inner = (
     <Badge
       variant="outline"
-      className={cn('h-auto rounded-full px-2 py-0.5 font-medium', toneClass)}
+      className={cn('h-auto', toneClass)}
     >
       {displayLabel}
     </Badge>

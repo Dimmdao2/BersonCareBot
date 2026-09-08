@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
 import { usePatientShellGoBack } from '@/shared/hooks/usePatientShellGoBack';
 import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/patient/navChrome';
-import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
+import { patientPageTitleClass } from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   title: string;
@@ -28,13 +28,13 @@ export function PatientShellPageTitleWithHistoryBack({
         type="button"
         variant="ghost"
         size="icon"
-        className="-ml-2.5 size-10 shrink-0 text-[var(--patient-text-primary)]"
+        className="-ml-2.5 size-10 shrink-0 patient-text-primary"
         onClick={goBack}
         aria-label={backLabel}
       >
         <ChevronLeft className="size-5" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
       </Button>
-      <h1 className={cn(patientSectionTitleClass, 'min-w-0 flex-1 truncate pl-3')}>{title}</h1>
+      <h1 className={cn(patientPageTitleClass, 'min-w-0 flex-1 truncate pl-3')}>{title}</h1>
     </div>
   );
 }

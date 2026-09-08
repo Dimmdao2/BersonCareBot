@@ -7,6 +7,7 @@ import { ru } from 'react-day-picker/locale';
 import { DateTime } from 'luxon';
 import { CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { patientBodyTextClass } from '@/shared/ui/patient/patientVisual';
 import { buttonVariants } from '@/shared/ui/patient/primitives/button-variants';
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/patient/primitives/popover';
 
@@ -47,8 +48,9 @@ export function PatientDatePicker({
         disabled={disabled}
         className={cn(
           buttonVariants({ variant: 'outline', size: 'default' }),
-          'w-full justify-start gap-2 font-normal',
-          !date?.isValid && 'text-muted-foreground',
+          'w-full justify-start gap-2',
+          patientBodyTextClass,
+          !date?.isValid && 'patient-text-secondary',
           className,
         )}
       >

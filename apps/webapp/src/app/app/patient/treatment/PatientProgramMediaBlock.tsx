@@ -45,7 +45,7 @@ function PatientProgramVideoPlayer(props: {
           isFullscreen ? 'h-full min-h-0' : 'aspect-video',
         )}
       >
-        <p className={cn(patientMutedTextClass, 'text-center text-sm')}>
+        <p className={cn(patientMutedTextClass, 'text-center')}>
           Видео без привязки к медиатеке нельзя воспроизвести здесь.
         </p>
       </div>
@@ -101,7 +101,7 @@ export function PatientProgramMediaBlock(props: {
             sizes="100vw"
           />
           <span className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-active:bg-black/30">
-            <span className="flex size-14 items-center justify-center rounded-full border border-white/45 bg-black/45 text-white backdrop-blur-sm">
+            <span className="flex size-14 items-center justify-center rounded-full border border-white/45 bg-black/45 patient-text-inverse backdrop-blur-sm">
               <Play className="ml-0.5 size-6 fill-current" aria-hidden />
             </span>
           </span>

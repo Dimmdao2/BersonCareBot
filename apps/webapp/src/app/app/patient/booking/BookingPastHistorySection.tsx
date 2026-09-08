@@ -12,6 +12,8 @@ import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
 import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
 import {
   patientListItemClass,
+  patientActionTextClass,
+  patientCaptionTextClass,
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
@@ -29,7 +31,7 @@ type Props = {
 function nativePastStatusRight(status: PatientBookingRecord['status']): ReactNode {
   if (status === 'confirmed') return null;
   if (status === 'cancelled') {
-    return <span className="shrink-0 text-sm font-medium text-destructive">Отменена</span>;
+    return <span className={cn('shrink-0 patient-text-danger', patientActionTextClass)}>Отменена</span>;
   }
   if (status === 'completed') return <Badge variant="outline">Завершена</Badge>;
   if (status === 'rescheduled') return <Badge variant="outline">Перенесена</Badge>;
@@ -59,11 +61,11 @@ function PastList({ items, appDisplayTimeZone }: Props) {
             )}
           >
             <div className="min-w-0">
-              <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+              <p className={cn('flex items-center gap-1.5 truncate', patientActionTextClass)}>
                 <span>{formatBookingDateTimeMediumRu(booking.slotStart, displayTimeZone)}</span>
                 <AppointmentZoneOffsetWarning iso={booking.slotStart} branchTimeZone={branchTimeZone} />
               </p>
-              <p className={cn(patientMutedTextClass, 'truncate text-xs')}>
+              <p className={cn(patientCaptionTextClass, 'truncate')}>
                 {bookingProvenancePrefix(booking)}
                 {nativeBookingSubtitle(booking)}
               </p>
@@ -81,7 +83,7 @@ export function BookingPastHistorySection({ items, appDisplayTimeZone }: Props) 
   return (
     <div className={patientSectionSurfaceClass}>
       <div className="flex min-w-0 items-center gap-3">
-        <History className="size-5 shrink-0 text-[var(--patient-color-primary)]" aria-hidden />
+        <History className="size-5 shrink-0 patient-text-accent" aria-hidden />
         <h3 className={cn(patientSectionTitleClass, 'min-w-0')}>История посещений</h3>
       </div>
       <Button type="button" variant="outline" className="w-full" onClick={() => setOpen(true)}>

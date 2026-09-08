@@ -15,34 +15,34 @@ export function LegalFooterLinks({ className, supportHref }: LegalFooterLinksPro
   return (
     <nav
       className={cn(
-        'flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-[var(--patient-text-muted)]',
+        'flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center patient-type-caption',
         className,
       )}
       aria-label="Правовая информация"
     >
       <Link
         href="/legal/terms"
-        className={cn(patientInlineLinkClass, 'font-normal underline underline-offset-2')}
+        className={cn(patientInlineLinkClass, 'patient-type-caption underline underline-offset-2')}
       >
         Условия использования
       </Link>
-      <span className="text-[var(--patient-border)]" aria-hidden>
+      <span className="patient-text-border" aria-hidden>
         ·
       </span>
       <Link
         href="/legal/privacy"
-        className={cn(patientInlineLinkClass, 'font-normal underline underline-offset-2')}
+        className={cn(patientInlineLinkClass, 'patient-type-caption underline underline-offset-2')}
       >
         Политика конфиденциальности
       </Link>
       {support ? (
         <>
-          <span className="text-[var(--patient-border)]" aria-hidden>
+          <span className="patient-text-border" aria-hidden>
             ·
           </span>
           <SupportContactLink
             href={support}
-            className={cn(patientInlineLinkClass, 'font-normal underline underline-offset-2')}
+            className={cn(patientInlineLinkClass, 'patient-type-caption underline underline-offset-2')}
           >
             Связь с поддержкой
           </SupportContactLink>

@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
+import { patientBodyTextClass } from '@/shared/ui/patient/patientVisual';
 
 /**
  * Информационный блок для разделов, включённых в блок главной `subscription_carousel`.
@@ -10,11 +11,12 @@ export function PatientSectionSubscriptionCallout() {
     <div
       role="status"
       className={cn(
-        'rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] bg-[var(--patient-color-primary-soft)]/35 px-4 py-3 text-sm text-[var(--patient-text-primary)]',
+        patientBodyTextClass,
+        'rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] bg-[var(--patient-color-primary-soft)]/35 px-4 py-3',
       )}
       data-testid="patient-section-subscription-callout"
     >
-      <p className="m-0 leading-snug">
+      <p className="m-0">
         <strong>По подписке.</strong> Доступ ко всем материалам этого раздела включён в подписку
         {` ${PATIENT_DEFAULT_SURFACE.name}. Совсем скоро!`}
       </p>

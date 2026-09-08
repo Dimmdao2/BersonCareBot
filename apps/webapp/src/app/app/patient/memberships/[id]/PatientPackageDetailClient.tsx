@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { routePaths } from '@/app-layer/routes/paths';
 import {
   patientCardClass,
+  patientInlineLinkClass,
   patientMutedTextClass,
+  patientPageTitleClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 
@@ -60,7 +62,7 @@ export function PatientPackageDetailClient({ patientPackageId }: Props) {
   if (notFound) {
     return (
       <div className="p-4">
-        <Link href={routePaths.patientBooking} className="text-sm underline">
+        <Link href={routePaths.patientBooking} className={patientInlineLinkClass}>
           Назад
         </Link>
         <p className={patientMutedTextClass}>Абонемент не найден.</p>
@@ -72,11 +74,11 @@ export function PatientPackageDetailClient({ patientPackageId }: Props) {
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      <Link href={routePaths.patientBooking} className="text-sm underline">
+      <Link href={routePaths.patientBooking} className={patientInlineLinkClass}>
         Назад
       </Link>
       <div className={patientCardClass}>
-        <h1 className={patientSectionTitleClass}>{detail.package.title}</h1>
+        <h1 className={patientPageTitleClass}>{detail.package.title}</h1>
         <p className={patientMutedTextClass}>{detail.package.status}</p>
         <ul className={patientMutedTextClass}>
           {detail.package.balance.items.map((it) => (

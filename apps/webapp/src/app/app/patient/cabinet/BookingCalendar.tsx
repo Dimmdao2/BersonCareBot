@@ -4,7 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/shared/ui/patient/primitives/badge';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientActionTextClass,
+  patientBodyTextClass,
+  patientMutedTextClass,
+  patientMicroTextClass,
+  patientSectionTitleClass,
+} from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   availableDates: string[];
@@ -118,7 +124,7 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
     return (
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold">Выбор даты</h3>
+          <h3 className={patientSectionTitleClass}>Выбор даты</h3>
           <Badge variant="outline">Шаг 4</Badge>
         </div>
         <p className={patientMutedTextClass}>Нет доступных дат для выбранного формата.</p>
@@ -130,7 +136,7 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold">Выбор даты</h3>
+          <h3 className={patientSectionTitleClass}>Выбор даты</h3>
           <Badge variant="outline">Шаг 4</Badge>
         </div>
         <div className="flex items-center gap-2">
@@ -144,7 +150,7 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
           >
             Назад
           </Button>
-          <p className="min-w-[9rem] text-center text-sm font-medium capitalize">
+          <p className={cn(patientBodyTextClass, 'min-w-[9rem] text-center capitalize')}>
             {formatMonthLabel(displayedMonth)}
           </p>
           <Button
@@ -168,7 +174,7 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
         {WEEKDAY_LABELS.map((label) => (
           <div
             key={label}
-            className="py-1 text-center text-[11px] font-medium text-muted-foreground"
+            className={cn(patientMicroTextClass, 'py-1 text-center')}
           >
             {label}
           </div>
@@ -191,11 +197,12 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
               aria-pressed={isSelected}
               onClick={() => onSelectDate(day.date)}
               className={cn(
-                'flex min-h-14 flex-col items-center justify-center rounded-lg border text-sm font-medium transition-colors',
+                'flex min-h-14 flex-col items-center justify-center rounded-lg border transition-colors',
+                patientActionTextClass,
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
                 isSelected
-                  ? 'border-[var(--patient-color-primary)] bg-[var(--patient-color-primary)] text-white'
-                  : 'border-[var(--patient-border,#d8deef)] bg-[var(--patient-card-bg)] text-[var(--patient-text-main,#111827)]',
+                  ? 'border-[var(--patient-color-primary)] bg-[var(--patient-color-primary)] patient-text-inverse'
+                  : 'border-[var(--patient-border,#d8deef)] bg-[var(--patient-card-bg)]',
                 !isSelected && hasSlots && !isPast && day.inCurrentMonth
                   ? 'hover:border-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-soft)]'
                   : null,
@@ -206,7 +213,7 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
               <span>{day.dayOfMonth}</span>
               {isToday ? (
                 <span
-                  className={cn('mt-0.5 text-[10px]', isSelected ? 'text-white' : 'text-primary')}
+                  className={cn('mt-0.5 patient-type-micro', isSelected ? 'patient-text-inverse' : 'patient-text-accent')}
                 >
                   Сегодня
                 </span>

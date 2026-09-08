@@ -31,7 +31,13 @@ import type { StatsPeriod } from '@/modules/diaries/stats/periodWindow';
 import type { LfkSession } from '@/modules/diaries/types';
 import { JournalMonthNav } from '../../JournalMonthNav';
 import { deleteLfkJournalSession, updateLfkJournalSession } from '../actions';
-import { patientListItemClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientActionTextClass,
+  patientBodyTextClass,
+  patientCaptionTextClass,
+  patientListItemClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
 import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
 
 function pad2(n: number) {
@@ -78,14 +84,14 @@ export function LfkJournalClient(props: {
       <div className="flex flex-wrap items-center gap-2">
         <Link
           href={`${routePaths.diary}?tab=lfk`}
-          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'inline-flex text-xs')}
+          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'inline-flex', patientActionTextClass)}
         >
           ← К статистике
         </Link>
       </div>
 
       {complexes.length > 1 ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2">
           <span className={patientMutedTextClass}>Комплекс</span>
           <Select
             value={activeComplexId}
@@ -134,7 +140,7 @@ export function LfkJournalClient(props: {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <strong>{s.complexTitle ?? 'ЛФК'}</strong>
-                  <Badge variant="secondary" className="font-normal">
+                  <Badge variant="secondary" className={patientCaptionTextClass}>
                     Завершен
                   </Badge>
                 </div>
@@ -147,12 +153,12 @@ export function LfkJournalClient(props: {
                     minute: '2-digit',
                   })}
                 </div>
-                <div className="mt-1 flex flex-wrap gap-2 text-sm">
+                <div className={cn(patientCaptionTextClass, 'mt-1 flex flex-wrap gap-2')}>
                   {s.durationMinutes != null ? <span>{s.durationMinutes} мин</span> : null}
                   {s.difficulty0_10 != null ? <span>Сложн. {s.difficulty0_10}/10</span> : null}
                   {s.pain0_10 != null ? <span>Боль {s.pain0_10}/10</span> : null}
                 </div>
-                {s.comment ? <p className="mt-1 text-sm">{s.comment}</p> : null}
+                {s.comment ? <p className={cn(patientBodyTextClass, 'mt-1')}>{s.comment}</p> : null}
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger

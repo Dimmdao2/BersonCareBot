@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import {
   patientListItemClass,
+  patientActionTextClass,
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
@@ -35,7 +36,7 @@ export function PatientBookingPaymentHistorySection() {
       <ul className="flex flex-col gap-2">
         {events.slice(0, 12).map((e) => (
           <li key={e.id} className={patientListItemClass}>
-            <p className="text-sm font-medium">{e.eventType}</p>
+            <p className={patientActionTextClass}>{e.eventType}</p>
             <p className={patientMutedTextClass}>
               {e.amountMinor != null && e.currency
                 ? (e.amountMinor / 100).toLocaleString('ru-RU', {

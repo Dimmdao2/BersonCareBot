@@ -3,16 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Switch } from '@/shared/ui/patient/primitives/switch';
+import { cn } from '@/lib/utils';
 import type { ProfileNotificationTopicModel } from '@/modules/patient-notifications/profileTopicChannelsModel';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { patientBodyTextClass, patientCaptionTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { setTopicChannelNotificationEnabled } from './notificationPrefsActions';
 
 const CHANNEL_ORDER = ['web_push', 'telegram', 'max', 'email'] as const;
 
 const TOPIC_TITLE_CELL_CLASS =
-  'max-w-[9rem] whitespace-normal break-words text-sm leading-snug text-[var(--patient-text-primary)] sm:max-w-[10rem]';
+  `${patientBodyTextClass} max-w-[9rem] whitespace-normal break-words sm:max-w-[10rem]`;
 const CHANNEL_HEADER_CLASS =
-  'max-w-[3.25rem] px-2 py-2 text-center text-xs font-normal leading-tight whitespace-normal text-muted-foreground';
+  `${patientCaptionTextClass} max-w-[3.25rem] px-2 py-2 text-center whitespace-normal`;
 
 type Props = {
   initialTopics: ProfileNotificationTopicModel[];
@@ -129,11 +130,11 @@ export function PatientNotificationsTopicMatrix({ initialTopics, pushEffective }
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[320px] border-collapse text-sm">
+      <table className={cn(patientBodyTextClass, 'w-full min-w-[320px] border-collapse')}>
         <thead>
           <tr className="border-b border-[var(--patient-border)]/60">
             <th
-              className={`py-2 pr-3 text-left font-medium text-[var(--patient-text-primary)] ${TOPIC_TITLE_CELL_CLASS}`}
+              className={`py-2 pr-3 text-left ${TOPIC_TITLE_CELL_CLASS}`}
             >
               Тип
             </th>
@@ -158,7 +159,7 @@ export function PatientNotificationsTopicMatrix({ initialTopics, pushEffective }
                   return (
                     <td
                       key={ch.code}
-                      className="px-2 py-3 text-center align-middle text-muted-foreground"
+                      className="px-2 py-3 text-center align-middle patient-text-secondary"
                     >
                       —
                     </td>

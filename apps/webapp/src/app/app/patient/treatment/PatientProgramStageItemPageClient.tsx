@@ -38,6 +38,8 @@ import {
   patientMutedTextClass,
   patientProgramItemHeroTitleClass,
   patientProgramItemPrimaryStatTextClass,
+  patientProgramDiscussionCountClass,
+  patientProgramDiscussionUnreadDotClass,
   patientInnerPageStackClass,
   patientScrollbarHiddenClass,
   patientSectionTitleClass,
@@ -184,7 +186,7 @@ function ModalDescriptionSection(props: { item: StageItem }) {
       return (
         <div className="flex flex-col gap-2">
           <h3 className={patientSectionTitleNormalClass}>Противопоказания</h3>
-          <p className={cn(patientBodyTextClass, 'm-0 whitespace-pre-wrap leading-relaxed')}>
+          <p className={cn(patientBodyTextClass, 'm-0 whitespace-pre-wrap')}>
             {contraindications}
           </p>
         </div>
@@ -195,16 +197,16 @@ function ModalDescriptionSection(props: { item: StageItem }) {
         <h3 className={patientSectionTitleNormalClass}>Описание</h3>
         <div className="flex flex-col gap-3">
           {body ? (
-            <p className={cn(patientBodyTextClass, 'm-0 whitespace-pre-wrap leading-relaxed')}>
+            <p className={cn(patientBodyTextClass, 'm-0 whitespace-pre-wrap')}>
               {body}
             </p>
           ) : null}
           {contraindications ? (
             <div className="flex flex-col gap-1">
-              <span className={cn(patientMutedTextClass, 'text-xs font-medium')}>
+              <span className="patient-type-caption">
                 Противопоказания
               </span>
-              <p className={cn(patientBodyTextClass, 'm-0 whitespace-pre-wrap leading-relaxed')}>
+              <p className={cn(patientBodyTextClass, 'm-0 whitespace-pre-wrap')}>
                 {contraindications}
               </p>
             </div>
@@ -242,12 +244,12 @@ function ModalDescriptionSection(props: { item: StageItem }) {
             text={text}
             bodyFormat="markdown"
             className={cn(
-              'markdown-preview text-sm [&_p]:leading-relaxed [&_strong]:font-normal',
-              'text-[var(--patient-text-primary,#1a1a2e)]',
+              'markdown-preview',
+              patientBodyTextClass,
             )}
           />
         ) : (
-          <p className={cn(patientBodyTextClass, 'whitespace-pre-wrap leading-relaxed')}>{text}</p>
+          <p className={cn(patientBodyTextClass, 'whitespace-pre-wrap')}>{text}</p>
         )}
       </div>
     </div>
@@ -637,10 +639,10 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   if (!resolved || !item || !stage) return null;
 
   const heroCloseLinkClass = cn(
-    'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md border border-[#94a3b8]/28',
-    'bg-[rgba(157,177,226,0.21)] px-3 py-1 text-xs font-normal leading-tight text-[#334155] no-underline transition-colors',
-    'hover:border-[#94a3b8]/42 hover:bg-[rgba(157,177,226,0.30)] active:bg-[rgba(157,177,226,0.34)]',
-    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#94a3b8]/40',
+    'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md border border-[var(--patient-program-close-border)]',
+    'bg-[var(--patient-program-close-bg)] px-3 py-1 patient-type-caption no-underline transition-colors',
+    'hover:border-[var(--patient-program-close-hover-border)] hover:bg-[var(--patient-program-close-hover-bg)] active:bg-[var(--patient-program-close-active-bg)]',
+    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-program-close-focus)]',
   );
 
   return (
@@ -663,7 +665,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
         <div className="flex min-h-0 items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             {item.groupId ? (
-              <p className="m-0 truncate text-xs font-normal leading-snug text-muted-foreground">
+              <p className="m-0 truncate patient-type-caption">
                 Группа: {stage.groups.find((g) => g.id === item.groupId)?.title?.trim() ?? '—'}
               </p>
             ) : null}
@@ -700,21 +702,21 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               return (
                 <>
                   {metaLine ? (
-                    <p className="mt-2 text-[13px] font-normal leading-snug text-neutral-700">
+                    <p className="mt-2 patient-type-secondary">
                       {metaLine}
                     </p>
                   ) : null}
                   {reps != null && sets != null ? (
-                    <div className="mt-[28px] flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-[0.8rem]">
+                    <div className="mt-[28px] flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 patient-type-secondary">
                       <span className={patientProgramItemPrimaryStatTextClass}>
                         {reps} повторений × {sets} подходов
                       </span>
                       {maxPain != null ? (
-                        <span className="font-normal text-[#7d4128]">Боль {maxPain} max</span>
+                        <span className="patient-type-caption patient-text-warning">Боль {maxPain} max</span>
                       ) : null}
                     </div>
                   ) : maxPain != null ? (
-                    <p className="mt-[28px] text-[0.8rem] font-normal leading-snug text-[#7d4128]">
+                    <p className="mt-[28px] patient-type-caption patient-text-warning">
                       Боль {maxPain} max
                     </p>
                   ) : null}
@@ -725,7 +727,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               const parts = briefNonExerciseHeroParts(item, navMode);
               if (parts.length === 0) return null;
               return (
-                <p className={cn(patientMutedTextClass, 'mt-2 text-sm leading-snug')}>
+                <p className={cn(patientMutedTextClass, 'mt-2')}>
                   {parts.join(' · ')}
                 </p>
               );
@@ -739,12 +741,12 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
         {item && navEnabled && navPrevHref ? (
           <PatientSegmentedPagerLink href={navPrevHref} aria-label="Предыдущий элемент">
             <ChevronLeft className="size-4 shrink-0" aria-hidden />
-            <span className="sr-only sm:not-sr-only text-xs">Пред.</span>
+            <span className="sr-only sm:not-sr-only patient-type-caption">Пред.</span>
           </PatientSegmentedPagerLink>
         ) : (
           <PatientSegmentedPagerDisabledCell tone="faded">
             <ChevronLeft className="size-4 shrink-0 opacity-50" aria-hidden />
-            <span className="sr-only sm:not-sr-only text-xs">Пред.</span>
+            <span className="sr-only sm:not-sr-only patient-type-caption">Пред.</span>
           </PatientSegmentedPagerDisabledCell>
         )}
 
@@ -756,12 +758,12 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
 
         {item && navEnabled && navNextHref ? (
           <PatientSegmentedPagerLink href={navNextHref} aria-label="Следующий элемент">
-            <span className="sr-only sm:not-sr-only text-xs">След.</span>
+            <span className="sr-only sm:not-sr-only patient-type-caption">След.</span>
             <ChevronRight className="size-4 shrink-0" aria-hidden />
           </PatientSegmentedPagerLink>
         ) : (
           <PatientSegmentedPagerDisabledCell tone="faded">
-            <span className="sr-only sm:not-sr-only text-xs">След.</span>
+            <span className="sr-only sm:not-sr-only patient-type-caption">След.</span>
             <ChevronRight className="size-4 shrink-0 opacity-50" aria-hidden />
           </PatientSegmentedPagerDisabledCell>
         )}
@@ -780,8 +782,8 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               if (!line?.comment) return null;
               return (
                 <div className="border-b border-[var(--patient-border)]/50 bg-muted/10 px-4 py-2.5 lg:px-5">
-                  <p className={cn(patientMutedTextClass, 'm-0 text-xs leading-snug')}>
-                    <span className="font-medium text-foreground">Комментарий к позиции: </span>
+                  <p className={cn(patientMutedTextClass, 'm-0')}>
+                    <span className="patient-type-form-label">Комментарий к позиции: </span>
                     {line.comment}
                   </p>
                 </div>
@@ -819,7 +821,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                       href={itemLink(flatNextItemId)}
                       className={cn(
                         patientButtonSuccessClass,
-                        'min-h-9 flex-1 text-xs font-medium no-underline sm:min-h-10',
+                        'min-h-9 flex-1 no-underline sm:min-h-10',
                       )}
                     >
                       Следующая рекомендация
@@ -829,7 +831,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                       href={backHref}
                       className={cn(
                         patientButtonSuccessClass,
-                        'min-h-9 flex-1 text-xs font-medium no-underline sm:min-h-10',
+                        'min-h-9 flex-1 no-underline sm:min-h-10',
                       )}
                     >
                       Следующая рекомендация
@@ -843,7 +845,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                           type="button"
                           className={cn(
                             patientSecondaryActionClass,
-                            '!w-auto min-h-9 min-w-0 max-w-[9.5rem] flex-[0_1_9.5rem] items-center justify-center gap-1 px-2 py-2.5 text-xs font-medium leading-tight whitespace-nowrap',
+                            '!w-auto min-h-9 min-w-0 max-w-[9.5rem] flex-[0_1_9.5rem] items-center justify-center gap-1 px-2 py-2.5 whitespace-nowrap',
                             commentsEnabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-60',
                           )}
                           disabled={busy !== null || !commentsEnabled}
@@ -856,13 +858,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                         >
                           <span className="min-w-0 truncate">Комментарии</span>
                           {discussionPreview.totalCount > 0 ? (
-                            <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[#1d4ed8]">
+                            <span className={patientProgramDiscussionCountClass}>
                               {discussionPreview.totalCount}
                             </span>
                           ) : null}
                           {discussionPreview.unreadCount > 0 ? (
                             <span
-                              className="size-1.5 shrink-0 rounded-full bg-[#ef4444]"
+                              className={patientProgramDiscussionUnreadDotClass}
                               aria-label="Есть новые комментарии"
                             />
                           ) : null}
@@ -872,7 +874,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                         type="button"
                         className={cn(
                           patientCompactActionClass,
-                          'min-h-9 min-w-0 flex-[1_1_0] px-2 py-2.5 text-xs font-medium leading-tight',
+                          'min-h-9 min-w-0 flex-[1_1_0] px-2 py-2.5',
                           !commentsVisible && 'w-full',
                           simpleCompleteDoneFrozen &&
                             cn(
@@ -892,12 +894,12 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                               className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current"
                               aria-hidden
                             />
-                            <span className="min-w-0 flex-1 text-center font-semibold leading-tight">
+                            <span className="min-w-0 flex-1 text-center">
                               Выполнено
                             </span>
                           </>
                         ) : (
-                          <span className="w-full text-center leading-tight">
+                          <span className="w-full text-center">
                             Отметить выполнение
                           </span>
                         )}
@@ -928,12 +930,12 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
           </div>
 
           {item.effectiveComment?.trim() ? (
-            <div className="my-4 flex flex-col gap-1.5 rounded-lg border border-[var(--patient-border)]/60 bg-[#fff5e8] px-3 py-2.5">
-              <span className="text-xs text-[#7e6c61]">Инструкция от специалиста</span>
+            <div className="my-4 flex flex-col gap-1.5 rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-program-alert-bg)] px-3 py-2.5">
+              <span className="patient-type-form-label patient-text-specialist">Инструкция от специалиста</span>
               <p
                 className={cn(
                   patientBodyTextClass,
-                  'm-0 whitespace-pre-wrap text-sm leading-relaxed text-[#714c2f]',
+                  'm-0 whitespace-pre-wrap patient-text-specialist',
                 )}
               >
                 {item.effectiveComment.trim()}
@@ -946,7 +948,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               <button
                 type="button"
                 className={cn(
-                  'inline-flex size-9 min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors',
+                  'inline-flex size-9 min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white patient-text-secondary transition-colors',
                   mediaPickerEnabled
                     ? 'cursor-pointer hover:bg-slate-100 active:bg-slate-200'
                     : 'cursor-not-allowed opacity-60',
@@ -962,7 +964,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               >
                 <Camera className="size-4" aria-hidden />
               </button>
-              <p className={cn(patientMutedTextClass, 'm-0 text-xs leading-snug')}>
+              <p className={cn(patientMutedTextClass, 'm-0')}>
                 Если у вас есть вопросы по технике выполнения, вы можете записать небольшое видео с
                 выполнением и отправить его специалисту.
               </p>

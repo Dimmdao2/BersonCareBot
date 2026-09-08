@@ -6,16 +6,14 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 import { cn } from '@/lib/utils';
+import { patientCaptionTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import {
-  patientChatMetaLineClass,
-  patientMutedTextClass,
-} from '@/shared/ui/patient/patientVisual';
-import {
+  dayKeyFromIso,
   formatChatMessageTimeRu,
   formatChatRelativeDateLabelRu,
 } from '@/modules/messaging/messageFormatting';
 import { chatMessageDeliveryStatus } from '@/modules/messaging/chatMessageDeliveryStatus';
-import { ChatBubbleOutgoingMeta } from '@/shared/ui/chat/ChatBubbleOutgoingMeta';
+import { DoctorChatBubbleMeta } from '@/shared/ui/chat/DoctorChatBubbleMeta';
 import {
   chatBubbleOwnClass,
   chatBubblePeerClass,
@@ -32,8 +30,8 @@ import { PatientChatComposer } from '@/shared/ui/patient/PatientChatComposer';
 import {
   patientChatBubbleClass,
   patientChatBubbleRowClass,
-  patientChatMetaWidthClass,
 } from '@/shared/ui/patient/patientChatVisual';
+import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -91,6 +89,7 @@ export function ProgramItemDiscussionDialog(props: {
     onRead,
     mediaSubmissionEnabled = false,
   } = props;
+  const organizationTitle = usePatientOrganizationContext()?.organization.title.trim() || null;
   const [messages, setMessages] = useState<ProgramItemDiscussionMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
@@ -250,12 +249,20 @@ export function ProgramItemDiscussionDialog(props: {
       onClose={() => onOpenChange(false)}
       title="Комментарии"
       titleSubject={itemLabel ?? undefined}
+      headerAction={
+        organizationTitle ? (
+          <span className={cn(patientCaptionTextClass, 'max-w-40 truncate text-right')}>
+            {organizationTitle}
+          </span>
+        ) : null
+      }
       size="content"
+      bodyClassName="p-0"
     >
       {/* Mobile: колонка занимает drawer целиком; desktop: комфортная фиксированная высота треда. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2 md:h-[min(75vh,34rem)] md:min-h-[20rem] md:flex-none">
+      <div className="flex min-h-0 flex-1 flex-col md:h-[min(75vh,34rem)] md:min-h-[20rem] md:flex-none">
         {error ? (
-          <p className={cn(patientMutedTextClass, 'text-sm text-[var(--patient-color-danger)]')}>
+          <p className={cn(patientMutedTextClass, 'mx-4 mt-3 patient-text-danger-accent')}>
             {error}
           </p>
         ) : null}
@@ -263,7 +270,7 @@ export function ProgramItemDiscussionDialog(props: {
           <Button
             type="button"
             variant="outline"
-            className="self-start"
+            className="mx-4 mt-3 self-start"
             disabled={loading || loadingOlder}
             onClick={() => {
               if (!nextCursor) return;
@@ -283,7 +290,7 @@ export function ProgramItemDiscussionDialog(props: {
         <div
           ref={scrollRef}
           className={cn(
-            'min-h-0 flex-1 overflow-y-auto space-y-4 pb-4 pt-1 md:pb-5',
+            'min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3',
             chatThreadSurfaceClass,
           )}
         >
@@ -294,49 +301,55 @@ export function ProgramItemDiscussionDialog(props: {
               <p className={cn('text-center', patientMutedTextClass)}>Пока нет комментариев.</p>
             )
           ) : (
-            sortedMessages.map((m) => {
+            sortedMessages.map((m, index) => {
               const mine = m.senderRole === 'patient';
+              const previousMessage = index > 0 ? sortedMessages[index - 1] : null;
+              const startsNewDay =
+                !previousMessage ||
+                dayKeyFromIso(previousMessage.createdAt) !== dayKeyFromIso(m.createdAt);
               const deliveryStatus = mine
                 ? chatMessageDeliveryStatus({ createdAt: m.createdAt, peerLastReadAt })
                 : null;
               return (
-                <div
-                  key={m.id}
-                  className={cn('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}
-                >
-                  <div
-                    className={cn(
-                      patientChatBubbleRowClass,
-                      mine ? 'justify-end' : 'justify-start',
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        patientChatBubbleClass,
-                        mine ? chatBubbleOwnClass : chatBubblePeerClass,
-                      )}
-                    >
-                      <ProgramItemDiscussionMessageBody message={m} mine={mine} />
-                      {mine && deliveryStatus ? (
-                        <ChatBubbleOutgoingMeta
-                          timeLabel={formatChatMessageTimeRu(m.createdAt)}
-                          deliveryStatus={deliveryStatus}
-                        />
-                      ) : null}
-                    </div>
-                  </div>
-                  {!mine ? (
-                    <p
-                      className={cn(
-                        patientChatMetaWidthClass,
-                        patientChatMetaLineClass,
-                        'text-start',
-                      )}
-                    >
-                      {formatChatRelativeDateLabelRu(m.createdAt, new Date())} ·{' '}
-                      {formatChatMessageTimeRu(m.createdAt)}
+                <div key={m.id}>
+                  {startsNewDay ? (
+                    <p className={cn(patientCaptionTextClass, 'mb-2 text-center')}>
+                      {formatChatRelativeDateLabelRu(m.createdAt, new Date())}
                     </p>
                   ) : null}
+                  <div className={cn('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}>
+                    <div className={cn(patientChatBubbleRowClass, mine && 'justify-end')}>
+                      <div
+                        className={cn(
+                          patientChatBubbleClass,
+                          mine ? chatBubbleOwnClass : chatBubblePeerClass,
+                        )}
+                      >
+                        <ProgramItemDiscussionMessageBody
+                          message={m}
+                          mine={mine}
+                          trailingContent={
+                            !m.mediaFileId && m.body?.trim() ? (
+                              <DoctorChatBubbleMeta
+                                timeLabel={formatChatMessageTimeRu(m.createdAt)}
+                                deliveryStatus={deliveryStatus}
+                                appearance="patient"
+                              />
+                            ) : null
+                          }
+                        />
+                        {m.mediaFileId || !m.body?.trim() ? (
+                          <p className="h-4">
+                            <DoctorChatBubbleMeta
+                              timeLabel={formatChatMessageTimeRu(m.createdAt)}
+                              deliveryStatus={deliveryStatus}
+                              appearance="patient"
+                            />
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               );
             })
@@ -353,6 +366,7 @@ export function ProgramItemDiscussionDialog(props: {
           ariaLabel="Текст комментария"
           submitAriaLabel="Отправить"
           maxLength={4000}
+          className="px-4"
           leadingControl={
             mediaSubmissionEnabled ? (
               <ProgramItemDiscussionMediaPicker

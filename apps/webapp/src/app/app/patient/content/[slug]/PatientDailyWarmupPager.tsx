@@ -5,6 +5,7 @@ import {
   PatientSegmentedPagerLink,
   PatientSegmentedStrip,
 } from '@/shared/ui/patient/PatientSegmentedStrip';
+import { patientCaptionTextClass } from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   nav: PatientDailyWarmupNav;
@@ -21,14 +22,14 @@ export function PatientDailyWarmupPager({ nav }: Props) {
     >
       <PatientSegmentedPagerLink href={nav.prevHref} aria-label="Предыдущая разминка">
         <ChevronLeft className="size-4 shrink-0" aria-hidden />
-        <span className="sr-only sm:not-sr-only text-xs">Пред.</span>
+        <span className={`sr-only sm:not-sr-only ${patientCaptionTextClass}`}>Пред.</span>
       </PatientSegmentedPagerLink>
       <PatientSegmentedPagerLabel width="compact" className="flex-col">
         <span>Разминка дня</span>
         <span>{`${nav.index + 1} из ${nav.total}`}</span>
       </PatientSegmentedPagerLabel>
       <PatientSegmentedPagerLink href={nav.nextHref} aria-label="Следующая разминка">
-        <span className="sr-only sm:not-sr-only text-xs">След.</span>
+        <span className={`sr-only sm:not-sr-only ${patientCaptionTextClass}`}>След.</span>
         <ChevronRight className="size-4 shrink-0" aria-hidden />
       </PatientSegmentedPagerLink>
     </PatientSegmentedStrip>

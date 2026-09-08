@@ -57,13 +57,13 @@ function AttemptHistoryCollapsibleList(props: {
             className="rounded-md border border-[var(--patient-border)]/50 bg-[var(--patient-card-bg)]/80"
           >
             <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left">
-              <span className={cn(patientMutedTextClass, 'text-[11px]')}>
+              <span className={patientMutedTextClass}>
                 {bundle.submittedAt ? `Отправлено ${bundle.submittedAt.slice(0, 10)}` : '—'}
                 {bundle.acceptedAt ? ` · принято ${bundle.acceptedAt.slice(0, 10)}` : ''}
               </span>
               <ChevronDown
                 className={cn(
-                  'size-3.5 shrink-0 text-[var(--patient-text-muted)] transition-transform duration-200',
+                  'size-3.5 shrink-0 patient-text-secondary transition-transform duration-200',
                   'group-data-[panel-open]:rotate-180',
                 )}
                 aria-hidden
@@ -79,8 +79,8 @@ function AttemptHistoryCollapsibleList(props: {
                       key={`${bundle.attemptId}-${t.testId}`}
                       className="rounded border border-[var(--patient-border)]/40 px-2 py-1"
                     >
-                      <span className="text-xs font-medium">{t.title ?? t.testId}</span>
-                      <p className={cn(patientMutedTextClass, 'mt-0.5 mb-0 text-[11px]')}>
+                      <span className="patient-type-body">{t.title ?? t.testId}</span>
+                      <p className={cn(patientMutedTextClass, 'mt-0.5 mb-0')}>
                         Итог: {formatNormalizedTestDecisionRu(row.normalizedDecision)}
                         {row.decidedBy ? ' (уточнено врачом)' : ''}
                       </p>
@@ -392,7 +392,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
     if (!completedSummaryLoaded) {
       return (
         <div className="mt-3 flex flex-col gap-2">
-          <p className="text-xs text-emerald-600 dark:text-emerald-400">Набор отправлен.</p>
+          <p className="patient-type-body patient-text-success">Набор отправлен.</p>
         </div>
       );
     }
@@ -402,7 +402,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
     const anyRow = testIds.some((tid) => Boolean(savedByTestId[tid]));
     return (
       <div className="mt-3 flex flex-col gap-3">
-        <p className="text-xs text-emerald-600 dark:text-emerald-400">
+        <p className="patient-type-body patient-text-success">
           {snapRO?.doctorAcceptedItem ? 'Пункт принят врачом.' : 'Набор отправлен.'}
         </p>
         {hasBundles ? (
@@ -410,7 +410,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
         ) : snapRO ? (
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {snapRO.attemptHistory.map((a) => (
-              <li key={a.id} className={cn(patientMutedTextClass, 'text-[11px]')}>
+              <li key={a.id} className={patientMutedTextClass}>
                 {a.submittedAt
                   ? `Отправлено ${a.submittedAt.slice(0, 10)}`
                   : `Начато ${a.startedAt.slice(0, 10)}`}
@@ -422,7 +422,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
         {!interactionDisabled && snapRO ? (
           <button
             type="button"
-            className={cn(patientCompactActionClass, 'h-8 w-auto self-start text-sm')}
+            className={cn(patientCompactActionClass, 'h-8 w-auto self-start')}
             disabled={busy !== null}
             onClick={async () => {
               setBusy('new-attempt');
@@ -459,10 +459,10 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                   key={t.testId}
                   className="rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-card-bg)] px-2 py-1.5"
                 >
-                  <span className="text-xs font-medium">
+                  <span className="patient-type-body">
                     {t.title ?? row.testTitle ?? t.testId}
                   </span>
-                  <p className={cn(patientMutedTextClass, 'mt-1 mb-0 text-[11px]')}>
+                  <p className={cn(patientMutedTextClass, 'mt-1 mb-0')}>
                     Итог: {formatNormalizedTestDecisionRu(row.normalizedDecision)}
                     {row.decidedBy ? ' (уточнено врачом)' : ''}
                   </p>
@@ -471,7 +471,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
             })}
           </ul>
         ) : !hasBundles ? (
-          <p className={cn(patientMutedTextClass, 'text-xs')}>Детали результатов недоступны.</p>
+          <p className={patientMutedTextClass}>Детали результатов недоступны.</p>
         ) : null}
       </div>
     );
@@ -479,7 +479,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
 
   if (interactionDisabled) {
     return (
-      <p className={cn(patientMutedTextClass, 'mt-2 text-xs')} role="status">
+      <p className={cn(patientMutedTextClass, 'mt-2')} role="status">
         Запись результатов недоступна.
       </p>
     );
@@ -505,7 +505,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
       onKeyDown={(e) => e.stopPropagation()}
     >
       {testIds.length > 0 ? (
-        <p className={cn(patientMutedTextClass, 'm-0 text-[11px]')}>
+        <p className={cn(patientMutedTextClass, 'm-0')}>
           Сохранено тестов: {savedCount} / {testIds.length}
         </p>
       ) : null}
@@ -519,7 +519,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
       ) : null}
 
       {testsMeta.length === 0 ? (
-        <p className="text-xs text-destructive">В снимке нет списка тестов.</p>
+        <p className="patient-type-body patient-text-danger">В снимке нет списка тестов.</p>
       ) : (
         testsMetaToRender.map((t) => {
           const autoFromScore = scoringAllowsNumericDecisionInference(t.scoringConfig);
@@ -531,23 +531,23 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
               className="flex flex-col gap-1 rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-card-bg)] px-2 py-1.5"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-medium">{t.title ?? t.testId}</span>
+                <span className="patient-type-body">{t.title ?? t.testId}</span>
                 {saved ? (
-                  <span className={cn(patientMutedTextClass, 'text-[10px]')}>Сохранено</span>
+                  <span className={patientMutedTextClass}>Сохранено</span>
                 ) : null}
               </div>
               {!activeTestId && t.comment ? (
-                <p className={cn(patientMutedTextClass, 'mt-0.5 text-[11px]')}>
-                  Комментарий к позиции: <span className="text-foreground">{t.comment}</span>
+                <p className={cn(patientMutedTextClass, 'mt-0.5')}>
+                  Комментарий к позиции: <span className="patient-type-body">{t.comment}</span>
                 </p>
               ) : null}
-              {testErr ? <p className="m-0 text-[11px] text-destructive">{testErr}</p> : null}
+              {testErr ? <p className="m-0 patient-type-body patient-text-danger">{testErr}</p> : null}
               {autoFromScore ? (
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <Input
                       type="number"
-                      className="h-8 max-w-[120px] text-sm"
+                      className="h-8 max-w-[120px]"
                       placeholder="score"
                       value={scores[t.testId] ?? ''}
                       onChange={(e) => setScores((s) => ({ ...s, [t.testId]: e.target.value }))}
@@ -555,7 +555,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                     />
                     <button
                       type="button"
-                      className={cn(patientCompactActionClass, 'h-8 w-auto text-sm')}
+                      className={cn(patientCompactActionClass, 'h-8 w-auto')}
                       disabled={busy !== null}
                       onClick={async () => {
                         setBusy(itemId + t.testId);
@@ -625,12 +625,12 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                     </button>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Label className={cn(patientMutedTextClass, 'text-[11px]')}>
+                    <Label variant="field">
                       Комментарий (необязательно)
                     </Label>
                     <Textarea
                       variant="journal"
-                      className="min-h-[56px] min-w-0 text-sm"
+                      className="min-h-[56px] min-w-0"
                       value={numericNotes[t.testId] ?? ''}
                       onChange={(e) =>
                         setNumericNotes((s) => ({ ...s, [t.testId]: e.target.value }))
@@ -643,7 +643,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
               ) : (
                 <div className="mt-1 flex flex-col gap-2">
                   <div className="flex flex-col gap-1">
-                    <Label className={cn(patientMutedTextClass, 'text-[11px]')}>Итог</Label>
+                    <Label variant="field">Итог</Label>
                     <Select
                       value={qualDecisions[t.testId] || undefined}
                       onValueChange={(v) =>
@@ -652,7 +652,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                       disabled={busy !== null}
                       items={patientTestQualDecisionSelectItems}
                     >
-                      <SelectTrigger className="h-9 max-w-[280px] text-sm">
+                      <SelectTrigger className="h-9 max-w-[280px]">
                         <SelectValue placeholder="Выберите итог" />
                       </SelectTrigger>
                       <SelectContent>
@@ -669,12 +669,12 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                     </Select>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Label className={cn(patientMutedTextClass, 'text-[11px]')}>
+                    <Label variant="field">
                       Комментарий (необязательно)
                     </Label>
                     <Textarea
                       variant="journal"
-                      className="min-h-[72px] min-w-0 text-sm"
+                      className="min-h-[72px] min-w-0"
                       value={qualNotes[t.testId] ?? ''}
                       onChange={(e) => setQualNotes((s) => ({ ...s, [t.testId]: e.target.value }))}
                       disabled={busy !== null}
@@ -683,7 +683,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                   </div>
                   <button
                     type="button"
-                    className={cn(patientCompactActionClass, 'h-8 w-auto text-sm')}
+                    className={cn(patientCompactActionClass, 'h-8 w-auto')}
                     disabled={busy !== null}
                     onClick={async () => {
                       setBusy(itemId + t.testId);

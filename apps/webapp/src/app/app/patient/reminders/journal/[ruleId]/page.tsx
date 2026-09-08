@@ -6,7 +6,11 @@ import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { Badge } from '@/shared/ui/patient/primitives/badge';
 import { Card, CardContent } from '@/shared/ui/patient/primitives/card';
 import { cn } from '@/lib/utils';
-import { patientInlineLinkClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientCaptionTextClass,
+  patientInlineLinkClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
 
 type Props = { params: Promise<{ ruleId: string }> };
 
@@ -56,23 +60,23 @@ export default async function PatientReminderJournalPage({ params }: Props) {
             <li key={e.id}>
               <Card
                 className={cn(
-                  'rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] bg-[var(--patient-card-bg)] !py-0 text-[var(--patient-text-primary)] shadow-[var(--patient-shadow-card-mobile)] ring-0 lg:rounded-[var(--patient-card-radius-desktop)] lg:shadow-[var(--patient-shadow-card-desktop)]',
+                  'rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] bg-[var(--patient-card-bg)] !py-0 patient-text-primary shadow-[var(--patient-shadow-card-mobile)] ring-0 lg:rounded-[var(--patient-card-radius-desktop)] lg:shadow-[var(--patient-shadow-card-desktop)]',
                 )}
               >
                 <CardContent className="flex flex-wrap items-center justify-between gap-2 py-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="secondary">{ACTION_LABEL[e.action] ?? e.action}</Badge>
-                    <time className={cn(patientMutedTextClass, 'text-xs')} dateTime={e.createdAt}>
+                    <time className={patientCaptionTextClass} dateTime={e.createdAt}>
                       {new Date(e.createdAt).toLocaleString('ru-RU')}
                     </time>
                   </div>
                   {e.skipReason ? (
-                    <p className={cn(patientMutedTextClass, 'w-full text-xs')}>
+                    <p className={cn(patientCaptionTextClass, 'w-full')}>
                       Причина: {e.skipReason}
                     </p>
                   ) : null}
                   {e.snoozeUntil ? (
-                    <p className={cn(patientMutedTextClass, 'w-full text-xs')}>
+                    <p className={cn(patientCaptionTextClass, 'w-full')}>
                       До: {new Date(e.snoozeUntil).toLocaleString('ru-RU')}
                     </p>
                   ) : null}
@@ -84,7 +88,7 @@ export default async function PatientReminderJournalPage({ params }: Props) {
       )}
 
       <p className="mt-6 text-center">
-        <Link href={routePaths.patientReminders} className={cn(patientInlineLinkClass, 'text-sm')}>
+        <Link href={routePaths.patientReminders} className={patientInlineLinkClass}>
           К списку напоминаний
         </Link>
       </p>

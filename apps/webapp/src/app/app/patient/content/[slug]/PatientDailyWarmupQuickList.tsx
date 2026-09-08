@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import {
   patientCompositionCurrentRowChromeClass,
   patientCompositionListThumbSlotClass,
+  patientBodyTextClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 
@@ -75,7 +76,7 @@ export function PatientDailyWarmupQuickList({ currentSlug, pages, className }: P
                 sizes="40px"
                 iconClassName="size-4"
               />
-              <span className="min-w-0 flex-1 truncate text-sm text-[var(--patient-text-primary)]">
+              <span className={cn('min-w-0 flex-1 truncate', patientBodyTextClass)}>
                 {item.title}
               </span>
             </div>

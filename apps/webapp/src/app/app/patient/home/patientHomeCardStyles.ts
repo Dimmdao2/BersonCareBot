@@ -88,6 +88,10 @@ export const patientHomeCardDangerClass = cn(
   'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
 );
 
+/** Общий SOS-tone для outline-действий в одиночной и split-карточке. */
+export const patientHomeSosActionToneClass =
+  'border-[var(--patient-action-sos-border)] hover:bg-[var(--patient-action-sos-hover-bg)] active:bg-[var(--patient-action-sos-active-bg)]';
+
 /** Mood / pastel warm gradient (`§10.7`) — legacy; блок самочувствия использует {@link patientHomeMoodCheckinShellClass}. */
 export const patientHomeCardGradientWarmClass = cn(
   'overflow-hidden border border-[#fed7aa]',
@@ -109,7 +113,7 @@ export const patientHomeMoodCheckinShellClass = cn(
 /** Shared 24px pill metrics for top-card labels (hero / useful post). */
 export const patientHomeFeatureBadgeBaseClass = cn(
   'inline-flex h-6 min-w-0 max-w-full shrink-0 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5',
-  'text-[11px] font-semibold uppercase leading-none tracking-[0.02em]',
+  'patient-type-caption uppercase tracking-[0.02em]',
 );
 
 /**
@@ -118,7 +122,7 @@ export const patientHomeFeatureBadgeBaseClass = cn(
  */
 export const patientHomeUsefulPostCoverBadgeClass = cn(
   patientHomeFeatureBadgeBaseClass,
-  'max-w-[min(100%,11rem)] truncate text-white shadow-md',
+  'max-w-[min(100%,11rem)] truncate patient-text-inverse shadow-md',
   'bg-[#c0392b] ring-1 ring-inset ring-white/40',
 );
 
@@ -156,7 +160,7 @@ export const patientIconLeadingWarningClass = cn(
 
 export const patientIconLeadingDangerClass = cn(
   'inline-flex size-11 shrink-0 items-center justify-center rounded-full md:size-14',
-  'bg-[var(--patient-color-danger)] text-white',
+  'bg-[var(--patient-color-danger)] patient-text-inverse',
 );
 
 // --- Phase 1 visual contracts: fixed slots + clamps (patient home «Сегодня») ---
@@ -209,12 +213,12 @@ export const patientHomePlanCardCompactShellClass = cn(
 
 /** Заголовок «Мой план реабилитации» в компактной карточке. */
 export const patientHomePlanCardHeadingCompactClass =
-  'min-w-0 truncate text-xs font-semibold leading-snug text-[var(--patient-block-heading)]';
+  'min-w-0 truncate patient-type-home-caption text-[var(--patient-block-heading)]';
 
 /** Название программы в компактной карточке — до 2 строк. */
 export const patientHomePlanCardTitleCompactClass = cn(
   patientLineClamp2Class,
-  'text-xs font-normal leading-snug text-[var(--patient-block-caption)]',
+  'patient-type-home-caption',
 );
 
 /**
@@ -241,37 +245,37 @@ export const patientHomeCardMediaSlotClass = cn(
 /** Заголовок карточки — до 2 строк, sm. */
 export const patientHomeCardTitleClampSmClass = cn(
   patientLineClamp2Class,
-  'text-sm font-medium leading-5 text-[var(--patient-text-primary)]',
+  'patient-type-home-card-title',
 );
 
 /** Заголовок карточки «Мой план» — до 3 строк (название программы). */
 export const patientHomePlanCardTitleClampSmClass = cn(
   patientLineClamp3Class,
-  'text-sm font-normal leading-5 text-[#626160]',
+  'patient-type-home-secondary',
 );
 
 /** Заголовок карточки — до 2 строк, lg (напоминание). */
 export const patientHomeCardTitleClampLgClass = cn(
   patientLineClamp2Class,
-  'text-lg font-medium leading-6 text-[var(--patient-text-primary)]',
+  'patient-type-section-title patient-text-primary',
 );
 
 /** Подзаголовок — 2 строки, xs (цвет — общий caption блоков «Сегодня»). */
 export const patientHomeCardSubtitleClampXsClass = cn(
   patientLineClamp2Class,
-  'text-xs text-[var(--patient-block-caption)]',
+  'patient-type-home-caption',
 );
 
 /** Подзаголовок — до 3 строк, xs (курсы, длинные описания). */
 export const patientHomeCardSubtitleClampXs3Class = cn(
   patientLineClamp3Class,
-  'text-xs text-[var(--patient-block-caption)]',
+  'patient-type-home-caption',
 );
 
 /** Подзаголовок / вторичный абзац — 2 строки, sm (тон подписей блоков «Сегодня»). */
 export const patientHomeCardSubtitleClampSmClass = cn(
   patientLineClamp2Class,
-  'text-sm leading-5 text-[var(--patient-block-caption)]',
+  'patient-type-home-secondary',
 );
 
 // --- Patient home «Сегодня»: fixed-geometry cards (hero, booking, grid blocks) ---
@@ -319,15 +323,15 @@ export const patientHomeTodayCardScrollRowBleedClass = cn(
 
 /** Мелкая подпись (caption) — общий токен `--patient-block-caption`. */
 export const patientHomeBlockCaptionTypographyClass =
-  'text-[12px] font-medium leading-snug text-[var(--patient-block-caption)]';
+  'patient-type-home-caption';
 
 /** Вторичный абзац / подпись под заголовком в блоках «Сегодня» (sm, `--patient-block-caption`). */
-export const patientHomeBlockBodySmClass = 'text-sm leading-5 text-[var(--patient-block-caption)]';
+export const patientHomeBlockBodySmClass = 'patient-type-home-secondary';
 
 /** Подпись sm с clamp-2 и `mt-1` (напоминания, пояснения под h2). */
 export const patientHomeBlockCaptionSmClamp2Mt1Class = cn(
   patientLineClamp2Class,
-  'mt-1 text-sm leading-5 text-[var(--patient-block-caption)]',
+  'mt-1 patient-type-home-secondary',
 );
 
 export const patientHomeBlockBodySmClamp2Mt2Class = cn(
@@ -347,7 +351,7 @@ export const patientHomePlanTitleClampClass = cn(
 /** Подзаголовок блока «Мой план» — до 3 строк, общий тон подписи. */
 export const patientHomePlanSubtitleClampClass = cn(
   patientLineClamp3Class,
-  'mt-1 text-sm leading-5 text-[var(--patient-block-caption)]',
+  'mt-1 patient-type-home-secondary',
 );
 
 /**
@@ -380,15 +384,15 @@ export const patientDailyWarmupDetailHeroTextColumnClass = cn(
 
 /** Описание материала разминки: типографика по плану UX. */
 export const patientDailyWarmupDetailMarkdownClass = cn(
-  'text-[14px] leading-relaxed text-[#3a3f53]',
-  '[&_strong]:font-semibold [&_b]:font-semibold',
+  'patient-type-home-secondary',
+  '[&_strong]:font-[var(--patient-font-weight-semibold)] [&_b]:font-[var(--patient-font-weight-semibold)]',
 );
 
 /** Заголовок hero на экране материала разминки — компактнее карточки «Разминка дня» на главной. */
 export const patientDailyWarmupDetailHeroTitleClampClass = cn(
   'min-w-0',
   patientHeroTitleBaseClass,
-  'mt-2 max-w-[min(100%,260px)] text-[16px] leading-[22px] min-[380px]:text-[17px] min-[380px]:leading-6 md:mt-3 md:max-w-[min(100%,360px)] md:line-clamp-2 md:text-[26px] md:leading-8 xl:text-[28px] xl:leading-9',
+  'mt-2 max-w-[min(100%,260px)] patient-type-page-title md:mt-3 md:max-w-[min(100%,360px)] md:line-clamp-2',
 );
 
 /**
@@ -403,17 +407,17 @@ export const patientHomeHeroTextColumnClass = cn(
   'pr-[100px] min-[380px]:pr-[124px] min-[415px]:pr-[160px] md:pr-[200px] lg:pr-[244px] xl:pr-[268px]',
 );
 
-/** Hero: заголовок (крупнее на mobile), line-clamp-2 — база {@link patientHeroTitleBaseClass}, адаптивные размеры под макет главной. */
+/** Hero: primary home hierarchy and line-clamp-2; the responsive scale lives in `patient-type-home-hero-title`. */
 export const patientHomeHeroTitleClampClass = cn(
   'min-w-0',
   patientHeroTitleBaseClass,
-  'mt-2 max-w-[min(100%,240px)] text-[18px] leading-6 min-[380px]:text-[20px] min-[380px]:leading-[26px] md:mt-4 md:max-w-[min(100%,320px)] md:line-clamp-2 md:text-[30px] md:leading-9 lg:max-w-[min(100%,390px)] lg:text-[34px] lg:leading-10 xl:text-[36px] xl:leading-[42px]',
+  'mt-2 max-w-[min(100%,240px)] patient-type-home-hero-title md:mt-4 md:max-w-[min(100%,320px)] md:line-clamp-2 lg:max-w-[min(100%,390px)]',
 );
 
 /** Hero: summary, line-clamp-2. */
 export const patientHomeHeroSummaryClampClass = cn(
   'min-w-0',
-  'mt-1 max-w-[min(100%,235px)] text-[12px] leading-4 text-[var(--patient-text-secondary)] min-[380px]:max-w-[min(100%,240px)] min-[380px]:text-[13px] min-[380px]:leading-[18px] md:mt-4 md:max-w-[min(100%,330px)] md:line-clamp-2 md:text-[15px] md:leading-[22px]',
+  'mt-1 max-w-[min(100%,235px)] patient-type-secondary min-[380px]:max-w-[min(100%,240px)] md:mt-4 md:max-w-[min(100%,330px)] md:line-clamp-2',
 );
 
 /** Hero: фиксированный слот картинки / декора справа снизу. */
@@ -454,7 +458,7 @@ export const patientHomeBookingCopyClampClass = cn(
 
 /** Слот под guest / activation copy (всегда занимает место — высота карточки не прыгает). */
 export const patientHomeBookingFooterSlotClass =
-  'flex min-h-5 shrink-0 flex-col justify-end overflow-hidden text-xs leading-5 text-[var(--patient-block-caption)]';
+  'flex min-h-5 shrink-0 flex-col justify-end overflow-hidden patient-type-home-caption';
 
 export const patientHomeBookingActionsClass = cn(
   'flex w-full shrink-0 flex-row gap-3 md:max-w-none md:flex-row',
@@ -505,18 +509,18 @@ export const patientHomeProgressStreakColClass = cn(
 );
 
 export const patientHomeProgressValueClass =
-  'text-[22px] font-semibold leading-7 text-[var(--patient-color-primary)]';
+  'patient-type-metric text-[var(--patient-color-primary)]';
 
 export const patientHomeProgressValueSuffixClass =
-  'text-[17px] font-semibold leading-7 text-[var(--patient-color-primary)]';
+  'patient-type-section-title text-[var(--patient-color-primary)]';
 
 export const patientHomeProgressStreakValueClass =
-  'text-[22px] font-semibold leading-7 text-[var(--patient-text-primary)]';
+  'patient-type-metric text-[var(--patient-text-primary)]';
 
-/** Двухколоночный блок настроения: подзаголовки как у блоков главной (цвет), чуть компактнее и `font-medium`. */
+/** Двухколоночный блок настроения: подзаголовки используют общий section-title role. */
 export const patientHomeMoodColumnHeadingClass = cn(
-  'font-sans font-medium',
-  'text-[13px] leading-snug text-[var(--patient-block-heading)]',
+  'patient-type-section-title',
+  'text-[var(--patient-block-heading)]',
   'mb-2',
 );
 
@@ -551,7 +555,7 @@ export const patientHomeTodayGridCellPullNextReminderAfterProgressClass = 'max-m
 
 export const patientHomeMoodStatusSlotClass = cn(
   patientLineClamp2Class,
-  'flex min-h-5 shrink-0 items-start text-xs leading-5 text-[var(--patient-block-caption)] sm:text-sm',
+  'flex min-h-5 shrink-0 items-start patient-type-home-status',
 );
 
 export const patientHomeMoodOptionButtonClass = cn(
@@ -573,24 +577,23 @@ export const patientHomeSosCardGeometryClass = cn(
 
 export const patientHomeSosTitleClampClass = cn(
   patientLineClamp2Class,
-  'mt-1 text-base font-semibold text-[var(--patient-text-primary)]',
+  'mt-1 patient-type-section-title patient-text-primary',
 );
 
 export const patientHomeSosSubtitleClampClass = cn(
   patientLineClamp2Class,
-  'mt-1 text-sm leading-5 text-[var(--patient-block-caption)]',
+  'mt-1 patient-type-home-secondary',
 );
 
 /** Заголовок блока напоминания на mobile — компактнее стандартного секционного. */
 export const patientHomeReminderMobileHeadingClass = cn(
   patientHomeBlockHeadingClass,
-  'max-md:text-[13px] max-md:leading-snug max-md:font-medium',
 );
 
 /** Одна подпись под заголовком напоминания (mobile): как caption блоков «Сегодня». */
 export const patientHomeReminderMobileSubtitleClass = cn(
   patientLineClamp2Class,
-  'mt-0.5 text-xs leading-snug text-[var(--patient-block-caption)]',
+  'mt-0.5 patient-type-home-caption',
 );
 
 /** Next reminder: compact warning card (отдельно от других secondary-карточек). */

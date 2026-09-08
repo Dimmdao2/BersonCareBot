@@ -83,9 +83,9 @@ export function SegmentRouteError({
       className="flex min-h-[40vh] flex-col items-center justify-center gap-4 p-6 text-center"
       role="alert"
     >
-      <h2 className="text-lg font-semibold">Что-то пошло не так</h2>
-      <p className="max-w-md text-sm text-muted-foreground">{message}</p>
-      {error.digest ? <p className="text-xs text-muted-foreground">Код: {error.digest}</p> : null}
+      <h2 className="patient-type-section-title">Что-то пошло не так</h2>
+      <p className="max-w-md patient-type-secondary">{message}</p>
+      {error.digest ? <p className="patient-type-caption">Код: {error.digest}</p> : null}
       <div className="flex w-full max-w-xs flex-col gap-2">
         <Button
           type="button"

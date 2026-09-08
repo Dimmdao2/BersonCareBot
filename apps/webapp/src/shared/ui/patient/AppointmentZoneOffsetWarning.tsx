@@ -38,7 +38,7 @@ export function AppointmentZoneOffsetWarning({ iso, branchTimeZone, className }:
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-0.5 text-xs font-semibold text-[var(--patient-color-danger)]',
+        'inline-flex items-center gap-0.5 patient-type-caption patient-text-danger',
         className,
       )}
     >

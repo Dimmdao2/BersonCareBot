@@ -23,7 +23,7 @@ import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/
 /** Единый стиль пунктов бокового меню (Sheet). */
 const SHEET_NAV_LINK_CLASS = cn(
   buttonVariants({ variant: 'ghost' }),
-  'h-auto w-full justify-start px-3 py-2 font-normal',
+  'h-auto w-full justify-start px-3 py-2',
 );
 
 /** Touch target ≥ 44px (WCAG); `size="icon"` в дизайн-системе = 32px — переопределяем. */
@@ -171,7 +171,7 @@ export function PatientHeader({
   const titleBadgeEl = titleBadge?.trim() ? (
     <span
       data-testid="patient-header-title-badge"
-      className="max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
+      className="max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 patient-type-caption patient-text-primary"
       title={titleBadge.trim()}
     >
       {titleBadge.trim()}
@@ -182,7 +182,7 @@ export function PatientHeader({
     <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-center">
       {titleBadgeEl}
       <p
-        className="m-0 w-full truncate text-[13px] font-normal text-muted-foreground"
+        className="m-0 w-full truncate patient-type-secondary patient-text-secondary"
         title={pageTitle}
       >
         {pageTitle}
@@ -194,7 +194,7 @@ export function PatientHeader({
     <div className="flex min-w-0 max-w-[min(100%,280px)] flex-col items-center gap-0.5 px-1">
       {titleBadgeEl}
       <p
-        className="m-0 w-full truncate text-center text-base font-medium tracking-tight text-foreground"
+        className="m-0 w-full truncate text-center patient-type-section-title tracking-tight patient-text-primary"
         title={pageTitle}
       >
         {pageTitle}
@@ -292,7 +292,7 @@ export function PatientHeader({
               <Button
                 type="button"
                 variant="ghost"
-                className="h-auto w-full justify-start px-3 py-2 font-normal"
+                className="h-auto w-full justify-start px-3 py-2"
                 onClick={shareWithFriend}
               >
                 Поделиться с другом
@@ -306,7 +306,7 @@ export function PatientHeader({
                       type="submit"
                       variant="ghost"
                       id="patient-menu-logout"
-                      className="h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      className="h-auto w-full justify-start px-3 py-2 patient-text-danger hover:bg-destructive/10 hover:patient-text-danger"
                       onClick={closeMenu}
                     >
                       Выйти

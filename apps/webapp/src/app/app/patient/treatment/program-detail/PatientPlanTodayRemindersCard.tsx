@@ -11,12 +11,16 @@ import {
 } from '@/shared/ui/patient/primitives/collapsible';
 import { cn } from '@/lib/utils';
 import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/patient/navChrome';
+import {
+  patientCaptionTextClass,
+  patientSectionTitleNormalClass,
+} from '@/shared/ui/patient/patientVisual';
 
 const scheduleCardChrome = cn(
   'overflow-visible rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
   'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
   'border border-[var(--patient-action-warning-hover-bg)] bg-[var(--patient-warning-card-gradient)]',
-  'text-[var(--patient-text-primary)]',
+  'patient-text-primary',
 );
 
 /** Продолжение хром подписи карточки при раскрытии (полная ширина колонки страницы). */
@@ -41,7 +45,7 @@ export type PatientPlanTodayRemindersCardProps = {
 
 /** Без `w-full` / `min-h-10` из `patientButtonWarningOutlineClass` — узкая CTA у правого края. */
 const configureScheduleButtonClass = cn(
-  'inline-flex shrink-0 items-center justify-center self-start rounded-sm border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-2 py-1 text-[11px] font-normal leading-none text-[var(--patient-action-warning-text)] transition-colors',
+  'inline-flex shrink-0 items-center justify-center self-start rounded-sm border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-2 py-1 patient-type-caption patient-text-warning transition-colors',
   'hover:bg-[var(--patient-action-warning-hover-bg)]/80 active:bg-[var(--patient-action-warning-hover-bg)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-warning)]',
 );
@@ -77,16 +81,16 @@ export function PatientPlanTodayRemindersCard({
         >
           <span className="flex min-w-0 flex-1 items-center gap-2">
             <Bell
-              className="size-[18px] shrink-0 text-[var(--patient-color-primary)]"
+              className="size-[18px] shrink-0 patient-text-accent"
               strokeWidth={NAV_STRIP_ICON_STROKE}
               aria-hidden
             />
-            <h2 className="m-0 min-w-0 truncate text-sm font-medium leading-tight text-[var(--patient-block-heading)]">
+            <h2 className={cn(patientSectionTitleNormalClass, 'm-0 min-w-0 truncate')}>
               Расписание
             </h2>
           </span>
           <ChevronDown
-            className="size-3.5 shrink-0 text-[var(--patient-color-primary)] transition-transform group-data-[open]/collapsible:rotate-180"
+            className="size-3.5 shrink-0 patient-text-accent transition-transform group-data-[open]/collapsible:rotate-180"
             aria-hidden
           />
         </CollapsibleTrigger>
@@ -98,20 +102,20 @@ export function PatientPlanTodayRemindersCard({
             <div className="min-w-0 flex-1 space-y-1">
               {variant === 'trainingsToday' ? (
                 <>
-                  <p className="text-xs font-medium leading-snug text-[var(--patient-block-heading)]">
+                  <p className={cn(patientCaptionTextClass, 'patient-text-home-heading')}>
                     Тренировки на сегодня
                   </p>
-                  <p className="text-xs font-normal leading-snug text-[var(--patient-color-primary)]">
+                  <p className={cn(patientCaptionTextClass, 'patient-text-accent')}>
                     {rehabTodayLine}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-xs font-normal leading-snug text-[var(--patient-color-primary)]">
+                  <p className={cn(patientCaptionTextClass, 'patient-text-accent')}>
                     Тренировки: {rehabTodayLine}
                   </p>
                   {warmupTodayLine != null ? (
-                    <p className="text-xs font-normal leading-snug text-[var(--patient-color-primary)]">
+                    <p className={cn(patientCaptionTextClass, 'patient-text-accent')}>
                       Разминки: {warmupTodayLine}
                     </p>
                   ) : null}

@@ -62,14 +62,14 @@ export function PatientDurationHmWheels({
   return (
     <div className={cn('flex flex-wrap items-end gap-3', className)}>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <Label htmlFor={hourId} className={cn(patientMutedTextClass, 'text-xs')}>
+        <Label htmlFor={hourId} className="patient-type-caption">
           ч
         </Label>
         <select
           id={hourId}
           className={cn(
             inputFieldSurfaceClassName,
-            'h-11 px-2 text-center text-base font-medium shadow-sm',
+            'h-11 px-2 text-center patient-type-body shadow-sm',
           )}
           disabled={disabled}
           value={hour}
@@ -85,14 +85,14 @@ export function PatientDurationHmWheels({
         </select>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <Label htmlFor={minId} className={cn(patientMutedTextClass, 'text-xs')}>
+        <Label htmlFor={minId} className="patient-type-caption">
           мин
         </Label>
         <select
           id={minId}
           className={cn(
             inputFieldSurfaceClassName,
-            'h-11 px-2 text-center text-base font-medium shadow-sm',
+            'h-11 px-2 text-center patient-type-body shadow-sm',
           )}
           disabled={disabled}
           value={minuteVal}

@@ -55,7 +55,7 @@ function featureCardShellClass(compact: boolean | undefined, extra?: string) {
   return cn(
     patientCardClass,
     'transition-shadow',
-    '!gap-0 !py-0 ring-0 text-[var(--patient-text-primary)] text-base',
+    '!gap-0 !py-0 ring-0 patient-type-body',
     compact && 'flex min-h-[52px] items-center justify-center text-center',
     extra,
   );
@@ -72,7 +72,7 @@ export function FeatureCard({
   secondaryHref,
   secondaryLabel = 'Открыть курс',
 }: FeatureCardProps) {
-  const titleClass = cn('font-semibold', compact ? 'm-0 text-[0.95rem] font-medium' : 'text-base');
+  const titleClass = cn('patient-type-section-title', compact && 'm-0');
 
   const titleEl = <h3 className={titleClass}>{title}</h3>;
 
@@ -121,8 +121,7 @@ export function FeatureCard({
           prefetch={false}
           className={cn(
             patientInlineLinkClass,
-            'text-sm',
-            compact ? 'text-center text-xs' : 'text-center sm:text-left',
+            compact ? 'text-center patient-type-caption' : 'text-center patient-type-secondary sm:text-left',
           )}
         >
           {secondaryLabel}

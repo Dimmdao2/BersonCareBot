@@ -12,6 +12,8 @@ import { bookingProvenancePrefix, nativeBookingSubtitle } from './patientBooking
 import { CabinetBookingActions } from './CabinetBookingActions';
 import { cn } from '@/lib/utils';
 import {
+  patientBodyTextClass,
+  patientCaptionTextClass,
   patientInlineLinkClass,
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -106,7 +108,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
     return (
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Активные записи</CardTitle>
+          <CardTitle>Активные записи</CardTitle>
         </CardHeader>
         <CardContent>
           <p className={patientMutedTextClass}>У вас пока нет активных записей.</p>
@@ -118,7 +120,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Активные записи</CardTitle>
+        <CardTitle>Активные записи</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         {bookings.map((row) => {
@@ -133,11 +135,11 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
               )}
             >
               <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1.5 text-sm font-medium">
+                <p className={cn(patientBodyTextClass, 'flex items-center gap-1.5')}>
                   <span>{formatBookingDateTimeMediumRu(row.slotStart, displayTimeZone)}</span>
                   <AppointmentZoneOffsetWarning iso={row.slotStart} branchTimeZone={branchTimeZone} />
                 </p>
-                <p className={cn(patientMutedTextClass, 'truncate text-xs')}>
+                <p className={cn(patientCaptionTextClass, 'truncate')}>
                   {bookingProvenancePrefix(row)}
                   {nativeBookingSubtitle(row)}
                 </p>
@@ -151,7 +153,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
                       href={googleCalendarUrl(row)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={cn(patientInlineLinkClass, 'text-xs')}
+                      className={patientInlineLinkClass}
                     >
                       Google Календарь
                     </a>
@@ -159,7 +161,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-auto min-h-0 px-1 py-0 text-xs"
+                      className="h-auto min-h-0 px-1 py-0"
                       onClick={() => downloadIcs(row, surfaceName)}
                     >
                       .ics

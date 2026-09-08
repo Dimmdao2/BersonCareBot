@@ -5,6 +5,7 @@ import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { cn } from '@/lib/utils';
 import {
   patientMutedTextClass,
+  patientSectionTitleClass,
   patientSectionSurfaceClass,
 } from '@/shared/ui/patient/patientVisual';
 import { PatientSupportForm } from './PatientSupportForm';
@@ -27,7 +28,7 @@ export default async function PatientSupportPage() {
         className={cn(patientSectionSurfaceClass, '!gap-4 !p-6')}
       >
         <div>
-          <h2 className="text-base font-semibold">Связаться с поддержкой</h2>
+          <h2 className={patientSectionTitleClass}>Связаться с поддержкой</h2>
           <p className={cn(patientMutedTextClass, 'mt-1')}>
             Здесь помогают пользоваться приложением. Вопросы о здоровье, симптомах и лечении
             задавайте врачу в кабинете.

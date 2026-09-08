@@ -14,6 +14,7 @@ import {
 } from '@/shared/ui/patient/primitives/select';
 import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
+import { cn } from '@/lib/utils';
 import { addSymptomEntry } from './symptoms/actions';
 import { notifyDiarySymptomEntrySaved } from '@/modules/diaries/symptomDiaryClientEvents';
 import {
@@ -21,6 +22,10 @@ import {
   type LastSymptomSaveMeta,
 } from './symptoms/symptomEntryDedup';
 import { markLfkSession } from './lfk/actions';
+import {
+  patientCaptionTextClass,
+  patientSectionTitleClass,
+} from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   trackings: { id: string; title: string }[];
@@ -113,7 +118,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
         <div className="flex flex-col gap-6">
           {trackings.length > 0 ? (
             <section className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium">Симптом</h3>
+              <h3 className={patientSectionTitleClass}>Симптом</h3>
               <form
                 className="flex flex-col gap-2"
                 onSubmit={(e) => {
@@ -159,7 +164,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                   max={10}
                   value={symValue}
                   onChange={setSymValue}
-                  chipClassName="size-8 text-xs"
+                  chipClassName={cn('size-8', patientCaptionTextClass)}
                 />
                 <input
                   type="hidden"
@@ -180,7 +185,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
 
           {complexes.length > 0 ? (
             <section className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium">ЛФК</h3>
+              <h3 className={patientSectionTitleClass}>ЛФК</h3>
               <form
                 className="flex flex-col gap-2"
                 onSubmit={(e) => {

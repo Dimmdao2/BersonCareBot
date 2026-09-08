@@ -6,7 +6,7 @@ import type { BookingSlot } from '@/modules/patient-booking/types';
 import { formatBookingTimeShortRu } from '@/shared/lib/formatBusinessDateTime';
 import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
 import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { patientMutedTextClass, patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   slots: BookingSlot[];
@@ -31,7 +31,7 @@ export function BookingSlotList({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <h3 className="text-sm font-semibold">Выбор времени</h3>
+        <h3 className={patientSectionTitleClass}>Выбор времени</h3>
         <Badge variant="outline">Шаг 4</Badge>
       </div>
       {slots.length === 0 ? (

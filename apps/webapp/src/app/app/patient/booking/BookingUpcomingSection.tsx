@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils';
 import { AppointmentReminderPreference } from './AppointmentReminderPreference';
 import {
   patientListItemClass,
+  patientActionTextClass,
+  patientCaptionTextClass,
   patientMutedTextClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -28,7 +30,7 @@ const bookingReminderSectionSurfaceClass = cn(
 
 /** CTA как у напоминания на главной (`PatientHomeNextReminderCard` — `reminderCtaBaseClass`). */
 const bookingReminderManageCtaClass = cn(
-  'inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-3 text-[13px] font-bold text-[var(--patient-action-warning-text)] transition-colors sm:text-sm',
+  'inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-3 patient-type-action patient-text-warning transition-colors',
   'hover:bg-[var(--patient-action-warning-hover-bg)]/80 active:bg-[var(--patient-action-warning-hover-bg)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-warning)]',
 );
@@ -93,11 +95,11 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
               )}
             >
               <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1.5 text-sm font-medium">
+                <p className={cn('flex items-center gap-1.5', patientActionTextClass)}>
                   <span>{formatBookingDateTimeMediumRu(row.slotStart, displayTimeZone)}</span>
                   <AppointmentZoneOffsetWarning iso={row.slotStart} branchTimeZone={branchTimeZone} />
                 </p>
-                <p className={cn(patientMutedTextClass, 'truncate text-xs')}>
+                <p className={cn(patientCaptionTextClass, 'truncate')}>
                   {bookingProvenancePrefix(row)}
                   {nativeBookingSubtitle(row)}
                 </p>

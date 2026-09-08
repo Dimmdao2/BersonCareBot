@@ -8,7 +8,7 @@ import type { BookingSelection } from './useBookingSelection';
 import type { BookingSlot } from '@/modules/patient-booking/types';
 import { useCreateBooking } from './useCreateBooking';
 import { cn } from '@/lib/utils';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { patientCaptionTextClass, patientMutedTextClass, patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   selection: BookingSelection | null;
@@ -52,23 +52,23 @@ export function BookingConfirmationForm({
       }}
     >
       <div className="flex items-center gap-2">
-        <h3 className="text-sm font-semibold">Подтверждение записи</h3>
+        <h3 className={patientSectionTitleClass}>Подтверждение записи</h3>
         <Badge variant="outline">Шаг 5</Badge>
       </div>
 
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, 'text-xs')}>Имя</span>
+        <span className={patientCaptionTextClass}>Имя</span>
         <Input value={name} onChange={(e) => setName(e.target.value)} required />
       </label>
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, 'text-xs')}>Телефон</span>
+        <span className={patientCaptionTextClass}>Телефон</span>
         <Input value={phone} onChange={(e) => setPhone(e.target.value)} required />
       </label>
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, 'text-xs')}>Email (опционально)</span>
+        <span className={patientCaptionTextClass}>Email (опционально)</span>
         <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       </label>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p className={cn(patientMutedTextClass, 'patient-text-danger')}>{error}</p> : null}
       <Button type="submit" disabled={!canSubmit}>
         {submitting ? 'Создаём запись...' : 'Подтвердить запись'}
       </Button>

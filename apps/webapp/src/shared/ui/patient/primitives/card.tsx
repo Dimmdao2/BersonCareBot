@@ -2,9 +2,12 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 import {
+  patientBodyTextClass,
   patientCardClass,
   patientCardCompactClass,
   patientListItemClass,
+  patientMutedTextClass,
+  patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 
 type CardVariant = 'default' | 'compact' | 'list' | 'flush';
@@ -26,7 +29,8 @@ function Card({
       data-slot="card"
       data-variant={variant}
       className={cn(
-        'group/card flex flex-col overflow-hidden text-sm',
+        'group/card flex flex-col overflow-hidden',
+        patientBodyTextClass,
         'data-[variant=default]:gap-4 data-[variant=compact]:gap-3',
         cardVariantClass[variant],
         className,
@@ -54,7 +58,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="card-title"
       className={cn(
-        'font-heading text-base leading-snug font-medium group-data-[variant=compact]/card:text-sm',
+        patientSectionTitleClass,
         className,
       )}
       {...props}
@@ -66,7 +70,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="card-description"
-      className={cn('text-sm text-muted-foreground', className)}
+      className={cn(patientMutedTextClass, className)}
       {...props}
     />
   );

@@ -13,6 +13,7 @@ import { ContentHeroImage } from '@/shared/ui/patient/media/ContentHeroImage';
 import { HostedVideoEmbed } from '@/shared/ui/patient/media/HostedVideoEmbed';
 import {
   patientCardClass,
+  patientBodyTextClass,
   patientMutedTextClass,
   patientPrimaryActionClass,
   patientProgramItemHeroTitleClass,
@@ -321,10 +322,10 @@ async function renderPatientContentSlugArticle({
           id={`patient-content-course-cta-${slug}`}
           className={cn(patientSectionSurfaceClass)}
         >
-          <p className="text-sm font-medium">Это часть курса «{courseCta.courseTitle}»</p>
+          <p className={patientBodyTextClass}>Это часть курса «{courseCta.courseTitle}»</p>
           <Link
             href={courseCta.href}
-            className={cn(patientPrimaryActionClass, 'mt-3 !min-h-10 w-full text-sm sm:w-auto')}
+            className={cn(patientPrimaryActionClass, 'mt-3 !min-h-10 w-full sm:w-auto')}
           >
             Открыть курс
           </Link>

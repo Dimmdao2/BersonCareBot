@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { VideoMeetingRenderSession } from '@/modules/video-meetings/ports';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/patient/primitives/tabs';
 import { VideoMeetingStage } from '@/shared/ui/video/VideoMeetingStage';
+import { patientBodyTextClass } from '@/shared/ui/patient/patientVisual';
 
 export function PatientLiveMeetingClient({
   meetingId,
@@ -24,7 +25,7 @@ export function PatientLiveMeetingClient({
   }, [meetingId]);
   if (refused) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-sm">
+      <main className={`flex min-h-screen items-center justify-center ${patientBodyTextClass}`}>
         Подключение к звонку недоступно
       </main>
     );

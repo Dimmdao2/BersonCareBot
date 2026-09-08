@@ -168,7 +168,7 @@ export function PatientHomeWellbeingWeekStrip({
             role="listitem"
             className={cn(
               patientMutedTextClass,
-              'min-w-0 truncate text-center text-[9px] leading-none',
+              'min-w-0 truncate text-center patient-type-micro',
             )}
           >
             {d.weekday}

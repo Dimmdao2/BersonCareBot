@@ -29,6 +29,8 @@ import {
   patientCompositionCurrentRowChromeClass,
   patientCompositionGroupTitleClass,
   patientCompositionListThumbSlotClass,
+  patientBodyTextClass,
+  patientCaptionTextClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 import type { PatientProgramItemNavMode } from '@/app/app/patient/treatment/patientProgramItemPageResolve';
@@ -113,7 +115,7 @@ function PatientCompositionModalMediaLeading(props: {
         className={cn(patientCompositionListThumbSlotClass, 'flex items-center justify-center')}
         aria-hidden
       >
-        <Dumbbell className="size-4 text-muted-foreground" strokeWidth={2} />
+        <Dumbbell className="size-4 patient-text-secondary" strokeWidth={2} />
       </div>
     );
   }
@@ -123,15 +125,17 @@ function PatientCompositionModalMediaLeading(props: {
         className={cn(patientCompositionListThumbSlotClass, 'flex items-center justify-center')}
         aria-hidden
       >
-        <ScrollText className="size-4 text-muted-foreground" strokeWidth={2} />
+        <ScrollText className="size-4 patient-text-secondary" strokeWidth={2} />
       </div>
     );
   }
   return null;
 }
 
-const stageCompositionModalRowClass =
-  'rounded-md border border-border/60 bg-card text-xs font-normal leading-snug';
+const stageCompositionModalRowClass = cn(
+  'rounded-md border border-border/60 bg-card',
+  patientCaptionTextClass,
+);
 
 function PatientCompositionItemProgressAside(props: {
   parentItem: InstanceStageRow['items'][number];
@@ -173,11 +177,11 @@ function PatientCompositionItemProgressAside(props: {
 
   return (
     <div className="flex max-w-[11rem] shrink-0 flex-col items-end justify-center gap-0.5 text-right">
-      <span className="w-full text-[10px] font-normal leading-tight text-muted-foreground">
+      <span className="w-full patient-type-caption patient-text-secondary">
         {doneSummaryLine}
       </span>
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] font-normal leading-tight text-muted-foreground">
+        <span className="patient-type-caption patient-text-secondary">
           Сегодня:
         </span>
         <div
@@ -195,7 +199,7 @@ function PatientCompositionItemProgressAside(props: {
               ))}
               {dotOverflow > 0 ? (
                 <span
-                  className="text-[10px] font-medium leading-none text-muted-foreground"
+                  className="patient-type-caption patient-text-secondary"
                   aria-hidden
                 >
                   +{dotOverflow}
@@ -283,7 +287,8 @@ export function PatientStageCompositionList(props: {
             />
             <span
               className={cn(
-                'min-w-0 self-center break-words text-[#444444]',
+                patientBodyTextClass,
+                'min-w-0 self-center break-words',
                 showMediaCol ? 'flex-1' : 'block flex-1',
               )}
             >
@@ -344,7 +349,7 @@ export function PatientStageCompositionList(props: {
             <div>
               <span className={patientCompositionGroupTitleClass}>{g.title}</span>
               {g.scheduleText?.trim() ? (
-                <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                <span className={cn(patientCaptionTextClass, 'mt-1 block')}>
                   {g.scheduleText.trim()}
                 </span>
               ) : null}

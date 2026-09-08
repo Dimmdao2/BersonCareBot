@@ -8,7 +8,11 @@ import { notifyDiarySymptomEntrySaved } from '@/modules/diaries/symptomDiaryClie
 import { shouldConfirmInstantDuplicate, type LastSymptomSaveMeta } from './symptomEntryDedup';
 import { addSymptomEntry } from './actions';
 import { cn } from '@/lib/utils';
-import { patientListItemClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientCaptionTextClass,
+  patientListItemClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
 import { PatientModal, PatientModalFooter } from '@/shared/ui/patient/PatientModal';
 import { SymptomChart } from '@/modules/diaries/components/SymptomChart';
 import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
@@ -85,7 +89,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
               }}
             >
               <span
-                className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+                className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}
               >
                 Интенсивность (0–10)
               </span>

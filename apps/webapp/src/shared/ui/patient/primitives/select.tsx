@@ -14,6 +14,7 @@ import {
 } from '@/shared/ui/primitives/select';
 import { cn } from '@/lib/utils';
 import {
+  patientControlTypographyClassName,
   patientJournalControlClassName,
   type PatientControlVariant,
 } from './input';
@@ -25,7 +26,7 @@ type PatientSelectTriggerProps = React.ComponentProps<typeof SelectTriggerPrimit
 function SelectTrigger({ variant = 'default', className, ...props }: PatientSelectTriggerProps) {
   return (
     <SelectTriggerPrimitive
-      className={cn(variant === 'journal' && patientJournalControlClassName, className)}
+      className={cn(patientControlTypographyClassName, variant === 'journal' && patientJournalControlClassName, className)}
       {...props}
     />
   );

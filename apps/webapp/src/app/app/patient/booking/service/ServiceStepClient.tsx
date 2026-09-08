@@ -7,7 +7,10 @@ import { cn } from '@/lib/utils';
 import { routePaths } from '@/app-layer/routes/paths';
 import type { InPersonServiceListItem } from '@/modules/patient-booking/inPersonServicesCatalog';
 import { MarkdownContent } from '@/shared/ui/patient/markdown/MarkdownContent';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientBodyTextClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
 import { bookingChoiceRowClass, bookingChoiceSectionClass } from '../bookingChoiceStyles';
 
 function looksLikeHtmlMarkup(s: string): boolean {
@@ -20,10 +23,8 @@ function BookingServiceDescription({ text }: { text: string }) {
   if (!trimmed) return null;
 
   const inheritedDescWrap = cn(
-    'mt-1 w-full min-w-0 font-normal text-sm leading-snug text-[var(--patient-text-secondary)] transition-colors',
-    'group-hover:text-white group-active:text-white group-focus-visible:text-white',
-    'group-hover:[&_.markdown-preview]:!text-white group-focus-visible:[&_.markdown-preview]:!text-white group-active:[&_.markdown-preview]:!text-white',
-    'group-hover:[&_*]:!text-white group-focus-visible:[&_*]:!text-white group-active:[&_*]:!text-white',
+    'mt-1 w-full min-w-0 patient-text-group-interactive-inverse transition-colors',
+    patientMutedTextClass,
     '[&_a]:underline',
   );
 
@@ -82,7 +83,7 @@ export function ServiceStepClient({
     <div className={bookingChoiceSectionClass}>
       {catalogError ? (
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-destructive">{catalogError}</p>
+          <p className={cn(patientBodyTextClass, 'patient-text-danger')}>{catalogError}</p>
           <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>
             Повторить
           </Button>
@@ -103,7 +104,7 @@ export function ServiceStepClient({
                 variant="ghost"
                 className={cn(
                   bookingChoiceRowClass,
-                  'min-h-0 flex-col items-stretch justify-start gap-1 py-3 text-left font-normal',
+                  'min-h-0 flex-col items-stretch justify-start gap-1 py-3 text-left',
                 )}
                 onClick={() =>
                   router.push(
@@ -119,7 +120,7 @@ export function ServiceStepClient({
                   )
                 }
               >
-                <span className="font-medium">{label}</span>
+                <span className={patientBodyTextClass}>{label}</span>
                 {desc ? <BookingServiceDescription text={desc} /> : null}
               </Button>
             );
