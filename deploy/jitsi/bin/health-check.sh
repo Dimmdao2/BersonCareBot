@@ -23,6 +23,7 @@ done
 # let a misconfigured deployment report PASS against ports nothing is listening on.
 ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
 [[ -f "$ENV_FILE" ]] || { echo "FATAL: missing $ENV_FILE" >&2; exit 1; }
+unset TURN_USERNAME TURN_PASSWORD
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
 TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
@@ -123,16 +124,31 @@ echo
 echo "[Prosody config actually landed — not assumed]"
 prosody_cid="$(docker compose "${COMPOSE_ARGS[@]}" ps -q prosody 2>/dev/null || true)"
 if [[ -n "$prosody_cid" ]]; then
-  if docker exec "$prosody_cid" grep -rq "turn_external_secret" /run/prosody/config/conf.d/ 2>/dev/null; then
-    ok "turn_external override file is present inside the running container's conf.d"
+  if docker exec "$prosody_cid" grep -Fq '"external_services";' /run/prosody/config/prosody.cfg.lua 2>/dev/null; then
+    ok "upstream external_services is enabled from the global Prosody configuration"
   else
-    bad "turn_external override file NOT found inside the running container — CONFIG tree/bind-mount did not land; see README.md 'Design decisions'"
+    bad "upstream external_services is absent from global Prosody configuration"
   fi
-  if docker exec "$prosody_cid" grep -q "turn_external_tls_port" /run/prosody/config/conf.d/00-turn-external.cfg.lua 2>/dev/null; then
-    ok "rendered config advertises turn_external_tls_port (TLS/TURNS fallback candidate)"
-  else
-    bad "rendered config does not advertise turn_external_tls_port — a UDP-restricted client would have no TLS fallback candidate (finding F2)"
-  fi
+
+  # Prosody 13.x has no `services list` admin-shell command. Evaluate the already-loaded module API in the
+  # global shell environment instead, and return only PASS or a sanitized failure class. The service array
+  # (which contains per-query username/password values) never leaves the Prosody process and is never logged.
+  # Query both the main host and room-metadata component because Jitsi uses the latter for initial room JSON;
+  # a host-local module used to populate only the former.
+  check_external_service_set() {
+    local host="$1" escaped_host expression result
+    escaped_host="${host//\\/\\\\}"
+    escaped_host="${escaped_host//\"/\\\"}"
+    expression="> (function() local mm=require\"prosody.core.modulemanager\"; local m=mm.get_module(\"${escaped_host}\",\"external_services\"); if not m or type(m.get_services)~=\"function\" then return \"FAIL:module\" end; local services=m.get_services(); if #services~=3 then return \"FAIL:count=\"..tostring(#services) end; local wanted={[\"stun|udp|${STUN_HOST}|${STUN_PORT}\"]=false,[\"turn|udp|${TURN_HOST}|${TURN_PORT}\"]=true,[\"turns|tcp|${TURNS_HOST}|${TURNS_PORT}\"]=true}; local found={}; local now=os.time(); for _,s in ipairs(services) do local key=table.concat({tostring(s.type),tostring(s.transport),tostring(s.host),tostring(s.port)},\"|\"); if wanted[key]==nil or found[key] then return \"FAIL:endpoints\" end; found[key]=true; if wanted[key] then if type(s.username)~=\"string\" or not s.username:match(\"^%d+$\") or type(s.password)~=\"string\" or #s.password==0 or type(s.expires)~=\"number\" or s.expires<=now or s.expires>now+${TURN_TTL}+60 or s.restricted~=true then return \"FAIL:credentials\" end elseif s.username~=nil or s.password~=nil then return \"FAIL:stun-credentials\" end end; for key in pairs(wanted) do if not found[key] then return \"FAIL:missing\" end end; return \"PASS\" end)()"
+    result="$(docker exec "$prosody_cid" prosodyctl --config /run/prosody/config/prosody.cfg.lua shell "$expression" 2>/dev/null || true)"
+    if [[ "$result" == "Result: PASS" ]]; then
+      ok "$host exposes own STUN plus secret-backed ephemeral TURN/UDP and TURNS/TCP credentials"
+    else
+      bad "$host external-services runtime assertion failed (${result:-no sanitized result})"
+    fi
+  }
+  check_external_service_set "$XMPP_DOMAIN"
+  check_external_service_set "metadata.${XMPP_DOMAIN}"
   if docker exec "$prosody_cid" prosodyctl --config /run/prosody/config/prosody.cfg.lua check turn >/tmp/jitsi-test-prosodyctl-turn.log 2>&1; then
     ok "prosodyctl check turn passed (log: /tmp/jitsi-test-prosodyctl-turn.log)"
   else

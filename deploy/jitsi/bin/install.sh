@@ -36,6 +36,7 @@ done
 # --- 2. Load non-secret env (must exist; install.sh does not invent values) ---
 ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
 [[ -f "$ENV_FILE" ]] || fail "missing $ENV_FILE — copy env/jitsi-test.env.example there first and fill in the externally-supplied JWT_APP_SECRET"
+unset TURN_USERNAME TURN_PASSWORD
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
 
@@ -73,8 +74,22 @@ require_var COTURN_IMAGE_TAG
 require_var COTURN_CONTAINER_UID
 require_var COTURN_CONTAINER_GID
 require_var TURN_EXTERNAL_IP
+for required_turn_var in STUN_HOST STUN_PORT TURN_HOST TURN_PORT TURN_TRANSPORT TURNS_HOST TURNS_PORT TURN_TTL; do
+  require_var "$required_turn_var"
+done
 [[ "$TURN_EXTERNAL_IP" == 151.241.228.122 ]] || { echo "  MISMATCH TURN_EXTERNAL_IP=$TURN_EXTERNAL_IP, expected 151.241.228.122"; missing=1; }
 [[ "${CONFIG:-}" == /* ]] || { echo "  MISMATCH CONFIG=${CONFIG:-<empty>}, must be an absolute path (see env/jitsi-test.env.example)"; missing=1; }
+for own_turn_host in STUN_HOST TURN_HOST TURNS_HOST; do
+  [[ "${!own_turn_host}" == "turn.test.bersoncare.ru" ]] || {
+    echo "  MISMATCH $own_turn_host must be turn.test.bersoncare.ru"; missing=1;
+  }
+done
+[[ "${STUN_PORT:-}" == "3478" && "${TURN_PORT:-}" == "3478" && "${TURNS_PORT:-}" == "5349" && "${TURN_TRANSPORT:-}" == "udp" && "${TURN_TTL:-}" == "3600" ]] || {
+  echo "  MISMATCH upstream external_services must advertise STUN/TURN UDP on 3478, TURNS TCP on 5349, TTL 3600"; missing=1;
+}
+[[ -z "${TURN_USERNAME:-}" && -z "${TURN_PASSWORD:-}" ]] || {
+  echo "  MISMATCH TURN_USERNAME/TURN_PASSWORD must remain unset; upstream must issue ephemeral TURN credentials from TURN_CREDENTIALS"; missing=1;
+}
 for stun_var in P2P_STUN_SERVERS JVB_STUN_SERVERS; do
   stun_value="${!stun_var:-}"
   if [[ -z "$stun_value" || "$stun_value" == *://* || "$stun_value" == stun:* || "$stun_value" == turn:* ]]; then
@@ -260,8 +275,12 @@ for coturn_writable_dir in "$HERE/coturn/log" "$HERE/coturn/state"; do
     fail "$coturn_writable_dir must be mode 0700 and owned by ${COTURN_CONTAINER_UID}:${COTURN_CONTAINER_GID}"
 done
 
-log "rendering secrets + templates (prosody turn_external include, coturn turnserver.conf)"
+log "rendering secrets + templates (upstream global external_services credentials, coturn turnserver.conf)"
 bash "$HERE/bin/render-secrets.sh"
+# render-secrets.sh atomically synchronizes TURN_CREDENTIALS and the internal XMPP passwords. Reload the
+# env file so Compose sees those current private values rather than the placeholder sourced for preflight.
+set -a; source "$ENV_FILE"; set +a
+unset TURN_USERNAME TURN_PASSWORD
 
 COMPOSE_ARGS=(
   -f "$VENDOR_DIR/docker-compose.yml"

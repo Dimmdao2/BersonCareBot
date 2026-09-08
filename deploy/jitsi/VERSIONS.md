@@ -50,5 +50,5 @@ Jitsi Meet (not JaaS/meet.jit.si/8x8), own coturn (not a third-party TURN SaaS).
 upstream's own officially maintained Docker packaging (`jitsi/docker-jitsi-meet`, GHCR images built and
 published by the Jitsi project itself) — it is the smallest officially supported topology that still gives us
 web + Prosody + Jicofo + JVB as separate, independently restartable containers, which the health/rollback and
-network-isolation requirements below need. `coturn` is the reference TURN/STUN server the Jitsi project's own
-`turn.md` documentation and Prosody's core `mod_turn_external` docs are written against.
+network-isolation requirements below need. `coturn` is the reference TURN/STUN server for the pinned upstream
+Prosody global `external_services` / XEP-0215 TURN REST mechanism.

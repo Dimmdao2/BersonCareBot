@@ -14,6 +14,7 @@ done
 
 ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
 [[ -f "$ENV_FILE" ]] || { echo "FATAL: missing $ENV_FILE" >&2; exit 1; }
+unset TURN_USERNAME TURN_PASSWORD
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
 TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
@@ -24,6 +25,10 @@ VENDOR_DIR="$HERE/vendor/docker-jitsi-meet-${JITSI_RELEASE_TAG}"
 [[ -d "$VENDOR_DIR" ]] || { echo "FATAL: $VENDOR_DIR missing — run bin/install.sh --apply first" >&2; exit 1; }
 
 bash "$HERE/bin/render-secrets.sh"
+# The renderer atomically rewrote TURN_CREDENTIALS and internal XMPP passwords. Re-source the private env
+# before Compose so process-environment placeholders cannot override the just-rendered values.
+set -a; source "$ENV_FILE"; set +a
+unset TURN_USERNAME TURN_PASSWORD
 
 COMPOSE_ARGS=(
   -f "$VENDOR_DIR/docker-compose.yml"

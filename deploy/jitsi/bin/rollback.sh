@@ -70,7 +70,7 @@ if [[ "$MODE" == "--keep-cache" ]]; then
   echo "[jitsi-test] --keep-cache: leaving vendor/ and the secret store in place (NOT an exact pre-apply restore)"
 else
   rm -rf "$HERE/vendor"
-  rm -f "$HERE/config/prosody/conf.d/00-turn-external.rendered.cfg.lua" "$HERE/coturn/turnserver.rendered.conf"
+  rm -f "$HERE/coturn/turnserver.rendered.conf"
   rm -rf "$HERE/coturn/log" "$HERE/coturn/state"
   rm -rf "$SECRET_STORE_DIR"
   rm -rf "$CONFIG_DIR"
