@@ -4,12 +4,13 @@
  * latest update per complaint, trend oldest→newest) mirrors inMemoryPatientClinical.
  */
 
-import { and, asc, desc, eq, ilike, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { displayZonePartsFromUtcInstant } from '@/shared/datetime/displayTimeZoneFormat';
+import type { SymptomDiaryPort } from '@/modules/diaries/ports';
 import type {
   ActiveComplaint,
   ActiveDiagnosis,
@@ -55,6 +56,7 @@ import {
   clinicalDiseaseAnamnesis,
 } from '../../../db/schema/patientClinicalAnamnesis';
 import { patientFiles } from '../../../db/schema/patientFiles';
+import { symptomTrackings } from '../../../db/schema/schema';
 import { beAppointments } from '../../../db/schema/bookingEngine';
 
 const RU_MONTHS = [
@@ -138,7 +140,126 @@ function principalOrganizationId(): string | undefined {
   return getCurrentDbPrincipalOrganizationId();
 }
 
-export function createPgPatientClinicalPort(): PatientClinicalPort {
+/**
+ * Часть порта дневника, которой пользуется клинический мост. Реализация — та же единственная
+ * `pgSymptomDiaryPort`: второй записи симптомов в проекте нет и не заводится.
+ */
+export type ClinicalSymptomMirrorDiaries = Pick<
+  SymptomDiaryPort,
+  'createTracking' | 'addEntry' | 'setTrackingActive'
+>;
+
+export function createPgPatientClinicalPort(deps: {
+  diaries: ClinicalSymptomMirrorDiaries;
+}): PatientClinicalPort {
+  const { diaries } = deps;
+
+  /**
+   * Отслеживание симптома, привязанное к жалобе: находит существующее либо заводит и связывает.
+   *
+   * Связь durable и однозначная — колонка `clinical_complaint.symptom_tracking_id` (частичный
+   * uniq): одна жалоба не может получить два отслеживания, одно отслеживание не может достаться
+   * двум жалобам. По названию симптома НИЧЕГО не ищется.
+   *
+   * Fail-closed: и жалоба, и отслеживание перечитываются с условием «тот же пациент и та же
+   * организация принципала». Чужой id не найдётся здесь и не будет связан; `UPDATE` жалобы
+   * ограничен теми же тремя условиями, поэтому подмена id не проходит и на записи.
+   *
+   * Отслеживание, удалённое врачом из вкладки дневника (`deleted_at`), считается отсутствующим:
+   * следующая запись severity заводит новое и перепривязывает жалобу, вместо того чтобы писать
+   * в скрытую строку.
+   */
+  async function ensureComplaintSymptomTracking(
+    tx: DrizzleDb,
+    params: {
+      patientUserId: string;
+      complaintId: string;
+      organizationId: string;
+      symptomTitle: string;
+      patientTrackingEnabled: boolean;
+    },
+  ): Promise<{ trackingId: string; created: boolean }> {
+    const linked = await tx
+      .select({ trackingId: symptomTrackings.id })
+      .from(clinicalComplaint)
+      .innerJoin(symptomTrackings, eq(symptomTrackings.id, clinicalComplaint.symptomTrackingId))
+      .where(
+        and(
+          eq(clinicalComplaint.id, params.complaintId),
+          eq(clinicalComplaint.patientUserId, params.patientUserId),
+          eq(clinicalComplaint.organizationId, params.organizationId),
+          eq(symptomTrackings.platformUserId, params.patientUserId),
+          eq(symptomTrackings.organizationId, params.organizationId),
+          isNull(symptomTrackings.deletedAt),
+        ),
+      )
+      .limit(1);
+    const existing = linked[0];
+    if (existing) return { trackingId: existing.trackingId, created: false };
+
+    const tracking = await diaries.createTracking({
+      userId: params.patientUserId,
+      symptomTitle: params.symptomTitle,
+      patientTrackingEnabled: params.patientTrackingEnabled,
+    });
+    const relinked = await tx
+      .update(clinicalComplaint)
+      .set({ symptomTrackingId: tracking.id })
+      .where(
+        and(
+          eq(clinicalComplaint.id, params.complaintId),
+          eq(clinicalComplaint.patientUserId, params.patientUserId),
+          eq(clinicalComplaint.organizationId, params.organizationId),
+        ),
+      )
+      .returning({ id: clinicalComplaint.id });
+    if (!relinked[0]) throw new Error('clinical_complaint_symptom_link_rejected');
+    return { trackingId: tracking.id, created: true };
+  }
+
+  /**
+   * Зеркалит одну точку severity жалобы в дневник пациента: та же транзакция, тот же порт
+   * дневника, что и у записей самого пациента, — поэтому график симптома показывает и врачебные
+   * отметки, и «в моменте» пациента одной линией.
+   *
+   * Текст `note` врача НЕ переносится: он адресован карте, а не пациенту.
+   *
+   * Активность отслеживания следует статусу жалобы: снятая жалоба гасит отслеживание
+   * (`is_active = false` — уходит из активного списка пациента), история записей сохраняется
+   * целиком; возврат жалобы в работу поднимает его обратно.
+   */
+  async function mirrorComplaintSeverity(
+    tx: DrizzleDb,
+    params: {
+      patientUserId: string;
+      complaintId: string;
+      organizationId: string;
+      symptomTitle: string;
+      severity: number;
+      recordedAt: string;
+      resolved: boolean;
+      patientTrackingEnabled: boolean;
+    },
+  ): Promise<void> {
+    const { trackingId, created } = await ensureComplaintSymptomTracking(tx, params);
+    await diaries.addEntry({
+      userId: params.patientUserId,
+      trackingId,
+      value0_10: params.severity,
+      entryType: 'instant',
+      recordedAt: params.recordedAt,
+      source: 'webapp',
+      notes: null,
+    });
+    if (!created || params.resolved) {
+      await diaries.setTrackingActive({
+        userId: params.patientUserId,
+        trackingId,
+        isActive: !params.resolved,
+      });
+    }
+  }
+
   return {
     async getClinicalState(patientUserId: string): Promise<ClinicalState> {
       const db = getDrizzle();
@@ -556,6 +677,20 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
               severity: c.severity,
               resolved: false,
             });
+            // Без организации принципала жалобе нечего связывать: отслеживание пациента —
+            // строка арендатора. Связь заведёт первая же severity-запись под принципалом.
+            if (organizationId) {
+              await mirrorComplaintSeverity(tx, {
+                patientUserId: input.patientUserId,
+                complaintId,
+                organizationId,
+                symptomTitle: c.text,
+                severity: c.severity,
+                recordedAt: input.visitedAt,
+                resolved: false,
+                patientTrackingEnabled: input.patientSymptomTrackingEnabled === true,
+              });
+            }
           }
           for (const d of input.diagnoses ?? []) {
             await tx.insert(clinicalDiagnosis).values({
@@ -572,7 +707,10 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         } else {
           for (const u of input.complaintUpdates ?? []) {
             const existingComplaint = await tx
-              .select({ organizationId: clinicalComplaint.organizationId })
+              .select({
+                organizationId: clinicalComplaint.organizationId,
+                text: clinicalComplaint.text,
+              })
               .from(clinicalComplaint)
               .where(
                 and(
@@ -608,6 +746,18 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
                     eq(clinicalComplaint.patientUserId, input.patientUserId),
                   ),
                 );
+            }
+            if (complaintOrganizationId) {
+              await mirrorComplaintSeverity(tx, {
+                patientUserId: input.patientUserId,
+                complaintId: u.complaintId,
+                organizationId: complaintOrganizationId,
+                symptomTitle: existingComplaint[0].text,
+                severity: u.severity,
+                recordedAt: input.visitedAt,
+                resolved: u.resolved,
+                patientTrackingEnabled: input.patientSymptomTrackingEnabled === true,
+              });
             }
           }
           for (const u of input.diagnosisUpdates ?? []) {
@@ -680,6 +830,16 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           note: null,
           resolved: false,
         });
+        await mirrorComplaintSeverity(tx, {
+          patientUserId: input.patientUserId,
+          complaintId,
+          organizationId,
+          symptomTitle: input.text,
+          severity: input.severity,
+          recordedAt: new Date().toISOString(),
+          resolved: false,
+          patientTrackingEnabled: input.patientSymptomTrackingEnabled === true,
+        });
         return complaintId;
       });
     },
@@ -688,7 +848,10 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       return runDrizzleMutationTransaction(async (tx) => {
         const principalOrganizationId = requiredPrincipalOrganizationId();
         const existing = await tx
-          .select({ organizationId: clinicalComplaint.organizationId })
+          .select({
+            organizationId: clinicalComplaint.organizationId,
+            text: clinicalComplaint.text,
+          })
           .from(clinicalComplaint)
           .where(
             and(
@@ -716,6 +879,16 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
             resolvedAt: input.resolved ? new Date().toISOString() : null,
           })
           .where(eq(clinicalComplaint.id, input.complaintId));
+        await mirrorComplaintSeverity(tx, {
+          patientUserId: input.patientUserId,
+          complaintId: input.complaintId,
+          organizationId: principalOrganizationId,
+          symptomTitle: existing[0].text,
+          severity: input.severity,
+          recordedAt: new Date().toISOString(),
+          resolved: input.resolved,
+          patientTrackingEnabled: input.patientSymptomTrackingEnabled === true,
+        });
         return true;
       });
     },

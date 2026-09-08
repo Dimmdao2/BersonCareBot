@@ -88,6 +88,13 @@ export type CreateComplaintInput = {
   description?: string | null;
   priority: boolean;
   severity: number;
+  /**
+   * Видимость дневникового отслеживания пациенту при его создании этим действием.
+   * Решается на уровне приложения из настроек арендатора и признака сопровождения
+   * (`app-layer/doctor/patientSymptomTrackingVisibility`), сюда приходит уже готовым.
+   * Не задано — отслеживание создаётся скрытым от пациента.
+   */
+  patientSymptomTrackingEnabled?: boolean;
 };
 
 export type AppendComplaintUpdateInput = {
@@ -96,6 +103,13 @@ export type AppendComplaintUpdateInput = {
   severity: number;
   note?: string | null;
   resolved: boolean;
+  /**
+   * Видимость дневникового отслеживания пациенту при его создании этим действием.
+   * Решается на уровне приложения из настроек арендатора и признака сопровождения
+   * (`app-layer/doctor/patientSymptomTrackingVisibility`), сюда приходит уже готовым.
+   * Не задано — отслеживание создаётся скрытым от пациента.
+   */
+  patientSymptomTrackingEnabled?: boolean;
 };
 
 export type CreateDiagnosisInput = {
@@ -338,6 +352,13 @@ export type CreateVisitInput = {
   complaintUpdates?: CreateVisitComplaintUpdate[];
   /** Повторный визит: уточнения/снятие диагнозов. */
   diagnosisUpdates?: CreateVisitDiagnosisUpdate[];
+  /**
+   * Видимость дневникового отслеживания пациенту при его создании этим действием.
+   * Решается на уровне приложения из настроек арендатора и признака сопровождения
+   * (`app-layer/doctor/patientSymptomTrackingVisibility`), сюда приходит уже готовым.
+   * Не задано — отслеживание создаётся скрытым от пациента.
+   */
+  patientSymptomTrackingEnabled?: boolean;
 };
 
 // -- Инлайн-правка полей (коррекция данных, не клинические статус-изменения) ---
@@ -402,7 +423,13 @@ export interface PatientClinicalPort {
   ): Promise<DiagnosisCatalogSuggestion>;
   /** Создать визит транзакционно (см. CreateVisitInput). Возвращает id визита. */
   createVisit(input: CreateVisitInput): Promise<string>;
+  /**
+   * Заводит жалобу и её первое обновление severity. Реализация PG в той же транзакции связывает
+   * жалобу ровно с одним отслеживанием симптома пациента и зеркалит severity в дневник — врачебная
+   * жалоба видна пациенту на графике симптома.
+   */
   createComplaint(input: CreateComplaintInput): Promise<string>;
+  /** Новая точка severity по жалобе; уходит и в связанное отслеживание. `resolved` гасит его. */
   appendComplaintUpdate(input: AppendComplaintUpdateInput): Promise<boolean>;
   createDiagnosis(input: CreateDiagnosisInput): Promise<string>;
 

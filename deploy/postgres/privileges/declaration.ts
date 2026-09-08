@@ -14634,6 +14634,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "resolved_at",
           "source_visit_id",
           "status",
+          "symptom_tracking_id",
           "text"
         ]
       },
@@ -14648,6 +14649,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "priority",
           "resolved_at",
           "status",
+          "symptom_tracking_id",
           "text"
         ]
       }
@@ -20907,6 +20909,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "entry_type",
           "notes",
+          "organization_id",
           "patient_practice_completion_id",
           "platform_user_id",
           "recorded_at",

@@ -4,6 +4,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { requireDoctorWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { resolvePatientSymptomTrackingDefault } from '@/app-layer/doctor/patientSymptomTrackingVisibility';
 
 const bodySchema = z.object({
   text: z.string().min(1).max(2000),
@@ -32,10 +33,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     gate.ctx,
   );
   if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  const patientSymptomTrackingEnabled = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    resolvePatientSymptomTrackingDefault(deps, {
+      organizationId: gate.ctx.organizationId,
+      patientUserId: identity.userId,
+    }),
+  );
   const id = await withDoctorWorkspacePrincipal(
     gate.ctx,
     'doctor.patients.clinical.complaint.create',
-    () => deps.patientClinical.createComplaint({ patientUserId: identity.userId, ...parsed.data }),
+    () =>
+      deps.patientClinical.createComplaint({
+        patientUserId: identity.userId,
+        ...parsed.data,
+        patientSymptomTrackingEnabled,
+      }),
   );
   return NextResponse.json({ ok: true, id }, { status: 201 });
 }

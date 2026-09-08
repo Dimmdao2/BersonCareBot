@@ -646,7 +646,7 @@ test('doctor CRUD grants cover every column emitted by the production Drizzle in
     ],
     'public.clinical_complaint': [
       'created_at', 'description', 'id', 'organization_id', 'patient_user_id', 'priority',
-      'resolved_at', 'source_visit_id', 'status', 'text',
+      'resolved_at', 'source_visit_id', 'status', 'symptom_tracking_id', 'text',
     ],
     'public.clinical_complaint_update': [
       'complaint_id', 'created_at', 'id', 'note', 'organization_id', 'resolved', 'severity',

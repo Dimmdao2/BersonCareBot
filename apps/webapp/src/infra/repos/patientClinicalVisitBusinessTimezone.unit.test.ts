@@ -29,6 +29,18 @@ vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
 import { createPgPatientClinicalPort } from './pgPatientClinical';
 import { inMemoryPatientClinicalPort } from './inMemoryPatientClinical';
 
+/** Дневник симптомов в чтении визитов не участвует — порт только удовлетворяет конструктор. */
+function symptomDiaryMirrorStub() {
+  const unused = () => {
+    throw new Error('symptom diary is not used by listVisits');
+  };
+  return {
+    createTracking: unused,
+    addEntry: unused,
+    setTrackingActive: unused,
+  } as unknown as Parameters<typeof createPgPatientClinicalPort>[0]['diaries'];
+}
+
 const VISIT_UTC_INSTANT = '2026-09-06T21:30:00.000Z';
 const PATIENT_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -82,7 +94,9 @@ describe('время приёма в бизнес-таймзоне (ENCOUNTER-PA
       ),
     );
 
-    const [visit] = await createPgPatientClinicalPort().listVisits(PATIENT_ID);
+    const [visit] = await createPgPatientClinicalPort({
+      diaries: symptomDiaryMirrorStub(),
+    }).listVisits(PATIENT_ID);
 
     expect(visit.time).toBe(time);
     expect(visit.date).toBe(date);

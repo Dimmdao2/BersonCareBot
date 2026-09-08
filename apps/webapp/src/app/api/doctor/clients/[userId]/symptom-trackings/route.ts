@@ -8,6 +8,10 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { logger, serializeError } from '@/infra/logging/logger';
 import { isSystemWellbeingTracking } from '@/modules/patient-mood/wellbeingConstants';
+import {
+  patientSymptomTrackingDefaultForMode,
+  resolvePatientSymptomTrackingDefault,
+} from '@/app-layer/doctor/patientSymptomTrackingVisibility';
 
 const postBodySchema = z.object({
   symptomTitle: z.string().min(1).max(200),
@@ -24,10 +28,6 @@ const patchBodySchema = z.object({
   trackingId: z.string().uuid(),
   patientTrackingEnabled: z.boolean(),
 });
-
-function patientTrackingDefault(mode: 'off' | 'all' | 'on_support', onSupport: boolean): boolean {
-  return mode === 'all' || (mode === 'on_support' && onSupport);
-}
 
 async function resolvePatient(
   gate: Awaited<ReturnType<typeof requireDoctorWorkspaceApiContext>>,
@@ -75,7 +75,7 @@ export async function GET(_request: Request, context: { params: Promise<{ userId
         isActive: tracking.isActive,
         patientTrackingEnabled: tracking.patientTrackingEnabled,
       })),
-    createDefault: patientTrackingDefault(
+    createDefault: patientSymptomTrackingDefaultForMode(
       defaults.patientSymptomTrackingDefault,
       support?.onSupport === true,
     ),
@@ -102,17 +102,14 @@ export async function POST(request: Request, context: { params: Promise<{ userId
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
-  const defaults = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    patient.deps.systemSettings.getDoctorWorkspaceClientDefaults({
-      organizationId: gate.ctx.organizationId,
-    }),
-  );
-  const support = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    patient.deps.doctorClients.getClientSupport(userId, gate.ctx.organizationId),
-  );
   const patientTrackingEnabled =
     parsed.data.patientTrackingEnabled ??
-    patientTrackingDefault(defaults.patientSymptomTrackingDefault, support?.onSupport === true);
+    (await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      resolvePatientSymptomTrackingDefault(patient.deps, {
+        organizationId: gate.ctx.organizationId,
+        patientUserId: userId,
+      }),
+    ));
 
   try {
     const tracking = await withDoctorWorkspacePrincipal(gate.ctx, () =>
