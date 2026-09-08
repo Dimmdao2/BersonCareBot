@@ -27,6 +27,11 @@ const safeMetaSchema = z
     failed: nonNegativeNumber.optional(),
     consecutiveCronFailures: nonNegativeNumber.optional(),
     consecutiveFailRuns: nonNegativeNumber.optional(),
+    // `health.outbound_probe.run` always emits this key (`read_curated_system_health_pre_0196`),
+    // defaulting to 'no_data' when meta_json has none — Rubitime itself is retired (2026-07,
+    // `docs/_TODO/RUBITIME_REMNANTS_2026-08-19.md`), but the probe's safeMeta shape still reports
+    // a status for it on every tick, so the schema must keep accepting it.
+    rubitime: z.enum(['ok', 'fail', 'skipped_not_configured', 'no_data']).optional(),
     telegram: z.enum(['ok', 'fail', 'skipped_not_configured', 'no_data']).optional(),
     max: z.enum(['ok', 'fail', 'skipped_not_configured', 'no_data']).optional(),
     google_calendar: z.enum(['ok', 'fail', 'skipped_not_configured', 'no_data']).optional(),
@@ -223,7 +228,11 @@ export const curatedSystemHealthSnapshotSchema = z
       .array(
         z
           .object({
-            source: z.enum(['telegram', 'max']),
+            // `read_curated_system_health_pre_0196` still reads the historical `rubitime` webhook
+            // status row (`source IN ('rubitime','telegram','max')`) — Rubitime is retired but the
+            // last-known-status row for it is real, existing operator_job_status/webhook data, not
+            // a value any producer writes new rows under.
+            source: z.enum(['telegram', 'max', 'rubitime']),
             receivedAt: nullableIso.unwrap(),
             processedOk: z.boolean(),
             httpStatusReturned: z.number().int().min(100).max(599).nullable(),
