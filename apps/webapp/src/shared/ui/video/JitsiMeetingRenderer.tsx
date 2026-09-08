@@ -6,7 +6,6 @@ import type { VideoMeetingRenderSession } from '@/modules/video-meetings/ports';
 type JitsiApi = {
   dispose: () => void;
   addEventListener: (event: string, listener: () => void) => void;
-  getNumberOfParticipants?: () => number;
 };
 type JitsiConstructor = new (domain: string, options: Record<string, unknown>) => JitsiApi;
 
@@ -40,7 +39,6 @@ export function JitsiMeetingRenderer({ session, onHangup }: { session: VideoMeet
   useEffect(() => {
     if (!endpoint || !targetRef.current) { setState('unavailable'); return; }
     let disposed = false;
-    let readinessTimer: ReturnType<typeof setInterval> | null = null;
     setState('loading');
     void loadJitsi(endpoint).then((JitsiMeetExternalAPI) => {
       if (disposed || !targetRef.current) return;
@@ -54,21 +52,14 @@ export function JitsiMeetingRenderer({ session, onHangup }: { session: VideoMeet
         interfaceConfigOverwrite: { TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup'], SHOW_JITSI_WATERMARK: false, SHOW_BRAND_WATERMARK: false, SHOW_POWERED_BY: false },
       });
       apiRef.current = api;
-      api.addEventListener('videoConferenceJoined', () => { if (!disposed) setState('ready'); });
       api.addEventListener('readyToClose', () => onHangupRef.current?.());
-      // With prejoin disabled, current Jitsi can join before External API delivers the joined event.
-      // The public participant-count command is a stable secondary signal that the local participant exists.
-      readinessTimer = setInterval(() => {
-        if (!disposed && (api.getNumberOfParticipants?.() ?? 0) > 0) {
-          setState('ready');
-          if (readinessTimer) clearInterval(readinessTimer);
-          readinessTimer = null;
-        }
-      }, 250);
+      // Once Jitsi owns the iframe it must also own the connecting/error UI. Waiting for a
+      // conference event here can permanently cover an already-rendering call when the automatic
+      // join outruns External API listener registration.
+      setState('ready');
     }).catch(() => { if (!disposed) setState('unavailable'); });
     return () => {
       disposed = true;
-      if (readinessTimer) clearInterval(readinessTimer);
       apiRef.current?.dispose();
       apiRef.current = null;
     };

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { JitsiMeetingRenderer } from './JitsiMeetingRenderer';
 
 const session = {
@@ -17,18 +17,15 @@ const session = {
  */
 describe('meeting renderer survives unrelated re-renders (NOTE-08)', () => {
   const construct = vi.fn();
-  let participantCount = 0;
 
   beforeEach(() => {
     construct.mockClear();
-    participantCount = 0;
     class FakeApi {
       constructor(domain: string, options: Record<string, unknown>) {
         construct(domain, options);
       }
       dispose = vi.fn();
       addEventListener = vi.fn();
-      getNumberOfParticipants = () => participantCount;
     }
     (window as unknown as { JitsiMeetExternalAPI?: unknown }).JitsiMeetExternalAPI = FakeApi;
   });
@@ -94,18 +91,8 @@ describe('meeting renderer survives unrelated re-renders (NOTE-08)', () => {
     vi.restoreAllMocks();
   });
 
-  it('uncovers the conference when automatic join outruns the joined event', async () => {
-    vi.useFakeTimers();
+  it('hands connecting and error presentation to Jitsi as soon as its iframe is initialized', async () => {
     render(<JitsiMeetingRenderer session={session} />);
-    await Promise.resolve();
-    expect(screen.getByText('Подключение…')).toBeInTheDocument();
-
-    participantCount = 1;
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(250);
-    });
-
-    expect(screen.queryByText('Подключение…')).not.toBeInTheDocument();
-    vi.useRealTimers();
+    await waitFor(() => expect(screen.queryByText('Подключение…')).not.toBeInTheDocument());
   });
 });
