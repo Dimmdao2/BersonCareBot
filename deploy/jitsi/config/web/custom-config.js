@@ -1,3 +1,5 @@
+/* global config */
+
 // Bind-mounted into the Jitsi web container's ${CONFIG}/web/ (docker-jitsi-meet appends any
 // custom-config.js it finds there to the generated config.js on every container start — this is the
 // documented, supported override point, unlike editing the generated config.js itself which is regenerated

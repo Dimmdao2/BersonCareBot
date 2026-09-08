@@ -1,3 +1,5 @@
+/* global interfaceConfig */
+
 // Bind-mounted into ${CONFIG}/web/custom-interface_config.js — same append-on-start mechanism as
 // custom-config.js. Branding removal (VM-06): no Jitsi name/logo/watermark anywhere in the call UI.
 interfaceConfig.SHOW_JITSI_WATERMARK = false;

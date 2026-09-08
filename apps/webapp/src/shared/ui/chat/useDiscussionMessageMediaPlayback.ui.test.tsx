@@ -54,18 +54,22 @@ describe('discussion-media preview polling', () => {
       .mockResolvedValueOnce({ ok: true, json: async () => playback(firstMediaId, 'pending') })
       .mockResolvedValueOnce({ ok: true, json: async () => playback(firstMediaId, 'ready') });
     vi.stubGlobal('fetch', fetch);
-    let result: DiscussionMessageMediaPlayback | null = null;
+    let result: DiscussionMessageMediaPlayback = {
+      playback: null,
+      failed: false,
+      isVideo: false,
+    };
 
     render(<Probe mediaId={firstMediaId} observe={(value) => (result = value)} />);
     await settle();
-    expect(result?.playback?.preview.status).toBe('pending');
+    expect(result.playback?.preview.status).toBe('pending');
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2_500);
     });
 
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(result?.playback?.preview.status).toBe('ready');
+    expect(result.playback?.preview.status).toBe('ready');
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
