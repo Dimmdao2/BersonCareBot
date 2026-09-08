@@ -59,6 +59,7 @@ compose file entirely or explicitly `0`/unset in the env template — see
 | `bin/install.sh` | idempotent apply: preflight (incl. port collisions), fetch + hash-verify pinned release, create the CONFIG tree, render config from templates + secret store, dry-run the merged compose config, bring the stack up |
 | `bin/render-secrets.sh` | generates/loads host-side Prosody/JVB/coturn secrets only (never the app JWT secret); every substitution is argv-safe and atomic |
 | `bin/health-check.sh` | config + network proof: `prosodyctl check`, container + JVB REST health, mandatory credentialed TURN allocation over UDP and TLS |
+| `bin/sync-coturn-tls.sh` | root-only TEST hook: validate the shared ACME certificate, atomically stage a private deploy-owned copy for non-root coturn, and restart coturn if running |
 | `bin/restart.sh` | restart in place (re-render config, recreate containers) |
 | `bin/stop.sh` | plain compose `down` with full context — what the systemd unit's `ExecStop` calls |
 | `bin/rollback.sh` | tear down to the exact pre-apply state by default (see "Design decisions") |
@@ -168,6 +169,11 @@ compose file entirely or explicitly `0`/unset in the env template — see
   owned by `1000:1000`. The root-owned `/etc/coturn/tls` source is never mounted into the container. The
   package creates private deploy-owned bind mounts for coturn logs and state, avoiding root-created named
   volumes that this non-root process could not write.
+- **One ACME lineage, two consumers.** nginx reads `/etc/letsencrypt/live/bcb-jitsi-test` directly for
+  `meet.test.bersoncare.ru`; coturn cannot read that root-only tree and instead mounts a `0600` deploy-owned
+  copy under `${CONFIG}/coturn/tls`. Run `bin/sync-coturn-tls.sh` once after issuance and install it as the
+  certbot deploy hook so each successful renewal validates both SANs, atomically refreshes the copy and
+  restarts only the TEST coturn container when it is already running.
 - **Single host, single nginx front door.** `test.bersoncare.ru`'s existing IP-allowlist model (network
   policy lives in the nginx server block, not in a host firewall — see `NETWORK_POLICY.md`) is reused for the
   meet web vhost rather than opening a second, differently-secured entry point. The web container binds only
