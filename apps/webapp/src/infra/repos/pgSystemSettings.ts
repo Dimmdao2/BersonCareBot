@@ -67,6 +67,14 @@ const MEDIA_WORKER_RUNTIME_SETTING_KEYS: ReadonlySet<string> = new Set([
   'video_watermark_enabled',
 ]);
 
+const JITSI_PROVIDER_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
+  'jitsi_public_url',
+  'jitsi_jwt_issuer',
+  'jitsi_jwt_application_id',
+  'jitsi_jwt_signing_secret',
+  'jitsi_xmpp_domain',
+]);
+
 /**
  * Keys `app.read_webapp_preauth_provider_setting(text)` (migration 0343) exposes to the bare
  * bootstrap/nonstaff login, which has no SELECT on `system_settings` at all (TEST owner findings
@@ -88,6 +96,7 @@ const PREAUTH_PROVIDER_SETTING_KEYS: ReadonlySet<string> = new Set([
   'vk_id_client_secret',
   'vk_id_redirect_uri',
   'telegram_bot_token',
+  ...JITSI_PROVIDER_SETTING_KEYS,
 ]);
 
 const CURRENT_PATIENT_UI_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
@@ -187,14 +196,18 @@ export function systemSettingInnerValueToString(value: unknown): string | null {
   return null;
 }
 
-async function readPreAuthProviderSettingInnerValue(key: string): Promise<unknown | null> {
+async function readPreAuthProviderSettingValueJson(key: string): Promise<unknown | null> {
   const r = await runWebappNamedRoot<{ value_json: unknown }>(
     getWebappSqlDb(),
     'app.read_webapp_preauth_provider_setting(text)',
     [key],
     sql`SELECT app.read_webapp_preauth_provider_setting(${key}::text) AS value_json`,
   );
-  return parseSettingEnvelopeValue(r.rows[0]?.value_json ?? null);
+  return r.rows[0]?.value_json ?? null;
+}
+
+async function readPreAuthProviderSettingInnerValue(key: string): Promise<unknown | null> {
+  return parseSettingEnvelopeValue(await readPreAuthProviderSettingValueJson(key));
 }
 
 export async function readAdminSystemSettingInnerValue(
@@ -515,6 +528,21 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
     ): Promise<SystemSetting | null> {
       const currentPrincipal = getCurrentDbPrincipal();
       const organizationId = options.organizationId?.trim() || null;
+      if (scope === 'admin' && JITSI_PROVIDER_SETTING_KEYS.has(key)) {
+        const valueJson = await runWithDbBootstrapPrincipal(
+          { source: 'webapp-jitsi-provider-config' },
+          () => readPreAuthProviderSettingValueJson(key),
+        );
+        if (valueJson === null) return null;
+        return {
+          key,
+          scope,
+          organizationId: null,
+          valueJson,
+          updatedAt: '',
+          updatedBy: null,
+        };
+      }
       if (
         currentPrincipal?.kind === 'patient' &&
         key === STAFF_LOGIN_SECOND_FACTOR_SETTING_KEY &&

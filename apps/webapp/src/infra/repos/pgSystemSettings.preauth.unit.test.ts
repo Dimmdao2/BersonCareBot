@@ -94,6 +94,30 @@ describe('readAdminSystemSettingString under the pre-login bootstrap principal',
     expect(query).toMatch(/FROM\s+system_settings/i);
     expect(query).not.toContain('app.read_webapp_preauth_provider_setting');
   });
+
+  it('reads Jitsi provider config through the bounded provider door for staff requests', async () => {
+    fakes.getCurrentDbPrincipal.mockReturnValue({ kind: 'staff' });
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({
+      rows: [{ value_json: { value: 'https://meet.test.bersoncare.ru' } }],
+    });
+
+    await expect(
+      createPgSystemSettingsPort().getByKey('jitsi_public_url', 'admin'),
+    ).resolves.toMatchObject({
+      key: 'jitsi_public_url',
+      scope: 'admin',
+      valueJson: { value: 'https://meet.test.bersoncare.ru' },
+    });
+
+    const [, identity, params] = fakes.runWebappNamedRoot.mock.calls[0] as [
+      unknown,
+      string,
+      unknown[],
+    ];
+    expect(identity).toBe('app.read_webapp_preauth_provider_setting(text)');
+    expect(params).toEqual(['jitsi_public_url']);
+    expect(fakes.runWebappSql).not.toHaveBeenCalled();
+  });
 });
 
 /**
