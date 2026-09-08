@@ -4,7 +4,7 @@
 | --- | --- |
 | Candidate | `3ad2f03f1adfdfe1eff8197add3d3a8535bf803e` (`fix(patient): close typography role overrides`) |
 | Comparison base | `71ea8a3ca` (`feat/doctor-ui-rebuild`); `git merge-base --is-ancestor 71ea8a3ca 3ad2f03f1` passed |
-| Verdict | **BLOCKED** — source consolidation passes, but the required authenticated live acceptance cannot begin: the normal DEV patient email/password submission remains on the login form. |
+| Verdict | **BLOCKED, NOT FOR LAND** — continuation cleared the login blocker and visibly accepted Home and diary, but the isolated candidate runtime terminated while opening the remaining required patient surfaces. |
 | Scope | Audit artifacts only; no product code, migration, DEV data/settings, shared `:5200`/`:4200`, TEST, or PROD changed. |
 
 ## Source consolidation
@@ -41,6 +41,27 @@ cd apps/webapp && npx next dev --webpack -H 127.0.0.1 -p 5213
 
 During first route compilation webpack also reported pre-existing-looking unresolved exports in unrelated auth/operator-health/media modules. The candidate still served `/` and `/app`; the report does not attribute those imports to the typography diff. The decisive live blocker is the normal patient login transition not producing an authenticated session.
 
+### Live continuation
+
+The continuation used exactly:
+
+```bash
+APP_BASE_URL=http://127.0.0.1:5213 NEXT_PUBLIC_APP_BASE_URL=http://127.0.0.1:5213 HOST=127.0.0.1 PORT=5213 pnpm exec next dev --webpack -H 127.0.0.1 -p 5213
+```
+
+`ss -ltnp '( sport = :5213 )'` showed no listener before startup. A temporary `apps/webapp/.env.dev` symlink was made only to `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev`; its content was not read or printed. The published patient credentials were entered through the email/password UI and redirected normally to `/app/patient`, proving that the first login blocker was the missing isolated base-URL override, not an auth finding.
+
+| Surface | 390x844 | 1440x900 | Result |
+| --- | --- | --- | --- |
+| Today/Home | `screenshots/home-mobile.png`: authenticated Home, program, warm-up, progress, booking and patient navigation are readable; no overflow, overlap, clipping or missing control seen. | `screenshots/home-desktop.png`: authenticated Home captured and visually checked. | PASS |
+| Diary/statistics | `screenshots/diary-mobile.png`: weekly interval, symptoms and graph are readable with no clipping, overlap or horizontal overflow. This patient has no general well-being marks or tracked symptoms, so chart values and add-mark modal are unavailable without prohibited data mutation. | `screenshots/diary-desktop.png`: same reachable surface visually checked. | PASS (available state) |
+| Booking/cabinet | `screenshots/booking-mobile.png` is a real connection-refused blocker capture: the isolated candidate terminated while opening `/app/patient/booking`. | Not reached after process termination. | BLOCKED |
+| Rehabilitation program/stage/exercise | Not reached after process termination. | Not reached after process termination. | BLOCKED |
+| Messages/exercise comments | Not reached; no message was sent, so no external recipient was contacted and no incremental-redraw claim is made. | Not reached. | BLOCKED |
+| Video/fullscreen modal | Not reached; assigned-video availability was not established. | Not reached. | BLOCKED |
+
+Pre-change screenshots were used only to check for regression or missing controls. No visual finding was observed in Home or diary. The isolated-runtime termination is a reachable live-gate blocker, but is not attributed to the typography diff; no product code was changed.
+
 ## Cleanup and validation
 
-The exact isolated `:5213` foreground process was stopped with `Ctrl-C`. The temporary `apps/webapp/.env.dev` symlink was removed only after confirming its target. No tests were added or run: this is a one-off visual/style refactor and the required acceptance method is source inspection plus live screenshots. Final cleanup confirms no production-code dirt; only this report, its screenshots, and the queue row are staged for the audit commit.
+The exact isolated `:5213` foreground process was stopped. The temporary `apps/webapp/.env.dev` symlink was removed only after confirming its target. The temporary Chromium profile was outside the clone and was stopped; no cookie or log file was left in the clone. No tests were added or run: this is a one-off visual/style refactor and the required acceptance method is live screenshots. Final cleanup confirms no production-code dirt; only this report, its screenshots, and the queue row are staged for the audit commit.
