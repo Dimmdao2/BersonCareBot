@@ -25837,6 +25837,13 @@ const REV10_CONTEXT = {
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.messenger-login.channel-resolve',
       functionIdentity: 'app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)' },
+    // A guest presents only the high-entropy invite secret and has no account or tenant claim yet.
+    // The named root resolves the organization from that same secret; the capability therefore stays
+    // pre-session and exposes no relation-wide fallback.
+    video_meeting_guest_exchange: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'pre_session',
+      purpose: 'video-meeting.guest.exchange',
+      functionIdentity: 'app.exchange_video_meeting_invite(text)' },
     resolve_staff_workspace_memberships: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.staff-workspace.resolve',
