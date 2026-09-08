@@ -173,7 +173,7 @@ Scope: `apps/webapp/src/shared/lib/pwa/**`, `shared/lib/surface/surfaceLayoutMet
 
 Scope: `apps/mobile-shell/**`, `pnpm-workspace.yaml`, root workspace wiring, build documentation. No product page copies.
 
-- [ ] **M2-00.** Android toolchain доступен и зафиксирован: SDK/cmdline-tools установлены, лицензии приняты,
+- [x] **M2-00.** Android toolchain доступен и зафиксирован: SDK/cmdline-tools установлены, лицензии приняты,
       `ANDROID_HOME` задан, `sdkmanager --list_installed` и `adb --version` печатают версии, занятое место названо
       числом. Установка на DEV-бокс разрешена решением §6a `G-1`; ни одна другая строка M2/M7, требующая сборки
       APK, до фактической проверки toolchain закрыта быть не может.
@@ -432,4 +432,6 @@ security/audit gates идут без этих входов. Отсутствую
 | M0-01 | done | Archive/authority/icon commit `a40a1a211`; taskdb `#915` question cleared and `owner_waiting=false` through taskdb port on 2026-09-09. |
 | M0-02 | done | Exact commands/results are recorded in §3a and M0-02; lead recalculated them on `18b61f52b`. |
 | M0-03 | done | Independent high-Opus plan candidate `0864df016`, landed by port as `229a243e7`; lead corrected two contradictions exposed by read-only architecture mapping before product launch. |
-| M1-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
+| M2-00 | done | Port ops run `mobile-android-toolchain-ops-20260909`: `/home/dev/.local/share/bcb-android/env.sh`; `javac 21.0.12.1`, cmdline-tools `23.0.0`, build-tools `36.0.0`, platform 36, adb `37.0.1`, emulator `37.1.11`, API 36 Google APIs x86_64 image and `bcb-api36` AVD. Exact `df -B1 /`: before `18180792320`, after run `9359036416`, consumed `8821755904` bytes. Lead repeated all version/list checks. |
+| M2-00a | open | System image/AVD are installed, but `id dev` lacks group `kvm`; `/dev/kvm` is `root:kvm 0660`, and passwordless sudo is unavailable. Requires `sudo usermod -aG kvm dev` plus new login/`sg kvm`. |
+| M1-01…M2-08, M3-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
