@@ -769,21 +769,6 @@ const bookingEngineService = bookingEnginePort
       assertWriteClearance: assertMechanicWriteClearance,
     })
   : null;
-const videoMeetingsService = !inMemoryRepos && bookingEngineCorePort
-  ? createVideoMeetingsService({
-      store: createPgVideoMeetingStore(),
-      provider: createJitsiVideoMeetingProvider(systemSettingsService),
-      onlineGate: {
-        async isOnlineLocationActive(organizationId) {
-          const location = findBuiltInOnlineLocation(
-            await bookingEngineCorePort.listBranches(organizationId),
-            organizationId,
-          );
-          return location?.isActive === true;
-        },
-      },
-    })
-  : null;
 const bookingSchedulingPort =
   bookingEngineCorePort && !inMemoryRepos
     ? createPgBookingSchedulingPort(() => bookingEngineCorePort.getDefaultOrganizationId())
@@ -965,6 +950,21 @@ const systemSettingsService = wrapSystemSettingsServiceWithRequestLocalScopeRead
     assertMechanicWriteClearance,
   ),
 );
+const videoMeetingsService = !inMemoryRepos && bookingEngineCorePort
+  ? createVideoMeetingsService({
+      store: createPgVideoMeetingStore(),
+      provider: createJitsiVideoMeetingProvider(systemSettingsService),
+      onlineGate: {
+        async isOnlineLocationActive(organizationId) {
+          const location = findBuiltInOnlineLocation(
+            await bookingEngineCorePort.listBranches(organizationId),
+            organizationId,
+          );
+          return location?.isActive === true;
+        },
+      },
+    })
+  : null;
 const specialistTasksPort = !inMemoryRepos
   ? createPgSpecialistTasksPort((task) =>
       prepareSpecialistTaskReminderDeliveries(task, {

@@ -1116,6 +1116,16 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'deps.videoMeetings.createOrResume',
   },
   {
+    id: 'video-meetings.doctor.lifecycle',
+    mechanic: 'video_meetings',
+    file: 'src/app/api/doctor/clients/[userId]/video-meetings/[meetingId]/route.ts',
+    exportName: 'PATCH',
+    method: 'PATCH',
+    authContext: 'requireDoctorWorkspaceApiContext + doctor client visibility + current specialist ownership',
+    guard: 'requireEntitlementForMutation',
+    serviceBoundary: 'deps.videoMeetings.rotateInvite/revokeInvite/endMeeting',
+  },
+  {
     id: 'video-meetings.guest.exchange',
     mechanic: 'video_meetings',
     file: 'src/app/api/video-meetings/guest/exchange/route.ts',

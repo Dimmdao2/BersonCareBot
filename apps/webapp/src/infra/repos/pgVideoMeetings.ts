@@ -11,15 +11,35 @@ export function createPgVideoMeetingStore(): VideoMeetingStore {
   return {
     async findOrCreateActive(input) {
       const db = getDrizzle();
-      const existing = async () => db.select().from(videoMeetings).where(and(eq(videoMeetings.organizationId, input.organizationId), eq(videoMeetings.patientUserId, input.patientUserId), eq(videoMeetings.specialistId, input.specialistId), eq(videoMeetings.status, 'active'))).limit(1);
-      const [current] = await existing();
-      if (current) return { meeting: mapMeeting(current), created: false };
-      try {
-        const [created] = await db.insert(videoMeetings).values(input).returning();
+      const findOrCreate = () => db.transaction(async (tx) => {
+        const [current] = await tx.select().from(videoMeetings).where(and(
+          eq(videoMeetings.organizationId, input.organizationId),
+          eq(videoMeetings.patientUserId, input.patientUserId),
+          eq(videoMeetings.specialistId, input.specialistId),
+          eq(videoMeetings.status, 'active'),
+        )).for('update').limit(1);
+        const now = new Date().toISOString();
+        if (current && Date.parse(current.expiresAt) > Date.parse(now)) {
+          return { meeting: mapMeeting(current), created: false };
+        }
+        if (current) {
+          await tx.update(videoMeetings).set({ status: 'ended', endedAt: now, updatedAt: now })
+            .where(eq(videoMeetings.id, current.id));
+        }
+        const [created] = await tx.insert(videoMeetings).values(input).returning();
         if (!created) throw new Error('video_meeting_insert_failed');
         return { meeting: mapMeeting(created), created: true };
+      });
+      try {
+        return await findOrCreate();
       } catch (error) {
-        const [raced] = await existing();
+        const [raced] = await db.select().from(videoMeetings).where(and(
+          eq(videoMeetings.organizationId, input.organizationId),
+          eq(videoMeetings.patientUserId, input.patientUserId),
+          eq(videoMeetings.specialistId, input.specialistId),
+          eq(videoMeetings.status, 'active'),
+          gt(videoMeetings.expiresAt, new Date().toISOString()),
+        )).limit(1);
         if (raced) return { meeting: mapMeeting(raced), created: false };
         throw error;
       }
@@ -27,7 +47,11 @@ export function createPgVideoMeetingStore(): VideoMeetingStore {
     async rotateInvite(input) {
       const db = getDrizzle();
       return db.transaction(async (tx) => {
-        const [meeting] = await tx.select({ id: videoMeetings.id }).from(videoMeetings).where(and(eq(videoMeetings.id, input.meetingId), eq(videoMeetings.organizationId, input.organizationId), eq(videoMeetings.status, 'active'))).for('update').limit(1);
+        const [meeting] = await tx.select({ id: videoMeetings.id }).from(videoMeetings).where(and(
+          eq(videoMeetings.id, input.meetingId), eq(videoMeetings.organizationId, input.organizationId),
+          eq(videoMeetings.specialistId, input.specialistId), eq(videoMeetings.status, 'active'),
+          gt(videoMeetings.expiresAt, new Date().toISOString()),
+        )).for('update').limit(1);
         if (!meeting) return false;
         const now = new Date().toISOString();
         await tx.update(videoMeetingInvites).set({ status: 'superseded', updatedAt: now }).where(and(eq(videoMeetingInvites.meetingId, input.meetingId), eq(videoMeetingInvites.status, 'active')));
@@ -42,8 +66,32 @@ export function createPgVideoMeetingStore(): VideoMeetingStore {
       });
     },
     async revokeInvite(input) {
-      const result = await getDrizzle().update(videoMeetingInvites).set({ status: 'revoked', revokedAt: new Date().toISOString(), revokedByPlatformUserId: input.actorPlatformUserId, updatedAt: new Date().toISOString() }).where(and(eq(videoMeetingInvites.meetingId, input.meetingId), eq(videoMeetingInvites.organizationId, input.organizationId), eq(videoMeetingInvites.status, 'active'))).returning({ id: videoMeetingInvites.id });
-      return result.length > 0;
+      const db = getDrizzle();
+      return db.transaction(async (tx) => {
+        const [meeting] = await tx.select({ id: videoMeetings.id }).from(videoMeetings).where(and(
+          eq(videoMeetings.id, input.meetingId), eq(videoMeetings.organizationId, input.organizationId),
+          eq(videoMeetings.specialistId, input.specialistId), eq(videoMeetings.status, 'active'),
+          gt(videoMeetings.expiresAt, new Date().toISOString()),
+        )).for('update').limit(1);
+        if (!meeting) return false;
+        const now = new Date().toISOString();
+        const result = await tx.update(videoMeetingInvites).set({ status: 'revoked', revokedAt: now, revokedByPlatformUserId: input.actorPlatformUserId, updatedAt: now }).where(and(eq(videoMeetingInvites.meetingId, input.meetingId), eq(videoMeetingInvites.organizationId, input.organizationId), eq(videoMeetingInvites.status, 'active'))).returning({ id: videoMeetingInvites.id });
+        return result.length > 0;
+      });
+    },
+    async endMeeting(input) {
+      const db = getDrizzle();
+      return db.transaction(async (tx) => {
+        const [meeting] = await tx.select({ id: videoMeetings.id }).from(videoMeetings).where(and(
+          eq(videoMeetings.id, input.meetingId), eq(videoMeetings.organizationId, input.organizationId),
+          eq(videoMeetings.specialistId, input.specialistId), eq(videoMeetings.status, 'active'),
+        )).for('update').limit(1);
+        if (!meeting) return false;
+        const now = new Date().toISOString();
+        await tx.update(videoMeetings).set({ status: 'ended', endedAt: now, updatedAt: now }).where(eq(videoMeetings.id, input.meetingId));
+        await tx.update(videoMeetingInvites).set({ status: 'revoked', revokedAt: now, revokedByPlatformUserId: input.actorPlatformUserId, updatedAt: now }).where(and(eq(videoMeetingInvites.meetingId, input.meetingId), eq(videoMeetingInvites.status, 'active')));
+        return true;
+      });
     },
     async findGuestMeeting(secretHash) {
       const result = await getDrizzle().execute<typeof videoMeetings.$inferSelect>(sql`

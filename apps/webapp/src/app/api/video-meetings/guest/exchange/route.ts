@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   if (!entitlement.ok) return refusal();
   const result = await service.exchangeGuest(body.data.bearer);
   if (!result.ok) return refusal();
-  const response = NextResponse.json({ ok: true, join: result.join });
+  const response = NextResponse.json({ ok: true, session: result.session });
   response.headers.set('Cache-Control', 'no-store');
   response.headers.set('Referrer-Policy', 'no-referrer');
   return response;

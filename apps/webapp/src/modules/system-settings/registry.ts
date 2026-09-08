@@ -152,6 +152,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   jitsi_jwt_issuer: restricted('admin', 'global', 'string', 'absent'),
   jitsi_jwt_application_id: restricted('admin', 'global', 'string', 'absent'),
   jitsi_jwt_signing_secret: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
+  jitsi_xmpp_domain: restricted('admin', 'global', 'string', 'absent'),
   /** Platform-wide product switch, deliberately not a per-tariff mechanic. */
   material_ratings_enabled: runtime('admin', 'global', 'server', 'boolean', 'true'),
   patient_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'Пациенты'),

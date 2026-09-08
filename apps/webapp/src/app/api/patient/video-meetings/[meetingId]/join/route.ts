@@ -23,7 +23,7 @@ export async function POST(_request: Request, context: { params: Promise<{ meeti
     () => deps.videoMeetings!.joinAuthenticatedPatient({ meetingId: params.data.meetingId, organizationId: tenant.organizationId, patientUserId: gate.session.user.userId }),
   );
   if (!result.ok) return NextResponse.json({ ok: false, error: 'meeting_unavailable' }, { status: 404 });
-  const response = NextResponse.json({ ok: true, join: result.join });
+  const response = NextResponse.json({ ok: true, session: result.session });
   response.headers.set('Cache-Control', 'no-store');
   response.headers.set('Referrer-Policy', 'no-referrer');
   return response;

@@ -34,9 +34,16 @@ export function createVideoMeetingsService(deps: {
   }
 
   async function join(meeting: VideoMeetingRecord, role: 'specialist' | 'patient', subject: string) {
+    if (meeting.status !== 'active' || Date.parse(meeting.expiresAt) <= Date.now()) {
+      return { ok: false as const, error: 'meeting_unavailable' as const };
+    }
     const failure = await requireOnlineAndProvider(meeting.organizationId);
     if (failure) return { ok: false as const, error: failure };
-    return { ok: true as const, meetingId: meeting.id, join: await deps.provider.issueJoinMaterial({ meeting, role, subject }) };
+    try {
+      return { ok: true as const, meetingId: meeting.id, session: await deps.provider.issueJoinMaterial({ meeting, role, subject }) };
+    } catch {
+      return { ok: false as const, error: 'provider_unhealthy' as const };
+    }
   }
 
   return {
@@ -60,30 +67,31 @@ export function createVideoMeetingsService(deps: {
         expiresAt: new Date(now + MEETING_TTL_MS).toISOString(),
       });
       const inviteSecret = opaque();
-      const inviteIssued = result.created
-        ? await deps.store.rotateInvite({
-            id: randomUUID(), meetingId: result.meeting.id, organizationId: input.organizationId,
-            secretHash: hashVideoMeetingInvite(inviteSecret), expiresAt: new Date(now + INVITE_TTL_MS).toISOString(),
-            actorPlatformUserId: input.specialistPlatformUserId,
-          })
-        : false;
-      if (result.created && !inviteIssued) throw new Error('video_meeting_invite_issue_failed');
+      const inviteIssued = await deps.store.rotateInvite({
+        id: randomUUID(), meetingId: result.meeting.id, organizationId: input.organizationId,
+        secretHash: hashVideoMeetingInvite(inviteSecret), expiresAt: new Date(now + INVITE_TTL_MS).toISOString(),
+        specialistId: input.specialistId, actorPlatformUserId: input.specialistPlatformUserId,
+      });
+      if (!inviteIssued) throw new Error('video_meeting_invite_issue_failed');
       const joined = await join(result.meeting, 'specialist', input.specialistPlatformUserId);
       if (!joined.ok) return joined;
-      return { ...joined, resumed: !result.created, inviteFragment: result.created ? inviteSecret : null };
+      return { ...joined, resumed: !result.created, inviteFragment: inviteSecret };
     },
 
-    async rotateInvite(input: { meetingId: string; organizationId: string; actorPlatformUserId: string }) {
+    async rotateInvite(input: { meetingId: string; organizationId: string; specialistId: string; actorPlatformUserId: string }) {
       const secret = opaque();
       const ok = await deps.store.rotateInvite({
         id: randomUUID(), meetingId: input.meetingId, organizationId: input.organizationId,
         secretHash: hashVideoMeetingInvite(secret), expiresAt: new Date(Date.now() + INVITE_TTL_MS).toISOString(),
-        actorPlatformUserId: input.actorPlatformUserId,
+        specialistId: input.specialistId, actorPlatformUserId: input.actorPlatformUserId,
       });
       return ok ? { ok: true as const, inviteFragment: secret } : { ok: false as const, error: 'meeting_unavailable' as const };
     },
 
-    revokeInvite: (input: { meetingId: string; organizationId: string; actorPlatformUserId: string }) => deps.store.revokeInvite(input),
+    revokeInvite: (input: { meetingId: string; organizationId: string; specialistId: string; actorPlatformUserId: string }) => deps.store.revokeInvite(input),
+
+    endMeeting: (input: { meetingId: string; organizationId: string; specialistId: string; actorPlatformUserId: string }) =>
+      deps.store.endMeeting?.(input) ?? Promise.resolve(false),
 
     async exchangeGuest(secret: string) {
       if (secret.length < 32) return { ok: false as const, error: 'meeting_unavailable' as const };

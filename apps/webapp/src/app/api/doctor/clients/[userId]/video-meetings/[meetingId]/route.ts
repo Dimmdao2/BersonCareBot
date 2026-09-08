@@ -5,8 +5,8 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 
-const paramsSchema = z.object({ userId: z.string().uuid() });
-const bodySchema = z.object({}).strict();
+const paramsSchema = z.object({ userId: z.string().uuid(), meetingId: z.string().uuid() });
+const bodySchema = z.object({ action: z.enum(['rotate_invite', 'revoke_invite', 'end']) }).strict();
 
 function noStore(body: Record<string, unknown>, status = 200) {
   const response = NextResponse.json(body, { status });
@@ -15,7 +15,7 @@ function noStore(body: Record<string, unknown>, status = 200) {
   return response;
 }
 
-export async function POST(request: Request, context: { params: Promise<{ userId: string }> }) {
+export async function PATCH(request: Request, context: { params: Promise<{ userId: string; meetingId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
   if (!gate.ctx.specialistId) return noStore({ ok: false, error: 'forbidden' }, 403);
@@ -32,15 +32,28 @@ export async function POST(request: Request, context: { params: Promise<{ userId
     gate.ctx,
   );
   if (!patient) return noStore({ ok: false, error: 'not_found' }, 404);
-  const result = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.video-meeting.create-or-resume', () =>
-    deps.videoMeetings!.createOrResume({
-      organizationId: gate.ctx.organizationId,
-      patientUserId: patient.userId,
-      specialistId: gate.ctx.specialistId!,
-      specialistPlatformUserId: gate.ctx.session.user.userId,
-      appointmentId: null,
-    }),
+  const lifecycleInput = {
+    meetingId: params.data.meetingId,
+    organizationId: gate.ctx.organizationId,
+    specialistId: gate.ctx.specialistId,
+    actorPlatformUserId: gate.ctx.session.user.userId,
+  };
+  if (body.data.action === 'rotate_invite') {
+    const result = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      'doctor.video-meeting.lifecycle',
+      () => deps.videoMeetings!.rotateInvite(lifecycleInput),
+    );
+    if (!result.ok) return noStore({ ok: false, error: 'meeting_unavailable' }, 404);
+    return noStore({ ok: true, inviteFragment: result.inviteFragment });
+  }
+  const ok = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    'doctor.video-meeting.lifecycle',
+    () => body.data.action === 'revoke_invite'
+      ? deps.videoMeetings!.revokeInvite(lifecycleInput)
+      : deps.videoMeetings!.endMeeting(lifecycleInput),
   );
-  if (!result.ok) return noStore({ ok: false, error: result.error }, result.error === 'online_location_inactive' ? 409 : 503);
-  return noStore({ ok: true, meetingId: result.meetingId, resumed: result.resumed, session: result.session, inviteFragment: result.inviteFragment });
+  if (!ok) return noStore({ ok: false, error: 'meeting_unavailable' }, 404);
+  return noStore({ ok: true });
 }
