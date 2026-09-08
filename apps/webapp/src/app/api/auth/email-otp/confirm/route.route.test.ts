@@ -42,6 +42,18 @@ vi.mock('@/app-layer/principal/staffSecuritySelfPrincipal', () => ({
 
 import { POST } from './route';
 
+function request(roleLoginPortal?: 'doctor' | 'patient' | 'admin'): Request {
+  return new Request('http://localhost/api/auth/email-otp/confirm', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      email: 'payer@example.test',
+      code: '123456',
+      ...(roleLoginPortal ? { roleLoginPortal } : {}),
+    }),
+  });
+}
+
 const user = {
   userId: '00000000-0000-4000-8000-000000000101',
   role: 'client' as const,
@@ -63,14 +75,41 @@ beforeEach(() => {
 });
 
 describe('B1.2 email confirmation', () => {
+  it.each([
+    ['patient', 'client', 'patient'],
+    ['platform admin', 'admin', 'admin'],
+  ] as const)(
+    'uses the explicit %s portal policy before issuing a compatible %s session',
+    async (_label, role, portal) => {
+      fakes.isAuthChannelEnabled.mockImplementation(
+        async (_channel: string, policy: string | undefined) =>
+          policy === (portal === 'admin' ? 'platform_admin' : 'patient'),
+      );
+      fakes.findByUserId.mockResolvedValue({ ...user, role });
+
+      const response = await POST(request(portal));
+
+      expect(response.status).toBe(200);
+      expect(fakes.isAuthChannelEnabled).toHaveBeenCalledWith(
+        'email',
+        portal === 'admin' ? 'platform_admin' : 'patient',
+      );
+      expect(fakes.setSessionFromUser).toHaveBeenCalledWith(expect.objectContaining({ role }));
+    },
+  );
+
+  it('denies an OTP-confirmed credential on an incompatible explicit portal before session minting', async () => {
+    fakes.findByUserId.mockResolvedValue({ ...user, role: 'doctor' });
+
+    const response = await POST(request('patient'));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'portal_access_denied' });
+    expect(fakes.setSessionFromUser).not.toHaveBeenCalled();
+  });
+
   it('establishes the normal patient session for the OTP-confirmed canonical owner', async () => {
-    const response = await POST(
-      new Request('http://localhost/api/auth/email-otp/confirm', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: 'payer@example.test', code: '123456' }),
-      }),
-    );
+    const response = await POST(request());
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, role: 'client' });
