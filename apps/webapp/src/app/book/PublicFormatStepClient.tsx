@@ -10,7 +10,10 @@ import {
   bookingChoiceRowIconClass,
   bookingChoiceSectionClass,
 } from '@/app/app/patient/booking/bookingChoiceStyles';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientBodyTextClass,
+  patientCaptionTextClass,
+} from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -31,10 +34,10 @@ export function PublicFormatStepClient({ cities, onlineLocation, catalogError, o
   return (
     <div className={bookingChoiceSectionClass}>
       <div className="flex flex-col gap-2">
-        <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+        <p className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}>
           Очный приём
         </p>
-        {catalogError ? <p className="text-sm text-destructive">{catalogError}</p> : null}
+        {catalogError ? <p className={cn(patientBodyTextClass, 'text-destructive')}>{catalogError}</p> : null}
         {!catalogError ? (
           <div className="flex flex-col gap-2">
             {sorted.map((c) => (
@@ -54,7 +57,7 @@ export function PublicFormatStepClient({ cities, onlineLocation, catalogError, o
 
       {onlineLocation || !orgSlug ? (
         <div className="flex flex-col gap-2">
-          <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+          <p className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}>
             Онлайн
           </p>
           {onlineLocation ? (

@@ -8,6 +8,9 @@ import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTi
 import { cn } from '@/lib/utils';
 import {
   patientMutedTextClass,
+  patientBodyTextClass,
+  patientCaptionTextClass,
+  patientSectionTitleClass,
   patientSurfaceNeutralClass,
   patientPrimaryActionClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -80,7 +83,7 @@ export function PatientMaintenanceScreen({
       <div className="flex flex-col gap-4 pb-4">
         <div className={cn(patientSurfaceNeutralClass, 'flex flex-col gap-2')}>
           <h2 className="sr-only">Сообщение для {patientSingularLabel.toLocaleLowerCase('ru-RU')}</h2>
-          <p className="whitespace-pre-wrap text-sm text-[var(--patient-text-primary)]">
+          <p className={cn(patientBodyTextClass, 'whitespace-pre-wrap')}>
             {message}
           </p>
         </div>
@@ -99,18 +102,18 @@ export function PatientMaintenanceScreen({
             >
               Записаться на приём
             </Link>
-            <p className={cn(patientMutedTextClass, 'text-center text-xs')}>
+            <p className={cn(patientCaptionTextClass, 'text-center')}>
               Внешняя страница записи откроется в новой вкладке.
             </p>
           </div>
         ) : null}
 
         <section className="flex flex-col gap-2">
-          <h3 className="text-base font-semibold text-[var(--patient-text-primary)]">
+          <h3 className={patientSectionTitleClass}>
             Ближайшие записи
           </h3>
           {bookings.length === 0 ? (
-            <p className={cn(patientMutedTextClass, 'text-sm')}>Нет предстоящих записей.</p>
+            <p className={patientMutedTextClass}>Нет предстоящих записей.</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {bookings.map((row) => (
@@ -118,13 +121,13 @@ export function PatientMaintenanceScreen({
                   key={row.id}
                   className={cn(
                     patientSurfaceNeutralClass,
-                    'border border-[var(--patient-border)] !p-3 text-sm shadow-none',
+                    'border border-[var(--patient-border)] !p-3 shadow-none',
                   )}
                 >
-                  <p className="font-medium text-[var(--patient-text-primary)]">
+                  <p className={patientBodyTextClass}>
                     {formatBookingDateTimeMediumRu(row.startAt, appDisplayTimeZone)}
                   </p>
-                  <p className={cn(patientMutedTextClass, 'mt-1 truncate text-xs')}>
+                  <p className={cn(patientCaptionTextClass, 'mt-1 truncate')}>
                     {row.subtitle}
                   </p>
                 </li>

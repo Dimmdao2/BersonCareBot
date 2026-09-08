@@ -5,6 +5,8 @@ import { ChevronDown } from 'lucide-react';
 import { Badge } from '@/shared/ui/patient/primitives/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/primitives/card';
 import {
+  patientBodyTextClass,
+  patientCaptionTextClass,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -29,7 +31,7 @@ type Props = {
 function nativePastStatusRight(status: PatientBookingRecord['status']): ReactNode {
   if (status === 'confirmed') return null;
   if (status === 'cancelled') {
-    return <span className="shrink-0 text-sm font-medium text-destructive">Отменена</span>;
+    return <span className={cn(patientBodyTextClass, 'shrink-0 text-destructive')}>Отменена</span>;
   }
   if (status === 'completed') return <Badge variant="outline">Завершена</Badge>;
   if (status === 'rescheduled') return <Badge variant="outline">Перенесена</Badge>;
@@ -47,7 +49,7 @@ export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
       <Collapsible defaultOpen={items.length > 0}>
         <CardHeader className="pb-2">
           <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 text-left">
-            <CardTitle className="text-base">Журнал прошедших приёмов</CardTitle>
+          <CardTitle>Журнал прошедших приёмов</CardTitle>
             <ChevronDown
               className={cn(
                 'size-4 shrink-0 text-[var(--patient-text-muted)] transition-transform',
@@ -76,14 +78,14 @@ export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
                   )}
                 >
                   <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                    <p className={cn(patientBodyTextClass, 'flex items-center gap-1.5 truncate')}>
                       <span>{formatBookingDateTimeMediumRu(booking.slotStart, displayTimeZone)}</span>
                       <AppointmentZoneOffsetWarning
                         iso={booking.slotStart}
                         branchTimeZone={branchTimeZone}
                       />
                     </p>
-                    <p className={cn(patientMutedTextClass, 'truncate text-xs')}>
+                    <p className={cn(patientCaptionTextClass, 'truncate')}>
                       {bookingProvenancePrefix(booking)}
                       {nativeBookingSubtitle(booking)}
                     </p>

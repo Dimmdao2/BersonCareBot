@@ -8,7 +8,7 @@ import { Switch } from '@/shared/ui/patient/primitives/switch';
 import { Label } from '@/shared/ui/patient/primitives/label';
 import { SmsCodeForm } from '@/shared/ui/patient/auth/SmsCodeForm';
 import { cn } from '@/lib/utils';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { patientFormLabelClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 
 type Props = {
@@ -75,7 +75,7 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
             Будут удалены все отслеживания симптомов, записи и данные ЛФК. Профиль и карта {patientGenitive} у
             врача сохранятся.
           </p>
-          <div className="flex items-start gap-3 text-sm">
+          <div className={cn(patientFormLabelClass, 'flex items-start gap-3')}>
             <Switch
               id="diary-purge-consent"
               checked={accepted}
@@ -84,7 +84,7 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
             />
             <Label
               htmlFor="diary-purge-consent"
-              className="cursor-pointer leading-snug font-normal"
+              className="cursor-pointer"
             >
               Я понимаю, что эту операцию нельзя отменить.
             </Label>

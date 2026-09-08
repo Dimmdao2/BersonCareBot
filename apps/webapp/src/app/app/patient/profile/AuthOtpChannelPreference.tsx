@@ -64,7 +64,7 @@ export function AuthOtpChannelPreference({ options, initialSelection, showBindHi
           }}
           disabled={pending}
         >
-          <SelectTrigger aria-label="Канал подтверждения входа" className="h-9 text-sm">
+          <SelectTrigger aria-label="Канал подтверждения входа" className="h-9">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

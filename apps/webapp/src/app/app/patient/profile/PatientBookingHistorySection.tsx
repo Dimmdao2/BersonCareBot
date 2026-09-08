@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
+  patientBodyTextClass,
   patientListItemClass,
   patientEmptyStateClass,
   patientMutedTextClass,
@@ -127,7 +128,7 @@ export function PatientBookingHistorySection({ mode = 'full' }: Props) {
         <ul className={`flex flex-col gap-2 ${showVisits || showTimeline ? 'mb-4' : ''}`}>
           {payments.slice(0, mode === 'payments' ? 20 : 8).map((p) => (
             <li key={p.id} className={patientListItemClass}>
-              <p className="text-sm font-medium">
+              <p className={patientBodyTextClass}>
                 {timelineEventTitle(p.eventType)}
                 {formatAmountMinor(p.amountMinor, p.currency)
                   ? ` · ${formatAmountMinor(p.amountMinor, p.currency)}`
@@ -142,7 +143,7 @@ export function PatientBookingHistorySection({ mode = 'full' }: Props) {
         <ul className={`flex flex-col gap-2 ${showTimeline ? 'mb-4' : ''}`}>
           {visits.slice(0, 8).map((v) => (
             <li key={v.appointmentId} className={patientListItemClass}>
-              <p className="text-sm font-medium">{v.serviceTitle ?? 'Запись'}</p>
+              <p className={patientBodyTextClass}>{v.serviceTitle ?? 'Запись'}</p>
               <p className={patientMutedTextClass}>
                 {new Date(v.startAt).toLocaleString('ru-RU')}
                 {v.endAt
@@ -161,7 +162,7 @@ export function PatientBookingHistorySection({ mode = 'full' }: Props) {
         <ul className="flex flex-col gap-2">
           {timeline.slice(0, 10).map((e) => (
             <li key={e.id} className={patientListItemClass}>
-              <p className="text-sm font-medium">{e.title}</p>
+              <p className={patientBodyTextClass}>{e.title}</p>
               <p className={patientMutedTextClass}>
                 {e.summary ? `${e.summary} · ` : ''}
                 {new Date(e.occurredAt).toLocaleString('ru-RU')}

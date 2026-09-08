@@ -8,6 +8,8 @@ import { Input } from '@/shared/ui/patient/primitives/input';
 import { routePaths } from '@/app-layer/routes/paths';
 import { EmailAccountPanel } from '@/shared/ui/patient/EmailAccountPanel';
 import {
+  patientBodyTextClass,
+  patientCaptionTextClass,
   patientHeroBookingSectionClass,
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -99,7 +101,7 @@ export function PatientProfileHero({
       <div className="flex flex-col gap-4">
         <div className="space-y-1.5">
           <div className="flex items-start justify-between gap-2">
-            <p className={cn(patientMutedTextClass, 'text-xs font-normal uppercase tracking-wide')}>
+            <p className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}>
               ФИО
             </p>
             <Button type="button" variant="link" size="sm" className="h-auto min-h-0 px-0 py-0" onClick={() => {
@@ -117,7 +119,7 @@ export function PatientProfileHero({
               <Button type="button" size="sm" disabled={savingFio} onClick={() => void saveFio()}>Сохранить</Button>
             </div>
           ) : (
-            <p className="text-sm text-[var(--patient-text-primary)]">
+            <p className={patientBodyTextClass}>
               {formatDoctorFio(persistedFio, displayName || fallbackDisplayName)}
             </p>
           )}
@@ -126,7 +128,7 @@ export function PatientProfileHero({
         <div className="flex flex-col gap-1 border-t border-[var(--patient-border)] pt-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <span
-              className={cn(patientMutedTextClass, 'text-xs font-normal uppercase tracking-wide')}
+              className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}
             >
               Телефон
             </span>
@@ -134,13 +136,13 @@ export function PatientProfileHero({
               type="button"
               variant="link"
               size="sm"
-              className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
+              className="h-auto min-h-0 px-0 py-0"
               onClick={goToBindPhone}
             >
               {phone ? 'Изменить' : 'Привязать'}
             </Button>
           </div>
-          {phone ? <p className="text-sm text-[var(--patient-text-primary)]">{phone}</p> : null}
+          {phone ? <p className={patientBodyTextClass}>{phone}</p> : null}
         </div>
 
         <EmailAccountPanel

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { routePaths } from '@/app-layer/routes/paths';
 import {
   patientCardClass,
+  patientInlineLinkClass,
   patientMutedTextClass,
   patientPageTitleClass,
   patientSectionTitleClass,
@@ -61,7 +62,7 @@ export function PatientPackageDetailClient({ patientPackageId }: Props) {
   if (notFound) {
     return (
       <div className="p-4">
-        <Link href={routePaths.patientBooking} className="text-sm underline">
+        <Link href={routePaths.patientBooking} className={patientInlineLinkClass}>
           Назад
         </Link>
         <p className={patientMutedTextClass}>Абонемент не найден.</p>
@@ -73,7 +74,7 @@ export function PatientPackageDetailClient({ patientPackageId }: Props) {
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      <Link href={routePaths.patientBooking} className="text-sm underline">
+      <Link href={routePaths.patientBooking} className={patientInlineLinkClass}>
         Назад
       </Link>
       <div className={patientCardClass}>

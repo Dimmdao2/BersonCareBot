@@ -8,6 +8,7 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import {
   patientButtonPrimaryClass,
   patientButtonSecondaryClass,
+  patientCaptionTextClass,
   patientCardClass,
   patientMutedTextClass,
   patientSectionTitleClass,
@@ -101,7 +102,7 @@ export function BookingDoneClient({
         <p className="text-2xl">✓</p>
         <p className={cn(patientSectionTitleClass, 'text-center')}>Запись подтверждена</p>
         <ul className={cn(patientMutedTextClass, 'mt-1 list-none text-center')}>
-          <li className="font-medium">{serviceTitle}</li>
+          <li className={patientCaptionTextClass}>{serviceTitle}</li>
           <li>
             {dateLabel} · {timeStart} — {timeEnd}{' '}
             <AppointmentZoneOffsetWarning iso={slotStart} branchTimeZone={branchTimeZone} />
@@ -112,7 +113,7 @@ export function BookingDoneClient({
 
       {/* Calendar actions */}
       <div className={cn(patientCardClass, 'flex flex-col gap-3')}>
-        <p className={cn(patientMutedTextClass, 'text-xs font-semibold uppercase tracking-wide')}>
+        <p className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}>
           Добавить в календарь
         </p>
 
@@ -122,7 +123,7 @@ export function BookingDoneClient({
           rel="noopener noreferrer"
           className={cn(
             patientButtonSecondaryClass,
-            'flex items-center justify-center gap-2 text-sm',
+            'flex items-center justify-center gap-2',
           )}
         >
           <span>Google Календарь</span>
@@ -134,7 +135,7 @@ export function BookingDoneClient({
           rel="noopener noreferrer"
           className={cn(
             patientButtonSecondaryClass,
-            'flex items-center justify-center gap-2 text-sm',
+            'flex items-center justify-center gap-2',
           )}
         >
           <span>Яндекс Календарь</span>
@@ -145,7 +146,7 @@ export function BookingDoneClient({
           onClick={handleDownloadIcs}
           className={cn(
             patientButtonSecondaryClass,
-            'flex items-center justify-center gap-2 text-sm',
+            'flex items-center justify-center gap-2',
           )}
         >
           <span>Скачать .ics (Apple, Outlook…)</span>

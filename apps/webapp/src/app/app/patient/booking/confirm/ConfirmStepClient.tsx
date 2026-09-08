@@ -32,7 +32,10 @@ import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import {
   patientButtonPrimaryClass,
+  patientBodyTextClass,
+  patientCaptionTextClass,
   patientCardClass,
+  patientFormLabelClass,
   patientFormSurfaceClass,
   patientMutedTextClass,
   patientSectionTitleClass,
@@ -360,11 +363,11 @@ export function ConfirmStepClient({
           }}
         >
           <h2 className={patientSectionTitleClass}>Подтверждение записи</h2>
-          <p className={cn(patientMutedTextClass, 'text-sm')}>
+          <p className={patientMutedTextClass}>
             Мы отправили код на {verificationPrompt.contact}. Введите его, чтобы подтвердить запись.
           </p>
           <label className="flex flex-col gap-1">
-            <span className={cn(patientMutedTextClass, 'text-xs')}>Код из сообщения</span>
+            <span className={patientCaptionTextClass}>Код из сообщения</span>
             <Input
               name="publicBookingCode"
               inputMode="numeric"
@@ -372,7 +375,7 @@ export function ConfirmStepClient({
               required
             />
           </label>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {error ? <p className={cn(patientBodyTextClass, 'text-destructive')}>{error}</p> : null}
           <Button type="submit" className={patientButtonPrimaryClass} disabled={submitting}>
             {submitting ? 'Проверяем код...' : 'Подтвердить запись'}
           </Button>
@@ -393,8 +396,8 @@ export function ConfirmStepClient({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className={cn(patientCardClass, 'text-sm ring-0')}>
-        <p className="font-semibold">Сводка</p>
+      <div className={cn(patientCardClass, 'ring-0')}>
+        <p className={patientSectionTitleClass}>Сводка</p>
         <ul className={cn(patientMutedTextClass, 'mt-2 list-inside list-disc')}>
           <li>{formatLabel}</li>
           <li>
@@ -464,7 +467,7 @@ export function ConfirmStepClient({
           ? null
           : formFields.map((field) => (
               <label key={field.fieldKey} className="flex flex-col gap-1">
-                <span className={cn(patientMutedTextClass, 'text-xs')}>
+                <span className={patientCaptionTextClass}>
                   {field.label}
                   {field.isRequired ? ' *' : ''}
                 </span>
@@ -490,8 +493,8 @@ export function ConfirmStepClient({
 
         {createState.proofMethod && createState.setProofMethod ? (
           <fieldset className="flex flex-col gap-2">
-            <legend className={cn(patientMutedTextClass, 'text-xs')}>Подтверждение личности</legend>
-            <label className="flex items-center gap-2 text-sm">
+            <legend className={patientCaptionTextClass}>Подтверждение личности</legend>
+            <label className={cn(patientFormLabelClass, 'flex items-center gap-2')}>
               <input
                 type="radio"
                 name="publicBookingProofMethod"
@@ -500,7 +503,7 @@ export function ConfirmStepClient({
               />
               Код по SMS
             </label>
-            <label className="flex items-center gap-2 text-sm">
+            <label className={cn(patientFormLabelClass, 'flex items-center gap-2')}>
               <input
                 type="radio"
                 name="publicBookingProofMethod"
@@ -514,14 +517,14 @@ export function ConfirmStepClient({
 
         {type === 'in_person' && !isReschedule && packageOptions.length > 0 ? (
           <label className="flex flex-col gap-1">
-            <span className={cn(patientMutedTextClass, 'text-xs')}>Абонемент</span>
+            <span className={patientCaptionTextClass}>Абонемент</span>
             <Select
               value={patientPackageId}
               onValueChange={(v) => {
                 setPatientPackageId(v ?? '');
               }}
             >
-              <SelectTrigger className="w-full rounded-md border bg-background px-2 py-2 text-sm">
+              <SelectTrigger className="w-full rounded-md border bg-background px-2 py-2">
                 <SelectValue placeholder="Без абонемента" />
               </SelectTrigger>
               <SelectContent>
@@ -540,7 +543,7 @@ export function ConfirmStepClient({
           </label>
         ) : null}
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className={cn(patientBodyTextClass, 'text-destructive')}>{error}</p> : null}
         <Button type="submit" className={patientButtonPrimaryClass} disabled={!canSubmit}>
           {submitting ? 'Создаём запись...' : 'Подтвердить запись'}
         </Button>

@@ -2,8 +2,7 @@
 
 import { Badge } from '@/shared/ui/patient/primitives/badge';
 import { Button } from '@/shared/ui/patient/primitives/button';
-import { cn } from '@/lib/utils';
-import { patientActionTextClass, patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
+import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
 import type { BookingSelection } from './useBookingSelection';
 
 type Props = {
@@ -33,14 +32,7 @@ export function BookingFormatGrid({
           className="h-auto min-h-14 justify-start text-left"
           onClick={() => onStartInPerson()}
         >
-          <span
-            className={cn(
-              patientActionTextClass,
-              inPersonChosen ? 'text-white' : 'text-[var(--patient-text-primary)]',
-            )}
-          >
-            Очный приём
-          </span>
+          Очный приём
         </Button>
         <Button
           type="button"
@@ -52,16 +44,7 @@ export function BookingFormatGrid({
           className="h-auto min-h-14 justify-start text-left"
           onClick={() => onSelectOnline('rehab_lfk')}
         >
-          <span
-            className={cn(
-              patientActionTextClass,
-              selection?.type === 'online' && selection.category === 'rehab_lfk'
-                ? 'text-white'
-                : 'text-[var(--patient-text-primary)]',
-            )}
-          >
-            Онлайн - Реабилитация (ЛФК)
-          </span>
+          Онлайн - Реабилитация (ЛФК)
         </Button>
         <Button
           type="button"
@@ -73,16 +56,7 @@ export function BookingFormatGrid({
           className="h-auto min-h-14 justify-start text-left"
           onClick={() => onSelectOnline('nutrition')}
         >
-          <span
-            className={cn(
-              patientActionTextClass,
-              selection?.type === 'online' && selection.category === 'nutrition'
-                ? 'text-white'
-                : 'text-[var(--patient-text-primary)]',
-            )}
-          >
-            Онлайн - Нутрициология
-          </span>
+          Онлайн - Нутрициология
         </Button>
       </div>
     </div>
