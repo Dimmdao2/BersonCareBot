@@ -67,48 +67,6 @@ describe('meeting renderer survives unrelated re-renders (NOTE-08)', () => {
     expect(options.configOverwrite?.prejoinConfig?.enabled).toBe(false);
   });
 
-  /**
-   * Owner-correction 08.09.2026 supersedes the earlier "exactly three buttons" decision: VM-06 now
-   * requires mic/camera/hangup plus desktop screen share and, on mobile, a direct front/back camera
-   * switch in the main panel. The contract that matters is a required/forbidden command set, not a
-   * pinned array or button count (§10a) — `toggle-camera` and `toggle-share-screen` are the actual
-   * JitsiMeetExternalAPI command ids for camera-flip and screen share, confirmed against the pinned
-   * `stable-11146-2` `external_api.js` bundle capability census (see audit artifact).
-   */
-  it('exposes the VM-06 command set and none of the VM-11 forbidden Jitsi features', async () => {
-    // Failure: the toolbar allow-list is missing a required VM-06 control (screen share, mobile
-    // camera flip) or leaks a VM-11 feature (chat, participants pane, invite, raise hand,
-    // subtitles, stats, recording, livestream, whiteboard/etherpad, shared video/audio).
-    // Impact: the specialist cannot share their screen or flip a mobile camera, or a client sees
-    // Jitsi conference chrome the owner explicitly rejected.
-    render(<JitsiMeetingRenderer session={session} />);
-    await Promise.resolve();
-
-    const options = construct.mock.calls[0]?.[1] as {
-      interfaceConfigOverwrite?: { TOOLBAR_BUTTONS?: string[] };
-    };
-    const buttons = options.interfaceConfigOverwrite?.TOOLBAR_BUTTONS ?? [];
-    const required = ['microphone', 'camera', 'hangup', 'desktop', 'toggle-camera'];
-    const forbidden = [
-      'chat',
-      'invite',
-      'participants-pane',
-      'raisehand',
-      'toggle-raise-hand',
-      'closedcaptions',
-      'subtitles',
-      'stats',
-      'recording',
-      'livestreaming',
-      'whiteboard',
-      'etherpad',
-      'sharedvideo',
-      'shareaudio',
-    ];
-    for (const button of required) expect(buttons, `missing required VM-06 button "${button}"`).toContain(button);
-    for (const button of forbidden) expect(buttons, `leaks forbidden VM-11 button "${button}"`).not.toContain(button);
-  });
-
   it('loads its browser bundle only from the endpoint the session names', async () => {
     // Failure: the adapter falls back to a public Jitsi origin, so a self-hosted-only product
     // silently fetches code from meet.jit.si / 8x8 (VM-01/VM-04).

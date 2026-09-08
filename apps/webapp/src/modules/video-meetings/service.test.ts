@@ -285,12 +285,14 @@ describe('explicit rotate_invite follows the same notification contract as creat
       resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
     });
 
-    await service.rotateInvite({
+    const rotateInput = {
       meetingId: meetingRecord.id,
       organizationId: ids.organization,
+      patientUserId: ids.patient,
       specialistId: ids.specialist,
       actorPlatformUserId: ids.specialist,
-    });
+    };
+    await service.rotateInvite(rotateInput);
 
     expect(invitationNotification.enqueue).toHaveBeenCalledTimes(1);
   });
