@@ -9,6 +9,9 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
 import {
   patientCardClass,
+  patientActionTextClass,
+  patientBodyTextClass,
+  patientSectionTitleClass,
   patientInlineLinkClass,
   patientMutedTextClass,
   patientPrimaryActionClass,
@@ -73,7 +76,7 @@ export function PatientCoursesCatalogClient(props: {
   return (
     <div id="patient-courses-catalog" className="flex flex-col gap-4">
       {error ? (
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p className={`rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive ${patientBodyTextClass}`}>
           {error}
         </p>
       ) : null}
@@ -88,17 +91,17 @@ export function PatientCoursesCatalogClient(props: {
                 : '',
             )}
           >
-            <h2 className="text-base font-semibold">{c.title}</h2>
+            <h2 className={patientSectionTitleClass}>{c.title}</h2>
             {c.description ? (
               <p className={cn(patientMutedTextClass, 'mt-2 whitespace-pre-wrap')}>
                 {c.description}
               </p>
             ) : null}
-            <p className="mt-2 text-sm font-medium">{formatPrice(c.priceMinor, c.currency)}</p>
+            <p className={`mt-2 ${patientActionTextClass}`}>{formatPrice(c.priceMinor, c.currency)}</p>
             {c.introContentSlug ? (
               <Link
                 href={`/app/patient/content/${encodeURIComponent(c.introContentSlug)}`}
-                className={cn(patientInlineLinkClass, 'mt-3 inline-block text-sm')}
+                className={cn(patientInlineLinkClass, 'mt-3 inline-block')}
               >
                 Вступительный урок
               </Link>
@@ -107,14 +110,14 @@ export function PatientCoursesCatalogClient(props: {
               {!loggedIn ? (
                 <Link
                   href={`${routePaths.root}?next=${encodeURIComponent(routePaths.patientCourses)}`}
-                  className={cn(patientPrimaryActionClass, '!min-h-10 text-sm')}
+                  className={cn(patientPrimaryActionClass, '!min-h-10')}
                 >
                   Войти, чтобы записаться
                 </Link>
               ) : !enrollReady ? (
                 <Link
                   href={`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.patientCourses)}`}
-                  className={cn(patientSecondaryActionClass, '!w-auto text-sm')}
+                  className={cn(patientSecondaryActionClass, '!w-auto')}
                 >
                   Активируйте профиль для записи
                 </Link>
@@ -123,7 +126,7 @@ export function PatientCoursesCatalogClient(props: {
                   type="button"
                   disabled={busyId !== null}
                   onClick={() => enroll(c.id)}
-                  className={cn(patientPrimaryActionClass, '!min-h-10 text-sm disabled:opacity-60')}
+                  className={cn(patientPrimaryActionClass, '!min-h-10 disabled:opacity-60')}
                 >
                   {busyId === c.id ? 'Запись…' : 'Записаться на программу'}
                 </Button>

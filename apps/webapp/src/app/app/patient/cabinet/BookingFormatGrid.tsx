@@ -3,7 +3,7 @@
 import { Badge } from '@/shared/ui/patient/primitives/badge';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
-import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
+import { patientActionTextClass, patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
 import type { BookingSelection } from './useBookingSelection';
 
 type Props = {
@@ -23,7 +23,7 @@ export function BookingFormatGrid({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <h3 className={cn(patientSectionTitleClass, 'text-sm')}>Формат приёма</h3>
+        <h3 className={patientSectionTitleClass}>Формат приёма</h3>
         <Badge variant="outline">Шаг 1</Badge>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -35,7 +35,7 @@ export function BookingFormatGrid({
         >
           <span
             className={cn(
-              'text-sm font-semibold',
+              patientActionTextClass,
               inPersonChosen ? 'text-white' : 'text-[var(--patient-text-primary)]',
             )}
           >
@@ -54,7 +54,7 @@ export function BookingFormatGrid({
         >
           <span
             className={cn(
-              'text-sm font-semibold',
+              patientActionTextClass,
               selection?.type === 'online' && selection.category === 'rehab_lfk'
                 ? 'text-white'
                 : 'text-[var(--patient-text-primary)]',
@@ -75,7 +75,7 @@ export function BookingFormatGrid({
         >
           <span
             className={cn(
-              'text-sm font-semibold',
+              patientActionTextClass,
               selection?.type === 'online' && selection.category === 'nutrition'
                 ? 'text-white'
                 : 'text-[var(--patient-text-primary)]',

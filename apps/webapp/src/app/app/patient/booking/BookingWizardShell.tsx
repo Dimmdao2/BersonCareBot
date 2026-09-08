@@ -5,6 +5,8 @@ import type { SessionUser } from '@/shared/types/session';
 import { cn } from '@/lib/utils';
 import {
   patientMutedTextClass,
+  patientInlineLinkClass,
+  patientCaptionTextClass,
   patientInnerPageStackClass,
 } from '@/shared/ui/patient/patientVisual';
 
@@ -57,13 +59,13 @@ export function BookingWizardShell({
           <Link
             href={backHref}
             prefetch={false}
-            className="shrink-0 text-sm font-medium text-[var(--patient-color-primary)] underline-offset-2 hover:underline"
+            className={cn('shrink-0', patientInlineLinkClass)}
           >
             Назад
           </Link>
         ) : null}
         <p
-          className={cn(patientMutedTextClass, 'text-xs', !showWizardBack && 'w-full text-center')}
+          className={cn(patientCaptionTextClass, !showWizardBack && 'w-full text-center')}
         >
           Шаг {step} из {totalSteps}
         </p>

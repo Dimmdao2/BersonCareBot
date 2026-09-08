@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils';
 import { AppointmentReminderPreference } from './AppointmentReminderPreference';
 import {
   patientListItemClass,
+  patientActionTextClass,
+  patientCaptionTextClass,
   patientMutedTextClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -93,11 +95,11 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
               )}
             >
               <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1.5 text-sm font-medium">
+                <p className={cn('flex items-center gap-1.5', patientActionTextClass)}>
                   <span>{formatBookingDateTimeMediumRu(row.slotStart, displayTimeZone)}</span>
                   <AppointmentZoneOffsetWarning iso={row.slotStart} branchTimeZone={branchTimeZone} />
                 </p>
-                <p className={cn(patientMutedTextClass, 'truncate text-xs')}>
+                <p className={cn(patientCaptionTextClass, 'truncate')}>
                   {bookingProvenancePrefix(row)}
                   {nativeBookingSubtitle(row)}
                 </p>

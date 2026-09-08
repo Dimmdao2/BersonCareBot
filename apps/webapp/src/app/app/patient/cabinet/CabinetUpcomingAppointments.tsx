@@ -6,6 +6,9 @@ import { isSafeExternalHref } from '@/lib/url/isSafeExternalHref';
 import { cn } from '@/lib/utils';
 import {
   patientInlineLinkClass,
+  patientActionTextClass,
+  patientBodyTextClass,
+  patientCaptionTextClass,
   patientListItemClass,
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -31,23 +34,23 @@ export function CabinetUpcomingAppointments({ appointments }: Props) {
                 href={a.link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={cn(patientInlineLinkClass, 'font-medium')}
+                className={patientInlineLinkClass}
               >
                 {a.timeLabel}
               </a>
             ) : (
-              <span className="font-medium tabular-nums">{a.timeLabel}</span>
+              <span className={cn(patientActionTextClass, 'tabular-nums')}>{a.timeLabel}</span>
             );
           return (
             <li key={a.id} className={cn(patientListItemClass, 'flex flex-col gap-1 !px-3 !py-2')}>
               {a.scheduleProvenancePrefix ? (
-                <span className={cn(patientMutedTextClass, 'text-xs')}>
+                <span className={patientCaptionTextClass}>
                   {a.scheduleProvenancePrefix}
                 </span>
               ) : null}
               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-                <span className="min-w-0 text-left text-sm tabular-nums">{a.dateLabel}</span>
-                <span className="min-w-0 shrink-0 text-center text-sm">{timeContent}</span>
+                <span className={cn(patientBodyTextClass, 'min-w-0 text-left tabular-nums')}>{a.dateLabel}</span>
+                <span className={cn(patientBodyTextClass, 'min-w-0 shrink-0 text-center')}>{timeContent}</span>
                 <span className="flex min-w-0 justify-end">
                   <AppointmentStatusBadge
                     mode="upcoming"
