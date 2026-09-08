@@ -38,6 +38,18 @@ apps/webapp/.turbo/
 apps/webapp/out/
 apps/integrator/dist/
 
+# Android shell local machine/build artifacts. Native source and Gradle wrapper remain tracked.
+apps/mobile-shell/android/local.properties
+apps/mobile-shell/android/.gradle/
+apps/mobile-shell/android/build/
+apps/mobile-shell/android/app/build/
+apps/mobile-shell/android/capacitor-cordova-android-plugins/
+apps/mobile-shell/android/*.keystore
+apps/mobile-shell/android/*.jks
+apps/mobile-shell/android/app/google-services.json
+apps/mobile-shell/android/app/src/**/google-services.json
+apps/mobile-shell/.gradle/
+
 # VSCode
 .vscode/
 
