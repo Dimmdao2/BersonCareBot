@@ -17,6 +17,7 @@ import {
 import { PatientPrimaryNavStrip } from '@/shared/ui/patient/PatientPrimaryNavStrip';
 import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/patient/navChrome';
 import { PatientNotificationInboxButton } from '@/shared/ui/patient/shell/PatientNotificationInboxButton';
+import { patientPageTitleClass } from '@/shared/ui/patient/patientVisual';
 
 export const PATIENT_HEADER_BAR_HEIGHT_VAR = '--patient-header-bar-height';
 
@@ -26,8 +27,7 @@ const MOBILE_TOOLBAR_ROW_BASE =
 const CHROME_ICON_BTN_BASE =
   'inline-flex size-9 shrink-0 items-center justify-center rounded-md transition-colors duration-200 ease-out hover:bg-[var(--patient-color-primary-soft)]/50';
 
-const MOBILE_HEADER_TITLE_CLASS =
-  'm-0 min-w-0 truncate text-left text-[15px] font-normal leading-5 text-[var(--patient-block-heading)]';
+const MOBILE_HEADER_TITLE_CLASS = cn(patientPageTitleClass, 'm-0 min-w-0 truncate text-left');
 
 /** Заголовок не уходит под профиль; без back начинается от визуального края содержимого карточек. */
 const MOBILE_HEADER_TITLE_ROW_CLASS =
@@ -37,8 +37,8 @@ function profileIconBtnClass(isActive: boolean): string {
   return cn(
     CHROME_ICON_BTN_BASE,
     isActive
-      ? 'text-[var(--patient-color-primary)]'
-      : 'text-[var(--patient-text-secondary)] hover:text-[var(--patient-color-primary)]',
+      ? 'patient-text-navigation-active'
+      : 'patient-text-navigation-inactive',
   );
 }
 
@@ -108,7 +108,7 @@ export function PatientShellTopChrome({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-9 shrink-0 text-[var(--patient-text-secondary)] hover:text-[var(--patient-color-primary)]"
+                  className="size-9 shrink-0 patient-text-navigation-inactive"
                   onClick={goBack}
                   aria-label={backLabel}
                 >
@@ -128,7 +128,7 @@ export function PatientShellTopChrome({
                 {shellTitleBadge ? (
                   <span
                     data-testid="patient-header-title-badge"
-                    className="max-w-[38%] shrink-0 truncate rounded-full border border-border bg-muted/70 px-1.5 py-px text-[10px] font-medium leading-4 text-foreground"
+                    className="max-w-[38%] shrink-0 truncate rounded-full border border-border bg-muted/70 px-1.5 py-px patient-type-caption patient-text-primary"
                     title={shellTitleBadge}
                   >
                     {shellTitleBadge}

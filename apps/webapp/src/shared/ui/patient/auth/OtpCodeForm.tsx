@@ -14,7 +14,12 @@ import {
   AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
   AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS,
 } from '@/shared/ui/patient/auth/loginChrome';
-import { patientInlineLinkClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientBodyTextClass,
+  patientFormLabelClass,
+  patientInlineLinkClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
 
 export type OtpConfirmResult =
   | { ok: true; redirectTo?: string }
@@ -189,7 +194,7 @@ export function OtpCodeForm({
 
   const textLinkClass = cn(
     patientInlineLinkClass,
-    'w-fit bg-transparent p-0 text-left text-sm font-normal underline disabled:pointer-events-none disabled:opacity-50',
+    'w-fit bg-transparent p-0 text-left underline disabled:pointer-events-none disabled:opacity-50',
     AUTH_LOGIN_ACCENT_TEXT_CLASS,
   );
 
@@ -202,7 +207,7 @@ export function OtpCodeForm({
       <p className={patientMutedTextClass}>{description}</p>
       <div className="flex flex-col gap-1">
         <label
-          className={cn(patientMutedTextClass, 'text-xs font-normal uppercase tracking-wide')}
+          className={cn(patientFormLabelClass, 'uppercase tracking-wide')}
           htmlFor={`otp-${challengeId}`}
         >
           Код подтверждения
@@ -220,7 +225,7 @@ export function OtpCodeForm({
           aria-invalid={!!error}
         />
       </div>
-      {error ? <p className="text-sm text-[var(--patient-color-danger)]">{error}</p> : null}
+      {error ? <p className={cn(patientBodyTextClass, 'patient-text-danger-accent')}>{error}</p> : null}
       <Button
         type="submit"
         variant="outline"

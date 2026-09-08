@@ -5,7 +5,7 @@ import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/bro
 import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/patient/primitives/button';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { patientBodyTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { useSurfaceName } from '@/shared/ui/PlatformProvider';
 
 type CredentialSummary = {
@@ -127,7 +127,7 @@ export function PasskeySection() {
           className="flex items-center justify-between gap-3 rounded-lg border p-3"
         >
           <div>
-            <p className="text-sm font-medium">Ключ доступа {index + 1}</p>
+            <p className={patientBodyTextClass}>Ключ доступа {index + 1}</p>
             <p className={patientMutedTextClass}>
               Добавлен {new Date(credential.createdAt).toLocaleDateString('ru-RU')}
               {credential.backedUp ? ' · синхронизируется' : ''}

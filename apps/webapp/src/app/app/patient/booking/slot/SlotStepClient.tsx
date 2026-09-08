@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { routePaths } from '@/app-layer/routes/paths';
-import { patientButtonPrimaryClass } from '@/shared/ui/patient/patientVisual';
+import { patientButtonPrimaryClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import type { BookingCategory, BookingSlot } from '@/modules/patient-booking/types';
 import { BookingCalendar } from '../../cabinet/BookingCalendar';
 import { BookingSlotList } from '../../cabinet/BookingSlotList';
@@ -151,7 +151,7 @@ export function SlotStepClient(props: Props) {
       {slotsState.loading ? <AppContentLoading className="py-4" /> : null}
       {slotsState.error ? (
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-destructive">{slotsState.error}</p>
+          <p className={`${patientMutedTextClass} patient-text-danger`}>{slotsState.error}</p>
           <Button
             type="button"
             variant="outline"

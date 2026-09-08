@@ -15,11 +15,14 @@ import { cn } from '@/lib/utils';
 import {
   patientCardCompactClass,
   patientCardListSectionClass,
+  patientBodyTextClass,
+  patientCaptionTextClass,
   patientHeroPrimaryActionClass,
   patientHeroTitleBaseClass,
   patientInnerHeroListPrimaryTitleClass,
   patientMutedTextClass,
   patientInnerPageStackClass,
+  patientPageTitleClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 import { PatientTreatmentProgramsListPromoRetry } from './PatientTreatmentProgramsListPromoRetry';
@@ -52,7 +55,7 @@ export function PatientTreatmentProgramsListClient(props: {
 
   return (
     <div className={patientInnerPageStackClass}>
-      <h1 className={cn(patientSectionTitleClass, 'hidden min-w-0 patient-desktop:block')}>
+      <h1 className={cn(patientPageTitleClass, 'hidden min-w-0 patient-desktop:block')}>
         {PATIENT_PLAN_TAB_UI_LABEL}
       </h1>
       {promoEnsureFailed ? <PatientTreatmentProgramsListPromoRetry /> : null}
@@ -67,20 +70,20 @@ export function PatientTreatmentProgramsListClient(props: {
           >
             {hero.title}
           </h2>
-          <p className={cn(patientMutedTextClass, 'mt-2 text-sm')}>
+          <p className={cn(patientMutedTextClass, 'mt-2')}>
             {hero.currentStageTitle ? (
               <>
-                Текущий этап: <span className="text-foreground">{hero.currentStageTitle}</span>
+                Текущий этап: <span className="patient-text-primary">{hero.currentStageTitle}</span>
               </>
             ) : (
               <>
-                Текущий этап: <span className="text-foreground">—</span>
+                Текущий этап: <span className="patient-text-primary">—</span>
               </>
             )}
           </p>
           {hero.planUpdatedLabel?.trim() ? (
-            <p className="mt-2 flex items-center gap-1.5 text-sm font-medium" role="status">
-              <span className="text-destructive" aria-hidden="true">
+            <p className={cn(patientBodyTextClass, 'mt-2 flex items-center gap-1.5')} role="status">
+              <span className="patient-text-danger" aria-hidden="true">
                 ●
               </span>
               <span>{hero.planUpdatedLabel.trim()}</span>
@@ -92,7 +95,7 @@ export function PatientTreatmentProgramsListClient(props: {
               prefetch={false}
               className={cn(
                 patientHeroPrimaryActionClass,
-                'inline-flex min-h-9 items-center justify-center rounded-md px-4 py-2 text-sm no-underline',
+                'inline-flex min-h-9 items-center justify-center rounded-md px-4 py-2 no-underline',
               )}
             >
               Открыть программу
@@ -103,9 +106,9 @@ export function PatientTreatmentProgramsListClient(props: {
 
       {archived.length > 0 ? (
         <details className={cn(patientCardListSectionClass, 'group')}>
-          <summary className="cursor-pointer list-none py-1 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+          <summary className={cn(patientBodyTextClass, 'cursor-pointer list-none py-1 [&::-webkit-details-marker]:hidden')}>
             Завершённые программы
-            <span className={cn(patientMutedTextClass, 'ml-2 text-xs font-normal')}>
+            <span className={cn(patientCaptionTextClass, 'ml-2')}>
               ({archived.length})
             </span>
           </summary>
@@ -117,11 +120,12 @@ export function PatientTreatmentProgramsListClient(props: {
                   prefetch={false}
                   className={cn(
                     patientCardCompactClass,
-                    'block cursor-pointer text-sm font-medium transition-colors hover:border-primary/30',
+                    patientBodyTextClass,
+                    'block cursor-pointer transition-colors hover:border-primary/30',
                   )}
                 >
                   {p.title}
-                  <span className={cn(patientMutedTextClass, 'mt-1 block text-xs font-normal')}>
+                  <span className={cn(patientCaptionTextClass, 'mt-1 block')}>
                     завершена
                   </span>
                 </Link>

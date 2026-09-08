@@ -87,22 +87,22 @@ export function PatientProgramPassageStatisticsSection(props: {
       <PatientProgramBlockHeading
         title="Статистика прохождения"
         Icon={TrendingUp}
-        iconClassName="text-[var(--patient-color-primary)]"
+        iconClassName="patient-text-accent"
       />
       {showCollectingCopy ? (
-        <div className={cn(patientMutedTextClass, 'space-y-2 text-sm leading-snug')}>
+        <div className={cn(patientMutedTextClass, 'space-y-2')}>
           <p className={patientBodyTextClass}>Статистика пока собирается.</p>
           <p>Регулярность в занятиях - основа вашего здоровья!</p>
         </div>
       ) : statsError ? (
-        <p className="text-sm text-destructive" role="alert">
+        <p className={cn(patientMutedTextClass, 'patient-text-danger-accent')} role="alert">
           {statsError}
         </p>
       ) : stats ? (
         <ul
           className={cn(
             patientMutedTextClass,
-            'm-0 list-none space-y-1.5 p-0 text-sm leading-snug',
+            'm-0 list-none space-y-1.5 p-0',
           )}
         >
           <li>Дней с занятиями: {stats.daysWithActivity}</li>

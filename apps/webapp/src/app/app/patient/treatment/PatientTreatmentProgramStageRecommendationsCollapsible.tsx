@@ -20,6 +20,7 @@ import {
   patientCardListSectionClass,
   patientRecommendationCollapsiblePanelClass,
   patientRecommendationCollapsibleTriggerClass,
+  patientSectionTitleNormalClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
@@ -58,7 +59,7 @@ export function PatientTreatmentProgramStageRecommendationsCollapsible(props: {
       >
         <div className="mb-0 flex min-w-0 w-full items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <Shield className="size-4 shrink-0 text-emerald-800/85" aria-hidden />
+            <Shield className="size-4 shrink-0 patient-text-success opacity-[0.85]" aria-hidden />
             <span className={patientSectionTitleClass}>Рекомендации этапа</span>
           </div>
           <ChevronDown
@@ -90,7 +91,7 @@ export function PatientTreatmentProgramStageRecommendationsCollapsible(props: {
                     frameClassName="size-12 shrink-0 rounded-md border border-[var(--patient-border)]/60"
                     sizes="48px"
                   />
-                  <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
+                  <span className={cn(patientSectionTitleNormalClass, 'min-w-0 flex-1')}>
                     {rowTitle(item.snapshot as Record<string, unknown>, item.itemType)}
                   </span>
                 </Link>

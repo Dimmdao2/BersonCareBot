@@ -53,7 +53,7 @@ const DESKTOP_NAV_ICONS: Record<PatientPrimaryNavItemId, typeof LayoutGrid> = {
 };
 
 const TOP_ICON_BTN =
-  'inline-flex size-10 shrink-0 items-center justify-center rounded-md text-[var(--patient-text-primary)] hover:bg-[var(--patient-color-primary-soft)]/50';
+  'inline-flex size-10 shrink-0 items-center justify-center rounded-md patient-text-primary hover:bg-[var(--patient-color-primary-soft)]/50';
 
 const PATIENT_TOP_NAV_HEIGHT_VAR = '--patient-top-nav-height';
 
@@ -124,9 +124,10 @@ export function PatientTopNav(_props: PatientTopNavProps) {
           'transition-[gap,padding-block] [transition-property:gap,padding-block]',
           NAV_COMPACT_EASE,
           compact ? 'gap-0 py-2.5' : 'gap-1 py-1.5',
+          'patient-type-navigation',
           isActive
-            ? 'font-medium text-[var(--patient-color-primary)]'
-            : 'font-normal text-[var(--patient-text-secondary)] hover:font-normal hover:text-[var(--patient-color-primary)]',
+            ? 'patient-text-navigation-active'
+            : 'patient-text-navigation-inactive',
         )}
       >
         <span className="relative inline-flex shrink-0">
@@ -134,8 +135,8 @@ export function PatientTopNav(_props: PatientTopNavProps) {
             className={cn(
               'size-5 shrink-0 transition-colors duration-200 ease-out',
               isActive
-                ? 'size-[22px] text-[var(--patient-color-primary)]'
-                : 'text-[var(--patient-text-secondary)] group-hover:text-[var(--patient-color-primary)]',
+                ? 'size-[22px] patient-text-navigation-active'
+                : 'patient-text-navigation-inactive patient-text-navigation-group-inactive',
             )}
             strokeWidth={NAV_STRIP_ICON_STROKE}
             aria-hidden
@@ -144,7 +145,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         </span>
         <span
           className={cn(
-            'w-full truncate text-center text-[10px] leading-3 transition-[opacity,max-height] [transition-property:opacity,max-height]',
+            'w-full truncate text-center patient-type-caption transition-[opacity,max-height] [transition-property:opacity,max-height]',
             NAV_COMPACT_EASE,
             compact
               ? 'pointer-events-none max-h-0 overflow-hidden opacity-0'
@@ -169,13 +170,13 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         aria-label={showChatBadge ? `${item.label}, ${chatUnread} новых` : item.label}
         aria-current={isActive ? 'page' : undefined}
         className={cn(
-          'inline-flex min-h-0 items-center gap-1.5 rounded-lg px-2.5 font-normal text-sm',
+          'inline-flex min-h-0 items-center gap-1.5 rounded-lg px-2.5 patient-type-navigation',
           'transition-[gap,padding-block] [transition-property:gap,padding-block]',
           NAV_COMPACT_EASE,
           compact ? 'gap-0 py-2' : 'gap-1.5 py-2',
-          'text-[var(--patient-text-muted)] transition-colors',
+          'patient-text-secondary transition-colors',
           isActive &&
-            'bg-[var(--patient-color-primary-soft)]/50 text-[var(--patient-color-primary)]',
+            'bg-[var(--patient-color-primary-soft)]/50 patient-text-accent',
           !isActive && 'hover:bg-muted/60',
         )}
       >
@@ -247,19 +248,19 @@ export function PatientTopNav(_props: PatientTopNavProps) {
               href={routePaths.patient}
               prefetch={false}
               className={cn(
-                'flex shrink-0 items-center text-[var(--patient-text-primary)] transition-[gap] [transition-property:gap]',
+                'flex shrink-0 items-center patient-text-primary transition-[gap] [transition-property:gap]',
                 NAV_COMPACT_EASE,
                 compact ? 'gap-0' : 'gap-2',
               )}
             >
               <Stethoscope
-                className="size-6 shrink-0 text-[var(--patient-color-primary)]"
+                className="size-6 shrink-0 patient-text-accent"
                 strokeWidth={NAV_STRIP_ICON_STROKE}
                 aria-hidden
               />
               <span
                 className={cn(
-                  'font-semibold tracking-tight text-lg transition-[opacity,max-height] [transition-property:opacity,max-height]',
+                  'patient-type-section-title tracking-tight transition-[opacity,max-height] [transition-property:opacity,max-height]',
                   NAV_COMPACT_EASE,
                   compact
                     ? 'inline-block max-h-0 overflow-hidden opacity-0'

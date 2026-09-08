@@ -51,7 +51,7 @@ export function PatientHomeUsefulPostCard({ post }: Props) {
             id="patient-home-useful-post-heading"
             className={cn(
               post.showTitle
-                ? 'line-clamp-3 text-xl font-semibold leading-6 tracking-[-0.015em] text-white md:text-2xl md:leading-7'
+                ? 'line-clamp-3 patient-type-home-display patient-text-inverse tracking-[-0.015em]'
                 : 'sr-only',
             )}
           >

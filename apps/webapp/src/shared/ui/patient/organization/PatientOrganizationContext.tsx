@@ -29,6 +29,7 @@ import {
   patientSurfaceWarningClass,
 } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
+import { patientPageTitleClass } from '@/shared/ui/patient/patientVisual';
 
 export type PatientOrganizationClientContext = {
   organization: PatientOrganizationSummary;
@@ -157,7 +158,7 @@ export function PatientOrganizationContextProvider({
   return (
     <Context.Provider value={value}>
       {switching ? (
-        <div className="flex min-h-[50vh] items-center justify-center px-4 text-center text-sm text-[var(--patient-text-secondary)]">
+        <div className="flex min-h-[50vh] items-center justify-center px-4 text-center patient-type-secondary">
           Переключаем организацию…
         </div>
       ) : (
@@ -176,13 +177,13 @@ export function PatientOrganizationContextBar() {
       <div
         className={cn(
           patientListItemClass,
-          'mx-auto flex w-full min-w-0 items-center justify-between gap-2 bg-white/95 px-3 py-2 text-sm shadow-sm',
+          'mx-auto flex w-full min-w-0 items-center justify-between gap-2 bg-white/95 px-3 py-2 patient-type-secondary shadow-sm',
         )}
         data-testid="patient-organization-context"
       >
         <Link
           href={routePaths.patientOrganizations}
-          className="min-w-0 truncate text-[var(--patient-text-secondary)] underline-offset-4 hover:underline"
+          className="min-w-0 truncate patient-text-secondary underline-offset-4 hover:underline"
         >
           Организация
         </Link>
@@ -196,7 +197,7 @@ export function PatientOrganizationContextBar() {
           >
             <SelectTrigger
               aria-label="Текущая организация"
-              className="min-w-0 max-w-[70%] bg-white font-medium text-[var(--patient-text-primary)]"
+              className="min-w-0 max-w-[70%] bg-white patient-type-navigation patient-text-primary"
             >
               <SelectValue />
             </SelectTrigger>
@@ -210,7 +211,7 @@ export function PatientOrganizationContextBar() {
           </Select>
         ) : (
           <span
-            className="min-w-0 truncate font-medium text-[var(--patient-text-primary)]"
+            className="min-w-0 truncate patient-type-navigation patient-text-primary"
             title={context.organization.title}
           >
             {context.organization.title}
@@ -220,13 +221,13 @@ export function PatientOrganizationContextBar() {
       {context.contextChangeNotice ? (
         <div
           role="status"
-          className={cn(patientSurfaceInfoClass, 'px-3 py-2 text-sm')}
+          className={cn(patientSurfaceInfoClass, 'px-3 py-2 patient-type-secondary')}
           data-testid="patient-organization-changed-notice"
         >
           Открыта организация «{context.organization.title}».{' '}
           <Link
             href={routePaths.patientOrganizations}
-            className="font-medium underline underline-offset-4"
+            className="patient-type-navigation underline underline-offset-4"
           >
             Выбрать другую
           </Link>
@@ -265,16 +266,16 @@ export function PatientOrganizationRecoveryScreen({
 
   return (
     <main className="mx-auto flex min-h-[65vh] w-full max-w-lg flex-col justify-center gap-4 px-4 py-8">
-      <h1 className="text-xl font-semibold text-[var(--patient-text-primary)]">
+      <h1 className={patientPageTitleClass}>
         {organizations.length > 0 ? 'Выберите организацию' : 'Нет активного сопровождения'}
       </h1>
-      <p className="text-sm text-[var(--patient-text-secondary)]">
+      <p className="patient-type-secondary">
         {organizations.length > 0
           ? 'Данные будут показаны только после подтверждения доступной организации.'
           : 'Сейчас у аккаунта нет активной связи с организацией. Обратитесь к своему специалисту.'}
       </p>
       {invalidRememberedOrganization ? (
-        <p className={cn(patientSurfaceWarningClass, 'px-3 py-2 text-sm')}>
+        <p className={cn(patientSurfaceWarningClass, 'px-3 py-2 patient-type-secondary')}>
           Ранее выбранная организация больше недоступна. Выберите другую.
         </p>
       ) : null}
@@ -286,7 +287,7 @@ export function PatientOrganizationRecoveryScreen({
             variant="outline"
             disabled={pending !== null}
             onClick={() => void select(organization.organizationId)}
-            className="h-auto min-h-11 justify-start rounded-xl px-4 py-3 text-left font-medium"
+            className="h-auto min-h-11 justify-start rounded-xl px-4 py-3 text-left patient-type-navigation"
           >
             {pending === organization.organizationId ? 'Открываем…' : organization.title}
           </Button>

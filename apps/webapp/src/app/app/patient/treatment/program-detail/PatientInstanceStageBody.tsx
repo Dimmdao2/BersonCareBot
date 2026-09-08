@@ -14,6 +14,7 @@ import { type PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab'
 import { cn } from '@/lib/utils';
 import {
   patientBodyTextClass,
+  patientCaptionTextClass,
   patientMutedTextClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -124,15 +125,15 @@ export function PatientInstanceStageBody(props: {
               open
             >
               <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                <span className="text-sm font-semibold text-foreground">{g.title}</span>
+                <span className={patientSectionTitleClass}>{g.title}</span>
                 {g.scheduleText?.trim() ? (
-                  <span className={cn(patientMutedTextClass, 'mt-1 block text-xs')}>
+                  <span className={cn(patientCaptionTextClass, 'mt-1 block')}>
                     {g.scheduleText.trim()}
                   </span>
                 ) : null}
               </summary>
               {g.description?.trim() ? (
-                <p className={cn(patientBodyTextClass, 'mt-2 whitespace-pre-wrap text-sm')}>
+                <p className={cn(patientBodyTextClass, 'mt-2 whitespace-pre-wrap')}>
                   {g.description.trim()}
                 </p>
               ) : null}
@@ -178,7 +179,7 @@ export function PatientInstanceStageBody(props: {
         {ungroupedItems.length > 0 ? (
           <div className={likeStages ? 'space-y-1.5' : 'space-y-3'}>
             {sortedGroups.length > 0 ? (
-              <h3 className={cn(patientSectionTitleClass, 'text-sm')}>Без группы</h3>
+              <h3 className={patientSectionTitleClass}>Без группы</h3>
             ) : null}
             <ul className={cn('m-0 list-none p-0', likeStages ? 'space-y-1.5' : 'space-y-3')}>
               {ungroupedItems.map((item) => (

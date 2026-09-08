@@ -8,6 +8,7 @@ import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { cn } from '@/lib/utils';
 import {
   patientInlineLinkClass,
+  patientBodyTextClass,
   patientSectionSurfaceClass,
 } from '@/shared/ui/patient/patientVisual';
 import { HelpSupportLink } from './HelpSupportLink';
@@ -33,22 +34,22 @@ export default async function PatientHelpPage() {
       <div id="patient-help-directory" className="flex flex-col gap-4">
         <PatientHelpArticleList articles={articles} />
         <section className={cn(patientSectionSurfaceClass, '!gap-3 !p-4')}>
-          <ul className="m-0 list-disc space-y-2 pl-5 text-sm">
+          <ul className={cn(patientBodyTextClass, 'm-0 list-disc space-y-2 pl-5')}>
             <li>
               <Link
                 href={routePaths.patientMessages}
-                className={cn(patientInlineLinkClass, 'text-sm')}
+                className={patientInlineLinkClass}
               >
                 Сообщения и чат с поддержкой
               </Link>
             </li>
             <li>
-              <Link href={routePaths.profile} className={cn(patientInlineLinkClass, 'text-sm')}>
+              <Link href={routePaths.profile} className={patientInlineLinkClass}>
                 Профиль и привязка контактов
               </Link>
             </li>
             <li>
-              <Link href={routePaths.bookingNew} className={cn(patientInlineLinkClass, 'text-sm')}>
+              <Link href={routePaths.bookingNew} className={patientInlineLinkClass}>
                 Запись на приём
               </Link>
             </li>

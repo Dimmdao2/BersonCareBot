@@ -9,7 +9,9 @@ import { RadioGroup, RadioGroupItem } from '@/shared/ui/patient/primitives/radio
 import { cn } from '@/lib/utils';
 import {
   patientButtonPrimaryClass,
-  patientMutedTextClass,
+  patientActionTextClass,
+  patientBodyTextClass,
+  patientFormLabelClass,
 } from '@/shared/ui/patient/patientVisual';
 
 export type ProgramItemCompleteDialogPayload = {
@@ -72,7 +74,7 @@ export function ProgramItemCompleteDialog(props: {
         }}
       >
         <div className="flex flex-col gap-2">
-          <Label className={cn(patientMutedTextClass, 'text-xs')}>Сложность</Label>
+          <Label className={patientFormLabelClass}>Сложность</Label>
           <RadioGroup
             value={difficulty ?? ''}
             onValueChange={(next) =>
@@ -83,15 +85,15 @@ export function ProgramItemCompleteDialog(props: {
           >
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--patient-border)] px-2.5 py-2">
               <RadioGroupItem value="easy" />
-              <span className="text-sm">Легко</span>
+              <span className={patientBodyTextClass}>Легко</span>
             </label>
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--patient-border)] px-2.5 py-2">
               <RadioGroupItem value="medium" />
-              <span className="text-sm">Нормально</span>
+              <span className={patientBodyTextClass}>Нормально</span>
             </label>
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--patient-border)] px-2.5 py-2">
               <RadioGroupItem value="hard" />
-              <span className="text-sm">Тяжело</span>
+              <span className={patientBodyTextClass}>Тяжело</span>
             </label>
           </RadioGroup>
         </div>
@@ -100,7 +102,7 @@ export function ProgramItemCompleteDialog(props: {
           <div className="flex flex-col gap-1.5">
             <Label
               htmlFor="patient-item-complete-reps"
-              className={cn(patientMutedTextClass, 'text-xs')}
+              className={patientFormLabelClass}
             >
               Повторения
             </Label>
@@ -110,7 +112,7 @@ export function ProgramItemCompleteDialog(props: {
               autoComplete="off"
               value={repsRaw}
               onChange={(e) => setRepsRaw(e.target.value)}
-              className="h-11 text-base sm:h-9 sm:text-sm"
+              className={cn(patientActionTextClass, 'h-11 sm:h-9')}
               placeholder="Например, 12"
               disabled={submitting}
             />
@@ -118,7 +120,7 @@ export function ProgramItemCompleteDialog(props: {
           <div className="flex flex-col gap-1.5">
             <Label
               htmlFor="patient-item-complete-sets"
-              className={cn(patientMutedTextClass, 'text-xs')}
+              className={patientFormLabelClass}
             >
               Подходы
             </Label>
@@ -128,7 +130,7 @@ export function ProgramItemCompleteDialog(props: {
               autoComplete="off"
               value={setsRaw}
               onChange={(e) => setSetsRaw(e.target.value)}
-              className="h-11 text-base sm:h-9 sm:text-sm"
+              className={cn(patientActionTextClass, 'h-11 sm:h-9')}
               placeholder="Например, 3"
               disabled={submitting}
             />
@@ -136,7 +138,7 @@ export function ProgramItemCompleteDialog(props: {
           <div className="flex flex-col gap-1.5">
             <Label
               htmlFor="patient-item-complete-weight"
-              className={cn(patientMutedTextClass, 'text-xs')}
+              className={patientFormLabelClass}
             >
               Вес, кг
             </Label>
@@ -146,7 +148,7 @@ export function ProgramItemCompleteDialog(props: {
               autoComplete="off"
               value={weightRaw}
               onChange={(e) => setWeightRaw(e.target.value)}
-              className="h-11 text-base sm:h-9 sm:text-sm"
+              className={cn(patientActionTextClass, 'h-11 sm:h-9')}
               placeholder="Например, 5"
               disabled={submitting}
             />

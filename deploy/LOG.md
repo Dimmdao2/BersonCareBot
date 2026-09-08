@@ -29,3 +29,10 @@
 
 - Blue-green / Docker cutover.
 - In-app patient maintenance (`patient_app_maintenance_*`) — без изменений.
+# 2026-09-08 — TEST Therapysto/TherapyGo domain split
+
+- Добавлены repo-managed nginx/env reconcilers для `test.therapysto.ru`, `admin.test.therapysto.ru` и
+  `test.therapygo.ru`; legacy `test.bersoncare.ru` оставлен переходным редиректом и callback compatibility path.
+- Split DNS `awg1` расширен на новые TEST-зоны. Exact TLS и Jitsi lineage выпущены на новые имена.
+- Jitsi/coturn получил канонические `meet.test.therapysto.ru` / `turn.test.therapysto.ru` и additive nftables
+  policy для raw media ports. Применение и health выполнены только на TEST `151.241.228.122`; PROD не затронут.

@@ -6,6 +6,11 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { publicBookPaths } from '@/shared/publicBook/paths';
 import { classifyPaymentIntentStatus } from '@/shared/lib/paymentStatusView';
 import toast from 'react-hot-toast';
+import {
+  patientBodyTextClass,
+  patientMutedTextClass,
+  patientPageTitleClass,
+} from '@/shared/ui/patient/patientVisual';
 
 const POLL_MS = 4000;
 
@@ -75,22 +80,22 @@ export function PublicBookingPayClient({ bookingId }: Props) {
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4 p-4">
-      <h1 className="text-lg font-semibold">Оплата записи</h1>
-      {amountRub ? <p className="text-sm">К оплате: {amountRub}</p> : null}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <h1 className={patientPageTitleClass}>Оплата записи</h1>
+      {amountRub ? <p className={patientBodyTextClass}>К оплате: {amountRub}</p> : null}
+      {error ? <p className={`${patientBodyTextClass} text-destructive`}>{error}</p> : null}
       {view === 'succeeded' ? (
-        <p className="text-sm font-medium">Оплата прошла</p>
+        <p className={patientBodyTextClass}>Оплата прошла</p>
       ) : view === 'failed' ? (
-        <p className="text-sm font-medium text-destructive">Оплата не прошла</p>
+        <p className={`${patientBodyTextClass} text-destructive`}>Оплата не прошла</p>
       ) : intentId && !checkoutUrl ? (
-        <p className="text-sm font-medium text-destructive">Платёжный провайдер не настроен</p>
+        <p className={`${patientBodyTextClass} text-destructive`}>Платёжный провайдер не настроен</p>
       ) : (
         <>
           <Button type="button" disabled={pending || !checkoutUrl} onClick={goToProvider}>
             Оплатить
           </Button>
           {intentId ? (
-            <p className="text-sm text-muted-foreground">
+            <p className={patientMutedTextClass}>
               Ожидаем подтверждение оплаты от платёжной системы…
             </p>
           ) : null}

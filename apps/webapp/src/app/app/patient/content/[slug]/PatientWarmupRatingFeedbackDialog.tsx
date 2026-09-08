@@ -6,6 +6,11 @@ import { Textarea } from '@/shared/ui/patient/primitives/textarea';
 import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { cn } from '@/lib/utils';
 import {
+  patientActionTextClass,
+  patientBodyTextClass,
+  patientCaptionTextClass,
+} from '@/shared/ui/patient/patientVisual';
+import {
   MATERIAL_RATING_FEEDBACK_REASON_CODES,
   MATERIAL_RATING_FEEDBACK_REASON_LABELS,
   type MaterialRatingFeedbackReasonCode,
@@ -125,10 +130,11 @@ export function PatientWarmupRatingFeedbackDialog({
                 disabled={submitting}
                 onClick={() => toggleReason(code)}
                 className={cn(
-                  'rounded-full px-3 py-1.5 text-sm',
+                  'rounded-full px-3 py-1.5',
+                  patientActionTextClass,
                   active
-                    ? 'border-[var(--patient-accent)] bg-[var(--patient-accent)]/10 text-foreground hover:bg-[var(--patient-accent)]/20'
-                    : 'border-[var(--patient-border)] bg-background text-foreground hover:bg-muted/40',
+                    ? 'border-[var(--patient-accent)] bg-[var(--patient-accent)]/10 patient-text-primary hover:bg-[var(--patient-accent)]/20'
+                    : 'border-[var(--patient-border)] bg-background patient-text-primary hover:bg-muted/40',
                 )}
               >
                 {MATERIAL_RATING_FEEDBACK_REASON_LABELS[code]}
@@ -142,11 +148,14 @@ export function PatientWarmupRatingFeedbackDialog({
           onChange={(e) => setComment(e.target.value)}
           disabled={submitting}
           rows={4}
-          className="w-full resize-y rounded-md border border-[var(--patient-border)] bg-background px-3 py-2 text-sm"
+          className={cn(
+            'w-full resize-y rounded-md border border-[var(--patient-border)] bg-background px-3 py-2',
+            patientBodyTextClass,
+          )}
           aria-label="Комментарий"
         />
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className={cn(patientCaptionTextClass, 'patient-text-danger')}>{error}</p> : null}
       </div>
     </PatientModal>
   );

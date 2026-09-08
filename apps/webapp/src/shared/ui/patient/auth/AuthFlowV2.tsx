@@ -54,6 +54,8 @@ import {
 import { getBrowserCalendarIanaForAuth } from '@/shared/lib/browserCalendarIana';
 import {
   patientHeroBookingSectionClass,
+  patientCaptionTextClass,
+  patientFormLabelClass,
   patientInnerPageStackClass,
   patientInlineLinkClass,
   patientMutedTextClass,
@@ -125,14 +127,13 @@ const authStepMutedParagraphClass = cn(patientMutedTextClass, 'text-balance');
 
 const authLinkButtonClass = cn(
   'border-none bg-transparent',
-  'h-auto min-h-0 px-0 py-0 text-sm',
+  'h-auto min-h-0 px-0 py-0',
   patientInlineLinkClass,
   'underline-offset-2',
-  'font-medium',
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
 );
 
-const authFormFieldLabelClass = cn(patientMutedTextClass, 'text-sm');
+const authFormFieldLabelClass = patientFormLabelClass;
 const authEmailInputClass = 'w-full bg-white';
 
 function getWebChatId(): string {
@@ -250,6 +251,8 @@ type AuthFlowV2Props = {
   roleLoginPortal?: RoleLoginPortal | null;
   /** Proxy-resolved surface capabilities; absent only for isolated legacy callers. */
   surfaceAuthPolicy?: SurfaceAuthPolicy;
+  /** Opens email directly while retaining OAuth/passkey as available alternatives. */
+  preferEmailEntry?: boolean;
 };
 
 export function AuthFlowV2({
@@ -261,6 +264,7 @@ export function AuthFlowV2({
   onInteractiveLoginEngaged,
   roleLoginPortal = null,
   surfaceAuthPolicy,
+  preferEmailEntry = false,
 }: AuthFlowV2Props) {
   const router = useRouter();
   const engageInteractive = useCallback(() => {
@@ -375,13 +379,20 @@ export function AuthFlowV2({
     setOauthProviders(oauth);
     const oauthOn = hasAnyOAuthProvider(oauth) || passkeyEnabled;
     if (!emailOtpEnabled && passwordLoginEnabled) setEmailAuthMode('password_login');
-    setStep(oauthOn ? 'oauth_first' : 'email_password');
+    setStep(
+      preferEmailEntry && (emailOtpEnabled || passwordLoginEnabled)
+        ? 'email_password'
+        : oauthOn
+          ? 'oauth_first'
+          : 'email_password',
+    );
   }, [
     prefetchedAuthConfig,
     emailOtpEnabled,
     messengerPhoneEnabled,
     passkeyEnabled,
     passwordLoginEnabled,
+    preferEmailEntry,
     surfaceAllows,
   ]);
 
@@ -1421,7 +1432,7 @@ export function AuthFlowV2({
             <p className={patientMutedTextClass}>
               Аккаунт с этой почтой уже есть. Подтвердите email и задайте пароль для входа.
             </p>
-            <p className={cn(patientMutedTextClass, 'break-all text-sm')}>
+            <p className={cn(patientMutedTextClass, 'break-all')}>
               {emailSetupPromptEmail}
             </p>
             <Button
@@ -1944,17 +1955,17 @@ export function AuthFlowV2({
                     aria-invalid={specialistSignupSlugStatus === 'error'}
                     className={authEmailInputClass}
                   />
-                  <span className={cn(patientMutedTextClass, 'text-xs')}>
+                  <span className={patientCaptionTextClass}>
                     /book/{specialistSignupOrganizationSlug || 'adres-kliniki'}
                   </span>
                   {specialistSignupSlugMessage ? (
                     <span
                       role={specialistSignupSlugStatus === 'error' ? 'alert' : 'status'}
                       className={cn(
-                        'text-xs',
+                        patientCaptionTextClass,
                         specialistSignupSlugStatus === 'error'
-                          ? 'text-destructive'
-                          : patientMutedTextClass,
+                          ? 'patient-text-danger'
+                          : 'patient-text-secondary',
                       )}
                     >
                       {specialistSignupSlugMessage}
@@ -2020,17 +2031,17 @@ export function AuthFlowV2({
                       aria-invalid={specialistSignupSlugStatus === 'error'}
                       className={authEmailInputClass}
                     />
-                    <span className={cn(patientMutedTextClass, 'text-xs')}>
+                    <span className={patientCaptionTextClass}>
                       /book/{specialistSignupOrganizationSlug || 'adres-kliniki'}
                     </span>
                     {specialistSignupSlugMessage ? (
                       <span
                         role={specialistSignupSlugStatus === 'error' ? 'alert' : 'status'}
                         className={cn(
-                          'text-xs',
+                          patientCaptionTextClass,
                           specialistSignupSlugStatus === 'error'
-                            ? 'text-destructive'
-                            : patientMutedTextClass,
+                            ? 'patient-text-danger'
+                            : 'patient-text-secondary',
                         )}
                       >
                         {specialistSignupSlugMessage}
@@ -2464,7 +2475,7 @@ export function AuthFlowV2({
                   hideBack
                 />
                 <div className="mt-3 flex flex-col gap-2">
-                  <p className={cn(patientMutedTextClass, 'break-all text-sm')}>
+                  <p className={cn(patientMutedTextClass, 'break-all')}>
                     Код отправлен на {emailLoginEmail.trim()}
                   </p>
                   <Button

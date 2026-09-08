@@ -89,14 +89,14 @@ export function CabinetBookingActions({ row }: Props) {
     <>
       <div className="flex flex-wrap items-center gap-2">
         {rescheduleHref ? (
-          <Link href={rescheduleHref} className={cn(patientInlineLinkClass, 'text-sm font-medium')}>
+          <Link href={rescheduleHref} className={patientInlineLinkClass}>
             Перенести
           </Link>
         ) : null}
         <Button
           type="button"
           variant="link"
-          className={cn(patientInlineLinkClass, 'h-auto min-h-0 px-0 py-0 text-sm')}
+          className={cn(patientInlineLinkClass, 'h-auto min-h-0 px-0 py-0')}
           disabled={pending}
           onClick={() => {
             startTransition(async () => {

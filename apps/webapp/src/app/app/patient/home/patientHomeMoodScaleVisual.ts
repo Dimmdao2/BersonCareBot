@@ -10,11 +10,11 @@ export const PATIENT_HOME_MOOD_SCORE_ICONS = {
 } as const;
 
 export const PATIENT_HOME_MOOD_SCORE_ICON_CLASS: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: 'text-red-600',
-  2: 'text-orange-600',
-  3: 'text-amber-500',
-  4: 'text-lime-600',
-  5: 'text-green-600',
+  1: 'patient-text-mood-1',
+  2: 'patient-text-mood-2',
+  3: 'patient-text-mood-3',
+  4: 'patient-text-mood-4',
+  5: 'patient-text-mood-5',
 };
 
 export const PATIENT_HOME_MOOD_SCORE_CONTAINER_ACTIVE: Record<1 | 2 | 3 | 4 | 5, string> = {

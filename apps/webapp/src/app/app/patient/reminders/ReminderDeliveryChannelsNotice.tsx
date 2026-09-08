@@ -20,7 +20,7 @@ export function ReminderDeliveryChannelsNotice({ className }: { className?: stri
         className,
       )}
     >
-      <p className={cn(patientMutedTextClass, 'text-sm')}>{REMINDER_DELIVERY_CHANNELS_NOTICE}</p>
+      <p className={patientMutedTextClass}>{REMINDER_DELIVERY_CHANNELS_NOTICE}</p>
       <Link
         href={routePaths.notificationSettings}
         className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'w-full sm:w-auto')}

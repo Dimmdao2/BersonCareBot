@@ -32,12 +32,26 @@ for _ in $(seq 1 60); do
 done
 [[ "$prosody_ready" == 1 ]] || { echo "FATAL: Prosody did not become ready in 60 seconds" >&2; exit 1; }
 
-docker exec "$prosody_cid" sh -ceu '
-  printf "%s\n%s\n" "$JICOFO_AUTH_PASSWORD" "$JICOFO_AUTH_PASSWORD" |
-    prosodyctl --config /run/prosody/config/prosody.cfg.lua passwd "focus@$XMPP_AUTH_DOMAIN" >/dev/null
-  printf "%s\n%s\n" "$JVB_AUTH_PASSWORD" "$JVB_AUTH_PASSWORD" |
-    prosodyctl --config /run/prosody/config/prosody.cfg.lua passwd "${JVB_AUTH_USER:-jvb}@$XMPP_AUTH_DOMAIN" >/dev/null
-'
+# A domain cutover starts Prosody before upstream's asynchronous register-setup
+# has created the service users for the new auth domain. Wait for both accounts
+# instead of failing the systemd start and relying on Restart=on-failure.
+service_accounts_ready=0
+for _ in $(seq 1 60); do
+  if docker exec "$prosody_cid" sh -ceu '
+    printf "%s\n%s\n" "$JICOFO_AUTH_PASSWORD" "$JICOFO_AUTH_PASSWORD" |
+      prosodyctl --config /run/prosody/config/prosody.cfg.lua passwd "focus@$XMPP_AUTH_DOMAIN" >/dev/null
+    printf "%s\n%s\n" "$JVB_AUTH_PASSWORD" "$JVB_AUTH_PASSWORD" |
+      prosodyctl --config /run/prosody/config/prosody.cfg.lua passwd "${JVB_AUTH_USER:-jvb}@$XMPP_AUTH_DOMAIN" >/dev/null
+  ' >/dev/null 2>&1; then
+    service_accounts_ready=1
+    break
+  fi
+  sleep 1
+done
+[[ "$service_accounts_ready" == 1 ]] || {
+  echo "FATAL: Prosody service accounts were not registered within 60 seconds" >&2
+  exit 1
+}
 
 jicofo_cid="$(container_id jicofo)"
 jvb_cid="$(container_id jvb)"

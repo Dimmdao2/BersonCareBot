@@ -28,7 +28,11 @@ import {
   usePatientModalLayer,
   usePatientModalOverlay,
 } from '@/shared/ui/patient/PatientModalLayerContext';
-import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientCaptionTextClass,
+  patientMutedTextClass,
+  patientSectionTitleClass,
+} from '@/shared/ui/patient/patientVisual';
 
 /**
  * Единая нижняя панель действий модалки: одинаковая геометрия, safe area и равные
@@ -199,7 +203,7 @@ export function PatientModal({
   ) : null;
 
   const titleSubjectNode = titleSubject ? (
-    <p className="truncate text-xs text-[var(--patient-text-muted)]">{titleSubject}</p>
+    <p className={cn(patientCaptionTextClass, 'truncate')}>{titleSubject}</p>
   ) : null;
 
   const headerTrailingNode = headerAction ? (
@@ -214,14 +218,14 @@ export function PatientModal({
 
   if (presentation === 'fullscreen-media') {
     const fullscreenBody = (
-      <div className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-black text-white">
+      <div className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-black patient-text-inverse">
         {!isMobile ? (
           <div className="patient-fullscreen-media-close pointer-events-none absolute z-10">
             <Button
               type="button"
               size="icon"
               variant="secondary"
-              className="pointer-events-auto size-10 rounded-full border-white/20 bg-black/55 text-white hover:bg-black/70 hover:text-white"
+              className="pointer-events-auto size-10 rounded-full border-white/20 bg-black/55 patient-text-inverse hover:bg-black/70 hover:patient-text-inverse"
               onClick={onClose}
               aria-label="Закрыть"
             >
@@ -322,7 +326,7 @@ export function PatientModal({
               {headerTrailingNode}
             </div>
             {description ? (
-              <p className="text-sm text-[var(--patient-text-muted)]">{description}</p>
+              <p className={patientMutedTextClass}>{description}</p>
             ) : null}
           </DialogHeader>
           {bodyHeaderNode}

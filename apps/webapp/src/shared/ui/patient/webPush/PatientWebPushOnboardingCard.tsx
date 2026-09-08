@@ -44,7 +44,7 @@ export function PatientWebPushOnboardingCard() {
       size="sm"
       headerAction={
         <span
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-color-primary-soft)] text-[var(--patient-color-primary)]"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-color-primary-soft)] patient-text-accent"
           aria-hidden
         >
           <Bell className="size-5" />
@@ -52,7 +52,7 @@ export function PatientWebPushOnboardingCard() {
       }
       footer={<PushOnboardingActions busy={busy} onEnable={onEnable} onDismiss={onDismiss} />}
     >
-      <p className={cn(patientMutedTextClass, 'text-sm leading-relaxed')}>
+      <p className={patientMutedTextClass}>
         Так вы сможете получать напоминания о тренировках, обновления плана и важные сообщения по
         программе.
       </p>

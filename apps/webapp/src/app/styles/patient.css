@@ -14,14 +14,50 @@
   --patient-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
   --patient-touch: 44px;
   --patient-gap: 18px;
-  --patient-block-heading: #172f62;
-  --patient-block-heading-font-size: 1rem;
-  --patient-block-heading-line-height: 1.5rem;
-  --patient-block-heading-font-weight: 400;
+  /** Portal-safe semantic typography panel. All patient shared typography roles consume these tokens. */
+  --patient-font-family: var(--font-manrope), Manrope, sans-serif;
+  --patient-font-size-page-title: 22px;
+  --patient-line-height-page-title: 28px;
+  --patient-font-size-section-title: 18px;
+  --patient-line-height-section-title: 24px;
+  --patient-font-size-body: 16px;
+  --patient-line-height-body: 24px;
+  --patient-font-size-action: 16px;
+  --patient-line-height-action: 20px;
+  --patient-font-size-secondary: 14px;
+  --patient-line-height-secondary: 20px;
+  --patient-font-size-caption: 12px;
+  --patient-line-height-caption: 16px;
+  --patient-font-size-micro: 11px;
+  --patient-line-height-micro: 16px;
+  --patient-font-size-metric: 28px;
+  --patient-line-height-metric: 34px;
+  /* Home cover headings are a distinct display role, not a responsive page-title override. */
+  --patient-font-size-home-display: 20px;
+  --patient-line-height-home-display: 24px;
+  /* Home's primary hero has its own hierarchy; it is not an inner-page title. */
+  --patient-font-size-home-hero-title: 20px;
+  --patient-line-height-home-hero-title: 24px;
+  --patient-font-size-booking-success-glyph: 24px;
+  --patient-line-height-booking-success-glyph: 28px;
+  --patient-font-weight-regular: 400;
+  --patient-font-weight-medium: 500;
+  --patient-font-weight-semibold: 600;
+  --patient-text-heading: #172f62;
+  --patient-text-primary: #111827;
+  --patient-text-secondary: #667085;
+  --patient-text-caption: #667085;
+  --patient-text-micro: #667085;
+  --patient-text-specialist: #714c2f;
+  --patient-text-inverse: #ffffff;
+  /** Legacy aliases retained for existing patient callers. */
+  --patient-block-heading: var(--patient-text-heading);
+  --patient-block-heading-font-size: var(--patient-font-size-section-title);
+  --patient-block-heading-line-height: var(--patient-line-height-section-title);
+  --patient-block-heading-font-weight: var(--patient-font-weight-medium);
   --patient-card-bg: #ffffff;
   --patient-border: #e5e7eb;
-  --patient-text-primary: #111827;
-  --patient-text-muted: #98a2b3;
+  --patient-text-muted: var(--patient-text-secondary);
   --patient-card-radius-mobile: 6px;
   --patient-card-radius-desktop: 8px;
   --patient-hero-radius-mobile: 8px;
@@ -36,6 +72,22 @@
   --patient-color-primary-soft: #e8eefb;
   --patient-color-primary-border: #e0e7ff;
   --patient-shadow-primary-cta: 0 6px 14px rgba(40, 77, 160, 0.24);
+  --patient-media-cover-radius: 42%;
+  --patient-situations-ring-radius: 1.4rem;
+  --patient-marketing-card-radius: 12px;
+  --patient-marketing-card-border: #dce4f5;
+  --patient-marketing-card-bg: rgba(255, 255, 255, 0.95);
+  --patient-marketing-card-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+  --patient-home-plan-icon-bg: #fff8f1;
+  --patient-home-plan-action-border: #b4bae4;
+  --patient-home-plan-action-bg: #ffffff;
+  --patient-home-plan-action-hover-bg: #f4dcd6;
+  --patient-home-plan-action-shadow: 0 2px 8px rgba(40, 77, 160, 0.1);
+  --patient-home-warm-icon-bg: #fff7ed;
+  --patient-home-split-divider: #cccccc;
+  --patient-action-sos-border: #d8a3a3;
+  --patient-action-sos-hover-bg: rgba(255, 241, 241, 0.8);
+  --patient-action-sos-active-bg: rgba(254, 231, 231, 0.8);
   --patient-color-success: #16a34a;
   --patient-color-success-soft: #ecfdf3;
   --patient-action-success-hover: #15803d;
@@ -56,6 +108,16 @@
   --patient-program-stat-text: #435370;
   --patient-program-group-title: #2c4c8c;
   --patient-program-current-ring: #1e3a5f;
+  --patient-program-discussion-badge-border: rgba(96, 165, 250, 0.7);
+  --patient-program-discussion-badge-bg: #eff6ff;
+  --patient-program-discussion-unread-bg: var(--patient-color-danger);
+  --patient-program-close-border: rgba(148, 163, 184, 0.28);
+  --patient-program-close-hover-border: rgba(148, 163, 184, 0.42);
+  --patient-program-close-bg: rgba(157, 177, 226, 0.21);
+  --patient-program-close-hover-bg: rgba(157, 177, 226, 0.3);
+  --patient-program-close-active-bg: rgba(157, 177, 226, 0.34);
+  --patient-program-close-focus: rgba(148, 163, 184, 0.4);
+  --patient-program-alert-bg: #fff5e8;
   --patient-action-skip-border: rgba(194, 65, 12, 0.4);
   --patient-action-skip-bg: #fff7ed;
   --patient-action-skip-text: #c2410c;
@@ -72,6 +134,8 @@
   --patient-status-success-bg: #ecfdf5;
   --patient-status-success-border: #bbf7d0;
   --patient-status-success-text: #166534;
+  --patient-status-info-text: #1d4ed8;
+  --patient-status-sos-text: #8a3a3a;
   --patient-control-height: 2.5rem;
   --patient-control-radius: 0.75rem;
   --patient-control-border: var(--patient-border);
@@ -82,13 +146,17 @@
   --patient-control-focus-ring: var(--patient-color-primary);
   --patient-action-radius: 0.375rem;
   --patient-action-outline-radius: 0.125rem;
-  --patient-chat-bubble-max-width: min(100%, 24rem);
-  --patient-chat-bubble-radius: var(--patient-card-radius-desktop);
+  --patient-chat-bubble-max-width: min(calc(100% - 2.5rem), 22rem);
+  --patient-chat-bubble-radius: 0.375rem;
   --patient-chat-composer-radius: 1.125rem;
   --patient-chat-composer-submit-size: 2rem;
   --patient-chat-composer-submit-radius: 9999px;
   --patient-chat-composer-submit-inline-offset: 0.1875rem;
   --patient-chat-composer-submit-block-offset: 0.25rem;
+  --patient-messages-page-height-mobile: calc(100dvh - 14.25rem - env(safe-area-inset-bottom, 0px));
+  --patient-messages-page-min-height-mobile: 22rem;
+  --patient-messages-page-height-desktop: min(75vh, 40rem);
+  --patient-messages-page-min-height-desktop: 20rem;
   --patient-segmented-bg: #f8f3fd;
   --patient-segmented-hover-bg: #ede8f8;
   --patient-segmented-active-bg: #e4e2ff;
@@ -105,8 +173,15 @@
   --patient-modal-footer-bg: rgba(248, 250, 252, 0.9);
   --patient-simple-complete-done-bg: rgba(74, 152, 110, 0.76);
   --patient-simple-complete-done-text: rgba(255, 255, 255, 0.93);
-  --patient-text-secondary: #667085;
   --patient-text-muted-strong: #6d7789;
+  --patient-text-sos: var(--patient-status-sos-text);
+  --patient-text-program-stat: var(--patient-program-stat-text);
+  --patient-text-program-group-title: var(--patient-program-group-title);
+  --patient-text-mood-1: #dc2626;
+  --patient-text-mood-2: #ea580c;
+  --patient-text-mood-3: var(--patient-color-warning);
+  --patient-text-mood-4: #65a30d;
+  --patient-text-mood-5: var(--patient-color-success);
   --patient-block-caption: #465880;
   --patient-shell-heading-font-weight: 300;
   --patient-surface-neutral-bg: var(--patient-card-bg);
@@ -203,6 +278,49 @@
 @media (min-width: 431px) and (max-width: 767px) {
   #app-shell-patient {
     --patient-shell-inline-pad: 1.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --patient-font-size-home-display: 24px;
+    --patient-line-height-home-display: 28px;
+    --patient-font-size-home-hero-title: 30px;
+    --patient-line-height-home-hero-title: 34px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --patient-font-size-home-hero-title: 34px;
+    --patient-line-height-home-hero-title: 38px;
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --patient-font-size-home-hero-title: 36px;
+    --patient-line-height-home-hero-title: 40px;
+  }
+}
+
+.patient-type-navigation {
+  font-size: var(--patient-font-size-secondary);
+  font-weight: var(--patient-font-weight-medium);
+  line-height: var(--patient-line-height-secondary);
+}
+
+.patient-type-navigation-label {
+  font-size: var(--patient-font-size-micro);
+  font-weight: var(--patient-font-weight-medium);
+  line-height: var(--patient-line-height-micro);
+}
+
+@media (min-width: 640px) {
+  .patient-type-home-status {
+    font-size: var(--patient-font-size-secondary);
+    font-weight: var(--patient-font-weight-regular);
+    line-height: var(--patient-line-height-secondary);
   }
 }
 
@@ -481,6 +599,274 @@
 }
 
 @layer utilities {
+  /** The patient button primitive has its own radius; chat send is always the circular control. */
+  .patient-chat-composer-submit {
+    border-radius: var(--patient-chat-composer-submit-radius) !important;
+  }
+
+  /** A page thread owns its scroll; it must not grow to the total height of message history. */
+  .patient-messages-page-thread {
+    height: var(--patient-messages-page-height-mobile);
+    min-height: var(--patient-messages-page-min-height-mobile);
+  }
+
+  @media (min-width: 768px) and (min-height: 600px) {
+    .patient-messages-page-thread {
+      height: var(--patient-messages-page-height-desktop);
+      min-height: var(--patient-messages-page-min-height-desktop);
+    }
+  }
+
+  /** Portal-safe semantic typography utilities for patient-local feature markup. */
+  .patient-type-page-title {
+    font-family: var(--patient-font-family);
+    font-size: var(--patient-font-size-page-title);
+    font-weight: var(--patient-font-weight-semibold);
+    line-height: var(--patient-line-height-page-title);
+    color: var(--patient-text-heading);
+  }
+
+  .patient-type-section-title {
+    font-family: var(--patient-font-family);
+    font-size: var(--patient-font-size-section-title);
+    font-weight: var(--patient-font-weight-medium);
+    line-height: var(--patient-line-height-section-title);
+    color: var(--patient-text-heading);
+  }
+
+  .patient-type-body {
+    font-size: var(--patient-font-size-body);
+    font-weight: var(--patient-font-weight-regular);
+    line-height: var(--patient-line-height-body);
+    color: var(--patient-text-primary);
+  }
+
+  .patient-type-action {
+    font-size: var(--patient-font-size-action);
+    font-weight: var(--patient-font-weight-semibold);
+    line-height: var(--patient-line-height-action);
+  }
+
+  .patient-type-secondary {
+    font-size: var(--patient-font-size-secondary);
+    font-weight: var(--patient-font-weight-regular);
+    line-height: var(--patient-line-height-secondary);
+    color: var(--patient-text-secondary);
+  }
+
+  .patient-type-form-label {
+    font-size: var(--patient-font-size-secondary);
+    font-weight: var(--patient-font-weight-medium);
+    line-height: var(--patient-line-height-secondary);
+    color: var(--patient-text-secondary);
+  }
+
+  .patient-type-caption {
+    font-size: var(--patient-font-size-caption);
+    font-weight: var(--patient-font-weight-medium);
+    line-height: var(--patient-line-height-caption);
+    color: var(--patient-text-caption);
+  }
+
+  .patient-type-micro {
+    font-size: var(--patient-font-size-micro);
+    font-weight: var(--patient-font-weight-medium);
+    line-height: var(--patient-line-height-micro);
+    color: var(--patient-text-micro);
+  }
+
+  .patient-type-metric {
+    font-size: var(--patient-font-size-metric);
+    font-weight: var(--patient-font-weight-semibold);
+    line-height: var(--patient-line-height-metric);
+  }
+
+  /** Home-only semantic roles keep dashboard text centralized without leaking its geometry to inner pages. */
+  .patient-type-home-card-title {
+    font-size: var(--patient-font-size-secondary);
+    font-weight: var(--patient-font-weight-medium);
+    line-height: var(--patient-line-height-secondary);
+    color: var(--patient-text-primary);
+  }
+
+  .patient-type-home-secondary {
+    font-size: var(--patient-font-size-secondary);
+    font-weight: var(--patient-font-weight-regular);
+    line-height: var(--patient-line-height-secondary);
+    color: var(--patient-block-caption);
+  }
+
+  .patient-type-home-caption {
+    font-size: var(--patient-font-size-caption);
+    font-weight: var(--patient-font-weight-medium);
+    line-height: var(--patient-line-height-caption);
+    color: var(--patient-block-caption);
+  }
+
+  .patient-type-home-display {
+    font-family: var(--patient-font-family);
+    font-size: var(--patient-font-size-home-display);
+    font-weight: var(--patient-font-weight-semibold);
+    line-height: var(--patient-line-height-home-display);
+  }
+
+  .patient-type-home-hero-title {
+    font-family: var(--patient-font-family);
+    font-size: var(--patient-font-size-home-hero-title);
+    font-weight: var(--patient-font-weight-semibold);
+    line-height: var(--patient-line-height-home-hero-title);
+    color: var(--patient-text-heading);
+  }
+
+  .patient-type-booking-success-glyph {
+    font-size: var(--patient-font-size-booking-success-glyph);
+    font-weight: var(--patient-font-weight-regular);
+    line-height: var(--patient-line-height-booking-success-glyph);
+  }
+
+  .patient-type-home-compact-action {
+    font-size: var(--patient-font-size-secondary);
+    font-weight: var(--patient-font-weight-semibold);
+    line-height: var(--patient-line-height-secondary);
+  }
+
+  .patient-type-home-status {
+    font-size: var(--patient-font-size-caption);
+    font-weight: var(--patient-font-weight-medium);
+    line-height: var(--patient-line-height-caption);
+    color: var(--patient-block-caption);
+  }
+
+  .patient-text-accent {
+    color: var(--patient-color-primary);
+  }
+  .patient-text-primary {
+    color: var(--patient-text-primary);
+  }
+  .patient-text-secondary {
+    color: var(--patient-text-secondary);
+  }
+  .patient-text-success {
+    color: var(--patient-status-success-text);
+  }
+  .patient-text-info {
+    color: var(--patient-status-info-text);
+  }
+  .patient-text-warning {
+    color: var(--patient-action-warning-text);
+  }
+  .patient-text-danger {
+    color: var(--patient-action-danger-text);
+  }
+  .patient-text-inverse {
+    color: var(--patient-text-inverse);
+  }
+  .patient-text-home-heading {
+    color: var(--patient-block-heading);
+  }
+  .patient-text-home-caption {
+    color: var(--patient-block-caption);
+  }
+  .patient-text-specialist {
+    color: var(--patient-text-specialist);
+  }
+  .patient-text-sos {
+    color: var(--patient-text-sos);
+  }
+  .patient-text-success-accent {
+    color: var(--patient-color-success);
+  }
+  .patient-text-warning-accent {
+    color: var(--patient-color-warning);
+  }
+  .patient-text-danger-accent {
+    color: var(--patient-color-danger);
+  }
+  .patient-text-muted-strong {
+    color: var(--patient-text-muted-strong);
+  }
+  .patient-text-program-stat {
+    color: var(--patient-text-program-stat);
+  }
+  .patient-text-program-group-title {
+    color: var(--patient-text-program-group-title);
+  }
+  .patient-text-mood-1 {
+    color: var(--patient-text-mood-1);
+  }
+  .patient-text-mood-2 {
+    color: var(--patient-text-mood-2);
+  }
+  .patient-text-mood-3 {
+    color: var(--patient-text-mood-3);
+  }
+  .patient-text-mood-4 {
+    color: var(--patient-text-mood-4);
+  }
+  .patient-text-mood-5 {
+    color: var(--patient-text-mood-5);
+  }
+  .patient-text-border {
+    color: var(--patient-border);
+  }
+  .patient-text-segmented {
+    color: var(--patient-segmented-text);
+  }
+  .patient-text-segmented-disabled {
+    color: var(--patient-segmented-disabled-text);
+  }
+  .patient-text-segmented-label {
+    color: var(--patient-segmented-label-text);
+  }
+  .patient-text-segmented-active {
+    color: var(--patient-color-primary);
+  }
+  .patient-text-segmented-tab-label {
+    color: var(--patient-segmented-text);
+  }
+  .patient-text-segmented-tab-subtitle {
+    color: var(--patient-segmented-label-text);
+  }
+  .group\/segmented-tab[data-active] .patient-text-segmented-tab-label {
+    color: var(--patient-color-primary);
+  }
+  .group\/segmented-tab[data-active] .patient-text-segmented-tab-subtitle {
+    color: var(--patient-text-secondary);
+  }
+  .patient-text-navigation-active {
+    color: var(--patient-color-primary);
+  }
+  .patient-text-navigation-inactive {
+    color: var(--patient-text-secondary);
+  }
+  .patient-text-navigation-inactive:hover {
+    color: var(--patient-color-primary);
+  }
+  .group:hover .patient-text-navigation-group-inactive {
+    color: var(--patient-color-primary);
+  }
+  .patient-fill-accent {
+    fill: var(--patient-color-primary);
+  }
+  .patient-text-secondary-data-active-accent[data-active] {
+    color: var(--patient-color-primary);
+  }
+  .group:hover .patient-text-secondary-group-hover-inverse,
+  .group:active .patient-text-secondary-group-hover-inverse {
+    color: var(--patient-text-inverse);
+  }
+  .patient-text-interactive-inverse:hover,
+  .patient-text-interactive-inverse:active,
+  .patient-text-interactive-inverse:focus-visible,
+  .group:hover .patient-text-group-interactive-inverse,
+  .group:active .patient-text-group-interactive-inverse,
+  .group:focus-visible .patient-text-group-interactive-inverse,
+  .group:hover .patient-text-group-interactive-inverse *,
+  .group:active .patient-text-group-interactive-inverse *,
+  .group:focus-visible .patient-text-group-interactive-inverse * {
+    color: var(--patient-text-inverse) !important;
+  }
+
   .safe-padding-patient {
     padding-left: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px));
     padding-right: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px));

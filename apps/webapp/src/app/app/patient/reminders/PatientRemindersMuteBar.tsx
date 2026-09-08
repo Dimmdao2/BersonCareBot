@@ -7,6 +7,8 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
 import {
   patientMutedTextClass,
+  patientCaptionTextClass,
+  patientBodyTextClass,
   PatientShimmerLine,
   patientSurfaceWarningClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -63,12 +65,12 @@ export function PatientRemindersMuteBar({
             'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
           )}
         >
-          <p className="text-sm font-medium">Уведомления на паузе до {muteUntilLabel}</p>
+          <p className={patientBodyTextClass}>Уведомления на паузе до {muteUntilLabel}</p>
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="shrink-0 border-[var(--patient-surface-warning-border)] bg-[var(--patient-card-bg)] text-[var(--patient-surface-warning-accent)] hover:bg-[var(--patient-surface-warning-bg)]"
+            className="shrink-0 border-[var(--patient-surface-warning-border)] bg-[var(--patient-card-bg)] patient-text-warning-accent hover:bg-[var(--patient-surface-warning-bg)]"
             disabled={pending}
             onClick={() => callMute({ mutedUntilIso: null })}
           >
@@ -79,7 +81,7 @@ export function PatientRemindersMuteBar({
 
       {!muted ? (
         <div className="flex flex-col gap-2">
-          <p className={cn(patientMutedTextClass, 'text-xs')}>На паузу:</p>
+          <p className={patientCaptionTextClass}>На паузу:</p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"

@@ -24,6 +24,8 @@ import {
   patientCardClass,
   patientCompactActionClass,
   patientMutedTextClass,
+  patientProgramDiscussionCountClass,
+  patientProgramDiscussionUnreadDotClass,
   patientSecondaryActionClass,
   patientSectionTitleClass,
   patientSimpleCompleteDoneButtonToneClass,
@@ -120,7 +122,7 @@ function ProgramTileHintButton(props: { ariaLabel: string; icon: ReactNode; chil
       <PopoverTrigger
         type="button"
         className={cn(
-          'inline-flex size-9 min-h-[40px] min-w-[40px] shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground outline-none transition-colors',
+          'inline-flex size-9 min-h-[40px] min-w-[40px] shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-md border-0 bg-transparent patient-text-secondary outline-none transition-colors',
           'hover:bg-muted/50 active:bg-muted/70',
           'focus-visible:ring-2 focus-visible:ring-[var(--patient-border)] focus-visible:ring-offset-2',
         )}
@@ -132,7 +134,7 @@ function ProgramTileHintButton(props: { ariaLabel: string; icon: ReactNode; chil
         side="top"
         align="start"
         sideOffset={6}
-        className="max-h-[min(50vh,22rem)] w-[min(100%,20rem)] max-w-full overflow-y-auto p-3 text-xs leading-relaxed text-foreground"
+        className="max-h-[min(50vh,22rem)] w-[min(100%,20rem)] max-w-full overflow-y-auto p-3 patient-type-body"
       >
         {children}
       </PopoverContent>
@@ -249,7 +251,7 @@ function PatientProgramTileSimpleCompleteButton(props: {
         type="button"
         className={cn(
           patientCompactActionClass,
-          'min-h-9 min-w-0 flex-1 basis-0 px-2 py-2.5 text-xs font-medium leading-tight',
+          'min-h-9 min-w-0 flex-1 basis-0 px-2 py-2.5',
           doneFrozen && patientSimpleCompleteDoneButtonToneClass,
         )}
         disabled={busy !== null || doneFrozen}
@@ -258,7 +260,7 @@ function PatientProgramTileSimpleCompleteButton(props: {
           onComplete(itemId);
         }}
       >
-        <span className="w-full text-center leading-tight">
+        <span className="w-full text-center">
           {doneFrozen ? 'Выполнено' : 'Отметить выполнение'}
         </span>
       </button>
@@ -278,7 +280,7 @@ export function CompletionMetricsPanel(props: {
     { value: 'hard', label: 'Тяжело' },
   ];
   const fieldBase = cn(
-    'h-8 w-full rounded-md border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-2 text-center text-xs tabular-nums outline-none',
+    'h-8 w-full rounded-md border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-2 text-center patient-type-body tabular-nums outline-none',
     'focus-visible:ring-2 focus-visible:ring-[var(--patient-border)]',
   );
 
@@ -287,7 +289,7 @@ export function CompletionMetricsPanel(props: {
       <div className="min-h-0 overflow-hidden">
         <div className="border-t border-[var(--patient-border)] bg-[var(--patient-color-primary-soft)]/20 px-2.5 py-2.5">
           {draft.loading ? (
-            <p className={cn(patientMutedTextClass, 'text-xs')}>Готовим поля…</p>
+            <p className={patientMutedTextClass}>Готовим поля…</p>
           ) : (
             <div className="flex flex-col gap-2.5">
               <div className="grid grid-cols-3 gap-1.5">
@@ -298,10 +300,10 @@ export function CompletionMetricsPanel(props: {
                       key={opt.value}
                       type="button"
                       className={cn(
-                        'min-h-8 rounded-md border px-2 text-xs font-medium transition-colors',
+                        'min-h-8 rounded-md border px-2 patient-type-action transition-colors',
                         active
-                          ? 'border-[var(--patient-color-primary)] bg-[var(--patient-color-primary-soft)] text-[var(--patient-color-primary)]'
-                          : 'border-[var(--patient-border)] bg-[var(--patient-card-bg)] text-[var(--patient-text-secondary)]',
+                          ? 'border-[var(--patient-color-primary)] bg-[var(--patient-color-primary-soft)] patient-text-accent'
+                          : 'border-[var(--patient-border)] bg-[var(--patient-card-bg)] patient-type-secondary',
                       )}
                       onClick={() => onDraftChange({ ...draft, perceivedDifficulty: opt.value })}
                     >
@@ -312,7 +314,7 @@ export function CompletionMetricsPanel(props: {
               </div>
               <div className="grid grid-cols-3 gap-1.5">
                 <label className="flex min-w-0 flex-col gap-1">
-                  <span className={cn(patientMutedTextClass, 'text-[11px]')}>повторы</span>
+                  <span className="patient-type-form-label">повторы</span>
                   <input
                     value={draft.repsRaw}
                     inputMode="numeric"
@@ -325,7 +327,7 @@ export function CompletionMetricsPanel(props: {
                   />
                 </label>
                 <label className="flex min-w-0 flex-col gap-1">
-                  <span className={cn(patientMutedTextClass, 'text-[11px]')}>подходы</span>
+                  <span className="patient-type-form-label">подходы</span>
                   <input
                     value={draft.setsRaw}
                     inputMode="numeric"
@@ -338,7 +340,7 @@ export function CompletionMetricsPanel(props: {
                   />
                 </label>
                 <label className="flex min-w-0 flex-col gap-1">
-                  <span className={cn(patientMutedTextClass, 'text-[11px]')}>вес, кг</span>
+                  <span className="patient-type-form-label">вес, кг</span>
                   <input
                     value={draft.weightRaw}
                     inputMode="decimal"
@@ -353,7 +355,7 @@ export function CompletionMetricsPanel(props: {
               <button
                 type="button"
                 className={cn(
-                  'inline-flex min-h-8 w-full cursor-pointer items-center justify-center rounded-md border border-[var(--patient-color-primary)] bg-[var(--patient-color-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--patient-color-primary)] transition-colors',
+                  'inline-flex min-h-8 w-full cursor-pointer items-center justify-center rounded-md border border-[var(--patient-color-primary)] bg-[var(--patient-color-primary-soft)] px-3 py-1.5 patient-type-action patient-text-accent transition-colors',
                   'hover:bg-[var(--patient-color-primary-soft)]/80 active:bg-[var(--patient-color-primary-soft)]/70',
                   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
                   'disabled:cursor-not-allowed disabled:opacity-60',
@@ -629,12 +631,12 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                 )}
               >
                 <span className="flex min-w-0 flex-1 items-start text-left">
-                  <span className="line-clamp-2 break-words text-[13px] font-normal leading-tight text-foreground">
+                  <span className="line-clamp-2 break-words patient-type-secondary patient-text-primary">
                     {tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}
                   </span>
                 </span>
                 {repsSetsBadge ? (
-                  <span className="shrink-0 self-end rounded-md border border-neutral-300 bg-white px-1.5 py-0.5 text-[10px] font-medium leading-none tabular-nums text-neutral-800">
+                  <span className="shrink-0 self-end rounded-md border border-neutral-300 bg-white px-1.5 py-0.5 patient-type-micro tabular-nums">
                     {repsSetsBadge}
                   </span>
                 ) : null}
@@ -658,10 +660,10 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                           <MarkdownContent
                             text={descRaw.markdown.trim()}
                             bodyFormat="markdown"
-                            className="markdown-preview text-[var(--patient-text-primary)] [&_p]:my-1 [&_p]:text-xs [&_p]:leading-relaxed"
+                            className="markdown-preview patient-type-body [&_p]:my-1"
                           />
                         ) : (
-                          <p className="m-0 whitespace-pre-wrap text-xs leading-relaxed">
+                          <p className="m-0 whitespace-pre-wrap patient-type-body">
                             {descRaw.plain}
                           </p>
                         )}
@@ -672,7 +674,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                         ariaLabel="Противопоказания"
                         icon={<AlertTriangle className="size-4 shrink-0" aria-hidden />}
                       >
-                        <p className="m-0 whitespace-pre-wrap text-xs leading-relaxed">
+                        <p className="m-0 whitespace-pre-wrap patient-type-body">
                           {contrText}
                         </p>
                       </ProgramTileHintButton>
@@ -680,9 +682,9 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                     {doctorComment ? (
                       <ProgramTileHintButton
                         ariaLabel="Инструкция от специалиста"
-                        icon={<Info className="size-4 shrink-0 text-[#714c2f]" aria-hidden />}
+                        icon={<Info className="size-4 shrink-0 patient-text-specialist" aria-hidden />}
                       >
-                        <p className="m-0 whitespace-pre-wrap text-xs leading-relaxed text-[#714c2f]">
+                        <p className="m-0 whitespace-pre-wrap patient-type-body patient-text-specialist">
                           {doctorComment}
                         </p>
                       </ProgramTileHintButton>
@@ -700,7 +702,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                   type="button"
                   className={cn(
                     patientSecondaryActionClass,
-                    'inline-flex min-h-9 max-w-[9.5rem] shrink-0 items-center justify-center gap-1 px-2 py-2.5 text-xs font-medium leading-tight whitespace-nowrap',
+                    'inline-flex min-h-9 max-w-[9.5rem] shrink-0 items-center justify-center gap-1 px-2 py-2.5 whitespace-nowrap',
                     programCommentsInteraction.enabled
                       ? 'cursor-pointer'
                       : 'cursor-not-allowed opacity-60',
@@ -713,15 +715,15 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                     setDiscussionDialogItemId(item.id);
                   }}
                 >
-                  <span className="leading-tight">Комментарии</span>
+                  <span>Комментарии</span>
                   {discussionCount > 0 ? (
-                    <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[#1d4ed8]">
+                    <span className={patientProgramDiscussionCountClass}>
                       {discussionCount}
                     </span>
                   ) : null}
                   {hasDiscussionDot ? (
                     <span
-                      className="size-1.5 shrink-0 rounded-full bg-[#ef4444]"
+                      className={patientProgramDiscussionUnreadDotClass}
                       aria-label="Есть непрочитанные комментарии"
                     />
                   ) : null}
@@ -770,14 +772,14 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                 index > 0 && 'mt-3 border-t border-[var(--patient-border)]/25 pt-3',
               )}
             >
-              <p className="text-sm font-semibold text-foreground">{seg.group.title}</p>
+              <p className="patient-type-section-title">{seg.group.title}</p>
               {seg.group.scheduleText?.trim() ? (
-                <p className="mt-1 text-[13px] leading-snug text-[#444444]">
+                <p className="mt-1 patient-type-secondary">
                   {seg.group.scheduleText.trim()}
                 </p>
               ) : null}
               {seg.group.description?.trim() ? (
-                <p className="mt-2 whitespace-pre-wrap text-xs leading-snug text-[#1e3a78]">
+                <p className="mt-2 whitespace-pre-wrap patient-type-body patient-text-info">
                   {seg.group.description.trim()}
                 </p>
               ) : null}

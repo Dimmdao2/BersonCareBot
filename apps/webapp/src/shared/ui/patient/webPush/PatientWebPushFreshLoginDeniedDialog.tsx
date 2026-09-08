@@ -62,7 +62,7 @@ export function PatientWebPushFreshLoginDeniedDialog() {
         </>
       }
     >
-      <p className={cn(patientMutedTextClass, 'text-sm leading-relaxed')}>
+      <p className={patientMutedTextClass}>
         Включите уведомления для приложения в настройках устройства, чтобы получать напоминания.
       </p>
     </PatientModal>

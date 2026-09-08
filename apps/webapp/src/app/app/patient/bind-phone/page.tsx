@@ -19,7 +19,7 @@ import { getSupportContactUrl } from '@/modules/system-settings/supportContactUr
 import { getPlatformEntry } from '@/shared/lib/platformCookie.server';
 import { PatientBindPhoneBrowser } from './PatientBindPhoneBrowser';
 import { PatientBindPhoneClient } from './PatientBindPhoneClient';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { patientCaptionTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { getAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 
 type Props = { searchParams: Promise<{ next?: string; reason?: string; mode?: string }> };
@@ -103,7 +103,7 @@ export default async function BindPhonePage({ searchParams }: Props) {
             id="patient-bind-phone-miniapp-extras"
             className="flex flex-col gap-2 border-t border-[var(--patient-border)]/80 pt-4"
           >
-            <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+            <p className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}>
               Пока без телефона
             </p>
             <Link

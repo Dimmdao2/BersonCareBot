@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { patientActionTextClass } from '@/shared/ui/patient/patientVisual';
 
 /**
  * Историческая ширина главных CTA (~242px) для выравнивания ряда входа; высота и скругление — как у patient-кнопок.
@@ -9,16 +10,17 @@ export const LOGIN_CTA_HEIGHT_CLASS = 'h-10';
 /**
  * Текст на кнопках и текстовых ссылках входа — темнее `--patient-color-primary` (#284da0) для контраста на белом.
  */
-export const AUTH_LOGIN_ACCENT_TEXT_CLASS = 'text-[#1a3366]';
+export const AUTH_LOGIN_ACCENT_TEXT_CLASS = 'text-[var(--patient-color-primary)]';
 
 /**
- * Общее «лицо» кнопок веб-входа: белый фон, синяя обводка и текст, `font-normal` (на ступень легче `font-medium`).
+ * Общее «лицо» кнопок веб-входа: белый фон, синяя обводка и semantic action text.
  */
 export const AUTH_LOGIN_BUTTON_FACE_CLASS = cn(
-  'rounded-md border border-[var(--patient-color-primary)] bg-white text-sm font-normal shadow-none',
+  'rounded-md border border-[var(--patient-color-primary)] bg-white shadow-none',
+  patientActionTextClass,
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
-  'hover:bg-[var(--patient-color-primary-soft)]/35 hover:text-[#1a3366]',
-  'active:bg-[var(--patient-color-primary-soft)]/55 active:text-[#1a3366]',
+  'hover:bg-[var(--patient-color-primary-soft)]/35 hover:text-[var(--patient-color-primary)]',
+  'active:bg-[var(--patient-color-primary-soft)]/55 active:text-[var(--patient-color-primary)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
 );
 

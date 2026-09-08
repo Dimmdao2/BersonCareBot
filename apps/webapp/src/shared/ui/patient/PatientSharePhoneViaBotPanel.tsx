@@ -67,10 +67,10 @@ export function PatientSharePhoneViaBotPanel({
 
   const inner = (
     <>
-      <h1 id="mini-app-contact-gate-title" className="text-lg font-semibold">
+      <h1 id="mini-app-contact-gate-title" className="patient-type-section-title">
         {title}
       </h1>
-      <p id="mini-app-contact-gate-desc" className="max-w-md text-sm text-muted-foreground">
+      <p id="mini-app-contact-gate-desc" className="max-w-md patient-type-secondary">
         {desc}
       </p>
       <div className="flex flex-wrap items-center justify-center gap-3">
@@ -112,7 +112,7 @@ export function PatientSharePhoneViaBotPanel({
         ) : null}
       </div>
       {supportContactHref ? (
-        <SupportContactLink href={supportContactHref} className="text-sm text-primary underline">
+        <SupportContactLink href={supportContactHref} className="patient-type-secondary patient-text-accent underline">
           Связаться с поддержкой
         </SupportContactLink>
       ) : null}

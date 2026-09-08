@@ -4,6 +4,8 @@ import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
   patientListItemClass,
+  patientActionTextClass,
+  patientInlineLinkClass,
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
@@ -67,7 +69,7 @@ export function PatientMembershipsSection({
       <ul className="flex flex-col gap-2">
         {packages.map((p) => (
           <li key={p.id} className={patientListItemClass}>
-            <p className="text-sm font-medium">{p.title}</p>
+            <p className={patientActionTextClass}>{p.title}</p>
             <p className={patientMutedTextClass}>
               {STATUS_LABEL[p.status] ?? p.status}
               {p.validUntil ? ` · до ${new Date(p.validUntil).toLocaleDateString('ru-RU')}` : ''}
@@ -83,7 +85,7 @@ export function PatientMembershipsSection({
             </p>
             <Link
               href={`/app/patient/memberships/${encodeURIComponent(p.id)}`}
-              className="text-sm text-[var(--patient-color-primary)] underline"
+              className={patientInlineLinkClass}
             >
               Подробнее
             </Link>
@@ -93,7 +95,7 @@ export function PatientMembershipsSection({
             p.paymentIntentId ? (
               <Link
                 href={`/app/patient/memberships/pay?patientPackageId=${encodeURIComponent(p.id)}`}
-                className="text-sm text-[var(--patient-color-primary)] underline"
+                className={patientInlineLinkClass}
               >
                 Оплатить
               </Link>

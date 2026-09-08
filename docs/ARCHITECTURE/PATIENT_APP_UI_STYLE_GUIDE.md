@@ -19,6 +19,39 @@
 
 `apps/webapp/src/app/app/patient/home/patientHomeCardStyles.ts` — это отдельный home-specific слой. Его fixed geometry, hero-обвязку и dashboard-позиционирование нельзя механически переносить на внутренние страницы.
 
+## 1b. Typography: patient semantic scale
+
+`patient.css` is the portal-safe source of truth for patient typography. Its `--patient-font-*`,
+`--patient-line-height-*`, `--patient-font-weight-*`, and `--patient-text-*` panel applies Manrope
+and defines these roles; patient code uses the corresponding exports from `patientVisual.ts`, rather
+than new local pixel values.
+
+| Role                       | Contract                                             | Shared class                                        |
+| -------------------------- | ---------------------------------------------------- | --------------------------------------------------- |
+| Page title                 | 22/28, 600, heading `#172f62`                        | `patientPageTitleClass`                             |
+| Section / modal title      | 18/24, 500, heading                                  | `patientSectionTitleClass`                          |
+| Body / readable form value | 16/24, 400, primary `#111827`                        | `patientBodyTextClass`                              |
+| Primary action             | 16/20, 600                                           | `patientActionTextClass` and patient action classes |
+| Secondary body             | 14/20, 400                                           | `patientMutedTextClass`                             |
+| Form label                 | 14/20, 500                                           | `patientFormLabelClass`                             |
+| Caption / meta             | 12/16, 500                                           | `patientCaptionTextClass`                           |
+| Micro                      | 11/16, 500                                           | `patientMicroTextClass`                             |
+| Metric / hero number       | 28/34, 600                                           | `patientMetricTextClass`                            |
+| Home cover display heading | 20/24 mobile, 24/28 from `md`, 600                   | `patient-type-home-display`                         |
+| Home primary hero title    | 20/24 mobile; 30/34, 34/38, 36/40 desktop scale, 600 | `patient-type-home-hero-title`                      |
+| Booking success glyph      | 24/28, 400                                           | `patient-type-booking-success-glyph`                |
+
+Micro is reserved for badges, counters, graph/calendar axes, and nonessential compact metadata.
+It is not a fallback for readable prose, errors, schedules, form labels, or doctor comments. The
+readable secondary/muted role is `#667085` or darker; `#98a2b3` is not a readable-text default.
+Patient shell page titles use `patientPageTitleClass` on both mobile and desktop. Modal titles use
+`patientSectionTitleClass`. Form primitives apply the body contract so mobile values remain at least
+16px. Status tones remain semantic tokens, not duplicated direct text hex values.
+The home cover display role is reserved for media-overlay headings; it is controlled by the same
+patient typography panel and is not a responsive override of the page-title role.
+The Home primary hero title is a distinct responsive role for the main dashboard hero; it is not used
+for compact useful-post overlays.
+
 ## 1a. Responsive: patient shell (`md`)
 
 - **Порог широкой колонки:** Tailwind **`md`** (768px). У `#app-shell-patient` (`AppShell` с `variant="patient"` / `patient-wide`): ниже `md` — узкая колонка `max-w-[430px]`; с **`md`** — до **`max-w-[min(1180px,calc(100vw-2rem))]`** (как в коде `AppShell`).
@@ -46,7 +79,7 @@
 
 - Surfaces: `patientCardClass`, `patientCardCompactClass`, `patientListItemClass`, `patientSectionSurfaceClass`, `patientFormSurfaceClass`.
 - Semantic tones: `patientSurfaceNeutralClass`, `patientSurfaceInfoClass`, `patientSurfaceSuccessClass`, `patientSurfaceWarningClass`, `patientSurfaceDangerClass`.
-- Typography/layout: `patientSectionTitleClass`, `patientBodyTextClass`, `patientMutedTextClass`, `patientPageTitleClass`, `patientPageSubtitleClass`, `patientPageHeaderClass`, `patientInnerPageStackClass`, `patientInnerCardGridClass`.
+- Typography/layout: `patientPageTitleClass`, `patientSectionTitleClass`, `patientBodyTextClass`, `patientMutedTextClass`, `patientCaptionTextClass`, `patientMicroTextClass`, `patientActionTextClass`, `patientMetricTextClass`, `patientPageSubtitleClass`, `patientPageHeaderClass`, `patientInnerPageStackClass`, `patientInnerCardGridClass`.
 - Actions/links: `patientPrimaryActionClass`, `patientSecondaryActionClass`, `patientDangerActionClass`, `patientInlineLinkClass`, `patientInfoLinkTileClass`.
 - Pills/empty: `patientPillClass`, `patientEmptyStateClass`.
 
@@ -80,7 +113,7 @@
 
 - не придумывать новый “локальный chrome” в компонентах, если shared слой уже покрывает кейс;
 - не расширять scope в product/content/API/DB/env;
-- deferred-экраны (`/emergency`, `/lessons`, `/address`, `/intake/*`, booking landing) стилизовать только в рамках отдельно подтверждённых фаз App Restructure / профильных инициатив. `/messages` из этого списка выведен: чат ведётся каноническим `PatientModal size="content"` (§8).
+- deferred-экраны (`/emergency`, `/lessons`, `/address`, `/intake/*`, booking landing) стилизовать только в рамках отдельно подтверждённых фаз App Restructure / профильных инициатив. `/messages` из этого списка выведен: чат ведётся самостоятельной страницей кабинета; модалкой остаётся обсуждение упражнения (§8).
 
 ## 7. Когда Кастом Разрешён
 
@@ -108,7 +141,7 @@
   одинаковая геометрия, `env(safe-area-inset-bottom)` и одинаковые по ширине кнопки на mobile. Кнопка
   `type="submit"` из формы связывается с подвалом атрибутом `form`, потому что портал уносит её из DOM формы.
 - **Размеры** `sm | md | lg | content`. `content` отдаёт телу flex-колонку под контент со СВОИМ внутренним
-  скроллом — чат и обсуждения (`PatientMessagesClient`, `ProgramItemDiscussionDialog`).
+  скроллом — например, обсуждение упражнения (`ProgramItemDiscussionDialog`).
 - **Слои и затемнение:** `PatientModalLayerContext` держит вложенные и соседние модалки в одном стеке —
   затемнение рисует только первый открытый слой. Модалка под вложенной остаётся смонтированной, поэтому
   закрытие верхнего слоя возвращает в тот же экран с сохранённым черновиком.
@@ -134,6 +167,6 @@ Patient-модалки и их примитивы **не импортируют*
 ### Портал вне `#app-shell-patient`
 
 Модалка рендерится в портал на `<body>`, поэтому доступны только `:root`-токены `patient.css`
-(`--patient-card-bg`, `--patient-border`, `--patient-text-*`, `--patient-block-heading`). `--patient-color-primary`
+(`--patient-card-bg`, `--patient-border`, `--patient-font-*`, `--patient-text-*`). `--patient-color-primary`
 объявлен на `#app-shell-patient` и в портале **не резолвится** — для primary CTA внутри модалки использовать
 `patientModalPortalPrimaryCtaClass`.

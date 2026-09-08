@@ -7,7 +7,7 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { routePaths } from '@/app-layer/routes/paths';
 import type { BookingCity } from '@/modules/booking-catalog/types';
 import type { OnlineBookingLocationOption } from '@/modules/patient-booking/inPersonServicesCatalog';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { patientCaptionTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
 import {
   bookingChoiceRowClass,
@@ -35,12 +35,12 @@ export function FormatStepClient({ cities, onlineLocation, catalogError }: Forma
   return (
     <div id="patient-booking-format-options" className={bookingChoiceSectionClass}>
       <div className="flex flex-col gap-2">
-        <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+        <p className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}>
           Очный приём
         </p>
         {catalogError ? (
           <div className="flex flex-col gap-2">
-            <p className="text-sm text-destructive">{catalogError}</p>
+            <p className={cn(patientMutedTextClass, 'patient-text-danger')}>{catalogError}</p>
             <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>
               Повторить
             </Button>
@@ -64,7 +64,7 @@ export function FormatStepClient({ cities, onlineLocation, catalogError }: Forma
       </div>
 
       <div className="flex flex-col gap-2">
-        <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+        <p className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}>
           Онлайн
         </p>
         {onlineLocation ? (

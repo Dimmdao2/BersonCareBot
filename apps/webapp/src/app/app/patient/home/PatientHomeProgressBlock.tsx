@@ -68,7 +68,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
     <>
       <Link
         href={appLoginWithNextHref(routePaths.patient)}
-        className="font-medium text-primary underline-offset-4 hover:underline"
+        className="patient-type-home-card-title patient-text-accent underline-offset-4 hover:underline"
       >
         Войдите
       </Link>
@@ -106,12 +106,12 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
               <Popover>
                 <PopoverTrigger
                   type="button"
-                  className="inline-flex shrink-0 rounded-sm p-0.5 text-[var(--patient-text-muted)] hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]"
+                  className="inline-flex shrink-0 rounded-sm p-0.5 patient-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]"
                   aria-label="Как считается прогресс"
                 >
                   <Info className="size-4" aria-hidden />
                 </PopoverTrigger>
-                <PopoverContent className="max-w-[min(18rem,calc(100vw_-_2rem))] text-xs leading-snug">
+                <PopoverContent className="max-w-[min(18rem,calc(100vw_-_2rem))] patient-type-caption">
                   {PROGRESS_HINT}
                 </PopoverContent>
               </Popover>
@@ -124,7 +124,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
               <>
                 <div className="mt-0.5 flex flex-row flex-nowrap items-start gap-x-3">
                   <p
-                    className="m-0 shrink-0 tabular-nums leading-none"
+                    className="m-0 shrink-0 tabular-nums"
                     aria-label={progressAriaLabel}
                   >
                     <span className={patientHomeProgressValueClass}>{displayDone}</span>
@@ -137,7 +137,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                   </p>
                   {showBreakdown ? (
                     <div
-                      className="min-w-0 shrink pt-0.5 text-[10px] leading-tight text-[var(--patient-text-muted)] md:text-xs"
+                      className="min-w-0 shrink pt-0.5 patient-type-caption"
                       aria-hidden
                     >
                       {showWarmupBreakdown ? (
@@ -184,15 +184,15 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                   className="size-7 shrink-0 rounded-full object-cover"
                   loading="lazy"
                   fallback={
-                    <span className="inline-flex size-8 items-center justify-center rounded-full bg-[#fff7ed]">
-                      <Flame className="size-4 shrink-0 text-[#f97316] md:size-5" />
+                    <span className="inline-flex size-8 items-center justify-center rounded-full bg-[var(--patient-home-warm-icon-bg)]">
+                      <Flame className="size-4 shrink-0 patient-text-warning-accent md:size-5" />
                     </span>
                   }
                 />
               </span>
               {goalsFlameCaption ? (
                 <p
-                  className="m-0 max-w-[5.25rem] text-center text-[10px] font-semibold leading-[11px] text-[var(--patient-block-caption)] md:max-w-[7.25rem] md:text-[11px] md:leading-3"
+                  className="m-0 max-w-[5.25rem] text-center patient-type-home-caption md:max-w-[7.25rem]"
                   aria-label={goalsFlameCaption}
                 >
                   {goalsFlameCaption}

@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/patient/primitives/select';
 import { REMINDER_SCHEDULE_PRESETS } from '@/modules/booking-notifications/appointmentReminderPresets';
+import { patientCaptionTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 type Preference = {
   allowedPresetIds: string[];
@@ -48,7 +49,7 @@ export function AppointmentReminderPreference({ appointmentId }: { appointmentId
         }}
         disabled={pending}
       >
-        <SelectTrigger aria-label="Напоминания о записи" className="h-9 text-xs">
+        <SelectTrigger aria-label="Напоминания о записи" className={`h-9 ${patientCaptionTextClass}`}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -62,7 +63,7 @@ export function AppointmentReminderPreference({ appointmentId }: { appointmentId
           )}
         </SelectContent>
       </Select>
-      {error ? <p className="mt-1 text-xs text-destructive">{error}</p> : null}
+      {error ? <p className={`mt-1 patient-text-danger ${patientMutedTextClass}`}>{error}</p> : null}
     </div>
   );
 }

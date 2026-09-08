@@ -20,8 +20,8 @@ import { readSmokeLoginPacket } from './smoke-login-packet.mjs';
 
 const sessionCookieName = 'bersoncare_webapp_session';
 const purpose = 'test_global_admin_visual';
-const testBaseUrl = 'https://test.bersoncare.ru';
-const publicCookieHost = 'test.bersoncare.ru';
+const testBaseUrl = 'https://test.therapysto.ru';
+const publicCookieHost = 'test.therapysto.ru';
 const smokeLoginPacketPath = '/opt/env/bersoncarebot/saas-smoke-login.env';
 const webappEnvPath = '/opt/env/bersoncarebot/webapp.test';
 const outputDirectory = '/run/bersoncarebot-visual';

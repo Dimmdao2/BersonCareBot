@@ -17,7 +17,7 @@ export type InlineEditFieldProps = {
   onSave: (next: string) => void | Promise<void>;
   className?: string;
   disabled?: boolean;
-  /** Доп. классы для подписи поля (например `font-normal` в профиле пациента). */
+  /** Доп. semantic classes for the field label. */
   labelClassName?: string;
   /** Доп. классы для ссылки «Изменить» / «Добавить». */
   editLinkClassName?: string;
@@ -73,7 +73,7 @@ export function InlineEditField({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <span
           className={cn(
-            'text-muted-foreground text-xs font-medium uppercase tracking-wide',
+            'patient-type-caption uppercase tracking-wide',
             labelClassName,
           )}
         >
@@ -85,7 +85,7 @@ export function InlineEditField({
             variant="link"
             size="sm"
             className={cn(
-              'text-primary h-auto min-h-0 px-0 py-0 text-sm font-medium',
+              'patient-text-accent h-auto min-h-0 px-0 py-0 patient-type-navigation',
               editLinkClassName,
             )}
             disabled={disabled}
@@ -101,7 +101,7 @@ export function InlineEditField({
       </div>
 
       {!editing ? (
-        <p className="text-foreground min-h-[1.25rem] text-sm">{isEmpty ? emptyLabel : value}</p>
+        <p className="min-h-[1.25rem] patient-type-secondary">{isEmpty ? emptyLabel : value}</p>
       ) : (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Input
@@ -131,7 +131,7 @@ export function InlineEditField({
           </div>
         </div>
       )}
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? <p className="patient-type-secondary patient-text-danger">{error}</p> : null}
     </div>
   );
 }

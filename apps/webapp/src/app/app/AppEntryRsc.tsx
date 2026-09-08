@@ -15,7 +15,10 @@ import { buildPrefetchedPublicAuthConfig } from '@/modules/auth/publicAuthSnapsh
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
 import { routePaths } from '@/app-layer/routes/paths';
 import { getMessengerSurfaceHint, getPlatformEntry } from '@/shared/lib/platformCookie.server';
-import { DEFAULT_SURFACE_AUTH_POLICY_CONFIG, surfaceDisplayName } from '@/shared/lib/surface/requestSurface';
+import {
+  DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+  surfaceDisplayName,
+} from '@/shared/lib/surface/requestSurface';
 import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
 import type { MessengerSurfaceHint } from '@/shared/lib/platform';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
@@ -24,6 +27,7 @@ import { PatientUnsupportedClientFallback } from './PatientUnsupportedClientFall
 import { getUnsupportedClientFallbackEnabled } from '@/modules/auth/unsupportedClientFallback';
 import { parseSupportedClientEnvironment } from '@/modules/auth/supportedClientMatrix';
 import { authPolicyNameForRoleLoginPortal, type RoleLoginPortal } from '@/modules/auth/roleLogin';
+import { TherapyGoLoginShell } from '@/shared/ui/patient/auth/TherapyGoLoginShell';
 
 export type AppEntrySearchParams = { next?: string; t?: string; token?: string; switch?: string };
 
@@ -53,8 +57,12 @@ export async function AppEntryRsc({
     token: rawToken,
     switchParam: switchParam ?? null,
   });
-  const roleLoginAuthPolicyName = roleLoginPortal
-    ? authPolicyNameForRoleLoginPortal(roleLoginPortal)
+  const resolvedSurface = await getResolvedSurface();
+  const therapyGoBrowserEntry =
+    resolvedSurface.surface === 'patient_default' && routeBoundMessengerSurface === null;
+  const effectiveRoleLoginPortal = roleLoginPortal ?? (therapyGoBrowserEntry ? 'patient' : null);
+  const roleLoginAuthPolicyName = effectiveRoleLoginPortal
+    ? authPolicyNameForRoleLoginPortal(effectiveRoleLoginPortal)
     : undefined;
   const [prefetchedPublicAuth, platformEntry, messengerSurface, unsupportedClientFallbackEnabled] =
     await Promise.all([
@@ -83,12 +91,11 @@ export async function AppEntryRsc({
       : routeBoundMessengerSurface === 'max' || entryClassification === 'max_miniapp'
         ? 'max'
         : 'browser';
-  const resolvedSurface = await getResolvedSurface();
   const shellTitle = surfaceDisplayName(resolvedSurface);
   const alternateRoleLoginHref =
-    roleLoginPortal === 'doctor'
+    effectiveRoleLoginPortal === 'doctor'
       ? new URL('/app/patient/login', PATIENT_DEFAULT_SURFACE.origin).toString()
-      : roleLoginPortal === 'patient'
+      : effectiveRoleLoginPortal === 'patient'
         ? new URL('/app/doctor/login', STAFF_SURFACE.origin).toString()
         : null;
   // A role-login door (`/app/{doctor,patient,admin}/login`) knows its own audience from the route,
@@ -99,6 +106,44 @@ export async function AppEntryRsc({
     ? DEFAULT_SURFACE_AUTH_POLICY_CONFIG[roleLoginAuthPolicyName]
     : resolvedSurface.authPolicy;
 
+  const loginContent = (
+    <AppEntryLoginContent
+      supportContactHref={routePaths.loginContactSupport}
+      prefetchedPublicAuth={prefetchedPublicAuth}
+      serverPlatformMessengerCookie={serverPlatformMessengerCookie}
+      serverMessengerSurface={serverMessengerSurface}
+      entryClassification={entryClassification}
+      routeBoundMiniappEntry={routeBoundMessengerSurface != null}
+      roleLoginPortal={effectiveRoleLoginPortal}
+      roleLoginSurfaceName={shellTitle}
+      alternateRoleLoginHref={alternateRoleLoginHref}
+      surfaceAuthPolicy={surfaceAuthPolicy}
+      embeddedInSurfaceShell={therapyGoBrowserEntry}
+    />
+  );
+  const unsupportedClientFallback = clientEnvironment ? (
+    <PatientUnsupportedClientFallback
+      client={clientEnvironment}
+      entrySurface={watchdogEntrySurface}
+      failureTimeoutEnabled={env.NODE_ENV === 'production'}
+      supportContactHref={routePaths.loginContactSupport}
+    />
+  ) : null;
+
+  if (therapyGoBrowserEntry) {
+    return (
+      <>
+        <TherapyGoLoginShell
+          supportContactHref={routePaths.loginContactSupport}
+          installHref={routePaths.patientInstall}
+        >
+          {loginContent}
+        </TherapyGoLoginShell>
+        {unsupportedClientFallback}
+      </>
+    );
+  }
+
   return (
     <PatientAppShell
       title={shellTitle}
@@ -108,26 +153,8 @@ export async function AppEntryRsc({
       patientBrandTitleBar
       patientHideBottomNav
     >
-      <AppEntryLoginContent
-        supportContactHref={routePaths.loginContactSupport}
-        prefetchedPublicAuth={prefetchedPublicAuth}
-        serverPlatformMessengerCookie={serverPlatformMessengerCookie}
-        serverMessengerSurface={serverMessengerSurface}
-        entryClassification={entryClassification}
-        routeBoundMiniappEntry={routeBoundMessengerSurface != null}
-        roleLoginPortal={roleLoginPortal}
-        roleLoginSurfaceName={shellTitle}
-        alternateRoleLoginHref={alternateRoleLoginHref}
-        surfaceAuthPolicy={surfaceAuthPolicy}
-      />
-      {clientEnvironment ? (
-        <PatientUnsupportedClientFallback
-          client={clientEnvironment}
-          entrySurface={watchdogEntrySurface}
-          failureTimeoutEnabled={env.NODE_ENV === 'production'}
-          supportContactHref={routePaths.loginContactSupport}
-        />
-      ) : null}
+      {loginContent}
+      {unsupportedClientFallback}
     </PatientAppShell>
   );
 }

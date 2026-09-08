@@ -7,16 +7,16 @@ if `hostname -I` does not contain `151.241.228.122`, the same idiom `deploy/host
 
 ## Current firewall state on `151.x` (measured fact, not assumption)
 
-Per `SERVER CONVENTIONS.md` §"Сетевой периметр": on `151.x`, `ufw` is inactive and `iptables -L INPUT -n` shows
-policy `ACCEPT` with zero rules. Access restriction to `test.bersoncare.ru` today lives entirely inside
-nginx's `allow`/`deny` server-block directives, not at the network layer. There is **no Selectel Security
+Per `SERVER CONVENTIONS.md` §"Сетевой периметр": on `151.x`, `ufw` is inactive and the host base policy is
+`ACCEPT`. Web access is restricted by nginx `allow`/`deny`. Raw Jitsi/coturn ports are additionally restricted
+by the additive TEST-only nftables table `inet bcb_jitsi_test`. There is **no Selectel Security
 Group** in front of `151.x` (SG is a `135.106.187.95`-only concept in the current canon) — a "Selectel SG
 diff" for this host does not apply, and this document says so rather than inventing one.
 
-Consequence: today, anything this package binds directly to a public port (JVB media, coturn) is reachable
-from the open internet exactly like the rest of `151.x` is — nothing new is "opened" because nothing is
-currently closed. The nftables diff below is a genuine hardening proposal (defense in depth, matching the new
-PROD's policy-drop model), not a prerequisite the stack needs to function.
+The table accepts raw media/TURN traffic only from owner VPN, loopback, the TEST host and the internal Jitsi
+network, then rejects other sources on those exact ports. Every unrelated host port and chain keeps the base
+policy. Repository sources are `nftables-bcb-jitsi-test.conf`,
+`../systemd/bersoncarebot-jitsi-test-network-policy.service` and `bin/apply-network-policy.sh`.
 
 ## Ports this package needs
 
@@ -31,7 +31,7 @@ PROD's policy-drop model), not a prerequisite the stack needs to function.
 | 5349                                                                     | tcp     | coturn                | public                                    | TURN over TLS, the "TLS fallback for limited networks" the plan asks for                                                                                                                     |
 | `${TURN_RELAY_MIN}-${TURN_RELAY_MAX}` (default `49152-49252`, 101 ports) | udp     | coturn                | public                                    | relay allocations; kept deliberately narrow (see below), not coturn's 49152-65535 default                                                                                                    |
 
-`test.bersoncare.ru`'s webapp port (`:6300`) and integrator (`:3300`) are unrelated to this package and are
+The TEST webapp port (`:6300`) and integrator (`:3300`) are unrelated to this package and are
 not touched by it.
 
 ### Why the relay range is narrowed to 101 ports, not coturn's default ~16k
@@ -43,71 +43,44 @@ synthetic runbook sessions this package needs to prove and keeps the exposed UDP
 smaller. Widening it is a one-line change in `coturn/turnserver.conf.template` if a later real load test needs
 more concurrent relayed calls — not something to pre-provision speculatively.
 
-## Proposed nftables diff (optional hardening, not yet applied)
+## Applied nftables boundary
 
-Not applied by this worker (brief forbids modifying the firewall). Presented as an exact diff so the lead can
-apply it with one command if adopted; until then the ports above are reachable the same way the rest of
-`151.x` already is.
+Apply or reconcile it only on `151.241.228.122`:
 
-```nft
-# /etc/nftables-bcb-jitsi-test.conf — additive table, does not touch the existing (absent) base policy.
-# Apply:   nft -f /etc/nftables-bcb-jitsi-test.conf
-# Remove:  nft delete table inet bcb_jitsi_test
-table inet bcb_jitsi_test {
-    chain input {
-        type filter hook input priority filter + 10; policy accept;
-
-        # VPN-trusted subnets, same allowlist nginx already uses for test.bersoncare.ru
-        # (SERVER CONVENTIONS.md §"Доступы / VPN"): awg0 PROD relay, awg1 owner VPN, wg-easy laptop NAT.
-        ip saddr { 10.9.0.0/24, 172.31.9.0/24, 172.17.0.0/16, 127.0.0.1 } udp dport 3478 accept
-        ip saddr { 10.9.0.0/24, 172.31.9.0/24, 172.17.0.0/16, 127.0.0.1 } tcp dport { 3478, 5349 } accept
-        ip saddr { 10.9.0.0/24, 172.31.9.0/24, 172.17.0.0/16, 127.0.0.1 } udp dport 49152-49252 accept
-        ip saddr { 10.9.0.0/24, 172.31.9.0/24, 172.17.0.0/16, 127.0.0.1 } udp dport 10000 accept
-        ip saddr { 10.9.0.0/24, 172.31.9.0/24, 172.17.0.0/16, 127.0.0.1 } tcp dport 4443 accept
-
-        # Everything else to these specific ports: reject, don't silently drop (matches the plan's
-        # "fail closed with a reason" spirit for infra, and avoids masking a real client misconfiguration
-        # as a black hole).
-        udp dport { 3478, 49152-49252, 10000 } reject
-        tcp dport { 3478, 5349, 4443 } reject
-    }
-}
+```bash
+sudo bash deploy/jitsi/bin/apply-network-policy.sh --check
+sudo bash deploy/jitsi/bin/apply-network-policy.sh --apply
 ```
 
-This restricts Jitsi/coturn to the same trust boundary as the rest of TEST (owner-only, VPN-reachable) instead
-of leaving it open to the whole internet like the current unrestricted host default. It does **not** change
-policy for any other port or service — `ufw`/base `iptables` state for the rest of the host is untouched, and
-`awg0` (PROD's Telegram relay, "critical, do not touch") has its own subnet in the allowlist so it keeps
-working unmodified.
+The systemd unit removes only `table inet bcb_jitsi_test` before applying the versioned file. It does **not**
+flush the host ruleset. `awg0` (PROD Telegram relay) remains allowed and otherwise untouched.
 
 Adopting this means a real patient guest link would also need to come from a VPN-trusted subnet, which
 matches the plan's own statement that TEST has no real external users. If a later stage needs the guest link
 reachable from an arbitrary public IP (a real external patient test), this diff must be relaxed for 443 and
 for coturn/JVB specifically — an explicit owner decision, not something to default into silently.
 
-## DNS and TLS prerequisites (not provisioned by this worker)
+## DNS and TLS state (2026-09-08)
 
-| Name                      | Type | Target            | Status                                                                                                                                    |
-| ------------------------- | ---- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `meet.test.bersoncare.ru` | A    | `151.241.228.122` | **missing** — must be created at the DNS provider (reg.ru, per `SERVER CONVENTIONS.md`) before `bin/install.sh` can request a certificate |
-| `turn.test.bersoncare.ru` | A    | `151.241.228.122` | **missing** — same provider, same target                                                                                                  |
+| Name                         | Type | Target            | Status                                                   |
+| ---------------------------- | ---- | ----------------- | -------------------------------------------------------- |
+| `meet.test.therapysto.ru`    | A    | `151.241.228.122` | canonical, resolves, trusted certificate SAN             |
+| `turn.test.therapysto.ru`    | A    | `151.241.228.122` | canonical, resolves, trusted certificate SAN             |
+| `meet.test.therapygo.ru`     | A    | `151.241.228.122` | temporary compatibility alias, certificate SAN           |
+| `turn.test.therapygo.ru`     | A    | `151.241.228.122` | temporary compatibility alias, certificate SAN           |
+| `meet.test.bersoncare.ru`    | A    | `151.241.228.122` | legacy alias retained during transition, certificate SAN |
+| `turn.test.bersoncare.ru`    | A    | `151.241.228.122` | legacy alias retained during transition, certificate SAN |
 
 Detection probe (safe, read-only, run from anywhere):
 
 ```bash
-getent ahostsv4 meet.test.bersoncare.ru
-getent ahostsv4 turn.test.bersoncare.ru
+getent ahostsv4 meet.test.therapysto.ru
+getent ahostsv4 turn.test.therapysto.ru
 ```
 
-Empty output on either means the prerequisite is still missing; `bin/install.sh --check` runs the same probe
-and stops with this exact message rather than guessing an address or falling back to a self-signed/placeholder
-domain for anything the plan requires a trusted-by-browsers certificate for.
-
-TLS: both new subdomains resolve to the same host as `test.bersoncare.ru`, so the existing ACME/ TLS
-automation pattern (`deploy/host/setup-nginx-tls.sh` for the policy half; real certs are issued the same way
-`test.bersoncare.ru`'s own certificate already is — see that vhost's host-managed TLS directives) is reused
-for `meet.test.bersoncare.ru`. `turn.test.bersoncare.ru`'s certificate is requested directly for coturn's TLS
-listener (5349) since coturn is not behind nginx. Before Jitsi apply, its renewal owner must copy
+Empty output on either canonical name blocks `bin/install.sh --check`. A single ACME lineage
+`/etc/letsencrypt/live/bcb-jitsi-test` covers canonical and transition names. Before Jitsi apply, its renewal
+owner copies
 `fullchain.pem` and `privkey.pem` into `${CONFIG}/coturn/tls/`; that directory is `0700` and both files are
 `0600`, owned by TEST deploy UID/GID `1000:1000`. Coturn mounts only this private copy read-only as the same
 non-root numeric user; it never mounts or needs read access to the root-owned ACME source directory. The
@@ -115,11 +88,8 @@ versioned root-only `bin/sync-coturn-tls.sh` is both the initial staging command
 it validates both TEST SANs and expiry before replacing either destination file, then restarts only the
 TEST coturn container when it is already running.
 
-Per the plan's own §7 caveat: this does **not** create or touch `*.therapygo.ru` (that wildcard currently
-resolves to the new PROD `135.106.187.95`). The literal
-`https://<clinic-slug>.therapygo.ru/live#<secret>` guest URL format is out of scope for this infra package —
-that is stream D's surface-routing concern on the single-host TEST URL the plan already names as the
-interim target.
+This package does not touch production `*.therapygo.ru`; TEST patient surfaces use `test.therapygo.ru` and
+`*.test.therapygo.ru`.
 
 ## No-third-party-endpoint proof
 

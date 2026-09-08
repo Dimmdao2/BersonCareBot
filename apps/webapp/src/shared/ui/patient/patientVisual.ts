@@ -128,7 +128,7 @@ export const patientRecommendationCollapsiblePanelClass = 'bg-[rgba(228,251,213,
  */
 export const patientStageGoalsCollapsibleTriggerClass = cn(
   'flex w-full cursor-pointer items-center px-3 py-2.5 text-left md:px-4 md:py-3',
-  'bg-white text-[13px] font-semibold leading-tight text-[var(--patient-program-text)]',
+  'bg-white text-[length:var(--patient-font-size-section-title)] font-[var(--patient-font-weight-medium)] leading-[var(--patient-line-height-section-title)] text-[var(--patient-program-text)]',
 );
 
 /** Раскрытый блок «Цели и задачи». */
@@ -171,42 +171,56 @@ export const patientSectionSurfaceClass = cn(
 /** Визуальная оболочка формы (контейнер полей), без изменения инпутов внутри. */
 export const patientFormSurfaceClass = cn(patientCardSurfaceTokens, 'flex flex-col gap-4 p-4');
 
-/** Заголовок секции блока на страницах пациента: `font-sans` и токены `--patient-block-heading-*` под `#app-shell-patient` (16px / 1.5 line-height). Рендер как `<h3>` в карточках главной; та же типографика для `<h1>` в полоске заголовка patient shell (`AppShell`). */
+/** Заголовок section/modal: 18/24, medium, heading tone. */
 export const patientSectionTitleClass = cn(
-  'font-sans',
-  'text-[length:var(--patient-block-heading-font-size)] font-[var(--patient-block-heading-font-weight)] leading-[var(--patient-block-heading-line-height)] text-[var(--patient-block-heading)]',
+  'font-[family-name:var(--patient-font-family)]',
+  'text-[length:var(--patient-font-size-section-title)] font-[var(--patient-font-weight-medium)] leading-[var(--patient-line-height-section-title)] text-[var(--patient-text-heading)]',
 );
 
 /**
  * Заголовок секции без полужирного веса: те же размер/интерлиньяж/цвет, что {@link patientSectionTitleClass},
- * но `font-normal` — для «Описание» и других вторичных заголовков на детальных экранах.
+ * for «Описание» and other secondary headings on detail pages.
  */
 export const patientSectionTitleNormalClass = cn(
-  'font-sans font-normal',
-  'text-[length:var(--patient-block-heading-font-size)] leading-[var(--patient-block-heading-line-height)] text-[var(--patient-block-heading)]',
+  'font-[family-name:var(--patient-font-family)] font-[var(--patient-font-weight-medium)]',
+  'text-[length:var(--patient-font-size-section-title)] leading-[var(--patient-line-height-section-title)] text-[var(--patient-text-heading)]',
 );
 
 /** Основной текст абзаца внутри patient shell. */
-export const patientBodyTextClass = 'text-sm text-[var(--patient-text-primary)]';
+export const patientBodyTextClass =
+  'text-[length:var(--patient-font-size-body)] font-[var(--patient-font-weight-regular)] leading-[var(--patient-line-height-body)] text-[var(--patient-text-primary)]';
 
 /** Приглушённый текст (подписи, вторичные строки). */
-export const patientMutedTextClass = 'text-sm text-[var(--patient-text-muted)]';
+export const patientMutedTextClass =
+  'text-[length:var(--patient-font-size-secondary)] font-[var(--patient-font-weight-regular)] leading-[var(--patient-line-height-secondary)] text-[var(--patient-text-secondary)]';
+
+/** Caption, micro, action and metric roles keep all non-geometric patient typography semantic. */
+export const patientCaptionTextClass =
+  'text-[length:var(--patient-font-size-caption)] font-[var(--patient-font-weight-medium)] leading-[var(--patient-line-height-caption)] text-[var(--patient-text-caption)]';
+export const patientMicroTextClass =
+  'text-[length:var(--patient-font-size-micro)] font-[var(--patient-font-weight-medium)] leading-[var(--patient-line-height-micro)] text-[var(--patient-text-micro)]';
+export const patientActionTextClass =
+  'text-[length:var(--patient-font-size-action)] font-[var(--patient-font-weight-semibold)] leading-[var(--patient-line-height-action)]';
+export const patientMetricTextClass =
+  'text-[length:var(--patient-font-size-metric)] font-[var(--patient-font-weight-semibold)] leading-[var(--patient-line-height-metric)]';
 
 /**
  * Текст чуть темнее {@link patientMutedTextClass}: токен `--patient-text-muted-strong` под `#app-shell-patient`.
- * Размер (`text-xs` и т.п.) задаётся в месте использования.
+ * Размер выбирается вместе с одним из semantic typography roles.
  */
-export const patientMutedTextStrongClass = 'text-[var(--patient-text-muted-strong)]';
+export const patientMutedTextStrongClass = 'patient-text-muted-strong';
 
 /** Контейнер пустого состояния (центрирование + типичный вертикальный ритм). */
 export const patientEmptyStateClass = cn(
-  'flex flex-col items-center justify-center gap-2 py-8 text-center text-sm text-[var(--patient-text-muted)]',
+  'flex flex-col items-center justify-center gap-2 py-8 text-center',
+  patientMutedTextClass,
 );
 
 /** Textarea блока отправки сообщения — те же радиус и токены, что у patient-карточки. */
 export const patientChatComposerTextareaClass = cn(
   'min-h-[112px] w-full resize-y rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
-  'border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-3 py-2 text-base md:text-sm text-[var(--patient-text-primary)]',
+  'border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-3 py-2',
+  patientBodyTextClass,
   'placeholder:text-[var(--patient-text-muted)] outline-none transition-colors',
   'focus-visible:border-[var(--patient-color-primary)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--patient-color-primary)_30%,transparent)]',
   'disabled:cursor-not-allowed disabled:opacity-50',
@@ -214,27 +228,37 @@ export const patientChatComposerTextareaClass = cn(
 
 /** Подпись даты и времени под «пузырём» сообщения в чате поддержки. */
 export const patientChatMetaLineClass = cn(
-  'text-[11px] leading-snug tabular-nums text-[var(--patient-text-muted)]',
+  patientMicroTextClass,
+  'tabular-nums',
 );
 
 /** Компактная «пилюля» / бейдж для статусов и меток (не hero-метрики главной). */
 export const patientPillClass = cn(
-  'inline-flex max-w-full items-center rounded-[var(--patient-pill-radius)] px-2 py-0.5 text-xs font-medium',
+  'inline-flex max-w-full items-center rounded-[var(--patient-pill-radius)] px-2 py-0.5',
+  patientCaptionTextClass,
   'bg-[var(--patient-color-primary-soft)] text-[var(--patient-color-primary)]',
 );
+
+/** Счётчик и unread-маркер обсуждения программы — единый паттерн на плитке и detail-экране. */
+export const patientProgramDiscussionCountClass =
+  'rounded-md border border-[var(--patient-program-discussion-badge-border)] bg-[var(--patient-program-discussion-badge-bg)] px-1.5 py-0.5 patient-type-caption patient-text-info';
+export const patientProgramDiscussionUnreadDotClass =
+  'size-1.5 shrink-0 rounded-full bg-[var(--patient-program-discussion-unread-bg)]';
 
 /**
  * Текстовая ссылка в потоке текста (не полноразмерная кнопка).
  * Для кнопкообразных действий используйте `patientButtonGhostLinkClass` / secondary.
  */
 export const patientInlineLinkClass = cn(
-  'cursor-pointer font-semibold text-[var(--patient-color-primary)] underline-offset-2 hover:underline',
+  'cursor-pointer text-[var(--patient-color-primary)] underline-offset-2 hover:underline',
+  patientActionTextClass,
   'focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
 );
 
 /** Плитка-ссылка внутри patient карточек (например, блок «Полезная информация» в cabinet). */
 export const patientInfoLinkTileClass = cn(
-  'cursor-pointer rounded-lg border border-[var(--patient-border)] px-3 py-2 text-sm font-normal text-[var(--patient-text-primary)] transition-colors',
+  'cursor-pointer rounded-lg border border-[var(--patient-border)] px-3 py-2 transition-colors',
+  patientBodyTextClass,
   'hover:bg-[var(--patient-color-primary-soft)]/40',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
 );
@@ -246,34 +270,39 @@ export const patientLineClamp2Class = 'line-clamp-2 min-w-0';
 export const patientLineClamp3Class = 'line-clamp-3 min-w-0';
 
 export const patientButtonPrimaryClass = cn(
-  'inline-flex min-h-[var(--patient-touch)] w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 text-sm font-semibold text-white transition-colors',
+  'inline-flex min-h-[var(--patient-touch)] w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 patient-text-inverse transition-colors',
+  patientActionTextClass,
   'bg-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-hover)] active:bg-[var(--patient-color-primary-hover)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
 );
 
 export const patientButtonSuccessClass = cn(
-  'inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 text-sm font-semibold text-white transition-colors sm:min-h-12',
+  'inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 patient-text-inverse transition-colors sm:min-h-12',
+  patientActionTextClass,
   'bg-[var(--patient-color-success)] hover:bg-[var(--patient-action-success-hover)] active:bg-[var(--patient-action-success-hover)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-success)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
 );
 
 export const patientButtonSecondaryClass = cn(
-  'inline-flex min-h-10 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-4 text-sm font-semibold text-[var(--patient-text-primary)] transition-colors',
+  'inline-flex min-h-10 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-4 text-[var(--patient-text-primary)] transition-colors',
+  patientActionTextClass,
   'hover:bg-[var(--patient-color-primary-soft)]/40 active:bg-[var(--patient-color-primary-soft)]/60',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-border)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
 );
 
 export const patientButtonGhostLinkClass = cn(
-  'inline-flex min-h-10 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-sm px-3 text-sm font-semibold text-[var(--patient-color-primary)] transition-colors',
+  'inline-flex min-h-10 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-sm px-3 text-[var(--patient-color-primary)] transition-colors',
+  patientActionTextClass,
   'hover:bg-[var(--patient-color-primary-soft)]/50 active:bg-[var(--patient-color-primary-soft)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
 );
 
 export const patientButtonDangerOutlineClass = cn(
-  'inline-flex min-h-10 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-outline-radius)] border border-[var(--patient-color-danger)] bg-[var(--patient-card-bg)] px-4 text-sm font-bold text-[var(--patient-action-danger-text)] transition-colors',
+  'inline-flex min-h-10 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-outline-radius)] border border-[var(--patient-color-danger)] bg-[var(--patient-card-bg)] px-4 text-[var(--patient-action-danger-text)] transition-colors',
+  patientActionTextClass,
   'hover:bg-[var(--patient-color-danger-soft)] active:bg-[var(--patient-color-danger-soft)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-danger)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
@@ -283,8 +312,9 @@ export const patientButtonDangerOutlineClass = cn(
  * Кнопка «Пропустить» в модалке элемента программы — кирпичный/терракотовый тон.
  */
 export const patientButtonSkipClass = cn(
-  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--patient-action-skip-border)] bg-[var(--patient-action-skip-bg)] px-3 font-semibold text-[var(--patient-action-skip-text)] transition-colors',
-  'min-h-[var(--patient-touch)] text-sm',
+  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--patient-action-skip-border)] bg-[var(--patient-action-skip-bg)] px-3 text-[var(--patient-action-skip-text)] transition-colors',
+  'min-h-[var(--patient-touch)]',
+  patientActionTextClass,
   'hover:bg-[var(--patient-action-skip-hover-bg)] active:bg-[var(--patient-action-skip-active-bg)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-action-skip-text)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
@@ -292,7 +322,8 @@ export const patientButtonSkipClass = cn(
 
 /** Warning-toned button-like link (напоминания, §10.6). */
 export const patientButtonWarningOutlineClass = cn(
-  'inline-flex min-h-10 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-outline-radius)] border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-4 text-sm font-bold text-[var(--patient-action-warning-text)] transition-colors',
+  'inline-flex min-h-10 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-outline-radius)] border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-4 text-[var(--patient-action-warning-text)] transition-colors',
+  patientActionTextClass,
   'hover:bg-[var(--patient-action-warning-hover-bg)]/80 active:bg-[var(--patient-action-warning-hover-bg)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-warning)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
@@ -300,31 +331,36 @@ export const patientButtonWarningOutlineClass = cn(
 
 /** Primary badge — синий тон, мягкий фон. */
 export const patientBadgePrimaryClass = cn(
-  'inline-flex h-7 min-w-0 max-w-full items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none',
+  'inline-flex h-7 min-w-0 max-w-full items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5',
+  patientCaptionTextClass,
   'bg-[var(--patient-color-primary-soft)] text-[var(--patient-badge-primary-text)]',
 );
 
 /** Success badge — зелёный тон. */
 export const patientBadgeSuccessClass = cn(
-  'inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none',
+  'inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5',
+  patientCaptionTextClass,
   'bg-[var(--patient-action-success-badge-bg)] text-[var(--patient-action-success-badge-text)]',
 );
 
 /** Warning badge — жёлтый тон. */
 export const patientBadgeWarningClass = cn(
-  'inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none',
+  'inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5',
+  patientCaptionTextClass,
   'bg-[var(--patient-action-warning-hover-bg)] text-[var(--patient-action-warning-badge-text)]',
 );
 
 /** Danger badge — красный тон. */
 export const patientBadgeDangerClass = cn(
-  'inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none',
+  'inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5',
+  patientCaptionTextClass,
   'bg-[var(--patient-action-danger-badge-bg)] text-[var(--patient-action-danger-badge-text)]',
 );
 
 /** Duration badge — нейтральный, primary текст (hero-слот, карточки курсов). */
 export const patientBadgeDurationClass = cn(
-  'inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] border border-[var(--patient-badge-duration-border)] bg-[var(--patient-card-bg)] px-2.5 text-xs font-medium leading-none text-[var(--patient-color-primary)]',
+  'inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] border border-[var(--patient-badge-duration-border)] bg-[var(--patient-card-bg)] px-2.5 text-[var(--patient-color-primary)]',
+  patientCaptionTextClass,
 );
 
 /**
@@ -333,7 +369,8 @@ export const patientBadgeDurationClass = cn(
  * а не полноширинная CTA. Размер (`h-8`, `h-9`, `w-auto`) задаётся в месте использования.
  */
 export const patientCompactActionClass = cn(
-  'inline-flex min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-3 text-sm font-semibold text-white transition-colors',
+  'inline-flex min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-3 patient-text-inverse transition-colors',
+  patientActionTextClass,
   'bg-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-hover)] active:bg-[var(--patient-color-primary-hover)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
@@ -363,7 +400,8 @@ export const patientHeroPrimaryActionClass = patientButtonPrimaryClass;
  */
 export const patientHeroWarmupDoneCtaClass = cn(
   'inline-flex max-w-full min-h-9 min-w-0 shrink-0 cursor-default items-center justify-center gap-1.5 rounded-[var(--patient-action-radius)] border border-[var(--patient-status-success-border)] bg-[var(--patient-status-success-bg)] px-3 py-1.5',
-  'text-xs font-medium leading-tight tracking-tight text-[var(--patient-status-success-text)] whitespace-nowrap sm:min-h-10 sm:gap-2 sm:px-3.5 sm:py-2 sm:text-sm',
+  'tracking-tight text-[var(--patient-status-success-text)] whitespace-nowrap sm:min-h-10 sm:gap-2 sm:px-3.5 sm:py-2',
+  patientActionTextClass,
   'md:min-h-11 md:w-[22rem] md:justify-start md:px-4 xl:w-[24rem]',
 );
 
@@ -373,14 +411,17 @@ export const patientDangerActionClass = patientButtonDangerOutlineClass;
 
 /** Заголовок страницы в зоне контента (`h1`): primary-текст patient, без фона и карточной обводки. Дублировать shell-title только если сознательно нужен второй уровень иерархии. */
 export const patientPageTitleClass = cn(
-  'font-sans font-semibold tracking-tight text-[var(--patient-text-primary)]',
-  'text-[17px] leading-snug md:text-xl md:leading-snug',
+  'font-[family-name:var(--patient-font-family)] tracking-tight text-[var(--patient-text-heading)]',
+  'text-[length:var(--patient-font-size-page-title)] font-[var(--patient-font-weight-semibold)] leading-[var(--patient-line-height-page-title)]',
 );
 
 /** Вводный текст / подпись под заголовком страницы (secondary-тон patient). Без карточного фона. */
 export const patientPageSubtitleClass = cn(
-  'text-sm leading-5 text-[var(--patient-text-secondary)]',
+  patientMutedTextClass,
 );
+
+/** Общая читаемая подпись form-control; локальные `text-xs` для labels запрещены. */
+export const patientFormLabelClass = 'patient-type-form-label';
 
 /** Обёртка пары «заголовок + подпись» вверху страницы: компактный gap и нижний отступ без card-style. */
 export const patientPageHeaderClass = cn('mb-3 flex flex-col gap-2 md:mb-4');
@@ -412,7 +453,7 @@ export const patientHeroTitleBaseClass = 'tracking-tight text-[var(--patient-blo
  * Не для главной `/app/patient` — там свои размеры (`patientHomeHeroTitleClampClass` в `patientHomeCardStyles`).
  */
 export const patientInnerHeroTitleTypographyClass = cn(
-  'text-[17px] leading-snug min-[380px]:text-[19px] md:text-[26px] md:leading-8 xl:text-[28px] xl:leading-9',
+  patientPageTitleClass,
 );
 
 /**
@@ -420,21 +461,23 @@ export const patientInnerHeroTitleTypographyClass = cn(
  */
 export const patientProgramItemHeroTitleClass = cn(
   patientHeroTitleBaseClass,
-  'text-[16px] leading-snug min-[380px]:text-[17px] md:text-[22px] md:leading-7 xl:text-[24px] xl:leading-8',
+  patientPageTitleClass,
 );
 
 /**
- * Строка «N повторений × M подходов» на странице пункта (hero): размер задаётся родителем (`text-[0.8rem]`).
+ * Строка «N повторений × M подходов» на странице пункта использует the surrounding semantic type role.
  */
 export const patientProgramItemPrimaryStatTextClass = cn(
-  'font-normal text-[var(--patient-program-stat-text)]',
+  'font-[var(--patient-font-weight-regular)] text-[var(--patient-program-stat-text)]',
 );
 
 /**
  * Заголовок группы в «Состав этапа»: отдельный более тёплый program tone.
  */
-export const patientCompositionGroupTitleClass =
-  'text-sm font-medium text-[var(--patient-program-group-title)]';
+export const patientCompositionGroupTitleClass = cn(
+  patientFormLabelClass,
+  'text-[var(--patient-program-group-title)]',
+);
 
 /**
  * Выбранная строка состава этапа: тонкое кольцо, тёмный синий, лёгкий нейтральный фон.
@@ -449,17 +492,17 @@ export const patientCompositionListThumbSlotClass =
 
 /** Заголовок hero списка программ при наличии активной программы. */
 export const patientInnerHeroListPrimaryTitleClass =
-  'text-[22px] leading-snug md:text-2xl md:leading-snug';
+  patientPageTitleClass;
 
 /** Заголовок hero списка программ в пустом состоянии. */
 export const patientInnerHeroListEmptyTitleClass =
-  'text-xl leading-snug md:text-[22px] md:leading-snug';
+  patientPageTitleClass;
 
 /**
  * Заголовок текущего этапа программы на detail-странице: primary-тон, жирный, крупный.
  * Используется в превью-карточке текущего этапа (`PatientTreatmentProgramDetailClient`).
  */
-export const patientStageTitleClass = cn('text-xl font-bold text-[var(--patient-color-primary)]');
+export const patientStageTitleClass = cn(patientSectionTitleClass, 'text-[var(--patient-color-primary)]');
 
 /**
  * Hero программы лечения в списке: тот же info-surface, что и прочие информационные карточки.
@@ -480,7 +523,8 @@ export const patientScrollbarHiddenClass = cn(
  * Портал видит те же root-scoped semantic tokens, что и patient shell.
  */
 export const patientModalPortalPrimaryCtaClass = cn(
-  'inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 py-2 text-sm font-semibold text-white transition-colors md:min-h-12 md:text-base',
+  'inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-[var(--patient-action-radius)] px-4 py-2 patient-text-inverse transition-colors md:min-h-12',
+  patientActionTextClass,
   'bg-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-hover)] active:bg-[var(--patient-color-primary-hover)]',
   'shadow-[var(--patient-shadow-primary-cta)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',

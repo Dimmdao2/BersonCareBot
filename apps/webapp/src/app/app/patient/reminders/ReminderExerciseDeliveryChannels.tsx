@@ -12,7 +12,10 @@ import {
   subscribePatientWebPush,
 } from '@/shared/lib/webPush/subscribePatientWebPush';
 import { reportWebPushSubscribeFailure } from '@/shared/lib/webPush/webPushSubscribeFeedback';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientBodyTextClass,
+  patientCaptionTextClass,
+} from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   deliveryChannelLabels: string[];
@@ -65,13 +68,13 @@ export function ReminderExerciseDeliveryChannels({ deliveryChannelLabels }: Prop
 
   return (
     <div className="space-y-2">
-      <p className={cn(patientMutedTextClass, 'text-xs')}>
+      <p className={patientCaptionTextClass}>
         Куда отправляется:{' '}
-        <span className="text-[var(--patient-text-primary)]">{deliveryLine}</span>
+        <span className={patientBodyTextClass}>{deliveryLine}</span>
         {deliveryChannelLabels.length === 0 ? (
           <>
             {' '}
-            <Link href={routePaths.notificationSettings} className="text-primary underline">
+            <Link href={routePaths.notificationSettings} className="patient-text-accent underline">
               Настроить
             </Link>
           </>
@@ -80,7 +83,7 @@ export function ReminderExerciseDeliveryChannels({ deliveryChannelLabels }: Prop
 
       {showPushWarning ? (
         <div className="rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/30">
-          <p className="text-xs text-amber-900 dark:text-amber-200">
+          <p className={cn(patientCaptionTextClass, 'patient-text-primary')}>
             {pushState.uiStatus === 'denied_system'
               ? 'Push-уведомления отключены в настройках устройства.'
               : 'Push-уведомления не включены — напоминания могут не доходить в приложение.'}

@@ -8,6 +8,8 @@ import { finishChannelLinkNavigation } from '@/shared/lib/telegramChannelLinkOpe
 import { SupportContactLink } from '@/shared/ui/patient/SupportContactLink';
 import { cn } from '@/lib/utils';
 import {
+  patientBodyTextClass,
+  patientCaptionTextClass,
   patientInlineLinkClass,
   patientMutedTextClass,
   PatientShimmerLine,
@@ -131,14 +133,14 @@ export function PatientBrowserMessengerBindPanel({
         <p className={patientMutedTextClass}>{hint ?? NOTIFICATIONS_DEFAULT_HINT}</p>
       ) : (
         <>
-          <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+          <p className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}>
             Привязка телефона
           </p>
           <p className={patientMutedTextClass}>
             {hint ??
               'Для стабильной работы приложения и синхронизации на всех платформах необходимо привязать номер телефона. Он не будет использоваться для SMS-рассылок.'}
           </p>
-          <p className="text-sm text-[var(--patient-text-primary)]">
+          <p className={patientBodyTextClass}>
             Выберите мессенджер, в котором удобнее подтвердить номер:
           </p>
         </>
@@ -194,12 +196,12 @@ export function PatientBrowserMessengerBindPanel({
         <p className={patientMutedTextClass}>Привязка через мессенджеры сейчас недоступна.</p>
       )}
       {telegramUrl ? (
-        <p className={cn(patientMutedTextClass, 'text-xs')}>
+        <p className={patientCaptionTextClass}>
           Если окно не открылось, перейдите по ссылке:{' '}
           <Button
             type="button"
             variant="link"
-            className="inline h-auto min-h-0 p-0 text-xs font-normal text-primary underline"
+            className="inline h-auto min-h-0 p-0 underline"
             onClick={() =>
               finishChannelLinkNavigation({
                 blankWin: null,
@@ -214,12 +216,12 @@ export function PatientBrowserMessengerBindPanel({
         </p>
       ) : null}
       {maxOpenUrl ? (
-        <p className={cn(patientMutedTextClass, 'text-xs')}>
+        <p className={patientCaptionTextClass}>
           Если окно не открылось:{' '}
           <Button
             type="button"
             variant="link"
-            className="inline h-auto min-h-0 p-0 text-xs font-normal text-primary underline"
+            className="inline h-auto min-h-0 p-0 underline"
             onClick={() =>
               finishChannelLinkNavigation({
                 blankWin: null,
@@ -235,20 +237,20 @@ export function PatientBrowserMessengerBindPanel({
       ) : null}
       {maxCommand ? (
         <p
-          className="rounded-md bg-[var(--patient-color-primary-soft)]/40 px-2 py-1 font-mono text-xs break-all"
+          className={cn(patientCaptionTextClass, 'rounded-md bg-[var(--patient-color-primary-soft)]/40 px-2 py-1 font-mono break-all')}
           data-testid="max-manual-command"
         >
           {maxCommand}
         </p>
       ) : null}
-      <p className={cn(patientMutedTextClass, 'text-xs')}>
+      <p className={patientCaptionTextClass}>
         После нажатия Start в боте и отправки контакта эта страница обновится сама (или обновите
         вручную через несколько секунд).
       </p>
       {supportContactHref ? (
         <SupportContactLink
           href={supportContactHref}
-          className={cn(patientInlineLinkClass, 'text-sm')}
+          className={patientInlineLinkClass}
         >
           Связаться с поддержкой
         </SupportContactLink>

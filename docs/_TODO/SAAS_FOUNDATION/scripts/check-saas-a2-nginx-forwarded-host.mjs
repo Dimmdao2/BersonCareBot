@@ -104,12 +104,17 @@ function selectWebappServerBlock(nginxDump) {
   const serverBlocks = extractServerBlocks(nginxDump);
   const candidates = serverBlocks.filter(
     (block) =>
-      /server_name\s+[^;]*(test\.bersoncare\.ru|bersoncare\.ru|www\.bersoncare\.ru)[^;]*;/i.test(
+      /server_name\s+[^;]*(test\.therapysto\.ru|test\.bersoncare\.ru|bersoncare\.ru|www\.bersoncare\.ru)[^;]*;/i.test(
         block,
       ) && /proxy_pass\s+http:\/\/127\.0\.0\.1:(6200|6300)\s*;/i.test(block),
   );
   assert(candidates.length > 0, '--nginx-dump: missing BersonCareBot webapp server block');
   return (
+    candidates.find(
+      (block) =>
+        /server_name\s+[^;]*test\.therapysto\.ru[^;]*;/i.test(block) &&
+        /proxy_pass\s+http:\/\/127\.0\.0\.1:6300\s*;/i.test(block),
+    ) ??
     candidates.find((block) => /proxy_pass\s+http:\/\/127\.0\.0\.1:6300\s*;/i.test(block)) ??
     candidates[0]
   );
@@ -134,7 +139,13 @@ function assertWebappProxyContract(configText, sourceName) {
   );
 }
 
-const TEST_PRIVATE_NETWORKS = ['10.9.0.0/24', '172.17.0.0/16', '151.241.228.122', '127.0.0.1'];
+const TEST_PRIVATE_NETWORKS = [
+  '10.9.0.0/24',
+  '172.31.9.0/24',
+  '172.17.0.0/16',
+  '151.241.228.122',
+  '127.0.0.1',
+];
 const YOOKASSA_NETWORKS = [
   '185.71.76.0/27',
   '185.71.77.0/27',

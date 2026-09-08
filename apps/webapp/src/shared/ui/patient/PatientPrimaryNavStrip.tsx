@@ -66,10 +66,10 @@ export function PatientPrimaryNavStrip({ className, variant = 'bottom' }: Props)
           aria-label={ariaLabel}
           aria-current={isActive ? 'page' : undefined}
           className={cn(
-            'inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-sm',
+            'inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 patient-type-navigation',
             isActive
-              ? 'bg-[var(--patient-color-primary-soft)]/50 font-medium text-[var(--patient-color-primary)]'
-              : 'font-normal text-[var(--patient-text-secondary)] hover:text-[var(--patient-color-primary)]',
+              ? 'bg-[var(--patient-color-primary-soft)]/50 patient-text-navigation-active'
+              : 'patient-text-navigation-inactive',
           )}
         >
           <span className="relative inline-flex shrink-0">
@@ -95,8 +95,8 @@ export function PatientPrimaryNavStrip({ className, variant = 'bottom' }: Props)
         className={cn(
           'group flex min-h-0 min-w-0 w-full flex-col items-center justify-center gap-0.5 px-0.5 py-1',
           isActive
-            ? 'font-medium text-[var(--patient-color-primary)]'
-            : 'font-normal text-[var(--patient-text-secondary)] hover:font-normal hover:text-[var(--patient-color-primary)]',
+            ? 'patient-text-navigation-active'
+            : 'patient-text-navigation-inactive',
         )}
       >
         <span className="relative inline-flex shrink-0">
@@ -104,15 +104,15 @@ export function PatientPrimaryNavStrip({ className, variant = 'bottom' }: Props)
             className={cn(
               'size-5 shrink-0 transition-colors duration-200 ease-out',
               isActive
-                ? 'size-[22px] text-[var(--patient-color-primary)]'
-                : 'text-[var(--patient-text-secondary)] group-hover:text-[var(--patient-color-primary)]',
+                ? 'size-[22px] patient-text-navigation-active'
+                : 'patient-text-navigation-inactive patient-text-navigation-group-inactive',
             )}
             strokeWidth={NAV_STRIP_ICON_STROKE}
             aria-hidden
           />
           {showChatBadge ? <PatientNavCountBadge count={chatUnread} /> : null}
         </span>
-        <span className="w-full truncate text-center text-[10px] leading-3">{item.label}</span>
+        <span className="w-full truncate text-center patient-type-caption">{item.label}</span>
       </Link>
     );
   };

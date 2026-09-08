@@ -28,10 +28,10 @@ export function GuestPlaceholder({
 }: GuestPlaceholderProps) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-foreground dark:border-amber-900/40 dark:bg-amber-950/25">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 patient-text-primary dark:border-amber-900/40 dark:bg-amber-950/25">
         {illustration ? <div className="mb-3">{illustration}</div> : null}
-        <h2 className="text-base font-semibold">{title}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+        <h2 className="patient-type-section-title">{title}</h2>
+        <p className="mt-2 patient-type-secondary">{description}</p>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Link

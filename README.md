@@ -7,8 +7,9 @@
 как есть. Состав: PWA webapp (кабинеты пациента и врача, CMS, программы лечения, запись), integrator
 (Telegram/MAX, webhook, доставка) и media-worker (HLS-транскод).
 
-Домены выше — целевая схема. На 27.08.2026 TEST намеренно продолжает работать по старому адресу
-`test.bersoncare.ru`; переключение DNS/TLS/proxy/env на Therapysto/Therapygo вынесено в отдельный этап.
+На TEST эта схема активна с 08.09.2026: кабинет специалистов и общий вход — `test.therapysto.ru`,
+платформенная админка — `admin.test.therapysto.ru`, клиентский кабинет — `test.therapygo.ru`.
+`test.bersoncare.ru` оставлен только переходным редиректом и для временной совместимости callback.
 
 - **Стек:** TypeScript (ESM), Next.js, Fastify, PostgreSQL (Drizzle + SQL-migrations integrator), grammY, Vitest
 - **Каналы:** PWA (`/app`) — основной UI; **Web Push — основной канал уведомлений**; Telegram, MAX, SMS, email — дополнительные; запись — собственный движок (см. [`docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md`](docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md))

@@ -84,12 +84,12 @@ export function PwaInstallSection() {
 
   return (
     <section
-      className="rounded-[12px] border border-[#dce4f5] bg-white/95 p-6 shadow-[0_8px_24px_rgba(15,23,42,0.05)] backdrop-blur-[2px]"
+      className="rounded-[var(--patient-marketing-card-radius)] border border-[var(--patient-marketing-card-border)] bg-[var(--patient-marketing-card-bg)] p-6 shadow-[var(--patient-marketing-card-shadow)] backdrop-blur-[2px]"
       aria-labelledby="pwa-install-heading"
     >
       <h2
         id="pwa-install-heading"
-        className="font-sans text-lg font-semibold text-[var(--patient-color-primary)]"
+        className="patient-type-section-title patient-text-accent"
       >
         Установить приложение
       </h2>
@@ -97,18 +97,18 @@ export function PwaInstallSection() {
       {!mounted ? <div className="mt-4 min-h-[5.5rem]" aria-hidden /> : null}
 
       {mounted && done ? (
-        <p className="mt-3 text-sm text-emerald-800">
+        <p className="mt-3 patient-type-secondary patient-text-success">
           Приложение на устройстве — открывайте с домашнего экрана.
         </p>
       ) : null}
 
       {mounted && !done && isIos ? (
-        <div className="mt-3 space-y-2 text-sm leading-relaxed text-slate-700">
+        <div className="mt-3 space-y-2 patient-type-secondary">
           <p>
             Меню <strong>Поделиться</strong> → <strong>На экран «Домой»</strong> (в Safari шаги
             такие; в Chrome на iOS названия могут отличаться — ищите добавление на домашний экран).
           </p>
-          <p className="text-muted-foreground">После установки ярлык откроет кабинет {patientGenitive}.</p>
+          <p className="patient-text-secondary">После установки ярлык откроет кабинет {patientGenitive}.</p>
         </div>
       ) : null}
 
@@ -123,7 +123,7 @@ export function PwaInstallSection() {
               Установить
             </Button>
           ) : null}
-          <p className="text-sm text-slate-700">
+          <p className="patient-type-secondary">
             {isSafari ? (
               <>
                 На Mac — <strong>Файл</strong> → <strong>Добавить в Dock</strong>. Либо откройте эту

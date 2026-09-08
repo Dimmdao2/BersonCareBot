@@ -6,6 +6,7 @@ import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program
 import { cn } from '@/lib/utils';
 import {
   patientBadgePrimaryClass,
+  patientBodyTextClass,
   patientCardListSectionClass,
 } from '@/shared/ui/patient/patientVisual';
 import { PatientProgramBlockHeading } from '@/app/app/patient/treatment/program-detail/PatientProgramBlockHeading';
@@ -30,7 +31,7 @@ export function PatientProgramStagesTimeline(props: {
         id="patient-program-stages-heading"
         title="Этапы программы"
         Icon={List}
-        iconClassName="text-[var(--patient-color-primary)]"
+        iconClassName="patient-text-accent"
       />
       <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
         {stages.map((stage) => {
@@ -51,7 +52,7 @@ export function PatientProgramStagesTimeline(props: {
             );
             leftIcon = (
               <Play
-                className="size-4 shrink-0 fill-none text-[var(--patient-color-primary)]"
+                className="size-4 shrink-0 fill-none patient-text-accent"
                 strokeWidth={2.5}
                 aria-hidden
               />
@@ -61,12 +62,12 @@ export function PatientProgramStagesTimeline(props: {
             leftIcon =
               stage.status === 'skipped' ? (
                 <CornerDownRight
-                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                  className="mt-0.5 size-4 shrink-0 patient-text-secondary"
                   aria-hidden
                 />
               ) : (
                 <CheckCircle2
-                  className="mt-0.5 size-4 shrink-0 text-[var(--patient-color-success)]"
+                  className="mt-0.5 size-4 shrink-0 patient-text-success-accent"
                   aria-hidden
                 />
               );
@@ -74,24 +75,24 @@ export function PatientProgramStagesTimeline(props: {
             rowClass = patientTreatmentProgramListItemClass;
             leftIcon = (
               <Lock
-                className="mt-0.5 size-4 shrink-0 text-[var(--patient-color-primary)]/45"
+                className="mt-0.5 size-4 shrink-0 patient-text-accent opacity-[0.45]"
                 aria-hidden
               />
             );
           }
 
           const titleClass = isActive
-            ? 'text-sm font-bold text-[var(--patient-color-primary)]'
+            ? cn(patientBodyTextClass, 'patient-text-accent')
             : isPast
-              ? 'text-sm font-medium text-foreground'
+              ? patientBodyTextClass
               : isFuture
-                ? 'text-sm font-medium text-[var(--patient-color-primary)]/58'
-                : 'text-sm font-medium text-[var(--patient-color-primary)]/52';
+                ? cn(patientBodyTextClass, 'patient-text-accent opacity-[0.58]')
+                : cn(patientBodyTextClass, 'patient-text-accent opacity-[0.52]');
 
           const titleBlock = (
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               {isActive ? (
-                <span className="text-[10px] font-semibold uppercase leading-none tracking-wide text-[var(--patient-color-primary)]/75">
+                <span className="patient-type-caption uppercase tracking-wide patient-text-accent opacity-75">
                   Активный этап
                 </span>
               ) : null}
@@ -119,7 +120,7 @@ export function PatientProgramStagesTimeline(props: {
                 <span
                   className={cn(
                     patientBadgePrimaryClass,
-                    'h-6 max-w-full shrink-0 truncate border border-[var(--patient-color-primary)]/18 bg-[color-mix(in_srgb,var(--patient-card-bg)_92%,var(--patient-color-primary-soft)_8%)] px-2 text-[10px]',
+                    'h-6 max-w-full shrink-0 truncate border border-[var(--patient-color-primary)]/18 bg-[color-mix(in_srgb,var(--patient-card-bg)_92%,var(--patient-color-primary-soft)_8%)] px-2 patient-type-caption',
                   )}
                 >
                   {stage.sortOrder} из {stageCountNonZero}

@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils';
+import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
 import { PatientRemindersMuteBar } from './PatientRemindersMuteBar';
 import { ReminderDeliveryChannelsNotice } from './ReminderDeliveryChannelsNotice';
 
@@ -13,7 +13,7 @@ export function RemindersPageAdditionalSection({
       aria-labelledby="reminders-additional-heading"
       className="mt-8 border-t border-[var(--patient-border)] pt-4"
     >
-      <h2 id="reminders-additional-heading" className={cn('text-sm font-medium text-foreground')}>
+      <h2 id="reminders-additional-heading" className={patientSectionTitleClass}>
         Дополнительно
       </h2>
       <div className="pt-4">

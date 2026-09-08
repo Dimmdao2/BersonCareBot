@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/primitives/card';
 import type { CabinetInfoLinkTile } from '@/modules/help-content/cabinetInfoLinkTiles';
-import { patientInfoLinkTileClass } from '@/shared/ui/patient/patientVisual';
+import { patientInfoLinkTileClass, patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
 
 export function CabinetInfoLinksCard({ tiles }: { tiles: CabinetInfoLinkTile[] }) {
   return (
     <Card data-testid="cabinet-info-links">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Полезная информация</CardTitle>
+        <CardTitle className={patientSectionTitleClass}>Полезная информация</CardTitle>
       </CardHeader>
       <CardContent className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {tiles.map((t) => (

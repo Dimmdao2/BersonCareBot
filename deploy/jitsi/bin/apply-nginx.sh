@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# Repo-managed TEST nginx vhost apply path for meet.test.bersoncare.ru. Default is read-only --check;
+# Repo-managed TEST nginx vhost apply path for the canonical Therapysto meet host. Default is read-only --check;
 # --apply is root-only, backs up any previous target, validates nginx before reload, and restores on failure.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE="${1:---check}"
-SERVER_NAME="meet.test.bersoncare.ru"
+PRIMARY_SERVER_NAME="meet.test.therapysto.ru"
+SERVER_NAMES="meet.test.therapysto.ru meet.test.therapygo.ru"
 UPSTREAM="http://127.0.0.1:8000"
 TEMPLATE="$HERE/nginx/meet-test.vhost.template.conf"
-TARGET_AVAILABLE="/etc/nginx/sites-available/$SERVER_NAME"
-TARGET_ENABLED="/etc/nginx/sites-enabled/$SERVER_NAME"
+TARGET_AVAILABLE="/etc/nginx/sites-available/$PRIMARY_SERVER_NAME"
+TARGET_ENABLED="/etc/nginx/sites-enabled/$PRIMARY_SERVER_NAME"
 
 fail() { echo "[jitsi-test-nginx] FATAL: $*" >&2; exit 1; }
 [[ "$MODE" == --check || "$MODE" == --apply ]] || fail "usage: $0 [--check|--apply]"
@@ -29,7 +30,7 @@ rendered="$(mktemp /tmp/bcb-jitsi-test-nginx.XXXXXX)"
 backup=""
 cleanup() { rm -f "$rendered"; }
 trap cleanup EXIT
-sed -e "s|__SERVER_NAME__|$SERVER_NAME|g" -e "s|__UPSTREAM__|$UPSTREAM|g" "$TEMPLATE" >"$rendered"
+sed -e "s|__SERVER_NAMES__|$SERVER_NAMES|g" -e "s|__UPSTREAM__|$UPSTREAM|g" "$TEMPLATE" >"$rendered"
 if grep -q '__[A-Z_]*__' "$rendered"; then
   fail "unresolved template placeholder"
 fi

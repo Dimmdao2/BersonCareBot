@@ -1,0 +1,277 @@
+.shell {
+  --therapygo-ink: #071d3b;
+  --therapygo-muted: #66758a;
+  --therapygo-line: #dfe6ee;
+  --therapygo-blue: #168cf5;
+  --therapygo-blue-deep: #0878e8;
+  --therapygo-cyan: #10cbd1;
+  --therapygo-soft: #eef6ff;
+  --patient-color-primary: var(--therapygo-blue-deep);
+  --patient-color-primary-hover: #0669cd;
+  --patient-color-primary-soft: var(--therapygo-soft);
+  --patient-color-primary-border: #cfe4fa;
+  --patient-control-focus-border: var(--therapygo-blue-deep);
+  --patient-control-focus-ring: var(--therapygo-blue-deep);
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  color: var(--therapygo-ink);
+  background: #ffffff;
+  font-family: var(--font-manrope), Manrope, ui-sans-serif, system-ui, sans-serif;
+}
+
+.header {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 max(28px, calc((100vw - 1348px) / 2));
+  border-bottom: 1px solid color-mix(in srgb, var(--therapygo-line) 72%, transparent);
+}
+
+.headerLinks {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.headerLinks a {
+  color: #53647a;
+  text-decoration: none;
+}
+
+.headerLinks .installLink {
+  color: var(--therapygo-blue-deep);
+}
+
+.headerLinks a:hover,
+.headerLinks a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 24px 68px;
+}
+
+.entry {
+  width: min(430px, 100%);
+  text-align: center;
+}
+
+.wordmark {
+  display: block;
+  width: min(340px, 82%);
+  height: auto;
+  margin: 0 auto 36px;
+}
+
+.kicker {
+  margin: 0 0 14px;
+  color: var(--therapygo-blue-deep);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  color: var(--therapygo-ink);
+  font-size: clamp(36px, 3.35vw, 48px);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+  font-weight: 700;
+  text-wrap: balance;
+}
+
+.description {
+  max-width: 390px;
+  margin: 18px auto 30px;
+  color: var(--therapygo-muted);
+  font-size: 16px;
+  line-height: 25px;
+  text-wrap: balance;
+}
+
+.auth {
+  width: 100%;
+  text-align: left;
+}
+
+.auth :global(#app-entry-content) {
+  display: none;
+}
+
+.auth :global(#auth-flow-v2-entry-loading),
+.auth :global(#auth-flow-v2-email-password),
+.auth :global(#auth-flow-v2-oauth-first),
+.auth :global(#auth-flow-v2-phone-login),
+.auth :global(#auth-flow-v2-phone),
+.auth :global(#auth-flow-v2-foreign-no-otp),
+.auth :global(#auth-flow-v2-channel),
+.auth :global(#auth-flow-v2-code) {
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.auth :global(#auth-flow-v2-email-password > form) {
+  margin-top: 0;
+}
+
+.auth :global(#auth-flow-v2-email-password > form > p:first-child) {
+  order: 3;
+  margin: -1px 0 0;
+  color: #7b899a;
+  font-size: 13px;
+  line-height: 19px;
+  text-align: center;
+}
+
+.auth :global(label) {
+  margin-bottom: 4px;
+  color: #253b56;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.auth :global(input) {
+  min-height: 52px;
+  border-color: #cfd9e4;
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--therapygo-ink);
+  box-shadow: none;
+}
+
+.auth :global(input:focus-visible) {
+  border-color: var(--therapygo-blue-deep);
+  outline: 3px solid color-mix(in srgb, var(--therapygo-blue) 24%, transparent);
+  outline-offset: 1px;
+}
+
+.auth :global(form button[type='submit']) {
+  min-height: 52px;
+  border: 0;
+  border-radius: 12px;
+  color: #ffffff;
+  background: linear-gradient(
+    100deg,
+    var(--therapygo-blue-deep),
+    var(--therapygo-blue) 68%,
+    var(--therapygo-cyan) 145%
+  );
+  box-shadow: 0 9px 22px rgba(8, 120, 232, 0.17);
+  font-weight: 700;
+}
+
+.auth :global(form button[type='submit']:hover),
+.auth :global(form button[type='submit']:active) {
+  color: #ffffff;
+  background: linear-gradient(100deg, #066fd9, #0c82ea 68%, #0fb7c0 145%);
+}
+
+.auth :global(button[type='button']) {
+  margin-inline: auto;
+}
+
+.footer {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px max(28px, calc((100vw - 1348px) / 2));
+  border-top: 1px solid color-mix(in srgb, var(--therapygo-line) 72%, transparent);
+  color: #8794a4;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.footer :global(a) {
+  color: #53647a;
+}
+
+@media (max-width: 640px) {
+  .header {
+    min-height: 58px;
+    padding: 0 18px;
+  }
+
+  .headerLinks {
+    gap: 18px;
+    font-size: 13px;
+  }
+
+  .main {
+    align-items: center;
+    padding: 34px 24px 44px;
+  }
+
+  .wordmark {
+    width: min(260px, 80%);
+    margin-bottom: 30px;
+  }
+
+  .kicker {
+    margin-bottom: 12px;
+    font-size: 13px;
+  }
+
+  .title {
+    font-size: clamp(32px, 9vw, 36px);
+    line-height: 1.1;
+  }
+
+  .description {
+    margin-top: 15px;
+    margin-bottom: 28px;
+    font-size: 15px;
+    line-height: 23px;
+  }
+
+  .footer {
+    min-height: auto;
+    flex-direction: column;
+    padding: 18px 20px max(22px, env(safe-area-inset-bottom));
+    text-align: center;
+  }
+
+  .footer > span {
+    display: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .headerLinks .installLink {
+    display: none;
+  }
+
+  .main {
+    padding-inline: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell *,
+  .shell *::before,
+  .shell *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

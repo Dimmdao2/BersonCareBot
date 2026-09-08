@@ -34,6 +34,27 @@ afterEach(() => {
 });
 
 describe('AuthFlowV2 — OAuth provider registry (VK visibility)', () => {
+  it('opens the email form first when a surface-owned login shell requests it', async () => {
+    const config = baseConfig({ yandex: true, google: false, vk: false, apple: false });
+    config.authChannelPolicy = { sms: false, email: true, telegram: false, max: false };
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={config}
+        roleLoginPortal="patient"
+        surfaceAuthPolicy={{
+          availableMethods: ['email_code', 'phone_bot', 'oauth'],
+          enabledMethods: ['email_code', 'phone_bot', 'oauth'],
+        }}
+        preferEmailEntry
+      />,
+    );
+
+    expect(await screen.findByLabelText('Email')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Войти через Яндекс' })).not.toBeInTheDocument();
+  });
+
   it('shows no OAuth block when every provider is disabled/unconfigured', async () => {
     render(
       <AuthFlowV2

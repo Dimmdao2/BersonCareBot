@@ -16,6 +16,8 @@ import {
   recommendationBodyMdPreviewPlain,
 } from '@/app/app/patient/treatment/stageItemSnapshot';
 import {
+  patientBodyTextClass,
+  patientCaptionTextClass,
   patientMutedTextClass,
   patientSectionTitleClass,
   patientInnerPageStackClass,
@@ -90,11 +92,11 @@ export function PatientTreatmentTabRecommendations(props: {
             sizes="(max-width: 1024px) 68px, 80px"
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-0.5 overflow-hidden">
-            <span className="line-clamp-2 text-sm font-semibold leading-snug text-foreground">
+            <span className={cn(patientBodyTextClass, 'line-clamp-2')}>
               {rowTitle(snap, item.itemType)}
             </span>
             {bodyPreview ? (
-              <span className={cn(patientMutedTextClass, 'line-clamp-2 text-xs leading-snug')}>
+              <span className={cn(patientCaptionTextClass, 'line-clamp-2')}>
                 {bodyPreview}
               </span>
             ) : null}

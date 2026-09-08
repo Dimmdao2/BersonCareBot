@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import type { HelpArticleListItem } from '@/modules/help-content/ports';
 import {
   patientInlineLinkClass,
+  patientSectionTitleClass,
   patientMutedTextClass,
   patientSectionSurfaceClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -29,7 +30,7 @@ export function PatientHelpArticleList({ articles }: { articles: HelpArticleList
               'block !gap-1 !p-4 no-underline hover:bg-muted/40',
             )}
           >
-            <span className="text-base font-semibold text-foreground">{a.title}</span>
+            <span className={patientSectionTitleClass}>{a.title}</span>
             {a.summary.trim() ? (
               <span className={cn(patientMutedTextClass, 'line-clamp-2')}>{a.summary}</span>
             ) : null}

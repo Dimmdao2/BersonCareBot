@@ -88,7 +88,7 @@ export function EmailAccountPanel({
         <div className="flex flex-col gap-1 border-t border-[var(--patient-border)] pt-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <span
-              className={cn(patientMutedTextClass, 'text-xs font-normal uppercase tracking-wide')}
+              className="patient-type-caption uppercase tracking-wide"
             >
               Email
             </span>
@@ -98,7 +98,7 @@ export function EmailAccountPanel({
                   type="button"
                   variant="link"
                   size="sm"
-                  className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
+                  className="patient-text-accent h-auto min-h-0 px-0 py-0 patient-type-secondary"
                   disabled={emailStartPending}
                   onClick={() => void startEmail(initialEmail)}
                 >
@@ -109,7 +109,7 @@ export function EmailAccountPanel({
                 type="button"
                 variant="link"
                 size="sm"
-                className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
+                className="patient-text-accent h-auto min-h-0 px-0 py-0 patient-type-secondary"
                 disabled={emailStartPending}
                 onClick={() => {
                   setEmailStep('enter');
@@ -122,12 +122,12 @@ export function EmailAccountPanel({
             </div>
           </div>
           {initialEmail ? (
-            <p className="text-sm text-[var(--patient-text-primary)]">
+            <p className="patient-type-body">
               {initialEmail}
               {emailVerified ? (
-                <span className="text-muted-foreground ml-2 text-xs">(подтверждён)</span>
+                <span className="ml-2 patient-type-caption">(подтверждён)</span>
               ) : (
-                <span className="text-muted-foreground ml-2 text-xs">(подтверждение по коду)</span>
+                <span className="ml-2 patient-type-caption">(подтверждение по коду)</span>
               )}
             </p>
           ) : null}
@@ -142,7 +142,7 @@ export function EmailAccountPanel({
           )}
         >
           {!embeddedInTitledSection ? (
-            <span className="text-muted-foreground text-xs font-normal uppercase tracking-wide">
+            <span className="patient-type-caption uppercase tracking-wide">
               Email
             </span>
           ) : null}
@@ -150,7 +150,7 @@ export function EmailAccountPanel({
             type="button"
             variant="link"
             size="sm"
-            className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
+            className="patient-text-accent h-auto min-h-0 px-0 py-0 patient-type-secondary"
             disabled={emailStartPending}
             onClick={() => {
               setEmailStep('enter');
@@ -165,12 +165,12 @@ export function EmailAccountPanel({
 
       {emailStep === 'view' && layout !== 'profileHero' && initialEmail ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <p className="text-sm">
+          <p className="patient-type-body">
             {initialEmail}
             {emailVerified ? (
-              <span className="text-muted-foreground ml-2 text-xs">(подтверждён)</span>
+              <span className="ml-2 patient-type-caption">(подтверждён)</span>
             ) : (
-              <span className="text-muted-foreground ml-2 text-xs">(подтверждение по коду)</span>
+              <span className="ml-2 patient-type-caption">(подтверждение по коду)</span>
             )}
           </p>
           {!emailVerified ? (
@@ -178,7 +178,7 @@ export function EmailAccountPanel({
               type="button"
               variant="link"
               size="sm"
-              className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
+              className="patient-text-accent h-auto min-h-0 px-0 py-0 patient-type-secondary"
               disabled={emailStartPending}
               onClick={() => void startEmail(initialEmail)}
             >
@@ -189,13 +189,13 @@ export function EmailAccountPanel({
       ) : null}
 
       {emailStep === 'view' && layout !== 'profileHero' && !initialEmail ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="patient-type-secondary">
           не указано — добавьте email для уведомлений.
         </p>
       ) : null}
 
       {emailStep === 'view' && emailStartError ? (
-        <p className="text-destructive text-sm">{emailStartError}</p>
+        <p className="patient-type-secondary patient-text-danger">{emailStartError}</p>
       ) : null}
 
       {emailStep === 'view' && pendingEmailChange ? (
@@ -222,7 +222,7 @@ export function EmailAccountPanel({
           )}
         >
           <label
-            className="text-muted-foreground text-xs font-normal uppercase tracking-wide"
+            className="patient-type-caption uppercase tracking-wide"
             htmlFor={PATIENT_EMAIL_INPUT_ID}
           >
             Email
@@ -235,7 +235,7 @@ export function EmailAccountPanel({
             onChange={(e) => setEmailDraft(e.target.value)}
             placeholder="email@example.com"
           />
-          {emailStartError ? <p className="text-destructive text-sm">{emailStartError}</p> : null}
+          {emailStartError ? <p className="patient-type-secondary patient-text-danger">{emailStartError}</p> : null}
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={() => void startEmail()} disabled={emailStartPending}>
               {emailStartPending ? 'Отправка…' : 'Получить код'}

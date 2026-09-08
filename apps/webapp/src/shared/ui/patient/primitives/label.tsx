@@ -2,11 +2,12 @@ import * as React from 'react';
 
 import { Label as LabelPrimitive } from '@/shared/ui/primitives/label';
 import { cn } from '@/lib/utils';
+import { patientFormLabelClass } from '@/shared/ui/patient/patientVisual';
 
 export type PatientLabelVariant = 'default' | 'field';
 
 export const patientFieldLabelClassName =
-  'text-xs font-medium uppercase tracking-wide text-[var(--patient-text-muted)]';
+  `${patientFormLabelClass} uppercase tracking-wide`;
 
 type PatientLabelProps = React.ComponentProps<typeof LabelPrimitive> & {
   variant?: PatientLabelVariant;

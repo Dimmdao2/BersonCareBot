@@ -1,14 +1,12 @@
 # Therapysto + универсальное patient-branding — implementation plan
 
-**Дата:** 2026-08-21. **Актуализировано:** 2026-09-07 по текущему `feat/doctor-ui-rebuild` и решениям владельца о доменах.
+**Дата:** 2026-08-21. **Актуализировано:** 2026-09-08 после owner-authorized TEST domain cutover.
 
-**Текущее состояние.** Код Therapysto/Therapygo и patient-branding сведён в `feat`, но branded Host-путь не
-работает ни на DEV, ни на TEST, ни на новом пробном PROD. `proxy.ts` принимает тестовый `TenantSurfaceLookup`
-вторым аргументом, тогда как Next передаёт туда `NextFetchEvent`, после чего production runtime использует
-`NO_TENANT_SURFACE`. Поэтому проверки с вручную собранным lookup не доказывают живой request path; `B1`, `B3`
-и `B4a` ниже вновь открыты. Существующая однохостовая схема `test.bersoncare.ru` продолжает работать только
-благодаря transitional fallback; значения `therapysto.ru`, `admin.therapysto.ru`, `therapygo.ru`,
-`*.therapygo.ru` и домены клиник в runtime/proxy/TLS не активированы.
+**Текущее состояние.** На именованном TEST активированы отдельные origins `test.therapysto.ru`,
+`admin.test.therapysto.ru` и `test.therapygo.ru`; DNS wildcard `*.test.therapygo.ru` направлен на TEST.
+Host resolver и live staff/patient surfaces работают через один webapp, legacy `test.bersoncare.ru` оставлен
+переходным редиректом. Для произвольных tenant-host остаётся внешний TLS-gate: wildcard-сертификат требует
+DNS-01; временный exact-сертификат покрывает только перечисленные имена. Новый PROD этим cutover не затрагивался.
 
 Реально остались: production-композиция Host→tenant, self-service подключение собственного домена с
 автоматическим TLS, доменное включение платформенных адресов, BersonCare как первый живой branded tenant и
@@ -21,9 +19,8 @@ smoke новых patient/staff поверхностей; отдельные staf
 [архиве исполнения](../../archive/2026-08-therapysto-branding-evidence/README.md); они не являются активными
 планами.
 
-**Owner boundary 28.08:** доменные чекбоксы ниже намеренно остаются `[ ]`, а не считаются дефектом текущего TEST:
-владелец сохранил действующую схему `test.bersoncare.ru` до отдельной команды на cutover. Подготовка и проверка
-новой адресной схемы не должны молча переключать существующий TEST.
+**Owner decision 08.09:** владелец явно разрешил переход именованного TEST на двухдоменную схему. Старый boundary
+28.08 исполнен и больше не запрещает TEST cutover; PROD и произвольный wildcard TLS остаются отдельными gates.
 
 ## 1. Итоговое решение
 
@@ -646,8 +643,11 @@ Checkbox закрывается только доказательством, у�
   `specialist-signup/start/route.route.test.ts` доказывает служебную отправку при выключенном passwordless
   email-code; migration `20260907T214444_disable_staff_passwordless_channel_defaults.sql` прошла owner-aware
   rollback-preflight на именованной DEV.
-- [ ] `TPB-22` Patient login на `therapygo.ru`, `<slug>.therapygo.ru` и собственном домене клиники называется
-  «Войти в личный кабинет» и не предлагает выбрать роль или называет человека пациентом/клиентом. На первом
+- [ ] `TPB-22` Patient login на `therapygo.ru`, `<slug>.therapygo.ru` и собственном домене клиники не предлагает
+  выбрать роль. **Уточнение владельца 09.09.2026 для стандартного TherapyGo:** отдельный белый экран с
+  горизонтальным логотипом, меткой «Кабинет клиента», заголовком «Всё, что назначил специалист — рядом» и
+  формой входа сразу под описанием; элементы центрированы, без нижнего цветного блока. Branded-входы сохраняют
+  собственный бренд и не получают оболочку TherapyGo. На первом
   запуске доступны passwordless-код на email и подтверждение телефона через TherapyGo-бота; OAuth/passkey и
   остальные сохранённые механики появляются только когда владелец включил их в patient policy. Этап не меняет
   значения этих переключателей. Patient credentials/contact proof на staff/admin Host не создают сессию.
@@ -656,6 +656,10 @@ Checkbox закрывается только доказательством, у�
   **Кандидат 07.09.2026:** standard patient view проверен wide/narrow; policy-toggle и cross-surface session denial
   зелёные. Галочка остаётся открытой: текущая DEV не имеет активной публичной brand projection для `berson`, поэтому
   production Host seam честно вернул 404 и branded live view нельзя засчитать до runtime-активации клиники.
+  **Доработка 09.09.2026:** standard browser entry получил отдельную TherapyGo-оболочку и сразу открывает
+  email-форму, не отключая разрешённые policy альтернативы. Целевые `AppEntryRsc.unit.test.ts` и
+  `AuthFlowV2.oauthProviders.ui.test.tsx`, webapp typecheck и узкий ESLint зелёные; branded live view по-прежнему
+  остаётся открытым доказательством.
 - [x] `TPB-23` Владелец клиники может включить для всего персонала обязательный второй фактор после email + пароль.
   Сотрудник с подключённым TOTP проходит существующий TOTP factor-step; сотруднику без TOTP отправляется код на
   подтверждённый email. Политика org-scoped, по умолчанию выключена, не управляется пациентской auth-матрицей и не

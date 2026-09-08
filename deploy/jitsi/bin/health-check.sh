@@ -270,7 +270,7 @@ if [[ -n "$web_generated_config" ]]; then
       process.stdout.write(JSON.stringify((context.config?.p2p?.stunServers ?? []).map(item => item.urls)));
     });
   ' <<<"$web_generated_config" 2>/dev/null || true)"
-  expected_p2p_stun="[\"stun:${TURN_CERT_DOMAIN:-turn.test.bersoncare.ru}:${TURN_LISTEN_PORT:-3478}\"]"
+  expected_p2p_stun="[\"stun:${TURN_CERT_DOMAIN:-turn.test.therapysto.ru}:${TURN_LISTEN_PORT:-3478}\"]"
   if [[ "$evaluated_p2p_stun" == "$expected_p2p_stun" ]]; then
     ok "served config.js contains the correctly rendered self-hosted P2P STUN endpoint"
   else

@@ -18,7 +18,7 @@ import {
 import { PatientModal, PatientModalFooter } from '@/shared/ui/patient/PatientModal';
 import { markLfkSession } from './actions';
 import { cn } from '@/lib/utils';
-import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { patientCaptionTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { PatientDatePicker } from '@/shared/ui/patient/PatientDatePicker';
 
 type Complex = { id: string; title: string };
@@ -105,7 +105,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
       ) : (
         <div className="flex flex-col gap-1">
           <span
-            className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+            className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}
           >
             Комплекс
           </span>
@@ -140,14 +140,14 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
       <div className="flex min-w-0 gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span
-            className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+            className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}
           >
             Дата
           </span>
           <Button
             type="button"
             variant="outline"
-            className="h-10 w-full min-w-0 justify-start font-normal"
+            className="h-10 w-full min-w-0 justify-start"
             onClick={() => {
               setDateDraft(sessionDate);
               setDateOpen(true);
@@ -158,14 +158,14 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span
-            className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+            className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}
           >
             Время
           </span>
           <Button
             type="button"
             variant="outline"
-            className="h-10 w-full min-w-0 justify-start font-normal"
+            className="h-10 w-full min-w-0 justify-start"
             onClick={() => {
               setTimeDraft(sessionTime);
               setTimeOpen(true);
@@ -237,7 +237,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
       </PatientModal>
 
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+        <span className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}>
           Длительность (мин)
         </span>
         <Input
@@ -249,10 +249,10 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           placeholder="длительность выполнения"
           className="min-w-0 outline-none"
         />
-        <span className={cn(patientMutedTextClass, 'text-xs')}>минут</span>
+        <span className={patientCaptionTextClass}>минут</span>
       </label>
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+        <span className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}>
           Сложность выполнения: {difficulty} баллов из 10
         </span>
         <input
@@ -273,7 +273,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+        <span className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}>
           Боль: {pain} баллов из 10
         </span>
         <input
@@ -294,7 +294,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+        <span className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}>
           Комментарий
         </span>
         <Textarea name="comment" placeholder="Комментарий" maxLength={200} rows={3} />

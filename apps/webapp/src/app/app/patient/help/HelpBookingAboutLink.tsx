@@ -12,7 +12,7 @@ export function HelpBookingAboutLink() {
     <section className={cn(patientSectionSurfaceClass, '!gap-2 !p-4')}>
       <Link
         href={routePaths.patientAbout}
-        className={cn(patientInlineLinkClass, 'text-sm font-medium')}
+        className={patientInlineLinkClass}
       >
         О специалисте
       </Link>

@@ -4,6 +4,7 @@ import { getOptionalPatientSession } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { buttonVariants } from '@/shared/ui/patient/primitives/button-variants';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 const ADDRESS_IFRAME_SRC = 'https://dmitryberson.ru/adress';
 
@@ -21,7 +22,7 @@ export default async function PatientAddressPage() {
         id="patient-address-details"
         className="flex min-h-0 flex-1 flex-col items-start gap-3"
       >
-        <p className="text-sm text-muted-foreground">
+        <p className={patientMutedTextClass}>
           Адрес, маршрут и контакты кабинета находятся на сайте специалиста.
         </p>
         <a

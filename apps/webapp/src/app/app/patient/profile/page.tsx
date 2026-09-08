@@ -6,6 +6,7 @@ import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { ConnectMessengersBlock } from '@/shared/ui/patient/ConnectMessengersBlock';
 import {
   patientInnerPageStackClass,
+  patientInlineLinkClass,
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
@@ -104,7 +105,7 @@ export default async function PatientProfilePage() {
           </p>
           <Link
             href={routePaths.patientOrganizations}
-            className="mt-2 inline-flex shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
+            className={`${patientInlineLinkClass} mt-2 inline-flex shrink-0 underline-offset-4`}
           >
             Мои организации
           </Link>
@@ -136,14 +137,14 @@ export default async function PatientProfilePage() {
           <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
             <Link
               href={routePaths.notificationSettings}
-              className="inline-flex shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
+              className={`${patientInlineLinkClass} inline-flex shrink-0 underline-offset-4`}
             >
               Настройка
             </Link>
             <Link
               href={routePaths.patientReminders}
               prefetch={false}
-              className="inline-flex shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
+              className={`${patientInlineLinkClass} inline-flex shrink-0 underline-offset-4`}
             >
               Расписание
             </Link>

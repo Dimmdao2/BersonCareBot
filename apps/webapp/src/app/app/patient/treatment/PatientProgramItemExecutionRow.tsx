@@ -8,6 +8,7 @@ import {
 } from '@/app/app/patient/treatment/programItemExecutionDisplay';
 import { cn } from '@/lib/utils';
 import {
+  patientCaptionTextClass,
   patientMutedTextClass,
   patientMutedTextStrongClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -39,7 +40,7 @@ function ExecutionDots(props: {
         />
       ))}
       {dotOverflow > 0 ? (
-        <span className="text-[10px] font-medium leading-none text-muted-foreground" aria-hidden>
+        <span className="patient-type-caption patient-text-secondary" aria-hidden>
           +{dotOverflow}
         </span>
       ) : null}
@@ -78,7 +79,8 @@ export function PatientProgramItemExecutionRow(props: {
         <div className="-mx-4 flex flex-wrap items-center justify-between gap-2 border-b border-[var(--patient-border)]/50 bg-muted/15 px-4 py-2.5 lg:-mx-5 lg:px-5">
           <span
             className={cn(
-              'inline-flex min-w-0 items-center gap-2 text-xs leading-snug',
+              'inline-flex min-w-0 items-center gap-2',
+              patientCaptionTextClass,
               patientMutedTextStrongClass,
             )}
           >
@@ -91,7 +93,7 @@ export function PatientProgramItemExecutionRow(props: {
           </span>
           {lastDoneText ? (
             <span
-              className={cn('ml-auto text-right text-xs leading-snug', patientMutedTextStrongClass)}
+              className={cn('ml-auto text-right', patientCaptionTextClass, patientMutedTextStrongClass)}
             >
               {lastDoneText}
             </span>
@@ -104,7 +106,7 @@ export function PatientProgramItemExecutionRow(props: {
   return (
     <div className={cn('flex min-w-0 flex-1 flex-col gap-0.5', className)}>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <p className={cn(patientMutedTextClass, 'shrink-0 text-xs leading-tight')}>{label}</p>
+        <p className={cn(patientCaptionTextClass, 'shrink-0')}>{label}</p>
         <ExecutionDots
           variant={dots.variant}
           dotCount={dots.dotCount}
@@ -112,7 +114,7 @@ export function PatientProgramItemExecutionRow(props: {
         />
       </div>
       {lastDoneText ? (
-        <p className={cn(patientMutedTextStrongClass, 'm-0 text-xs leading-tight')}>
+        <p className={cn(patientCaptionTextClass, patientMutedTextStrongClass, 'm-0')}>
           {lastDoneText}
         </p>
       ) : null}
