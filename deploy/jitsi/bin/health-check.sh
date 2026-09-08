@@ -29,6 +29,9 @@ TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
 [[ -f "$TURN_ENV_FILE" ]] || { echo "FATAL: missing $TURN_ENV_FILE" >&2; exit 1; }
 # shellcheck disable=SC1090
 set -a; source "$TURN_ENV_FILE"; set +a
+COTURN_CONTAINER_UID="${COTURN_CONTAINER_UID:-1000}"
+COTURN_CONTAINER_GID="${COTURN_CONTAINER_GID:-1000}"
+export COTURN_CONTAINER_UID COTURN_CONTAINER_GID
 
 VENDOR_DIR="$HERE/vendor/docker-jitsi-meet-${JITSI_RELEASE_TAG:-unknown}"
 # --project-directory: see install.sh's identical flag — without it the override's relative bind-mount

@@ -166,7 +166,8 @@ compose file entirely or explicitly `0`/unset in the env template — see
   account's numeric UID/GID (`1000:1000`), which is also the account that runs `install.sh` and owns the
   0600 rendered `turnserver.conf`. Before `--check`/`--apply`, the certificate-renewal owner must stage a
   private copy at `${CONFIG}/coturn/tls/{fullchain,privkey}.pem`: directory `0700`, both files `0600`, all
-  owned by `1000:1000`. The root-owned `/etc/coturn/tls` source is never mounted into the container. The
+  owned by `1000:1000`. Those are the TEST deploy account defaults; explicit env values remain supported.
+  The root-owned `/etc/coturn/tls` source is never mounted into the container. The
   package creates private deploy-owned bind mounts for coturn logs and state, avoiding root-created named
   volumes that this non-root process could not write.
 - **One ACME lineage, two consumers.** nginx reads `/etc/letsencrypt/live/bcb-jitsi-test` directly for

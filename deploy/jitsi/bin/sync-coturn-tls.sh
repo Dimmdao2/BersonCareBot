@@ -23,6 +23,8 @@ done
 set -a; source "$ENV_FILE"; set +a
 # shellcheck disable=SC1090
 set -a; source "$TURN_ENV_FILE"; set +a
+COTURN_CONTAINER_UID="${COTURN_CONTAINER_UID:-1000}"
+COTURN_CONTAINER_GID="${COTURN_CONTAINER_GID:-1000}"
 
 [[ "${CONFIG:-}" == /etc/bersoncarebot/jitsi-test/* ]] || fail "CONFIG must remain below /etc/bersoncarebot/jitsi-test"
 [[ "${COTURN_CONTAINER_UID:-}" =~ ^[0-9]+$ ]] || fail "COTURN_CONTAINER_UID must be numeric"

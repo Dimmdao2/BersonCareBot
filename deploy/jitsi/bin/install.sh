@@ -43,6 +43,9 @@ TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
 [[ -f "$TURN_ENV_FILE" ]] || fail "missing $TURN_ENV_FILE — copy env/coturn-test.env.example there first"
 # shellcheck disable=SC1090
 set -a; source "$TURN_ENV_FILE"; set +a
+COTURN_CONTAINER_UID="${COTURN_CONTAINER_UID:-1000}"
+COTURN_CONTAINER_GID="${COTURN_CONTAINER_GID:-1000}"
+export COTURN_CONTAINER_UID COTURN_CONTAINER_GID
 
 missing=0
 require_var() {

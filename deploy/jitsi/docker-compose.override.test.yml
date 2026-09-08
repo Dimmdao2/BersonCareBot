@@ -79,7 +79,7 @@ services:
     # The rendered config and the private TLS copy are both 0600 and owned by the deploy account
     # (UID/GID 1000 on TEST). Do not replace this with root or relax either file to 0644: the explicit
     # numeric user is the least-privilege boundary that lets coturn read only its own mounted assets.
-    user: "${COTURN_CONTAINER_UID}:${COTURN_CONTAINER_GID}"
+    user: "${COTURN_CONTAINER_UID:-1000}:${COTURN_CONTAINER_GID:-1000}"
     # coturn needs to see real client source ports for its relay allocations; host networking is the
     # standard, documented coturn deployment mode (bridging coturn behind Docker NAT breaks the
     # candidate/relay address it hands back to clients). This is the one intentional exception to "no host
