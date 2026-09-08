@@ -38,6 +38,30 @@ VENDOR_DIR="$HERE/vendor/docker-jitsi-meet-${JITSI_RELEASE_TAG:-unknown}"
 # sources resolve against $VENDOR_DIR (the first -f file's directory), not deploy/jitsi/.
 COMPOSE_ARGS=(-f "$VENDOR_DIR/docker-compose.yml" -f "$HERE/docker-compose.override.test.yml" --env-file "$ENV_FILE" --project-directory "$HERE" -p bcb-jitsi-test)
 
+# Compose reports containers as running before JVB's REST endpoint and coturn's
+# own healthcheck are ready. A health command run immediately after --apply must
+# wait for bounded boot readiness instead of producing a false deployment
+# failure, but it still fails promptly when a required container is absent.
+all_required_running=1
+for svc in web prosody jicofo jvb coturn; do
+  cid="$(docker compose "${COMPOSE_ARGS[@]}" ps -q "$svc" 2>/dev/null || true)"
+  if [[ -z "$cid" ]] || [[ "$(docker inspect -f '{{.State.Running}}' "$cid" 2>/dev/null)" != "true" ]]; then
+    all_required_running=0
+  fi
+done
+if [[ "$all_required_running" == 1 ]]; then
+  for _ in $(seq 1 45); do
+    coturn_cid="$(docker compose "${COMPOSE_ARGS[@]}" ps -q coturn 2>/dev/null || true)"
+    coturn_health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$coturn_cid" 2>/dev/null || echo none)"
+    if [[ "$coturn_health" == "healthy" ]] \
+      && curl -fsS -o /dev/null "http://127.0.0.1:${HTTP_PORT:-8000}/" \
+      && curl -fsS -o /dev/null "http://127.0.0.1:${JVB_COLIBRI_PORT:-8080}/about/health"; then
+      break
+    fi
+    sleep 2
+  done
+fi
+
 echo "[containers up, and container-level health where the image defines one]"
 for svc in web prosody jicofo jvb coturn; do
   cid="$(docker compose "${COMPOSE_ARGS[@]}" ps -q "$svc" 2>/dev/null || true)"
@@ -142,7 +166,7 @@ else
       [ -n "$turn_secret" ]
       case "$2" in
         udp) turnutils_uclient -y -n 1 -u healthcheck -W "$turn_secret" -p "$1" 127.0.0.1 ;;
-        tls) turnutils_uclient -y -n 1 -S -u healthcheck -W "$turn_secret" -p "$1" 127.0.0.1 ;;
+        tls) turnutils_uclient -y -n 1 -t -S -u healthcheck -W "$turn_secret" -p "$1" 127.0.0.1 ;;
         *) exit 64 ;;
       esac
     ' sh "$port" "$transport" >/dev/null 2>&1
