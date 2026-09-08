@@ -6,9 +6,8 @@
 `docs/ARCHITECTURE/SERVER CONVENTIONS.md`, `deploy/HOST_DEPLOY_README.md`, относящиеся Jitsi runbooks и
 `docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md`.
 
-Источник оракула: `docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md` — «TEST meet-vhost и его штатные
-reconciler/apply scripts используют фактическую каноническую подсеть owner VPN `awg1` `172.31.9.0/24`; следующий
-штатный apply не возвращает устаревшую подсеть.»
+Источник оракула: `docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md` — «Каноническая подсеть owner VPN `awg1` —
+`172.31.9.0/24`».
 
 ## Задача
 
