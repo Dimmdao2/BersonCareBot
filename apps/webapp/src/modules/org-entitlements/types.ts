@@ -86,6 +86,7 @@ export const MECHANIC_REGISTRY = {
   patient_home_today: { class: 'возможность', label: 'Сегодня', quotaEnforcement: 'declared_no_enforcement' },
   warmups: { class: 'возможность', label: 'Разминки', quotaEnforcement: 'declared_no_enforcement' },
   promo: { class: 'возможность', label: 'Промо', quotaEnforcement: 'declared_no_enforcement' },
+  video_meetings: { class: 'возможность', label: 'Видеовстречи', quotaEnforcement: 'declared_no_enforcement' },
 } as const satisfies Record<string, MechanicDefinition>;
 
 export type OrgMechanic = keyof typeof MECHANIC_REGISTRY;

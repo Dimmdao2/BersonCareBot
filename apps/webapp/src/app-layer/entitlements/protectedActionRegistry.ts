@@ -1105,6 +1105,36 @@ export const PROTECTED_ACTION_MAPPINGS = [
     guard: 'requireEntitlementForRead',
     serviceBoundary: 'renderManagedNotifTemplate',
   },
+  {
+    id: 'video-meetings.doctor.create-or-resume',
+    mechanic: 'video_meetings',
+    file: 'src/app/api/doctor/clients/[userId]/video-meetings/route.ts',
+    exportName: 'POST',
+    method: 'POST',
+    authContext: 'requireDoctorWorkspaceApiContext + doctor client visibility',
+    guard: 'requireEntitlementForMutation',
+    serviceBoundary: 'deps.videoMeetings.createOrResume',
+  },
+  {
+    id: 'video-meetings.guest.exchange',
+    mechanic: 'video_meetings',
+    file: 'src/app/api/video-meetings/guest/exchange/route.ts',
+    exportName: 'POST',
+    method: 'POST',
+    authContext: 'fragment bearer lookup without disclosure',
+    guard: 'requireEntitlementForRead',
+    serviceBoundary: 'deps.videoMeetings.exchangeGuest',
+  },
+  {
+    id: 'video-meetings.patient.join',
+    mechanic: 'video_meetings',
+    file: 'src/app/api/patient/video-meetings/[meetingId]/join/route.ts',
+    exportName: 'POST',
+    method: 'POST',
+    authContext: 'requirePatientApiBusinessAccess + active enrollment',
+    guard: 'requireEntitlementForRead',
+    serviceBoundary: 'deps.videoMeetings.joinAuthenticatedPatient',
+  },
 ] as const satisfies readonly ProtectedActionMapping[];
 
 /**
