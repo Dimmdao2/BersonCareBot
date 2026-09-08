@@ -110,6 +110,8 @@ export const expectedP083PublicDirectOrgTargets = Object.freeze([
   'public.tests',
   'public.treatment_program_instances',
   'public.treatment_program_templates',
+  'public.video_meeting_invites',
+  'public.video_meetings',
 ]);
 
 const expectedTargetSet = new Set(expectedP083PublicDirectOrgTargets);

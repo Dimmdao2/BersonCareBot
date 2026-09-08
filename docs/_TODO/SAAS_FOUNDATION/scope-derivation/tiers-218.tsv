@@ -192,6 +192,8 @@ SCOPED|public.treatment_program_template_stage_groups
 SCOPED|public.treatment_program_template_stage_items
 SCOPED|public.treatment_program_template_stages
 SCOPED|public.treatment_program_templates
+SCOPED|public.video_meeting_invites
+SCOPED|public.video_meetings
 TELEMETRY|public.media_playback_stats_hourly
 TELEMETRY|public.product_analytics_hourly
 TELEMETRY|public.saas_isolation_coverage_runs

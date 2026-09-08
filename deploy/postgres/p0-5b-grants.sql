@@ -229,7 +229,9 @@ VALUES
   ('public', 'user_oauth_bindings'),
   ('public', 'user_password_credentials'),
   ('public', 'user_phone_history'),
-  ('public', 'user_web_push_subscriptions');
+  ('public', 'user_web_push_subscriptions'),
+  ('public', 'video_meeting_invites'),
+  ('public', 'video_meetings');
 
 CREATE TEMP TABLE p0_5b_patient_grant_tables (
   schema_name name NOT NULL,
@@ -327,7 +329,8 @@ VALUES
   ('public', 'user_notification_topics', 'SELECT, INSERT, UPDATE'),
   ('public', 'user_oauth_bindings', 'SELECT'),
   ('public', 'user_phone_history', 'SELECT'),
-  ('public', 'user_web_push_subscriptions', 'SELECT, INSERT, UPDATE, DELETE');
+  ('public', 'user_web_push_subscriptions', 'SELECT, INSERT, UPDATE, DELETE'),
+  ('public', 'video_meetings', 'SELECT');
 
 \if :{?p0_5b_grants_down}
 \echo 'P0.5b grants DOWN: revoking app_staff/app_patient table+sequence+schema grants.'

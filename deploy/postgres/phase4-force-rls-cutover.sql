@@ -193,6 +193,8 @@ VALUES
   ('"public"."tests"'),
   ('"public"."treatment_program_instances"'),
   ('"public"."treatment_program_templates"'),
+  ('"public"."video_meeting_invites"'),
+  ('"public"."video_meetings"'),
   ('"public"."be_package_items"'),
   ('"public"."be_patient_package_items"'),
   ('"public"."broadcast_audit_recipients"'),

@@ -49,6 +49,8 @@ export const preScopedDirectOrgTables = new Set([
   'public.org_custom_domain_bindings',
   'public.patient_invites',
   'public.saas_organization_trials',
+  'public.video_meeting_invites',
+  'public.video_meetings',
 ]);
 
 // Tables whose later foundation migration deliberately removes the historical
@@ -291,6 +293,7 @@ const patientOwnedColumns = new Map([
   ['public.symptom_trackings', { column: 'platform_user_id' }],
   ['public.test_attempts', { column: 'patient_user_id' }],
   ['public.treatment_program_instances', { column: 'patient_user_id' }],
+  ['public.video_meetings', { column: 'patient_user_id' }],
   // public.* bridge tables that store the INTEGRATOR bigint id directly (no platform_users uuid
   // column at all) — verified against apps/webapp/migrations/012_subscription_mailing.sql.
   // castType: "bigint" reads the DEDICATED integrator identity GUC `app.integrator_user_id`
