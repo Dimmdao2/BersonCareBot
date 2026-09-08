@@ -72,28 +72,16 @@ async function clinicRequiresStaffSecondFactor(
   userId: string,
 ): Promise<boolean> {
   if (!deps.organizationMembership) return false;
-  try {
-    const membership = await deps.organizationMembership.resolveOrganizationForUser({
-      platformUserId: userId,
-    });
-    if (!membership.ok) return false;
-    const setting = await deps.systemSettings.getSetting(
-      'doctor_staff_second_factor_required',
-      'doctor',
-      { organizationId: membership.context.organizationId },
-    );
-    return settingIsEnabled(setting?.valueJson ?? null);
-  } catch (error) {
-    // Best-effort read, same boundary `stampDbPrincipalFromSession` already draws around this same
-    // resolver (`apps/webapp/src/app-layer/principal/sessionPrincipal.ts`): an authoritative staff
-    // workspace guard must throw loud on `multiple_active_staff_memberships` (SAAS_R3 decision), but
-    // a plain login has no workspace selected yet and no case where 2FA policy exists to enforce
-    // without one. Failing this check any other way than open would turn a legitimate multi-clinic
-    // account's ordinary password login into a 500 (TEST acceptance 2026-09-08, item 1) instead of
-    // the documented org-scoped, default-off second factor.
-    logger.warn({ error }, '[auth/email-password/login] clinic second-factor check failed, skipping');
-    return false;
-  }
+  const membership = await deps.organizationMembership.resolveOrganizationForUser({
+    platformUserId: userId,
+  });
+  if (!membership.ok) return false;
+  const setting = await deps.systemSettings.getSetting(
+    'doctor_staff_second_factor_required',
+    'doctor',
+    { organizationId: membership.context.organizationId },
+  );
+  return settingIsEnabled(setting?.valueJson ?? null);
 }
 
 export async function POST(request: Request) {

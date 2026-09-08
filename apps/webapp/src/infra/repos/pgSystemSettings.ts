@@ -105,6 +105,9 @@ const CURRENT_PATIENT_UI_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
   'patient_label',
 ]);
 
+const STAFF_LOGIN_SECOND_FACTOR_SETTING_KEY: SystemSettingKey =
+  'doctor_staff_second_factor_required';
+
 /**
  * The two booking-payment keys, read by two different principals through two different named roots.
  *
@@ -484,6 +487,25 @@ async function readCurrentPatientUiSetting(
   return result.rows[0] ? rowToSetting(result.rows[0]) : null;
 }
 
+async function readCurrentStaffLoginSecondFactorSetting(
+  organizationId: string,
+): Promise<SystemSetting | null> {
+  const result = await runWebappSql<{ value_json: unknown | null }>(
+    getWebappSqlDb(),
+    sql`SELECT app.read_current_staff_login_second_factor_required(${organizationId}::uuid) AS value_json`,
+  );
+  const valueJson = result.rows[0]?.value_json ?? null;
+  if (valueJson === null) return null;
+  return {
+    key: STAFF_LOGIN_SECOND_FACTOR_SETTING_KEY,
+    scope: 'doctor',
+    organizationId,
+    valueJson,
+    updatedAt: '',
+    updatedBy: null,
+  };
+}
+
 export function createPgSystemSettingsPort(): SystemSettingsPort {
   return {
     async getByKey(
@@ -491,6 +513,16 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       scope: SystemSettingScope,
       options: SystemSettingsReadOptions = {},
     ): Promise<SystemSetting | null> {
+      const currentPrincipal = getCurrentDbPrincipal();
+      const organizationId = options.organizationId?.trim() || null;
+      if (
+        currentPrincipal?.kind === 'patient' &&
+        key === STAFF_LOGIN_SECOND_FACTOR_SETTING_KEY &&
+        scope === 'doctor' &&
+        organizationId
+      ) {
+        return readCurrentStaffLoginSecondFactorSetting(organizationId);
+      }
       const bookingPaymentValueJson =
         scope === 'admin' && BOOKING_PAYMENT_SETTING_KEYS.has(key)
           ? await readBookingPaymentSettingThroughItsOwnDoor(key)
@@ -506,10 +538,9 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
           updatedBy: null,
         };
       }
-      if (getCurrentDbPrincipal()?.kind === 'patient' && CURRENT_PATIENT_UI_SETTING_KEYS.has(key)) {
+      if (currentPrincipal?.kind === 'patient' && CURRENT_PATIENT_UI_SETTING_KEYS.has(key)) {
         return readCurrentPatientUiSetting(key, scope);
       }
-      const organizationId = options.organizationId?.trim() || null;
       const r = organizationId
         ? await runWebappSql<SystemSettingRow>(
             getWebappSqlDb(),

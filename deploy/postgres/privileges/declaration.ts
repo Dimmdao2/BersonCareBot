@@ -7589,6 +7589,56 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
+  "app.read_current_staff_login_second_factor_required(uuid)": {
+    "owner": "app_seam_settings_runtime_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "return only the resolved clinic staff-login second-factor policy to the verified password path",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organization_members",
+        "columns": [
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "organization_id",
+          "value_json"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
   "app.read_global_server_runtime_setting(text)": {
     "owner": "app_seam_settings_runtime_owner",
     "security": "DEFINER",
@@ -28861,6 +28911,19 @@ const REV10_CONTEXT = {
       relationSurfaces: [
         { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id', 'value_json'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_staff_login_second_factor_required(uuid)': rev10Function({
+      owner: 'app_seam_settings_runtime_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_patient'],
+      purpose: 'return only the resolved clinic staff-login second-factor policy to the verified password path',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_organization_members',
+          columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id', 'value_json'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
