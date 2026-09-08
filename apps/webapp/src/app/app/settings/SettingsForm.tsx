@@ -99,11 +99,7 @@ export function SettingsForm({
   workspaceModuleAvailability,
   supportGroupLabel = 'on_support',
 }: SettingsFormProps) {
-  const {
-    patientGenitive,
-    patientPluralLabel,
-    supportGroupLabel: currentSupportGroupLabel,
-  } = useDoctorPatientTerms();
+  const { patientGenitive, patientPluralLabel } = useDoctorPatientTerms();
   const [label, setLabel] = useState<PatientLabelValue>(
     normalizePatientLabel(patientLabel) ?? 'пациент',
   );
@@ -382,7 +378,7 @@ export function SettingsForm({
 
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="support-group-label-select">
-                  Группа «{currentSupportGroupLabel}»
+                  Группа «{supportGroupDisplayLabel}»
                 </Label>
                 <Select
                   value={supportLabel}
@@ -454,7 +450,7 @@ export function SettingsForm({
             {showSupportDefaults ? (
               <div className="flex items-center justify-between gap-3">
                 <Label htmlFor="comments-without-support">
-                  Комментарии без группы «{currentSupportGroupLabel}»
+                  Комментарии без группы «{supportGroupDisplayLabel}»
                 </Label>
                 <Switch
                   id="comments-without-support"
@@ -468,7 +464,7 @@ export function SettingsForm({
             {showSupportDefaults ? (
               <div className="flex items-center justify-between gap-3">
                 <Label htmlFor="media-without-support">
-                  Медиа без группы «{currentSupportGroupLabel}»
+                  Медиа без группы «{supportGroupDisplayLabel}»
                 </Label>
                 <Switch
                   id="media-without-support"
