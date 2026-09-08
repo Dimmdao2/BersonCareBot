@@ -396,14 +396,13 @@ export function AuthFlowV2({
     clearAuthFlowPending();
     engageInteractive();
     setStep('email_password');
-    if (emailOtpEnabled && specialistSignupEnabled) {
+    if (specialistSignupEnabled) {
       setEmailVerifyPurpose('specialist_signup');
       setEmailAuthMode('specialist_signup');
     } else if (passwordLoginEnabled) {
       setEmailAuthMode('password_login');
     }
   }, [
-    emailOtpEnabled,
     engageInteractive,
     initialDevView,
     passwordLoginEnabled,
@@ -654,7 +653,10 @@ export function AuthFlowV2({
       }>('/api/auth/email-otp/start', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          ...(roleLoginPortal ? { roleLoginPortal } : {}),
+        }),
       });
       if (!result.ok) {
         toast.error(AUTH_NETWORK_ERROR_MESSAGE);
@@ -904,6 +906,7 @@ export function AuthFlowV2({
           email,
           password,
           ...(passwordAltchaPayload ? { altcha: passwordAltchaPayload } : {}),
+          ...(roleLoginPortal ? { roleLoginPortal } : {}),
         }),
       });
       if (!loginResult.ok) {
@@ -2153,7 +2156,11 @@ export function AuthFlowV2({
                       }>('/api/auth/email-otp/confirm', {
                         method: 'POST',
                         headers: { 'content-type': 'application/json' },
-                        body: JSON.stringify({ email: emailLoginEmail.trim(), code }),
+                        body: JSON.stringify({
+                          email: emailLoginEmail.trim(),
+                          code,
+                          ...(roleLoginPortal ? { roleLoginPortal } : {}),
+                        }),
                       });
                       if (!r.ok) return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
                       const { response: res, data } = r;
@@ -2314,7 +2321,10 @@ export function AuthFlowV2({
                       }>('/api/auth/email-otp/start', {
                         method: 'POST',
                         headers: { 'content-type': 'application/json' },
-                        body: JSON.stringify({ email }),
+                        body: JSON.stringify({
+                          email,
+                          ...(roleLoginPortal ? { roleLoginPortal } : {}),
+                        }),
                       });
                       if (!r.ok)
                         return { kind: 'error' as const, message: AUTH_NETWORK_ERROR_MESSAGE };

@@ -28,11 +28,13 @@ import type { SessionUser } from '@/shared/types/session';
 import { startEmailChallenge } from '@/modules/auth/emailAuth';
 import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
+import { roleCanUsePortal } from '@/modules/auth/roleLogin';
 
 const bodySchema = z.object({
   email: z.string().email().max(320),
   password: z.string().min(1).max(128),
   altcha: z.string().max(32_768).optional(),
+  roleLoginPortal: z.enum(['doctor', 'patient', 'admin']).optional(),
 });
 
 const INVALID_CREDENTIALS_MESSAGE =
@@ -210,6 +212,12 @@ export async function POST(request: Request) {
         { ok: false, error: PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR },
         { status: 403 },
       );
+    }
+    if (
+      parsed.data.roleLoginPortal &&
+      !roleCanUsePortal(sessionUser.role, parsed.data.roleLoginPortal)
+    ) {
+      return NextResponse.json({ ok: false, error: 'portal_access_denied' }, { status: 403 });
     }
 
     // Owner-approved TEST walkthrough exception (15.08.2026): the configured Dmitry Berson patient
