@@ -15,7 +15,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FilePlus2, ListPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
-import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientSupportPanel';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import type { ActiveComplaint, ClinicalState, Visit } from '@/modules/patient-clinical/ports';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
@@ -573,10 +572,6 @@ type Props = {
   /** Read-only chat snapshot — no conversations/ensure on mount. */
   initialMessagesSnapshot?: BootstrapEnvelope<DoctorPatientMessagesSnapshot> | null;
   membershipsVisible?: boolean;
-  /** SSR-provided effective support policy. Passed to DoctorClientSupportPanel to skip its fetch. */
-  initialSupportEffectivePolicy?: BootstrapEnvelope<
-    import('@/modules/doctor-clients/supportPolicy').PatientProgramInteractionPolicy | null
-  > | null;
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
   tasksDisplayIana?: string;
@@ -910,14 +905,13 @@ export function PatientTabOverview({
   initialExerciseCalendarSnapshot,
   initialMessagesSnapshot,
   membershipsVisible = true,
-  initialSupportEffectivePolicy,
   specialistTasksAvailable,
   specialistTasksReadable,
   tasksDisplayIana,
   tasksTodayIso,
   compositionMode,
 }: Props) {
-  const { supportGroupLabel, patientSingularLabel } = useDoctorPatientTerms();
+  const { patientSingularLabel } = useDoctorPatientTerms();
   const isComposed = compositionMode != null;
   const isOverviewComposition = compositionMode === 'overview';
   const seededExerciseCalendar = unwrapBootstrapEnvelope(initialExerciseCalendarSnapshot);
@@ -2232,17 +2226,6 @@ export function PatientTabOverview({
             />
           ) : null}
         </DoctorModal>
-
-        {/* Сопровождение — moved here from Учётка (S2.5) */}
-        {isOverviewComposition ? (
-          <div className={doctorSectionCardClass}>
-            <span className={doctorSectionTitleClass}>{supportGroupLabel}</span>
-            <DoctorClientSupportPanel
-              patientUserId={userId}
-              initialEffectivePolicy={unwrapBootstrapEnvelope(initialSupportEffectivePolicy)}
-            />
-          </div>
-        ) : null}
 
         {/* Сообщения */}
         {!isComposed ? (

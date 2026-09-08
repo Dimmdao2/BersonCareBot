@@ -22,6 +22,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
+import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
 import {
   Select,
   SelectContent,
@@ -33,6 +34,7 @@ import {
   DoctorModalStackedTitle,
   DoctorModalTextEditorField,
 } from '@/shared/ui/doctor/DoctorModal';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import {
   DoctorDnaFlatList,
   doctorDnaFlatListClickableClass,
@@ -107,6 +109,108 @@ function patientTitle(
       patientOnSupport={patientOnSupport}
       patientVariant="context"
       entityClassName={entity ? 'text-primary' : undefined}
+    />
+  );
+}
+
+type SymptomTrackingLookup = {
+  id: string;
+  symptomTitle: string;
+  patientTrackingEnabled: boolean;
+};
+
+function isSymptomTrackingLookup(value: unknown): value is SymptomTrackingLookup {
+  if (value === null || typeof value !== 'object') return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.id === 'string' &&
+    typeof row.symptomTitle === 'string' &&
+    typeof row.patientTrackingEnabled === 'boolean'
+  );
+}
+
+/**
+ * Единственное место переключателя видимости симптома пациентом (owner live TEST 08.09): внутри
+ * модалки конкретного симптома, никакого отдельного блока управления рядом. Переиспользует
+ * `patientTrackingEnabled` дневника симптомов и его существующий GET/POST/PATCH
+ * `/api/doctor/clients/:userId/symptom-trackings` — второй эндпоинт и глобальный флаг не заводим.
+ */
+function SymptomPatientTrackingSwitch({
+  userId,
+  symptomTitle,
+}: {
+  userId: string;
+  symptomTitle: string;
+}) {
+  const { patientInstrumental } = useDoctorPatientTerms();
+  const [trackingId, setTrackingId] = useState<string | null>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setReady(false);
+    fetch(`/api/doctor/clients/${userId}/symptom-trackings`, { credentials: 'include' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((json: { trackings?: unknown; createDefault?: unknown } | null) => {
+        if (cancelled) return;
+        const trackings = Array.isArray(json?.trackings)
+          ? json.trackings.filter(isSymptomTrackingLookup)
+          : [];
+        const match = trackings.find(
+          (t) => t.symptomTitle.trim() === symptomTitle.trim(),
+        );
+        setTrackingId(match?.id ?? null);
+        setEnabled(match ? match.patientTrackingEnabled : Boolean(json?.createDefault));
+        setReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, symptomTitle]);
+
+  const toggle = async (next: boolean) => {
+    setPending(true);
+    try {
+      if (trackingId) {
+        const response = await fetch(`/api/doctor/clients/${userId}/symptom-trackings`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trackingId, patientTrackingEnabled: next }),
+        });
+        if (!response.ok) throw new Error(`status ${response.status}`);
+      } else {
+        const response = await fetch(`/api/doctor/clients/${userId}/symptom-trackings`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symptomTitle: symptomTitle.trim(), patientTrackingEnabled: next }),
+        });
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        const json = (await response.json()) as { tracking?: { id?: unknown } };
+        if (typeof json.tracking?.id === 'string') setTrackingId(json.tracking.id);
+      }
+      setEnabled(next);
+    } catch {
+      toast.error('Не удалось изменить настройки симптома');
+    } finally {
+      setPending(false);
+    }
+  };
+
+  if (!ready) return null;
+
+  return (
+    <LabeledSwitch
+      label={`Отслеживание ${patientInstrumental}`}
+      checked={enabled}
+      disabled={pending}
+      onCheckedChange={(next) => void toggle(next)}
     />
   );
 }
@@ -793,6 +897,7 @@ export function PatientClinicalSections({
       >
         {selectedComplaint ? (
           <>
+            <SymptomPatientTrackingSwitch userId={userId} symptomTitle={selectedComplaint.text} />
             {selectedComplaint.description ? (
               <p className="text-base">{selectedComplaint.description}</p>
             ) : null}
