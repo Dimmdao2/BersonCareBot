@@ -64,6 +64,18 @@ require_var TURN_EXTERNAL_IP
 [[ "$TURN_EXTERNAL_IP" == 151.241.228.122 ]] || { echo "  MISMATCH TURN_EXTERNAL_IP=$TURN_EXTERNAL_IP, expected 151.241.228.122"; missing=1; }
 [[ "${CONFIG:-}" == /* ]] || { echo "  MISMATCH CONFIG=${CONFIG:-<empty>}, must be an absolute path (see env/jitsi-test.env.example)"; missing=1; }
 
+package_root="/etc/bersoncarebot/jitsi-test"
+resolved_config="$(realpath -m -- "${CONFIG:-/}")"
+resolved_secret_store="$(realpath -m -- "${JITSI_TEST_SECRET_STORE:-$package_root/secrets}")"
+[[ "$resolved_config" == "$package_root/"?* ]] || {
+  echo "  MISMATCH CONFIG must be an exact descendant of $package_root (resolved: $resolved_config)"
+  missing=1
+}
+[[ "$resolved_secret_store" == "$package_root/"?* ]] || {
+  echo "  MISMATCH JITSI_TEST_SECRET_STORE must be an exact descendant of $package_root (resolved: $resolved_secret_store)"
+  missing=1
+}
+
 # --- 3. DNS prerequisite (NETWORK_POLICY.md) ---
 for host in "meet.test.bersoncare.ru" "turn.test.bersoncare.ru"; do
   if ! getent ahostsv4 "$host" >/dev/null 2>&1; then
@@ -89,7 +101,20 @@ fi
 # --- 6. Host port-collision preflight — every exact surface this package owns, checked before any
 #        download/render/mutation happens (not just at `docker compose up` time, when it would be too
 #        late: the vendor fetch and secret render below would already have run). ---
-if ! command -v ss >/dev/null 2>&1; then
+existing_services="$(docker ps \
+  --filter label=com.docker.compose.project=bcb-jitsi-test \
+  --format '{{.Label "com.docker.compose.service"}}' 2>/dev/null | sort -u || true)"
+existing_project_complete=1
+for service in web prosody jicofo jvb coturn; do
+  grep -qx "$service" <<<"$existing_services" || existing_project_complete=0
+done
+
+if [[ "$existing_project_complete" == 1 ]]; then
+  log "exact bcb-jitsi-test project is already running; its own listeners are allowed for idempotent re-apply"
+elif [[ -n "$existing_services" ]]; then
+  echo "  COLLISION  partial bcb-jitsi-test project is running (${existing_services//$'\n'/, }); stop or repair it before apply"
+  missing=1
+elif ! command -v ss >/dev/null 2>&1; then
   echo "  MISSING  ss (iproute2) — required to check port collisions before mutating anything; install it first"
   missing=1
 else
@@ -133,23 +158,52 @@ log "all prerequisites present"
 [[ "$MODE" == "--check" ]] && { log "--check complete, no changes made"; exit 0; }
 
 # --- --apply from here ---
+# Parse the complete pinned upstream+override tree before writing vendor/, CONFIG or secrets. When the
+# archive is not cached yet it is verified and unpacked under mktemp first; only a successfully rendered
+# candidate is moved into the package-owned vendor directory.
 VENDOR_DIR="$HERE/vendor/docker-jitsi-meet-${JITSI_RELEASE_TAG}"
+candidate_vendor="$VENDOR_DIR"
+tmp_zip=""
+tmp_unpack=""
+cleanup_download() {
+  [[ -z "$tmp_zip" || ! -e "$tmp_zip" ]] || rm -f "$tmp_zip"
+  [[ -z "$tmp_unpack" || ! -d "$tmp_unpack" ]] || rm -rf "$tmp_unpack"
+}
+trap cleanup_download EXIT
+
 if [[ ! -d "$VENDOR_DIR" ]]; then
-  log "fetching pinned upstream release $JITSI_RELEASE_TAG"
-  mkdir -p "$HERE/vendor"
+  log "fetching pinned upstream release $JITSI_RELEASE_TAG into an isolated preflight directory"
   tmp_zip="$(mktemp)"
+  tmp_unpack="$(mktemp -d)"
   curl -fsSL "$RELEASE_URL" -o "$tmp_zip"
   actual_sha256="$(sha256sum "$tmp_zip" | cut -d' ' -f1)"
   if [[ "$actual_sha256" != "$ARCHIVE_SHA256" ]]; then
-    rm -f "$tmp_zip"
     fail "downloaded archive for tag $JITSI_RELEASE_TAG does not match ARCHIVE_SHA256 in $ENV_FILE (expected $ARCHIVE_SHA256, got $actual_sha256) — refusing to unzip; see VERSIONS.md 'Bumping the pin' before re-recording this value"
   fi
-  unzip -q "$tmp_zip" -d "$HERE/vendor"
-  rm -f "$tmp_zip"
+  unzip -q "$tmp_zip" -d "$tmp_unpack"
+  candidate_vendor="$tmp_unpack/docker-jitsi-meet-${JITSI_RELEASE_TAG}"
 else
-  log "upstream release $JITSI_RELEASE_TAG already vendored, skipping fetch"
+  log "upstream release $JITSI_RELEASE_TAG already vendored, using it for preflight"
 fi
-[[ -f "$VENDOR_DIR/docker-compose.yml" ]] || fail "vendored release at $VENDOR_DIR has no docker-compose.yml — bad tag or corrupted archive"
+[[ -f "$candidate_vendor/docker-compose.yml" ]] || fail "candidate release at $candidate_vendor has no docker-compose.yml — bad tag or corrupted archive"
+
+candidate_compose_args=(
+  -f "$candidate_vendor/docker-compose.yml"
+  -f "$HERE/docker-compose.override.test.yml"
+  --env-file "$ENV_FILE"
+  --project-directory "$HERE"
+  -p bcb-jitsi-test
+)
+log "preflight: validating the full merged compose config before package mutation"
+docker compose "${candidate_compose_args[@]}" config >/dev/null || fail "docker compose config failed against the merged upstream+override tree — nothing was changed"
+
+if [[ "$candidate_vendor" != "$VENDOR_DIR" ]]; then
+  mkdir -p "$HERE/vendor"
+  mv "$candidate_vendor" "$VENDOR_DIR"
+  candidate_vendor="$VENDOR_DIR"
+  cleanup_download
+  trap - EXIT
+fi
 
 log "creating CONFIG tree at $CONFIG (docker-jitsi-meet's own required subdirectories)"
 for sub in web storage/web storage/transcripts tmp/web-load-test \
@@ -174,8 +228,8 @@ COMPOSE_ARGS=(
   -p bcb-jitsi-test
 )
 
-log "preflight: validating the full merged compose config against the pinned upstream tree before any mutation"
-docker compose "${COMPOSE_ARGS[@]}" config >/dev/null || fail "docker compose config failed against the merged upstream+override tree — see output above; nothing was started"
+log "validating the final merged compose context after rendering"
+docker compose "${COMPOSE_ARGS[@]}" config >/dev/null || fail "docker compose config failed after rendering — see output above; nothing was started"
 
 log "bringing the compose stack up (project bcb-jitsi-test)"
 docker compose "${COMPOSE_ARGS[@]}" up -d

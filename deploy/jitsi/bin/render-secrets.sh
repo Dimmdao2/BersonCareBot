@@ -22,6 +22,12 @@ umask 077
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STORE="${JITSI_TEST_SECRET_STORE:-/etc/bersoncarebot/jitsi-test/secrets}"
+PACKAGE_ROOT="/etc/bersoncarebot/jitsi-test"
+STORE="$(realpath -m -- "$STORE")"
+[[ "$STORE" == "$PACKAGE_ROOT/"?* ]] || {
+  echo "FATAL: JITSI_TEST_SECRET_STORE must resolve below $PACKAGE_ROOT; refusing $STORE" >&2
+  exit 1
+}
 
 log() { echo "[jitsi-test/secrets] $*"; }
 

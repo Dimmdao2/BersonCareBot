@@ -37,7 +37,7 @@ COMPOSE_ARGS=(-f "$VENDOR_DIR/docker-compose.yml" -f "$HERE/docker-compose.overr
 
 echo "[containers up, and container-level health where the image defines one]"
 for svc in web prosody jicofo jvb coturn; do
-  cid="$(docker compose -p bcb-jitsi-test ps -q "$svc" 2>/dev/null || true)"
+  cid="$(docker compose "${COMPOSE_ARGS[@]}" ps -q "$svc" 2>/dev/null || true)"
   if [[ -z "$cid" ]] || [[ "$(docker inspect -f '{{.State.Running}}' "$cid" 2>/dev/null)" != "true" ]]; then
     bad "$svc container not running"
     continue
@@ -80,7 +80,7 @@ fi
 
 echo
 echo "[Prosody config actually landed — not assumed]"
-prosody_cid="$(docker compose -p bcb-jitsi-test ps -q prosody 2>/dev/null || true)"
+prosody_cid="$(docker compose "${COMPOSE_ARGS[@]}" ps -q prosody 2>/dev/null || true)"
 if [[ -n "$prosody_cid" ]]; then
   if docker exec "$prosody_cid" grep -rq "turn_external_secret" /config/conf.d/ 2>/dev/null; then
     ok "turn_external override file is present inside the running container's conf.d"
@@ -154,7 +154,7 @@ merged_config=""
 if [[ -f "$VENDOR_DIR/docker-compose.yml" ]]; then
   merged_config="$(docker compose "${COMPOSE_ARGS[@]}" config 2>/dev/null || true)"
 fi
-web_cid="$(docker compose -p bcb-jitsi-test ps -q web 2>/dev/null || true)"
+web_cid="$(docker compose "${COMPOSE_ARGS[@]}" ps -q web 2>/dev/null || true)"
 web_generated_config=""
 [[ -n "$web_cid" ]] && web_generated_config="$(docker exec "$web_cid" cat /config/config.js 2>/dev/null || true)"
 

@@ -31,8 +31,20 @@ MODE="${1:-}"
 [[ -z "$MODE" || "$MODE" == "--keep-cache" ]] || { echo "usage: $0 [--keep-cache]" >&2; exit 2; }
 
 ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
-JITSI_RELEASE_TAG="$(grep -E '^JITSI_RELEASE_TAG=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 || true)"
-CONFIG_DIR="$(grep -E '^CONFIG=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 || true)"
+[[ -f "$ENV_FILE" ]] || { echo "FATAL: missing $ENV_FILE" >&2; exit 1; }
+# shellcheck disable=SC1090
+set -a; source "$ENV_FILE"; set +a
+CONFIG_DIR="$(realpath -m -- "${CONFIG:-/}")"
+SECRET_STORE_DIR="$(realpath -m -- "${JITSI_TEST_SECRET_STORE:-/etc/bersoncarebot/jitsi-test/secrets}")"
+PACKAGE_ROOT="/etc/bersoncarebot/jitsi-test"
+[[ "$CONFIG_DIR" == "$PACKAGE_ROOT/"?* ]] || {
+  echo "FATAL: CONFIG must resolve below $PACKAGE_ROOT; refusing rollback target $CONFIG_DIR" >&2
+  exit 1
+}
+[[ "$SECRET_STORE_DIR" == "$PACKAGE_ROOT/"?* ]] || {
+  echo "FATAL: JITSI_TEST_SECRET_STORE must resolve below $PACKAGE_ROOT; refusing rollback target $SECRET_STORE_DIR" >&2
+  exit 1
+}
 VENDOR_DIR="$HERE/vendor/docker-jitsi-meet-${JITSI_RELEASE_TAG:-unknown}"
 
 # `down -v` removes this project's own named volumes (bcb-jitsi-test-turn-logs) as part of the exact
@@ -55,10 +67,8 @@ if [[ "$MODE" == "--keep-cache" ]]; then
 else
   rm -rf "$HERE/vendor"
   rm -f "$HERE/config/prosody/conf.d/00-turn-external.rendered.cfg.lua" "$HERE/coturn/turnserver.rendered.conf"
-  rm -rf "${JITSI_TEST_SECRET_STORE:-/etc/bersoncarebot/jitsi-test/secrets}"
-  if [[ -n "$CONFIG_DIR" && "$CONFIG_DIR" == /* ]]; then
-    rm -rf "$CONFIG_DIR"
-  fi
+  rm -rf "$SECRET_STORE_DIR"
+  rm -rf "$CONFIG_DIR"
   echo "[jitsi-test] purged vendor/, rendered config, secret store, and CONFIG tree — pre-apply state restored"
 fi
 

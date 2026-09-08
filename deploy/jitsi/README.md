@@ -90,7 +90,8 @@ compose file entirely or explicitly `0`/unset in the env template — see
   package's config files exist, so the stack could not reliably start and none of its overrides landed.
   `env/jitsi-test.env.example` now declares `CONFIG=/etc/bersoncarebot/jitsi-test/config` — same host
   convention as the secret store below — and `bin/install.sh` creates every subdirectory upstream's compose
-  expects there before rendering or starting anything.
+  expects there before rendering or starting anything. Apply and rollback reject CONFIG/secret-store targets
+  that resolve outside the package root, including `/`, `/etc`, `/etc/bersoncarebot` and sibling services.
 - **Plain HTTP on the loopback port, not a self-signed 8443.** `DISABLE_HTTPS=1` was already set, but the
   override previously still published `${HTTPS_PORT}:8443` and nginx proxied to it with
   `proxy_ssl_verify off` — a false path, since the pinned tag's own nginx template (verified directly,
@@ -98,8 +99,8 @@ compose file entirely or explicitly `0`/unset in the env template — see
   nothing ever listens there. The override now publishes only `127.0.0.1:${HTTP_PORT}:8000` (the container's
   real plain-HTTP listener in this mode), and the nginx vhost template proxies to that over plain HTTP.
 - **Real preflight before mutation.** `bin/install.sh --apply` runs `docker compose ... config` against the
-  full merged upstream+override tree (once the vendored release and CONFIG tree exist, before secrets are
-  rendered or `up` is called) and fails closed on any merge error, and separately checks every exact host
+  full merged upstream+override tree from a hash-verified temporary unpack when the release is not cached,
+  before vendor/CONFIG/secrets are written, and fails closed on any merge error. It separately checks every exact host
   port/range this package owns (loopback web, JVB UDP/TCP, TURN UDP/TCP/TLS, the relay range) for an
   existing listener before downloading, rendering, or starting anything — independent audit finding F4.
 - **`MAX_PARTICIPANTS=2` is the occupancy enforcement (VM-02), not a hand-rolled Prosody module.** Confirmed
@@ -216,8 +217,8 @@ package is "done" against the plan:
   (`JWT_APP_SECRET` replaced with a placeholder, `CONFIG` pointed at the temp dir) using the same
   `--project-directory`-qualified command every script in this package now runs. The merge succeeded with
   no warnings; every service resolved to its pinned digest; `web` published only
-  `127.0.0.1:8000->8000`; `jicofo` published no ports; `jvb` published exactly `10000/udp` and
-  `4443/tcp`; every `${CONFIG}/...` volume resolved under the synthetic CONFIG root; the package's own
+  `127.0.0.1:8000->8000`; `jicofo` published no ports; `jvb` published `10000/udp`, `4443/tcp` and the
+  required `127.0.0.1:8080->8080` Colibri health endpoint; every `${CONFIG}/...` volume resolved under the synthetic CONFIG root; the package's own
   `./config/...`/`./coturn/...` bind sources resolved to `deploy/jitsi/`, not into the vendored release
   directory. This is the same check `bin/install.sh --apply` now runs as a preflight before `up`, exercised
   here without mutating any host. `up`/`docker compose ... up` was never run.
