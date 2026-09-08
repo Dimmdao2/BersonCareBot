@@ -2,7 +2,6 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type {
   VideoMeetingInvitationNotification,
   VideoMeetingInvitationNotificationResult,
-  VideoMeetingOnlineGate,
   VideoMeetingProvider,
   VideoMeetingRecord,
   VideoMeetingStore,
@@ -12,7 +11,6 @@ const MEETING_TTL_MS = 2 * 60 * 60 * 1000;
 const INVITE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type VideoMeetingServiceFailure =
-  | 'online_location_inactive'
   | 'provider_unconfigured'
   | 'provider_unhealthy'
   | 'meeting_unavailable';
@@ -47,12 +45,10 @@ function notificationUnavailable(): VideoMeetingInvitationNotificationResult {
 export function createVideoMeetingsService(deps: {
   store: VideoMeetingStore;
   provider: VideoMeetingProvider;
-  onlineGate: VideoMeetingOnlineGate;
   invitationNotification?: VideoMeetingInvitationNotification;
   resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
 }) {
-  async function requireOnlineAndProvider(organizationId: string): Promise<VideoMeetingServiceFailure | null> {
-    if (!(await deps.onlineGate.isOnlineLocationActive(organizationId))) return 'online_location_inactive';
+  async function requireProvider(): Promise<VideoMeetingServiceFailure | null> {
     const health = await deps.provider.health();
     return health.ok ? null : health.reason;
   }
@@ -61,7 +57,7 @@ export function createVideoMeetingsService(deps: {
     if (meeting.status !== 'active' || Date.parse(meeting.expiresAt) <= Date.now()) {
       return { ok: false as const, error: 'meeting_unavailable' as const };
     }
-    const failure = await requireOnlineAndProvider(meeting.organizationId);
+    const failure = await requireProvider();
     if (failure) return { ok: false as const, error: failure };
     try {
       return { ok: true as const, meetingId: meeting.id, session: await deps.provider.issueJoinMaterial({ meeting, role, subject }) };
@@ -78,7 +74,7 @@ export function createVideoMeetingsService(deps: {
       specialistPlatformUserId: string;
       appointmentId?: string | null;
     }) {
-      const failure = await requireOnlineAndProvider(input.organizationId);
+      const failure = await requireProvider();
       if (failure) return { ok: false as const, error: failure };
       const now = Date.now();
       const result = await deps.store.findOrCreateActive({

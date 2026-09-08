@@ -74,7 +74,6 @@ describe('video meeting provider health gate', () => {
     const service = createVideoMeetingsService({
       store,
       provider,
-      onlineGate: { isOnlineLocationActive: vi.fn().mockResolvedValue(true) },
     });
 
     await expect(
@@ -104,7 +103,6 @@ describe('video meeting invitation notification dedup (ACC-05)', () => {
     const service = createVideoMeetingsService({
       store: storeReturning(true),
       provider: healthyProvider(),
-      onlineGate: { isOnlineLocationActive: vi.fn().mockResolvedValue(true) },
       invitationNotification,
       resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
     });
@@ -140,7 +138,6 @@ describe('video meeting invitation notification dedup (ACC-05)', () => {
     const service = createVideoMeetingsService({
       store: storeReturning(false),
       provider: healthyProvider(),
-      onlineGate: { isOnlineLocationActive: vi.fn().mockResolvedValue(true) },
       invitationNotification,
       resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
     });
@@ -166,7 +163,6 @@ describe('video meeting invitation notification dedup (ACC-05)', () => {
     const service = createVideoMeetingsService({
       store: storeReturning(true),
       provider: healthyProvider(),
-      onlineGate: { isOnlineLocationActive: vi.fn().mockResolvedValue(true) },
       invitationNotification,
       resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
     });

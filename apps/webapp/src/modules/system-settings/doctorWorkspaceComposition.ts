@@ -16,6 +16,7 @@ export const WORKSPACE_MODULE_KEYS = [
   'mailings',
   'analytics',
   'client_portal',
+  'video_meetings',
 ] as const;
 
 export type WorkspaceModuleKey = (typeof WORKSPACE_MODULE_KEYS)[number];
@@ -44,6 +45,7 @@ export const WORKSPACE_MODULE_DEPENDENCIES: Readonly<
   mailings: [],
   analytics: [],
   client_portal: [],
+  video_meetings: [],
 };
 
 export const DOCTOR_WORKSPACE_COMPOSITION_KEY = 'doctor_workspace_composition' as const;

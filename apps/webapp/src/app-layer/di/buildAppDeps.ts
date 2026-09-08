@@ -431,7 +431,6 @@ import { createPgVideoMeetingStore } from '@/infra/repos/pgVideoMeetings';
 import { createVideoMeetingsService } from '@/modules/video-meetings/service';
 import { createVideoMeetingInvitationNotification } from '@/modules/patient-notifications/videoMeetingInvitationNotification';
 import { createJitsiVideoMeetingProvider } from '@/infra/video/jitsiVideoMeetingProvider';
-import { findBuiltInOnlineLocation } from '@/modules/booking-engine/onlineLocation';
 import { createClinicSeatsService } from '@/modules/clinic-seats/service';
 import { createDoctorWorkspaceDirectoryService } from '@/modules/doctor-workspace/service';
 import { createPgBookingEnginePort } from '@/infra/repos/pgBookingEngine';
@@ -951,7 +950,7 @@ const systemSettingsService = wrapSystemSettingsServiceWithRequestLocalScopeRead
     assertMechanicWriteClearance,
   ),
 );
-const videoMeetingsService = !inMemoryRepos && bookingEngineCorePort
+const videoMeetingsService = !inMemoryRepos
   ? createVideoMeetingsService({
       store: createPgVideoMeetingStore(),
       provider: createJitsiVideoMeetingProvider(systemSettingsService),
@@ -967,15 +966,6 @@ const videoMeetingsService = !inMemoryRepos && bookingEngineCorePort
         outboundMessageQueue: createPgOutboundMessageQueue(),
       }),
       resolvePatientPublicOrigin,
-      onlineGate: {
-        async isOnlineLocationActive(organizationId) {
-          const location = findBuiltInOnlineLocation(
-            await bookingEngineCorePort.listBranches(organizationId),
-            organizationId,
-          );
-          return location?.isActive === true;
-        },
-      },
     })
   : null;
 const specialistTasksPort = !inMemoryRepos

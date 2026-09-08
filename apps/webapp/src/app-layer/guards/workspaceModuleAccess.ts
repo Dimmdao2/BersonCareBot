@@ -176,11 +176,12 @@ export async function resolveDoctorWorkspaceModules(
     AppDeps['systemSettings']['getDoctorWorkspaceComposition']
   >[1],
 ): Promise<WorkspaceModuleEffective> {
-  const [exerciseCatalog, mailings, analytics, patientApp, composition] = await Promise.all([
+  const [exerciseCatalog, mailings, analytics, patientApp, videoMeetings, composition] = await Promise.all([
     resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'exercise_catalog'),
     resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'mailings'),
     resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'doctor_statistics'),
     resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'patient_app'),
+    resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'video_meetings'),
     deps.systemSettings.getDoctorWorkspaceComposition(
       {
         organizationId: workspace.organizationId,
@@ -199,6 +200,7 @@ export async function resolveDoctorWorkspaceModules(
     mailings: clinical && mechanicIsVisible(mailings),
     analytics: clinical && mechanicIsVisible(analytics),
     client_portal: clinical && mechanicIsVisible(patientApp),
+    video_meetings: clinical && mechanicIsVisible(videoMeetings),
   });
 }
 

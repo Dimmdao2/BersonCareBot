@@ -56,10 +56,6 @@ export type VideoMeetingProvider = {
   issueJoinMaterial(input: { meeting: VideoMeetingRecord; role: VideoMeetingRole; subject: string }): Promise<VideoMeetingRenderSession>;
 };
 
-export type VideoMeetingOnlineGate = {
-  isOnlineLocationActive(organizationId: string): Promise<boolean>;
-};
-
 /**
  * Product-notification boundary for a freshly issued guest invite. It receives only stable app
  * identifiers and the branded guest link; provider session material never crosses this boundary.

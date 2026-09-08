@@ -29,6 +29,7 @@ const ALL_AVAILABLE = {
   mailings: true,
   analytics: true,
   client_portal: true,
+  video_meetings: true,
 } satisfies WorkspaceModuleAvailability;
 
 const ALL_UNAVAILABLE = {
@@ -41,6 +42,7 @@ const ALL_UNAVAILABLE = {
   mailings: false,
   analytics: false,
   client_portal: false,
+  video_meetings: false,
 } satisfies WorkspaceModuleAvailability;
 
 function compositionWith(

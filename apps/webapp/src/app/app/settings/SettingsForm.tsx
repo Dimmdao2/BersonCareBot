@@ -55,6 +55,7 @@ const WORKSPACE_MODULE_LABELS: Readonly<Record<WorkspaceModuleKey, string>> = {
   mailings: 'Рассылки',
   analytics: 'Аналитика',
   client_portal: 'Кабинет',
+  video_meetings: 'Видеовстречи',
 };
 
 const WORKSPACE_CHANNEL_LABELS: Readonly<Record<WorkspaceClientChannelKey, string>> = {

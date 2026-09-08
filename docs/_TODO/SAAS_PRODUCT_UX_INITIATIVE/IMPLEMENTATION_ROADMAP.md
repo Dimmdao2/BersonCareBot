@@ -605,6 +605,8 @@ card; запрещено строить временный resolver, второ�
 - существующий switch «Показывать мне врачебные экраны» не является моделью C3M: он снимает всю
   `clinical.workspace` capability у пользователя со specialist binding (`app-layer/guards/workspaceCapabilities.ts:66-73`).
   Не использовать его для настроек отдельных модулей.
+- Owner-расширение 08.09.2026: видеовстречи входят в этот закрытый workspace registry отдельным модулем
+  `video_meetings`; встроенная локация/филиал «Онлайн» не влияет на их видимость или create/join.
 
 ##### C3M.2 Подтверждённое текущее состояние
 
@@ -658,6 +660,7 @@ layer; sidebar, card tabs, page bootstrap, direct RSC routes, API/actions, unrea
 | `mailings` | таб «Рассылки» и все create/history surfaces | не требует chat |
 | `analytics` | пункт меню и specialist analytics routes | данные/события не удаляются |
 | `client_portal` | invite controls и приватные org surfaces пациента | public booking остаётся доступным |
+| `video_meetings` | call UI, create и join видеовстреч | не зависит от `encounters`, `client_portal` или локации «Онлайн» |
 
 Если все дочерние функции Communications выключены или недоступны, исчезает весь пункт «Коммуникации». Если
 осталась хотя бы одна — shell открывает первую доступную вкладку, фильтрует tab registry и не загружает данные
