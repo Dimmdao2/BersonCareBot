@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useState, type ReactNode } from 'react';
@@ -20,6 +21,7 @@ import type { DoctorMenuAccess } from '@/shared/ui/doctor/doctorNavLinks';
 import { useDoctorShellChrome } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { routePaths } from '@/app-layer/routes/paths';
+import { STAFF_SURFACE_NAME } from '@/config/productSurfaceNames';
 
 type DoctorHeaderProps = {
   userDisplayName?: string;
@@ -130,7 +132,17 @@ export function DoctorHeader({
         >
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-[env(safe-area-inset-bottom,0px)] pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
             <SheetHeader className="shrink-0 border-0 px-0 py-2 text-left">
-              <SheetTitle>Разделы</SheetTitle>
+              <SheetTitle className="flex items-center gap-2.5 text-left font-semibold tracking-tight">
+                <Image
+                  src="/brand/therapysto-mark.png"
+                  alt=""
+                  width={1006}
+                  height={911}
+                  className="size-8 shrink-0 object-contain"
+                  aria-hidden
+                />
+                <span>{STAFF_SURFACE_NAME}</span>
+              </SheetTitle>
             </SheetHeader>
             <nav
               className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden overscroll-y-contain py-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]"

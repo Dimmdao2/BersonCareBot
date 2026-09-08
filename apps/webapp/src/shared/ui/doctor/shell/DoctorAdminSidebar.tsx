@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
@@ -80,20 +81,24 @@ export function DoctorAdminSidebar({
             'transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           )}
         >
-          <DoctorSidebarRowContent
-            icon={
-              <span className="font-semibold" aria-hidden>
-                Т
-              </span>
-            }
-            iconVisibility="collapsed-only"
-            label={
-              <span className="font-semibold tracking-tight text-foreground">
-                {STAFF_SURFACE_NAME}
-              </span>
-            }
-            tabletExpanded={tabletExpanded}
-          />
+          <span className="flex min-w-0 items-center justify-center lg:justify-start lg:gap-2">
+            <Image
+              src="/brand/therapysto-mark.png"
+              alt=""
+              width={1006}
+              height={911}
+              className="size-7 shrink-0 object-contain"
+              aria-hidden
+            />
+            <span
+              className={cn(
+                'hidden min-w-0 truncate font-semibold tracking-tight text-foreground lg:block',
+                tabletExpanded && 'md:block',
+              )}
+            >
+              {STAFF_SURFACE_NAME}
+            </span>
+          </span>
         </Link>
 
         <div className="mb-2">

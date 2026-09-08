@@ -32,6 +32,10 @@ describe('meeting renderer survives unrelated re-renders (NOTE-08)', () => {
 
   afterEach(() => {
     delete (window as unknown as { JitsiMeetExternalAPI?: unknown }).JitsiMeetExternalAPI;
+    document
+      .querySelectorAll('script[src="https://meet.example.test/external_api.js"]')
+      .forEach((script) => script.remove());
+    vi.restoreAllMocks();
   });
 
   it('does not rebuild the conference when the parent re-renders with a new callback identity', async () => {
@@ -88,7 +92,31 @@ describe('meeting renderer survives unrelated re-renders (NOTE-08)', () => {
     await Promise.resolve();
 
     expect(appended).toEqual(['https://meet.example.test/external_api.js']);
-    vi.restoreAllMocks();
+  });
+
+  it('retries after a failed bundle load instead of leaving the next call connecting forever', async () => {
+    delete (window as unknown as { JitsiMeetExternalAPI?: unknown }).JitsiMeetExternalAPI;
+    const first = render(<JitsiMeetingRenderer session={session} />);
+    const failedScript = document.querySelector<HTMLScriptElement>(
+      'script[src="https://meet.example.test/external_api.js"]',
+    );
+    expect(failedScript).not.toBeNull();
+    failedScript?.dispatchEvent(new Event('error'));
+    await waitFor(() =>
+      expect(screen.getByText('Не удалось подключиться к звонку')).toBeInTheDocument(),
+    );
+    first.unmount();
+
+    render(<JitsiMeetingRenderer session={session} />);
+    const retryScript = document.querySelector<HTMLScriptElement>(
+      'script[src="https://meet.example.test/external_api.js"]',
+    );
+    expect(retryScript).not.toBeNull();
+    expect(retryScript).not.toBe(failedScript);
+    retryScript?.dispatchEvent(new Event('error'));
+    await waitFor(() =>
+      expect(screen.getByText('Не удалось подключиться к звонку')).toBeInTheDocument(),
+    );
   });
 
   it('hands connecting and error presentation to Jitsi as soon as its iframe is initialized', async () => {

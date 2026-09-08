@@ -20,16 +20,16 @@ PROD's policy-drop model), not a prerequisite the stack needs to function.
 
 ## Ports this package needs
 
-| Port | Proto | Component | Exposure | Notes |
-| --- | --- | --- | --- | --- |
-| 443 | tcp | existing host nginx | public (VPN-trusted allowlist, see below) | new vhost `meet.${TEST_BASE_DOMAIN}`, TLS terminated by nginx |
-| `${HTTP_PORT}` (default `8000`) | tcp | Jitsi `web` container | `127.0.0.1` only | plain HTTP — with `DISABLE_HTTPS=1` the container never opens a TLS listener at all (verified against the pinned tag's own nginx template); not exposed beyond loopback, nginx proxies to it |
-| `${JVB_COLIBRI_PORT}` (default `8080`) | tcp | JVB Colibri REST API | `127.0.0.1` only | `COLIBRI_REST_ENABLED=1`; upstream's own base compose already binds this to loopback — `bin/health-check.sh` uses `GET /about/health` on it, never a new public surface |
-| `${JVB_PORT}` (default `10000`) | udp | JVB | public | media fallback path; must be reachable without NAT surprises — `JVB_ADVERTISE_IPS` below |
-| `${JVB_TCP_PORT}` (default `4443`) | tcp | JVB | public | TCP harvester fallback for UDP-hostile networks; low priority path, kept for completeness per plan's "TLS TURN fallback" intent |
-| 3478 | udp+tcp | coturn | public | STUN + TURN, UDP first |
-| 5349 | tcp | coturn | public | TURN over TLS, the "TLS fallback for limited networks" the plan asks for |
-| `${TURN_RELAY_MIN}-${TURN_RELAY_MAX}` (default `49152-49252`, 101 ports) | udp | coturn | public | relay allocations; kept deliberately narrow (see below), not coturn's 49152-65535 default |
+| Port                                                                     | Proto   | Component             | Exposure                                  | Notes                                                                                                                                                                                        |
+| ------------------------------------------------------------------------ | ------- | --------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 443                                                                      | tcp     | existing host nginx   | public (VPN-trusted allowlist, see below) | new vhost `meet.${TEST_BASE_DOMAIN}`, TLS terminated by nginx                                                                                                                                |
+| `${HTTP_PORT}` (default `8000`)                                          | tcp     | Jitsi `web` container | `127.0.0.1` only                          | plain HTTP — with `DISABLE_HTTPS=1` the container never opens a TLS listener at all (verified against the pinned tag's own nginx template); not exposed beyond loopback, nginx proxies to it |
+| `${JVB_COLIBRI_PORT}` (default `8080`)                                   | tcp     | JVB Colibri REST API  | `127.0.0.1` only                          | `COLIBRI_REST_ENABLED=1`; upstream's own base compose already binds this to loopback — `bin/health-check.sh` uses `GET /about/health` on it, never a new public surface                      |
+| `${JVB_PORT}` (default `10000`)                                          | udp     | JVB                   | public                                    | media fallback path; must be reachable without NAT surprises — `JVB_ADVERTISE_IPS` below                                                                                                     |
+| `${JVB_TCP_PORT}` (default `4443`)                                       | tcp     | JVB                   | public                                    | TCP harvester fallback for UDP-hostile networks; low priority path, kept for completeness per plan's "TLS TURN fallback" intent                                                              |
+| 3478                                                                     | udp+tcp | coturn                | public                                    | STUN + TURN, UDP first                                                                                                                                                                       |
+| 5349                                                                     | tcp     | coturn                | public                                    | TURN over TLS, the "TLS fallback for limited networks" the plan asks for                                                                                                                     |
+| `${TURN_RELAY_MIN}-${TURN_RELAY_MAX}` (default `49152-49252`, 101 ports) | udp     | coturn                | public                                    | relay allocations; kept deliberately narrow (see below), not coturn's 49152-65535 default                                                                                                    |
 
 `test.bersoncare.ru`'s webapp port (`:6300`) and integrator (`:3300`) are unrelated to this package and are
 not touched by it.
@@ -59,11 +59,11 @@ table inet bcb_jitsi_test {
 
         # VPN-trusted subnets, same allowlist nginx already uses for test.bersoncare.ru
         # (SERVER CONVENTIONS.md §"Доступы / VPN"): awg0 PROD relay, awg1 owner VPN, wg-easy laptop NAT.
-        ip saddr { 10.9.0.0/24, 10.9.1.0/24, 172.17.0.0/16, 127.0.0.1 } udp dport 3478 accept
-        ip saddr { 10.9.0.0/24, 10.9.1.0/24, 172.17.0.0/16, 127.0.0.1 } tcp dport { 3478, 5349 } accept
-        ip saddr { 10.9.0.0/24, 10.9.1.0/24, 172.17.0.0/16, 127.0.0.1 } udp dport 49152-49252 accept
-        ip saddr { 10.9.0.0/24, 10.9.1.0/24, 172.17.0.0/16, 127.0.0.1 } udp dport 10000 accept
-        ip saddr { 10.9.0.0/24, 10.9.1.0/24, 172.17.0.0/16, 127.0.0.1 } tcp dport 4443 accept
+        ip saddr { 10.9.0.0/24, 172.31.9.0/24, 172.17.0.0/16, 127.0.0.1 } udp dport 3478 accept
+        ip saddr { 10.9.0.0/24, 172.31.9.0/24, 172.17.0.0/16, 127.0.0.1 } tcp dport { 3478, 5349 } accept
+        ip saddr { 10.9.0.0/24, 172.31.9.0/24, 172.17.0.0/16, 127.0.0.1 } udp dport 49152-49252 accept
+        ip saddr { 10.9.0.0/24, 172.31.9.0/24, 172.17.0.0/16, 127.0.0.1 } udp dport 10000 accept
+        ip saddr { 10.9.0.0/24, 172.31.9.0/24, 172.17.0.0/16, 127.0.0.1 } tcp dport 4443 accept
 
         # Everything else to these specific ports: reject, don't silently drop (matches the plan's
         # "fail closed with a reason" spirit for infra, and avoids masking a real client misconfiguration
@@ -87,10 +87,10 @@ for coturn/JVB specifically — an explicit owner decision, not something to def
 
 ## DNS and TLS prerequisites (not provisioned by this worker)
 
-| Name | Type | Target | Status |
-| --- | --- | --- | --- |
-| `meet.test.bersoncare.ru` | A | `151.241.228.122` | **missing** — must be created at the DNS provider (reg.ru, per `SERVER CONVENTIONS.md`) before `bin/install.sh` can request a certificate |
-| `turn.test.bersoncare.ru` | A | `151.241.228.122` | **missing** — same provider, same target |
+| Name                      | Type | Target            | Status                                                                                                                                    |
+| ------------------------- | ---- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `meet.test.bersoncare.ru` | A    | `151.241.228.122` | **missing** — must be created at the DNS provider (reg.ru, per `SERVER CONVENTIONS.md`) before `bin/install.sh` can request a certificate |
+| `turn.test.bersoncare.ru` | A    | `151.241.228.122` | **missing** — same provider, same target                                                                                                  |
 
 Detection probe (safe, read-only, run from anywhere):
 

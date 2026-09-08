@@ -1,6 +1,7 @@
 /** Публичный specialist-first лендинг Therapysto. */
 
 import type { Metadata } from 'next';
+import './styles/therapysto-landing-base.css';
 import './styles/landing.css';
 import { LandingAcquisition } from '@/components/landing/LandingAcquisition';
 import { LandingPwaClientBootstrap } from '@/components/landing/LandingPwaClientBootstrap';
@@ -44,12 +45,11 @@ export function generateMetadata(): Metadata {
 }
 
 export default function HomePage() {
-  const appBaseUrl = env.APP_BASE_URL;
   return (
     <div data-landing-public className="min-h-screen bg-white text-[#17264A]">
       <StandaloneRootRedirect />
       <LandingPwaClientBootstrap />
-      <LandingAcquisition appBaseUrl={appBaseUrl} />
+      <LandingAcquisition />
     </div>
   );
 }
