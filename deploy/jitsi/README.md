@@ -58,6 +58,7 @@ compose file entirely or explicitly `0`/unset in the env template — see
 | `../systemd/bersoncarebot-jitsi-test.service` | wraps `docker compose` lifecycle the same way other TEST units wrap `node` |
 | `bin/install.sh` | idempotent apply: preflight (incl. port collisions), fetch + hash-verify pinned release, create the CONFIG tree, render config from templates + secret store, dry-run the merged compose config, bring the stack up |
 | `bin/render-secrets.sh` | generates/loads host-side Prosody/JVB/coturn secrets only (never the app JWT secret); every substitution is argv-safe and atomic |
+| `bin/reconcile-xmpp-service-credentials.sh` | updates Prosody's persisted focus/JVB accounts from container env over stdin, restarts the two clients and proves Jicofo authenticated |
 | `bin/health-check.sh` | config + network proof: `prosodyctl check`, container + JVB REST health, mandatory credentialed TURN allocation over UDP and TLS |
 | `bin/sync-coturn-tls.sh` | root-only TEST hook: validate the shared ACME certificate, atomically stage a private deploy-owned copy for non-root coturn, and restart coturn if running |
 | `bin/apply-nginx.sh` | TEST-only checked apply for the public meet vhost; validates nginx and restores the previous target if validation/reload fails |
@@ -146,6 +147,12 @@ compose file entirely or explicitly `0`/unset in the env template — see
   via `/proc/<pid>/cmdline` (independent audit finding F3). Every rendered file is written to a temp file in
   its final directory, chmod'd `0600`, then renamed into place — a crash mid-render leaves the previous
   (or no) file, never a half-written one.
+- **Persisted XMPP service accounts are reconciled on every apply/restart.** Upstream's registration helper
+  creates `focus`/`jvb` only when missing; after a restored config tree or rotated internal secret it reports
+  `User exists` without changing the password, leaving Jicofo in a `not-authorized` loop while every container
+  still appears healthy. The package now sends each current password to `prosodyctl passwd` over container
+  stdin, restarts only Jicofo/JVB, waits for Jicofo's authenticated `Connected.` state, and makes that state a
+  mandatory health-check assertion. No credential is printed or placed in argv.
 - **Images are pinned by digest, not tag alone**, and the vendored source archive's SHA-256 is verified
   before it is ever unzipped (`ARCHIVE_SHA256`). `bin/check-latest-jitsi-tag.sh` re-fetches the live digest
   for the currently pinned tag from GHCR/Docker Hub on every run and fails if it no longer matches what

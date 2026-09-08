@@ -41,5 +41,6 @@ docker compose "${COMPOSE_ARGS[@]}" config >/dev/null || {
 }
 
 docker compose "${COMPOSE_ARGS[@]}" up -d --force-recreate
+bash "$HERE/bin/reconcile-xmpp-service-credentials.sh"
 
 echo "[jitsi-test] restarted; run bin/health-check.sh to confirm"

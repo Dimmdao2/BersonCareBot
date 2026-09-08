@@ -84,6 +84,20 @@ for svc in web prosody jicofo jvb coturn; do
 done
 
 echo
+echo "[Jicofo current XMPP authentication state]"
+jicofo_cid="$(docker compose "${COMPOSE_ARGS[@]}" ps -q jicofo 2>/dev/null || true)"
+latest_jicofo_auth_state=""
+if [[ -n "$jicofo_cid" ]]; then
+  latest_jicofo_auth_state="$(docker logs "$jicofo_cid" 2>&1 |
+    grep -E '\[xmpp_connection=client\].*(not-authorized|scheduleConnectTask.*Connected\.)' | tail -n 1 || true)"
+fi
+if [[ "$latest_jicofo_auth_state" == *"scheduleConnectTask"*"Connected."* ]]; then
+  ok "Jicofo's latest client-XMPP auth state is connected"
+else
+  bad "Jicofo is not authenticated to Prosody — conference creation will return service-unavailable"
+fi
+
+echo
 echo "[web reachable on loopback, plain HTTP — DISABLE_HTTPS=1 means the container never opens 8443]"
 if curl -fsS -o /dev/null "http://127.0.0.1:${HTTP_PORT:-8000}/"; then
   ok "web answers on 127.0.0.1:${HTTP_PORT:-8000}"

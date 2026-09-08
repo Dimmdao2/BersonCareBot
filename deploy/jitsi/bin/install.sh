@@ -281,5 +281,6 @@ docker compose "${COMPOSE_ARGS[@]}" config >/dev/null || fail "docker compose co
 
 log "bringing the compose stack up (project bcb-jitsi-test)"
 docker compose "${COMPOSE_ARGS[@]}" up -d
+bash "$HERE/bin/reconcile-xmpp-service-credentials.sh"
 
 log "apply complete; run bin/health-check.sh to verify config actually landed and the stack is healthy"

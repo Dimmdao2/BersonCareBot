@@ -1,5 +1,6 @@
 import { and, eq, gt, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { videoMeetingInvites, videoMeetings } from '../../../db/schema/videoMeetings';
 import type { VideoMeetingRecord, VideoMeetingStore } from '@/modules/video-meetings/ports';
 
@@ -105,12 +106,17 @@ export function createPgVideoMeetingStore(): VideoMeetingStore {
       });
     },
     async findGuestMeeting(secretHash) {
-      const result = await getDrizzle().execute<typeof videoMeetings.$inferSelect>(sql`
-        SELECT id, organization_id AS "organizationId", patient_user_id AS "patientUserId",
-               specialist_id AS "specialistId", provider_room_ref AS "providerRoomRef", status,
-               expires_at AS "expiresAt"
-        FROM app.exchange_video_meeting_invite(${secretHash})
-      `);
+      const result = await runWebappNamedRoot<typeof videoMeetings.$inferSelect>(
+        getDrizzle(),
+        'app.exchange_video_meeting_invite(text)',
+        [secretHash],
+        sql`
+          SELECT id, organization_id AS "organizationId", patient_user_id AS "patientUserId",
+                 specialist_id AS "specialistId", provider_room_ref AS "providerRoomRef", status,
+                 expires_at AS "expiresAt"
+          FROM app.exchange_video_meeting_invite(${secretHash})
+        `,
+      );
       const row = result.rows[0];
       return row ? mapMeeting(row) : null;
     },
