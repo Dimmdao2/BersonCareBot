@@ -195,9 +195,9 @@ BEGIN
          SET status = 'pending_delete',
              delete_attempts = media.delete_attempts + 1,
              next_attempt_at = pg_catalog.clock_timestamp()
-               + (pg_catalog.least(1440, pg_catalog.power(
+               + (least(1440, pg_catalog.power(
                     2::numeric,
-                    pg_catalog.least(media.delete_attempts + 1, 20)
+                    least(media.delete_attempts + 1, 20)
                   )) * interval '1 minute'),
              delete_claim_token = NULL
        WHERE media.id = p_media_id
