@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 const REVIEWED_TARGET_TARIFFS = new Map([
   ['d1156dc6-e71e-4225-ad94-93c9d423c9e1', {
     price: 0, currency: 'RUB', seats: 1000, period: 'year',
-    mechanicsSha256: 'f4adbfecd531c443240e9d763fb3e3ebcb39850aee1a7576a4c7de39e9764652',
+    mechanicsSha256: '0244c72c1d547d98ffbe6c83270f249b7e3d9f84fa7c75083450fc55b2fc0934',
   }],
   // «СТАРТ». Состав механик пересохранён на DEV 17.08 после расширения реестра (у него появились
   // clinic_sms / clinic_smtp / clinic_max_bot / clinic_telegram_bot, которых нет у соседних тарифов).
