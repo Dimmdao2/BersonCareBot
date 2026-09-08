@@ -7,6 +7,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';

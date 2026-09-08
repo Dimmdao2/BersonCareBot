@@ -389,7 +389,10 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
         if (terminal.has(fromStatus)) {
           throw new Error('state_conflict');
         }
-        const timeChanged = input.newStartAt !== current.startAt;
+        const timeChanged =
+          input.newStartAt !== current.startAt ||
+          input.newEndAt !== current.endAt ||
+          input.durationMinutes !== current.durationMinutes;
         if (!timeChanged) {
           const updated = await tx
             .update(beAppointments)

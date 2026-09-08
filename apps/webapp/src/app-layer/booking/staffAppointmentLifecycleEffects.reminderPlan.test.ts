@@ -28,6 +28,7 @@ function fakeAppointment(): BeAppointment {
     durationMinutes: 30,
     source: 'native',
     status: 'confirmed',
+    deliveryFormat: 'in_person',
     originalStartAt: null,
     rescheduleCount: 1,
     paymentRef: null,

@@ -365,6 +365,7 @@ const EDITABLE_APPOINTMENT: CalendarAppointmentEvent = {
   startAt: '2027-03-10T09:00:00+03:00',
   endAt: '2027-03-10T09:30:00+03:00',
   status: 'confirmed',
+  deliveryFormat: 'in_person',
   source: 'staff',
   specialistId: SPECIALIST_ID,
   specialistName: 'Доктор Иванов',

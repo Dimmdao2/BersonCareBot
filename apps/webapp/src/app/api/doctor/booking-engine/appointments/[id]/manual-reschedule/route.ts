@@ -258,7 +258,10 @@ export async function POST(request: Request, context: RouteContext) {
       });
     }
   }
-  const timeChanged = appointment.startAt !== currentAppointment.startAt;
+  const timeChanged =
+    appointment.startAt !== currentAppointment.startAt ||
+    appointment.endAt !== currentAppointment.endAt ||
+    appointment.durationMinutes !== currentAppointment.durationMinutes;
   if (!timeChanged) return NextResponse.json({ ok: true, appointment: currentAppointment });
   const { loadBookingLifecycleNotificationsFromSystemSettings } =
     await import('@/modules/booking-notifications/settings');
