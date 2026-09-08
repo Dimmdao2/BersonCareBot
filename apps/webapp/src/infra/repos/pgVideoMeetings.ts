@@ -3,7 +3,18 @@ import { getDrizzle } from '@/app-layer/db/drizzle';
 import { videoMeetingInvites, videoMeetings } from '../../../db/schema/videoMeetings';
 import type { VideoMeetingRecord, VideoMeetingStore } from '@/modules/video-meetings/ports';
 
-function mapMeeting(row: typeof videoMeetings.$inferSelect): VideoMeetingRecord {
+type VideoMeetingJoinRow = Pick<
+  typeof videoMeetings.$inferSelect,
+  | 'id'
+  | 'organizationId'
+  | 'patientUserId'
+  | 'specialistId'
+  | 'providerRoomRef'
+  | 'status'
+  | 'expiresAt'
+>;
+
+function mapMeeting(row: VideoMeetingJoinRow): VideoMeetingRecord {
   return { id: row.id, organizationId: row.organizationId, patientUserId: row.patientUserId, specialistId: row.specialistId, providerRoomRef: row.providerRoomRef, status: row.status as VideoMeetingRecord['status'], expiresAt: row.expiresAt };
 }
 
@@ -105,7 +116,27 @@ export function createPgVideoMeetingStore(): VideoMeetingStore {
     },
     async findPatientMeeting(input) {
       const now = new Date().toISOString();
-      const [row] = await getDrizzle().select().from(videoMeetings).where(and(eq(videoMeetings.id, input.meetingId), eq(videoMeetings.organizationId, input.organizationId), eq(videoMeetings.patientUserId, input.patientUserId), eq(videoMeetings.status, 'active'), gt(videoMeetings.expiresAt, now))).limit(1);
+      const [row] = await getDrizzle()
+        .select({
+          id: videoMeetings.id,
+          organizationId: videoMeetings.organizationId,
+          patientUserId: videoMeetings.patientUserId,
+          specialistId: videoMeetings.specialistId,
+          providerRoomRef: videoMeetings.providerRoomRef,
+          status: videoMeetings.status,
+          expiresAt: videoMeetings.expiresAt,
+        })
+        .from(videoMeetings)
+        .where(
+          and(
+            eq(videoMeetings.id, input.meetingId),
+            eq(videoMeetings.organizationId, input.organizationId),
+            eq(videoMeetings.patientUserId, input.patientUserId),
+            eq(videoMeetings.status, 'active'),
+            gt(videoMeetings.expiresAt, now),
+          ),
+        )
+        .limit(1);
       return row ? mapMeeting(row) : null;
     },
   };

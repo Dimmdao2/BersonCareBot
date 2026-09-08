@@ -15652,7 +15652,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       { "role": "app_staff", "operations": ["SELECT"], "columns": "table" },
       { "role": "app_staff", "operations": ["INSERT"], "columns": ["id", "organization_id", "patient_user_id", "specialist_id", "appointment_id", "provider_room_ref", "status", "expires_at", "ended_at", "revoked_at", "created_at", "updated_at"] },
       { "role": "app_staff", "operations": ["UPDATE"], "columns": ["status", "ended_at", "revoked_at", "updated_at"] },
-      { "role": "app_patient", "operations": ["SELECT"], "columns": ["id", "organization_id", "patient_user_id", "provider_room_ref", "status", "expires_at"] }
+      { "role": "app_patient", "operations": ["SELECT"], "columns": ["id", "organization_id", "patient_user_id", "specialist_id", "provider_room_ref", "status", "expires_at"] }
     ]
   },
   "public.video_meeting_invites": {
