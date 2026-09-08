@@ -56,7 +56,7 @@ require_var() {
   fi
 }
 
-for prerequisite in unzip stat; do
+for prerequisite in unzip stat node; do
   if ! command -v "$prerequisite" >/dev/null 2>&1; then
     echo "  MISSING  $prerequisite — required by bin/install.sh; install it before --apply (this script never installs host packages)"
     missing=1

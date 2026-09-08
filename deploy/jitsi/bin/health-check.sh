@@ -235,8 +235,18 @@ web_generated_config=""
 [[ -n "$web_cid" ]] && web_generated_config="$(curl -fsS "http://127.0.0.1:${HTTP_PORT:-8000}/config.js" 2>/dev/null || true)"
 
 if [[ -n "$web_generated_config" ]]; then
-  if grep -q "stun:turn.test.bersoncare.ru:${TURN_LISTEN_PORT:-3478}" <<<"$web_generated_config" \
-    && ! grep -q 'stun:stun:' <<<"$web_generated_config"; then
+  evaluated_p2p_stun="$(node -e '
+    const vm = require("vm");
+    let source = "";
+    process.stdin.on("data", chunk => { source += chunk; });
+    process.stdin.on("end", () => {
+      const context = {};
+      vm.runInNewContext(source, context);
+      process.stdout.write(JSON.stringify((context.config?.p2p?.stunServers ?? []).map(item => item.urls)));
+    });
+  ' <<<"$web_generated_config" 2>/dev/null || true)"
+  expected_p2p_stun="[\"stun:${TURN_CERT_DOMAIN:-turn.test.bersoncare.ru}:${TURN_LISTEN_PORT:-3478}\"]"
+  if [[ "$evaluated_p2p_stun" == "$expected_p2p_stun" ]]; then
     ok "served config.js contains the correctly rendered self-hosted P2P STUN endpoint"
   else
     bad "served config.js does not contain a valid self-hosted P2P STUN endpoint"
