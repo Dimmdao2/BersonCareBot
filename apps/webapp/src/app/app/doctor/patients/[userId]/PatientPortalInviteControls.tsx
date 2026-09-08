@@ -37,6 +37,19 @@ export function PatientPortalInviteControls({
   const [state, setState] = useState(initialState);
   const [pending, setPending] = useState(false);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+  // PPI-01: clipboard permission is separate from invite creation — a denied/unavailable
+  // clipboard must not read as invite failure. Mirrors the copy-button pattern in
+  // ClinicBookingLinkSection (explicit fallback control, no error toast on copy failure).
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  async function copyGeneratedUrl(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyStatus('copied');
+    } catch {
+      setCopyStatus('failed');
+    }
+  }
 
   async function issueAndCopy() {
     setPending(true);
@@ -58,12 +71,9 @@ export function PatientPortalInviteControls({
       const absoluteUrl = `${window.location.origin}${json.relativeUrl}`;
       setState({ status: 'invited', inviteId: json.inviteId, expiresAt: json.expiresAt });
       setGeneratedUrl(absoluteUrl);
-      try {
-        await navigator.clipboard.writeText(absoluteUrl);
-        toast.success('Ссылка скопирована');
-      } catch {
-        toast.error('Ссылка создана, но не скопирована');
-      }
+      setCopyStatus('idle');
+      toast.success('Приглашение создано');
+      await copyGeneratedUrl(absoluteUrl);
     } catch {
       toast.error('Не удалось создать приглашение');
     } finally {
@@ -126,13 +136,29 @@ export function PatientPortalInviteControls({
         </Button>
       ) : null}
       {generatedUrl ? (
-        <Input
-          readOnly
-          aria-label="Ссылка приглашения"
-          value={generatedUrl}
-          onFocus={(event) => event.currentTarget.select()}
-          className="basis-full text-xs"
-        />
+        <>
+          <Input
+            readOnly
+            aria-label="Ссылка приглашения"
+            value={generatedUrl}
+            onFocus={(event) => event.currentTarget.select()}
+            className="basis-full text-xs"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2.5 text-xs"
+            onClick={() => void copyGeneratedUrl(generatedUrl)}
+          >
+            {copyStatus === 'copied' ? 'Скопировано' : 'Скопировать'}
+          </Button>
+          {copyStatus === 'failed' ? (
+            <p role="alert" className="w-full text-xs text-destructive">
+              Не удалось скопировать ссылку, скопируйте вручную из поля выше.
+            </p>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
