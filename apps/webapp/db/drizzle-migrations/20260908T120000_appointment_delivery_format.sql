@@ -35,6 +35,8 @@ ALTER TABLE public.be_appointments
   ALTER COLUMN delivery_format SET NOT NULL;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_booking_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-REHOME-FUNCTION: app.create_current_patient_booking_appointments(text)
 CREATE OR REPLACE FUNCTION app.create_current_patient_booking_appointments(p_inputs_json text)
 RETURNS jsonb
