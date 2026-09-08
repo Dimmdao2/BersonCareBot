@@ -5,6 +5,7 @@ import {
   patientHomeBlockHeadingClass,
   patientHomeCardDangerClass,
   patientHomeSosCardGeometryClass,
+  patientHomeSosActionToneClass,
   patientHomeSosSubtitleClampClass,
   patientIconLeadingDangerClass,
 } from './patientHomeCardStyles';
@@ -49,7 +50,8 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
           prefetch={false}
           className={cn(
             patientButtonDangerOutlineClass,
-            'relative z-[1] !min-h-10 shrink-0 self-end whitespace-nowrap border-[#d8a3a3] px-3 patient-type-action patient-text-sos hover:bg-[#fff1f1]/80 active:bg-[#fee7e7]/80',
+            'relative z-[1] !min-h-10 shrink-0 self-end whitespace-nowrap px-3 patient-type-action patient-text-sos',
+            patientHomeSosActionToneClass,
             'md:mt-auto md:-mb-1 md:min-w-[8rem] md:self-end md:px-6',
           )}
         >

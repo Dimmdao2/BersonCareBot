@@ -124,7 +124,7 @@ export function PatientPlanHeroActive(props: {
           )}
           className={cn(
             patientHeroPrimaryActionClass,
-            'mt-5 mb-3 flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2 shadow-[0_6px_14px_rgba(40,77,160,0.24)] no-underline lg:mt-6 lg:mb-4 lg:min-h-12',
+            'mt-5 mb-3 flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2 shadow-[var(--patient-shadow-primary-cta)] no-underline lg:mt-6 lg:mb-4 lg:min-h-12',
           )}
         >
           <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />

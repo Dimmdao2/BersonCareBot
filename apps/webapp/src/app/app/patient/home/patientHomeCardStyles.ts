@@ -88,6 +88,10 @@ export const patientHomeCardDangerClass = cn(
   'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
 );
 
+/** Общий SOS-tone для outline-действий в одиночной и split-карточке. */
+export const patientHomeSosActionToneClass =
+  'border-[var(--patient-action-sos-border)] hover:bg-[var(--patient-action-sos-hover-bg)] active:bg-[var(--patient-action-sos-active-bg)]';
+
 /** Mood / pastel warm gradient (`§10.7`) — legacy; блок самочувствия использует {@link patientHomeMoodCheckinShellClass}. */
 export const patientHomeCardGradientWarmClass = cn(
   'overflow-hidden border border-[#fed7aa]',

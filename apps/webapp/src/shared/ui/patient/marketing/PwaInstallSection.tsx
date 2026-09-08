@@ -84,7 +84,7 @@ export function PwaInstallSection() {
 
   return (
     <section
-      className="rounded-[12px] border border-[#dce4f5] bg-white/95 p-6 shadow-[0_8px_24px_rgba(15,23,42,0.05)] backdrop-blur-[2px]"
+      className="rounded-[var(--patient-marketing-card-radius)] border border-[var(--patient-marketing-card-border)] bg-[var(--patient-marketing-card-bg)] p-6 shadow-[var(--patient-marketing-card-shadow)] backdrop-blur-[2px]"
       aria-labelledby="pwa-install-heading"
     >
       <h2

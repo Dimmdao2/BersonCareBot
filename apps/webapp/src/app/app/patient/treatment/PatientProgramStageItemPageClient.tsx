@@ -38,6 +38,8 @@ import {
   patientMutedTextClass,
   patientProgramItemHeroTitleClass,
   patientProgramItemPrimaryStatTextClass,
+  patientProgramDiscussionCountClass,
+  patientProgramDiscussionUnreadDotClass,
   patientInnerPageStackClass,
   patientScrollbarHiddenClass,
   patientSectionTitleClass,
@@ -637,10 +639,10 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   if (!resolved || !item || !stage) return null;
 
   const heroCloseLinkClass = cn(
-    'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md border border-[#94a3b8]/28',
-    'bg-[rgba(157,177,226,0.21)] px-3 py-1 patient-type-caption no-underline transition-colors',
-    'hover:border-[#94a3b8]/42 hover:bg-[rgba(157,177,226,0.30)] active:bg-[rgba(157,177,226,0.34)]',
-    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#94a3b8]/40',
+    'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md border border-[var(--patient-program-close-border)]',
+    'bg-[var(--patient-program-close-bg)] px-3 py-1 patient-type-caption no-underline transition-colors',
+    'hover:border-[var(--patient-program-close-hover-border)] hover:bg-[var(--patient-program-close-hover-bg)] active:bg-[var(--patient-program-close-active-bg)]',
+    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-program-close-focus)]',
   );
 
   return (
@@ -856,13 +858,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                         >
                           <span className="min-w-0 truncate">Комментарии</span>
                           {discussionPreview.totalCount > 0 ? (
-                            <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 patient-type-caption patient-text-info">
+                            <span className={patientProgramDiscussionCountClass}>
                               {discussionPreview.totalCount}
                             </span>
                           ) : null}
                           {discussionPreview.unreadCount > 0 ? (
                             <span
-                              className="size-1.5 shrink-0 rounded-full bg-[#ef4444]"
+                              className={patientProgramDiscussionUnreadDotClass}
                               aria-label="Есть новые комментарии"
                             />
                           ) : null}
@@ -928,7 +930,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
           </div>
 
           {item.effectiveComment?.trim() ? (
-            <div className="my-4 flex flex-col gap-1.5 rounded-lg border border-[var(--patient-border)]/60 bg-[#fff5e8] px-3 py-2.5">
+            <div className="my-4 flex flex-col gap-1.5 rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-program-alert-bg)] px-3 py-2.5">
               <span className="patient-type-form-label patient-text-specialist">Инструкция от специалиста</span>
               <p
                 className={cn(

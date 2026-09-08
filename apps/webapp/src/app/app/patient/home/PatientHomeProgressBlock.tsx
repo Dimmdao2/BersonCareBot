@@ -184,7 +184,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                   className="size-7 shrink-0 rounded-full object-cover"
                   loading="lazy"
                   fallback={
-                    <span className="inline-flex size-8 items-center justify-center rounded-full bg-[#fff7ed]">
+                    <span className="inline-flex size-8 items-center justify-center rounded-full bg-[var(--patient-home-warm-icon-bg)]">
                       <Flame className="size-4 shrink-0 patient-text-warning-accent md:size-5" />
                     </span>
                   }

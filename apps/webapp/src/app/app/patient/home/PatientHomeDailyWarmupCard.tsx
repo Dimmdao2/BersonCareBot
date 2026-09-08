@@ -90,7 +90,7 @@ export function PatientHomeDailyWarmupCard({
             </p>
           </div>
           <HeroImageSlotDecor>
-            <div className="mb-2 mr-2 flex size-[118px] items-center justify-center rounded-[42%] bg-white/50 ring-1 ring-[var(--patient-color-primary-border)] min-[380px]:size-[132px] md:mb-3 md:size-[220px] xl:size-[240px]">
+            <div className="mb-2 mr-2 flex size-[118px] items-center justify-center rounded-[var(--patient-media-cover-radius)] bg-white/50 ring-1 ring-[var(--patient-color-primary-border)] min-[380px]:size-[132px] md:mb-3 md:size-[220px] xl:size-[240px]">
               <Sparkles className="size-12 patient-text-accent opacity-80 md:size-20" />
             </div>
           </HeroImageSlotDecor>
@@ -145,7 +145,7 @@ export function PatientHomeDailyWarmupCard({
                 prefetch={false}
                 className={cn(
                   patientHeroPrimaryActionClass,
-                  'min-h-11 w-fit shrink-0 px-4 py-2 patient-type-action shadow-[0_6px_14px_rgba(40,77,160,0.24)] md:min-h-12 md:w-[22rem] md:pr-5 xl:w-[24rem]',
+                  'min-h-11 w-fit shrink-0 px-4 py-2 patient-type-action shadow-[var(--patient-shadow-primary-cta)] md:min-h-12 md:w-[22rem] md:pr-5 xl:w-[24rem]',
                 )}
               >
                 <PlayCircle className="size-5 shrink-0 md:size-6" aria-hidden />
@@ -174,7 +174,7 @@ export function PatientHomeDailyWarmupCard({
             className="h-full w-full object-contain object-right-bottom drop-shadow-lg"
             loading="lazy"
             fallback={
-              <div className="mb-2 mr-2 flex size-[118px] items-center justify-center rounded-[42%] bg-white/50 ring-1 ring-[var(--patient-color-primary-border)] min-[380px]:size-[132px] md:mb-3 md:size-[220px] xl:size-[240px]">
+              <div className="mb-2 mr-2 flex size-[118px] items-center justify-center rounded-[var(--patient-media-cover-radius)] bg-white/50 ring-1 ring-[var(--patient-color-primary-border)] min-[380px]:size-[132px] md:mb-3 md:size-[220px] xl:size-[240px]">
                 <Sparkles className="size-12 patient-text-accent opacity-80 md:size-20" />
               </div>
             }

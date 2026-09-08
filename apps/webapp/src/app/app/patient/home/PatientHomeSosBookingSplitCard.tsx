@@ -2,7 +2,10 @@ import Link from 'next/link';
 import { Calendar, Zap } from 'lucide-react';
 import type { ResolvedSosCard } from '@/modules/patient-home/patientHomeResolvers';
 import { routePaths } from '@/app-layer/routes/paths';
-import { patientHomeSosSubtitleClampClass } from './patientHomeCardStyles';
+import {
+  patientHomeSosActionToneClass,
+  patientHomeSosSubtitleClampClass,
+} from './patientHomeCardStyles';
 import { appLoginWithNextHref } from './patientHomeGuestNav';
 import { PatientHomeSafeImage } from './PatientHomeSafeImage';
 import {
@@ -31,7 +34,7 @@ const bookingIconShellClass =
 const sosButtonClass = cn(
   patientButtonDangerOutlineClass,
   '!min-h-8 shrink-0 px-2.5 py-1.5 patient-type-action patient-text-sos',
-  'border-[#d8a3a3] hover:bg-[#fff1f1]/80 active:bg-[#fee7e7]/80',
+  patientHomeSosActionToneClass,
 );
 
 const bookingButtonClass = cn(
@@ -167,7 +170,7 @@ export function PatientHomeSosBookingSplitCard({
       <article id="patient-home-sos-booking-split-card" className={outerChromeClass}>
         <div className="flex min-h-0 min-w-0 flex-1 flex-row items-stretch">
           {renderSosHalf()}
-          <div className="w-px shrink-0 self-stretch bg-[#ccc]" aria-hidden />
+          <div className="w-px shrink-0 self-stretch bg-[var(--patient-home-split-divider)]" aria-hidden />
           {renderBookingHalf()}
         </div>
       </article>

@@ -31,7 +31,7 @@ type Props = {
 
 function LeadingPlanIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
   return (
-    <div className={cn(patientIconLeadingClass, 'size-9 shrink-0 bg-[#fff8f1]')} aria-hidden>
+    <div className={cn(patientIconLeadingClass, 'size-9 shrink-0 bg-[var(--patient-home-plan-icon-bg)]')} aria-hidden>
       <PatientHomeSafeImage
         src={blockIconImageUrl}
         alt=""
@@ -44,8 +44,8 @@ function LeadingPlanIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | n
 }
 
 const planCtaClass = cn(
-  'inline-flex min-h-8 shrink-0 items-center justify-center rounded-md border border-[#b4bae4] bg-[#ffffff] px-3 patient-type-home-compact-action patient-text-accent shadow-[0_2px_8px_rgba(40,77,160,0.1)] transition-colors sm:min-h-9 sm:px-4',
-  'hover:bg-[#f4dcd6] active:bg-[#f4dcd6]',
+  'inline-flex min-h-8 shrink-0 items-center justify-center rounded-md border border-[var(--patient-home-plan-action-border)] bg-[var(--patient-home-plan-action-bg)] px-3 patient-type-home-compact-action patient-text-accent shadow-[var(--patient-home-plan-action-shadow)] transition-colors sm:min-h-9 sm:px-4',
+  'hover:bg-[var(--patient-home-plan-action-hover-bg)] active:bg-[var(--patient-home-plan-action-hover-bg)]',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1b4585]/35',
 );
 

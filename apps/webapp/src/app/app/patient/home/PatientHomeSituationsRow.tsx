@@ -52,7 +52,7 @@ export function PatientHomeSituationsRow({ chips }: Props) {
             >
               <div
                 className={cn(
-                  'rounded-[1.4rem] p-[2px] transition-[transform,box-shadow] duration-200 ease-out motion-reduce:transition-none',
+                  'rounded-[var(--patient-situations-ring-radius)] p-[2px] transition-[transform,box-shadow] duration-200 ease-out motion-reduce:transition-none',
                   'ring-1 ring-[var(--patient-border)]/50 group-hover:-translate-y-0.5 group-hover:shadow-md group-hover:ring-2 group-hover:ring-[var(--patient-color-primary-soft)]',
                   'motion-reduce:group-hover:translate-y-0 motion-reduce:group-hover:shadow-none motion-reduce:group-hover:ring-1',
                   'group-focus-visible:-translate-y-0.5 group-focus-visible:shadow-md group-focus-visible:ring-2 group-focus-visible:ring-[var(--patient-color-primary-soft)]',

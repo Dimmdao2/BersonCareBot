@@ -239,6 +239,12 @@ export const patientPillClass = cn(
   'bg-[var(--patient-color-primary-soft)] text-[var(--patient-color-primary)]',
 );
 
+/** Счётчик и unread-маркер обсуждения программы — единый паттерн на плитке и detail-экране. */
+export const patientProgramDiscussionCountClass =
+  'rounded-md border border-[var(--patient-program-discussion-badge-border)] bg-[var(--patient-program-discussion-badge-bg)] px-1.5 py-0.5 patient-type-caption patient-text-info';
+export const patientProgramDiscussionUnreadDotClass =
+  'size-1.5 shrink-0 rounded-full bg-[var(--patient-program-discussion-unread-bg)]';
+
 /**
  * Текстовая ссылка в потоке текста (не полноразмерная кнопка).
  * Для кнопкообразных действий используйте `patientButtonGhostLinkClass` / secondary.

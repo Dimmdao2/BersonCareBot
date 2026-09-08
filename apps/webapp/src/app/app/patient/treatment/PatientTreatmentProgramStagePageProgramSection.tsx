@@ -24,6 +24,8 @@ import {
   patientCardClass,
   patientCompactActionClass,
   patientMutedTextClass,
+  patientProgramDiscussionCountClass,
+  patientProgramDiscussionUnreadDotClass,
   patientSecondaryActionClass,
   patientSectionTitleClass,
   patientSimpleCompleteDoneButtonToneClass,
@@ -715,13 +717,13 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                 >
                   <span>Комментарии</span>
                   {discussionCount > 0 ? (
-                    <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 patient-type-caption patient-text-info">
+                    <span className={patientProgramDiscussionCountClass}>
                       {discussionCount}
                     </span>
                   ) : null}
                   {hasDiscussionDot ? (
                     <span
-                      className="size-1.5 shrink-0 rounded-full bg-[#ef4444]"
+                      className={patientProgramDiscussionUnreadDotClass}
                       aria-label="Есть непрочитанные комментарии"
                     />
                   ) : null}
