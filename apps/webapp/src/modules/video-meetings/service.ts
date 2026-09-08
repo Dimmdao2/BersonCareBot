@@ -1,5 +1,12 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import type { VideoMeetingOnlineGate, VideoMeetingProvider, VideoMeetingRecord, VideoMeetingStore } from './ports';
+import type {
+  VideoMeetingInvitationNotification,
+  VideoMeetingInvitationNotificationResult,
+  VideoMeetingOnlineGate,
+  VideoMeetingProvider,
+  VideoMeetingRecord,
+  VideoMeetingStore,
+} from './ports';
 
 const MEETING_TTL_MS = 2 * 60 * 60 * 1000;
 const INVITE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -18,6 +25,21 @@ export function hashVideoMeetingInvite(value: string): string {
   return createHash('sha256').update(`video-meeting-invite:v1:${value}`).digest('hex');
 }
 
+function buildGuestUrl(patientPublicOrigin: string, inviteFragment: string): string {
+  const url = new URL('/live', patientPublicOrigin);
+  url.hash = inviteFragment;
+  return url.toString();
+}
+
+function notificationUnavailable(): VideoMeetingInvitationNotificationResult {
+  return {
+    status: 'unavailable',
+    selectedChannels: [],
+    queuedChannels: [],
+    deduplicatedChannels: [],
+  };
+}
+
 /**
  * Lifecycle is deliberately the only module path that can mint join material. Entitlement is
  * applied by the existing route-level `requireEntitlementForRead/Mutation` chokepoints, not here.
@@ -26,6 +48,8 @@ export function createVideoMeetingsService(deps: {
   store: VideoMeetingStore;
   provider: VideoMeetingProvider;
   onlineGate: VideoMeetingOnlineGate;
+  invitationNotification?: VideoMeetingInvitationNotification;
+  resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
 }) {
   async function requireOnlineAndProvider(organizationId: string): Promise<VideoMeetingServiceFailure | null> {
     if (!(await deps.onlineGate.isOnlineLocationActive(organizationId))) return 'online_location_inactive';
@@ -73,9 +97,36 @@ export function createVideoMeetingsService(deps: {
         specialistId: input.specialistId, actorPlatformUserId: input.specialistPlatformUserId,
       });
       if (!inviteIssued) throw new Error('video_meeting_invite_issue_failed');
+      let notification: VideoMeetingInvitationNotificationResult | undefined;
+      if (result.created) {
+        if (!deps.invitationNotification || !deps.resolvePatientPublicOrigin) {
+          notification = notificationUnavailable();
+        } else {
+          try {
+            notification = await deps.invitationNotification.enqueue({
+              organizationId: input.organizationId,
+              patientUserId: input.patientUserId,
+              meetingId: result.meeting.id,
+              guestUrl: buildGuestUrl(
+                await deps.resolvePatientPublicOrigin(input.organizationId),
+                inviteSecret,
+              ),
+            });
+          } catch {
+            // Meeting and invite have already been issued. Delivery availability must not change
+            // their lifecycle or expose the fragment through an error/log payload.
+            notification = notificationUnavailable();
+          }
+        }
+      }
       const joined = await join(result.meeting, 'specialist', input.specialistPlatformUserId);
       if (!joined.ok) return joined;
-      return { ...joined, resumed: !result.created, inviteFragment: inviteSecret };
+      return {
+        ...joined,
+        resumed: !result.created,
+        inviteFragment: inviteSecret,
+        ...(notification ? { notification } : {}),
+      };
     },
 
     async rotateInvite(input: { meetingId: string; organizationId: string; specialistId: string; actorPlatformUserId: string }) {

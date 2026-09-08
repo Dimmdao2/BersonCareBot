@@ -59,3 +59,23 @@ export type VideoMeetingProvider = {
 export type VideoMeetingOnlineGate = {
   isOnlineLocationActive(organizationId: string): Promise<boolean>;
 };
+
+/**
+ * Product-notification boundary for a freshly issued guest invite. It receives only stable app
+ * identifiers and the branded guest link; provider session material never crosses this boundary.
+ */
+export type VideoMeetingInvitationNotificationResult = {
+  status: 'queued' | 'partially_queued' | 'skipped' | 'unavailable';
+  selectedChannels: readonly ('telegram' | 'max' | 'email' | 'web_push')[];
+  queuedChannels: readonly ('telegram' | 'max' | 'email' | 'web_push')[];
+  deduplicatedChannels: readonly ('telegram' | 'max' | 'email' | 'web_push')[];
+};
+
+export type VideoMeetingInvitationNotification = {
+  enqueue(input: {
+    organizationId: string;
+    patientUserId: string;
+    meetingId: string;
+    guestUrl: string;
+  }): Promise<VideoMeetingInvitationNotificationResult>;
+};

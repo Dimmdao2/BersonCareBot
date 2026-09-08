@@ -429,6 +429,7 @@ import { createInMemoryPatientInvitesPort } from '@/infra/repos/inMemoryPatientI
 import { createPatientInvitesService } from '@/modules/patient-invites/service';
 import { createPgVideoMeetingStore } from '@/infra/repos/pgVideoMeetings';
 import { createVideoMeetingsService } from '@/modules/video-meetings/service';
+import { createVideoMeetingInvitationNotification } from '@/modules/patient-notifications/videoMeetingInvitationNotification';
 import { createJitsiVideoMeetingProvider } from '@/infra/video/jitsiVideoMeetingProvider';
 import { findBuiltInOnlineLocation } from '@/modules/booking-engine/onlineLocation';
 import { createClinicSeatsService } from '@/modules/clinic-seats/service';
@@ -954,6 +955,18 @@ const videoMeetingsService = !inMemoryRepos && bookingEngineCorePort
   ? createVideoMeetingsService({
       store: createPgVideoMeetingStore(),
       provider: createJitsiVideoMeetingProvider(systemSettingsService),
+      invitationNotification: createVideoMeetingInvitationNotification({
+        channelPreferences: channelPreferencesPort,
+        topicChannelPrefs: topicChannelPrefsPort,
+        webPushSubscriptions: webPushSubscriptionsPort,
+        systemSettings: systemSettingsService,
+        readReminderNotifyGate: readReminderWebappNotifyGate,
+        getProfileEmailFields: (platformUserId) =>
+          userProjectionPort.getProfileEmailFields(platformUserId),
+        getChannelBindings: loadPlatformUserChannelBindings,
+        outboundMessageQueue: createPgOutboundMessageQueue(),
+      }),
+      resolvePatientPublicOrigin,
       onlineGate: {
         async isOnlineLocationActive(organizationId) {
           const location = findBuiltInOnlineLocation(
