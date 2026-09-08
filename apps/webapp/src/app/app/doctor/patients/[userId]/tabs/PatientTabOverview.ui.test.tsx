@@ -4,13 +4,13 @@ import type { ClinicalState, Visit } from '@/modules/patient-clinical/ports';
 import { PatientTabOverview } from './PatientTabOverview';
 
 /**
- * PATIENT-NOTE-EDITOR-01..03: «Новая заметка» reuses the shared fullscreen single-field editor
- * (MODAL-TEXT-01..08, covered independently in DoctorModal.ui.test.tsx). This file locks in the
- * observable contract at this call site: opening focuses the textarea immediately, cancel creates
- * no note, and save calls the existing note-creation endpoint exactly once.
+ * A silent, costly failure at this boundary is the active patient card keeping its former
+ * append-only/manual-save workflow while the meeting page uses daily autosave. This acceptance
+ * test exercises both existing notes entry points and observes the shared daily HTTP behavior.
  */
 
 const userId = '11111111-1111-4111-8111-111111111111';
+const today = '2026-09-08';
 
 const emptyClinical: ClinicalState = {
   complaints: [],
@@ -20,18 +20,39 @@ const emptyClinical: ClinicalState = {
 };
 const noVisits: Visit[] = [];
 
-function stubFetch() {
+function stubDailyNotesFetch() {
+  let savedText = '';
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input.toString();
-    if (url.endsWith('/notes') && init?.method === 'POST') {
-      return {
-        ok: true,
-        json: async () => ({
-          note: { id: 'note-1', text: JSON.parse(init.body as string).text, updatedAt: '2026-09-06T10:00:00.000Z' },
-        }),
-      } as unknown as Response;
+    if (!url.endsWith(`/api/doctor/clients/${userId}/notes`)) {
+      return new Response(JSON.stringify({}), { status: 200 });
     }
-    return { ok: true, json: async () => ({}) } as unknown as Response;
+
+    if (init?.method === 'POST') {
+      const body = JSON.parse(init.body as string) as {
+        noteDate: string;
+        text: string;
+      };
+      savedText = body.text;
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          note: { id: 'daily-note', noteDate: body.noteDate, text: body.text, revision: 1 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        today: { iana: 'Europe/Moscow', date: today },
+        notes: savedText
+          ? [{ id: 'daily-note', noteDate: today, text: savedText, revision: 1 }]
+          : [],
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
@@ -48,58 +69,59 @@ function renderOverview() {
       initialVisits={{ ok: true, value: noVisits }}
       initialNotes={{ ok: true, value: [] }}
       initialTasks={{ ok: true, value: [] }}
-      initialProgramActivity={{ ok: true, value: { unreadCount: 0, unreadByStageItemId: {}, lastMark: null } }}
+      initialProgramActivity={{
+        ok: true,
+        value: { unreadCount: 0, unreadByStageItemId: {}, lastMark: null },
+      }}
       initialAppointments={{ ok: true, value: [] }}
       initialProgramInstances={{ ok: true, value: [] }}
     />,
   );
 }
 
-function noteFetchCalls(fetchMock: ReturnType<typeof stubFetch>) {
-  return fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/notes'));
+function dailyNotePostCalls(fetchMock: ReturnType<typeof stubDailyNotesFetch>) {
+  return fetchMock.mock.calls.filter(
+    ([input, init]) =>
+      String(input).endsWith(`/api/doctor/clients/${userId}/notes`) && init?.method === 'POST',
+  );
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
 
-describe('PatientTabOverview — «Новая заметка» fullscreen editor (PATIENT-NOTE-EDITOR-01..03)', () => {
-  it('opens with a focused textarea; cancel creates no note', async () => {
-    const fetchMock = stubFetch();
+describe('PatientTabOverview daily notes integration (NOTE-04/07, UI-01)', () => {
+  it('autosaves through the daily contract and reopens the same note from both notes controls', async () => {
+    const fetchMock = stubDailyNotesFetch();
     renderOverview();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Добавить заметку' }));
-    const dialog = await screen.findByRole('dialog');
-    const textarea = within(dialog).getByPlaceholderText('Текст заметки…') as HTMLTextAreaElement;
-    expect(document.activeElement).toBe(textarea);
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть заметки' }));
+    let dialog = await screen.findByRole('dialog');
+    const textarea = (await within(dialog).findByPlaceholderText(
+      'Заметка…',
+    )) as HTMLTextAreaElement;
 
-    fireEvent.change(textarea, { target: { value: 'Черновик без сохранения' } });
-    fireEvent.click(within(dialog).getByText('Отмена'));
+    expect(within(dialog).queryByRole('button', { name: /добавить|сохранить/i })).toBeNull();
+    fireEvent.change(textarea, { target: { value: 'Единая дневная заметка' } });
+    await waitFor(() => expect(dailyNotePostCalls(fetchMock)).toHaveLength(1));
 
+    const [postInput, postInit] = dailyNotePostCalls(fetchMock)[0] as [string, RequestInit];
+    expect(postInput).toBe(`/api/doctor/clients/${userId}/notes`);
+    expect(JSON.parse(postInit.body as string)).toMatchObject({
+      noteDate: today,
+      text: 'Единая дневная заметка',
+    });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(noteFetchCalls(fetchMock)).toHaveLength(0);
-  });
 
-  it('save calls the existing note-creation endpoint exactly once and closes the editor', async () => {
-    const fetchMock = stubFetch();
-    renderOverview();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Добавить заметку' }));
-    const dialog = await screen.findByRole('dialog');
-    const textarea = within(dialog).getByPlaceholderText('Текст заметки…') as HTMLTextAreaElement;
-
-    fireEvent.change(textarea, { target: { value: 'Первая заметка' } });
-    fireEvent.click(within(dialog).getByText('Сохранить'));
-
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    const calls = noteFetchCalls(fetchMock);
-    expect(calls).toHaveLength(1);
-    const [, init] = calls[0] as [string, RequestInit];
-    expect(init.method).toBe('POST');
-    expect(JSON.parse(init.body as string)).toEqual({ text: 'Первая заметка' });
+    fireEvent.click(screen.getByRole('button', { name: /Заметок/ }));
+    dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByDisplayValue('Единая дневная заметка')).toBeVisible();
   });
 });
