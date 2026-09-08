@@ -3,14 +3,19 @@
 -- Source of truth for these option names: https://prosody.im/doc/modules/mod_turn_external
 -- (core module since Prosody 0.12; the third-party mod_turncredentials it obsoletes explicitly says so on
 -- its own doc page at https://modules.prosody.im/mod_turncredentials.html — we use the core module, not the
--- obsoleted community one).
+-- obsoleted community one). Confirmed against the option list documented on that page and against the
+-- module source (hg.prosody.im/trunk/raw-file/tip/plugins/mod_turn_external.lua) for the Prosody 13.x
+-- package this stack's pinned prosody image installs (jitsi-meet-prosody dependency, see
+-- prosody/Dockerfile in jitsi/docker-jitsi-meet@stable-11146-2).
 --
 -- Filename is prefixed "00-" so it sorts and Includes before the generated "jitsi-meet.cfg.lua" in the same
--- conf.d directory: these three assignments below any VirtualHost/Component block are Prosody *global*
+-- conf.d directory: these assignments below any VirtualHost/Component block are Prosody *global*
 -- settings, inherited by "turn_external" wherever that module is enabled (main VirtualHost, via
 -- XMPP_MODULES=turn_external in jitsi-test.env.example) even though the module itself is switched on by a
--- file generated afterward. bin/install.sh verifies this landed (see assert_turn_override_mounted) instead
--- of assuming the Include/ordering behavior blind — see README.md "Design decisions".
+-- file generated afterward. bin/health-check.sh verifies this landed (greps the rendered config inside the
+-- running Prosody container, and separately proves a real TURN credential allocation with
+-- turnutils_uclient) instead of assuming the Include/ordering behavior blind — see README.md
+-- "Design decisions".
 --
 -- The secret/host/port values below are substituted by bin/render-secrets.sh from the host TEST secret
 -- store; this file as checked into git contains only placeholder tokens, never a real value.
@@ -18,7 +23,10 @@
 turn_external_secret = "__TURN_SHARED_SECRET__";
 turn_external_host = "__TURN_HOST__";
 turn_external_port = __TURN_PORT__;
--- coturn also answers TURNS on 5349; mod_turn_external only advertises one host:port pair for the
--- unencrypted UDP/TCP listener, TLS discovery is handled by the client falling back to the TLS port on the
--- same host when UDP ICE gathering fails (RUNBOOK.md scenario "forced TURN / TLS fallback").
+-- Advertises the TLS/TCP fallback service ("turns-tcp") explicitly, on the same coturn instance's TLS
+-- listener (coturn/turnserver.conf.template `tls-listening-port`) — required so a UDP-restricted client
+-- actually receives a `turns:` candidate instead of only ever seeing the plain UDP entry above (see
+-- docs/audit/jitsi-coturn-test-package-2026-09-08.md finding F2; per mod_turn_external's own source, this
+-- option is what turns the "turns-tcp" external_service entry on, independent of turn_external_tcp).
+turn_external_tls_port = __TURN_TLS_PORT__;
 turn_external_ttl = 3600; -- short-lived on purpose: a 1:1 room's own capability/session lifetime is short too

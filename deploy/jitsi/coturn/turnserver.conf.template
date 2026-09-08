@@ -40,7 +40,14 @@ total-quota=__TURN_MAX_ALLOCATIONS__
 # No CLI/telnet admin interface, no built-in web admin — nothing beyond the TURN/STUN protocol surface
 # itself is reachable.
 no-cli
-no-tcp-relay
+# Deliberately NOT setting no-tcp-relay: per coturn's own README.turnserver, that flag disallows RFC 6062
+# TCP *relay endpoints* (the protocol between coturn and the peer), which is orthogonal to the TLS
+# *transport* between client and coturn that tls-listening-port above already provides — a UDP-restricted
+# browser reaching this server over TLS on TURN_TLS_LISTEN_PORT and requesting a normal RFC 5766 UDP relay
+# is unaffected by this flag either way. It is left enabled here (not the earlier default) so the runbook's
+# forced-TURN-over-TLS fallback scenario also has the RFC 6062 TCP-relay path available as a second-line
+# fallback for a client that specifically negotiates it, without narrowing anything this package's security
+# posture depends on (shared-secret auth, deny-peer ranges and quotas below are unchanged either way).
 no-multicast-peers
 no-loopback-peers
 no-stdout-log

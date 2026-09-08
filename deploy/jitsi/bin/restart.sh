@@ -19,10 +19,21 @@ VENDOR_DIR="$HERE/vendor/docker-jitsi-meet-${JITSI_RELEASE_TAG}"
 
 bash "$HERE/bin/render-secrets.sh"
 
-docker compose \
-  -f "$VENDOR_DIR/docker-compose.yml" \
-  -f "$HERE/docker-compose.override.test.yml" \
-  --env-file "$ENV_FILE" \
-  -p bcb-jitsi-test up -d --force-recreate
+COMPOSE_ARGS=(
+  -f "$VENDOR_DIR/docker-compose.yml"
+  -f "$HERE/docker-compose.override.test.yml"
+  --env-file "$ENV_FILE"
+  # See install.sh's identical flag: without it, the override's relative bind-mount sources resolve
+  # against $VENDOR_DIR (the first -f file's directory), not deploy/jitsi/.
+  --project-directory "$HERE"
+  -p bcb-jitsi-test
+)
+
+docker compose "${COMPOSE_ARGS[@]}" config >/dev/null || {
+  echo "FATAL: docker compose config failed against the merged upstream+override tree — nothing was recreated" >&2
+  exit 1
+}
+
+docker compose "${COMPOSE_ARGS[@]}" up -d --force-recreate
 
 echo "[jitsi-test] restarted; run bin/health-check.sh to confirm"

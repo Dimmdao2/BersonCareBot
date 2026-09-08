@@ -23,7 +23,8 @@ PROD's policy-drop model), not a prerequisite the stack needs to function.
 | Port | Proto | Component | Exposure | Notes |
 | --- | --- | --- | --- | --- |
 | 443 | tcp | existing host nginx | public (VPN-trusted allowlist, see below) | new vhost `meet.${TEST_BASE_DOMAIN}`, TLS terminated by nginx |
-| `${WEB_HTTPS_PORT}` (default `8443`) | tcp | Jitsi `web` container | `127.0.0.1` only | not exposed beyond loopback; nginx proxies to it |
+| `${HTTP_PORT}` (default `8000`) | tcp | Jitsi `web` container | `127.0.0.1` only | plain HTTP — with `DISABLE_HTTPS=1` the container never opens a TLS listener at all (verified against the pinned tag's own nginx template); not exposed beyond loopback, nginx proxies to it |
+| `${JVB_COLIBRI_PORT}` (default `8080`) | tcp | JVB Colibri REST API | `127.0.0.1` only | `COLIBRI_REST_ENABLED=1`; upstream's own base compose already binds this to loopback — `bin/health-check.sh` uses `GET /about/health` on it, never a new public surface |
 | `${JVB_PORT}` (default `10000`) | udp | JVB | public | media fallback path; must be reachable without NAT surprises — `JVB_ADVERTISE_IPS` below |
 | `${JVB_TCP_PORT}` (default `4443`) | tcp | JVB | public | TCP harvester fallback for UDP-hostile networks; low priority path, kept for completeness per plan's "TLS TURN fallback" intent |
 | 3478 | udp+tcp | coturn | public | STUN + TURN, UDP first |

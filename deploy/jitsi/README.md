@@ -14,8 +14,8 @@ behaves the way the plan requires. Streams A/B/D wire the application to it.
 ```text
                          151.241.228.122 (DEV/RELAY/TEST host — the only host this package targets)
 
-  browser  ── HTTPS ──▶  nginx (existing host front door, new vhost)
-                              │  proxy_pass 127.0.0.1:${WEB_HTTPS_PORT}
+  browser  ── HTTPS ──▶  nginx (existing host front door, new vhost, terminates TLS)
+                              │  proxy_pass http://127.0.0.1:${HTTP_PORT} (plain HTTP — DISABLE_HTTPS=1)
                               ▼
                        docker compose project "bcb-jitsi-test" (own bridge network, no host network mode)
                        ┌────────────────────────────────────────────────────────────┐
@@ -56,23 +56,52 @@ compose file entirely or explicitly `0`/unset in the env template — see
 | `docker-compose.override.test.yml` | TEST-only overlay (ports, no host network, resource limits) over the vendored upstream compose file |
 | `nginx/meet-test.vhost.template.conf` | new nginx vhost for the meet web endpoint, same template style as the existing webapp vhost |
 | `../systemd/bersoncarebot-jitsi-test.service` | wraps `docker compose` lifecycle the same way other TEST units wrap `node` |
-| `bin/install.sh` | idempotent apply: fetch pinned release, render config from templates + secret store, bring the stack up |
-| `bin/render-secrets.sh` | generates/loads host-side Prosody/JVB/coturn secrets only (never the app JWT secret) |
-| `bin/health-check.sh` | config + network proof: `prosodyctl check`, container health, TURN allocate probe |
-| `bin/restart.sh`, `bin/rollback.sh` | restart in place / tear down to pre-apply state |
+| `bin/install.sh` | idempotent apply: preflight (incl. port collisions), fetch + hash-verify pinned release, create the CONFIG tree, render config from templates + secret store, dry-run the merged compose config, bring the stack up |
+| `bin/render-secrets.sh` | generates/loads host-side Prosody/JVB/coturn secrets only (never the app JWT secret); every substitution is argv-safe and atomic |
+| `bin/health-check.sh` | config + network proof: `prosodyctl check`, container + JVB REST health, mandatory credentialed TURN allocation over UDP and TLS |
+| `bin/restart.sh` | restart in place (re-render config, recreate containers) |
+| `bin/stop.sh` | plain compose `down` with full context — what the systemd unit's `ExecStop` calls |
+| `bin/rollback.sh` | tear down to the exact pre-apply state by default (see "Design decisions") |
 | `bin/probe-no-foreign-endpoints.sh` | DNS/egress capture proving no foreign runtime endpoint is contacted |
-| `bin/check-latest-jitsi-tag.sh` | re-verify the pinned upstream tag against GitHub releases |
+| `bin/check-latest-jitsi-tag.sh` | re-verify the pinned upstream tag against GitHub releases, and re-verify every pinned image digest against the registries for drift |
 
 ## Design decisions and why
 
-- **Vendored, not hand-copied, upstream compose.** `bin/install.sh` downloads the official
-  `jitsi/docker-jitsi-meet` release zip for the pinned tag (checksum-verified against the tag's published
-  source archive) into a local, git-ignored `vendor/` directory and layers
-  `docker-compose.override.test.yml` on top of *upstream's own* `docker-compose.yml`. We do not maintain a
-  hand-transcribed copy of a large third-party compose file in this repo — that drifts silently across
-  upstream releases and is exactly the kind of untracked fork the plan's "smallest officially supported
-  topology" instruction is trying to avoid. `vendor/` is added to `.gitignore`; nothing under it is a
-  reviewable artifact of this branch, only the override is.
+- **Vendored, not hand-copied, upstream compose, with the base file listed first.** `bin/install.sh`
+  downloads the official `jitsi/docker-jitsi-meet` release zip for the pinned tag — verifying the download
+  against `ARCHIVE_SHA256` (recorded in `env/jitsi-test.env.example`/`VERSIONS.md`) before ever unzipping it
+  — into a local, git-ignored `vendor/` directory, and every `docker compose` invocation in this package
+  passes the vendored `docker-compose.yml` as `-f` before `docker-compose.override.test.yml`. We do not
+  maintain a hand-transcribed copy of a large third-party compose file in this repo — that drifts silently
+  across upstream releases and is exactly the kind of untracked fork the plan's "smallest officially
+  supported topology" instruction is trying to avoid. `vendor/` is added to `.gitignore`; nothing under it
+  is a reviewable artifact of this branch, only the override is. Compose resolves every *relative* bind-mount
+  source against the directory of the first `-f` file by default — since that is always the vendored
+  release here, every command that merges both files also passes `--project-directory` pointed at
+  `deploy/jitsi/` itself, so the override's own `./config/...`/`./coturn/...` paths resolve to this
+  package's files instead of a path inside the downloaded release (confirmed with `docker compose config`
+  against a real vendored tree before landing this fix — an earlier version of this same override, before
+  this flag existed, reproduced F1 with different symptoms).
+- **`CONFIG` is a deterministic absolute path, not left to whatever directory happens to be current.**
+  Upstream's own `docker-compose.yml` resolves every `${CONFIG}/...` volume source (web, prosody, jicofo,
+  jvb each mount a subdirectory of it) against this one variable. Independent audit finding F1
+  (`docs/audit/jitsi-coturn-test-package-2026-09-08.md`) was exactly a missing `CONFIG`: compose silently
+  fell back to resolving those paths *inside the vendored release directory itself*, where none of this
+  package's config files exist, so the stack could not reliably start and none of its overrides landed.
+  `env/jitsi-test.env.example` now declares `CONFIG=/etc/bersoncarebot/jitsi-test/config` — same host
+  convention as the secret store below — and `bin/install.sh` creates every subdirectory upstream's compose
+  expects there before rendering or starting anything.
+- **Plain HTTP on the loopback port, not a self-signed 8443.** `DISABLE_HTTPS=1` was already set, but the
+  override previously still published `${HTTPS_PORT}:8443` and nginx proxied to it with
+  `proxy_ssl_verify off` — a false path, since the pinned tag's own nginx template (verified directly,
+  `web/rootfs/defaults/default`) compiles the `listen 8443 ssl` block out entirely when `DISABLE_HTTPS=1`;
+  nothing ever listens there. The override now publishes only `127.0.0.1:${HTTP_PORT}:8000` (the container's
+  real plain-HTTP listener in this mode), and the nginx vhost template proxies to that over plain HTTP.
+- **Real preflight before mutation.** `bin/install.sh --apply` runs `docker compose ... config` against the
+  full merged upstream+override tree (once the vendored release and CONFIG tree exist, before secrets are
+  rendered or `up` is called) and fails closed on any merge error, and separately checks every exact host
+  port/range this package owns (loopback web, JVB UDP/TCP, TURN UDP/TCP/TLS, the relay range) for an
+  existing listener before downloading, rendering, or starting anything — independent audit finding F4.
 - **`MAX_PARTICIPANTS=2` is the occupancy enforcement (VM-02), not a hand-rolled Prosody module.** Confirmed
   by reading the pinned tag's actual Prosody template
   (`prosody/rootfs/defaults/conf.d/jitsi-meet.cfg.lua` in `stable-11146-2`): when `MAX_PARTICIPANTS` is set,
@@ -96,11 +125,36 @@ compose file entirely or explicitly `0`/unset in the env template — see
   `turn_external_secret/host/port`, so `config/prosody/conf.d/00-turn-external.cfg.lua.template` is dropped
   into the same `conf.d/` directory the generated `jitsi-meet.cfg.lua` lives in, filename-prefixed to sort
   and load before it, setting these as global Prosody options that the module picks up wherever it's enabled
-  (`turn_external` is added to `XMPP_MODULES` on the main VirtualHost). `bin/health-check.sh` runs the
-  upstream-documented `prosodyctl check turn` and greps the *rendered* config inside the running container
-  for the literal secret/host lines before declaring the stack healthy — this package does not trust its own
-  assumption about Prosody's file layout without checking it against the live container, and fails closed if
-  the override did not land where expected.
+  (`turn_external` is added to `XMPP_MODULES` on the main VirtualHost). The template also sets
+  `turn_external_tls_port` (verified directly against `mod_turn_external`'s own source and
+  `https://prosody.im/doc/modules/mod_turn_external`) so a UDP-restricted client is actually handed a
+  `turns:` candidate for TLS fallback on 5349 — independent audit finding F2 was that only the UDP entry was
+  ever advertised, so a client that could not use UDP had no advertised fallback to try even though coturn's
+  TLS listener was already configured. `bin/health-check.sh` runs the upstream-documented
+  `prosodyctl check turn`, greps the *rendered* config inside the running container for both the secret/host
+  lines and `turn_external_tls_port`, and performs a real ephemeral-credential TURN allocation over both UDP
+  and TLS (`turnutils_uclient -W`) before declaring the stack healthy — this package does not trust its own
+  assumption about Prosody's file layout or protocol behavior without checking it against the live
+  container, and fails closed if the override did not land where expected or an allocation is rejected.
+- **Secrets are rendered without ever appearing in a subprocess's argv.** Every substitution in
+  `bin/render-secrets.sh` is bash's own `${var//pattern/repl}` string replacement or the `printf` builtin —
+  never `sed -e "s#...#${secret}#"`, which puts the secret in a command line any same-host process can read
+  via `/proc/<pid>/cmdline` (independent audit finding F3). Every rendered file is written to a temp file in
+  its final directory, chmod'd `0600`, then renamed into place — a crash mid-render leaves the previous
+  (or no) file, never a half-written one.
+- **Images are pinned by digest, not tag alone**, and the vendored source archive's SHA-256 is verified
+  before it is ever unzipped (`ARCHIVE_SHA256`). `bin/check-latest-jitsi-tag.sh` re-fetches the live digest
+  for the currently pinned tag from GHCR/Docker Hub on every run and fails if it no longer matches what
+  `docker-compose.override.test.yml` pins — independent audit finding F6 was that a re-published tag or a
+  tampered archive would be silently trusted under the old tag-only scheme.
+- **`bin/rollback.sh` restores the exact pre-apply state by default.** Its previous shape kept vendor files,
+  volumes and rendered config by default and only removed them behind an opt-in `--purge` — backwards from
+  "pre-apply state," which had none of those (independent audit finding F4). The default now removes
+  containers, the project network, this package's named volumes, the vendored release, rendered config, and
+  the secret store; `--keep-cache` is an explicit, clearly-non-default opt-out for fast local iteration.
+  Correspondingly, the systemd unit's `ExecStop` now calls `bin/stop.sh` (same two-compose-file + env-file
+  context as every other command in this package) instead of a bare `docker compose -p bcb-jitsi-test down`,
+  which has no compose file to resolve the project definition from.
 - **coturn is a separate, independently pinned image**, not part of the jitsi-meet release — the plan's own
   wording ("collective coturn") matches upstream's own turn.md, which assumes an externally-run TURN server.
   `docker-compose.override.test.yml` adds it as an additional service in the same compose project so
@@ -108,7 +162,7 @@ compose file entirely or explicitly `0`/unset in the env template — see
 - **Single host, single nginx front door.** `test.bersoncare.ru`'s existing IP-allowlist model (network
   policy lives in the nginx server block, not in a host firewall — see `NETWORK_POLICY.md`) is reused for the
   meet web vhost rather than opening a second, differently-secured entry point. The web container binds only
-  `127.0.0.1:${WEB_HTTPS_PORT}`; nginx is the only thing exposed on 443. This is a deliberate scope decision,
+  `127.0.0.1:${HTTP_PORT}`; nginx is the only thing exposed on 443. This is a deliberate scope decision,
   not an oversight: TEST has no real external users (only the owner, from VPN-trusted subnets — see
   `docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md` §6.7), so the guest `/live` proof the plan asks for runs from
   the owner's own VPN-connected browser context, same as every other TEST page.
@@ -124,25 +178,46 @@ provisioning DNS, opening ports, starting shared services, or touching DEV/TEST/
 [Validation performed](#validation-performed-in-this-worktree) below is static/syntax-level. Before this
 package is "done" against the plan:
 
-1. Confirm the exact TEST-host bind path docker-jitsi-meet mounts for `${CONFIG}/prosody/config/conf.d/` on
-   the pinned tag (`bin/install.sh` asserts this at apply time and refuses to continue silently if the
-   override file isn't visible inside the running Prosody container — see its `assert_turn_override_mounted`
-   step — but a human has not yet watched that assertion pass on real TEST).
+1. Nothing in this package has been run against a real host yet — `bin/health-check.sh`'s Prosody/JVB/TURN
+   checks (grep for `turn_external_secret`/`turn_external_tls_port` inside the running container, the
+   Colibri `/about/health` probe, the credentialed TURN allocation probes) are the actual, live-container
+   assertions that the CONFIG tree and overrides landed where expected; a human has not yet watched them
+   pass on real TEST.
 2. DNS + TLS prerequisites in `NETWORK_POLICY.md` (new `meet.` / `turn.` subdomains) must exist before
    `bin/install.sh` can request a real certificate; until then `install.sh --check` stops at that gate and
    names exactly what is missing.
-3. The JWT signing secret Jitsi verifies against must be copied from `system_settings` (stream A's table) into
+3. `/etc/bersoncarebot` (parent of both the CONFIG tree and the secret store) must exist and be writable by
+   whichever user runs `bin/install.sh` — same one-time root bootstrap this host already needed for
+   `/etc/bersoncarebot/postgres-mtls/` (`docs/ARCHITECTURE/SERVER CONVENTIONS.md` §mTLS). `bin/install.sh`
+   fails closed with this exact message if it cannot create its subdirectories, rather than a raw
+   permission-denied trace.
+4. The JWT signing secret Jitsi verifies against must be copied from `system_settings` (stream A's table) into
    this package's `JWT_APP_SECRET` at apply time — this package treats it as an externally supplied input
    (see `env/jitsi-test.env.example`), not something it generates, reads from the DB, or stores independently.
-4. Full `RUNBOOK.md` execution (two synthetic browser contexts, third-participant refusal, forced-TURN and
-   JVB-fallback ICE stats, DNS/network capture) is unrun — it needs the stack actually up.
+5. Full `RUNBOOK.md` execution (two synthetic browser contexts, third-participant refusal, forced-TURN and
+   JVB-fallback ICE stats, DNS/network capture) is unrun — it needs the stack actually up. This is a
+   separate, explicitly-named acceptance stage from `bin/health-check.sh` passing: a health `PASS` proves
+   the stack is configured and individually-functional (container health, rendered config, credentialed TURN
+   allocation), never that two real browsers completed a call — see `RUNBOOK.md`'s own framing.
 
 ## Validation performed in this worktree
 
 - `bash -n` on every script in `bin/`.
-- `docker compose -f docker-compose.override.test.yml config` (upstream base file not vendored here, so this
-  validates override YAML syntax/interpolation only — full merge validation happens in `install.sh --check`
-  once the base file is fetched).
-- `node --check` is not applicable (no `.mjs`/`.js` shipped as executable Node — `config/web/*.js` are Jitsi
-  config fragments, checked with `node -e` syntax parse instead, see commit message).
+- `node -e` syntax parse of `config/web/custom-config.js` and `config/web/custom-interface_config.js` (not
+  executable Node modules — Jitsi config fragments — so `node --check` does not apply to them directly).
 - `git diff --check` (no trailing whitespace/conflict markers).
+- `bin/check-latest-jitsi-tag.sh` run live: confirms the pinned tag is upstream's current release and that
+  every pinned image digest (web/prosody/jicofo/jvb/coturn) still matches what GHCR/Docker Hub report for
+  that tag right now — no drift.
+- The pinned upstream archive was downloaded and hashed live; it matches `ARCHIVE_SHA256`.
+- **Full upstream+override `docker compose config` render**, isolated under `/tmp` (own `-p`, own `CONFIG`
+  under `/tmp`, no real host paths, no containers started): the vendored `stable-11146-2` release was
+  extracted, merged with `docker-compose.override.test.yml` and a synthetic env file
+  (`JWT_APP_SECRET` replaced with a placeholder, `CONFIG` pointed at the temp dir) using the same
+  `--project-directory`-qualified command every script in this package now runs. The merge succeeded with
+  no warnings; every service resolved to its pinned digest; `web` published only
+  `127.0.0.1:8000->8000`; `jicofo` published no ports; `jvb` published exactly `10000/udp` and
+  `4443/tcp`; every `${CONFIG}/...` volume resolved under the synthetic CONFIG root; the package's own
+  `./config/...`/`./coturn/...` bind sources resolved to `deploy/jitsi/`, not into the vendored release
+  directory. This is the same check `bin/install.sh --apply` now runs as a preflight before `up`, exercised
+  here without mutating any host. `up`/`docker compose ... up` was never run.

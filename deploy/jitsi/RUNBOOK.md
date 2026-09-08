@@ -81,8 +81,9 @@ noted — that is sufficient proof per the plan's §6.8 explicit allowance.
 - `bin/restart.sh` then `bin/health-check.sh` again → still `RESULT: PASS`, and an in-progress call (scenario
   1) is expected to drop on `--force-recreate` — note this as a known limitation (no graceful drain), not a
   defect, since the plan does not ask for zero-downtime restart of a video stack.
-- `bin/rollback.sh` → `docker compose -p bcb-jitsi-test ps` shows no containers; `bin/rollback.sh --purge`
-  additionally removes the secret store; a subsequent `bin/install.sh --apply` comes back up clean with newly
-  generated internal passwords (confirm old `jicofo-auth-password` file content differs from the new one,
-  without printing either value — `diff <(stat -c%Y old) <(stat -c%Y new)` or a checksum comparison, never a
-  value comparison in a terminal that gets logged).
+- `bin/rollback.sh` (no flags — the default, exact-restore behavior) → `docker compose -p bcb-jitsi-test ps`
+  shows no containers, the package's named volumes are gone, and `vendor/`, the rendered config files, and
+  the secret store are all removed; a subsequent `bin/install.sh --apply` comes back up clean with a
+  freshly downloaded release and newly generated internal passwords (confirm old `jicofo-auth-password`
+  file content differs from the new one, without printing either value — `diff <(stat -c%Y old) <(stat -c%Y new)`
+  or a checksum comparison, never a value comparison in a terminal that gets logged).

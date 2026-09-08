@@ -8,7 +8,17 @@
 # 0600 — same shape as the existing Postgres mTLS material convention in
 # docs/ARCHITECTURE/SERVER CONVENTIONS.md §mTLS (root/owner-only directory, narrow file perms, never
 # world-readable, never printed). Never logged, never echoed — every write below is silent on success.
+#
+# argv safety (docs/audit/jitsi-coturn-test-package-2026-09-08.md finding F3): every substitution below is
+# done with bash's own `${var//pattern/repl}` string replacement or the `printf` builtin, never by handing a
+# secret value to `sed -e "s#...#${secret}#"` as a separate process's argument — a same-host process can
+# read another process's argv (e.g. via /proc/<pid>/cmdline) but not a bash builtin that never execs.
+#
+# Atomicity: every rendered file is written to a temp file in the same directory (so the final `mv` is a
+# same-filesystem rename, not a copy) and given its final 0600 mode before that rename — a crash mid-render
+# leaves either the old file or nothing, never a half-written one.
 set -euo pipefail
+umask 077
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STORE="${JITSI_TEST_SECRET_STORE:-/etc/bersoncarebot/jitsi-test/secrets}"
@@ -21,10 +31,49 @@ gen_if_missing() {
   local file="$1"
   if [[ ! -s "$STORE/$file" ]]; then
     log "generating $file"
-    umask 077
-    openssl rand -base64 32 > "$STORE/$file"
-    chmod 0600 "$STORE/$file"
+    openssl rand -base64 32 > "$STORE/$file.tmp.$$"
+    chmod 0600 "$STORE/$file.tmp.$$"
+    mv -f "$STORE/$file.tmp.$$" "$STORE/$file"
   fi
+}
+
+# Writes $value into the line "$key=..." of $file, in place, atomically, without ever passing $value as a
+# process argument (pure bash — printf here is the shell builtin, not /usr/bin/printf, because no `=` in
+# the command triggers an external exec).
+write_env_var_inplace() {
+  local file="$1" key="$2" value="$3"
+  local tmp; tmp="$(mktemp "$(dirname "$file")/.$(basename "$file").tmp.XXXXXX")"
+  local mode; mode="$(stat -c%a "$file" 2>/dev/null || echo 600)"
+  local found=0 line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == "$key="* ]]; then
+      printf '%s=%s\n' "$key" "$value"
+      found=1
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$file" > "$tmp"
+  [[ "$found" == 1 ]] || printf '%s=%s\n' "$key" "$value" >> "$tmp"
+  chmod "$mode" "$tmp"
+  mv -f "$tmp" "$file"
+}
+
+# Renders $template to $out by replacing every `__KEY__` placeholder with the matching value from the
+# associative array named $3 (passed by name), then chmod 0600 + atomic rename. Pure bash throughout: the
+# `while read` loop and `${line//pattern/repl}` are both builtins, no subprocess ever sees a secret value.
+render_template() {
+  local template="$1" out="$2"
+  local -n placeholders_ref="$3"
+  local tmp; tmp="$(mktemp "$(dirname "$out")/.$(basename "$out").tmp.XXXXXX")"
+  local line key
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    for key in "${!placeholders_ref[@]}"; do
+      line="${line//__${key}__/${placeholders_ref[$key]}}"
+    done
+    printf '%s\n' "$line"
+  done < "$template" > "$tmp"
+  chmod 0600 "$tmp"
+  mv -f "$tmp" "$out"
 }
 
 # Internal-only credentials this package fully owns.
@@ -36,27 +85,26 @@ JICOFO_AUTH_PASSWORD="$(cat "$STORE/jicofo-auth-password")"
 JVB_AUTH_PASSWORD="$(cat "$STORE/jvb-auth-password")"
 TURN_SHARED_SECRET="$(cat "$STORE/turn-shared-secret")"
 
-# --- Render the rendered app env file that install.sh's `docker compose --env-file` actually reads ---
+# --- Patch the rendered app env file that install.sh's `docker compose --env-file` actually reads ---
 # We do not overwrite the operator-edited jitsi.test file's non-secret values; we only patch in the
-# generated internal passwords, in place, idempotently.
+# generated internal passwords, in place, idempotently, and without a secret ever appearing in argv.
 ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
 if [[ -w "$ENV_FILE" ]]; then
-  sed -i \
-    -e "s#^JICOFO_AUTH_PASSWORD=.*#JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD}#" \
-    -e "s#^JVB_AUTH_PASSWORD=.*#JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD}#" \
-    "$ENV_FILE"
+  write_env_var_inplace "$ENV_FILE" JICOFO_AUTH_PASSWORD "$JICOFO_AUTH_PASSWORD"
+  write_env_var_inplace "$ENV_FILE" JVB_AUTH_PASSWORD "$JVB_AUTH_PASSWORD"
 fi
 
 # --- Render Prosody's turn_external include ---
-TURN_HOST="${TURN_CERT_DOMAIN:-turn.test.bersoncare.ru}"
-TURN_PORT="${TURN_LISTEN_PORT:-3478}"
-sed \
-  -e "s#__TURN_SHARED_SECRET__#${TURN_SHARED_SECRET}#" \
-  -e "s#__TURN_HOST__#${TURN_HOST}#" \
-  -e "s#__TURN_PORT__#${TURN_PORT}#" \
+declare -A prosody_placeholders=(
+  [TURN_SHARED_SECRET]="$TURN_SHARED_SECRET"
+  [TURN_HOST]="${TURN_CERT_DOMAIN:-turn.test.bersoncare.ru}"
+  [TURN_PORT]="${TURN_LISTEN_PORT:-3478}"
+  [TURN_TLS_PORT]="${TURN_TLS_LISTEN_PORT:-5349}"
+)
+render_template \
   "$HERE/config/prosody/conf.d/00-turn-external.cfg.lua.template" \
-  > "$HERE/config/prosody/conf.d/00-turn-external.rendered.cfg.lua"
-chmod 0600 "$HERE/config/prosody/conf.d/00-turn-external.rendered.cfg.lua"
+  "$HERE/config/prosody/conf.d/00-turn-external.rendered.cfg.lua" \
+  prosody_placeholders
 log "rendered config/prosody/conf.d/00-turn-external.rendered.cfg.lua"
 
 # --- Render coturn's turnserver.conf ---
@@ -67,11 +115,11 @@ for r in "${ranges[@]}"; do
   denied_lines+="denied-peer-ip=${r}"$'\n'
 done
 
-render_conf="$HERE/coturn/turnserver.rendered.conf"
-: > "$render_conf"
+coturn_render_conf="$HERE/coturn/turnserver.rendered.conf"
+coturn_tmp="$(mktemp "$HERE/coturn/.turnserver.rendered.conf.tmp.XXXXXX")"
 while IFS= read -r line || [[ -n "$line" ]]; do
   if [[ "$line" == "__DENIED_PEER_IP_LINES__" ]]; then
-    printf '%s' "$denied_lines" >> "$render_conf"
+    printf '%s' "$denied_lines"
     continue
   fi
   line="${line//__TURN_LISTEN_PORT__/${TURN_LISTEN_PORT:-3478}}"
@@ -82,9 +130,10 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   line="${line//__TURN_REALM__/${TURN_REALM:-test.bersoncare.ru}}"
   line="${line//__TURN_EXTERNAL_IP__/${TURN_EXTERNAL_IP:-151.241.228.122}}"
   line="${line//__TURN_MAX_ALLOCATIONS__/${TURN_MAX_ALLOCATIONS:-8}}"
-  printf '%s\n' "$line" >> "$render_conf"
-done < "$HERE/coturn/turnserver.conf.template"
-chmod 0600 "$render_conf"
+  printf '%s\n' "$line"
+done < "$HERE/coturn/turnserver.conf.template" > "$coturn_tmp"
+chmod 0600 "$coturn_tmp"
+mv -f "$coturn_tmp" "$coturn_render_conf"
 log "rendered coturn/turnserver.rendered.conf"
 
 log "done — no secret value was printed above"
