@@ -179,7 +179,7 @@ export function PatientInstanceStageBody(props: {
         {ungroupedItems.length > 0 ? (
           <div className={likeStages ? 'space-y-1.5' : 'space-y-3'}>
             {sortedGroups.length > 0 ? (
-              <h3 className={cn(patientSectionTitleClass, 'text-sm')}>Без группы</h3>
+              <h3 className={patientSectionTitleClass}>Без группы</h3>
             ) : null}
             <ul className={cn('m-0 list-none p-0', likeStages ? 'space-y-1.5' : 'space-y-3')}>
               {ungroupedItems.map((item) => (

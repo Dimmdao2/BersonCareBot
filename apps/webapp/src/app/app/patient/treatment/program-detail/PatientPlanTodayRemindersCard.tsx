@@ -11,6 +11,10 @@ import {
 } from '@/shared/ui/patient/primitives/collapsible';
 import { cn } from '@/lib/utils';
 import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/patient/navChrome';
+import {
+  patientCaptionTextClass,
+  patientSectionTitleNormalClass,
+} from '@/shared/ui/patient/patientVisual';
 
 const scheduleCardChrome = cn(
   'overflow-visible rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
@@ -81,7 +85,7 @@ export function PatientPlanTodayRemindersCard({
               strokeWidth={NAV_STRIP_ICON_STROKE}
               aria-hidden
             />
-            <h2 className="m-0 min-w-0 truncate text-sm font-medium leading-tight text-[var(--patient-block-heading)]">
+            <h2 className={cn(patientSectionTitleNormalClass, 'm-0 min-w-0 truncate')}>
               Расписание
             </h2>
           </span>
@@ -98,20 +102,20 @@ export function PatientPlanTodayRemindersCard({
             <div className="min-w-0 flex-1 space-y-1">
               {variant === 'trainingsToday' ? (
                 <>
-                  <p className="text-xs font-medium leading-snug text-[var(--patient-block-heading)]">
+                  <p className={cn(patientCaptionTextClass, 'text-[var(--patient-block-heading)]')}>
                     Тренировки на сегодня
                   </p>
-                  <p className="text-xs font-normal leading-snug text-[var(--patient-color-primary)]">
+                  <p className={cn(patientCaptionTextClass, 'text-[var(--patient-color-primary)]')}>
                     {rehabTodayLine}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-xs font-normal leading-snug text-[var(--patient-color-primary)]">
+                  <p className={cn(patientCaptionTextClass, 'text-[var(--patient-color-primary)]')}>
                     Тренировки: {rehabTodayLine}
                   </p>
                   {warmupTodayLine != null ? (
-                    <p className="text-xs font-normal leading-snug text-[var(--patient-color-primary)]">
+                    <p className={cn(patientCaptionTextClass, 'text-[var(--patient-color-primary)]')}>
                       Разминки: {warmupTodayLine}
                     </p>
                   ) : null}

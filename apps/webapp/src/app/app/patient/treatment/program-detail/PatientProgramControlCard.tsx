@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils';
 import {
   patientButtonSuccessClass,
   patientButtonWarningOutlineClass,
+  patientBodyTextClass,
+  patientCaptionTextClass,
   patientMutedTextClass,
   patientSectionTitleClass,
   patientSurfaceWarningClass,
@@ -37,30 +39,30 @@ export function PatientProgramControlCard(props: {
               className="size-4 shrink-0 text-[var(--patient-color-warning)]"
               aria-hidden
             />
-            <h3 className={cn(patientSectionTitleClass, 'mb-0 leading-tight')}>
+            <h3 className={cn(patientSectionTitleClass, 'mb-0')}>
               Следующий контроль
             </h3>
           </div>
           {dateLine ? (
-            <p className="mt-0 text-sm font-semibold leading-snug text-foreground">
+            <p className={cn(patientBodyTextClass, 'mt-0')}>
               <span>{dateLine}</span>
               {remainderDays != null ? (
-                <span className="patient-type-secondary text-neutral-700 dark:text-neutral-400">
+                <span className={patientMutedTextClass}>
                   {' '}
                   (через {remainderDays} {ruDaysWordN(remainderDays)})
                 </span>
               ) : null}
             </p>
           ) : (
-            <p className={cn(patientMutedTextClass, 'mt-0 text-base font-semibold leading-snug')}>
+            <p className={cn(patientBodyTextClass, 'mt-0')}>
               {fallbackMessage}
             </p>
           )}
           <p
             className={cn(
-              patientMutedTextClass,
-              'mt-0 text-xs leading-[1.15]',
-              noSelfServiceTests && 'text-[#8b5348] dark:text-[#c9a399]',
+              patientCaptionTextClass,
+              'mt-0',
+              noSelfServiceTests && 'text-[var(--patient-color-warning)]',
             )}
           >
             {noSelfServiceTests
@@ -75,7 +77,7 @@ export function PatientProgramControlCard(props: {
                 href={testsHref}
                 className={cn(
                   patientButtonWarningOutlineClass,
-                  'inline-flex w-auto min-h-8 shrink-0 items-center justify-center px-2.5 py-1.5 text-xs font-semibold leading-tight no-underline sm:min-h-8',
+                  'inline-flex w-auto min-h-8 shrink-0 items-center justify-center px-2.5 py-1.5 no-underline sm:min-h-8',
                 )}
               >
                 Выполнить тесты
@@ -86,7 +88,7 @@ export function PatientProgramControlCard(props: {
                 disabled
                 className={cn(
                   patientButtonWarningOutlineClass,
-                  'inline-flex w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8',
+                  'inline-flex w-auto min-h-8 shrink-0 px-2.5 py-1.5 sm:min-h-8',
                 )}
               >
                 Выполнить тесты
@@ -97,7 +99,7 @@ export function PatientProgramControlCard(props: {
             href={routePaths.bookingNew}
             className={cn(
               patientButtonSuccessClass,
-              'w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8',
+              'w-auto min-h-8 shrink-0 px-2.5 py-1.5 sm:min-h-8',
             )}
           >
             Запись на приём

@@ -6,6 +6,7 @@ import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program
 import { cn } from '@/lib/utils';
 import {
   patientBadgePrimaryClass,
+  patientBodyTextClass,
   patientCardListSectionClass,
 } from '@/shared/ui/patient/patientVisual';
 import { PatientProgramBlockHeading } from '@/app/app/patient/treatment/program-detail/PatientProgramBlockHeading';
@@ -81,12 +82,12 @@ export function PatientProgramStagesTimeline(props: {
           }
 
           const titleClass = isActive
-            ? 'text-sm font-bold text-[var(--patient-color-primary)]'
+            ? cn(patientBodyTextClass, 'text-[var(--patient-color-primary)]')
             : isPast
-              ? 'text-sm font-medium text-foreground'
+              ? patientBodyTextClass
               : isFuture
-                ? 'text-sm font-medium text-[var(--patient-color-primary)]/58'
-                : 'text-sm font-medium text-[var(--patient-color-primary)]/52';
+                ? cn(patientBodyTextClass, 'text-[var(--patient-color-primary)]/58')
+                : cn(patientBodyTextClass, 'text-[var(--patient-color-primary)]/52');
 
           const titleBlock = (
             <div className="flex min-w-0 flex-1 flex-col gap-1">

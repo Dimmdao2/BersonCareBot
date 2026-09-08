@@ -95,7 +95,7 @@ export function PatientProgramPassageStatisticsSection(props: {
           <p>Регулярность в занятиях - основа вашего здоровья!</p>
         </div>
       ) : statsError ? (
-        <p className="text-sm text-destructive" role="alert">
+        <p className={cn(patientMutedTextClass, 'text-[var(--patient-color-danger)]')} role="alert">
           {statsError}
         </p>
       ) : stats ? (

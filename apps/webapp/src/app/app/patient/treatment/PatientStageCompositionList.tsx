@@ -29,6 +29,8 @@ import {
   patientCompositionCurrentRowChromeClass,
   patientCompositionGroupTitleClass,
   patientCompositionListThumbSlotClass,
+  patientBodyTextClass,
+  patientCaptionTextClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 import type { PatientProgramItemNavMode } from '@/app/app/patient/treatment/patientProgramItemPageResolve';
@@ -130,8 +132,10 @@ function PatientCompositionModalMediaLeading(props: {
   return null;
 }
 
-const stageCompositionModalRowClass =
-  'rounded-md border border-border/60 bg-card text-xs font-normal leading-snug';
+const stageCompositionModalRowClass = cn(
+  'rounded-md border border-border/60 bg-card',
+  patientCaptionTextClass,
+);
 
 function PatientCompositionItemProgressAside(props: {
   parentItem: InstanceStageRow['items'][number];
@@ -283,7 +287,8 @@ export function PatientStageCompositionList(props: {
             />
             <span
               className={cn(
-                'min-w-0 self-center break-words text-[#444444]',
+                patientBodyTextClass,
+                'min-w-0 self-center break-words',
                 showMediaCol ? 'flex-1' : 'block flex-1',
               )}
             >
@@ -344,7 +349,7 @@ export function PatientStageCompositionList(props: {
             <div>
               <span className={patientCompositionGroupTitleClass}>{g.title}</span>
               {g.scheduleText?.trim() ? (
-                <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                <span className={cn(patientCaptionTextClass, 'mt-1 block')}>
                   {g.scheduleText.trim()}
                 </span>
               ) : null}

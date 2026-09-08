@@ -17,7 +17,14 @@ import {
 import { PatientCatalogMediaStaticThumb } from '@/shared/ui/patient/PatientCatalogMediaStaticThumb';
 import { AlertTriangle, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { patientMutedTextClass, patientPillClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientActionTextClass,
+  patientBodyTextClass,
+  patientCaptionTextClass,
+  patientMutedTextClass,
+  patientPillClass,
+  patientSectionTitleNormalClass,
+} from '@/shared/ui/patient/patientVisual';
 import { patientTreatmentProgramListItemClass } from '@/app/app/patient/treatment/program-detail/patientTreatmentProgramListItemClass';
 import { snapshotTitle } from '@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters';
 import { usePostMarkItemViewedWhenVisible } from '@/app/app/patient/treatment/program-detail/usePostMarkItemViewedWhenVisible';
@@ -188,7 +195,8 @@ export function PatientInstanceStageItemCard(props: {
       className={cn(
         buttonVariants({ variant: 'outline', size: 'sm' }),
         'inline-flex shrink-0 items-center justify-center',
-        item.itemType === 'recommendation' ? 'h-8 px-2.5 text-xs' : 'h-8',
+        patientActionTextClass,
+        item.itemType === 'recommendation' ? 'h-8 px-2.5' : 'h-8',
       )}
     >
       Открыть
@@ -238,9 +246,9 @@ export function PatientInstanceStageItemCard(props: {
         >
           <p
             className={cn(
-              'text-sm font-medium',
+              patientSectionTitleNormalClass,
               item.itemType === 'recommendation'
-                ? 'flex min-w-0 items-center gap-2 leading-tight'
+                ? 'flex min-w-0 items-center gap-2'
                 : 'flex flex-wrap items-center gap-2',
             )}
           >
@@ -254,7 +262,7 @@ export function PatientInstanceStageItemCard(props: {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-xs text-muted-foreground underline-offset-2 hover:underline"
+                  className={cn(patientActionTextClass, 'h-7 px-2 text-[var(--patient-text-secondary)] underline-offset-2 hover:underline')}
                   disabled={markingViewed}
                   onClick={async (e) => {
                     e.stopPropagation();
@@ -279,7 +287,7 @@ export function PatientInstanceStageItemCard(props: {
               </span>
             ) : null}
             {item.itemType !== 'recommendation' ? (
-              <span className={cn(patientMutedTextClass, 'font-normal')}>({item.itemType})</span>
+              <span className={patientMutedTextClass}>({item.itemType})</span>
             ) : null}
           </p>
           {item.itemType !== 'recommendation' && appDisplayTimeZone ? (
@@ -296,21 +304,21 @@ export function PatientInstanceStageItemCard(props: {
             <div className="mt-1 flex justify-end">{openDetailLink}</div>
           ) : null}
           {item.itemType === 'recommendation' && recommendationBodyPreview ? (
-            <p className={cn(patientMutedTextClass, 'line-clamp-1 min-w-0 text-xs leading-tight')}>
+            <p className={cn(patientMutedTextClass, 'line-clamp-1 min-w-0')}>
               {recommendationBodyPreview}
             </p>
           ) : null}
           {effectiveInstanceStageItemComment(item) && item.itemType !== 'recommendation' ? (
-            <p className={cn(patientMutedTextClass, 'mt-1 text-xs')}>
+            <p className={cn(patientMutedTextClass, 'mt-1')}>
               Комментарий:{' '}
-              <span className="text-foreground">{effectiveInstanceStageItemComment(item)}</span>
+              <span className={patientBodyTextClass}>{effectiveInstanceStageItemComment(item)}</span>
             </p>
           ) : null}
           {item.itemType !== 'recommendation' ? (
-            <p className={cn(patientMutedTextClass, 'mt-1 text-xs')}>
+            <p className={cn(patientMutedTextClass, 'mt-1')}>
               Элемент:{' '}
               {item.completedAt ? (
-                <span className="text-emerald-600 dark:text-emerald-400">выполнен</span>
+                <span className={cn(patientCaptionTextClass, 'text-[var(--patient-color-success)]')}>выполнен</span>
               ) : (
                 <span>не выполнен</span>
               )}
@@ -391,7 +399,7 @@ export function PatientInstanceStageItemCard(props: {
             ) : null
           ) : null}
           {!contentBlocked && readOnly && item.itemType === 'clinical_test' ? (
-            <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+            <p className={cn(patientCaptionTextClass, 'mt-2 text-[var(--patient-color-success)]')}>
               {item.completedAt ? 'Тест пройден.' : 'Тест не выполнялся.'}
             </p>
           ) : null}

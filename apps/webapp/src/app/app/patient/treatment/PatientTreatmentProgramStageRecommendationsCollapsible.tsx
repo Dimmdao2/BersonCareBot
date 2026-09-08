@@ -20,6 +20,7 @@ import {
   patientCardListSectionClass,
   patientRecommendationCollapsiblePanelClass,
   patientRecommendationCollapsibleTriggerClass,
+  patientSectionTitleNormalClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
@@ -90,7 +91,7 @@ export function PatientTreatmentProgramStageRecommendationsCollapsible(props: {
                     frameClassName="size-12 shrink-0 rounded-md border border-[var(--patient-border)]/60"
                     sizes="48px"
                   />
-                  <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
+                  <span className={cn(patientSectionTitleNormalClass, 'min-w-0 flex-1')}>
                     {rowTitle(item.snapshot as Record<string, unknown>, item.itemType)}
                   </span>
                 </Link>

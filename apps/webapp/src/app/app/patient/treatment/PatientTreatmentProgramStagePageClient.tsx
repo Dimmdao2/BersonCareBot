@@ -31,6 +31,10 @@ import {
 } from '@/app/app/patient/treatment/normalizeTreatmentProgramChecklistMaps';
 import {
   patientCardListSectionClass,
+  patientBodyTextClass,
+  patientCaptionTextClass,
+  patientFormLabelClass,
+  patientInlineLinkClass,
   patientMutedTextClass,
   patientSectionTitleClass,
   patientStageControlDaysBadgeClass,
@@ -134,7 +138,7 @@ function StageDescriptionBlock(props: { text: string | null | undefined }) {
         className={cn(
           !expanded && 'line-clamp-3',
           patientMutedTextClass,
-          'whitespace-pre-wrap text-sm leading-snug',
+          'whitespace-pre-wrap',
         )}
       >
         {raw}
@@ -144,8 +148,8 @@ function StageDescriptionBlock(props: { text: string | null | undefined }) {
           <button
             type="button"
             className={cn(
-              patientMutedTextClass,
-              'cursor-pointer text-xs underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
+              patientInlineLinkClass,
+              'text-[var(--patient-text-secondary)]',
             )}
             onClick={() => setExpanded((e) => !e)}
           >
@@ -333,16 +337,16 @@ export function PatientTreatmentProgramStagePageClient(props: {
       <CollapsibleContent className={patientStageGoalsCollapsiblePanelClass}>
         {stageForUi.goals?.trim() ? (
           <div>
-            <h3 className="text-xs font-semibold text-[var(--patient-program-text)]">Цель</h3>
-            <p className="mt-1 whitespace-pre-wrap patient-type-secondary text-[var(--patient-program-text)]">
+            <h3 className={patientFormLabelClass}>Цель</h3>
+            <p className={cn(patientBodyTextClass, 'mt-1 whitespace-pre-wrap')}>
               {stageForUi.goals.trim()}
             </p>
           </div>
         ) : null}
         {stageForUi.objectives?.trim() ? (
           <div className={stageForUi.goals?.trim() ? 'mt-3' : ''}>
-            <h3 className="text-xs font-semibold text-[var(--patient-program-text)]">Задачи</h3>
-            <p className="mt-1 whitespace-pre-wrap patient-type-secondary text-[var(--patient-program-text)]">
+            <h3 className={patientFormLabelClass}>Задачи</h3>
+            <p className={cn(patientBodyTextClass, 'mt-1 whitespace-pre-wrap')}>
               {stageForUi.objectives.trim()}
             </p>
           </div>
@@ -362,7 +366,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
           patientStageControlDaysBadgeClass,
         )}
       >
-        <p className="m-0 text-sm font-medium text-[var(--patient-program-text)]">
+        <p className={cn(patientBodyTextClass, 'm-0')}>
           Контроль через {controlRemainderDaysForBadge} {ruDayWord(controlRemainderDaysForBadge)}
         </p>
       </div>
@@ -389,7 +393,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
             <span className={cn(patientPillClass, 'absolute right-3 top-3 lg:right-4 lg:top-4')}>
               Запланирован
             </span>
-            <p className={cn(patientMutedTextClass, 'pr-24 text-xs uppercase tracking-wide')}>
+            <p className={cn(patientCaptionTextClass, 'pr-24 uppercase tracking-wide')}>
               Этап {stageForUi.sortOrder} из {pipelineLength}
             </p>
             <h2 className={cn(patientStageTitleClass, 'mt-1 pr-24')}>{stageForUi.title}</h2>
@@ -406,7 +410,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
           className={cn(patientSurfaceWarningClass, 'rounded-lg border px-3 py-3')}
           aria-live="polite"
         >
-          <p className={cn(patientMutedTextClass, 'text-sm leading-snug')}>
+          <p className={patientMutedTextClass}>
             {blockingStagesCopy(allStages, stageForUi)}
           </p>
         </section>
@@ -432,7 +436,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
             >
               {pastStageHeroBadge(stageForUi, appDisplayTimeZone)}
             </span>
-            <p className={cn(patientMutedTextClass, 'pr-28 text-xs uppercase tracking-wide')}>
+            <p className={cn(patientCaptionTextClass, 'pr-28 uppercase tracking-wide')}>
               Этап {stageForUi.sortOrder} из {pipelineLength}
             </p>
             <h2 className={cn(patientStageTitleClass, 'mt-1 pr-28')}>{stageForUi.title}</h2>
@@ -481,7 +485,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
             <span
               className={cn(
                 patientPillClass,
-                'absolute right-3 top-3 max-w-[min(10rem,calc(100%_-_1rem))] truncate text-right text-xs lg:right-4 lg:top-4',
+                'absolute right-3 top-3 max-w-[min(10rem,calc(100%_-_1rem))] truncate text-right lg:right-4 lg:top-4',
               )}
             >
               {formatTreatmentProgramStageStatusRu(stageForUi.status)}
@@ -490,7 +494,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
               <h2 className={cn(patientStageTitleClass, 'pr-24')}>Общие рекомендации</h2>
             ) : (
               <>
-                <p className={cn(patientMutedTextClass, 'pr-24 text-xs uppercase tracking-wide')}>
+                <p className={cn(patientCaptionTextClass, 'pr-24 uppercase tracking-wide')}>
                   Этап {stageForUi.sortOrder} из {pipelineLength}
                 </p>
                 <h2 className={cn(patientStageTitleClass, 'mt-1 pr-24')}>{stageForUi.title}</h2>
