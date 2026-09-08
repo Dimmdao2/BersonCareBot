@@ -25,6 +25,7 @@ import type {
 import { readChannel } from '../../infra/adapters/channelRouting.js';
 import { resolveSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 import type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
+import { logger } from '../../infra/observability/logger.js';
 import { sendMail } from './mailer.js';
 import type { MailAttachment } from './mailer.js';
 import { resolveAndRenderAuthCodeMailProfile } from './mailProfile.js';
@@ -143,6 +144,14 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
       if (!accepted) {
         throw new Error('EMAIL_SMTP_RECIPIENT_NOT_ACCEPTED');
       }
+
+      logger.info(
+        {
+          messageId: result.messageId,
+          smtpResponse: result.response,
+        },
+        'email_smtp_recipient_accepted',
+      );
 
       return {};
     },

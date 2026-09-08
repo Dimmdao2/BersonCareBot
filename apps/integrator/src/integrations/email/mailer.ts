@@ -38,6 +38,7 @@ export type SendMailResult = {
   accepted: string[];
   rejected: string[];
   messageId?: string;
+  response?: string;
 };
 
 let transportCache: { sig: string; transport: Transporter } | null = null;
@@ -104,6 +105,7 @@ export async function sendMail(
     accepted: info.accepted ?? [],
     rejected: info.rejected ?? [],
     messageId: info.messageId,
+    ...(info.response !== undefined ? { response: info.response } : {}),
   };
 }
 

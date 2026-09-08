@@ -123,6 +123,7 @@ describe('sendMail: контракт с SMTP-сервером', () => {
     expect(result.accepted).toEqual(['ok@example.test']);
     expect(result.rejected).toEqual(['blocked@example.test']);
     expect(result.messageId).toMatch(/^<.+>$/);
+    expect(result.response).toMatch(/^250\b/);
   });
 
   it('доносит до письма reply-to, вложение и отправителя с именем', async () => {
