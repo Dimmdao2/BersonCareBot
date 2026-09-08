@@ -43,7 +43,7 @@ noted — that is sufficient proof per the plan's §6.8 explicit allowance.
 
 ## 4. Forced TURN / TLS fallback (VM-03/VM-04)
 
-1. Force ICE to exclude host/srflx candidates for one context (e.g. Chrome's `--force-webrtc-ip-handling-policy=disable_non_proxied_udp` or a network namespace that blocks direct UDP between the two contexts but allows UDP/TCP to `turn.test.bersoncare.ru`).
+1. Force ICE to exclude host/srflx candidates for one context (e.g. Chrome's `--force-webrtc-ip-handling-policy=disable_non_proxied_udp` or a network namespace that blocks direct UDP between the two contexts but allows UDP/TCP to `turn.test.therapysto.ru`).
 2. **Evidence:** selected candidate pair's type is `relay`, and the relay candidate's IP matches
    `151.241.228.122` (our coturn), never a foreign relay address. Separately, block UDP to port 3478 only
    (leave 5349/tcp reachable) and confirm the client falls back to TURN-over-TLS: relay candidate present via

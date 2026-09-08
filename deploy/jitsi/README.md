@@ -60,6 +60,7 @@ compose file entirely or explicitly `0`/unset in the env template — see
 | `bin/reconcile-xmpp-service-credentials.sh` | updates Prosody's persisted focus/JVB accounts from container env over stdin, restarts the two clients and proves Jicofo authenticated |
 | `bin/health-check.sh` | config + network proof: `prosodyctl check`, container + JVB REST health, mandatory credentialed TURN allocation over UDP and TLS |
 | `bin/sync-coturn-tls.sh` | root-only TEST hook: validate the shared ACME certificate, atomically stage a private deploy-owned copy for non-root coturn, and restart coturn if running |
+| `bin/apply-domain-cutover.sh` | root-only checked TEST env cutover from legacy video names to canonical Therapysto names; secrets remain opaque |
 | `bin/apply-nginx.sh` | TEST-only checked apply for the public meet vhost; validates nginx and restores the previous target if validation/reload fails |
 | `bin/restart.sh` | restart in place (re-render config, recreate containers) |
 | `bin/stop.sh` | plain compose `down` with full context — what the systemd unit's `ExecStop` calls |
@@ -169,11 +170,11 @@ compose file entirely or explicitly `0`/unset in the env template — see
   package creates private deploy-owned bind mounts for coturn logs and state, avoiding root-created named
   volumes that this non-root process could not write.
 - **One ACME lineage, two consumers.** nginx reads `/etc/letsencrypt/live/bcb-jitsi-test` directly for
-  `meet.test.bersoncare.ru`; coturn cannot read that root-only tree and instead mounts a `0600` deploy-owned
+  `meet.test.therapysto.ru`; coturn cannot read that root-only tree and instead mounts a `0600` deploy-owned
   copy under `${CONFIG}/coturn/tls`. Run `bin/sync-coturn-tls.sh` once after issuance and install it as the
   certbot deploy hook so each successful renewal validates both SANs, atomically refreshes the copy and
   restarts only the TEST coturn container when it is already running.
-- **Single host, single nginx front door.** `test.bersoncare.ru`'s existing IP-allowlist model (network
+- **Single host, single nginx front door.** The TEST surfaces' existing IP-allowlist model (network
   policy lives in the nginx server block, not in a host firewall — see `NETWORK_POLICY.md`) is reused for the
   meet web vhost rather than opening a second, differently-secured entry point. The web container binds only
   `127.0.0.1:${HTTP_PORT}`; nginx is the only thing exposed on 443. This is a deliberate scope decision,
@@ -181,41 +182,27 @@ compose file entirely or explicitly `0`/unset in the env template — see
   `docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md` §6.7), so the guest `/live` proof the plan asks for runs from
   the owner's own VPN-connected browser context, same as every other TEST page.
 - **JVB media (UDP `${JVB_PORT}`) and coturn (3478/udp+tcp, 5349/tcp-tls, relay range) bypass nginx
-  entirely** — they are raw UDP/TCP, not HTTP, and are bound directly on the host's public interface, because
+  entirely** — they are raw UDP/TCP, not HTTP, and are bound directly on the host, because
   ICE candidates must be reachable without an HTTP proxy in front of them. `NETWORK_POLICY.md` proposes an
-  explicit port allowlist for exactly this surface.
+  versioned additive nftables table restricts exactly this surface to the TEST trust boundary.
 
 ## Status and what remains
 
-The package was applied once on TEST by the lead and immediately stopped after health found the corrections
-documented above; this worker does not provision DNS, open ports, start shared services, or otherwise touch
-DEV/TEST/PROD. Everything in
-[Validation performed](#validation-performed-in-this-worktree) below is static/syntax-level. Before this
-package is "done" against the plan:
+The package is running on TEST. DNS, trusted TLS, nginx, Prosody/JVB/coturn and the additive raw-port policy
+have passed live health checks. Canonical TEST video names are `meet.test.therapysto.ru` and
+`turn.test.therapysto.ru`; BersonCare and TherapyGo video names remain temporary certificate-backed aliases.
+Before this package is "done" against the full product plan:
 
-1. The prior TEST apply proved container startup and web/JVB probes, but did not produce a health PASS:
-   coturn ran as `nobody`, could not read its 0600 config/root-owned TLS key, and health used stale Prosody
-   paths. The corrected `bin/health-check.sh` now targets Prosody's `/run/prosody/config/prosody.cfg.lua`
-   and runs STUN/credentialed UDP/TLS allocation probes through the running pinned coturn container.
-   checks (global `external_services` service records on both the main and metadata hosts, the Colibri
-   `/about/health` probe, and credentialed TURN allocation probes) are the actual, live-container assertions
-   that the configuration landed where expected; a human has not yet watched them pass on real TEST.
-2. DNS + TLS prerequisites in `NETWORK_POLICY.md` (new `meet.` / `turn.` subdomains and the private
-   deploy-owned TLS copy) must exist before `bin/install.sh --apply`; `--check` also fails closed if the
-   host lacks `unzip`.
-3. `/etc/bersoncarebot` (parent of both the CONFIG tree and the secret store) must exist and be writable by
+1. `/etc/bersoncarebot` (parent of both the CONFIG tree and the secret store) must exist and be writable by
    whichever user runs `bin/install.sh` — same one-time root bootstrap this host already needed for
    `/etc/bersoncarebot/postgres-mtls/` (`docs/ARCHITECTURE/SERVER CONVENTIONS.md` §mTLS). `bin/install.sh`
    fails closed with this exact message if it cannot create its subdirectories, rather than a raw
    permission-denied trace.
-4. The JWT signing secret Jitsi verifies against must be copied from `system_settings` (stream A's table) into
+2. The JWT signing secret Jitsi verifies against must be copied from `system_settings` (stream A's table) into
    this package's `JWT_APP_SECRET` at apply time — this package treats it as an externally supplied input
    (see `env/jitsi-test.env.example`), not something it generates, reads from the DB, or stores independently.
-5. Full `RUNBOOK.md` execution (two synthetic browser contexts, third-participant refusal, forced-TURN and
-   JVB-fallback ICE stats, DNS/network capture) is unrun — it needs the stack actually up. This is a
-   separate, explicitly-named acceptance stage from `bin/health-check.sh` passing: a health `PASS` proves
-   the stack is configured and individually-functional (container health, rendered config, credentialed TURN
-   allocation), never that two real browsers completed a call — see `RUNBOOK.md`'s own framing.
+3. Repeat the browser scenarios after the canonical names are switched in the application provider settings;
+   health alone proves the stack, not a complete user call path.
 
 ## Validation performed in this worktree
 

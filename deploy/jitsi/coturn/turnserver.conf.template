@@ -20,7 +20,7 @@ external-ip=__TURN_EXTERNAL_IP__
 listening-ip=0.0.0.0
 relay-ip=__TURN_EXTERNAL_IP__
 
-# TLS material for the 5349 listener (turn.test.bersoncare.ru — see NETWORK_POLICY.md DNS prerequisite).
+# TLS material for the 5349 listener (turn.test.therapysto.ru — see NETWORK_POLICY.md DNS prerequisite).
 cert=/etc/coturn/tls/fullchain.pem
 pkey=/etc/coturn/tls/privkey.pem
 cipher-list="HIGH"

@@ -80,8 +80,8 @@ done
 [[ "$TURN_EXTERNAL_IP" == 151.241.228.122 ]] || { echo "  MISMATCH TURN_EXTERNAL_IP=$TURN_EXTERNAL_IP, expected 151.241.228.122"; missing=1; }
 [[ "${CONFIG:-}" == /* ]] || { echo "  MISMATCH CONFIG=${CONFIG:-<empty>}, must be an absolute path (see env/jitsi-test.env.example)"; missing=1; }
 for own_turn_host in STUN_HOST TURN_HOST TURNS_HOST; do
-  [[ "${!own_turn_host}" == "turn.test.bersoncare.ru" ]] || {
-    echo "  MISMATCH $own_turn_host must be turn.test.bersoncare.ru"; missing=1;
+  [[ "${!own_turn_host}" == "turn.test.therapysto.ru" ]] || {
+    echo "  MISMATCH $own_turn_host must be turn.test.therapysto.ru"; missing=1;
   }
 done
 [[ "${STUN_PORT:-}" == "3478" && "${TURN_PORT:-}" == "3478" && "${TURNS_PORT:-}" == "5349" && "${TURN_TRANSPORT:-}" == "udp" && "${TURN_TTL:-}" == "3600" ]] || {
@@ -118,7 +118,7 @@ elif [[ "$(id -u)" != "$COTURN_CONTAINER_UID" || "$(id -g)" != "$COTURN_CONTAINE
 fi
 
 # --- 3. DNS prerequisite (NETWORK_POLICY.md) ---
-for host in "meet.test.bersoncare.ru" "turn.test.bersoncare.ru"; do
+for host in "meet.test.therapysto.ru" "turn.test.therapysto.ru"; do
   if ! getent ahostsv4 "$host" >/dev/null 2>&1; then
     echo "  MISSING  DNS A record for $host -> 151.241.228.122 (create at the DNS provider first)"
     missing=1
@@ -139,7 +139,7 @@ fi
 for tls_file in fullchain.pem privkey.pem; do
   tls_path="$coturn_tls_dir/$tls_file"
   if [[ ! -s "$tls_path" ]]; then
-    echo "  MISSING  $tls_path — stage a certificate for turn.test.bersoncare.ru first"
+    echo "  MISSING  $tls_path — stage a certificate for turn.test.therapysto.ru first"
     missing=1
   elif [[ "$(stat -c '%a:%u:%g' "$tls_path")" != "600:${COTURN_CONTAINER_UID:-unknown}:${COTURN_CONTAINER_GID:-unknown}" ]]; then
     echo "  MISMATCH $tls_path must be mode 0600 and owned by ${COTURN_CONTAINER_UID:-unknown}:${COTURN_CONTAINER_GID:-unknown}"

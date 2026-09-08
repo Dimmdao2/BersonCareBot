@@ -528,6 +528,10 @@ encounter tab  --> existing canonical encounter form/service/write-path
   Prosody `external_services` correction (`f5f4c7ed1`) устранила потерю TURN metadata после restart; финальный health
   проверяет оба Prosody-контекста и реальные TURN allocations по UDP/TLS. Два browser contexts подтвердили direct
   P2P и forced TURN relay, третий получил серверный отказ; host census не обнаружил внешнего runtime-трафика.
+- Owner-authorized TEST domain cutover 08.09 добавил канонические `meet.test.therapysto.ru` и
+  `turn.test.therapysto.ru` в тот же lineage; старые BersonCare и временные TherapyGo video names оставлены SAN-
+  алиасами. DNS всех шести имён указывает на `151.241.228.122`. Raw Jitsi/coturn ports ограничены additive-
+  таблицей `inet bcb_jitsi_test`; повторный полный health после применения policy — PASS.
 
 - TEST с синтетическими данными и владельцевыми тестовыми аккаунтами разрешён этим планом.
 - Реальный production rollout не входит в поручение и остаётся заблокирован соответствующими open gates
@@ -535,11 +539,9 @@ encounter tab  --> existing canonical encounter form/service/write-path
 - Покупка/создание нового Selectel video-node, публичный DNS и сертификаты требуют доступного TEST target; если
   существующего target нет, код/deploy package/локальная проверка продолжаются, а внешний blocker фиксируется точной
   недостающей сущностью и командой/probe, которой это доказано.
-- Для буквального `https://<clinic-slug>.therapygo.ru/live#<secret>` на TEST отдельно отсутствуют wildcard DNS и
-  сертификат patient-origin, направленные на разрешённый `151.x` TEST-контур. Это не разрешает обращаться к
-  `*.therapygo.ru`, который сейчас ведёт на PROD `135.106.187.95`; до появления TEST-origin runtime evidence идёт на
-  однохостовом TEST URL. Probe: `getent ahostsv4 <test-patient-host>` + проверка TLS SAN и
-  `curl --resolve <test-patient-host>:443:151.241.228.122 -I https://<test-patient-host>/live`.
+- На TEST wildcard DNS `*.test.therapygo.ru` уже направлен на `151.x`, но произвольный tenant HTTPS остаётся
+  заблокирован wildcard-сертификатом DNS-01. Exact certificate покрывает базовый patient host и один технический
+  smoke-host, но не заменяет wildcard TLS. Production `*.therapygo.ru` этот переход не затрагивает.
 
 ## 8. Definition of done
 

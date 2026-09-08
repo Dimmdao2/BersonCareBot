@@ -110,6 +110,11 @@ function selectWebappServerBlock(nginxDump) {
   );
   assert(candidates.length > 0, '--nginx-dump: missing BersonCareBot webapp server block');
   return (
+    candidates.find(
+      (block) =>
+        /server_name\s+[^;]*test\.therapysto\.ru[^;]*;/i.test(block) &&
+        /proxy_pass\s+http:\/\/127\.0\.0\.1:6300\s*;/i.test(block),
+    ) ??
     candidates.find((block) => /proxy_pass\s+http:\/\/127\.0\.0\.1:6300\s*;/i.test(block)) ??
     candidates[0]
   );

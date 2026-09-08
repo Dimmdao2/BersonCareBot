@@ -50,7 +50,7 @@ services:
     # comes from the project gateway and Prosody correctly rejects the changed
     # source tuple. The configurable subnet below makes this mapping stable.
     extra_hosts:
-      - "turn.test.bersoncare.ru:${JITSI_DOCKER_GATEWAY:-172.30.110.1}"
+      - "turn.test.therapysto.ru:${JITSI_DOCKER_GATEWAY:-172.30.110.1}"
   jicofo:
     image: "ghcr.io/jitsi/jicofo:${JITSI_RELEASE_TAG}@sha256:a8d64e46eaa340751a2b5530a4abd4175adf05bff07e9775fc48daae6364cfe9"
     # No public port — Jicofo only talks to Prosody/JVB over the internal bridge network. `!override`

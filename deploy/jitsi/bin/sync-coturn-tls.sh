@@ -39,10 +39,13 @@ COTURN_CONTAINER_GID="${COTURN_CONTAINER_GID:-1000}"
 source_cert="$LINEAGE/fullchain.pem"
 source_key="$LINEAGE/privkey.pem"
 [[ -s "$source_cert" && -s "$source_key" ]] || fail "certificate lineage is incomplete"
-openssl x509 -in "$source_cert" -noout -checkhost meet.test.bersoncare.ru >/dev/null \
-  || fail "certificate does not cover meet.test.bersoncare.ru"
-openssl x509 -in "$source_cert" -noout -checkhost turn.test.bersoncare.ru >/dev/null \
-  || fail "certificate does not cover turn.test.bersoncare.ru"
+for expected_host in \
+  meet.test.therapysto.ru turn.test.therapysto.ru \
+  meet.test.therapygo.ru turn.test.therapygo.ru \
+  meet.test.bersoncare.ru turn.test.bersoncare.ru; do
+  openssl x509 -in "$source_cert" -noout -checkhost "$expected_host" >/dev/null \
+    || fail "certificate does not cover $expected_host"
+done
 openssl x509 -in "$source_cert" -noout -checkend 86400 >/dev/null \
   || fail "certificate expires in less than 24 hours"
 

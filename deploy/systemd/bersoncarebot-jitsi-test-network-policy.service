@@ -1,0 +1,14 @@
+[Unit]
+Description=BersonCareBot Jitsi TEST narrow network policy
+Documentation=file:/opt/projects/bersoncarebot-test/deploy/jitsi/NETWORK_POLICY.md
+Before=bersoncarebot-jitsi-test.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/sbin/nft delete table inet bcb_jitsi_test
+ExecStart=/usr/sbin/nft -f /etc/nftables-bcb-jitsi-test.conf
+ExecStop=-/usr/sbin/nft delete table inet bcb_jitsi_test
+
+[Install]
+WantedBy=multi-user.target

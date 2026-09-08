@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readSmokeLoginPacket } from './smoke-login-packet.mjs';
 
-const baseUrl = 'https://test.bersoncare.ru';
+const baseUrl = 'https://test.therapysto.ru';
 const packetPath = '/opt/env/bersoncarebot/saas-smoke-login.env';
 
 function fail(message) {

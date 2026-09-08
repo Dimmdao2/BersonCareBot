@@ -108,7 +108,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   line="${line//__TURN_RELAY_MIN__/${TURN_RELAY_MIN:-49152}}"
   line="${line//__TURN_RELAY_MAX__/${TURN_RELAY_MAX:-49252}}"
   line="${line//__TURN_SHARED_SECRET__/${TURN_SHARED_SECRET}}"
-  line="${line//__TURN_REALM__/${TURN_REALM:-test.bersoncare.ru}}"
+  line="${line//__TURN_REALM__/${TURN_REALM:-turn.test.therapysto.ru}}"
   line="${line//__TURN_EXTERNAL_IP__/${TURN_EXTERNAL_IP:-151.241.228.122}}"
   line="${line//__TURN_MAX_ALLOCATIONS__/${TURN_MAX_ALLOCATIONS:-8}}"
   printf '%s\n' "$line"

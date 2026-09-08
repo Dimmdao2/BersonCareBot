@@ -748,6 +748,21 @@ bash deploy/host/deploy-prod.sh
 Deploy не создаёт, не seed-ит и не требует persistent fixture-данные. Ролевые и продуктовые проверки выполняются
 от уже зарегистрированных owner-учёток/клиник согласно `AGENTS.md` §1b; отсутствие специально созданной Clinic A/B
 не является deploy precondition или recovery path.
+
+TEST использует разделённые web origins: `test.therapysto.ru`, `admin.test.therapysto.ru` и
+`test.therapygo.ru`. Repo-managed reconciliation:
+
+```bash
+bash deploy/host/apply-test-surface-domains.sh --dry-run
+bash deploy/host/apply-test-surface-domains.sh --apply
+bash deploy/host/apply-test-surface-env.sh --dry-run
+bash deploy/host/apply-test-surface-env.sh --apply
+```
+
+Первый скрипт проверяет exact SAN certificate, сохраняет nginx vhosts в root-only backup, проверяет `nginx -t`
+и SaaS forwarded-host contract, затем делает reload с rollback при ошибке. Второй атомарно меняет только
+`APP_BASE_URL`, `PATIENT_APP_ORIGIN` и `PATIENT_APP_NAME` в существующих TEST env с сохранением metadata и backup.
+Старое имя `apply-test-nginx-webapp.sh` является compatibility wrapper первого скрипта.
 ### Отдельный webapp deploy
 
 ```bash

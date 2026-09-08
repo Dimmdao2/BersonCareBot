@@ -151,6 +151,12 @@ server {
         proxy_send_timeout 120s;
     }
 
+    # Until the dedicated TherapyGo landing is approved, keep its bare root usable
+    # without exercising Next's absolute middleware rewrite through the loopback HTTP listener.
+    if ($host = test.therapygo.ru) {
+        rewrite ^/$ /app redirect;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:6300;
         proxy_http_version 1.1;
@@ -286,6 +292,10 @@ if ! sudo systemctl reload nginx; then restore; fatal "nginx reload failed; prev
 
 active_dump="$(mktemp /tmp/therapysto-test-nginx-active.XXXXXX)"
 sudo nginx -T >"$active_dump" 2>/dev/null
-node "$A2_CHECKER" --nginx-dump="$active_dump"
+if ! node "$A2_CHECKER" --nginx-dump="$active_dump"; then
+  rm -f "$active_dump"
+  restore
+  fatal "active nginx contract check failed; previous vhosts restored"
+fi
 rm -f "$active_dump"
 log "apply OK; backup: $backup_dir"
