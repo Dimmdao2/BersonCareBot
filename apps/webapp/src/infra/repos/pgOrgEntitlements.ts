@@ -2,7 +2,7 @@ import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
-import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import {
   resolveCommercialAccess,
   type CommercialAccessPaidPeriodInput,
@@ -316,11 +316,20 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       };
     },
     async resolveMechanicAccess(organizationId: string, mechanic: OrgMechanic) {
-      const result = await runWebappSql<MechanicAccessRow>(
-        getWebappSqlDb(),
-        sql`SELECT state, policy_source, warning
-         FROM app.resolve_organization_mechanic_access(${organizationId}::uuid, ${mechanic}::text)`,
-      );
+      const organizationPrincipal = getCurrentDbPrincipal()?.kind === 'organization';
+      const result = organizationPrincipal
+        ? await runWebappNamedRoot<MechanicAccessRow>(
+            getWebappSqlDb(),
+            'app.resolve_current_organization_mechanic_access(text)',
+            [mechanic],
+            sql`SELECT state, policy_source, warning
+                FROM app.resolve_current_organization_mechanic_access(${mechanic}::text)`,
+          )
+        : await runWebappSql<MechanicAccessRow>(
+            getWebappSqlDb(),
+            sql`SELECT state, policy_source, warning
+                FROM app.resolve_organization_mechanic_access(${organizationId}::uuid, ${mechanic}::text)`,
+          );
       const row = result.rows[0];
       if (!row) throw new Error('organization_mechanic_access_denied');
       return {
