@@ -595,9 +595,12 @@ preview и home-only geometry намеренно не включены.
 - `Input`, `Textarea`, `Select`, `Label`, `Button`, `Card`, поля формы и segmented navigation получили
   patient adapters/typed variants. Повторяющиеся journal controls, primary submit actions, карточки и
   tab/pager chrome используют общие точки.
-- Повторяемые primary/status/rating/modal/chat/segmented значения вынесены в portal-safe patient tokens.
-  Точный разовый замер production TS/TSX дал 163 raw hex вместо 209 на исходном SHA; остаток включает
-  сознательно исключённые clinical/chart/media/home-specific значения и отдельный будущий page-pass.
+- Повторяемые primary/status/rating/modal/chat/segmented/program значения вынесены в portal-safe patient
+  tokens. Точные разовые команды
+  `git grep -o -P '#[0-9A-Fa-f]{3,8}\b' 25ad543cde7e4b93e04837eea6fb1ec9637d6800 -- patient-production-paths | rg -v '\.(test|spec)\.tsx?:' | wc -l`
+  и `rg -o --glob '*.ts' --glob '*.tsx' --glob '!**/*.test.*' --glob '!**/*.spec.*' '#[0-9A-Fa-f]{3,8}\b' patient-production-paths | wc -l`
+  дали соответственно 209 и 71 raw hex. Остаток — сознательно различные clinical/chart/media/home-specific
+  палитры, а не повторяющиеся значения одного назначения.
 - Жалоба, которую врач записывает с severity, транзакционно создаёт и связывает patient symptom tracking;
   повторная запись использует ту же связь, конкурентные записи сериализуются блокировкой строки жалобы.
   Пациент добавляет мгновенные значения 0–10 и видит горизонтальную историю в модалке.
@@ -606,9 +609,7 @@ preview и home-only geometry намеренно не включены.
   БД не менялись.
 
 Основные коммиты этапа: `9e8a2550c`, `106d24642`, `f530e23e4`, `2ec27e0a8`, `3e7740295`,
-`398e9ed20`, `01e240f23`, `5049c8673`, `ad563e5bc`, `cec338b35`, `5c6d4eb6c`.
-Последние media/modal/runtime изменения будут зафиксированы отдельным итоговым коммитом после финального
-аудита.
+`398e9ed20`, `01e240f23`, `5049c8673`, `ad563e5bc`, `cec338b35`, `5c6d4eb6c`, `77f5bfe0b`.
 
 ### Проверки
 
@@ -624,11 +625,14 @@ EXIT=0
 
 pnpm --dir apps/webapp exec vitest run \
   src/app/app/patient/diary/symptoms/SymptomTrackingRow.ui.test.tsx \
+  src/app/app/patient/messages/PatientMessagesClient.ui.test.tsx \
   src/app/app/patient/treatment/PatientProgramMediaBlock.ui.test.tsx \
+  src/app/app/patient/treatment/ProgramItemDiscussionDialog.ui.test.tsx \
   src/shared/ui/patient/PatientSegmentedStrip.ui.test.tsx \
+  src/shared/ui/patient/material-rating/MaterialRatingNativeStars.ui.test.tsx \
   src/infra/repos/pgPatientClinicalSymptomBridge.unit.test.ts \
   src/modules/system-settings/runtimeSettingsNoSubstitution.unit.test.ts
-Test Files 5 passed; Tests 26 passed
+Test Files 8 passed; Tests 39 passed
 
 git diff --check
 EXIT=0
@@ -638,6 +642,10 @@ EXIT=0
 функциональным `className`. После исправления все ранее завершившиеся workspace-пакеты оставались зелёными,
 а отдельно повторённый `pnpm --dir apps/webapp typecheck` завершился с `EXIT=0`; это переиспользование
 зелёных фаз по §10, а не сокрытие первого падения.
+
+После независимого финального аудита первый повторный webapp typecheck также честно упал: при исправлении
+двух Textarea был снят импорт `patientFormSurfaceClass`, который оставался нужен двум настоящим form
+containers. Импорт возвращён; повторный `pnpm --dir apps/webapp typecheck` завершился с `EXIT=0`.
 
 Разовые проверки состояния (не tests/gates на текст исходника):
 
@@ -660,13 +668,41 @@ rg -n 'window\.(confirm|alert)' apps/webapp/src/app/app/patient apps/webapp/src/
 Независимый media/modal audit дал PASS для mobile static preview → fullscreen modal, Escape/возврата
 фокуса, desktop inline player и общей 300ms drawer-механики.
 
-### Незакрытый pre-landing gate
+Финальный независимый аудит всего patient workstream сначала дал FAIL по трём конкретным группам:
+локальные 40px controls, повторённые warning/shell palettes и отсутствующая roving-keyboard модель у
+native material rating. Все три исправлены в общем patient layer; для rating добавлен поведенческий тест
+Arrow/Home/End + readOnly. Повторного слепого списка не запускалось: §24.6 требует исправить подтверждённые
+findings и остановиться, а не начинать новый круг вкусовщины.
+
+### Миграционный preflight и права
+
+Миграция `20260908T104500_clinical_complaint_links_patient_symptom_tracking.sql` меняет только
+`public.clinical_complaint`, добавляет FK/частичный unique index и переносит существующие tracking/entry
+данные backfill-блоками. Новых функций и ролей нет; DDL исполняется как `app_object_owner`, backfill —
+локальным администратором мигратора. Рантайму `app_staff` нужны только уже объявленные в этой ветке
+INSERT/UPDATE колонки `clinical_complaint.symptom_tracking_id` и INSERT
+`symptom_entries.organization_id`; generated DEV/TEST privilege artifacts обновлены. GRANT/REVOKE/POLICY
+в migration-файле нет.
+
+```text
+bash deploy/host/migrate-dev.sh --preflight \
+  --runtime-env-root /home/dev/dev-projects/BersonCareBot
+Drizzle owner-ordered migration validated and rolled back for "bcb_webapp_dev":
+pending=1 total=142 reapplied=0 foreign-ledger-rows=5 relabeled=0
+dropped-foreign=0 dropped-foreign-by-hash=0 unapplied=0
+migrate-dev preflight: PASS (rollback-only)
+```
+
+`--execute` не запускался; DEV ledger/schema после проверки не применяли, TEST/PROD не трогались.
+
+### Ограничение живого доказательства
 
 Штатный DEV-вход врача отвечает `HTTP 500` на `POST /api/auth/email-password/login`; старые doctor
 сессии отвечают `401`. Это не вызвано patient candidate и воспроизводится в отдельном auth worktree,
 но без doctor session нельзя штатно создать новую жалобу и затем принять её symptom modal в живом
 patient UI. База напрямую не изменялась и auth-обход не применялся.
 
-Пока этот живой путь не проверен, candidate не имеет статуса `land-ready`: merge в
-`feat/doctor-ui-rebuild`, полный CI интеграционного SHA и push `feat` не выполняются. TEST не
-разворачивается.
+Этот внешний auth-дефект не мешает зафиксировать и проверить candidate в собственной ветке, но путь
+«новая жалоба врача → появление симптома у пациента» остаётся непроверенным именно живым браузером; его
+поведение закрыто unit/API/UI acceptance tests и rollback-only migration preflight. В `feat` ветка не
+сливается, TEST не разворачивается.

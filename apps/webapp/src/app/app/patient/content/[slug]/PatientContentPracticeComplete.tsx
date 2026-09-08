@@ -250,7 +250,7 @@ export function PatientContentPracticeComplete({
       <section id="patient-content-practice-complete" className={patientSurfaceSuccessClass}>
         <div className="flex items-center gap-2">
           <CheckCircle2
-            className="size-5 shrink-0 text-[var(--patient-color-success,#16a34a)]"
+            className="size-5 shrink-0 text-[var(--patient-color-success)]"
             aria-hidden
           />
           <p className="text-sm font-medium text-[var(--patient-surface-success-text)]">
@@ -292,7 +292,7 @@ export function PatientContentPracticeComplete({
               disabled={submitting}
               className={cn(
                 'px-4 py-2 text-sm text-[var(--patient-text-muted)]',
-                'hover:bg-[#e8eefb]/50',
+                'hover:bg-[var(--patient-color-primary-soft)]/50',
               )}
               onClick={() => void submitWithFeeling(null)}
             >

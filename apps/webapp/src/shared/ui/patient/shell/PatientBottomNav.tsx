@@ -31,7 +31,7 @@ export function PatientBottomNav() {
       className={cn(
         PATIENT_BOTTOM_NAV_FIXED_MOBILE_CLASS,
         'patient-desktop:hidden',
-        'mt-auto w-full shrink-0 border-t border-[var(--patient-border)] bg-[rgba(255,255,255,0.96)] backdrop-blur-md',
+        'mt-auto w-full shrink-0 border-t border-[var(--patient-border)] bg-[var(--patient-shell-chrome-surface)] backdrop-blur-md',
         'pb-[var(--patient-bottom-nav-safe-bottom)]',
         'shadow-[var(--patient-shadow-nav)]',
       )}

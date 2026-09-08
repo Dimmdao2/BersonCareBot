@@ -84,7 +84,7 @@ export function PatientHomeDailyWarmupCard({
             </p>
           </div>
           <HeroImageSlotDecor>
-            <div className="mb-2 mr-2 flex size-[118px] items-center justify-center rounded-[42%] bg-white/50 ring-1 ring-[#e0e7ff] min-[380px]:size-[132px] md:mb-3 md:size-[220px] xl:size-[240px]">
+            <div className="mb-2 mr-2 flex size-[118px] items-center justify-center rounded-[42%] bg-white/50 ring-1 ring-[var(--patient-color-primary-border)] min-[380px]:size-[132px] md:mb-3 md:size-[220px] xl:size-[240px]">
               <Sparkles className="size-12 text-[var(--patient-color-primary)] opacity-80 md:size-20" />
             </div>
           </HeroImageSlotDecor>
@@ -168,7 +168,7 @@ export function PatientHomeDailyWarmupCard({
             className="h-full w-full object-contain object-right-bottom drop-shadow-lg"
             loading="lazy"
             fallback={
-              <div className="mb-2 mr-2 flex size-[118px] items-center justify-center rounded-[42%] bg-white/50 ring-1 ring-[#e0e7ff] min-[380px]:size-[132px] md:mb-3 md:size-[220px] xl:size-[240px]">
+              <div className="mb-2 mr-2 flex size-[118px] items-center justify-center rounded-[42%] bg-white/50 ring-1 ring-[var(--patient-color-primary-border)] min-[380px]:size-[132px] md:mb-3 md:size-[220px] xl:size-[240px]">
                 <Sparkles className="size-12 text-[var(--patient-color-primary)] opacity-80 md:size-20" />
               </div>
             }

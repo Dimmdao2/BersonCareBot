@@ -3,7 +3,10 @@
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/patient/primitives/button';
-import { Input } from '@/shared/ui/patient/primitives/input';
+import {
+  Input,
+  patientJournalControlClassName,
+} from '@/shared/ui/patient/primitives/input';
 import { Textarea } from '@/shared/ui/patient/primitives/textarea';
 import {
   Select,
@@ -113,7 +116,8 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
             items={lfkSessionComplexSelectItems}
           >
             <SelectTrigger
-              className="h-10 w-full min-w-0 rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring"
+              variant="journal"
+              className="min-w-0"
               size="default"
             >
               <SelectValue />
@@ -182,7 +186,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           value={dateDraft}
           onChange={setDateDraft}
           ariaLabel="Дата занятия"
-          className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={cn(patientJournalControlClassName, 'min-w-0 outline-none')}
         />
         <PatientModalFooter>
           <Button
@@ -212,10 +216,11 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
 
       <PatientModal open={timeOpen} onClose={() => setTimeOpen(false)} title="Время" size="sm">
         <Input
+          variant="journal"
           type="time"
           value={timeDraft}
           onChange={(e) => setTimeDraft(e.target.value)}
-          className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-w-0 outline-none"
         />
         <PatientModalFooter>
           <Button
@@ -236,12 +241,13 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           Длительность (мин)
         </span>
         <Input
+          variant="journal"
           type="number"
           name="durationMinutes"
           min={1}
           max={600}
           placeholder="длительность выполнения"
-          className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-w-0 outline-none"
         />
         <span className={cn(patientMutedTextClass, 'text-xs')}>минут</span>
       </label>

@@ -141,7 +141,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                       onValueChange={(v) => v != null && setPickedSymTrackingId(v)}
                       items={quickAddSymptomTrackingSelectItems}
                     >
-                      <SelectTrigger className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <SelectTrigger variant="journal" className="min-w-0">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -207,7 +207,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                       onValueChange={(v) => v != null && setPickedLfkComplexId(v)}
                       items={quickAddLfkComplexSelectItems}
                     >
-                      <SelectTrigger className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <SelectTrigger variant="journal" className="min-w-0">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

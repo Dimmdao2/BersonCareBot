@@ -333,16 +333,16 @@ export function PatientTreatmentProgramStagePageClient(props: {
       <CollapsibleContent className={patientStageGoalsCollapsiblePanelClass}>
         {stageForUi.goals?.trim() ? (
           <div>
-            <h3 className="text-xs font-semibold text-[#444444]">Цель</h3>
-            <p className="mt-1 whitespace-pre-wrap text-[13px] leading-snug text-[#444444]">
+            <h3 className="text-xs font-semibold text-[var(--patient-program-text)]">Цель</h3>
+            <p className="mt-1 whitespace-pre-wrap text-[13px] leading-snug text-[var(--patient-program-text)]">
               {stageForUi.goals.trim()}
             </p>
           </div>
         ) : null}
         {stageForUi.objectives?.trim() ? (
           <div className={stageForUi.goals?.trim() ? 'mt-3' : ''}>
-            <h3 className="text-xs font-semibold text-[#444444]">Задачи</h3>
-            <p className="mt-1 whitespace-pre-wrap text-[13px] leading-snug text-[#444444]">
+            <h3 className="text-xs font-semibold text-[var(--patient-program-text)]">Задачи</h3>
+            <p className="mt-1 whitespace-pre-wrap text-[13px] leading-snug text-[var(--patient-program-text)]">
               {stageForUi.objectives.trim()}
             </p>
           </div>
@@ -362,7 +362,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
           patientStageControlDaysBadgeClass,
         )}
       >
-        <p className="m-0 text-sm font-medium text-[#444444]">
+        <p className="m-0 text-sm font-medium text-[var(--patient-program-text)]">
           Контроль через {controlRemainderDaysForBadge} {ruDayWord(controlRemainderDaysForBadge)}
         </p>
       </div>

@@ -21,16 +21,16 @@ import {
 
 /** Тон карточки «Следующее напоминание» на главной — без фиксированной высоты (список записей). */
 const bookingReminderSectionSurfaceClass = cn(
-  'flex flex-col gap-3 overflow-hidden rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a]',
+  'flex flex-col gap-3 overflow-hidden rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-action-warning-border)]',
   'bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)]',
   'p-4 lg:rounded-[var(--patient-card-radius-desktop)] lg:p-5',
 );
 
 /** CTA как у напоминания на главной (`PatientHomeNextReminderCard` — `reminderCtaBaseClass`). */
 const bookingReminderManageCtaClass = cn(
-  'inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-[#fde68a] bg-[#fffbeb] px-3 text-[13px] font-bold text-[#d97706] transition-colors sm:text-sm',
-  'hover:bg-[#fef3c7]/80 active:bg-[#fef3c7]',
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f59e0b]',
+  'inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-3 text-[13px] font-bold text-[var(--patient-action-warning-text)] transition-colors sm:text-sm',
+  'hover:bg-[var(--patient-action-warning-hover-bg)]/80 active:bg-[var(--patient-action-warning-hover-bg)]',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-warning)]',
 );
 
 type Props = {

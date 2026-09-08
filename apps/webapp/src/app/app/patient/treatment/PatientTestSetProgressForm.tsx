@@ -629,7 +629,8 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                       Комментарий (необязательно)
                     </Label>
                     <Textarea
-                      className={cn(patientFormSurfaceClass, 'min-h-[56px] text-sm')}
+                      variant="journal"
+                      className="min-h-[56px] min-w-0 text-sm"
                       value={numericNotes[t.testId] ?? ''}
                       onChange={(e) =>
                         setNumericNotes((s) => ({ ...s, [t.testId]: e.target.value }))
@@ -672,7 +673,8 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                       Комментарий (необязательно)
                     </Label>
                     <Textarea
-                      className={cn(patientFormSurfaceClass, 'min-h-[72px] text-sm')}
+                      variant="journal"
+                      className="min-h-[72px] min-w-0 text-sm"
                       value={qualNotes[t.testId] ?? ''}
                       onChange={(e) => setQualNotes((s) => ({ ...s, [t.testId]: e.target.value }))}
                       disabled={busy !== null}

@@ -63,7 +63,7 @@ export function ProgramItemDiscussionMessageBody(props: {
       <>
         <button
           type="button"
-          className="block max-w-full overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))]"
+          className="block max-w-full overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)]"
           onClick={() => {
             if (
               playback &&

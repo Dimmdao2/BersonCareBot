@@ -91,7 +91,7 @@ export function PatientProgramMediaBlock(props: {
         <button
           ref={triggerRef}
           type="button"
-          className="group relative block aspect-video w-full shrink-0 overflow-hidden bg-muted/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--primary))]"
+          className="group relative block aspect-video w-full shrink-0 overflow-hidden bg-muted/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--patient-color-primary)]"
           onClick={() => setViewerOpen(true)}
           aria-label="Открыть видео на весь экран"
         >

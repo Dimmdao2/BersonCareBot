@@ -15,16 +15,16 @@ import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/patient/navChrome';
 const scheduleCardChrome = cn(
   'overflow-visible rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
   'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
-  'border border-[#fef3c7] bg-[linear-gradient(135deg,#fff9f0_0%,#fff6e8_48%,#fffbeb_100%)]',
+  'border border-[var(--patient-action-warning-hover-bg)] bg-[var(--patient-warning-card-gradient)]',
   'text-[var(--patient-text-primary)]',
 );
 
 /** Продолжение хром подписи карточки при раскрытии (полная ширина колонки страницы). */
 const scheduleExpandedPanelClass = cn(
-  'border-x border-b border-[#fef3c7] bg-[linear-gradient(180deg,#fffbf5_0%,#fff9f0_55%,#fff6ea_100%)]',
+  'border-x border-b border-[var(--patient-action-warning-hover-bg)] bg-[linear-gradient(180deg,#fffbf5_0%,#fff9f0_55%,#fff6ea_100%)]',
   'rounded-b-[var(--patient-card-radius-mobile)] md:rounded-b-[var(--patient-card-radius-desktop)]',
   'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
-  'border-t border-[#fde68a]/50',
+  'border-t border-[var(--patient-action-warning-border)]/50',
 );
 
 export type PatientPlanTodayRemindersCardProps = {
@@ -41,9 +41,9 @@ export type PatientPlanTodayRemindersCardProps = {
 
 /** Без `w-full` / `min-h-10` из `patientButtonWarningOutlineClass` — узкая CTA у правого края. */
 const configureScheduleButtonClass = cn(
-  'inline-flex shrink-0 items-center justify-center self-start rounded-sm border border-[#fde68a] bg-[#fffbeb] px-2 py-1 text-[11px] font-normal leading-none text-[#d97706] transition-colors',
-  'hover:bg-[#fef3c7]/80 active:bg-[#fef3c7]',
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f59e0b]',
+  'inline-flex shrink-0 items-center justify-center self-start rounded-sm border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] px-2 py-1 text-[11px] font-normal leading-none text-[var(--patient-action-warning-text)] transition-colors',
+  'hover:bg-[var(--patient-action-warning-hover-bg)]/80 active:bg-[var(--patient-action-warning-hover-bg)]',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-warning)]',
 );
 
 export function PatientPlanTodayRemindersCard({

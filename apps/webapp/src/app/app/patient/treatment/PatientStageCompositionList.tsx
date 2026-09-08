@@ -191,7 +191,7 @@ function PatientCompositionItemProgressAside(props: {
           ) : (
             <>
               {Array.from({ length: dotCount }, (_, i) => (
-                <span key={i} className="size-2 shrink-0 rounded-full bg-[#16a34a]" aria-hidden />
+                <span key={i} className="size-2 shrink-0 rounded-full bg-[var(--patient-color-success)]" aria-hidden />
               ))}
               {dotOverflow > 0 ? (
                 <span

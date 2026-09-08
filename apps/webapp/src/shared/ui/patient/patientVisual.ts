@@ -31,7 +31,7 @@ export const patientHeroBookingGradientFillClass =
  * {@link patientHeroBookingSectionClass} добавляет типичный layout блока выбора.
  */
 export const patientHeroBookingCardChromeClass = cn(
-  'overflow-hidden border border-[#ddd6fe]',
+  'overflow-hidden border border-[var(--patient-stage-goals-border)]',
   'rounded-[var(--patient-hero-radius-mobile)] md:rounded-[var(--patient-hero-radius-desktop)]',
   patientHeroBookingGradientFillClass,
   'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
@@ -113,10 +113,10 @@ export const patientCardListSectionClass = cn(
 
 /**
  * Шапка коллапса «Рекомендации» (этап 0 на дашборде программы) и «Рекомендации этапа»:
- * лёгкий вертикальный градиент на основе #dffeca.
+ * лёгкий вертикальный градиент patient stage goals.
  */
 export const patientRecommendationCollapsibleTriggerClass = cn(
-  'cursor-pointer bg-gradient-to-b from-[#dffeca] via-[#e8fcd3] to-[#f2fee8]',
+  'cursor-pointer bg-[var(--patient-stage-goals-gradient)]',
   'text-[var(--patient-text-primary)]',
 );
 
@@ -128,7 +128,7 @@ export const patientRecommendationCollapsiblePanelClass = 'bg-[rgba(228,251,213,
  */
 export const patientStageGoalsCollapsibleTriggerClass = cn(
   'flex w-full cursor-pointer items-center px-3 py-2.5 text-left md:px-4 md:py-3',
-  'bg-white text-[13px] font-semibold leading-tight text-[#444444]',
+  'bg-white text-[13px] font-semibold leading-tight text-[var(--patient-program-text)]',
 );
 
 /** Раскрытый блок «Цели и задачи». */
@@ -283,10 +283,10 @@ export const patientButtonDangerOutlineClass = cn(
  * Кнопка «Пропустить» в модалке элемента программы — кирпичный/терракотовый тон.
  */
 export const patientButtonSkipClass = cn(
-  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[#c2410c]/40 bg-[#fff7ed] px-3 font-semibold text-[#c2410c] transition-colors',
+  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--patient-action-skip-border)] bg-[var(--patient-action-skip-bg)] px-3 font-semibold text-[var(--patient-action-skip-text)] transition-colors',
   'min-h-[var(--patient-touch)] text-sm',
-  'hover:bg-[#ffedd5] active:bg-[#fed7aa]',
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c2410c]',
+  'hover:bg-[var(--patient-action-skip-hover-bg)] active:bg-[var(--patient-action-skip-active-bg)]',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-action-skip-text)]',
   'disabled:cursor-not-allowed disabled:opacity-60',
 );
 
@@ -426,17 +426,22 @@ export const patientProgramItemHeroTitleClass = cn(
 /**
  * Строка «N повторений × M подходов» на странице пункта (hero): размер задаётся родителем (`text-[0.8rem]`).
  */
-export const patientProgramItemPrimaryStatTextClass = cn('font-normal text-[#435370]');
+export const patientProgramItemPrimaryStatTextClass = cn(
+  'font-normal text-[var(--patient-program-stat-text)]',
+);
 
 /**
- * Заголовок группы в «Состав этапа»: чуть теплее холодного `#284da0` (индиго-синий).
+ * Заголовок группы в «Состав этапа»: отдельный более тёплый program tone.
  */
-export const patientCompositionGroupTitleClass = 'text-sm font-medium text-[#2c4c8c]';
+export const patientCompositionGroupTitleClass =
+  'text-sm font-medium text-[var(--patient-program-group-title)]';
 
 /**
  * Выбранная строка состава этапа: тонкое кольцо, тёмный синий, лёгкий нейтральный фон.
  */
-export const patientCompositionCurrentRowChromeClass = cn('bg-muted/40 ring-1 ring-[#1e3a5f]');
+export const patientCompositionCurrentRowChromeClass = cn(
+  'bg-muted/40 ring-1 ring-[var(--patient-program-current-ring)]',
+);
 
 /** Квадратный слот превью/плейсхолдера в строках «Состав этапа». */
 export const patientCompositionListThumbSlotClass =

@@ -19,9 +19,9 @@ import { cn } from '@/lib/utils';
  * классы собраны вручную без него.
  */
 const reminderCtaBaseClass = cn(
-  'inline-flex min-w-0 items-center justify-center gap-2 rounded-md border border-[#fde68a] bg-[#fffbeb] font-bold text-[#d97706] transition-colors',
-  'hover:bg-[#fef3c7]/80 active:bg-[#fef3c7]',
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f59e0b]',
+  'inline-flex min-w-0 items-center justify-center gap-2 rounded-md border border-[var(--patient-action-warning-border)] bg-[var(--patient-action-warning-bg)] font-bold text-[var(--patient-action-warning-text)] transition-colors',
+  'hover:bg-[var(--patient-action-warning-hover-bg)]/80 active:bg-[var(--patient-action-warning-hover-bg)]',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-warning)]',
 );
 const reminderCtaMobileClass = cn(
   reminderCtaBaseClass,
@@ -44,7 +44,7 @@ type Props = {
 function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
   return (
     <div
-      className="inline-flex size-[4.5rem] shrink-0 items-center justify-center rounded-full bg-[#fffbeb] text-[var(--patient-color-warning)] md:size-24"
+      className="inline-flex size-[4.5rem] shrink-0 items-center justify-center rounded-full bg-[var(--patient-action-warning-bg)] text-[var(--patient-color-warning)] md:size-24"
       aria-hidden
     >
       <PatientHomeSafeImage

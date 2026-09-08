@@ -26,7 +26,7 @@ const outerChromeClass = cn(
 const sosIconShellClass =
   'inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-color-danger)] text-white md:size-10';
 const bookingIconShellClass =
-  'inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#dcfce7] text-[var(--patient-color-success)] md:size-10';
+  'inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-action-success-badge-bg)] text-[var(--patient-color-success)] md:size-10';
 
 const sosButtonClass = cn(
   patientButtonDangerOutlineClass,
