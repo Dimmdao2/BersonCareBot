@@ -89,3 +89,18 @@ Additional real captures:
 | Video/fullscreen | The assigned item route lost its browser socket during a cold compile before a usable video surface was captured. | BLOCKED |
 
 No landing or push is authorized by this report.
+
+## Independent final live-audit continuation
+
+Authority inspected: candidate `4898d33c5`; this checkout remains at audit-artifact HEAD
+`c8081501e`. This continuation changed no product source, test, DEV data/settings, message, media,
+TEST, PROD, shared port, landing or push state.
+
+| Check | Exact evidence | Verdict |
+| --- | --- | --- |
+| Existing repeatable chat/comment behavior | `cd apps/webapp && pnpm exec vitest --run src/app/app/patient/messages/PatientMessagesClient.ui.test.tsx src/app/app/patient/treatment/ProgramItemDiscussionDialog.ui.test.tsx` → 2 files / 11 tests passed in 7.26 s. These cover chat/comment polling, read reconciliation, read-only state, thread pagination, draft preservation and return from a nested media layer. | PASS (supporting behavior evidence) |
+| Isolated candidate and normal patient entry | `APP_BASE_URL=http://127.0.0.1:5214 NEXT_PUBLIC_APP_BASE_URL=http://127.0.0.1:5214 HOST=127.0.0.1 PORT=5214 pnpm exec next dev --webpack -H 127.0.0.1 -p 5214`; `curl -sS -o /dev/null -w 'root HTTP=%{http_code}\\n' http://127.0.0.1:5214/` → `root HTTP=200`. Chromium used the normal published DEV patient email/password form and redirected to `/app/patient`. `screenshots/final-home-mobile.png` is a real 390×844 capture of the shell still loading, not an acceptance screenshot. | PASS (entry only) |
+| Required final messages/comments/video desktop and mobile pass | During the same isolated browser run `screenshots/final-messages-mobile.png` captured the chat sheet opening but still loading; the subsequent CDP navigation remained pending on `/app/patient/messages`. No settled thread, composer, GET result, desktop, discussion close-return, or item/video result was fabricated. The exact isolated processes were stopped before cleanup. This is insufficient evidence for the required surfaces; it is not attributed to the typography diff. | BLOCKED |
+| Temporary dependency/env cleanup | Original links recorded with `readlink node_modules` and `readlink apps/webapp/node_modules` were `/home/dev/dev-projects/bcb-wt-patient-ui-button-v2-20260908/node_modules` and `/home/dev/dev-projects/bcb-wt-patient-ui-button-v2-20260908/apps/webapp/node_modules`. They were temporarily repointed only to the corresponding real `/home/dev/dev-projects/BersonCareBot/...` directories; both exact original targets were restored. Temporary `apps/webapp/.env.dev` pointed only to the supplied main-checkout env, was never read/printed, and was absent after `unlink`. `ss -ltnp '( sport = :5214 or sport = :9225 )'` was empty after stopping the isolated Next and Chromium processes. | PASS |
+
+Final verdict remains **BLOCKED, NOT FOR LAND**: behavior tests are green and no additional visual regression is claimed, but the requested live desktop/mobile comments, close-return and video/fullscreen evidence was not completed. No product defect is claimed from the incomplete browser run.
