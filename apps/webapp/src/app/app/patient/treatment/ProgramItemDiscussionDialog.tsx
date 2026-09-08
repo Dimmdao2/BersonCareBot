@@ -1,18 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { PatientModal } from '@/shared/ui/patient/PatientModal';
-import { Textarea } from '@/shared/ui/patient/primitives/textarea';
-import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 import { cn } from '@/lib/utils';
 import {
-  patientChatComposerTextareaClass,
   patientChatMetaLineClass,
   patientMutedTextClass,
-  patientPrimaryActionClass,
 } from '@/shared/ui/patient/patientVisual';
 import {
   formatChatMessageTimeRu,
@@ -30,6 +26,14 @@ import { ProgramItemDiscussionMessageBody } from '@/app/app/patient/treatment/Pr
 import { notifyPatientSupportUnreadCountChanged } from '@/modules/messaging/hooks/useSupportUnreadPolling';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { AppContentLoading } from '@/shared/ui/AppContentLoading';
+import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
+import { reconcileMessagesById } from '@/modules/messaging/reconcileMessages';
+import { PatientChatComposer } from '@/shared/ui/patient/PatientChatComposer';
+import {
+  patientChatBubbleClass,
+  patientChatBubbleRowClass,
+  patientChatMetaWidthClass,
+} from '@/shared/ui/patient/patientChatVisual';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -45,6 +49,23 @@ function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussi
   const byDate = a.createdAt.localeCompare(b.createdAt);
   if (byDate !== 0) return byDate;
   return a.id.localeCompare(b.id);
+}
+
+function sameDiscussionMessage(
+  a: ProgramItemDiscussionMessage,
+  b: ProgramItemDiscussionMessage,
+): boolean {
+  return (
+    a.id === b.id &&
+    a.instanceStageItemId === b.instanceStageItemId &&
+    a.patientUserId === b.patientUserId &&
+    a.senderRole === b.senderRole &&
+    a.origin === b.origin &&
+    a.body === b.body &&
+    a.mediaFileId === b.mediaFileId &&
+    a.supportMessageId === b.supportMessageId &&
+    a.createdAt === b.createdAt
+  );
 }
 
 /**
@@ -78,6 +99,12 @@ export function ProgramItemDiscussionDialog(props: {
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [peerLastReadAt, setPeerLastReadAt] = useState<string | null>(null);
+  const messagesRef = useRef(messages);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const lastTailMessageIdRef = useRef<string | null>(null);
+  const onReadRef = useRef(onRead);
+  messagesRef.current = messages;
+  onReadRef.current = onRead;
 
   const basePath = useMemo(
     () =>
@@ -89,12 +116,12 @@ export function ProgramItemDiscussionDialog(props: {
     const res = await fetch(`${basePath}/read`, { method: 'POST' });
     if (!res.ok) return false;
     notifyPatientSupportUnreadCountChanged();
-    await onRead?.();
+    await onReadRef.current?.();
     return true;
-  }, [basePath, onRead]);
+  }, [basePath]);
 
   const loadPage = useCallback(
-    async (cursor: string | null, appendOlder: boolean) => {
+    async (cursor: string | null, mode: 'replace' | 'older' | 'poll') => {
       const url = new URL(basePath, window.location.origin);
       url.searchParams.set('direction', 'backward');
       url.searchParams.set('limit', '50');
@@ -105,18 +132,24 @@ export function ProgramItemDiscussionDialog(props: {
         throw new Error(readSafeApiErrorText(data, 'Не удалось загрузить комментарии'));
       }
       const loaded = data.messages;
-      setMessages((prev) => {
-        if (!appendOlder) return loaded;
-        const map = new Map(prev.map((m) => [m.id, m]));
-        for (const msg of loaded) map.set(msg.id, msg);
-        return [...map.values()].sort(compareMessages);
+      setMessages((current) => {
+        const reconciled = reconcileMessagesById(
+          current,
+          loaded,
+          sameDiscussionMessage,
+          mode !== 'replace',
+        );
+        return reconciled === current ? current : reconciled.sort(compareMessages);
       });
-      setNextCursor(
-        typeof data.pageInfo?.nextCursor === 'string' ? data.pageInfo.nextCursor : null,
-      );
+      if (mode !== 'poll') {
+        setNextCursor(
+          typeof data.pageInfo?.nextCursor === 'string' ? data.pageInfo.nextCursor : null,
+        );
+      }
       if (data.peerLastReadAt !== undefined) {
         setPeerLastReadAt(data.peerLastReadAt);
       }
+      return loaded;
     },
     [basePath],
   );
@@ -125,7 +158,7 @@ export function ProgramItemDiscussionDialog(props: {
     setLoading(true);
     setError(null);
     try {
-      await loadPage(null, false);
+      await loadPage(null, 'replace');
       await markRead();
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Не удалось загрузить комментарии';
@@ -140,21 +173,20 @@ export function ProgramItemDiscussionDialog(props: {
     void bootstrap();
   }, [open, bootstrap]);
 
-  useEffect(() => {
+  const poll = useCallback(async () => {
     if (!open) return;
-    const refreshPeerRead = async () => {
-      const url = new URL(basePath, window.location.origin);
-      url.searchParams.set('direction', 'backward');
-      url.searchParams.set('limit', '1');
-      const res = await fetch(url.toString());
-      const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
-      if (res.ok && data?.ok && data.peerLastReadAt !== undefined) {
-        setPeerLastReadAt(data.peerLastReadAt);
+    try {
+      const knownIds = new Set(messagesRef.current.map((message) => message.id));
+      const loaded = await loadPage(null, 'poll');
+      if (loaded.some((message) => message.senderRole !== 'patient' && !knownIds.has(message.id))) {
+        await markRead();
       }
-    };
-    const id = window.setInterval(() => void refreshPeerRead(), 15000);
-    return () => window.clearInterval(id);
-  }, [open, basePath]);
+    } catch {
+      // Polling is best-effort; keep the mounted thread stable on transient failures.
+    }
+  }, [loadPage, markRead, open]);
+
+  useMessagePolling(poll, open, 8000, false);
 
   const sendText = useCallback(async () => {
     const body = draft.trim();
@@ -193,6 +225,25 @@ export function ProgramItemDiscussionDialog(props: {
 
   const sortedMessages = useMemo(() => [...messages].sort(compareMessages), [messages]);
 
+  useLayoutEffect(() => {
+    const scrollContainer = scrollRef.current;
+    const tailMessageId = sortedMessages.at(-1)?.id ?? null;
+    if (!scrollContainer || tailMessageId === lastTailMessageIdRef.current) return;
+    if (typeof scrollContainer.scrollTo === 'function') {
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: lastTailMessageIdRef.current ? 'smooth' : 'auto',
+      });
+    } else {
+      scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    }
+    lastTailMessageIdRef.current = tailMessageId;
+  }, [sortedMessages]);
+
+  useEffect(() => {
+    if (!open) lastTailMessageIdRef.current = null;
+  }, [open]);
+
   return (
     <PatientModal
       open={open}
@@ -217,7 +268,7 @@ export function ProgramItemDiscussionDialog(props: {
             onClick={() => {
               if (!nextCursor) return;
               setLoadingOlder(true);
-              void loadPage(nextCursor, true)
+              void loadPage(nextCursor, 'older')
                 .catch((e) => {
                   const msg = e instanceof Error ? e.message : 'Не удалось загрузить комментарии';
                   setError(msg);
@@ -230,6 +281,7 @@ export function ProgramItemDiscussionDialog(props: {
         ) : null}
 
         <div
+          ref={scrollRef}
           className={cn(
             'min-h-0 flex-1 overflow-y-auto space-y-4 pb-4 pt-1 md:pb-5',
             chatThreadSurfaceClass,
@@ -254,14 +306,13 @@ export function ProgramItemDiscussionDialog(props: {
                 >
                   <div
                     className={cn(
-                      'flex max-w-[min(100%,22rem)]',
+                      patientChatBubbleRowClass,
                       mine ? 'justify-end' : 'justify-start',
                     )}
                   >
                     <div
                       className={cn(
-                        'max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]',
-                        'rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
+                        patientChatBubbleClass,
                         mine ? chatBubbleOwnClass : chatBubblePeerClass,
                       )}
                     >
@@ -277,7 +328,7 @@ export function ProgramItemDiscussionDialog(props: {
                   {!mine ? (
                     <p
                       className={cn(
-                        'max-w-[min(100%,22rem)] md:max-w-[min(100%,24rem)]',
+                        patientChatMetaWidthClass,
                         patientChatMetaLineClass,
                         'text-start',
                       )}
@@ -292,7 +343,7 @@ export function ProgramItemDiscussionDialog(props: {
           )}
         </div>
 
-        <MessageComposer
+        <PatientChatComposer
           value={draft}
           onValueChange={setDraft}
           onSubmit={sendText}
@@ -300,11 +351,8 @@ export function ProgramItemDiscussionDialog(props: {
           disabled={loading}
           placeholder="Ваш комментарий..."
           ariaLabel="Текст комментария"
-          submitLabel="Отправить"
-          submittingLabel="Отправка..."
+          submitAriaLabel="Отправить"
           maxLength={4000}
-          className="flex shrink-0 flex-col gap-2 border-t border-[var(--patient-border)] pt-3"
-          inputRowClassName="flex items-end gap-2"
           leadingControl={
             mediaSubmissionEnabled ? (
               <ProgramItemDiscussionMediaPicker
@@ -322,15 +370,6 @@ export function ProgramItemDiscussionDialog(props: {
               />
             ) : null
           }
-          renderTextarea={(props) => (
-            <Textarea
-              {...props}
-              className={cn(patientChatComposerTextareaClass, 'min-h-0 flex-1')}
-            />
-          )}
-          renderSubmit={(props) => (
-            <Button {...props} className={cn(patientPrimaryActionClass, 'disabled:opacity-55')} />
-          )}
         />
       </div>
     </PatientModal>

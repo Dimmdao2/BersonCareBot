@@ -12,6 +12,7 @@ import { ChatView } from '@/modules/messaging/components/ChatView';
 import { notifyDoctorSupportUnreadCountChanged } from '@/modules/messaging/hooks/useSupportUnreadPolling';
 import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
 import type { SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
+import { reconcileSupportMessages } from '@/modules/messaging/reconcileMessages';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type DoctorChatPanelProps = {
@@ -27,42 +28,6 @@ const initialMessageRequests = new Map<
   string,
   Promise<{ ok?: boolean; messages?: SerializedSupportMessage[] }>
 >();
-
-function sameMessage(a: SerializedSupportMessage, b: SerializedSupportMessage): boolean {
-  return (
-    a.id === b.id &&
-    a.integratorMessageId === b.integratorMessageId &&
-    a.conversationId === b.conversationId &&
-    a.senderRole === b.senderRole &&
-    a.messageType === b.messageType &&
-    a.text === b.text &&
-    a.source === b.source &&
-    a.createdAt === b.createdAt &&
-    a.readAt === b.readAt &&
-    a.deliveredAt === b.deliveredAt &&
-    a.mediaUrl === b.mediaUrl &&
-    a.mediaType === b.mediaType
-  );
-}
-
-/** Keep existing message objects mounted; polling only appends or updates changed rows. */
-function reconcileMessages(
-  current: SerializedSupportMessage[],
-  incoming: SerializedSupportMessage[],
-): SerializedSupportMessage[] {
-  const currentById = new Map(current.map((message) => [message.id, message]));
-  let changed = current.length !== incoming.length;
-  const next = incoming.map((message, index) => {
-    const existing = currentById.get(message.id);
-    if (existing && sameMessage(existing, message)) {
-      if (current[index] !== existing) changed = true;
-      return existing;
-    }
-    changed = true;
-    return message;
-  });
-  return changed ? next : current;
-}
 
 function fetchDoctorChatMessages(conversationId: string, deduplicateInitial = false) {
   if (deduplicateInitial) {
@@ -135,7 +100,7 @@ export function DoctorChatPanel({
           return;
         }
         const nextMessages = data.messages ?? [];
-        setMessages((current) => reconcileMessages(current, nextMessages));
+        setMessages((current) => reconcileSupportMessages(current, nextMessages));
         if (nextMessages.some((message) => message.senderRole === 'user' && !message.readAt)) {
           void markRead();
         }
@@ -157,7 +122,7 @@ export function DoctorChatPanel({
         const seededMessages = initialMessagesRef.current;
         if (seededMessages) {
           if (!cancelled) {
-            setMessages((current) => reconcileMessages(current, seededMessages));
+            setMessages((current) => reconcileSupportMessages(current, seededMessages));
           }
           if (seededMessages.some((message) => message.senderRole === 'user' && !message.readAt)) {
             void markRead();
@@ -181,7 +146,7 @@ export function DoctorChatPanel({
       const data = (await res.json()) as { ok?: boolean; messages?: SerializedSupportMessage[] };
       if (!res.ok || !data.ok) return;
       const list = data.messages ?? [];
-      setMessages((current) => reconcileMessages(current, list));
+      setMessages((current) => reconcileSupportMessages(current, list));
       if (list.some((m) => m.senderRole === 'user' && !m.readAt)) {
         void markRead();
       }

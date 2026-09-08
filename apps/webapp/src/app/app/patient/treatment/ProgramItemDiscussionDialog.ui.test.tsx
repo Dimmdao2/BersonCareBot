@@ -5,6 +5,16 @@ import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes'
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 import { ProgramItemDiscussionDialog } from './ProgramItemDiscussionDialog';
 
+const polling = vi.hoisted(() => ({
+  tick: null as null | (() => void | Promise<void>),
+}));
+
+vi.mock('@/modules/messaging/hooks/useMessagePolling', () => ({
+  useMessagePolling: (onTick: () => void | Promise<void>, enabled: boolean) => {
+    polling.tick = enabled ? onTick : null;
+  },
+}));
+
 /**
  * Владелец (бриф этапа): «closing returns to discussion and does not erase draft/thread» и
  * «video preview … must return to the still-mounted discussion when closed».
@@ -14,6 +24,8 @@ import { ProgramItemDiscussionDialog } from './ProgramItemDiscussionDialog';
  * обсуждение с потерянным черновиком. Отказ дорогой (потерян написанный человеком текст) и
  * молчаливый (выглядит как штатное закрытие модалки), а конструкцией не выражается: сохранение
  * зависит от того, где смонтирован вложенный слой.
+ * 2. Фоновое обновление получает ответ врача, но не добавляет его в уже открытый тред — пациент
+ *    продолжает видеть устаревший разговор без какого-либо сообщения об ошибке.
  *
  * Геометрию, скролл и затемнение эти тесты НЕ проверяют — это живая приёмка (AGENTS.md §10a).
  */
@@ -125,6 +137,7 @@ function layerWithTitle(title: string): HTMLElement {
 }
 
 afterEach(() => {
+  polling.tick = null;
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -222,17 +235,14 @@ describe('patient exercise discussion — вложенные слои повер
     expect(onRead).toHaveBeenCalledTimes(2);
   });
 
-  it('опрос обновляет отметку прочтения исходящего комментария', async () => {
-    let pollTick: (() => void | Promise<void>) | null = null;
-    vi.spyOn(window, 'setInterval').mockImplementation(((
-      handler: TimerHandler,
-      timeout?: number,
-    ) => {
-      if (typeof handler === 'function' && timeout === 15000) {
-        pollTick = handler as () => void | Promise<void>;
-      }
-      return 17;
-    }) as typeof window.setInterval);
+  it('опрос добавляет новый ответ врача и обновляет отметку прочтения', async () => {
+    let pageLoads = 0;
+    const newDoctorReply: ProgramItemDiscussionMessage = {
+      ...textMessage,
+      id: 'message-doctor-poll',
+      body: 'Уменьшите амплитуду и напишите, стало ли легче',
+      createdAt: '2026-09-01T10:00:00.000Z',
+    };
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
@@ -243,14 +253,15 @@ describe('patient exercise discussion — вложенные слои повер
         if (url.pathname.endsWith('/read')) {
           return { ok: true, json: async () => ({ ok: true }) } as unknown as Response;
         }
-        const polling = url.searchParams.get('limit') === '1';
+        pageLoads += 1;
+        const isPoll = pageLoads > 1;
         return {
           ok: true,
           json: async () => ({
             ok: true,
-            messages: [patientTextMessage],
+            messages: isPoll ? [patientTextMessage, newDoctorReply] : [patientTextMessage],
             pageInfo: { nextCursor: null },
-            peerLastReadAt: polling ? '2026-09-01T10:00:00.000Z' : null,
+            peerLastReadAt: isPoll ? '2026-09-01T10:00:00.000Z' : null,
           }),
         } as unknown as Response;
       }),
@@ -259,11 +270,12 @@ describe('patient exercise discussion — вложенные слои повер
     render(<DiscussionHost />);
     await screen.findByText('Выполнил подход');
     expect(document.querySelector('[data-delivery-status="sent"]')).not.toBeNull();
-    expect(pollTick).not.toBeNull();
+    expect(polling.tick).not.toBeNull();
     await act(async () => {
-      await pollTick?.();
+      await polling.tick?.();
     });
 
+    expect(await screen.findByText('Уменьшите амплитуду и напишите, стало ли легче')).toBeVisible();
     await waitFor(() => {
       expect(document.querySelector('[data-delivery-status="read"]')).not.toBeNull();
     });
