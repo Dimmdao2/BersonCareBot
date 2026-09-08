@@ -9,6 +9,7 @@ import type {
 const ids = {
   organization: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   patient: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  otherPatient: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
   specialist: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
 } as const;
 
@@ -263,6 +264,49 @@ describe('createOrResume never rotates the invite on resume (ACC-08)', () => {
 });
 
 describe('explicit rotate_invite follows the same notification contract as create (ACC-08)', () => {
+  it('refuses a route patient that does not own the specialist meeting before rotating or notifying', async () => {
+    // Failure: a specialist pairs meeting A with patient B's doctor-route URL; the lifecycle
+    // rotates A's invite then sends its guest capability to B.
+    // Impact: patient B can join patient A's call, while A's already-delivered link is silently
+    // invalidated (ACC-07/ACC-08 invite-to-meeting-patient binding).
+    const store: VideoMeetingStore = {
+      ...storeReturning(true),
+      findSpecialistMeeting: vi.fn().mockResolvedValue(meetingRecord),
+    };
+    const invitationNotification: VideoMeetingInvitationNotification = {
+      enqueue: vi.fn().mockResolvedValue({
+        status: 'queued',
+        selectedChannels: ['telegram'],
+        queuedChannels: ['telegram'],
+        deduplicatedChannels: [],
+      }),
+    };
+    const service = createVideoMeetingsService({
+      store,
+      provider: healthyProvider(),
+      invitationNotification,
+      resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
+    });
+
+    const result = await service.rotateInvite({
+      meetingId: meetingRecord.id,
+      organizationId: ids.organization,
+      patientUserId: ids.otherPatient,
+      specialistId: ids.specialist,
+      actorPlatformUserId: ids.specialist,
+    });
+
+    expect({
+      result,
+      rotated: store.rotateInvite.mock.calls.length,
+      notifications: invitationNotification.enqueue.mock.calls.length,
+    }).toEqual({
+      result: { ok: false, error: 'meeting_unavailable' },
+      rotated: 0,
+      notifications: 0,
+    });
+  });
+
   it('enqueues exactly one invitation notification through the ACC-07 contract when the specialist explicitly rotates the invite', async () => {
     // Failure: the standalone `rotateInvite` lifecycle action mints a new secret/guestUrl but
     // never calls the notification port, so "Выпустить новую ссылку" replaces the capability

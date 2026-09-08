@@ -166,6 +166,41 @@ describe('DoctorLiveMeetingClient — Play gates the adapter mount (UI-08)', () 
     }
   });
 
+  it('keeps the prepared invite URL copyable when Play resumes with guestUrl=null', async () => {
+    // Failure: Play refreshes only the short-lived specialist session, so ACC-08 correctly
+    // returns guestUrl=null; the client assigns that null over the URL prepared at page open.
+    // Impact: the specialist loses the only copyable, already-issued patient capability exactly
+    // when starting the call and is pushed to an unnecessary invite rotation.
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const preparedUrl = 'https://clinic.therapygo.ru/live#prepared-invite';
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ...sessionPayload('prepare-room'), guestUrl: preparedUrl }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => sessionPayload('play-room') });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <DoctorLiveMeetingClient
+        userId="11111111-1111-4111-8111-111111111111"
+        appointmentId={null}
+        patient={patient}
+        encountersEnabled={false}
+        medicalRecordEnabled={false}
+      />,
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    fireEvent.click(await screen.findByRole('button', { name: /начать звонок/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(await screen.findByRole('button', { name: /скопировать ссылку/i }));
+    expect(writeText).toHaveBeenCalledWith(preparedUrl);
+  });
+
   it('gives a retryable state without a background retry loop when the prepare request fails', async () => {
     // Failure: a failed prepare call leaves the client either stuck or silently polling forever.
     // Impact: the specialist sees a dead page with no way to recover, or the client hammers the
