@@ -205,6 +205,7 @@ export default async function SettingsPage({
       paymentsMutation,
       mailingsVisibility,
       analyticsVisibility,
+      videoMeetingsVisibility,
     ] = await Promise.all([
       deps.systemSettings.listSettingsByScope('doctor', {
         organizationId: workspace.organizationId,
@@ -253,6 +254,7 @@ export default async function SettingsPage({
       getMechanicMutationAvailability(workspace, 'payments'),
       getMechanicSurfaceVisibility(workspace, 'mailings'),
       getMechanicSurfaceVisibility(workspace, 'doctor_statistics'),
+      getMechanicSurfaceVisibility(workspace, 'video_meetings'),
     ]);
     const publishedBrand = brandingState.published;
     const publishedLogoUrl =
@@ -308,6 +310,7 @@ export default async function SettingsPage({
       mailings: mailingsVisibility.directUrl,
       analytics: analyticsVisibility.directUrl,
       client_portal: true,
+      video_meetings: videoMeetingsVisibility.directUrl,
     };
     const appointmentReminderSettings: AppointmentReminderSpecialistSettings =
       workspace.specialistId

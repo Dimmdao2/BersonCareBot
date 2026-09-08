@@ -4,6 +4,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import { requireDoctorWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
 
 const paramsSchema = z.object({ userId: z.string().uuid(), meetingId: z.string().uuid() });
 const bodySchema = z.object({ action: z.enum(['rotate_invite', 'revoke_invite', 'end']) }).strict();
@@ -25,6 +26,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'video_meetings');
   if (!entitlement.ok) return entitlement.response;
   const deps = buildAppDeps();
+  const workspaceModule = await requireDoctorWorkspaceModuleForApi(deps, gate.ctx, 'video_meetings');
+  if (!workspaceModule.ok) return workspaceModule.response;
   if (!deps.videoMeetings) return noStore({ ok: false, error: 'provider_unavailable' }, 503);
   const patient = await deps.doctorClientsPort.getClientIdentityForOrganization(
     params.data.userId,
