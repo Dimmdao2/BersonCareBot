@@ -120,6 +120,10 @@ export function JitsiMeetingRenderer({
             disableDeepLinking: true,
             enableWelcomePage: false,
             hideConferenceSubject: true,
+            // Jitsi falls back to the opaque room id when no subject exists. Keep a neutral
+            // product label as a second line of defence for clients that still render it.
+            subject: 'Видеовстреча',
+            localSubject: 'Видеовстреча',
           },
           interfaceConfigOverwrite: {
             // The deployment configuration is the broad allowlist. iframe overrides only narrow
