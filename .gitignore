@@ -106,3 +106,10 @@ runs/stryker-diffprobe/
 
 runs/.queue-refusals-*
 runs/ci-last.json
+
+# #1100 stream C: vendored upstream docker-jitsi-meet release (fetched by deploy/jitsi/bin/install.sh at
+# apply time, not a reviewable artifact of this repo) and secret-rendered config generated from the
+# .template files that are the actual reviewable source. See deploy/jitsi/README.md "Design decisions".
+deploy/jitsi/vendor/
+deploy/jitsi/config/prosody/conf.d/*.rendered.cfg.lua
+deploy/jitsi/coturn/turnserver.rendered.conf
