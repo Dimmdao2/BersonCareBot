@@ -54,7 +54,6 @@ import { formatPatientPackageLongLabel } from '@/modules/memberships/display';
 import {
   DoctorModal,
   DoctorModalStackedTitle,
-  DoctorModalTextEditorField,
 } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorCatalogMediaStaticThumb } from '@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb';
@@ -86,6 +85,7 @@ import {
   type DoctorExerciseActivityCalendarDay,
 } from '@/shared/ui/doctor/DoctorExerciseActivityCalendar';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { DoctorNotesPanel } from '@/app/app/doctor/clients/DoctorNotesPanel';
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -951,9 +951,6 @@ export function PatientTabOverview({
   });
 
   const [notesModalOpen, setNotesModalOpen] = useState(false);
-  const [noteFormOpen, setNoteFormOpen] = useState(false);
-  const [noteText, setNoteText] = useState('');
-  const [noteSaving, setNoteSaving] = useState(false);
   const [tasksModalOpen, setTasksModalOpen] = useState(false);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<SpecialistTaskRow | null>(null);
@@ -1463,30 +1460,6 @@ export function PatientTabOverview({
   const isStale = loadedUserId !== userId;
   const isLoading = isStale || data === null;
 
-  async function handleNoteSubmit() {
-    if (!noteText.trim()) return;
-    setNoteSaving(true);
-    try {
-      const res = await fetch(`/api/doctor/clients/${userId}/notes`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: noteText }),
-      });
-      if (res.ok) {
-        const json = (await res.json()) as { note?: DoctorNoteRow };
-        const newNote = json.note;
-        if (newNote) {
-          setData((prev) => (prev ? { ...prev, notes: [newNote, ...prev.notes] } : prev));
-        }
-        setNoteText('');
-        setNoteFormOpen(false);
-      }
-    } finally {
-      setNoteSaving(false);
-    }
-  }
-
   function handleTaskSaved(task: SpecialistTaskRow) {
     setData((prev) => {
       if (!prev) return prev;
@@ -1657,43 +1630,6 @@ export function PatientTabOverview({
 
   // Message unread count
   const totalMessageUnread = data?.unreadFromUserCount ?? 0;
-  const noteFormModal = (
-    <DoctorModal
-      open={noteFormOpen}
-      onClose={() => setNoteFormOpen(false)}
-      title={
-        <DoctorModalStackedTitle
-          label="Новая заметка"
-          patientName={patientHeaderName}
-          patientOnSupport={header?.support.isOnSupport === true}
-          patientVariant="context"
-        />
-      }
-      size="sm"
-      presentation="fullscreen-text"
-      bodyClassName="flex min-h-0 flex-col p-0"
-      footer={
-        <>
-          <Button type="button" variant="outline" onClick={() => setNoteFormOpen(false)}>
-            Отмена
-          </Button>
-          <Button
-            type="button"
-            onClick={() => void handleNoteSubmit()}
-            disabled={noteSaving || !noteText.trim()}
-          >
-            {noteSaving ? 'Сохранение…' : 'Сохранить'}
-          </Button>
-        </>
-      }
-    >
-      <DoctorModalTextEditorField
-        value={noteText}
-        onChange={setNoteText}
-        placeholder="Текст заметки…"
-      />
-    </DoctorModal>
-  );
   const taskFormDialog = (
     <SpecialistTaskFormDialog
       open={taskFormOpen}
@@ -1913,13 +1849,10 @@ export function PatientTabOverview({
             id="patient-overview-notes"
             title="Заметок"
             value={data?.notes.length ?? 0}
-            onClick={(data?.notes.length ?? 0) > 0 ? () => setNotesModalOpen(true) : undefined}
+            onClick={() => setNotesModalOpen(true)}
             actionIcon={<FilePlus2 className="size-5" aria-hidden />}
             actionLabel="Добавить заметку"
-            onActionClick={() => {
-              setNoteText('');
-              setNoteFormOpen(true);
-            }}
+            onActionClick={() => setNotesModalOpen(true)}
             className="h-full"
           />
 
@@ -1937,56 +1870,9 @@ export function PatientTabOverview({
             size="lg"
             bodyVariant="list"
             desktopPresentation="right-sheet"
-            footer={
-              <>
-                <span aria-hidden className="max-sm:block sm:hidden" />
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    setNoteText('');
-                    setNoteFormOpen(true);
-                  }}
-                >
-                  <FilePlus2 className="size-4" aria-hidden />
-                  Новая заметка
-                </Button>
-              </>
-            }
           >
-            {isLoading ? (
-              <DoctorPanelLoading className="px-4 py-4" />
-            ) : data?.notesStatus === 'error' ? (
-              <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить заметки.</p>
-            ) : data?.notes.length ? (
-              <DoctorDnaFlatList>
-                {[...data.notes]
-                  .sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime())
-                  .map((note) => (
-                    <li
-                      key={note.id}
-                      className={cn(
-                        doctorDnaFlatListRowClass,
-                        'grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-4 border-t border-border',
-                      )}
-                    >
-                      <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
-                        {fmtDateMsgShort(note.updatedAt)}
-                      </span>
-                      <span
-                        className={`${doctorDnaFlatListPrimaryClass} min-w-0 whitespace-pre-wrap`}
-                      >
-                        {note.text}
-                      </span>
-                    </li>
-                  ))}
-              </DoctorDnaFlatList>
-            ) : (
-              <DoctorEmptyState>Заметок нет</DoctorEmptyState>
-            )}
-            {notesModalOpen ? noteFormModal : null}
+            <DoctorNotesPanel userId={userId} embedded />
           </DoctorModal>
-          {!notesModalOpen ? noteFormModal : null}
         </section>
 
         {/* Задачи */}
