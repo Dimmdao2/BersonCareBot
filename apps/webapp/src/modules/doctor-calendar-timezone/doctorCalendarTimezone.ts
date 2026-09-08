@@ -61,3 +61,20 @@ export async function getDoctorEffectiveCalendarIana(
   ]);
   return resolveDoctorCalendarIana(personalRaw, branchRaw, appDefaultRaw);
 }
+
+/** Calendar date captured for a doctor-facing editor in the effective personal timezone. */
+export async function getDoctorCalendarDate(
+  doctorUserId: string,
+  port: DoctorCalendarTimezonePort,
+  now = new Date(),
+): Promise<{ iana: string; date: string }> {
+  const iana = await getDoctorEffectiveCalendarIana(doctorUserId, port);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: iana,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const byType = new Map(parts.map((part) => [part.type, part.value]));
+  return { iana, date: `${byType.get('year')}-${byType.get('month')}-${byType.get('day')}` };
+}

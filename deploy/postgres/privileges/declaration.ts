@@ -15696,7 +15696,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "author_id",
           "created_at",
           "id",
+          "note_date",
           "organization_id",
+          "revision",
           "text",
           "updated_at",
           "user_id"
@@ -15708,7 +15710,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
-          "author_id"
+          "author_id",
+          "note_date",
+          "revision",
+          "text",
+          "updated_at"
         ]
       },
       {

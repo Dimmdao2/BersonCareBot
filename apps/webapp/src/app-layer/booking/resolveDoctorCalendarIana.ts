@@ -1,4 +1,7 @@
-import { getDoctorEffectiveCalendarIana } from '@/modules/doctor-calendar-timezone/doctorCalendarTimezone';
+import {
+  getDoctorCalendarDate,
+  getDoctorEffectiveCalendarIana,
+} from '@/modules/doctor-calendar-timezone/doctorCalendarTimezone';
 import { pgDoctorCalendarTimezonePort } from '@/infra/repos/pgDoctorCalendarTimezone';
 
 /**
@@ -13,4 +16,8 @@ export function resolveDoctorCalendarIana(
   branchRaw?: string | null,
 ): Promise<string> {
   return getDoctorEffectiveCalendarIana(doctorUserId, pgDoctorCalendarTimezonePort, branchRaw);
+}
+
+export function resolveDoctorCalendarDate(doctorUserId: string) {
+  return getDoctorCalendarDate(doctorUserId, pgDoctorCalendarTimezonePort);
 }
