@@ -98,7 +98,8 @@ export function PatientMessagesClient() {
         readOnly?: boolean;
       };
       if (!fullRes.ok || !fullData.ok || !Array.isArray(fullData.messages)) return;
-      setMessages((current) => reconcileSupportMessages(current, fullData.messages));
+      const polledMessages = fullData.messages;
+      setMessages((current) => reconcileSupportMessages(current, polledMessages));
       setReadOnly(fullData.readOnly === true);
       const readRes = await fetch('/api/patient/messages/read', {
         method: 'POST',

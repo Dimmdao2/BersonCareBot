@@ -34,7 +34,7 @@ import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
  * по ширине кнопки на mobile. Живёт здесь, чтобы у экранов не появлялось локальных копий.
  */
 const patientModalFooterBarClass =
-  'grid shrink-0 grid-flow-col auto-cols-fr gap-2 border-t border-[var(--patient-border)] bg-[rgba(248,250,252,0.9)] px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] [&>*]:min-w-0 [&>*]:w-full max-sm:[&>div]:contents max-sm:[&>div>*]:w-full sm:flex sm:justify-end sm:[&>*]:w-auto';
+  'grid shrink-0 grid-flow-col auto-cols-fr gap-2 border-t border-[var(--patient-border)] bg-[var(--patient-modal-footer-bg)] px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] [&>*]:min-w-0 [&>*]:w-full max-sm:[&>div]:contents max-sm:[&>div>*]:w-full sm:flex sm:justify-end sm:[&>*]:w-auto';
 
 type PatientModalFooterSlot = {
   container: HTMLElement | null;
