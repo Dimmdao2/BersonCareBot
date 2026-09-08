@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Candidate | `3ad2f03f1adfdfe1eff8197add3d3a8535bf803e` (`fix(patient): close typography role overrides`) |
+| Candidate | `4898d33c5` (typography candidate plus final visual-token consolidation and mobile program-tab fit fix) |
 | Comparison base | `71ea8a3ca` (`feat/doctor-ui-rebuild`); `git merge-base --is-ancestor 71ea8a3ca 3ad2f03f1` passed |
-| Verdict | **BLOCKED, NOT FOR LAND** — continuation cleared the login blocker and visibly accepted Home and diary, but the isolated candidate runtime terminated while opening the remaining required patient surfaces. |
+| Verdict | **BLOCKED, NOT FOR LAND** — source consolidation and the reachable Home, diary, booking, program and mobile modal layouts pass; video/fullscreen and complete live message/comment data behavior remain unproved. |
 | Scope | Audit artifacts only; no product code, migration, DEV data/settings, shared `:5200`/`:4200`, TEST, or PROD changed. |
 
 ## Source consolidation
@@ -65,3 +65,27 @@ Pre-change screenshots were used only to check for regression or missing control
 ## Cleanup and validation
 
 The exact isolated `:5213` foreground process was stopped. The temporary `apps/webapp/.env.dev` symlink was removed only after confirming its target. The temporary Chromium profile was outside the clone and was stopped; no cookie or log file was left in the clone. No tests were added or run: this is a one-off visual/style refactor and the required acceptance method is live screenshots. Final cleanup confirms no production-code dirt; only this report, its screenshots, and the queue row are staged for the audit commit.
+
+### Lead continuation after the blocked audit
+
+The clone's dependency symlinks were found pointing at a stale completed worktree. Repointing them temporarily to the current main checkout's installed dependency directories removed the unrelated missing-export flood and made the program route render. No tracked dependency file changed.
+
+Source evidence on `4898d33c5`:
+
+- `rg -n --glob '*.tsx' --glob '*.ts' --glob '!**/patientVisual.ts' --glob '!**/patientHomeCardStyles.ts' --glob '!**/loginChrome.ts' "text-(xs|sm|base|lg|xl|[2-9]xl|\\[[^]]+\\])|font-(thin|extralight|light|normal|medium|semibold|bold|extrabold|black|\\[[^]]+\\])|leading-(none|tight|snug|normal|relaxed|loose|[3-9]|10|\\[[^]]+\\])" apps/webapp/src/app/app/patient apps/webapp/src/shared/ui/patient` returned no matches (`rg` exit `1`).
+- `rg -n -P --glob '*.tsx' --glob '*.ts' --glob '!**/patientVisual.ts' --glob '!**/patientHomeCardStyles.ts' --glob '!**/loginChrome.ts' "(?:bg|border|shadow|rounded)-\\[(?:#|rgba?\\(|[0-9])" apps/webapp/src/app/app/patient apps/webapp/src/shared/ui/patient` returned no matches (`rg` exit `1`).
+- Scoped ESLint over all touched patient TS/TSX files passed.
+- `pnpm --dir apps/webapp typecheck` passed.
+- `git diff --check` passed.
+
+Additional real captures:
+
+| Surface | Evidence | Result |
+| --- | --- | --- |
+| Booking | `screenshots/booking-mobile.png`, `screenshots/booking-desktop.png`; mobile `scrollWidth=clientWidth=390`. | PASS |
+| Program stage | Initial live capture exposed overlapping one-line tab contents after the larger type scale. `4898d33c5` changed the shared segmented tab to two semantic rows and made the supporting row use the micro role. `screenshots/treatment-stage-mobile-fixed.png` shows all three labels and values without overlap; `scrollWidth=clientWidth=390`. | PASS |
+| Patient chat modal | `screenshots/messages-mobile.png` shows the full-height mobile sheet, doctor/clinic title, composer and send control without clipping. No message was sent. | PASS (layout only) |
+| Exercise comments modal | `screenshots/comments-mobile.png` shows the same mobile sheet structure, exercise subtitle, composer and send control. The DEV fetch returned `Failed to fetch`, so message data/incremental update behavior is not accepted by this capture. | PASS (layout only), behavior BLOCKED |
+| Video/fullscreen | The assigned item route lost its browser socket during a cold compile before a usable video surface was captured. | BLOCKED |
+
+No landing or push is authorized by this report.
