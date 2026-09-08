@@ -207,3 +207,91 @@ describe('video meeting invitation notification dedup (ACC-05)', () => {
     expect(result.ok && result.session).toBeTruthy();
   });
 });
+
+describe('createOrResume never rotates the invite on resume (ACC-08)', () => {
+  it('does not rotate the invite and returns guestUrl=null when the active meeting already existed', async () => {
+    // Failure: `createOrResume` calls `store.rotateInvite` unconditionally on every call, so a
+    // plain resume (opening/re-opening the live page while a call is active) silently replaces
+    // the already-delivered invite secret and hands back a fresh guestUrl.
+    // Impact: the link the patient already received stops working the moment the specialist's
+    // page re-renders or is reopened, without any explicit "Выпустить новую ссылку" action; raw
+    // secrets are not stored, so a resumed session cannot legitimately reconstruct the original
+    // guestUrl at all — it must come back as `null`.
+    const store = storeReturning(false);
+    const service = createVideoMeetingsService({
+      store,
+      provider: healthyProvider(),
+      invitationNotification: { enqueue: vi.fn() },
+      resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
+    });
+
+    const result = await service.createOrResume({
+      organizationId: ids.organization,
+      patientUserId: ids.patient,
+      specialistId: ids.specialist,
+      specialistPlatformUserId: ids.specialist,
+    });
+
+    expect(store.rotateInvite).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(result.ok && (result.guestUrl ?? null)).toBeNull();
+  });
+
+  it('still rotates the invite exactly once when a new meeting is created', async () => {
+    // Guard for the fix above: refusing to rotate on every call is safe, refusing to ever issue
+    // the first invite on create is not (ACC-08: "Invite выпускается ровно один раз при создании
+    // встречи").
+    const store = storeReturning(true);
+    const service = createVideoMeetingsService({
+      store,
+      provider: healthyProvider(),
+      invitationNotification: { enqueue: vi.fn().mockResolvedValue({ status: 'queued', selectedChannels: [], queuedChannels: [], deduplicatedChannels: [] }) },
+      resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
+    });
+
+    const result = await service.createOrResume({
+      organizationId: ids.organization,
+      patientUserId: ids.patient,
+      specialistId: ids.specialist,
+      specialistPlatformUserId: ids.specialist,
+    });
+
+    expect(store.rotateInvite).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.guestUrl).toEqual(expect.stringMatching(/^https:\/\/clinic\.therapygo\.ru\/live#/));
+  });
+});
+
+describe('explicit rotate_invite follows the same notification contract as create (ACC-08)', () => {
+  it('enqueues exactly one invitation notification through the ACC-07 contract when the specialist explicitly rotates the invite', async () => {
+    // Failure: the standalone `rotateInvite` lifecycle action mints a new secret/guestUrl but
+    // never calls the notification port, so "Выпустить новую ссылку" replaces the capability
+    // without ever telling the patient the old link stopped working.
+    // Impact: the specialist copies a fresh link that the patient was never notified about, or —
+    // if the patient only had the original delivered link — has no way to learn it changed.
+    const store = storeReturning(true);
+    const invitationNotification: VideoMeetingInvitationNotification = {
+      enqueue: vi.fn().mockResolvedValue({
+        status: 'queued',
+        selectedChannels: ['telegram'],
+        queuedChannels: ['telegram'],
+        deduplicatedChannels: [],
+      }),
+    };
+    const service = createVideoMeetingsService({
+      store,
+      provider: healthyProvider(),
+      invitationNotification,
+      resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://clinic.therapygo.ru'),
+    });
+
+    await service.rotateInvite({
+      meetingId: meetingRecord.id,
+      organizationId: ids.organization,
+      specialistId: ids.specialist,
+      actorPlatformUserId: ids.specialist,
+    });
+
+    expect(invitationNotification.enqueue).toHaveBeenCalledTimes(1);
+  });
+});

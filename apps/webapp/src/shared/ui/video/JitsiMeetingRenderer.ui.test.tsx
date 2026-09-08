@@ -57,22 +57,56 @@ describe('meeting renderer survives unrelated re-renders (NOTE-08)', () => {
     expect(construct).toHaveBeenCalledTimes(1);
   });
 
-  it('joins without Jitsi prejoin and offers only microphone, camera and hangup', async () => {
-    // Failure: the embedded conference exposes its own toolbar/branding, so the product screen
-    // turns back into a Jitsi meeting with chat, invite, recording and watermarks (VM-06).
+  it('joins without Jitsi prejoin', async () => {
     render(<JitsiMeetingRenderer session={session} />);
     await Promise.resolve();
 
     const options = construct.mock.calls[0]?.[1] as {
       configOverwrite?: { prejoinConfig?: { enabled?: boolean } };
-      interfaceConfigOverwrite?: { TOOLBAR_BUTTONS?: string[] };
     };
     expect(options.configOverwrite?.prejoinConfig?.enabled).toBe(false);
-    expect(options.interfaceConfigOverwrite?.TOOLBAR_BUTTONS).toEqual([
-      'microphone',
-      'camera',
-      'hangup',
-    ]);
+  });
+
+  /**
+   * Owner-correction 08.09.2026 supersedes the earlier "exactly three buttons" decision: VM-06 now
+   * requires mic/camera/hangup plus desktop screen share and, on mobile, a direct front/back camera
+   * switch in the main panel. The contract that matters is a required/forbidden command set, not a
+   * pinned array or button count (§10a) — `toggle-camera` and `toggle-share-screen` are the actual
+   * JitsiMeetExternalAPI command ids for camera-flip and screen share, confirmed against the pinned
+   * `stable-11146-2` `external_api.js` bundle capability census (see audit artifact).
+   */
+  it('exposes the VM-06 command set and none of the VM-11 forbidden Jitsi features', async () => {
+    // Failure: the toolbar allow-list is missing a required VM-06 control (screen share, mobile
+    // camera flip) or leaks a VM-11 feature (chat, participants pane, invite, raise hand,
+    // subtitles, stats, recording, livestream, whiteboard/etherpad, shared video/audio).
+    // Impact: the specialist cannot share their screen or flip a mobile camera, or a client sees
+    // Jitsi conference chrome the owner explicitly rejected.
+    render(<JitsiMeetingRenderer session={session} />);
+    await Promise.resolve();
+
+    const options = construct.mock.calls[0]?.[1] as {
+      interfaceConfigOverwrite?: { TOOLBAR_BUTTONS?: string[] };
+    };
+    const buttons = options.interfaceConfigOverwrite?.TOOLBAR_BUTTONS ?? [];
+    const required = ['microphone', 'camera', 'hangup', 'desktop', 'toggle-camera'];
+    const forbidden = [
+      'chat',
+      'invite',
+      'participants-pane',
+      'raisehand',
+      'toggle-raise-hand',
+      'closedcaptions',
+      'subtitles',
+      'stats',
+      'recording',
+      'livestreaming',
+      'whiteboard',
+      'etherpad',
+      'sharedvideo',
+      'shareaudio',
+    ];
+    for (const button of required) expect(buttons, `missing required VM-06 button "${button}"`).toContain(button);
+    for (const button of forbidden) expect(buttons, `leaks forbidden VM-11 button "${button}"`).not.toContain(button);
   });
 
   it('loads its browser bundle only from the endpoint the session names', async () => {
@@ -122,5 +156,70 @@ describe('meeting renderer survives unrelated re-renders (NOTE-08)', () => {
   it('hands connecting and error presentation to Jitsi as soon as its iframe is initialized', async () => {
     render(<JitsiMeetingRenderer session={session} />);
     await waitFor(() => expect(screen.queryByText('Подключение…')).not.toBeInTheDocument());
+  });
+
+  /**
+   * VM-10 (owner-correction 08.09.2026): "Ошибка загрузки Jitsi bundle сразу переводит stage из
+   * «Подключение…» в понятное состояние отказа с действием «Повторить»". The failed-load state
+   * must offer an in-place retry action, not merely a state a caller can reach by unmounting and
+   * remounting the whole component from outside.
+   */
+  it('offers a working Повторить action after a failed bundle load, without requiring an external remount', async () => {
+    // Failure: the failure state shows only text with no retry control, so the only way to try
+    // again is for a page-level ancestor to unmount and remount this component (or reload the
+    // whole page) — there is no in-place recovery the specialist can act on.
+    // Impact: a transient script load failure permanently strands the specialist on a dead call
+    // screen unless they navigate away and back.
+    delete (window as unknown as { JitsiMeetExternalAPI?: unknown }).JitsiMeetExternalAPI;
+    render(<JitsiMeetingRenderer session={session} />);
+    const failedScript = document.querySelector<HTMLScriptElement>(
+      'script[src="https://meet.example.test/external_api.js"]',
+    );
+    failedScript?.dispatchEvent(new Event('error'));
+    await waitFor(() =>
+      expect(screen.getByText('Не удалось подключиться к звонку')).toBeInTheDocument(),
+    );
+
+    const retryButton = await screen.findByRole('button', { name: /повторить/i });
+    retryButton.click();
+
+    await waitFor(() => expect(screen.getByText('Подключение…')).toBeInTheDocument());
+    const retryScript = document.querySelector<HTMLScriptElement>(
+      'script[src="https://meet.example.test/external_api.js"]',
+    );
+    expect(retryScript).not.toBeNull();
+    expect(retryScript).not.toBe(failedScript);
+  });
+
+  /**
+   * VM-10: "Произвольный общий deadline не объявляет рабочую медленную загрузку ошибкой: таймер,
+   * если используется, только показывает нефатальное сообщение о долгой загрузке и доступный
+   * retry." A slow-but-otherwise-healthy load (no browser `error` event) must not be forced into
+   * the same hard failure branch as a genuine script error before the script itself ever settles.
+   */
+  it('does not treat a merely slow bundle load as a hard failure before any browser error event', async () => {
+    // Failure: a fixed client-side timer fires `failed()` on the same path as a genuine `error`
+    // event — removing the still-loading script and flipping to the hard "unavailable" state —
+    // even though the script never actually errored and may still load successfully.
+    // Impact: specialists on a slow network are told the call failed and lose the in-flight load,
+    // even though nothing was actually broken.
+    vi.useFakeTimers();
+    try {
+      delete (window as unknown as { JitsiMeetExternalAPI?: unknown }).JitsiMeetExternalAPI;
+      render(<JitsiMeetingRenderer session={session} />);
+      const script = document.querySelector<HTMLScriptElement>(
+        'script[src="https://meet.example.test/external_api.js"]',
+      );
+      expect(script).not.toBeNull();
+
+      await vi.advanceTimersByTimeAsync(20_000);
+
+      expect(screen.queryByText('Не удалось подключиться к звонку')).not.toBeInTheDocument();
+      expect(
+        document.querySelector('script[src="https://meet.example.test/external_api.js"]'),
+      ).toBe(script);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

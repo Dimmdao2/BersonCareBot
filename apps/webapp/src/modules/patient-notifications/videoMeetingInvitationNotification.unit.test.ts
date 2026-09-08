@@ -110,4 +110,32 @@ describe('video meeting invitation notification chokepoint (ACC-05)', () => {
     expect(result.status).toBe('queued');
     expect(result.selectedChannels).toEqual(['telegram']);
   });
+
+  /**
+   * ACC-07: "queued/partially queued означает, что реально вставлена хотя бы одна строка очереди;
+   * полный dedup даёт skipped."
+   */
+  it('reports a full dedup as skipped, not queued, when the durable queue inserted no new row', async () => {
+    // Failure: `status` is computed as `hasFailure ? 'partially_queued' : 'queued'`, so when every
+    // target channel's insert is deduplicated (`enqueue` resolves `false` for all of them, meaning
+    // zero rows were actually written), the adapter still reports `queued` because nothing threw.
+    // Impact: the doctor UI tells the specialist an invite was actually queued for delivery when
+    // in fact the durable queue silently inserted nothing at all.
+    const { deps } = buildDeps({
+      telegramId: '12345',
+      queueEnqueue: vi.fn().mockResolvedValue(false),
+    });
+    const notification = createVideoMeetingInvitationNotification(deps);
+
+    const result = await notification.enqueue({
+      organizationId: ids.organization,
+      patientUserId: ids.patient,
+      meetingId: ids.meeting,
+      guestUrl,
+    });
+
+    expect(result.status).not.toBe('queued');
+    expect(result.queuedChannels).toEqual([]);
+    expect(result.deduplicatedChannels).toEqual(['telegram']);
+  });
 });
