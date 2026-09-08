@@ -105,12 +105,23 @@ page-scoped Jitsi instance. Сохранение звонка между мар�
       mute/unmute микрофона и камеры, завершение, desktop screen share и на мобильном отдельную прямую смену
       фронтальной/задней камеры; компактное меню даёт fullscreen, поддерживаемый браузером выбор устройств,
       hide/show self-view, раскладку/главного участника, качество видео и виртуальный фон. Недоступная браузеру
-      функция скрывается или понятно disabled, а не ведёт в мёртвое действие.
+      функция скрывается или понятно disabled, а не ведёт в мёртвое действие. На этом этапе командная поверхность —
+      штатный нижний toolbar Jitsi: базовый allow/deny-набор задаётся единожды в `deploy/jitsi/config/web/*`, а
+      iframe `configOverwrite` только сужает его под возможности конкретного browser/device. Product-owned toolbar,
+      доступ к DOM iframe и второй `getUserMedia` не создаются. До реализации фактические commands/events/config-
+      ключи пинованной `stable-11146-2` фиксируются capability census в `docs/audit/`; отсутствующая либо требующая
+      remount функция не имитируется и выносится как owner question.
 - [ ] **VM-11.** Jitsi chat, participants pane, Jitsi invite, raise hand, subtitles, stats UI, recording,
-      livestream, whiteboard/Etherpad, shared video и отдельный share-computer-audio не показываются и не включаются.
+      livestream, whiteboard/Etherpad, shared video и отдельный share-computer-audio не показываются и не включаются
+      ни из toolbar/overflow, ни через доступные в пинованной сборке hotkeys/context-menu входы.
 - [ ] **VM-12.** Provider-neutral техническая диагностика фиксирует только необходимые operational events звонка
       (как минимум join/error, длительность и P2P/fallback status), доступна системе, а не участникам, не содержит
       клинических данных/raw secret/JWT/TURN credential и не отправляется в Jitsi/8x8/другие внешние telemetry.
+      Текущий этап пишет структурированные server logs через существующий `logger`/`logServerRuntimeError` с закрытым
+      набором полей: meeting/organization ID, роль, `join|error|end`, длительность, `p2p|relay` и класс ошибки.
+      Browser-факты принимает одно аутентифицированное doctor-only действие существующего маршрута встречи; новая
+      таблица, миграция, retention job, admin UI и расширение `PRODUCT_ANALYTICS_EVENT_TYPES` запрещены. Guest ingest
+      и постоянное хранилище аналитики требуют отдельного owner-решения.
 - [x] **VM-07.** Приложение работает через provider-neutral контракт. Страницы, права, приглашения, тарифы и заметки
       не знают о Jitsi room/JWT API; Jitsi — сменный adapter/renderer. Доказательство: core `e0bac698b`, UI
       `8ca8cc17b` + audit fix `623ce4fc4`, full CI `71ea8a3ca`.
@@ -141,10 +152,15 @@ page-scoped Jitsi instance. Сохранение звонка между мар�
 - [ ] **ACC-07.** Подготовка новой doctor live-встречи ставит приглашение ровно один раз в существующий pipeline;
       выбираются доступные и разрешённые клиентом web push/email/Telegram/MAX. Doctor UI получает безопасный итог
       `queued/partially queued/skipped/unavailable`: показывает факт постановки хотя бы в один канал либо честно
-      предлагает ручное копирование, но не раскрывает адреса получателей и внутренние ошибки.
-- [ ] **ACC-08.** Повторное открытие активной встречи не делает ранее доставленную ссылку недействительной молча:
-      invite не supersede-ится без явного пользовательского действия либо одновременно созданная замена проходит
-      тот же notification/feedback contract. Refresh не спамит клиента повторными приглашениями.
+      предлагает ручное копирование, но не раскрывает адреса получателей и внутренние ошибки. Idempotency привязан к
+      конкретному invite ID, а не meeting ID: новая явная ротация физически может поставить новое приглашение.
+      `queued`/`partially queued` означает, что реально вставлена хотя бы одна строка очереди; полный dedup даёт
+      `skipped`. Doctor HTTP route сериализует только безопасный статус и виды каналов без адресов.
+- [ ] **ACC-08.** Invite выпускается ровно один раз при создании встречи. Resume никогда не вызывает `rotateInvite`,
+      не инвалидирует доставленную ссылку и не отправляет повторное уведомление. Так как raw secret не хранится, на
+      resume `guestUrl = null`, а UI вместо мёртвого копирования предлагает явное «Выпустить новую ссылку» через
+      существующий `rotate_invite`; только это пользовательское действие заменяет capability и проходит тот же
+      notification/feedback contract ACC-07.
 - [x] **ACC-06.** Истёкшая, отозванная, подменённая, чужая tenant-ссылка и попытка занять третье место получают отказ
       без раскрытия существования клиента или комнаты. Доказательство: core route tests/full-surface audit и live
       server-side refusal третьего context в итоговом TEST evidence.
@@ -181,9 +197,11 @@ calendar date`; звонок, повторное открытие панели �
 - [ ] **UI-08.** Открытие doctor live-страницы может один раз подготовить app-session/ссылку/уведомление, но не
       монтирует Jitsi iframe и не запрашивает камеру/микрофон. Только на doctor live-странице поверх video-stage до
       подключения показывается большая кнопка Play «Начать звонок»; общий `VideoMeetingStage` и guest/patient live-
-      страницы этой кнопки не получают и продолжают присоединяться по ссылке автоматически. Одно явное нажатие Play
-      использует подготовленную session для фактического подключения, повторные быстрые нажатия не создают несколько
-      Jitsi instances или app-sessions.
+      страницы этой кнопки не получают и продолжают присоединяться по ссылке автоматически. `prepare` означает только
+      create-or-resume + invite/notification; при Play тот же doctor create-or-resume route вызывается повторно и
+      выдаёт свежий join-material на момент старта, после чего монтируется единственный adapter. Отдельный specialist
+      join endpoint/lifecycle/provider path не создаётся. Повторные быстрые нажатия не создают несколько Jitsi
+      instances или app-sessions; Play после паузы дольше прежнего TTL join-material продолжает работать.
 - [ ] **UI-09.** Doctor live-страница переиспользует канонические desktop/mobile вкладки карточки пациента; вкладки
       видны и маршрутизируют так же, как на существующих подстраницах пациента, без второго набора навигации.
 - [ ] **UI-10.** Панель управления находится у нижнего края video-stage на мобильном и desktop. Пока специалист в
@@ -330,6 +348,12 @@ encounter tab  --> existing canonical encounter form/service/write-path
    bundle и create/join, doctor-only границу кнопки старта, удаление отменённого точного toolbar-теста перед worker и
    явный live-only маршрут доказательства визуальных пунктов. App-wide floating/PiP остаётся вне authority; вкладки
    выполняют обычный page transition. Повторный plan-audit той же дельты не запускается по §24.6.
+7. Уточнённую owner-дельту Play/invite/player capability до worker-start проверил отдельный `claude-opus-5`, effort
+   `high`, run `/home/dev/brain/runs/agent-port/video-player-invite-delta-plan-opus-20260908.json`; verdict
+   `MUST FIX`. Лид устранил семь разрывов: invite только на create и явная ротация, invite-scoped idempotency и
+   честный route-result, свежий join-material на Play, единый Jitsi config layer и обязательный restart, capability
+   census пинованной сборки, штатный Jitsi toolbar вместо второго media/UI пути и server-log-only граница
+   диагностики без новой БД. Повторный plan-audit этой дельты не запускается по §24.6.
 
 ### Волна 1 — три параллельных независимых кандидата
 
@@ -366,6 +390,15 @@ encounter tab  --> existing canonical encounter form/service/write-path
   `TOOLBAR_BUTTONS === ['microphone','camera','hangup']`: точное число/список кнопок больше не является контрактом и
   не заменяется новым списком; устойчивые create/retry/remount свойства проверяются поведением, внешний состав и
   расположение панели — live/visual.
+- **Поток D2 — owner-correction player/invite:** после capability census параметризует существующие
+  `DoctorLiveMeetingClient`, `VideoMeetingStage`, `JitsiMeetingRenderer`, doctor create-or-resume/lifecycle route и
+  invitation pipeline. Prepare не монтирует media; Play через ту же дверь получает свежий join-material. Resume не
+  ротирует invite, явная ротация остаётся единственной заменой ссылки; route/UI показывают фактический безопасный
+  notification result. Диагностика использует существующий doctor route и server logger, без второго lifecycle,
+  новой таблицы или product toolbar. Ведёт также `deploy/jitsi/config/web/*`: это единственный базовый allow/deny-
+  слой плеера, а browser adapter может только сузить его.
+- **Поток C2 — owner VPN reconciler:** приводит все штатные TEST apply/reconcile/template/docs источники `awg1` к
+  `172.31.9.0/24` и `172.31.9.1`; PROD/`awg0`, live host и webapp production code не меняет.
 - **Поток E — notification integration:** новое typed событие приглашения через единый pipeline, ссылка без
   клинического содержания, дедупликация одной отправки при создании.
 - **Поток F — integration mechanic:** устранение только фактических стыков типов/routes/config после D/E, без
@@ -414,6 +447,7 @@ encounter tab  --> existing canonical encounter form/service/write-path
 - external ICE/telemetry request и невозможность TURN/JVB fallback;
 - remount video/focus loss при autosave и переключении правой панели.
 - автозапуск Jitsi/media при простом открытии live-страницы и duplicate Jitsi instance при двойном нажатии Play;
+- протухший join-material при Play после паузы дольше срока ранее подготовленного JWT;
 - зависание после `external_api.js` error/remount, неработающий retry и блокировка shell navigation;
 - повторное уведомление/инвалидация уже отправленной ссылки при refresh/resume и ложное UI-сообщение об отправке,
   когда ни один канал не поставлен в очередь;
@@ -445,7 +479,8 @@ encounter tab  --> existing canonical encounter form/service/write-path
    `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"` из-за новых migration + routes + package/deploy surfaces.
 4. TEST migration только на именованной `bersoncarebot_test`; disposable DB и historical replay запрещены.
 5. Развернуть приложение штатным TEST deploy. Jitsi/coturn применить отдельным documented TEST script с health,
-   rollback и точным firewall diff; PROD-хосты не затрагивать.
+   rollback и точным firewall diff; после изменения `deploy/jitsi/config/web/*` обязательно выполнить штатный
+   `deploy/jitsi/bin/restart.sh`, затем health/rollback-проверку. PROD-хосты не затрагивать.
 6. Живая проверка владельцевыми TEST-аккаунтами клиники «Дмитрий Берсон», специалиста и пациента:
    entitlement/workspace-module on/off, независимость от состояния филиала «Онлайн», создание встречи из трёх entry
    points, guest fragment link, authenticated patient page, notes continuity, past-note edit, encounter tab,
