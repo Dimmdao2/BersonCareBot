@@ -485,6 +485,27 @@ async function readBookingPaymentSettingThroughItsOwnDoor(
   return undefined;
 }
 
+async function readOrganizationDoctorWorkspaceComposition(
+  organizationId: string,
+): Promise<SystemSetting | null> {
+  const result = await runWebappNamedRoot<{ value_json: unknown | null }>(
+    getWebappSqlDb(),
+    'app.read_organization_doctor_workspace_composition()',
+    [],
+    sql`SELECT app.read_organization_doctor_workspace_composition() AS value_json`,
+  );
+  const valueJson = result.rows[0]?.value_json ?? null;
+  if (valueJson === null) return null;
+  return {
+    key: 'doctor_workspace_composition',
+    scope: 'doctor',
+    organizationId,
+    valueJson,
+    updatedAt: '',
+    updatedBy: null,
+  };
+}
+
 /** The bounded patient settings door: same read for a single key everywhere it is used. */
 async function readCurrentPatientUiSetting(
   key: SystemSettingKey,
@@ -551,6 +572,14 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       ) {
         return readCurrentStaffLoginSecondFactorSetting(organizationId);
       }
+      if (
+        currentPrincipal?.kind === 'organization' &&
+        key === 'doctor_workspace_composition' &&
+        scope === 'doctor' &&
+        organizationId === currentPrincipal.organizationId
+      ) {
+        return readOrganizationDoctorWorkspaceComposition(organizationId);
+      }
       const bookingPaymentValueJson =
         scope === 'admin' && BOOKING_PAYMENT_SETTING_KEYS.has(key)
           ? await readBookingPaymentSettingThroughItsOwnDoor(key)
@@ -610,7 +639,9 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       // per-key door instead of a second settings store; only patient-safe keys can ever come back.
       if (getCurrentDbPrincipal()?.kind === 'patient') {
         const rows = await Promise.all(
-          [...CURRENT_PATIENT_UI_SETTING_KEYS].map((key) => readCurrentPatientUiSetting(key, scope)),
+          [...CURRENT_PATIENT_UI_SETTING_KEYS].map((key) =>
+            readCurrentPatientUiSetting(key, scope),
+          ),
         );
         return rows.filter((row): row is SystemSetting => row !== null);
       }
