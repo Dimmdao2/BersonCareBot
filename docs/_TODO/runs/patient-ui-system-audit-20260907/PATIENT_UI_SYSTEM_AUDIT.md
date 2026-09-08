@@ -10,7 +10,8 @@
 - Base commit: `25ad543cde7e4b93e04837eea6fb1ec9637d6800`.
 - Отдельный worktree: `/home/dev/dev-projects/bcb-wt-patient-ui-system-audit-20260907`.
 - Ветка: `wt/patient-ui-system-audit-20260907`; `feat` не затрагивался.
-- Это read-only аудит: код приложения не менялся. Документ отделяет реальные дефекты от архитектурного долга и визуальных рекомендаций.
+- Разделы до «Статус реализации» фиксируют исходный read-only аудит. После него в этой же отдельной
+  ветке выполнена реализация; актуальное состояние и доказательства записаны в конце документа.
 
 Канон, с которым сравнивалась реализация:
 
@@ -575,42 +576,97 @@ preview и home-only geometry намеренно не включены.
 
 ## Статус реализации 2026-09-08
 
-Работа идёт в `wt/patient-ui-system-audit-20260907`; в `feat` ничего не приземлено и не отправлено.
-Новый визуальный target не выбирался: сохранены текущие Manrope, patient blue и существующая геометрия.
+Работа остаётся в `wt/patient-ui-system-audit-20260907`; в `feat/doctor-ui-rebuild` ничего не
+приземлено. Новый visual target не выбирался: сохранены Manrope, patient blue, существующие размеры и
+геометрия. Изменения систематизируют уже существующий пациентский UI и копируют у doctor UI только
+проверенное поведение диалогов/чата/медиа.
 
-Готово в committed candidate:
+### Реализовано
 
-- `9e8a2550c`: оставшиеся feature-диалоги журнала/быстрого добавления/завершения элемента переведены на
-  `PatientModal`/`PatientModalFooter`; прямой `DialogContent` после этого остаётся только внутри самого
-  `PatientModal`.
-- `106d24642`: patient messages и комментарии получили общий patient composer и doctor-like conversation
-  behavior; polling примиряет строки по id и сохраняет identity неизменившихся сообщений, обсуждение программы
-  сохраняет загруженную пагинацию.
-- `f530e23e4`: повторяемые patient colors/radii/surfaces перенесены в portal-safe semantic tokens без изменения
-  выбранных значений.
-- `2ec27e0a8` + `398e9ed20`: Input/Textarea/Select/Label стали patient adapters; одинаковые поля двух журналов
-  используют один `journal` variant и общий `PatientField`.
-- `3e7740295` + `398e9ed20`: Card стал patient adapter с `default/compact/list/flush`; одинаковые cabinet/
-  organization surfaces переведены на него; confirm-диалоги напоминаний сведены в `PatientConfirmModal`.
+- Все feature-диалоги пациента переведены на `PatientModal`/`PatientModalFooter`; нативные
+  `window.confirm`/`window.alert` удалены из пациентского дерева. Mobile использует единый drawer со
+  стартовой/завершающей анимацией, desktop — dialog; вложенные слои и возврат фокуса остаются в одном
+  контракте.
+- Messages и комментарии программы используют общий `PatientChatComposer` и doctor-like reconcile:
+  новые сообщения добавляются по id без полной замены неизменившихся строк и без сброса загруженной
+  пагинации. Заголовок пациента заменён на имя врача/клиники без ссылки.
+- На mobile видео открывается статичным preview в полноэкранном `PatientModal`; плеер монтируется только
+  при открытии. На desktop тот же media player остаётся inline на отдельном экране пункта программы.
+- `Input`, `Textarea`, `Select`, `Label`, `Button`, `Card`, поля формы и segmented navigation получили
+  patient adapters/typed variants. Повторяющиеся journal controls, primary submit actions, карточки и
+  tab/pager chrome используют общие точки.
+- Повторяемые primary/status/rating/modal/chat/segmented значения вынесены в portal-safe patient tokens.
+  Точный разовый замер production TS/TSX дал 163 raw hex вместо 209 на исходном SHA; остаток включает
+  сознательно исключённые clinical/chart/media/home-specific значения и отдельный будущий page-pass.
+- Жалоба, которую врач записывает с severity, транзакционно создаёт и связывает patient symptom tracking;
+  повторная запись использует ту же связь, конкурентные записи сериализуются блокировкой строки жалобы.
+  Пациент добавляет мгновенные значения 0–10 и видит горизонтальную историю в модалке.
+- Исправлены два препятствия живому patient runtime, выявленные при приёмке: client boundary карточки
+  разминки и чтение `patient_label` через его зарегистрированный scope. Domain/surface routing и права
+  БД не менялись.
 
-Личная проверка кандидата:
+Основные коммиты этапа: `9e8a2550c`, `106d24642`, `f530e23e4`, `2ec27e0a8`, `3e7740295`,
+`398e9ed20`, `01e240f23`, `5049c8673`, `ad563e5bc`, `cec338b35`, `5c6d4eb6c`.
+Последние media/modal/runtime изменения будут зафиксированы отдельным итоговым коммитом после финального
+аудита.
+
+### Проверки
 
 ```text
-pnpm --dir apps/webapp exec eslint <изменённые patient UI/chat файлы>
+pnpm lint
+EXIT=0
+
+pnpm --dir apps/webapp typecheck
+EXIT=0
+
+pnpm --dir apps/webapp exec eslint src/shared/ui/patient/primitives/button.tsx
 EXIT=0
 
 pnpm --dir apps/webapp exec vitest run \
-  src/app/app/patient/messages/PatientMessagesClient.ui.test.tsx \
-  src/app/app/patient/treatment/ProgramItemDiscussionDialog.ui.test.tsx
-Test Files 2 passed; Tests 11 passed
+  src/app/app/patient/diary/symptoms/SymptomTrackingRow.ui.test.tsx \
+  src/app/app/patient/treatment/PatientProgramMediaBlock.ui.test.tsx \
+  src/shared/ui/patient/PatientSegmentedStrip.ui.test.tsx \
+  src/infra/repos/pgPatientClinicalSymptomBridge.unit.test.ts \
+  src/modules/system-settings/runtimeSettingsNoSubstitution.unit.test.ts
+Test Files 5 passed; Tests 26 passed
+
+git diff --check
+EXIT=0
 ```
 
-`pnpm --dir apps/webapp typecheck` сейчас не является зелёным evidence: TypeScript падает на синтаксически
-повреждённых generated `.next/dev/types/routes.d.ts` и `.next/dev/types/validator.ts`. Эти generated-файлы не
-менялись кандидатом; итоговый сигнал даст полный CI через общий host-lock после сведения всех потоков.
+Корневой `pnpm typecheck` сначала обнаружил один новый дефект совместимости patient Button с
+функциональным `className`. После исправления все ранее завершившиеся workspace-пакеты оставались зелёными,
+а отдельно повторённый `pnpm --dir apps/webapp typecheck` завершился с `EXIT=0`; это переиспользование
+зелёных фаз по §10, а не сокрытие первого падения.
 
-В работе отдельными непересекающимися потоками:
+Разовые проверки состояния (не tests/gates на текст исходника):
 
-- clinical complaint → patient symptom tracking bridge (symptom history);
-- независимый audit UI/modals/chat candidate;
-- следующий единичный primitive-pass: patient Button adapter и повторяющиеся primary submit actions.
+```text
+rg -l 'DialogContent' apps/webapp/src/app/app/patient apps/webapp/src/shared/ui/patient -g '*.tsx'
+apps/webapp/src/shared/ui/patient/primitives/dialog.tsx
+apps/webapp/src/shared/ui/patient/PatientModal.tsx
+
+rg -n 'window\.(confirm|alert)' apps/webapp/src/app/app/patient apps/webapp/src/shared/ui/patient
+0 совпадений
+```
+
+### Живая приёмка
+
+На изолированном DEV-порту сняты patient-only mobile экраны главной, дневника, пункта программы,
+загруженных messages и комментариев, mobile fullscreen media mechanics, а также desktop пункт программы.
+Сравнение с исходными скриншотами не показало пропажи контента, действий или сломанной page geometry;
+новые chat/comment composers компактнее и соответствуют принятому doctor-like поведению.
+
+Независимый media/modal audit дал PASS для mobile static preview → fullscreen modal, Escape/возврата
+фокуса, desktop inline player и общей 300ms drawer-механики.
+
+### Незакрытый pre-landing gate
+
+Штатный DEV-вход врача отвечает `HTTP 500` на `POST /api/auth/email-password/login`; старые doctor
+сессии отвечают `401`. Это не вызвано patient candidate и воспроизводится в отдельном auth worktree,
+но без doctor session нельзя штатно создать новую жалобу и затем принять её symptom modal в живом
+patient UI. База напрямую не изменялась и auth-обход не применялся.
+
+Пока этот живой путь не проверен, candidate не имеет статуса `land-ready`: merge в
+`feat/doctor-ui-rebuild`, полный CI интеграционного SHA и push `feat` не выполняются. TEST не
+разворачивается.

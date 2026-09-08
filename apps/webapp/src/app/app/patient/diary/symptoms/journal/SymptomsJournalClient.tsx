@@ -32,6 +32,7 @@ import { JournalMonthNav } from '../../JournalMonthNav';
 import { deleteSymptomJournalEntry, updateSymptomJournalEntry } from '../actions';
 import { isSymptomJournalEntryEditable } from '../symptomJournalEditWindow';
 import { patientListItemClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
 
 function pad2(n: number) {
   return String(n).padStart(2, '0');
@@ -55,6 +56,7 @@ export function SymptomsJournalClient(props: {
   const { entries, trackings, activeTrackingId, monthYm, period, offset } = props;
   const router = useRouter();
   const [editEntry, setEditEntry] = useState<SymptomEntry | null>(null);
+  const [deleteEntry, setDeleteEntry] = useState<SymptomEntry | null>(null);
   const [pending, startTransition] = useTransition();
 
   const symptomJournalTrackingSelectItems = useMemo(
@@ -107,9 +109,7 @@ export function SymptomsJournalClient(props: {
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <span className={patientFieldLabelClassName}>
-          Период (календарный месяц)
-        </span>
+        <span className={patientFieldLabelClassName}>Период (календарный месяц)</span>
         <JournalMonthNav
           basePath={routePaths.diarySymptomsJournal}
           monthYm={monthYm}
@@ -167,23 +167,7 @@ export function SymptomsJournalClient(props: {
                         Редактировать
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onClick={() => {
-                        if (!window.confirm('Удалить эту запись?')) return;
-                        startTransition(async () => {
-                          const fd = new FormData();
-                          fd.set('entryId', e.id);
-                          const res = await deleteSymptomJournalEntry(fd);
-                          if (res.ok) {
-                            toast.success('Запись удалена');
-                            router.refresh();
-                          } else {
-                            toast.error(res.message ?? 'Не удалось удалить');
-                          }
-                        });
-                      }}
-                    >
+                    <DropdownMenuItem variant="destructive" onClick={() => setDeleteEntry(e)}>
                       Удалить
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -288,6 +272,32 @@ export function SymptomsJournalClient(props: {
           )
         ) : null}
       </PatientModal>
+      <PatientConfirmModal
+        open={deleteEntry !== null}
+        onClose={() => setDeleteEntry(null)}
+        onConfirm={() => {
+          if (!deleteEntry) return;
+          const entryId = deleteEntry.id;
+          startTransition(async () => {
+            const fd = new FormData();
+            fd.set('entryId', entryId);
+            const res = await deleteSymptomJournalEntry(fd);
+            if (res.ok) {
+              toast.success('Запись удалена');
+              setDeleteEntry(null);
+              router.refresh();
+            } else {
+              toast.error(res.message ?? 'Не удалось удалить');
+            }
+          });
+        }}
+        title="Удалить запись?"
+        confirmLabel="Удалить"
+        pending={pending}
+        destructive
+      >
+        Это действие нельзя отменить.
+      </PatientConfirmModal>
     </div>
   );
 }

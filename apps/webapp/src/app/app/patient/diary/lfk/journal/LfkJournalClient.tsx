@@ -32,6 +32,7 @@ import type { LfkSession } from '@/modules/diaries/types';
 import { JournalMonthNav } from '../../JournalMonthNav';
 import { deleteLfkJournalSession, updateLfkJournalSession } from '../actions';
 import { patientListItemClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
 
 function pad2(n: number) {
   return String(n).padStart(2, '0');
@@ -55,6 +56,7 @@ export function LfkJournalClient(props: {
   const { sessions, complexes, activeComplexId, monthYm, period, offset } = props;
   const router = useRouter();
   const [editSession, setEditSession] = useState<LfkSession | null>(null);
+  const [deleteSession, setDeleteSession] = useState<LfkSession | null>(null);
   const [pending, startTransition] = useTransition();
 
   const lfkJournalComplexSelectItems = useMemo(
@@ -107,9 +109,7 @@ export function LfkJournalClient(props: {
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <span className={patientFieldLabelClassName}>
-          Период (календарный месяц)
-        </span>
+        <span className={patientFieldLabelClassName}>Период (календарный месяц)</span>
         <JournalMonthNav
           basePath={routePaths.diaryLfkJournal}
           monthYm={monthYm}
@@ -165,23 +165,7 @@ export function LfkJournalClient(props: {
                   <DropdownMenuItem onClick={() => setEditSession(s)}>
                     Редактировать
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => {
-                      if (!window.confirm('Удалить эту запись?')) return;
-                      startTransition(async () => {
-                        const fd = new FormData();
-                        fd.set('sessionId', s.id);
-                        const res = await deleteLfkJournalSession(fd);
-                        if (res.ok) {
-                          toast.success('Запись удалена');
-                          router.refresh();
-                        } else {
-                          toast.error(res.message ?? 'Не удалось удалить');
-                        }
-                      });
-                    }}
-                  >
+                  <DropdownMenuItem variant="destructive" onClick={() => setDeleteSession(s)}>
                     Удалить
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -298,6 +282,32 @@ export function LfkJournalClient(props: {
           </form>
         ) : null}
       </PatientModal>
+      <PatientConfirmModal
+        open={deleteSession !== null}
+        onClose={() => setDeleteSession(null)}
+        onConfirm={() => {
+          if (!deleteSession) return;
+          const sessionId = deleteSession.id;
+          startTransition(async () => {
+            const fd = new FormData();
+            fd.set('sessionId', sessionId);
+            const res = await deleteLfkJournalSession(fd);
+            if (res.ok) {
+              toast.success('Запись удалена');
+              setDeleteSession(null);
+              router.refresh();
+            } else {
+              toast.error(res.message ?? 'Не удалось удалить');
+            }
+          });
+        }}
+        title="Удалить запись?"
+        confirmLabel="Удалить"
+        pending={pending}
+        destructive
+      >
+        Это действие нельзя отменить.
+      </PatientConfirmModal>
     </div>
   );
 }

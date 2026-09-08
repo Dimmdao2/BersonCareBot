@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/shared/ui/patient/primitives/select';
 import { PatientModal } from '@/shared/ui/patient/PatientModal';
+import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
 import { addSymptomEntry } from './symptoms/actions';
 import { notifyDiarySymptomEntrySaved } from '@/modules/diaries/symptomDiaryClientEvents';
 import {
@@ -35,6 +36,10 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
   const lastSavedRef = useRef<LastSymptomSaveMeta | null>(null);
   const [pickedSymTrackingId, setPickedSymTrackingId] = useState<string | null>(null);
   const [pickedLfkComplexId, setPickedLfkComplexId] = useState<string | null>(null);
+  const [pendingDuplicate, setPendingDuplicate] = useState<{
+    trackingId: string;
+    value: number;
+  } | null>(null);
 
   const symTrackingId = useMemo(() => {
     if (trackings.length === 0) return '';
@@ -61,6 +66,25 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
     [complexes],
   );
 
+  const saveSymptomEntry = (trackingId: string, value: number) => {
+    const formData = new FormData();
+    formData.set('trackingId', trackingId);
+    formData.set('value', String(value));
+    formData.set('entryType', 'instant');
+    startSymTransition(async () => {
+      const result = await addSymptomEntry(formData);
+      if (result.ok) {
+        toast.success('Запись сохранена');
+        lastSavedRef.current = { trackingId, entryType: 'instant', at: Date.now() };
+        notifyDiarySymptomEntrySaved();
+        setPendingDuplicate(null);
+        setOpen(false);
+      } else {
+        toast.error(result.message ?? 'Не удалось сохранить');
+      }
+    });
+  };
+
   if (trackings.length === 0 && complexes.length === 0) {
     return null;
   }
@@ -77,7 +101,15 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
       >
         <PlusIcon className="size-6" />
       </Button>
-      <PatientModal open={open} onClose={() => setOpen(false)} title="Быстрое добавление" size="md">
+      <PatientModal
+        open={open}
+        onClose={() => {
+          setPendingDuplicate(null);
+          setOpen(false);
+        }}
+        title="Быстрое добавление"
+        size="md"
+      >
         <div className="flex flex-col gap-6">
           {trackings.length > 0 ? (
             <section className="flex flex-col gap-2">
@@ -86,36 +118,17 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                 className="flex flex-col gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  const form = e.currentTarget;
-                  const fd = new FormData(form);
+                  const fd = new FormData(e.currentTarget);
                   const trackingId = String(fd.get('trackingId') ?? '').trim();
                   if (!trackingId || symValue === null) {
                     toast.error('Выберите симптом и значение');
                     return;
                   }
                   if (shouldConfirmInstantDuplicate(lastSavedRef.current, trackingId, 'instant')) {
-                    if (
-                      !window.confirm('Вы только что сделали такую запись. Сохранить ещё одну?')
-                    ) {
-                      return;
-                    }
+                    setPendingDuplicate({ trackingId, value: symValue });
+                    return;
                   }
-                  startSymTransition(async () => {
-                    fd.set('value', String(symValue));
-                    const result = await addSymptomEntry(fd);
-                    if (result.ok) {
-                      toast.success('Запись сохранена');
-                      lastSavedRef.current = {
-                        trackingId,
-                        entryType: 'instant',
-                        at: Date.now(),
-                      };
-                      notifyDiarySymptomEntrySaved();
-                      setOpen(false);
-                    } else {
-                      toast.error(result.message ?? 'Не удалось сохранить');
-                    }
-                  });
+                  saveSymptomEntry(trackingId, symValue);
                 }}
               >
                 {trackings.length === 1 ? (
@@ -215,6 +228,21 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
           ) : null}
         </div>
       </PatientModal>
+      <PatientConfirmModal
+        open={pendingDuplicate !== null}
+        onClose={() => setPendingDuplicate(null)}
+        onConfirm={() => {
+          if (pendingDuplicate) {
+            saveSymptomEntry(pendingDuplicate.trackingId, pendingDuplicate.value);
+          }
+        }}
+        title="Повторная запись"
+        confirmLabel="Сохранить ещё одну"
+        pending={symPending}
+        nested
+      >
+        Вы только что сделали такую запись. Сохранить ещё одну?
+      </PatientConfirmModal>
     </>
   );
 }

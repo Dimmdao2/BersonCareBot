@@ -32,12 +32,12 @@ export function PatientConfirmModal({
     <PatientModal open={open} onClose={onClose} title={title} size="sm" nested={nested}>
       <div className={patientBodyTextClass}>{children}</div>
       <PatientModalFooter>
-        <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
+        <Button type="button" variant="patient-secondary" disabled={pending} onClick={onClose}>
           {cancelLabel}
         </Button>
         <Button
           type="button"
-          variant={destructive ? 'destructive' : 'default'}
+          variant={destructive ? 'patient-danger' : 'patient-primary'}
           disabled={pending}
           onClick={onConfirm}
         >

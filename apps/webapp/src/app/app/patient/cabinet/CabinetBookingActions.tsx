@@ -9,6 +9,7 @@ import { routePaths } from '@/app-layer/routes/paths';
 import { patientInlineLinkClass } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
+import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
 
 const CANCEL_MSG: Record<string, string> = {
   cancel_free: 'Отмена без штрафа',
@@ -22,10 +23,7 @@ type Props = {
 };
 
 export type PatientBookingRescheduleClassification =
-  | 'legacy_only'
-  | 'canonical_online'
-  | 'canonical_in_person'
-  | 'canonical_in_person_incomplete';
+  'legacy_only' | 'canonical_online' | 'canonical_in_person' | 'canonical_in_person_incomplete';
 
 /**
  * Legacy `patient_bookings` catalog ids are an incompatible namespace. Only a
@@ -65,7 +63,7 @@ export function buildRescheduleHref(row: PatientBookingRecord): string | null {
 export function CabinetBookingActions({ row }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [cancelHint, setCancelHint] = useState<string | null>(null);
+  const [cancelMessage, setCancelMessage] = useState<string | null>(null);
 
   const loadPreview = useCallback(async () => {
     const res = await fetch(`/api/booking/actions?bookingId=${encodeURIComponent(row.id)}`);
@@ -74,10 +72,13 @@ export function CabinetBookingActions({ row }: Props) {
       cancel?: { ok?: boolean; messageKey?: string; allowed?: boolean };
     };
     if (json.ok && json.cancel?.ok) {
-      setCancelHint(CANCEL_MSG[json.cancel.messageKey ?? ''] ?? null);
-      return json.cancel.allowed !== false;
+      const hint = CANCEL_MSG[json.cancel.messageKey ?? ''] ?? null;
+      return {
+        allowed: json.cancel.allowed !== false,
+        message: hint ? `${hint}. Отменить запись?` : 'Отменить запись?',
+      };
     }
-    return true;
+    return { allowed: true, message: 'Отменить запись?' };
   }, [row.id]);
 
   const rescheduleHref = buildRescheduleHref(row);
@@ -85,26 +86,37 @@ export function CabinetBookingActions({ row }: Props) {
   if (!row.canonicalAppointmentId) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {rescheduleHref ? (
-        <Link href={rescheduleHref} className={cn(patientInlineLinkClass, 'text-sm font-medium')}>
-          Перенести
-        </Link>
-      ) : null}
-      <Button
-        type="button"
-        variant="link"
-        className={cn(patientInlineLinkClass, 'h-auto min-h-0 px-0 py-0 text-sm')}
-        disabled={pending}
-        onClick={() => {
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        {rescheduleHref ? (
+          <Link href={rescheduleHref} className={cn(patientInlineLinkClass, 'text-sm font-medium')}>
+            Перенести
+          </Link>
+        ) : null}
+        <Button
+          type="button"
+          variant="link"
+          className={cn(patientInlineLinkClass, 'h-auto min-h-0 px-0 py-0 text-sm')}
+          disabled={pending}
+          onClick={() => {
+            startTransition(async () => {
+              const preview = await loadPreview();
+              if (!preview.allowed) {
+                toast.error(preview.message.replace(/\. Отменить запись\?$/, ''));
+                return;
+              }
+              setCancelMessage(preview.message);
+            });
+          }}
+        >
+          Отменить
+        </Button>
+      </div>
+      <PatientConfirmModal
+        open={cancelMessage !== null}
+        onClose={() => setCancelMessage(null)}
+        onConfirm={() => {
           startTransition(async () => {
-            const allowed = await loadPreview();
-            if (!allowed) {
-              toast.error(cancelHint ?? 'Отмена недоступна');
-              return;
-            }
-            const msg = cancelHint ? `${cancelHint}. Отменить запись?` : 'Отменить запись?';
-            if (!window.confirm(msg)) return;
             const res = await fetch('/api/booking/cancel', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -123,12 +135,17 @@ export function CabinetBookingActions({ row }: Props) {
               return;
             }
             toast.success('Запись отменена');
+            setCancelMessage(null);
             router.refresh();
           });
         }}
+        title="Отменить запись?"
+        confirmLabel="Отменить запись"
+        pending={pending}
+        destructive
       >
-        Отменить
-      </Button>
-    </div>
+        {cancelMessage ?? 'Отменить запись?'}
+      </PatientConfirmModal>
+    </>
   );
 }

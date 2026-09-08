@@ -19,7 +19,11 @@ function Button({
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={buttonVariants({ variant, size, className })}
+      className={
+        typeof className === 'function'
+          ? (state) => buttonVariants({ variant, size, className: className(state) })
+          : buttonVariants({ variant, size, className })
+      }
       {...props}
     />
   );

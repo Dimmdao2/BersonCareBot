@@ -59,8 +59,12 @@ export function MaterialRatingNativeStars({
             <Star
               className="shrink-0"
               size={starSize}
-              fill={filled ? '#f7965c' : '#fff7ed'}
-              stroke={filled ? '#bb5e26' : '#eda76a'}
+              fill={
+                filled ? 'var(--patient-rating-fill-on)' : 'var(--patient-rating-fill-off)'
+              }
+              stroke={
+                filled ? 'var(--patient-rating-stroke-on)' : 'var(--patient-rating-stroke-off)'
+              }
               strokeWidth={starSize <= 18 ? 1.5 : 2}
             />
           </Button>

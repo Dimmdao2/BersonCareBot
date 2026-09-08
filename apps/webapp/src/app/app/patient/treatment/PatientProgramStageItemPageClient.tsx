@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Check, Camera, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { RecommendationMediaItem } from '@/modules/recommendations/types';
 import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 import { parseTestSetSnapshotTests } from '@/modules/treatment-program/testSetSnapshotView';
 import {
@@ -20,11 +19,6 @@ import type { PatientProgramItemNavMode } from '@/app/app/patient/treatment/pati
 import type { PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab';
 import { resolvePatientProgramItemPage } from '@/app/app/patient/treatment/patientProgramItemPageResolve';
 import { MarkdownContent } from '@/shared/ui/patient/markdown/MarkdownContent';
-import { PatientMediaPlaybackVideo } from '@/shared/ui/patient/media/PatientMediaPlaybackVideo';
-import { HostedVideoEmbed } from '@/shared/ui/patient/media/HostedVideoEmbed';
-import { MediaThumb } from '@/shared/ui/patient/media/MediaThumb';
-import { recommendationMediaItemToPreviewUi } from '@/shared/ui/patient/media/mediaPreviewUiModel';
-import { parseApiMediaIdFromPlayableUrl } from '@/shared/lib/parseApiMediaIdFromPlayableUrl';
 import {
   mergeLastActivityDisplayedIso,
   patientExerciseLoadTypeLabelRu,
@@ -87,6 +81,7 @@ import {
   postProgramItemComplete,
 } from '@/app/app/patient/treatment/postProgramItemComplete';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
+import { PatientProgramMediaBlock } from '@/app/app/patient/treatment/PatientProgramMediaBlock';
 
 const EMPTY_ORDERED_ITEM_IDS: string[] = [];
 
@@ -176,65 +171,6 @@ function pickFirstFiniteNum(...vals: unknown[]): number | null {
 }
 
 const ITEM_MAX_TODAY_DOTS = 24;
-
-function ModalMediaBlock(props: { media: RecommendationMediaItem | null; title: string }) {
-  const { media, title } = props;
-  if (!media) return null;
-
-  /*
-   * Внешнее видео занимает тот же слот, что и файловый плеер: у нас нет ни файла, ни HLS —
-   * ролик показывает сам хост в `<iframe>` (решение владельца 19.08). Проверка стоит до
-   * файловой ветки: та ищет id медиатеки в URL и на ссылку хостинга ответила бы отказом
-   * «видео без привязки к медиатеке».
-   */
-  if (media.mediaType === 'hosted_video') {
-    return (
-      <HostedVideoEmbed url={media.mediaUrl} title={title} className="shrink-0 rounded-none" />
-    );
-  }
-
-  if (media.mediaType === 'video') {
-    const mediaId = parseApiMediaIdFromPlayableUrl(media.mediaUrl);
-    if (!mediaId) {
-      return (
-        <div className="relative flex aspect-video w-full shrink-0 items-center justify-center bg-muted/30 px-3">
-          <p className={cn(patientMutedTextClass, 'text-center text-sm')}>
-            Видео без привязки к медиатеке нельзя воспроизвести здесь.
-          </p>
-        </div>
-      );
-    }
-    return (
-      <PatientMediaPlaybackVideo
-        mediaId={mediaId}
-        title={title}
-        initialPlayback={null}
-        shellClassName="relative aspect-video w-full shrink-0 overflow-hidden bg-black"
-      />
-    );
-  }
-
-  /**
-   * Through the door, not around it (owner ruling 19.08,
-   * `docs/_TODO/GET_IMAGE_ACCESSOR_2026-08-19.md`): `MediaThumb` decides thumbnail vs. stored
-   * re-encode vs. «готовится» vs. error from `media`'s true rendition state. The previous
-   * `media.previewMdUrl ?? media.previewSmUrl ?? media.mediaUrl` fallback always rendered an
-   * `<img>`, including for a file that was never converted — exactly the raw upload the standard
-   * rendition exists to keep off the wire.
-   */
-  return (
-    <div className="relative aspect-video w-full shrink-0 overflow-hidden bg-muted/20">
-      <MediaThumb
-        media={recommendationMediaItemToPreviewUi(media)}
-        className="h-full w-full"
-        imgClassName="h-full w-full object-contain"
-        alt={title}
-        lazy={false}
-        sizes="100vw"
-      />
-    </div>
-  );
-}
 
 function ModalDescriptionSection(props: { item: StageItem }) {
   const { item } = props;
@@ -834,7 +770,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
       <div
         className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto', patientScrollbarHiddenClass)}
       >
-        <ModalMediaBlock media={primaryMedia} title={title} />
+        <PatientProgramMediaBlock media={primaryMedia} title={title} />
 
         {navMode === 'tests' && resolvedTestId
           ? (() => {

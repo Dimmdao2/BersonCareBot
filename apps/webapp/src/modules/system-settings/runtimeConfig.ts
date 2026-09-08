@@ -132,6 +132,7 @@ export const AUTHENTICATED_RUNTIME_BOOLEAN_KEYS = [
 ] as const;
 
 export const AUTHENTICATED_RUNTIME_STRING_KEYS = [
+  'patient_label',
   'patient_app_maintenance_message',
   'patient_booking_url',
 ] as const;
@@ -318,9 +319,10 @@ export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
       key: AuthenticatedRuntimeStringKey,
       organizationId: string | null = null,
     ): Promise<string> {
+      const scope = SYSTEM_SETTING_REGISTRY[key].scope;
       const row = await port.getEffective({
         key,
-        scope: 'admin',
+        scope,
         organizationId,
         allowedAudiences: ['authenticated_client', 'public'],
         operationFamily: 'patient_runtime_config',

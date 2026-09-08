@@ -74,6 +74,7 @@ function fakeTransaction(selectResults: unknown[][], insertReturning: Record<str
       chain.leftJoin = self;
       chain.where = self;
       chain.orderBy = self;
+      chain.for = self;
       chain.limit = async () => rows;
       chain.then = (resolve: (value: unknown) => unknown) => Promise.resolve(rows).then(resolve);
       return chain;
@@ -144,7 +145,7 @@ beforeEach(() => {
 
 describe('жалоба врача ведёт отслеживание симптома у пациента', () => {
   it('жалоба из карты заводит ровно одно отслеживание, связывает его с жалобой и пишет первый замер', async () => {
-    const recorded = fakeTransaction([[]], {
+    const recorded = fakeTransaction([[{ trackingId: null }]], {
       clinical_complaint: [{ id: COMPLAINT_ID }],
     });
     const diaries = fakeDiaries();
@@ -236,7 +237,7 @@ describe('жалоба врача ведёт отслеживание симпт
   });
 
   it('жалоба, заведённая на первичном приёме, тоже доходит до дневника пациента', async () => {
-    const recorded = fakeTransaction([], {
+    const recorded = fakeTransaction([[{ trackingId: null }]], {
       clinical_visit: [{ id: VISIT_ID }],
       clinical_complaint: [{ id: COMPLAINT_ID }],
     });

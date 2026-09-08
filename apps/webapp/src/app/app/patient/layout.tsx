@@ -134,17 +134,14 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       source: 'app.patient.layout',
     });
     const patientOrganizationId = patientContext.organizationId;
-    const patientSettings = await withPatientOrganizationPrincipal(
+    const patientLabel = await withPatientOrganizationPrincipal(
       {
         organizationId: patientOrganizationId,
         platformUserId: session.user.userId,
         source: 'app.patient.layout.patient-terms',
       },
-      () => deps.systemSettings.listSettingsByScope('doctor', { organizationId: patientOrganizationId }),
+      () => deps.runtimeConfig.getAuthenticatedString('patient_label', patientOrganizationId),
     );
-    const patientLabel = patientSettings.find(
-      (setting) => setting.key === 'patient_label',
-    )?.valueJson;
     const workspaceModules = await withPatientOrganizationPrincipal(
       {
         organizationId: patientOrganizationId,

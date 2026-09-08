@@ -159,7 +159,9 @@ export function createPgPatientClinicalPort(deps: {
    *
    * Связь durable и однозначная — колонка `clinical_complaint.symptom_tracking_id` (частичный
    * uniq): одна жалоба не может получить два отслеживания, одно отслеживание не может достаться
-   * двум жалобам. По названию симптома НИЧЕГО не ищется.
+   * двум жалобам. Строка жалобы блокируется до проверки/создания связи, поэтому параллельные
+   * записи severity не оставят второе осиротевшее отслеживание. По названию симптома НИЧЕГО не
+   * ищется.
    *
    * Fail-closed: и жалоба, и отслеживание перечитываются с условием «тот же пациент и та же
    * организация принципала». Чужой id не найдётся здесь и не будет связан; `UPDATE` жалобы
@@ -182,20 +184,27 @@ export function createPgPatientClinicalPort(deps: {
     const linked = await tx
       .select({ trackingId: symptomTrackings.id })
       .from(clinicalComplaint)
-      .innerJoin(symptomTrackings, eq(symptomTrackings.id, clinicalComplaint.symptomTrackingId))
-      .where(
+      .leftJoin(
+        symptomTrackings,
         and(
-          eq(clinicalComplaint.id, params.complaintId),
-          eq(clinicalComplaint.patientUserId, params.patientUserId),
-          eq(clinicalComplaint.organizationId, params.organizationId),
+          eq(symptomTrackings.id, clinicalComplaint.symptomTrackingId),
           eq(symptomTrackings.platformUserId, params.patientUserId),
           eq(symptomTrackings.organizationId, params.organizationId),
           isNull(symptomTrackings.deletedAt),
         ),
       )
+      .where(
+        and(
+          eq(clinicalComplaint.id, params.complaintId),
+          eq(clinicalComplaint.patientUserId, params.patientUserId),
+          eq(clinicalComplaint.organizationId, params.organizationId),
+        ),
+      )
+      .for('update', { of: clinicalComplaint })
       .limit(1);
     const existing = linked[0];
-    if (existing) return { trackingId: existing.trackingId, created: false };
+    if (!existing) throw new Error('clinical_complaint_symptom_link_rejected');
+    if (existing.trackingId) return { trackingId: existing.trackingId, created: false };
 
     const tracking = await diaries.createTracking({
       userId: params.patientUserId,

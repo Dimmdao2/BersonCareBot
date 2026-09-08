@@ -3,6 +3,7 @@
 import {
   createContext,
   type ReactNode,
+  type RefObject,
   useContext,
   useLayoutEffect,
   useMemo,
@@ -101,6 +102,8 @@ type PatientModalProps = {
   nested?: boolean;
   /** Полноэкранный просмотр медиа, оставляющий нижнюю модалку смонтированной. */
   presentation?: PatientModalPresentation;
+  /** Куда вернуть фокус после закрытия программно открытой модалки. */
+  returnFocusRef?: RefObject<HTMLElement | null>;
 };
 
 /**
@@ -133,6 +136,7 @@ export function PatientModal({
   bodyVariant = 'default',
   nested = false,
   presentation = 'standard',
+  returnFocusRef,
 }: PatientModalProps) {
   const isMobile = useIsMobileViewport();
   const { isNestedLayer, parentDepth } = usePatientModalLayer(nested);
@@ -235,6 +239,7 @@ export function PatientModal({
         <PatientModalLayerProvider depth={layerDepth}>
           <Drawer open={open} onOpenChange={handleOpenChange}>
             <DrawerContent
+              finalFocus={returnFocusRef}
               showCloseButton={false}
               showHandle
               showOverlay={showOverlay}
@@ -252,6 +257,7 @@ export function PatientModal({
       <PatientModalLayerProvider depth={layerDepth}>
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogContent
+            finalFocus={returnFocusRef}
             fullScreen
             showCloseButton={false}
             showOverlay={showOverlay}
@@ -270,6 +276,7 @@ export function PatientModal({
       <PatientModalLayerProvider depth={layerDepth}>
         <Drawer open={open} onOpenChange={handleOpenChange}>
           <DrawerContent
+            finalFocus={returnFocusRef}
             showCloseButton={false}
             showOverlay={showOverlay}
             className="gap-0 bg-[var(--patient-card-bg)] p-0"
@@ -298,6 +305,7 @@ export function PatientModal({
     <PatientModalLayerProvider depth={layerDepth}>
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent
+          finalFocus={returnFocusRef}
           showCloseButton
           showOverlay={showOverlay}
           className={cn(
