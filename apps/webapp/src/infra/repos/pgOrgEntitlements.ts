@@ -316,17 +316,20 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       };
     },
     async resolveMechanicAccess(organizationId: string, mechanic: OrgMechanic) {
-      const fragment = sql`SELECT state, policy_source, warning
-         FROM app.resolve_organization_mechanic_access(${organizationId}::uuid, ${mechanic}::text)`;
-      const result =
-        getCurrentDbPrincipal()?.kind === 'organization'
-          ? await runWebappNamedRoot<MechanicAccessRow>(
-              getWebappSqlDb(),
-              'app.resolve_organization_mechanic_access(uuid,text)',
-              [organizationId, mechanic],
-              fragment,
-            )
-          : await runWebappSql<MechanicAccessRow>(getWebappSqlDb(), fragment);
+      const organizationPrincipal = getCurrentDbPrincipal()?.kind === 'organization';
+      const result = organizationPrincipal
+        ? await runWebappNamedRoot<MechanicAccessRow>(
+            getWebappSqlDb(),
+            'app.resolve_current_organization_mechanic_access(text)',
+            [mechanic],
+            sql`SELECT state, policy_source, warning
+                FROM app.resolve_current_organization_mechanic_access(${mechanic}::text)`,
+          )
+        : await runWebappSql<MechanicAccessRow>(
+            getWebappSqlDb(),
+            sql`SELECT state, policy_source, warning
+                FROM app.resolve_organization_mechanic_access(${organizationId}::uuid, ${mechanic}::text)`,
+          );
       const row = result.rows[0];
       if (!row) throw new Error('organization_mechanic_access_denied');
       return {
