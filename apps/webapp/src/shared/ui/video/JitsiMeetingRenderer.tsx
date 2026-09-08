@@ -41,7 +41,11 @@ export function JitsiMeetingRenderer({ session, onHangup }: { session: VideoMeet
       if (disposed || !targetRef.current) return;
       const api = new JitsiMeetExternalAPI(new URL(endpoint).host, {
         parentNode: targetRef.current, roomName: roomReference, jwt: session.accessToken,
-        configOverwrite: { prejoinPageEnabled: false, disableDeepLinking: true, enableWelcomePage: false },
+        configOverwrite: {
+          prejoinConfig: { enabled: false },
+          disableDeepLinking: true,
+          enableWelcomePage: false,
+        },
         interfaceConfigOverwrite: { TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup'], SHOW_JITSI_WATERMARK: false, SHOW_BRAND_WATERMARK: false, SHOW_POWERED_BY: false },
       });
       apiRef.current = api;

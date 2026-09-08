@@ -53,15 +53,17 @@ describe('meeting renderer survives unrelated re-renders (NOTE-08)', () => {
     expect(construct).toHaveBeenCalledTimes(1);
   });
 
-  it('offers only microphone, camera and hangup and no Jitsi branding', async () => {
+  it('joins without Jitsi prejoin and offers only microphone, camera and hangup', async () => {
     // Failure: the embedded conference exposes its own toolbar/branding, so the product screen
     // turns back into a Jitsi meeting with chat, invite, recording and watermarks (VM-06).
     render(<JitsiMeetingRenderer session={session} />);
     await Promise.resolve();
 
     const options = construct.mock.calls[0]?.[1] as {
+      configOverwrite?: { prejoinConfig?: { enabled?: boolean } };
       interfaceConfigOverwrite?: { TOOLBAR_BUTTONS?: string[] };
     };
+    expect(options.configOverwrite?.prejoinConfig?.enabled).toBe(false);
     expect(options.interfaceConfigOverwrite?.TOOLBAR_BUTTONS).toEqual([
       'microphone',
       'camera',

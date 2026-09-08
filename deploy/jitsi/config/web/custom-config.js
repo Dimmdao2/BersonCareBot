@@ -22,6 +22,7 @@ config.transcribingEnabled = false;
 config.enableCalendarIntegration = false;
 config.disableInviteFunctions = true;
 config.enableInsecureRoomNameWarning = false; // secure-domain/JWT already gates room creation
+config.prejoinConfig = { enabled: false }; // embedded TherapyGo screen joins immediately
 
 // P2P first, our coturn only as fallback, our JVB as last resort (VM-03/VM-04). No entry here duplicates a
 // default Jitsi/Google STUN — the only entries come from P2P_STUN_SERVERS at render time.
