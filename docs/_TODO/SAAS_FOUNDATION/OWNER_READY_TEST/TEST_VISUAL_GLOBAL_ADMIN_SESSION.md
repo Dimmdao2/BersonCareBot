@@ -15,7 +15,7 @@ It uses the already registered owner global-admin account and does not use dev-b
 - Credentials are read internally from the existing strict `/opt/env/bersoncarebot/saas-smoke-login.env` parser.
   Values never enter argv, stdout, logs, repository files, or the handoff manifest.
 - Authentication uses ordinary `POST /api/auth/email-password/login` through the exact
-  `https://test.bersoncare.ru` origin after the helper proves the local TEST listener identity.
+  `https://test.therapysto.ru` origin after the helper proves the local TEST listener identity.
 - The root-only TEST helper re-signs the verified admin session with bounded factor assurance, `expiresAt`, and
   `operatorSession.purpose=test_global_admin_visual`. Webapp session renewal explicitly refuses to slide it.
 - TTL defaults to 30 minutes and is restricted to 5–60 minutes.
@@ -48,7 +48,7 @@ node deploy/host/test-visual-global-admin-session.mjs status
 ```
 
 Use the jar only through the constrained repository capture wrapper. The wrapper accepts no base URL, cookie path,
-output path, or route argument: it fixes the origin to exact `https://test.bersoncare.ru`, the jar to the handoff
+output path, or route argument: it fixes the origin to exact `https://test.therapysto.ru`, the jar to the handoff
 above, and the route to `/app/admin/system-health`. It also strips the inherited environment before starting the
 underlying screenshot engine.
 
