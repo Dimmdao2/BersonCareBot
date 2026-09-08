@@ -166,5 +166,26 @@ export function createWebPushAccessPort(deps: {
         return false;
       }
     },
+    async getNativeTargetsForUser(pushUserId, organizationId) {
+      const { baseUrl, secret } = await requireAccessConfig(getAppBaseUrl, organizationId);
+      return fetchSignedGet({ baseUrl, path: '/api/integrator/web-push/native-targets', query: { userId: pushUserId, organizationId }, secret, parseResponse: (data) => {
+        if (!Array.isArray(data.targets)) return null;
+        const targets = data.targets as Array<Record<string, unknown>>;
+        return targets.every((t) => typeof t.id === 'string' && (t.appId === 'therapygo' || t.appId === 'therapysto') && (t.provider === 'rustore' || t.provider === 'fcm' || t.provider === 'hms') && typeof t.token === 'string') ? targets as Array<{ id: string; appId: 'therapygo' | 'therapysto'; provider: 'rustore' | 'fcm' | 'hms'; token: string }> : null;
+      } });
+    },
+    async getRuStoreConfig(appId, organizationId) {
+      const { baseUrl, secret } = await requireAccessConfig(getAppBaseUrl, organizationId);
+      return fetchSignedGet({ baseUrl, path: '/api/integrator/web-push/rustore-config', query: { appId, organizationId }, secret, parseResponse: (data) => {
+        if (data.config === null) return null;
+        const c = data.config as Record<string, unknown> | null;
+        return c && typeof c.endpoint === 'string' && typeof c.projectId === 'string' && typeof c.authToken === 'string' ? { endpoint: c.endpoint, projectId: c.projectId, authToken: c.authToken } : null;
+      } });
+    },
+    async deactivateNativeTarget(targetId, organizationId) {
+      const { baseUrl, secret } = await requireAccessConfig(getAppBaseUrl, organizationId);
+      const path = '/api/integrator/web-push/native-targets/deactivate'; const body = JSON.stringify({ targetId, organizationId }); const timestamp = String(Math.floor(Date.now() / 1000));
+      try { const res = await fetch(`${baseUrl.replace(/\/$/, '')}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bersoncare-Timestamp': timestamp, 'X-Bersoncare-Signature': signPost(timestamp, body, secret) }, body }); return res.ok; } catch { return false; }
+    },
   };
 }

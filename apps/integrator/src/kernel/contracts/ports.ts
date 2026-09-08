@@ -100,6 +100,7 @@ export type DeliverySendResult = {
     delivered: number;
     errors: number;
     deactivated: number;
+    transports?: { browser: { delivered: number; errors: number; deactivated: number }; native: { delivered: number; errors: number; deactivated: number } };
     /** Safe provider HTTP status for an all-failed provider outcome. */
     providerStatusCode?: number;
     /** Bounded provider reason token, never a raw response body. */
@@ -623,4 +624,7 @@ export type WebPushAccessPort = {
     endpoint: string,
     organizationId: string,
   ): Promise<boolean>;
+  getNativeTargetsForUser(pushUserId: string, organizationId: string): Promise<Array<{ id: string; appId: 'therapygo' | 'therapysto'; provider: 'rustore' | 'fcm' | 'hms'; token: string }>>;
+  getRuStoreConfig(appId: 'therapygo' | 'therapysto', organizationId: string): Promise<{ endpoint: string; projectId: string; authToken: string } | null>;
+  deactivateNativeTarget(targetId: string, organizationId: string): Promise<boolean>;
 };

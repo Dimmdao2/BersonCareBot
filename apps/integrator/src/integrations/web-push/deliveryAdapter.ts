@@ -27,6 +27,7 @@ import type {
 import { readChannel } from '../../infra/adapters/channelRouting.js';
 import { logger } from '../../infra/observability/logger.js';
 import { sendWebPushViaProvider } from './client.js';
+import { sendRuStoreUniversalPush } from './rustoreUniversalClient.js';
 import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organizationPrincipal.js';
 
 type WebPushDeliveryPayload = {
@@ -42,6 +43,7 @@ type WebPushDeliveryPayload = {
     pushKind?: string | null;
     warmupSloganKey?: string | null;
     occurrenceId?: string | null;
+    pushSurface?: 'therapygo' | 'therapysto';
   };
   delivery?: { channels?: unknown };
 } & Record<string, unknown>;
@@ -84,12 +86,13 @@ export function createWebPushDeliveryAdapter(deps: {
       }
 
       // Fetch subscriptions + VAPID in parallel (Model β — M2M read from webapp).
-      const [subscriptions, vapid] = await Promise.all([
+      const [subscriptions, vapidResult, nativeTargets] = await Promise.all([
         webPushAccessPort.getSubscriptionsForUser(pushUserId, organizationId),
-        webPushAccessPort.getVapidCredentials(organizationId),
+        webPushAccessPort.getVapidCredentials(organizationId).catch(() => null),
+        webPushAccessPort.getNativeTargetsForUser(pushUserId, organizationId).catch(() => []),
       ]);
 
-      if (subscriptions.length === 0) {
+      if (subscriptions.length === 0 && nativeTargets.length === 0) {
         logger.info(
           { scope: 'web_push', event: 'web_push_no_subscriptions', pushUserId },
           '[web-push] no active subscriptions for user — skipping',
@@ -97,7 +100,7 @@ export function createWebPushDeliveryAdapter(deps: {
         return {
           webPushOutcome: {
             status: 'skipped',
-            reason: 'no_active_subscriptions',
+            reason: 'no_active_target',
             delivered: 0,
             errors: 0,
             deactivated: 0,
@@ -109,9 +112,9 @@ export function createWebPushDeliveryAdapter(deps: {
       const url = asString(payload.url) ?? '/';
       const extras = payload.pushExtras ?? {};
 
-      const result = await sendWebPushViaProvider({
+      const browserResult = vapidResult && subscriptions.length > 0 ? await sendWebPushViaProvider({
         subscriptions,
-        vapid,
+        vapid: vapidResult,
         payload: {
           title,
           body,
@@ -158,31 +161,46 @@ export function createWebPushDeliveryAdapter(deps: {
             );
           }
         },
-      });
+      }) : { delivered: 0, errors: 0, deactivated: 0 };
+
+      let nativeDelivered = 0; let nativeErrors = 0; let nativeDeactivated = 0;
+      const nativeSurface = extras.pushSurface;
+      for (const target of nativeTargets) {
+        if (target.provider !== 'rustore' || (nativeSurface && target.appId !== nativeSurface)) continue;
+        const config = await webPushAccessPort.getRuStoreConfig(target.appId, organizationId).catch(() => null);
+        if (!config) continue;
+        const result = await sendRuStoreUniversalPush({ config, token: target.token, data: { route: url, title, body, pushSurface: target.appId } });
+        if (result.ok) nativeDelivered += 1;
+        else { nativeErrors += 1; if (result.invalidToken && await webPushAccessPort.deactivateNativeTarget(target.id, organizationId)) nativeDeactivated += 1; }
+      }
+      const delivered = browserResult.delivered + nativeDelivered;
+      const errors = browserResult.errors + nativeErrors;
 
       logger.info(
         {
           scope: 'web_push',
           event: 'web_push_sent',
           pushUserId,
-          delivered: result.delivered,
-          errors: result.errors,
-          deactivated: result.deactivated,
+          delivered,
+          errors,
+          deactivated: browserResult.deactivated + nativeDeactivated,
+          transports: { browser: { delivered: browserResult.delivered, errors: browserResult.errors, deactivated: browserResult.deactivated }, native: { delivered: nativeDelivered, errors: nativeErrors, deactivated: nativeDeactivated } },
         },
         '[web-push] push delivery complete',
       );
 
       return {
         webPushOutcome: {
-          status: result.delivered > 0 ? 'success' : result.errors > 0 ? 'failed' : 'skipped',
-          ...(result.delivered === 0 && result.errors > 0 ? { reason: 'provider_error' } : {}),
-          delivered: result.delivered,
-          errors: result.errors,
-          deactivated: result.deactivated,
-          ...(result.failureStatusCode !== undefined
-            ? { providerStatusCode: result.failureStatusCode }
+          status: delivered > 0 ? 'success' : errors > 0 ? 'failed' : 'skipped',
+          ...(delivered === 0 && errors > 0 ? { reason: 'provider_error' } : {}),
+          delivered,
+          errors,
+          deactivated: browserResult.deactivated + nativeDeactivated,
+          transports: { browser: { delivered: browserResult.delivered, errors: browserResult.errors, deactivated: browserResult.deactivated }, native: { delivered: nativeDelivered, errors: nativeErrors, deactivated: nativeDeactivated } },
+          ...(browserResult.failureStatusCode !== undefined
+            ? { providerStatusCode: browserResult.failureStatusCode }
             : {}),
-          ...(result.failureCode ? { providerErrorCode: result.failureCode } : {}),
+          ...(browserResult.failureCode ? { providerErrorCode: browserResult.failureCode } : {}),
         },
       };
     },

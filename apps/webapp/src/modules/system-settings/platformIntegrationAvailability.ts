@@ -72,11 +72,11 @@ export const PLATFORM_INTEGRATION_CATALOG: readonly PlatformIntegrationCatalogEn
   },
   {
     id: 'web_push',
-    label: 'Web Push',
+    label: 'Push',
     implementation: 'available',
     clinicConfiguration: 'platform_managed',
     clinicHint:
-      'Ключи Web Push управляются платформой; клиника не получает доступ к платформенному секрету VAPID.',
+      'Push управляется платформой; browser VAPID и native Universal Push не являются отдельными каналами.',
   },
   {
     id: 'google_calendar',

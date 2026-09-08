@@ -481,6 +481,14 @@ export const SYSTEM_SETTING_REGISTRY = {
     ),
     auditObjectField('privateKey'),
   ),
+  rustore_universal_push_therapygo: withSecretAudit(
+    restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
+    auditObjectField('authToken'),
+  ),
+  rustore_universal_push_therapysto: withSecretAudit(
+    restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
+    auditObjectField('authToken'),
+  ),
   admin_incident_alert_config: restricted('admin', 'global', 'structured'),
   operator_health_alert_config: restricted('admin', 'global', 'structured'),
   operator_alert_fallback_email: restricted('admin', 'global', 'string', 'absent'),
