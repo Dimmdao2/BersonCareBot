@@ -54,6 +54,7 @@ import { normalizeAppointmentReminderSettings } from '@/modules/booking-notifica
 import {
   ONLINE_LOCATION_CITY_CODE,
   ONLINE_LOCATION_TITLE,
+  isBuiltInOnlineLocation,
   shouldApplyPhysicalBranchReactivationQuota,
 } from '@/modules/booking-engine/onlineLocation';
 import type {
@@ -164,6 +165,7 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     chainPosition: row.chainPosition ?? null,
     source: row.source as BeAppointment['source'],
     status: row.status as BeAppointment['status'],
+    deliveryFormat: row.deliveryFormat as BeAppointment['deliveryFormat'],
     originalStartAt: row.originalStartAt ?? null,
     rescheduleCount: row.rescheduleCount,
     paymentRef: row.paymentRef ?? null,
@@ -200,6 +202,7 @@ type CurrentPatientAppointmentRow = {
   chain_position: number | null;
   source: string;
   status: string;
+  delivery_format: string;
   original_start_at: string | null;
   reschedule_count: number;
   payment_ref: string | null;
@@ -239,6 +242,7 @@ function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppo
     chainPosition: row.chain_position,
     source: row.source as BeAppointment['source'],
     status: row.status as BeAppointment['status'],
+    deliveryFormat: row.delivery_format as BeAppointment['deliveryFormat'],
     originalStartAt: row.original_start_at,
     rescheduleCount: row.reschedule_count,
     paymentRef: row.payment_ref,
@@ -409,6 +413,17 @@ async function insertAppointmentInTransaction(
     });
   }
   const status = input.status ?? 'created';
+  let branch: { cityCode: string; title: string } | undefined;
+  if (input.branchId) {
+    [branch] = await tx
+      .select({ cityCode: beBranches.cityCode, title: beBranches.title })
+      .from(beBranches)
+      .where(eq(beBranches.id, input.branchId))
+      .limit(1);
+  }
+  const deliveryFormat =
+    input.deliveryFormat ??
+    (branch && isBuiltInOnlineLocation(branch) ? 'online' : 'in_person');
   const inserted = await tx
     .insert(beAppointments)
     .values({
@@ -426,6 +441,7 @@ async function insertAppointmentInTransaction(
       chainPosition: input.chainPosition ?? null,
       source: input.source,
       status,
+      deliveryFormat,
       originalStartAt: input.startAt,
       rescheduleCount: 0,
       phoneNormalized: input.phoneNormalized ?? null,

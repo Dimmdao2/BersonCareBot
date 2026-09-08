@@ -204,6 +204,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     if (!row) return null;
     const next = {
       ...row,
+      bookingType: input.bookingType ?? row.bookingType,
       slotStart: input.slotStart,
       slotEnd: input.slotEnd,
       city: input.city,

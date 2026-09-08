@@ -41,6 +41,7 @@ import type {
   CalendarFilterMeta,
   CalendarFilters,
 } from '@/modules/booking-calendar/types';
+import { isBuiltInOnlineLocation } from '@/modules/booking-engine/onlineLocation';
 import { filterCanonicalRowsNotPurged } from '@/infra/repos/doctorAppointmentPurgeFilter';
 import { formatDoctorFio } from '@/shared/lib/fio';
 
@@ -105,6 +106,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
             label: beBranches.title,
             shortTitle: beBranches.shortTitle,
             color: beBranches.color,
+            cityCode: beBranches.cityCode,
           })
           .from(beBranches)
           .where(and(eq(beBranches.organizationId, organizationId), eq(beBranches.isActive, true)))
@@ -171,6 +173,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           label: r.label,
           shortLabel: r.shortTitle ?? null,
           color: r.color ?? null,
+          isOnline: isBuiltInOnlineLocation({ cityCode: r.cityCode, title: r.label }),
         })),
         rooms: rooms.map((r) => ({ id: r.id, label: r.label })),
         services: services.map((r) => ({
@@ -219,6 +222,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           startAt: beAppointments.startAt,
           endAt: beAppointments.endAt,
           status: beAppointments.status,
+          deliveryFormat: beAppointments.deliveryFormat,
           source: beAppointments.source,
           specialistId: beAppointments.specialistId,
           branchId: beAppointments.branchId,
@@ -397,6 +401,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           startAt: row.startAt,
           endAt: row.endAt,
           status,
+          deliveryFormat: row.deliveryFormat as CalendarAppointmentEvent['deliveryFormat'],
           source: row.source,
           specialistId: row.specialistId,
           specialistName: row.specialistName ?? null,

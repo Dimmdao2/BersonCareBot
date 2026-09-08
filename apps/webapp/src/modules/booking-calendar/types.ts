@@ -1,4 +1,4 @@
-import type { AppointmentStatus } from '@/modules/booking-engine/types';
+import type { AppointmentDeliveryFormat, AppointmentStatus } from '@/modules/booking-engine/types';
 import type { PrepaymentMode } from '@/modules/payments/types';
 
 /**
@@ -49,6 +49,8 @@ export type CalendarFilterOption = {
   shortLabel?: string | null;
   /** Hex color (only populated for branch options). */
   color?: string | null;
+  /** Server-derived identity of the built-in Online location; never inferred from its label. */
+  isOnline?: boolean;
 };
 
 export type CalendarServiceFilterOption = CalendarFilterOption & {
@@ -118,6 +120,7 @@ export type CalendarAppointmentEvent = {
   startAt: string;
   endAt: string;
   status: AppointmentStatus;
+  deliveryFormat: AppointmentDeliveryFormat;
   source: string;
   specialistId: string | null;
   specialistName: string | null;

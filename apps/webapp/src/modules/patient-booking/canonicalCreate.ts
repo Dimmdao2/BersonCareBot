@@ -449,6 +449,7 @@ export async function createBookingOnCanonicalEngine(
           chainPosition: chainId ? chainPosition : null,
           source: appointmentSource,
           status: initialAppointmentStatus,
+          deliveryFormat: createInput.type === 'online' ? 'online' : 'in_person',
           phoneNormalized,
           actorId: createInput.userId,
           attributionJson: {

@@ -166,6 +166,7 @@ export type TodayNextAppointmentItem = {
   patientOnSupport: boolean;
   comment: string | null;
   wasRescheduled: boolean;
+  deliveryFormat: CalendarAppointmentEvent['deliveryFormat'];
 };
 
 export type TodayUnreadConversationItem = {
@@ -437,6 +438,7 @@ function mapNextAppointment(
     patientOnSupport: event.patientOnSupport === true,
     comment: comment?.trim() || fallbackComment || null,
     wasRescheduled: event.rescheduleCount > 0,
+    deliveryFormat: event.deliveryFormat,
   };
 }
 
