@@ -609,7 +609,8 @@ preview и home-only geometry намеренно не включены.
   БД не менялись.
 
 Основные коммиты этапа: `9e8a2550c`, `106d24642`, `f530e23e4`, `2ec27e0a8`, `3e7740295`,
-`398e9ed20`, `01e240f23`, `5049c8673`, `ad563e5bc`, `cec338b35`, `5c6d4eb6c`, `77f5bfe0b`.
+`398e9ed20`, `01e240f23`, `5049c8673`, `ad563e5bc`, `cec338b35`, `5c6d4eb6c`, `77f5bfe0b`,
+`eee55e2d8`, `340049195`, `2c7f16c54`.
 
 ### Проверки
 
@@ -636,6 +637,29 @@ Test Files 8 passed; Tests 39 passed
 
 git diff --check
 EXIT=0
+```
+
+Первый полный CI на `eee55e2d8` дал новый интеграционный сигнал: пять падений в scripts/webapp
+контрактах и затем один пропущенный custom-domain RLS descriptor в хвостовом audit. Независимая
+классификация подтвердила, что branding fixture относится к patient-изменению, а registry/RLS
+разрывы уже исправлены принятыми коммитами `d3776c8e4` и `6102a732d` соседнего workstream. В эту
+ветку перенесены те же patch-id, fixture дополнен актуальным runtimeConfig port; целевой повтор дал
+`17/17` scripts и `4 files / 22 tests` webapp PASS.
+
+После этих исправлений финальный полный прогон выполнен канонической командой через общий lock:
+
+```text
+TEST_CPUSET=0-7 VITEST_MAX_WORKERS=8 \
+  /home/dev/brain/host-orch/run-tests.sh \
+  "pnpm install --frozen-lockfile && pnpm run ci"
+
+ci-record: commit 2c7f16c54 + текущий branding fixture; exit 0; 520s
+lint PASS; typecheck PASS
+integrator: 119 files passed, 641 tests passed
+webapp: 561 files passed, 3003 tests passed
+media-worker: 10 files / 29 tests PASS
+error-tracking: 3 files / 13 tests PASS
+build PASS; build:webapp PASS; audit PASS
 ```
 
 Корневой `pnpm typecheck` сначала обнаружил один новый дефект совместимости patient Button с
