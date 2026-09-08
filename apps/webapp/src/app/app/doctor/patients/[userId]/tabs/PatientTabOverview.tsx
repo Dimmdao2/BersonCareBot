@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FilePlus2, ListPlus } from 'lucide-react';
+import { ListPlus, NotebookPen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
@@ -1850,8 +1850,8 @@ export function PatientTabOverview({
             title="Заметок"
             value={data?.notes.length ?? 0}
             onClick={() => setNotesModalOpen(true)}
-            actionIcon={<FilePlus2 className="size-5" aria-hidden />}
-            actionLabel="Добавить заметку"
+            actionIcon={<NotebookPen className="size-5" aria-hidden />}
+            actionLabel="Открыть заметки"
             onActionClick={() => setNotesModalOpen(true)}
             className="h-full"
           />

@@ -100,7 +100,7 @@ describe('PatientTabOverview daily notes integration (NOTE-04/07, UI-01)', () =>
     const fetchMock = stubDailyNotesFetch();
     renderOverview();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Добавить заметку' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть заметки' }));
     let dialog = await screen.findByRole('dialog');
     const textarea = (await within(dialog).findByPlaceholderText(
       'Заметка…',
