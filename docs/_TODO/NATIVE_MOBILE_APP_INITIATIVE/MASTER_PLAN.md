@@ -1,201 +1,226 @@
-# Native mobile app — master plan
+# Therapy Go + Therapysto thin Capacitor apps — execution plan
 
-> **РАЗМОРОЖЕНО ВЛАДЕЛЬЦЕМ 2026-08-21, дословно: «разведочного этапа MOB-00 - запусти агента, выбери по
-> сложности опус или соннет (не кодекс)».** Это ровно та команда, которую требовал блок заморозки ниже.
-> Размораживается ТОЛЬКО `MOB-00` (ADR + одноразовый разведочный spike). `MOB-01`…`MOB-05` остаются закрытыми:
-> их гейт — PASS `MOB-00` плюс отдельное решение владельца. Запреты §4 действуют без изменений — никаких
-> Capacitor-пакетов, `ios/`, `android/`, mobile schema и provider keys в репозитории до `MOB-01`.
-> Owner gates §4 на 2026-08-21 НЕ закрыты: вынесены владельцу отдельным листом, техническое ядро spike от них
-> не зависит.
->
-> <details><summary>История: блок заморозки 27.07.2026 (снят, оставлен для трассировки)</summary>
->
-> > ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ 2026-07-27: «Мобильное - отложено»; вернуть в работу только по его команде.
-> >
-> > Владелец, 2026-07-27, на вопрос, не выдумана ли эта инициатива: «инициатива нативного мобильного
-> > приложения не выдумана - просто не сейчас. Пока pwa».
-> >
-> > Скоуп реальный и когда-нибудь будет сделан, но не сейчас.
-> > **Не исполнять. Не заводить задачи под эти пункты. Не удалять и не архивировать этот файл.**
-> > PWA остаётся текущим решением до его команды.
->
-> </details>
->
-> PWA остаётся поддерживаемой поверхностью и после разморозки — её отмену решает отдельная команда владельца.
+Дата owner-решения: **2026-09-09**. Taskdb: **#915**. Статус: **doing**.
+Интеграционная ветка: `feat/doctor-ui-rebuild`. PROD, store submission и release signing вне автономного scope.
 
-Статус: было `planned`, taskdb `#915`; implementation task получает `doing` только после exact file scope,
-закрытия собственных gates и явной команды владельца (см. блок выше).
+## 1. Owner authority and immutable outcome
 
-## 1. Целевой результат
+1. Выпустить два отдельных Android-приложения для RuStore:
+   - **Therapy Go** — пациент;
+   - **Therapysto** — специалист.
+2. Это тонкие Capacitor-обёртки над действующим Next.js. Webapp, SSR/RSC, серверная авторизация, страницы и
+   бизнес-правила не копируются и не переносятся в отдельный mobile frontend.
+3. На iOS остаётся устанавливаемая PWA. На Android PWA тоже остаётся доступной пользователям без RuStore.
+4. Нативные возможности: Universal Push от RuStore, Jitsi Android SDK, камера с выбором фото/видео внутри одного
+   экрана, общая галерея фото/видео и отдельный выбор документов.
+5. Новые app/PWA иконки:
+   - Therapy Go — `apps/webapp/public/brand/therapygo-app-icon-source.png`, знак с шариком;
+   - Therapysto — `apps/webapp/public/brand/therapysto-app-icon-source.png`, знак без шарика.
+   Старые admin/clinic-brand assets не удалять; platform-admin не подменять пациентским приложением.
+6. Сторонние URL открываются только внешним браузером. Привилегированный WebView загружает только собственные
+   разрешённые origin; каждый native plugin повторно проверяет origin и принимает узкий typed input.
+7. Worker продуктового этапа тесты не пишет. Первый независимый `auditor-live` составляет blind kill-set до чтения
+   тестов, добавляет только оправданные поведенческие acceptance-тесты и проводит fault injection по `AGENTS.md`
+   §10a/§10b/§24.4–§24.5.
 
-Один подписанный BersonCare app для Android/iOS:
+## 2. Superseded direction
 
-- локально собранная native оболочка, не production WebView на `server.url`;
-- серверные данные и бизнес-правила остаются на российском BersonCare backend;
-- отдельная от браузерной безопасная mobile session;
-- Universal Links / App Links и безопасные deep links;
-- provider-neutral `app_push` с APNs/FCM и in-app source of truth;
-- Telegram/MAX используются только для login/bind code flow;
-- PWA/Web Push не блокируют выпуск native app и не смешиваются с native device tokens.
+Отменены владельцем и не исполняются: отдельный `apps/mobile` SPA с копиями экранов, local production web bundle,
+отдельная mobile auth/session только ради оболочки, iOS native binary, APNs/Google-first release и запрет remote
+Next.js WebView. Исторические документы перенесены в
+`docs/archive/2026-09-native-mobile-local-bundle-retirement/`; открытых исполняемых чекбоксов там нет.
 
-## 2. Рекомендуемая архитектурная гипотеза
+Причина смены: remote WebView имеет origin реального сайта, поэтому существующие cookie, CSRF, SSR/RSC и API
+работают как в браузере; стены spike относились к local-origin mobile SPA и не применимы к выбранной оболочке.
 
-Создать отдельный `apps/mobile` с React + Capacitor и локальным web bundle. Он использует стабильные JSON API
-текущего российского backend и переиспользует shared TypeScript contracts/UI primitives там, где они не завязаны
-на Next RSC. `apps/webapp` остаётся Next.js web surface и backend; бизнес-правила не копируются в mobile.
+## 3. Target architecture
 
-Это гипотеза до `MOB-00`, не разрешение немедленно создавать второй frontend. Текущие server components, cookie-
-redirects и DB reads нельзя механически импортировать в local mobile bundle.
+```text
+                        existing Next.js webapp
+                therapygo.ru             therapysto.ru
+                     |                         |
+          PWA Therapy Go (iOS/Android)  PWA Therapysto (iOS/Android)
+                     |                         |
+              Android WebView           Android WebView
+                 patient flavor         specialist flavor
+                       \                   /
+                    one shared apps/mobile-shell
+                  typed JS bridge + Kotlin plugins
+                    | Universal Push / Jitsi / CameraX
+```
 
-Отклонённый production baseline: APK/IPA, который открывает `https://...` через Capacitor `server.url`. Причины:
-официально dev-only режим, слабая offline/error semantics, session/origin fragility и риск Apple 4.2.
+- Один native source tree, две product flavors и отдельные application IDs/resources/store artifacts.
+- `test` и `production` — отдельная build dimension; TEST использует только TEST domains и `.test` application-id
+  suffix. Production config не содержит секретов.
+- Webapp использует один `NativeRuntime` adapter. Browser/PWA получает web fallback; Capacitor вызывает тот же
+  публичный контракт через native bridge. Параллельных upload/video/push business paths не создавать.
+- Candidate application IDs до внешней регистрации: `ru.therapygo.app` и `ru.therapysto.app`. Их нельзя считать
+  закреплёнными в RuStore до owner-controlled создания карточек.
+- Release start URLs: `https://therapygo.ru/app/patient` и `https://therapysto.ru/app/doctor`; TEST — соответствующие
+  `test.*` hosts. Redirect внутри того же first-party surface разрешён, другой origin — внешний браузер.
 
-## 3. Этапы и порядок
+## 4. Execution stages and atomic acceptance
 
-| Этап                             | Когда                                                 | Результат                                                                       | AI / владелец             |              Оценка |
-| -------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------- | ------------------: |
-| `MOB-00` ADR + device spike      | после фиксации owner gates, без пересечения active UI | доказан shell/auth/API/push/deep-link путь; выбран первый persona/platform      | AI + owner                |            3–7 дней |
-| `MOB-01` Shell/build/signing     | после PASS `MOB-00`                                   | воспроизводимые Android/iOS projects, local bundle, CI artifacts                | AI + owner accounts       |          1–2 недели |
-| `MOB-02` Mobile auth/session     | после auth threat review                              | rotating mobile session, Keychain/Keystore, revoke/device list, safe deep links | AI + security audit       |          1–2 недели |
-| `MOB-03` App push                | вместе с privacy `NTF-01`                             | APNs/FCM targets, provider adapters, topic policy, tap routing                  | AI + provider/legal gates |          2–3 недели |
-| `MOB-04` Product surfaces        | после stable API contracts                            | согласованный patient/staff набор экранов работает из local bundle              | AI + owner UX acceptance  |          2–6 недель |
-| `MOB-05` Device privacy/security | параллельно `MOB-03/04`                               | cache/screenshot/log/backup/privacy manifest controls                           | AI + external review      |          1–2 недели |
-| `MOB-06` Device/store release    | после full feature gate                               | real-device matrix, store metadata, signed release и rollback                   | AI + owner/store review   | 1–3 недели + review |
+Галочку закрывает только lead после committed candidate, независимого audit evidence и собственной проверки.
+Worker `done` и audit `PASS` сами по себе чекбокс не закрывают.
 
-Инженерная оценка для **Android-first patient MVP**: примерно 4–7 недель после `MOB-00`. Для Android+iOS с
-patient+staff parity: ориентир 8–14 недель. Главная неопределённость — объём RSC/SSR UI, который придётся отделить
-от Next runtime; `MOB-00` обязан пересчитать оценку по реальному прототипу.
+### M0 — authority, archive and measured baseline
 
-## 4. MOB-00 — ADR и вертикальный spike
+- [ ] **M0-01.** Старый local-bundle план перемещён в архив, снабжён forward-link, все его открытые чекбоксы явно
+      отменены owner-решением 2026-09-09; `CURRENT_AUTHORITY_MAP`, `docs/README.md` и taskdb `#915` указывают только
+      на этот план.
+- [ ] **M0-02.** Зафиксирован baseline: текущий SHA, существующие PWA manifests/icons, три production-входа
+      `VideoMeetingStage`, все публичные file/media entrypoints, notification intent/delivery chokepoint, доступный
+      Android toolchain и внешние provider gates. Числа сопровождаются точными командами.
+- [ ] **M0-03.** Независимый Opus review проверил полноту плана, отсутствие копии webapp/domain logic, границы
+      workstreams и реальные owner blockers; принятые усиления внесены до запуска product workers.
 
-> **ИСПОЛНЕНО 2026-08-22 → [`MOB-00_ADR_AND_SPIKE_FINDINGS.md`](MOB-00_ADR_AND_SPIKE_FINDINGS.md)** (коммит
-> `a8209f7c0`). Вердикт: Capacitor как runtime подтверждён, обёртка вокруг текущего `apps/webapp` ОПРОВЕРГНУТА
-> тремя измеренными стенами (нет статической сборки; нулевой CORS; CSRF-гейт режет любой мобильный транспорт).
-> Гипотеза §2 — отдельный `apps/mobile` + локальный бандл + существующие JSON API — выстояла.
-> Срок пересчитан: **10–15 недель** вместо ~4–7 для Android-first patient MVP.
->
-> Из шести чекбоксов «AI work» ниже evidence имеют 1, 2, 4, 5, 6. **Чекбокс 3 (proof на устройстве) ОТКРЫТ:**
-> iOS-симулятор на Linux невозможен, Android-эмулятор не запускался (`/dev/kvm` есть, но пользователь не в группе
-> `kvm`), APK не собирался (на боксе нет JDK). Галочки НЕ проставлены намеренно — приёмка владельца.
-> Открытые вопросы владельцу — §7 findings-документа.
+### M1 — two PWA identities and install surfaces
 
-### Owner gates
+Scope: PWA metadata/manifests/setup pages and derived icon assets; no unrelated patient/doctor UI redesign.
 
-- [ ] Первый release: `patient` / `staff` / оба. Рекомендация: patient-first, staff продолжает работать в web.
-- [ ] Первый store: RuStore/direct Android / Google Play / App Store и порядок. Рекомендация: Android device
-  prototype первым; iOS architecture проверяется одновременно, публикация — после Apple account/build gate.
-- [ ] Один platform binary подтверждён; per-organization white-label native apps остаются вне scope.
-- [ ] Billing/store policy: покупать SaaS внутри app, только управлять уже купленной подпиской или скрыть checkout до
-  отдельной IAP/store-policy реализации.
+- [ ] **M1-01.** Default patient PWA называется Therapy Go, использует mark с шариком, `start_url=/app/patient`,
+      корректные 192/512/maskable/apple-touch assets и устанавливается на iOS Safari и Android browser.
+- [ ] **M1-02.** Staff PWA называется Therapysto, использует mark без шарика, `start_url=/app/doctor` и отдельные
+      192/512/maskable/apple-touch assets. Patient/staff manifests не наследуют иконки друг друга.
+- [ ] **M1-03.** Platform-admin surface не получает patient/staff install prompt; существующий чёрный admin asset
+      сохраняется. Clinic-specific blue/tenant assets не удаляются и не подменяются глобальным Therapy Go mark.
+- [ ] **M1-04.** `/setup` даёт краткую корректную инструкцию установки для текущей surface: iOS Safari и Android
+      browser. Внутри Capacitor install UI и service-worker/PWA prompts скрыты единым native detector.
 
-### AI work
+### M2 — reproducible shared Android/Capacitor shell
 
-- [ ] Зафиксировать current dependency map: RSC/cookies/redirects/API/PWA gates/file upload/media/auth.
-- [ ] В изолированном worktree/temporary proof собрать disposable Capacitor shell с локальным `index.html`;
-  production `server.url` запрещён тестом/config checker. Spike packages/platform projects не считаются
-  production package: после evidence они удаляются либо явно архивируются как prototype; канонический package
-  создаётся только в `MOB-01`.
-- [ ] Доказать на Android device/emulator и iOS simulator: API call, session exchange prototype, authenticated
-  screen, app link, push token registration stub, logout/revoke.
-- [ ] Выбрать reuse boundary: shared contracts/primitives versus mobile-only adapters; дублирование domain logic
-  запрещено.
-- [ ] Составить exact API gap list. Mobile не получает прямой DB access и не вводит параллельный backend.
-- [ ] Измерить bundle/startup/network/error UX и пересчитать `MOB-04` по экранным группам.
+Scope: `apps/mobile-shell/**`, root workspace/package wiring and build documentation. No product page copies.
 
-### PASS
+- [ ] **M2-01.** Создан один workspace package на pin-compatible Capacitor 8 с Android source artifacts, двумя
+      product flavors `therapygo`/`therapysto` и environment dimension `test`/`production`; четыре unsigned build
+      variants воспроизводимы на Linux.
+- [ ] **M2-02.** Flavors имеют отдельные application IDs, names, supplied icons/adaptive icons, splash resources,
+      theme colors, start URLs and allowed origins. Signing credentials/service tokens отсутствуют в git и bundle.
+- [ ] **M2-03.** Shell показывает startup/loading/offline/server-unavailable state, корректно обрабатывает Android
+      back/navigation и не обещает offline business data. HTTP/WebView cache используется штатно, video cache не
+      добавляется.
+- [ ] **M2-04.** Один navigation policy является chokepoint: first-party surface остаётся в WebView; `http(s)` на
+      другой origin, `mailto`, `tel` и custom external schemes уходят в системный browser/app; intent/file schemes
+      без явного allowlist отклоняются.
+- [ ] **M2-05.** Bridge и каждый plugin fail closed для недоверенного origin. Cleartext traffic запрещён release-
+      конфигурацией; logs не содержат cookies, fragment secrets, Jitsi JWT, push tokens или media presigned URLs.
+- [ ] **M2-06.** README содержит точные команды sync/build, расположение APK, требования JDK/Android SDK и процесс
+      создания RuStore signing artifact без приватного ключа в repository.
 
-- local bundle работает без remote `server.url`;
-- proof не требует ослабить cookie/CSRF/CORS для всего интернета;
-- есть один typed session/push/deep-link boundary;
-- owner принимает persona/platform/order и новую оценку.
+### M3 — one typed NativeRuntime boundary in webapp
 
-## 5. MOB-01 — shell, build и release foundation
+Scope: shared browser/native adapters and narrow integration points. Apply `AGENTS.md` §5 “one common path”.
 
-- [ ] Создать exact-scoped mobile package только после ADR: Capacitor core/CLI/platforms, locked versions, no
-  unreviewed community plugins.
-- [ ] Bundle ID/application ID, environment mapping DEV/TEST/PROD и allowed origins не содержат tenant identity.
-- [ ] Native projects являются воспроизводимыми source artifacts; signing credentials не коммитятся.
-- [ ] Android build на Linux; iOS build только на owner-approved macOS/Xcode runner.
-- [ ] Реализовать startup, maintenance/update-required, offline/server-unavailable и safe external-link screens.
-- [ ] CI собирает unsigned/test artifacts и проверяет dependency/security/privacy manifests; release signing —
-  защищённый manual gate.
+- [ ] **M3-01.** Есть один строго типизированный `NativeRuntime` boundary с browser fallback и Capacitor adapter;
+      product pages не читают `window.Capacitor` и не импортируют Kotlin/plugin details напрямую.
+- [ ] **M3-02.** Runtime сообщает `browser|therapygo_android|therapysto_android`, app version и capability flags;
+      server authorization не доверяет этим значениям как роли/org identity.
+- [ ] **M3-03.** App lifecycle resume обновляет session-dependent push registration safely; logout/offboarding
+      вызывает единый revoke path. Отсутствующий plugin деградирует в web behavior без белого экрана.
 
-Checks: clean install, reproducible build, dependency audit, no-secret scan, network allowlist negative test.
+### M4 — native Jitsi without a second video page
 
-## 6. MOB-02 — mobile identity, session и deep links
+Scope: native Jitsi plugin plus existing `VideoMeetingStage` seam. Current `#1100` owner requirements remain
+authority for the browser path; do not overlap an active `#1100` worker before its landing.
 
-- [ ] Короткоживущий access token + rotating refresh token; refresh хранится Keychain/Keystore и может быть отозван
-  по device session. Web HttpOnly cookie flow сохраняется отдельно.
-- [ ] Login через email/OAuth и Telegram/MAX code не передаёт access/refresh tokens в URL или messenger.
-- [ ] Bind/login code одноразовый, rate-limited, purpose-bound; старые mini-app init-login paths выводятся по
-  `NTF-01`, а не поддерживаются как второй mobile auth.
-- [ ] Universal Links/App Links имеют allowlist; custom scheme не принимает session/token и не открывает внешний URL
-  внутри privileged WebView.
-- [ ] Logout, password/account security event и offboarding отзывают mobile sessions и push targets.
-- [ ] Device list показывает пользователю активные sessions без сырых push tokens/device identifiers.
+- [ ] **M4-01.** `VideoMeetingStage` retains one provider-neutral render contract. Browser uses the existing iframe
+      renderer; trusted Android runtime opens Jitsi Android SDK with the same endpoint, room reference and JWT.
+- [ ] **M4-02.** Jitsi runs in a native full-screen Activity, returns joined/terminated/error events, honors explicit
+      user start, microphone/camera permissions, hangup and retry, and never prints room/JWT/guest secret in logs.
+- [ ] **M4-03.** Therapy Go and Therapysto both reach the same self-hosted `meet.therapysto.ru`/TEST counterpart;
+      `meet.jit.si`, JaaS and other external media/telemetry endpoints are absent.
+- [ ] **M4-04.** Specialist can return from native call to the unchanged notes/encounter page; no separate mobile
+      notes implementation is created. Browser/PWA video behavior remains operational.
 
-Checks: replay/rotation/race/wrong-user/wrong-org/deep-link injection, lost-device revoke, tenant-negative matrix.
+### M5 — camera, gallery, documents and streaming upload
 
-## 7. MOB-03 — provider-neutral app push
+Scope: one media-source adapter, Android CameraX/pickers, and existing upload services. Do not create a second media
+library or bypass presign/confirm authorization.
 
-Канон policy/content/cutover:
-[`../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md).
+- [ ] **M5-01.** One `DeviceMedia` contract exposes `captureMedia`, `pickMedia`, `pickDocument`, `upload`; all
+      existing in-scope upload UI parameterizes this seam instead of owning duplicate native detection.
+- [ ] **M5-02.** Android camera screen uses CameraX and lets the user switch Photo/Video in the camera itself;
+      front/back camera and runtime permissions work, cancellation returns without a fake error.
+- [ ] **M5-03.** Gallery accepts images/videos together through the system picker; document action is separate and
+      uses the system document picker with narrow MIME filters.
+- [ ] **M5-04.** Large media remains a native content URI and streams to the existing authorized presigned URL;
+      no base64 bridge or whole-video JS heap copy. Existing confirm/failure semantics and media metadata are reused.
+- [ ] **M5-05.** Browser/PWA retains standards-based file inputs with distinct camera/media/document actions where
+      the browser exposes them. Native-only capability never makes browser upload worse.
 
-- [ ] Event producers создают notification intent, не вызывают APNs/FCM/Web Push напрямую.
-- [ ] Provider-neutral delivery target различает `web_vapid`, `fcm`, `apns`; native token не записывается в
-  `user_web_push_subscriptions`.
-- [ ] Target принадлежит platform user/device; tenant authorization повторно проверяется по event/resource context.
-- [ ] Token registration/rotation/logout/invalid-token/offboarding идемпотентны и имеют retention policy.
-- [ ] Integrator delivery chokepoint получает adapters APNs/FCM; server credentials — restricted DB-backed settings
-  после S5/crypto gate, не env и не app bundle.
-- [ ] App tap открывает только внутренний allowlisted route; payload не содержит presigned URL, secret или raw
-  clinical/free-text content.
-- [ ] Web Push остаётся compatibility transport для browser users до отдельного retirement decision.
+### M6 — RuStore Universal Push end to end
 
-Checks: foreground/background/killed state, multiple devices, token rotation, denied permission, retry/dedup,
-wrong-tenant target, expired session, provider outage and no hidden messenger fallback.
+Scope: provider-neutral native target model, server delivery adapter, Kotlin Universal Push bridge and tap routing.
+Configuration obeys `AGENTS.md` §2–§5 and extends NTF-01/N2 rather than inventing a parallel notification system.
 
-## 8. MOB-04 — product surfaces
+- [ ] **M6-01.** Native targets are stored separately from `user_web_push_subscriptions`; target belongs to a
+      platform user/device/app/provider, preserves organization context where required, encrypts recoverable token
+      material and uses a non-secret hash for idempotent uniqueness.
+- [ ] **M6-02.** Authenticated register/rotate/revoke endpoints are thin and call one service/port. Logout,
+      offboarding and provider invalid-token responses deactivate targets idempotently; raw tokens never enter logs,
+      taskdb or delivery-attempt payloads.
+- [ ] **M6-03.** Kotlin plugin integrates RuStore Universal Push SDK 7.4.1 directly (no temporary direct-RuStore
+      implementation), initially enables RuStore provider and reports availability/new token/message/errors through
+      the typed bridge. FCM/HMS remain addable providers without JS/schema redesign.
+- [ ] **M6-04.** Existing notification intent/delivery chokepoint gets a `rustore_universal_push` adapter using
+      RuStore Universal Push API; event producers do not call the provider. Project ID/auth token/endpoint live only
+      in restricted DB-backed `system_settings`, not env/app bundle.
+- [ ] **M6-05.** Payload carries minimal title/body plus allowlisted internal route; no raw clinical/chat/free-text,
+      file name, presigned URL, cookie, token or organization secret. Tap routes inside the correct app surface;
+      external/deceptive routes are rejected.
+- [ ] **M6-06.** Android notification permission and stable channels are implemented. Routine reminders, calls and
+      messages may use separately configured bundled sounds; Android user channel settings remain authoritative.
+- [ ] **M6-07.** Denied permission/no provider/no active target preserves the canonical in-app state and records a
+      non-secret observable outcome; it does not silently fall back to an unauthorized messenger channel.
 
-Декомпозиция создаётся после `MOB-00` по экранным группам и стабильным API contracts. Минимальные правила:
+### M7 — independent audits and integration gate
 
-- native platform detector отключает PWA install/SW UI внутри app, не притворяясь standalone PWA;
-- SSR/RSC данные получают явный API/bootstrap adapter; client не импортирует DB/server-only modules;
-- auth, chat/inbox, reminders, booking, files/media и выбранный first-persona navigation работают end-to-end;
-- upload/download используют native-safe file handling без plaintext temp files дольше операции;
-- каждый пакет экранов получает real-device owner acceptance; active Doctor DNA не переписывается параллельно.
+- [ ] **M7-01.** Each new surface receives one independent `auditor-live` pass: shell/navigation security,
+      web/native bridge+PWA, Jitsi/media, native-target lifecycle/provider delivery. Auditor starts with `test or
+      view`, builds blind kill-set before reading tests and records fault-injection evidence.
+- [ ] **M7-02.** Workers wrote no tests. Auditor-added tests protect only stable behavior/security contracts;
+      source-text, UI wording/count/layout and implementation-call tests are absent or removed when encountered in
+      touched scope, except incident-backed tests with a named observable failure.
+- [ ] **M7-03.** Both TEST APK variants assemble on Linux. Browser/PWA live acceptance covers install metadata,
+      file fallback and iframe Jitsi; Android emulator/device acceptance covers origins/external links, camera,
+      documents, native Jitsi, permission states and notification tap.
+- [ ] **M7-04.** Targeted/phase checks are green on candidate SHAs. Because this changes root dependencies,
+      lockfile, webapp, integrator and Android package, one full CI runs under the host lock only at final integration.
+- [ ] **M7-05.** Integrated `feat/doctor-ui-rebuild` contains plan evidence per checkbox, taskdb `#915` matches fact,
+      commits are pushed through the checked wrapper and no worker clone/process is left active.
 
-## 9. MOB-05 — privacy/security
+## 5. Parallel workstreams
 
-- [ ] Модель данных на устройстве: что кешируется, TTL, logout/offboarding wipe, OS backup inclusion/exclusion.
-- [ ] Refresh tokens и keys — Keychain/Keystore; clinical data не хранится в Preferences/localStorage по умолчанию.
-- [ ] App switcher/privacy screen и screenshot policy для чувствительных экранов определены threat model, не
-  blanket-запретом без UX оценки.
-- [ ] Crash/analytics logs не содержат payload, токены, ФИО, телефоны, сообщения, файлы или diagnoses.
-- [ ] Apple Privacy Manifest, App Privacy и Google Data Safety совпадают с фактическими SDK/data flows.
-- [ ] APNs/FCM/Apple/Google внесены в processing/vendor/transborder register и закрыты `G-04B` до production.
-- [ ] Rooted/jailbroken device policy, TLS pinning decision и app integrity controls имеют явный verdict; отсутствие
-  pinning не маскируется словом «невозможно».
+Work begins only after M0-03 plan review.
 
-## 10. MOB-06 — store/release
+1. **Shell/native foundation** — `apps/mobile-shell/**`, root workspace wiring. First and sequential because other
+   native work depends on its Gradle/Capacitor contract.
+2. After foundation, three non-overlapping candidates may run in parallel:
+   - **Native capabilities:** only `apps/mobile-shell/**` — Universal Push client bridge, Jitsi Activity, CameraX,
+     system pickers and native streaming uploader.
+   - **Web/PWA adapters:** PWA assets/manifests/setup, `NativeRuntime`, `VideoMeetingStage` adapter and existing
+     media UI/services; excludes DB/integrator/native project.
+   - **Push backend:** native target schema/service/repository/routes, DB-backed settings and provider delivery;
+     excludes UI, current `#1100` files and native project.
+3. Lead lands audited branches one at a time, resolves integration seams, then runs final app-level/full gates.
 
-- [ ] Real-device matrix: supported OS, clean install/update, permission denied/re-enabled, background/killed push,
-  deep links, offline, slow network, expired/revoked session, multi-device and accessibility.
-- [ ] Apple 4.2 evidence показывает app-like value: native push/deep links/secure session плюс минимум один реально
-  полезный native capability (например biometric app lock или safe file share/upload), а не пустой wrapper.
-- [ ] Billing UI прошёл store-policy review. SaaS/feature unlock не ведёт на CloudPayments WebView вопреки правилам
-  store; решение зафиксировано до submission.
-- [ ] Demo/reviewer access не раскрывает production ПДн; privacy/support/delete-account links доступны.
-- [ ] Signed artifact привязан к source SHA, SBOM/dependency report и release notes; rollback = предыдущий binary +
-  backward-compatible backend, а не отключение security checks.
+Every worker brief quotes the exact M-IDs and text, points to relevant `AGENTS.md` sections and asks whether an
+existing chokepoint can be parameterized instead of adding a parallel function.
 
-## 11. Оркестрация и scope
+## 6. External/owner gates — not reasons to stop repository work
 
-- Все MOB-stages остаются этапами одного канонического плана workstream; отдельные taskdb-карточки на этапы
-  не создаются. Exact files, stable dependency SHA и risk-based audit фиксируются в соответствующем этапе плана.
-- Независимые Android build, backend push adapter и legal/store packets могут идти параллельно с непересекающимся
-  file scope; auth/schema/security stages сериализуются по contracts.
-- После каждого пользовательски видимого пакета — owner real-device acceptance. Audit PASS не заменяет приёмку.
-- Production provider credentials, store submission, signing и PROD rollout требуют отдельных owner windows.
-- Один полный `pnpm run ci` выполняется на integration/release checkpoint; mobile native builds/tests добавляются к
-  gate после появления package.
+- RuStore application cards, final immutable package IDs, Universal Push project IDs/service tokens.
+- Release keystore/signing, signed AAB/APK and store submission.
+- Physical Android real-device acceptance and final notification delivery through RuStore infrastructure.
+- PROD credentials/configuration/deploy and any Google Play/App Store work.
+
+Repository code, unsigned TEST APKs, mocks/fakes against published protocols, PWA behavior, documentation and
+security/audit gates proceed without those inputs. Missing external inputs are recorded as blockers only for the
+specific release/runtime checkbox, never as a reason to abandon the whole plan.
+
+## 7. Evidence ledger
+
+| ID | Status | Evidence |
+|---|---|---|
+| M0-01…M7-05 | open | Filled by lead only after committed implementation + independent acceptance. |

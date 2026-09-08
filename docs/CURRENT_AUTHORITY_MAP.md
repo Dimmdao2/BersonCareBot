@@ -63,11 +63,13 @@
 | **🚀 Production infrastructure build/cutover**                                                                                  | `docs/_TODO/INFRASTRUCTURE_SECURITY_PLAN.md` §I7; точные подтверждённые host-команды — `deploy/HOST_DEPLOY_README.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | **DB migration/access cutover**                                                                                                  | `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/PLAN.md`. `SAAS_PROD_DEPLOY_PROCESS`, `ROLE_GRANTS_PROVENANCE_AND_PROD_MIGRATION_PLAN` и `ISOLATION_PROVISIONING_REMEDIATION_PLAN_2026-07-24` — прежние материалы, не параллельные authority текущей схемы.                                                                                                                                                                                                                                                                                                                                                                                                             |
 
-## Сверено 01.09.2026 — будущие и неисполняемые планы
+## Сверено 09.09.2026 — mobile activation и будущие планы
 
-- **`docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/`** теперь имеет taskdb-карточку `#915`, но остаётся `blocked` на
-  перечисленных в плане owner-gates. Старый вывод от 26.07 «нет карточки/провенанса» недействителен; сам план
-  не запускается автономно до ответов владельца.
+- **Native mobile / PWA:** актуальный исполняемый источник —
+  [`docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md`](./_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md),
+  taskdb `#915`, статус `doing`. Владелец 2026-09-09 выбрал два тонких Android/Capacitor-приложения поверх
+  действующего Next.js и две PWA-поверхности; прежний local-bundle/mobile-SPA план отменён и перенесён в
+  `docs/archive/2026-09-native-mobile-local-bundle-retirement/`.
 - **`docs/_TODO/SAAS_FOUNDATION/AUTONOMOUS_NIGHTLY_RUNBOOK.md`** (51 откр.) — файл сам себя объявляет мёртвым в
   первой строке («Phase 0 complete... следующее направление T0/R2»); все 51 открытых пункта внутри именно того
   раздела, что помечен «не исполнять». Не заводить по нему работу.
