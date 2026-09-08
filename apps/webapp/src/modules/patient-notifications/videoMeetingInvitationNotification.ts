@@ -49,9 +49,9 @@ function contentFor(channel: DeliveryChannel, guestUrl: string): OutboundMessage
 function queueTargets(input: {
   selectedChannels: readonly DeliveryChannel[];
   patientUserId: string;
-  telegramId?: string;
-  maxId?: string;
-  emailRecipient?: string;
+  telegramId?: string | null;
+  maxId?: string | null;
+  emailRecipient?: string | null;
   guestUrl: string;
 }): QueueTarget[] {
   const selected = new Set(input.selectedChannels);
