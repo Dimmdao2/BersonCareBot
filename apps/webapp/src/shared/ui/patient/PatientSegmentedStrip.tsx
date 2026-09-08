@@ -133,7 +133,7 @@ export function PatientSegmentedTab({
   return (
     <TabsTrigger
       className={cn(
-        'group/segmented-tab relative flex !h-auto min-h-[3.25rem] !rounded-none !border-0 px-1 py-2 text-center !shadow-none lg:min-h-[3.5rem] lg:px-2',
+        'group/segmented-tab relative flex !h-auto min-h-[3.25rem] min-w-0 !flex-col !gap-0 !rounded-none !border-0 px-1 py-2 text-center whitespace-normal !shadow-none lg:min-h-[3.5rem] lg:px-2',
         'bg-[var(--patient-segmented-bg)] patient-text-segmented hover:bg-[var(--patient-segmented-hover-bg)] data-active:!bg-[var(--patient-segmented-active-bg)] data-active:!shadow-none',
         'focus-visible:!border-[var(--patient-color-primary)] focus-visible:!ring-2 focus-visible:!ring-inset focus-visible:!ring-[var(--patient-color-primary)]',
         'after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-[1] after:h-0.5 after:bg-[var(--patient-color-primary)] after:opacity-0 data-active:after:opacity-100',
@@ -141,10 +141,10 @@ export function PatientSegmentedTab({
       )}
       {...props}
     >
-      <span className="patient-type-navigation patient-text-segmented-tab-label">
+      <span className="block w-full min-w-0 truncate patient-type-navigation patient-text-segmented-tab-label">
         {label}
       </span>
-      <span className="patient-type-navigation-label patient-text-segmented-tab-subtitle">
+      <span className="block w-full min-w-0 truncate patient-type-navigation-label patient-text-segmented-tab-subtitle">
         {subtitle}
       </span>
     </TabsTrigger>

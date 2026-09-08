@@ -300,23 +300,23 @@
   }
 }
 
+.patient-type-navigation {
+  font-size: var(--patient-font-size-secondary);
+  font-weight: var(--patient-font-weight-medium);
+  line-height: var(--patient-line-height-secondary);
+}
+
+.patient-type-navigation-label {
+  font-size: var(--patient-font-size-micro);
+  font-weight: var(--patient-font-weight-medium);
+  line-height: var(--patient-line-height-micro);
+}
+
 @media (min-width: 640px) {
   .patient-type-home-status {
     font-size: var(--patient-font-size-secondary);
     font-weight: var(--patient-font-weight-regular);
     line-height: var(--patient-line-height-secondary);
-  }
-
-  .patient-type-navigation {
-    font-size: var(--patient-font-size-secondary);
-    font-weight: var(--patient-font-weight-medium);
-    line-height: var(--patient-line-height-secondary);
-  }
-
-  .patient-type-navigation-label {
-    font-size: var(--patient-font-size-caption);
-    font-weight: var(--patient-font-weight-medium);
-    line-height: var(--patient-line-height-caption);
   }
 }
 
