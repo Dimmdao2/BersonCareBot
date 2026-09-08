@@ -4,6 +4,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { getMediaRowForConfirm } from '@/app-layer/media/s3MediaStorage';
+import { maybeAutoEnqueueVideoTranscodeAfterUpload } from '@/app-layer/media/mediaTranscodeAutoEnqueue';
 import {
   abortPendingMediaUpload,
   validateReceivedMediaObject,
@@ -79,6 +80,10 @@ export async function POST(
       deps.patientFiles.confirmFileUpload(file.mediaFileId!, received.value),
     );
     if (!confirmed) return NextResponse.json({ ok: false, error: 'confirm_race' }, { status: 409 });
+    await maybeAutoEnqueueVideoTranscodeAfterUpload(
+      file.mediaFileId,
+      received.value.intent.mimeType,
+    );
     return NextResponse.json({ ok: true, file: confirmed });
   } catch (error) {
     if (error instanceof Error && error.message === FILES_QUOTA_REACHED_MESSAGE) {

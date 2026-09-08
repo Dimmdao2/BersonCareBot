@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/ui/doctor/primitives/dropdown-menu';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorMediaPlaybackVideo } from '@/shared/ui/doctor/media/DoctorMediaPlaybackVideo';
 import {
   Dialog,
   DialogContent,
@@ -442,6 +443,7 @@ function FilePreviewModal({
 }) {
   const isImage = file?.mimeType.startsWith('image/') ?? false;
   const isPdf = file?.mimeType === 'application/pdf';
+  const isVideo = file?.mimeType.startsWith('video/') ?? false;
 
   return (
     <DoctorModal open={file !== null} onClose={onClose} title={file?.fileName ?? 'Файл'} size="lg">
@@ -460,6 +462,13 @@ function FilePreviewModal({
                 src={file.previewUrl}
                 title={file.fileName}
                 className="h-[50vh] w-full border-0"
+              />
+            ) : isVideo && file.mediaFileId ? (
+              <DoctorMediaPlaybackVideo
+                mediaId={file.mediaFileId}
+                title={file.fileName}
+                initialPlayback={null}
+                shellClassName="h-[50vh] w-full"
               />
             ) : (
               <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
