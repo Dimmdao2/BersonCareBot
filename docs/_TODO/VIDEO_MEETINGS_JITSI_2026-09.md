@@ -2,9 +2,10 @@
 
 Дата решения владельца: **2026-09-08**.
 Taskdb: **#1100**.
-Статус: **в исполнении; исходные шесть MUST FIX high-Opus audit внесены; delta-аудит owner-correction 08.09
-завершён с четырьмя MUST FIX, они внесены ниже как обязательный core-correction до интеграции UI**.
-Рабочая ветка лида: `wt/video-meetings-jitsi-20260908`, база: `b0eb1e45a56deee9f6cb6b0e9948e831f429b5c6`.
+Статус: **приложение и TEST deploy готовы на `ecf9dcbb2037`; Jitsi/coturn runtime ожидает два внешних DNS A-record
+и доверенный TLS, поэтому медиасоединение и runtime-пункты VM-01..06 пока не приняты**.
+Интеграционная ветка лида: `feat/doctor-ui-rebuild`; исходная база исполнения:
+`b0eb1e45a56deee9f6cb6b0e9948e831f429b5c6`.
 PROD вне scope. Разрешены реализация, независимая приёмка и выкладка на именованный TEST.
 
 ## 1. Результат для человека
@@ -280,6 +281,27 @@ encounter tab  --> existing canonical encounter form/service/write-path
    restart/rollback проверяются без записи или транскрибации.
 
 ## 7. Внешние gates и границы релиза
+
+### Фактическое состояние на 2026-09-08
+
+- Core, дневные заметки, уведомление, workspace/tariff gate, UI и self-hosted Jitsi package приземлены в
+  `feat/doctor-ui-rebuild`; итоговый runtime config fix — `ecf9dcbb2037`. Независимая Wave 2 приёмка и её
+  исправления записаны в `docs/audit/video-meetings-full-surface-2026-09-08.md`.
+- `bash deploy/host/migrate-dev.sh --preflight` и `bash deploy/host/migrate-dev.sh --execute` прошли на именованной
+  DEV после миграции `20260908T074414_expose_jitsi_provider_settings_to_runtime.sql`; миграция меняет только
+  существующую SECURITY DEFINER-функцию `app.read_webapp_preauth_provider_setting(text)`, её объявленных SELECT-
+  колонок и EXECUTE-роли достаточно, новых grants/policies нет.
+- TEST deploy прошёл: transcript
+  `/var/log/bersoncarebot/deploy-test/deploy-test.20260908T075443Z.oldeuu.log`, `head=ecf9dcbb2037`, post-runtime
+  tenant gate `status=okay coverage=complete`. Живой POST врача дошёл через auth, entitlement и workspace gate до
+  ожидаемого `503 provider_unhealthy`, то есть DB-настройки Jitsi читаются и единственный текущий отказ — ещё не
+  запущенный endpoint.
+- `deploy/jitsi/bin/install.sh --check` не меняет хост и сейчас называет ровно три отсутствующих prerequisite:
+  DNS A для `meet.test.bersoncare.ru`, DNS A для `turn.test.bersoncare.ru` и доверенный сертификат coturn в
+  `/etc/coturn/tls/{fullchain,privkey}.pem`. Контейнеры `bcb-jitsi-test` не запускались.
+- После появления DNS лид может без участия владельца выпустить TLS, применить nginx/Jitsi/coturn на разрешённом
+  TEST-хосте и выполнить `RUNBOOK.md`. До этого остаются открыты VM-01..06, runtime-часть ACC-06, live visual
+  acceptance и пункты §6.8–§6.9; кодовые/DB/UI проверки не объявляются доказательством реального звонка.
 
 - TEST с синтетическими данными и владельцевыми тестовыми аккаунтами разрешён этим планом.
 - Реальный production rollout не входит в поручение и остаётся заблокирован соответствующими open gates
