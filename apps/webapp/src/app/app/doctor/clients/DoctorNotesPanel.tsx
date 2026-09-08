@@ -28,6 +28,7 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
   const [errorDates, setErrorDates] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const versionsRef = useRef(new Map<string, number>());
+  const savedVersionsRef = useRef(new Map<string, number>());
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const savingRef = useRef(new Set<string>());
 
@@ -49,14 +50,6 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
       setLoading(false);
     }
   }, [replaceNotes, userId]);
-
-  useEffect(() => {
-    const timers = timersRef.current;
-    void load();
-    return () => {
-      for (const timer of timers.values()) clearTimeout(timer);
-    };
-  }, [load]);
 
   const saveDate = useCallback(
     async (noteDate: string) => {
@@ -84,7 +77,11 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
               item.noteDate === noteDate ? { ...item, revision: data.note?.revision } : item,
             ),
           );
-          if (data.error === 'revision_conflict') versionsRef.current.set(noteDate, version + 1);
+          if (data.error === 'revision_conflict') {
+            versionsRef.current.set(noteDate, version + 1);
+          } else {
+            savedVersionsRef.current.set(noteDate, version);
+          }
         } else {
           throw new Error('save_failed');
         }
@@ -130,6 +127,30 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
     [replaceNotes, saveDate],
   );
 
+  const toggleExpanded = useCallback((noteDate: string) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(noteDate)) next.delete(noteDate);
+      else next.add(noteDate);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const timers = timersRef.current;
+    const versions = versionsRef.current;
+    const savedVersions = savedVersionsRef.current;
+    void load();
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      for (const [noteDate, version] of versions) {
+        if (version > (savedVersions.get(noteDate) ?? 0)) {
+          void saveDate(noteDate);
+        }
+      }
+    };
+  }, [load, saveDate]);
+
   const visibleNotes = today
     ? [...notes].sort((a, b) => b.noteDate.localeCompare(a.noteDate))
     : notes;
@@ -149,7 +170,9 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
               <button
                 type="button"
                 className="mb-1 text-left text-xs text-muted-foreground"
-                onClick={() => setExpanded((current) => new Set(current).add(note.noteDate))}
+                onClick={() => {
+                  if (!isToday) toggleExpanded(note.noteDate);
+                }}
                 aria-expanded={isExpanded}
               >
                 {formatDate(note.noteDate)}
@@ -168,7 +191,7 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
                 <button
                   type="button"
                   className="line-clamp-3 block w-full whitespace-pre-wrap text-left"
-                  onClick={() => setExpanded((current) => new Set(current).add(note.noteDate))}
+                  onClick={() => toggleExpanded(note.noteDate)}
                 >
                   {note.text}
                 </button>
