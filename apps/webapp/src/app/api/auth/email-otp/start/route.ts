@@ -20,9 +20,11 @@ import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitC
 import { mailProfileForResolvedSurface } from '@/modules/auth/mailProfile';
 import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
 import { authPolicyNameForRequestSurface } from '@/modules/auth/surfaceAuthSettings';
+import { authPolicyNameForRoleLoginPortal } from '@/modules/auth/roleLogin';
 
 const bodySchema = z.object({
   email: z.string().min(1),
+  roleLoginPortal: z.enum(['doctor', 'patient', 'admin']).optional(),
 });
 
 /** Общий bucket только в non-production, если прокси не передал X-Real-Ip. */
@@ -40,8 +42,14 @@ const PUBLIC_EMAIL_OTP_START_MIN_RESPONSE_MS = 500;
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/email-otp/start:POST', request);
   const resolvedSurface = requireResolvedSurface(request.headers);
+  const raw = (await request.json().catch(() => null)) as unknown;
+  const parsed = bodySchema.safeParse(raw);
+  const authPolicyName =
+    parsed.success && parsed.data.roleLoginPortal
+      ? authPolicyNameForRoleLoginPortal(parsed.data.roleLoginPortal)
+      : authPolicyNameForRequestSurface(resolvedSurface.surface);
   if (
-    !(await isAuthChannelEnabled('email', authPolicyNameForRequestSurface(resolvedSurface.surface)))
+    !(await isAuthChannelEnabled('email', authPolicyName))
   ) {
     return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
@@ -75,8 +83,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const raw = (await request.json().catch(() => null)) as unknown;
-  const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
       { ok: false, error: 'invalid_email', message: 'Неверный формат email' },
