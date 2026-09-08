@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/patient/primitives/tabs';
 import { cn } from '@/lib/utils';
-import { patientInnerPageStackClass } from '@/shared/ui/patient/patientVisual';
+import { patientActionTextClass, patientInnerPageStackClass } from '@/shared/ui/patient/patientVisual';
 
 type TabKey = 'symptoms' | 'lfk';
 
@@ -48,13 +48,13 @@ export function DiaryTabsClient({
         <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-none border-none bg-transparent p-0 shadow-none">
           <TabsTrigger
             value="symptoms"
-            className="h-auto rounded-lg bg-transparent py-2.5 text-base text-[var(--patient-text-muted)] shadow-none after:hidden data-active:bg-[var(--patient-color-primary-soft)]/40 data-active:font-semibold data-active:text-[var(--patient-color-primary)] data-active:shadow-none"
+            className={cn(patientActionTextClass, 'h-auto rounded-lg bg-transparent py-2.5 text-[var(--patient-text-muted)] shadow-none after:hidden data-active:bg-[var(--patient-color-primary-soft)]/40 data-active:text-[var(--patient-color-primary)] data-active:shadow-none')}
           >
             Симптомы
           </TabsTrigger>
           <TabsTrigger
             value="lfk"
-            className="h-auto rounded-lg bg-transparent py-2.5 text-base text-[var(--patient-text-muted)] shadow-none after:hidden data-active:bg-[var(--patient-color-primary-soft)]/40 data-active:font-semibold data-active:text-[var(--patient-color-primary)] data-active:shadow-none"
+            className={cn(patientActionTextClass, 'h-auto rounded-lg bg-transparent py-2.5 text-[var(--patient-text-muted)] shadow-none after:hidden data-active:bg-[var(--patient-color-primary-soft)]/40 data-active:text-[var(--patient-color-primary)] data-active:shadow-none')}
           >
             ЛФК
           </TabsTrigger>

@@ -21,6 +21,7 @@ import {
   type LastSymptomSaveMeta,
 } from './symptoms/symptomEntryDedup';
 import { markLfkSession } from './lfk/actions';
+import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   trackings: { id: string; title: string }[];
@@ -113,7 +114,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
         <div className="flex flex-col gap-6">
           {trackings.length > 0 ? (
             <section className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium">Симптом</h3>
+              <h3 className={patientSectionTitleClass}>Симптом</h3>
               <form
                 className="flex flex-col gap-2"
                 onSubmit={(e) => {
@@ -180,7 +181,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
 
           {complexes.length > 0 ? (
             <section className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium">ЛФК</h3>
+              <h3 className={patientSectionTitleClass}>ЛФК</h3>
               <form
                 className="flex flex-col gap-2"
                 onSubmit={(e) => {

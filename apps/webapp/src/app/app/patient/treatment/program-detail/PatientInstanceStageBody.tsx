@@ -14,6 +14,7 @@ import { type PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab'
 import { cn } from '@/lib/utils';
 import {
   patientBodyTextClass,
+  patientCaptionTextClass,
   patientMutedTextClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
@@ -124,15 +125,15 @@ export function PatientInstanceStageBody(props: {
               open
             >
               <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                <span className="text-sm font-semibold text-foreground">{g.title}</span>
+                <span className={patientSectionTitleClass}>{g.title}</span>
                 {g.scheduleText?.trim() ? (
-                  <span className={cn(patientMutedTextClass, 'mt-1 block text-xs')}>
+                  <span className={cn(patientCaptionTextClass, 'mt-1 block')}>
                     {g.scheduleText.trim()}
                   </span>
                 ) : null}
               </summary>
               {g.description?.trim() ? (
-                <p className={cn(patientBodyTextClass, 'mt-2 whitespace-pre-wrap text-sm')}>
+                <p className={cn(patientBodyTextClass, 'mt-2 whitespace-pre-wrap')}>
                   {g.description.trim()}
                 </p>
               ) : null}

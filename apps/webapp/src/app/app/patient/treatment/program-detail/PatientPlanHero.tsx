@@ -51,13 +51,13 @@ export function PatientPlanHeroCompleted(props: {
       >
         {detail.title}
       </h2>
-      <p className={cn(patientBodyTextClass, 'mt-3 text-sm leading-snug')}>
+      <p className={cn(patientBodyTextClass, 'mt-3')}>
         Программа реабилитации завершена
       </p>
-      <p className={cn(patientMutedTextClass, 'mt-2 text-sm')}>
+      <p className={cn(patientMutedTextClass, 'mt-2')}>
         Дата завершения: {formatBookingDateLongRu(detail.updatedAt, appDisplayTimeZone)}
       </p>
-      <p className={cn(patientMutedTextClass, 'mt-1 text-sm')}>
+      <p className={cn(patientMutedTextClass, 'mt-1')}>
         Пройдено {passedStages} {ruPassedStagesWord(passedStages)}
       </p>
     </div>
@@ -105,7 +105,7 @@ export function PatientPlanHeroActive(props: {
         {detail.title}
       </h2>
       {programDescription?.trim() ? (
-        <p className={cn(patientMutedTextClass, 'mt-2 line-clamp-3 text-sm leading-snug')}>
+        <p className={cn(patientMutedTextClass, 'mt-2 line-clamp-3')}>
           {programDescription.trim()}
         </p>
       ) : null}
@@ -124,14 +124,14 @@ export function PatientPlanHeroActive(props: {
           )}
           className={cn(
             patientHeroPrimaryActionClass,
-            'mt-5 mb-3 flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] no-underline lg:mt-6 lg:mb-4 lg:min-h-12 lg:text-base',
+            'mt-5 mb-3 flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2 shadow-[0_6px_14px_rgba(40,77,160,0.24)] no-underline lg:mt-6 lg:mb-4 lg:min-h-12',
           )}
         >
           <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
           Начать занятие
         </Link>
       ) : programTabStage ? null : (
-        <p className={cn(patientMutedTextClass, 'mt-2 text-sm')}>Нет открытых этапов.</p>
+        <p className={cn(patientMutedTextClass, 'mt-2')}>Нет открытых этапов.</p>
       )}
     </div>
   );

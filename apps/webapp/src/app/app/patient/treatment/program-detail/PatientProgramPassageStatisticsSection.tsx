@@ -90,7 +90,7 @@ export function PatientProgramPassageStatisticsSection(props: {
         iconClassName="text-[var(--patient-color-primary)]"
       />
       {showCollectingCopy ? (
-        <div className={cn(patientMutedTextClass, 'space-y-2 text-sm leading-snug')}>
+        <div className={cn(patientMutedTextClass, 'space-y-2')}>
           <p className={patientBodyTextClass}>Статистика пока собирается.</p>
           <p>Регулярность в занятиях - основа вашего здоровья!</p>
         </div>
@@ -102,7 +102,7 @@ export function PatientProgramPassageStatisticsSection(props: {
         <ul
           className={cn(
             patientMutedTextClass,
-            'm-0 list-none space-y-1.5 p-0 text-sm leading-snug',
+            'm-0 list-none space-y-1.5 p-0',
           )}
         >
           <li>Дней с занятиями: {stats.daysWithActivity}</li>

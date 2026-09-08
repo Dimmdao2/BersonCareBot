@@ -45,7 +45,7 @@ function PatientProgramVideoPlayer(props: {
           isFullscreen ? 'h-full min-h-0' : 'aspect-video',
         )}
       >
-        <p className={cn(patientMutedTextClass, 'text-center text-sm')}>
+        <p className={cn(patientMutedTextClass, 'text-center')}>
           Видео без привязки к медиатеке нельзя воспроизвести здесь.
         </p>
       </div>

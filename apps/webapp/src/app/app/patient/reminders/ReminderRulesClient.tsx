@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/primitives/card';
 import {
   patientHeroBookingSectionClass,
+  patientBodyTextClass,
+  patientCaptionTextClass,
   patientListItemClass,
   patientMutedTextClass,
   patientSectionTitleNormalClass,
@@ -102,7 +104,7 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
     <Card className={cn(patientListItemClass, 'mb-3')}>
       <CardHeader className="px-4 pb-2 pt-4">
         <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-base font-medium leading-tight">
+          <CardTitle className={patientSectionTitleNormalClass}>
             {CATEGORY_LABELS[rule.category] ?? rule.category}
           </CardTitle>
           <Switch
@@ -116,7 +118,7 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
 
       {rule.enabled && (
         <CardContent className="px-4 pb-4 pt-0">
-          <p className={cn(patientMutedTextClass, 'mb-2 text-xs')}>
+          <p className={cn(patientCaptionTextClass, 'mb-2')}>
             Расписание: {formatScheduleSummary(rule)}
           </p>
 
@@ -140,7 +142,7 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
             }}
           />
 
-          {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+          {error && <p className={cn(patientCaptionTextClass, 'mt-2 text-destructive')}>{error}</p>}
         </CardContent>
       )}
     </Card>
@@ -199,7 +201,7 @@ function PersonalReminderCard({
             <TypeIcon kind={iconKind} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base font-medium leading-tight">{label}</CardTitle>
+                <CardTitle className={patientSectionTitleNormalClass}>{label}</CardTitle>
                 <Switch
                   checked={rule.enabled}
                   onCheckedChange={patchEnabled}
@@ -207,24 +209,24 @@ function PersonalReminderCard({
                   aria-label={`Включить: ${label}`}
                 />
               </div>
-              <p className={cn(patientMutedTextClass, 'mt-1 text-xs')}>
+              <p className={cn(patientCaptionTextClass, 'mt-1')}>
                 {formatScheduleSummary(rule)}
               </p>
-              <div className={cn(patientMutedTextClass, 'mt-2 flex flex-wrap gap-2 text-xs')}>
+              <div className={cn(patientCaptionTextClass, 'mt-2 flex flex-wrap gap-2')}>
                 <span>
-                  <span className="font-medium text-[var(--patient-text-primary)]">
+                  <span className={patientBodyTextClass}>
                     {stats.done}
                   </span>{' '}
                   выполнено
                 </span>
                 <span>
-                  <span className="font-medium text-[var(--patient-text-primary)]">
+                  <span className={patientBodyTextClass}>
                     {stats.skipped}
                   </span>{' '}
                   пропущено
                 </span>
                 <span>
-                  <span className="font-medium text-[var(--patient-text-primary)]">
+                  <span className={patientBodyTextClass}>
                     {stats.snoozed}
                   </span>{' '}
                   отложено
@@ -255,7 +257,7 @@ function PersonalReminderCard({
                   Удалить
                 </Button>
               </div>
-              {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
+              {error ? <p className={cn(patientCaptionTextClass, 'mt-2 text-destructive')}>{error}</p> : null}
             </div>
           </div>
         </CardHeader>
@@ -476,16 +478,16 @@ export function ReminderRulesClient({
           className={cn(patientHeroBookingSectionClass, 'mb-4 !gap-3')}
         >
           <h2 className={patientSectionTitleNormalClass}>Тренировки</h2>
-          <p className={cn(patientMutedTextClass, 'text-xs font-normal')}>{activeProgram.title}</p>
+          <p className={patientCaptionTextClass}>{activeProgram.title}</p>
           <p className={cn(patientMutedTextClass, 'text-sm')}>Сегодня: {rehabCalendarLine}</p>
           <ReminderExerciseDeliveryChannels deliveryChannelLabels={exerciseDeliveryChannelLabels} />
           {rehabRuleForBlock ? (
             <div className="space-y-2">
-              <p className="text-xs text-[var(--patient-text-primary)]">
+              <p className={patientCaptionTextClass}>
                 {formatScheduleSummary(rehabRuleForBlock)}
               </p>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm text-[var(--patient-text-primary)]">Включено</span>
+                <span className={patientBodyTextClass}>Включено</span>
                 <Switch
                   checked={rehabRuleForBlock.enabled}
                   onCheckedChange={(c) => patchRuleEnabled(rehabRuleForBlock.id, c)}
@@ -553,11 +555,11 @@ export function ReminderRulesClient({
           <ReminderExerciseDeliveryChannels deliveryChannelLabels={exerciseDeliveryChannelLabels} />
           {warmupRuleForBlock ? (
             <div className="space-y-2">
-              <p className="text-xs text-[var(--patient-text-primary)]">
+              <p className={patientCaptionTextClass}>
                 {formatScheduleSummary(warmupRuleForBlock)}
               </p>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm text-[var(--patient-text-primary)]">Включено</span>
+                <span className={patientBodyTextClass}>Включено</span>
                 <Switch
                   checked={warmupRuleForBlock.enabled}
                   onCheckedChange={(c) => patchRuleEnabled(warmupRuleForBlock.id, c)}
@@ -626,10 +628,10 @@ export function ReminderRulesClient({
 
       {legacyRules.length > 0 ? (
         <>
-          <h2 className="mb-2 mt-4 text-sm font-semibold text-[var(--patient-text-primary)]">
+          <h2 className={cn(patientSectionTitleNormalClass, 'mb-2 mt-4')}>
             Системные уведомления
           </h2>
-          <p className={cn(patientMutedTextClass, 'mb-3 text-xs')}>
+          <p className={cn(patientCaptionTextClass, 'mb-3')}>
             Напоминания по типам событий. Расписание можно настроить под себя.
           </p>
           {legacyRules.map((r) => (

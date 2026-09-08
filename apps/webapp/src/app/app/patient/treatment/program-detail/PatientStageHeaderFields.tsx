@@ -92,7 +92,7 @@ export function PatientStageHeaderFields(props: {
       {!planPreview && durationLine ? (
         <div>
           <h3 className={patientSectionTitleClass}>Ожидаемый срок</h3>
-          <p className={cn(patientMutedTextClass, 'mt-1 text-sm')}>{durationLine}</p>
+          <p className={cn(patientMutedTextClass, 'mt-1')}>{durationLine}</p>
         </div>
       ) : null}
     </div>

@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from '@/shared/ui/patient/primitives/radio
 import { cn } from '@/lib/utils';
 import {
   patientButtonPrimaryClass,
+  patientActionTextClass,
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
 
@@ -110,7 +111,7 @@ export function ProgramItemCompleteDialog(props: {
               autoComplete="off"
               value={repsRaw}
               onChange={(e) => setRepsRaw(e.target.value)}
-              className="h-11 text-base sm:h-9 sm:text-sm"
+              className={cn(patientActionTextClass, 'h-11 sm:h-9')}
               placeholder="Например, 12"
               disabled={submitting}
             />
@@ -128,7 +129,7 @@ export function ProgramItemCompleteDialog(props: {
               autoComplete="off"
               value={setsRaw}
               onChange={(e) => setSetsRaw(e.target.value)}
-              className="h-11 text-base sm:h-9 sm:text-sm"
+              className={cn(patientActionTextClass, 'h-11 sm:h-9')}
               placeholder="Например, 3"
               disabled={submitting}
             />
@@ -146,7 +147,7 @@ export function ProgramItemCompleteDialog(props: {
               autoComplete="off"
               value={weightRaw}
               onChange={(e) => setWeightRaw(e.target.value)}
-              className="h-11 text-base sm:h-9 sm:text-sm"
+              className={cn(patientActionTextClass, 'h-11 sm:h-9')}
               placeholder="Например, 5"
               disabled={submitting}
             />

@@ -8,7 +8,12 @@ import { cn } from '@/lib/utils';
 import type { LfkComplex, LfkComplexExerciseLine } from '@/modules/diaries/types';
 import { MediaThumb } from '@/shared/ui/patient/media/MediaThumb';
 import { lfkCoverToPreviewUi } from '@/shared/ui/patient/media/mediaPreviewUiModel';
-import { patientCardCompactClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import {
+  patientBodyTextClass,
+  patientCaptionTextClass,
+  patientCardCompactClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
 
 export type LfkComplexCardProps = {
   complex: Pick<
@@ -60,9 +65,9 @@ export function LfkComplexCard({
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="truncate font-medium text-[var(--patient-text-primary)]">{title}</p>
+                <p className={cn(patientBodyTextClass, 'truncate')}>{title}</p>
                 {complex.origin === 'assigned_by_specialist' ? (
-                  <Badge variant="secondary" className="shrink-0 font-normal">
+                  <Badge variant="secondary" className={cn(patientCaptionTextClass, 'shrink-0')}>
                     Назначен врачом
                   </Badge>
                 ) : null}
@@ -73,7 +78,7 @@ export function LfkComplexCard({
                   {exerciseLines
                     .filter((l) => l.effectiveComment?.trim())
                     .map((l) => (
-                      <li key={l.id} className="text-xs text-[var(--patient-text-primary)]">
+                      <li key={l.id} className={patientCaptionTextClass}>
                         <span className="font-medium">{l.exerciseTitle}</span>
                         {l.effectiveComment?.trim() ? (
                           <span className="text-[var(--patient-text-muted)]">
@@ -90,7 +95,7 @@ export function LfkComplexCard({
                   type="button"
                   variant="link"
                   size="sm"
-                  className="h-auto p-0 text-xs font-medium text-[var(--patient-color-primary)]"
+                  className={cn(patientCaptionTextClass, 'h-auto p-0 text-[var(--patient-color-primary)]')}
                   onClick={onEditScheduleClick}
                 >
                   Изменить расписание
