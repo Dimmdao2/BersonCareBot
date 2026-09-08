@@ -2,8 +2,8 @@
 
 Дата решения владельца: **2026-09-08**.
 Taskdb: **#1100**.
-Статус: **в исполнении; исходные шесть MUST FIX high-Opus audit внесены, owner-correction 08.09 по настройке
-состава кабинета ожидает delta-аудит перед перезапуском UI-реализации**.
+Статус: **в исполнении; исходные шесть MUST FIX high-Opus audit внесены; delta-аудит owner-correction 08.09
+завершён с четырьмя MUST FIX, они внесены ниже как обязательный core-correction до интеграции UI**.
 Рабочая ветка лида: `wt/video-meetings-jitsi-20260908`, база: `b0eb1e45a56deee9f6cb6b0e9948e831f429b5c6`.
 PROD вне scope. Разрешены реализация, независимая приёмка и выкладка на именованный TEST.
 
@@ -149,7 +149,10 @@ encounter tab  --> existing canonical encounter form/service/write-path
 - `video_meetings` расширяет существующий закрытый `WORKSPACE_MODULE_KEYS`; у модуля нет зависимости от
   `encounters`, `client_portal` или филиала «Онлайн», потому что гостевая 1:1-ссылка работает и без них. Канонический
   effective-resolver пересекает настройку с существующим entitlement pass; параллельные флаги и обходные чтения не
-  создаются.
+  создаются. Availability модуля обязана вычисляться из механики `video_meetings` и в
+  `app-layer/guards/workspaceModuleAccess.ts`, и в литерале `availableModules` страницы настроек; константа `true`
+  запрещена. Тем же коммитом расширяется канонический закрытый список C3M.4 в
+  `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` со ссылкой на owner-решение 08.09.
 
 ## 4. Jitsi/coturn runtime contract
 
@@ -170,10 +173,12 @@ encounter tab  --> existing canonical encounter form/service/write-path
   продукта — отсутствие наших иностранных endpoints/провайдеров; TURN/JVB fallback размещён в РФ. Если позже будет
   нужна гарантированная relay-only география, это отдельное owner-решение с отказом от P2P и ростом нагрузки.
 
-## 5. Исполнение тремя потоками
+## 5. Исполнение независимыми потоками
 
 Каждый stateful исполнитель запускается через `tools/orch-launch.sh` в отдельном `wt/<workstream>` от принятого SHA.
-Воркеры не пишут и не меняют тесты. Лид принимает только committed SHA и приземляет по одному после diff/evidence.
+Воркеры не создают, не ослабляют и не переписывают поведенческие acceptance-тесты. Исполнитель core-correction
+механически обновляет существующие фикстуры, которые перестают компилироваться после удаления `onlineGate`; это не
+является новым покрытием. Лид принимает только committed SHA и приземляет по одному после diff/evidence.
 
 ### Волна 0 — plan gate
 
@@ -185,9 +190,11 @@ encounter tab  --> existing canonical encounter form/service/write-path
    TEST guest-origin и `/live` route, Prosody occupancy limit, `system_settings` JWT secret, candidate migration
    preflight и последовательная regeneration privilege-артефактов. Повторный audit той же документации не требуется
    по §24.6; accepted plan фиксируется коммитом до запуска реализации.
-4. После owner-correction 08.09 лид заменил ошибочную зависимость от филиала «Онлайн» на существующую настройку
-   состава кабинета. До перезапуска изменённого UI/core-прохода delta этой архитектурной коррекции повторно проверяет
-   отдельный `claude-opus-5`, effort `high`; это аудит новой owner-поверхности, а не повтор прежних шести findings.
+4. После owner-correction 08.09 лид заменил ошибочную зависимость от филиала «Онлайн» в документации на существующую
+   настройку состава кабинета. Delta проверил отдельный `claude-opus-5`, effort `high`, run
+   `/home/dev/brain/runs/agent-port/video-gate-delta-opus-audit-20260908.json`; verdict `MUST FIX`: landed core ещё
+   сохраняет Online-gate, workspace registry/settings availability не расширены, C3M.4 не обновлён. Исправления
+   назначены отдельному потоку A2 до интеграции UI.
 
 ### Волна 1 — три параллельных независимых кандидата
 
@@ -205,6 +212,13 @@ encounter tab  --> existing canonical encounter form/service/write-path
 - **Поток C — Jitsi/coturn TEST package:** version-pinned self-hosted deployment/config/runbook, no-third-party
   network policy, JWT/Prosody/JVB/coturn contract, принудительный Prosody/MUC max-occupants=2 и безопасный TEST
   apply/rollback path. PROD не трогает.
+- **Поток A2 — owner-correction landed video core:** удалить `VideoMeetingOnlineGate`,
+  `online_location_inactive`, DI-чтение `findBuiltInOnlineLocation` и HTTP-маппинг этой причины; добавить
+  `video_meetings: []` в закрытые `WORKSPACE_MODULE_KEYS`/`WORKSPACE_MODULE_DEPENDENCIES`; закрыть существующими
+  workspace-module helpers все четыре двери doctor create/lifecycle, guest exchange и patient join. Оба места
+  availability получают тарифную механику `video_meetings`, а не `true`. Тем же коммитом обновить C3M.1/C3M.4 и
+  только механически удалить устаревший `onlineGate` из существующих test fixtures. Новый feature gate, второй
+  resolver и новые тесты не создавать.
 
 ### Волна 2 — после landing контрактов волны 1
 
