@@ -139,7 +139,7 @@ else
           static-auth-secret=*) turn_secret="${line#*=}"; break ;;
         esac
       done < /etc/coturn/turnserver.conf
-      [[ -n "$turn_secret" ]]
+      [ -n "$turn_secret" ]
       case "$2" in
         udp) turnutils_uclient -y -n 1 -u healthcheck -W "$turn_secret" -p "$1" 127.0.0.1 ;;
         tls) turnutils_uclient -y -n 1 -S -u healthcheck -W "$turn_secret" -p "$1" 127.0.0.1 ;;

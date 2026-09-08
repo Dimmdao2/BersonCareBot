@@ -1,7 +1,5 @@
 # Jitsi/coturn TEST infra — live auditor-live pass (#1100 stream C)
 
-This artifact's own commit: `c3d47ca68`.
-
 Candidate branch: `wt/jitsi-live-fix-20260908`, exact SHA `7061cc94a31ec7f6987d6575e632f2585657d58a`.
 Base before this correction: `29a4894c3`. Authority: owner scope #1100, VM-01..06 / ACC-06 / §4 / §6.5,8,9 of
 `docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md`, plus `deploy/jitsi/README.md`, `NETWORK_POLICY.md`, `RUNBOOK.md`.

@@ -13,6 +13,7 @@ TARGET_ENABLED="/etc/nginx/sites-enabled/$SERVER_NAME"
 
 fail() { echo "[jitsi-test-nginx] FATAL: $*" >&2; exit 1; }
 [[ "$MODE" == --check || "$MODE" == --apply ]] || fail "usage: $0 [--check|--apply]"
+[[ "$(id -u)" == 0 ]] || fail "$MODE must run as root because the ACME certificate is root-readable only"
 
 on_dev_test_host=0
 for address in $(hostname -I 2>/dev/null || true); do
@@ -37,8 +38,6 @@ if [[ "$MODE" == --check ]]; then
   echo "[jitsi-test-nginx] prerequisites and rendered vhost are valid; no host file changed"
   exit 0
 fi
-[[ "$(id -u)" == 0 ]] || fail "--apply must run as root"
-
 if [[ -e "$TARGET_AVAILABLE" ]]; then
   backup="$(mktemp /tmp/bcb-jitsi-test-nginx.previous.XXXXXX)"
   cp -a -- "$TARGET_AVAILABLE" "$backup"
