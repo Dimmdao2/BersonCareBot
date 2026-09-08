@@ -154,7 +154,11 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                   value={symValue !== null ? String(symValue) : ''}
                 />
                 <input type="hidden" name="entryType" value="instant" />
-                <Button type="submit" className="w-full" disabled={symValue === null || symPending}>
+                <Button
+                  type="submit"
+                  variant="patient-primary"
+                  disabled={symValue === null || symPending}
+                >
                   {symPending ? 'Сохраняю…' : 'Сохранить симптом'}
                 </Button>
               </form>
@@ -203,7 +207,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                     </Select>
                   </>
                 )}
-                <Button type="submit" className="w-full" disabled={lfkPending}>
+                <Button type="submit" variant="patient-primary" disabled={lfkPending}>
                   {lfkPending ? 'Сохраняю…' : 'Выполнено'}
                 </Button>
               </form>

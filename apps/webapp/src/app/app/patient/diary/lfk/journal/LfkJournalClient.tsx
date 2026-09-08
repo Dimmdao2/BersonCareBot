@@ -286,7 +286,12 @@ export function LfkJournalClient(props: {
                 Отмена
               </Button>
               {/* Футер живёт вне DOM-дерева формы (портал), поэтому связь — атрибутом `form`. */}
-              <Button type="submit" form={LFK_JOURNAL_EDIT_FORM_ID} disabled={pending}>
+              <Button
+                type="submit"
+                variant="patient-primary"
+                form={LFK_JOURNAL_EDIT_FORM_ID}
+                disabled={pending}
+              >
                 Сохранить
               </Button>
             </PatientModalFooter>

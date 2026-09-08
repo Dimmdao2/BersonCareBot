@@ -293,7 +293,9 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
         </span>
         <Textarea name="comment" placeholder="Комментарий" maxLength={200} rows={3} />
       </label>
-      <Button type="submit">Сохранить</Button>
+      <Button type="submit" variant="patient-primary">
+        Сохранить
+      </Button>
     </form>
   );
 }

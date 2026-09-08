@@ -100,7 +100,12 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Закрыть
             </Button>
-            <Button type="submit" form={formId} disabled={isPending || selectedValue === null}>
+            <Button
+              type="submit"
+              variant="patient-primary"
+              form={formId}
+              disabled={isPending || selectedValue === null}
+            >
               {isPending ? 'Сохраняю…' : 'Сохранить'}
             </Button>
           </PatientModalFooter>
