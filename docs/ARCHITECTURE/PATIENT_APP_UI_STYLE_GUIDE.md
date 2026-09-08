@@ -33,6 +33,7 @@ than new local pixel values.
 | Body / readable form value | 16/24, 400, primary `#111827` | `patientBodyTextClass` |
 | Primary action | 16/20, 600 | `patientActionTextClass` and patient action classes |
 | Secondary body | 14/20, 400 | `patientMutedTextClass` |
+| Form label | 14/20, 500 | `patientFormLabelClass` |
 | Caption / meta | 12/16, 500 | `patientCaptionTextClass` |
 | Micro | 11/16, 500 | `patientMicroTextClass` |
 | Metric / hero number | 28/34, 600 | `patientMetricTextClass` |

@@ -40,6 +40,7 @@
   --patient-text-secondary: #667085;
   --patient-text-caption: #667085;
   --patient-text-micro: #667085;
+  --patient-text-specialist: #714c2f;
   /** Legacy aliases retained for existing patient callers. */
   --patient-block-heading: var(--patient-text-heading);
   --patient-block-heading-font-size: var(--patient-font-size-section-title);
@@ -545,6 +546,13 @@
     color: var(--patient-text-secondary);
   }
 
+  .patient-type-form-label {
+    font-size: var(--patient-font-size-secondary);
+    font-weight: var(--patient-font-weight-medium);
+    line-height: var(--patient-line-height-secondary);
+    color: var(--patient-text-secondary);
+  }
+
   .patient-type-caption {
     font-size: var(--patient-font-size-caption);
     font-weight: var(--patient-font-weight-medium);
@@ -564,6 +572,13 @@
     font-weight: var(--patient-font-weight-semibold);
     line-height: var(--patient-line-height-metric);
   }
+
+  .patient-text-accent { color: var(--patient-color-primary); }
+  .patient-text-success { color: var(--patient-status-success-text); }
+  .patient-text-info { color: var(--patient-status-info-text); }
+  .patient-text-warning { color: var(--patient-action-warning-text); }
+  .patient-text-danger { color: var(--patient-action-danger-text); }
+  .patient-text-specialist { color: var(--patient-text-specialist); }
 
   .safe-padding-patient {
     padding-left: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px));

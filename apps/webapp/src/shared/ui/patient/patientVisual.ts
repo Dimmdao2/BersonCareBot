@@ -412,6 +412,9 @@ export const patientPageSubtitleClass = cn(
   patientMutedTextClass,
 );
 
+/** Общая читаемая подпись form-control; локальные `text-xs` для labels запрещены. */
+export const patientFormLabelClass = 'patient-type-form-label';
+
 /** Обёртка пары «заголовок + подпись» вверху страницы: компактный gap и нижний отступ без card-style. */
 export const patientPageHeaderClass = cn('mb-3 flex flex-col gap-2 md:mb-4');
 
