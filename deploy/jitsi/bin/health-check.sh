@@ -232,7 +232,18 @@ if [[ -f "$VENDOR_DIR/docker-compose.yml" ]]; then
 fi
 web_cid="$(docker compose "${COMPOSE_ARGS[@]}" ps -q web 2>/dev/null || true)"
 web_generated_config=""
-[[ -n "$web_cid" ]] && web_generated_config="$(docker exec "$web_cid" cat /config/config.js 2>/dev/null || true)"
+[[ -n "$web_cid" ]] && web_generated_config="$(curl -fsS "http://127.0.0.1:${HTTP_PORT:-8000}/config.js" 2>/dev/null || true)"
+
+if [[ -n "$web_generated_config" ]]; then
+  if grep -q "stun:turn.test.bersoncare.ru:${TURN_LISTEN_PORT:-3478}" <<<"$web_generated_config" \
+    && ! grep -q 'stun:stun:' <<<"$web_generated_config"; then
+    ok "served config.js contains the correctly rendered self-hosted P2P STUN endpoint"
+  else
+    bad "served config.js does not contain a valid self-hosted P2P STUN endpoint"
+  fi
+else
+  bad "served web config.js unavailable while the web container is running"
+fi
 
 for host in "${foreign_hosts[@]}"; do
   if getent ahostsv4 "$host" >/dev/null 2>&1; then
@@ -246,7 +257,6 @@ for host in "${foreign_hosts[@]}"; do
   fi
 done
 [[ -z "$merged_config" ]] && echo "  note  merged compose config unavailable (vendor tree not fetched yet) — this widened scan only runs meaningfully once the stack has been applied"
-[[ -z "$web_generated_config" ]] && echo "  note  web container's generated config.js unavailable (container not running) — same caveat"
 [[ "$foreign_literal_found" == 0 ]] && ok "no known foreign STUN/TURN/telemetry literal present in static config, merged runtime config, or the running web container's generated config.js"
 
 echo

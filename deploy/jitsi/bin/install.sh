@@ -75,6 +75,13 @@ require_var COTURN_CONTAINER_GID
 require_var TURN_EXTERNAL_IP
 [[ "$TURN_EXTERNAL_IP" == 151.241.228.122 ]] || { echo "  MISMATCH TURN_EXTERNAL_IP=$TURN_EXTERNAL_IP, expected 151.241.228.122"; missing=1; }
 [[ "${CONFIG:-}" == /* ]] || { echo "  MISMATCH CONFIG=${CONFIG:-<empty>}, must be an absolute path (see env/jitsi-test.env.example)"; missing=1; }
+for stun_var in P2P_STUN_SERVERS JVB_STUN_SERVERS; do
+  stun_value="${!stun_var:-}"
+  if [[ -z "$stun_value" || "$stun_value" == *://* || "$stun_value" == stun:* || "$stun_value" == turn:* ]]; then
+    echo "  MISMATCH $stun_var must use docker-jitsi-meet's host:port form without a URI scheme"
+    missing=1
+  fi
+done
 
 package_root="/etc/bersoncarebot/jitsi-test"
 resolved_config="$(realpath -m -- "${CONFIG:-/}")"
