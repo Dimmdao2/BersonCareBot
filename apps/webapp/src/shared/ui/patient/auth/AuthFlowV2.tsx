@@ -1639,7 +1639,9 @@ export function AuthFlowV2({
                 onSubmit={(e) => void submitEmailPasswordLogin(e)}
               >
                 <p className={authStepMutedParagraphClass}>
-                  Вход по email и паролю (для сотрудников клиники).
+                  {roleLoginPortal === 'doctor'
+                    ? 'Вход по email и паролю (для сотрудников клиники).'
+                    : 'Вход по email и паролю.'}
                 </p>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="auth-password-login-email" className={authFormFieldLabelClass}>

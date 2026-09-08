@@ -39,6 +39,7 @@ import {
   resolveUsefulPostCard,
 } from '@/modules/patient-home/patientHomeResolvers';
 import { patientGreetingPersonalizedName } from '@/modules/patient-home/patientGreetingPersonalizedName';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 import { greetingPrefixFromHour } from './PatientHomeGreeting';
 import { PatientHomeDailyWarmupCard } from './PatientHomeDailyWarmupCard';
 import { PatientHomeSituationsRow } from './PatientHomeSituationsRow';
@@ -184,6 +185,24 @@ async function renderPatientHomeToday({
 }: Props) {
   const deps = buildAppDeps();
   const anonymousGuest = session === null;
+  // Server-resolved terms for `PatientHomeDailyWarmupCard` (a server component): the client hook
+  // `usePatientTerms()` cannot be called here (TEST acceptance 2026-09-08, item 4 — "Attempted to
+  // call usePatientTerms() from the server"). Same registry key, same `resolvePatientTerms`
+  // resolver the patient layout and doctor screens already use — no duplicated label logic.
+  const patientGenitive = session
+    ? resolvePatientTerms(
+        (
+          await withPatientOrganizationPrincipal(
+            {
+              organizationId,
+              platformUserId: session.user.userId,
+              source: 'app.patient.home.patient-terms',
+            },
+            () => deps.systemSettings.getSetting('patient_label', 'doctor', { organizationId }),
+          )
+        )?.valueJson,
+      ).patientGenitive
+    : resolvePatientTerms().patientGenitive;
   const rehabilitationEnabled = session
     ? await withPatientOrganizationPrincipal(
         {
@@ -469,6 +488,7 @@ async function renderPatientHomeToday({
             anonymousGuest={anonymousGuest}
             warmupRecentlyCompletedHero={dailyWarmupHeroCooldownActive}
             warmupCooldownCaption={warmupCooldownCaption}
+            patientGenitive={patientGenitive}
           />
         );
       case 'useful_post':

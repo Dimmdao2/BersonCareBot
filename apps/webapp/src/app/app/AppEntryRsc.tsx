@@ -15,7 +15,7 @@ import { buildPrefetchedPublicAuthConfig } from '@/modules/auth/publicAuthSnapsh
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
 import { routePaths } from '@/app-layer/routes/paths';
 import { getMessengerSurfaceHint, getPlatformEntry } from '@/shared/lib/platformCookie.server';
-import { surfaceDisplayName } from '@/shared/lib/surface/requestSurface';
+import { DEFAULT_SURFACE_AUTH_POLICY_CONFIG, surfaceDisplayName } from '@/shared/lib/surface/requestSurface';
 import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
 import type { MessengerSurfaceHint } from '@/shared/lib/platform';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
@@ -23,7 +23,7 @@ import { AppEntryLoginContent } from './AppEntryLoginContent';
 import { PatientUnsupportedClientFallback } from './PatientUnsupportedClientFallback';
 import { getUnsupportedClientFallbackEnabled } from '@/modules/auth/unsupportedClientFallback';
 import { parseSupportedClientEnvironment } from '@/modules/auth/supportedClientMatrix';
-import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
+import { authPolicyNameForRoleLoginPortal, type RoleLoginPortal } from '@/modules/auth/roleLogin';
 
 export type AppEntrySearchParams = { next?: string; t?: string; token?: string; switch?: string };
 
@@ -88,6 +88,13 @@ export async function AppEntryRsc({
       : roleLoginPortal === 'patient'
         ? new URL('/app/doctor/login', STAFF_SURFACE.origin).toString()
         : null;
+  // A role-login door (`/app/{doctor,patient,admin}/login`) knows its own audience from the route,
+  // which stays correct under the transitional single-Host DEV/TEST deployment where Host-based
+  // surface resolution collapses staff and patient to `staff` (see `authPolicyNameForRoleLoginPortal`
+  // doc comment). The generic `/app` entry has no portal yet, so it keeps the Host-resolved policy.
+  const surfaceAuthPolicy = roleLoginPortal
+    ? DEFAULT_SURFACE_AUTH_POLICY_CONFIG[authPolicyNameForRoleLoginPortal(roleLoginPortal)]
+    : resolvedSurface.authPolicy;
 
   return (
     <PatientAppShell
@@ -108,7 +115,7 @@ export async function AppEntryRsc({
         roleLoginPortal={roleLoginPortal}
         roleLoginSurfaceName={shellTitle}
         alternateRoleLoginHref={alternateRoleLoginHref}
-        surfaceAuthPolicy={resolvedSurface.authPolicy}
+        surfaceAuthPolicy={surfaceAuthPolicy}
       />
       {clientEnvironment ? (
         <PatientUnsupportedClientFallback

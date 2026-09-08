@@ -102,7 +102,11 @@ const CURRENT_PATIENT_UI_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
   'notifications_topics',
   'patient_default_promo_treatment_program_template_id',
   'booking_lifecycle_notifications',
+  'patient_label',
 ]);
+
+const STAFF_LOGIN_SECOND_FACTOR_SETTING_KEY: SystemSettingKey =
+  'doctor_staff_second_factor_required';
 
 /**
  * The two booking-payment keys, read by two different principals through two different named roots.
@@ -468,6 +472,40 @@ async function readBookingPaymentSettingThroughItsOwnDoor(
   return undefined;
 }
 
+/** The bounded patient settings door: same read for a single key everywhere it is used. */
+async function readCurrentPatientUiSetting(
+  key: SystemSettingKey,
+  scope: SystemSettingScope,
+): Promise<SystemSetting | null> {
+  const result = await runWithWebappDbOperationFamily('patient_ui_config', () =>
+    runWebappSql<SystemSettingRow>(
+      getWebappSqlDb(),
+      sql`SELECT key, scope, organization_id, value_json, updated_at, updated_by
+         FROM app.read_current_patient_ui_setting(${key}, ${scope})`,
+    ),
+  );
+  return result.rows[0] ? rowToSetting(result.rows[0]) : null;
+}
+
+async function readCurrentStaffLoginSecondFactorSetting(
+  organizationId: string,
+): Promise<SystemSetting | null> {
+  const result = await runWebappSql<{ value_json: unknown | null }>(
+    getWebappSqlDb(),
+    sql`SELECT app.read_current_staff_login_second_factor_required(${organizationId}::uuid) AS value_json`,
+  );
+  const valueJson = result.rows[0]?.value_json ?? null;
+  if (valueJson === null) return null;
+  return {
+    key: STAFF_LOGIN_SECOND_FACTOR_SETTING_KEY,
+    scope: 'doctor',
+    organizationId,
+    valueJson,
+    updatedAt: '',
+    updatedBy: null,
+  };
+}
+
 export function createPgSystemSettingsPort(): SystemSettingsPort {
   return {
     async getByKey(
@@ -475,6 +513,16 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       scope: SystemSettingScope,
       options: SystemSettingsReadOptions = {},
     ): Promise<SystemSetting | null> {
+      const currentPrincipal = getCurrentDbPrincipal();
+      const organizationId = options.organizationId?.trim() || null;
+      if (
+        currentPrincipal?.kind === 'patient' &&
+        key === STAFF_LOGIN_SECOND_FACTOR_SETTING_KEY &&
+        scope === 'doctor' &&
+        organizationId
+      ) {
+        return readCurrentStaffLoginSecondFactorSetting(organizationId);
+      }
       const bookingPaymentValueJson =
         scope === 'admin' && BOOKING_PAYMENT_SETTING_KEYS.has(key)
           ? await readBookingPaymentSettingThroughItsOwnDoor(key)
@@ -490,17 +538,9 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
           updatedBy: null,
         };
       }
-      if (getCurrentDbPrincipal()?.kind === 'patient' && CURRENT_PATIENT_UI_SETTING_KEYS.has(key)) {
-        const result = await runWithWebappDbOperationFamily('patient_ui_config', () =>
-          runWebappSql<SystemSettingRow>(
-            getWebappSqlDb(),
-            sql`SELECT key, scope, organization_id, value_json, updated_at, updated_by
-               FROM app.read_current_patient_ui_setting(${key}, ${scope})`,
-          ),
-        );
-        return result.rows[0] ? rowToSetting(result.rows[0]) : null;
+      if (currentPrincipal?.kind === 'patient' && CURRENT_PATIENT_UI_SETTING_KEYS.has(key)) {
+        return readCurrentPatientUiSetting(key, scope);
       }
-      const organizationId = options.organizationId?.trim() || null;
       const r = organizationId
         ? await runWebappSql<SystemSettingRow>(
             getWebappSqlDb(),
@@ -536,6 +576,16 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       scope: SystemSettingScope,
       options: SystemSettingsReadOptions = {},
     ): Promise<SystemSetting[]> {
+      // Same bounded door as `getByKey`: an unguarded `SELECT ... FROM system_settings` below has no
+      // patient-role grant and 42501s under the patient DB principal (TEST acceptance 2026-09-08,
+      // item 3 — the patient shell resolving `patient_label` via this scope scan). Fan out to the
+      // per-key door instead of a second settings store; only patient-safe keys can ever come back.
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const rows = await Promise.all(
+          [...CURRENT_PATIENT_UI_SETTING_KEYS].map((key) => readCurrentPatientUiSetting(key, scope)),
+        );
+        return rows.filter((row): row is SystemSetting => row !== null);
+      }
       const organizationId = options.organizationId?.trim() || null;
       const r = organizationId
         ? await runWebappSql<SystemSettingRow>(
