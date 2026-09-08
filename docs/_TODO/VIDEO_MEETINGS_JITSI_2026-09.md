@@ -2,7 +2,8 @@
 
 Дата решения владельца: **2026-09-08**.
 Taskdb: **#1100**.
-Статус: **принят к исполнению после high-Opus audit; все шесть MUST FIX внесены лидом**.
+Статус: **в исполнении; исходные шесть MUST FIX high-Opus audit внесены, owner-correction 08.09 по настройке
+состава кабинета ожидает delta-аудит перед перезапуском UI-реализации**.
 Рабочая ветка лида: `wt/video-meetings-jitsi-20260908`, база: `b0eb1e45a56deee9f6cb6b0e9948e831f429b5c6`.
 PROD вне scope. Разрешены реализация, независимая приёмка и выкладка на именованный TEST.
 
@@ -96,10 +97,12 @@ WebRTC P2P; если прямое соединение невозможно, м�
 
 ### Включение и тариф
 
-- [ ] **GATE-01.** Видеовстречи доступны только при одновременно активной встроенной локации/филиале «Онлайн» и
-  разрешённой тарифной возможности организации; скрытие кнопок дополняется server-side отказом всех create/join
-  путей. Tariff-часть проходит только через существующий `requireEntitlementForRead/Mutation`; отдельный
-  tariff-check внутри `video-meetings` service запрещён.
+- [ ] **GATE-01.** Видеовстречи — отдельный модуль `video_meetings` в существующей настройке состава кабинета
+  специалиста (`doctor_workspace_composition`). Встроенная локация/филиал «Онлайн» не влияет ни на видимость
+  элементов видеозвонка, ни на create/join. Эффективный доступ равен пересечению тарифной доступности и этой
+  настройки: скрытие кнопок дополняется server-side отказом всех create/join путей. Tariff-часть проходит только
+  через существующий `requireEntitlementForRead/Mutation`; отдельный tariff-check внутри `video-meetings` service
+  запрещён.
 - [ ] **GATE-02.** Возможность `video_meetings` добавлена в канонический `MECHANIC_REGISTRY` и в
   `app-layer/entitlements/protectedActionRegistry.ts` для всех защищённых create/join действий; это существующая
   настраиваемая entitlement-механика, а не отдельный feature-flag или hardcode в UI.
@@ -115,7 +118,7 @@ doctor/patient/guest UI
         |
         v
 video-meetings application service
-  - tenant + relationship + tariff + Online gates
+  - tenant + relationship + effective workspace-module gates
   - session/invite lifecycle
   - role-scoped join capability
         |
@@ -143,8 +146,10 @@ encounter tab  --> existing canonical encounter form/service/write-path
   с корректной семантикой nullable legacy `organization_id` (`NULLS NOT DISTINCT` либо доказанный backfill до
   `NOT NULL`), а create/update сводятся в один idempotent upsert service. Новая таблица/колонки сначала объявляются
   в `deploy/postgres/privileges/declaration.ts`; миграция прав не выдаёт.
-- Online gate расширяет существующую встроенную `be_branches`-локацию, тариф — существующий entitlement pass;
-  параллельные флаги и обходные чтения не создаются.
+- `video_meetings` расширяет существующий закрытый `WORKSPACE_MODULE_KEYS`; у модуля нет зависимости от
+  `encounters`, `client_portal` или филиала «Онлайн», потому что гостевая 1:1-ссылка работает и без них. Канонический
+  effective-resolver пересекает настройку с существующим entitlement pass; параллельные флаги и обходные чтения не
+  создаются.
 
 ## 4. Jitsi/coturn runtime contract
 
@@ -180,11 +185,14 @@ encounter tab  --> existing canonical encounter form/service/write-path
    TEST guest-origin и `/live` route, Prosody occupancy limit, `system_settings` JWT secret, candidate migration
    preflight и последовательная regeneration privilege-артефактов. Повторный audit той же документации не требуется
    по §24.6; accepted plan фиксируется коммитом до запуска реализации.
+4. После owner-correction 08.09 лид заменил ошибочную зависимость от филиала «Онлайн» на существующую настройку
+   состава кабинета. До перезапуска изменённого UI/core-прохода delta этой архитектурной коррекции повторно проверяет
+   отдельный `claude-opus-5`, effort `high`; это аудит новой owner-поверхности, а не повтор прежних шести findings.
 
 ### Волна 1 — три параллельных независимых кандидата
 
 - **Поток A — video core + tariff/gates:** schema, Drizzle ports/adapters/services, session/invite API, capability,
-  existing entitlement extension, developer tariff enablement, Online server gate, system settings registry. Обязан
+  existing entitlement extension, developer tariff enablement, workspace-module server gate, system settings registry. Обязан
   расширить `MECHANIC_REGISTRY`, `protectedActionRegistry.ts` и использовать только
   `requireEntitlementForRead/Mutation`; собственный tariff-check в новом service не создаётся. Новая relation сначала
   описывается в `deploy/postgres/privileges/declaration.ts`, затем генерируются canonical privilege-артефакты.
@@ -203,7 +211,8 @@ encounter tab  --> existing canonical encounter form/service/write-path
 - **Поток D — meeting UI:** provider-neutral stage + Jitsi renderer, doctor/guest/auth-patient live pages, разрешённые
   entry buttons и переиспользование note/encounter/patient panes. Добавляет явное правило `/live` в
   `SURFACE_ROUTE_RULES`, строит branded guest URL через канонический surface/origin builder и обеспечивает обе
-  достижимые ветки модалки, включая `mode === 'create'`, без параллельного футера.
+  достижимые ветки модалки, включая `mode === 'create'`, без параллельного футера. Все entry points и live-двери
+  проецируют один effective `video_meetings` workspace module; состояние филиала «Онлайн» не читают.
 - **Поток E — notification integration:** новое typed событие приглашения через единый pipeline, ссылка без
   клинического содержания, дедупликация одной отправки при создании.
 - **Поток F — integration mechanic:** устранение только фактических стыков типов/routes/config после D/E, без
@@ -217,7 +226,7 @@ encounter tab  --> existing canonical encounter form/service/write-path
 
 Обязательные классы поломок:
 
-- tenant/relationship/role/tariff/Online bypass;
+- tenant/relationship/role/tariff/workspace-module bypass и ошибочная зависимость от филиала «Онлайн»;
 - повторное создание комнаты или дневной заметки при retry/race;
 - утечка raw guest secret/JWT/TURN credential;
 - guest access к private patient/doctor data;
@@ -245,8 +254,9 @@ encounter tab  --> existing canonical encounter form/service/write-path
 5. Развернуть приложение штатным TEST deploy. Jitsi/coturn применить отдельным documented TEST script с health,
    rollback и точным firewall diff; PROD-хосты не затрагивать.
 6. Живая проверка владельцевыми TEST-аккаунтами клиники «Дмитрий Берсон», специалиста и пациента:
-   entitlement/Online on/off, создание встречи из трёх entry points, guest fragment link, authenticated patient page,
-   notes continuity, past-note edit, encounter tab, notification intent.
+   entitlement/workspace-module on/off, независимость от состояния филиала «Онлайн», создание встречи из трёх entry
+   points, guest fragment link, authenticated patient page, notes continuity, past-note edit, encounter tab,
+   notification intent.
 7. По ACC-02 код отдельно доказывает fragment-link, branded-origin builder и `/live` surface-rule; живая проверка до
    появления отдельного patient-origin выполняется на разрешённом однохостовом `https://test.bersoncare.ru/live`.
 8. Два browser contexts с synthetic media подтверждают successful call; третий независимый context доказывает

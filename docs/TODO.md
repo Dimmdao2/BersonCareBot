@@ -12,7 +12,7 @@
 - **Сверх product/SaaS roadmap — RU privacy и production readiness:** privacy/legal порядок и owner gates —
   **[docs/\_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/](_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/README.md)**;
   инфраструктурная реализация вынесена в единый план выше. Эти планы не меняют текущий DB privilege workstream.
-- Ключевое из разбора: анкеты — **нативные** (не Formbricks); faster-whisper — под **голосовые в чатах**; видео — Jitsi MVP → LiveKit; **Recharts/dnd-kit уже стоят** (переиспользовать); **react-table не внедрять**, справочники доктора не трогать; поиск по знаниям — **pgvector, не Qdrant**; **Penpot уже развёрнут** (`penpot.bersonservicex.ru`, taskdb #6).
+- Ключевое из разбора: анкеты — **нативные** (не Formbricks); faster-whisper — под **голосовые в чатах**; видео — self-hosted Jitsi MVP → собственный тонкий PeerJS/native `RTCPeerConnection` + signalling + coturn; **Recharts/dnd-kit уже стоят** (переиспользовать); **react-table не внедрять**, справочники доктора не трогать; поиск по знаниям — **pgvector, не Qdrant**; **Penpot уже развёрнут** (`penpot.bersonservicex.ru`, taskdb #6).
 
 ## Cursor-планы и доки (сводка)
 
