@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireEntitlementForRead } from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
@@ -23,14 +24,23 @@ export async function POST(request: Request) {
   if (!service) return refusal();
   const context = await service.resolveGuestOrganization(body.data.bearer);
   if (!context) return refusal();
-  const entitlement = await requireEntitlementForRead(context, 'video_meetings');
-  if (!entitlement.ok) return refusal();
-  const workspaceModule = await requireOrganizationWorkspaceModuleForApi(
-    deps,
-    context.organizationId,
-    'video_meetings',
+  const accessAllowed = await withExplicitOrganizationPrincipal(
+    {
+      organizationId: context.organizationId,
+      source: 'api/video-meetings/guest/exchange:access',
+    },
+    async () => {
+      const entitlement = await requireEntitlementForRead(context, 'video_meetings');
+      if (!entitlement.ok) return false;
+      const workspaceModule = await requireOrganizationWorkspaceModuleForApi(
+        deps,
+        context.organizationId,
+        'video_meetings',
+      );
+      return workspaceModule.ok;
+    },
   );
-  if (!workspaceModule.ok) return refusal();
+  if (!accessAllowed) return refusal();
   const result = await service.exchangeGuest(body.data.bearer);
   if (!result.ok) return refusal();
   const response = NextResponse.json({ ok: true, session: result.session });
