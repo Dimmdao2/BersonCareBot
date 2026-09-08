@@ -158,6 +158,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     );
     if (
       !workspaceModules.client_portal &&
+      !pathname.startsWith('/app/patient/live/') &&
       !patientPathAllowsGlobalAccountWithoutCareContext(pathname)
     ) {
       notFound();

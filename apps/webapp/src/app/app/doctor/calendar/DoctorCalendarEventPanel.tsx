@@ -88,6 +88,8 @@ type Props = {
   onChanged: () => void;
   /** Called after a canonical manual appointment has been created successfully. */
   onCreated?: (appointmentId: string) => void;
+  /** Host-owned canonical create footer continuation (for example encounter modality). */
+  createContinuation?: { onOffline: (appointmentId: string) => void; onOnline: (appointmentId: string) => void };
   /** Обновляет открытую карточку после правки, не закрывая первый слой модалки. */
   onUpdated?: (appointment?: CalendarAppointmentEvent) => void;
   /** §3.6: открыть панель сразу в режиме создания, минуя плейсхолдер */
@@ -305,6 +307,7 @@ function DoctorCalendarEventPanelInner({
   onClose,
   onChanged,
   onCreated,
+  createContinuation,
   onUpdated,
   startInCreate = false,
   createInitialStart = null,
@@ -329,6 +332,9 @@ function DoctorCalendarEventPanelInner({
   const [cancelOpen, setCancelOpen] = useState(false);
   /** ENCOUNTER-APPOINTMENT-05: подтверждение конфликта показывается ДО сохранения. */
   const [overlapConfirmOpen, setOverlapConfirmOpen] = useState(false);
+  const [overlapContinuation, setOverlapContinuation] = useState<
+    { onCreated?: (appointmentId: string) => void } | null
+  >(null);
   const [cancelDraft, setCancelDraft] = useState<AppointmentCancelDraft>(EMPTY_CANCEL_DRAFT);
   const [message, setMessage] = useState<string | null>(null);
   // APPT-FORM-13: правка идёт двумя контрактами (запись и комментарий). Отказ комментария
@@ -478,7 +484,7 @@ function DoctorCalendarEventPanelInner({
    * время отбивается `slot_overlap`, форма показывает подтверждение, и отказ подтверждения не
    * создаёт ничего.
    */
-  const submitCreate = (options?: { allowOverlap?: boolean }) => {
+  const submitCreate = (options?: { allowOverlap?: boolean; onCreated?: (appointmentId: string) => void }) => {
     setMessage(null);
     const submission = resolveCalendarCreateSubmission({
       start: draft.start,
@@ -558,6 +564,7 @@ function DoctorCalendarEventPanelInner({
         // Подтверждение предлагается только там, где согласие ИСПОЛНИМО: у канонической ручной
         // двери. Дверь нового пациента им не расширялась, и обещать там наложение нельзя.
         if (json.error === 'slot_overlap' && !isNewPatient && !options?.allowOverlap) {
+          setOverlapContinuation({ onCreated: options?.onCreated });
           setOverlapConfirmOpen(true);
           return;
         }
@@ -585,7 +592,7 @@ function DoctorCalendarEventPanelInner({
       createManualRequestIdRef.current = crypto.randomUUID();
       toast.success('Создано');
       setMode('view');
-      if (newId) onCreated?.(newId);
+      if (newId) (options?.onCreated ?? onCreated)?.(newId);
       onChanged();
     });
   };
@@ -623,19 +630,17 @@ function DoctorCalendarEventPanelInner({
           pending={pending}
           message={message}
         />
-        <DoctorModalFooter>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={pending}
-            onClick={pendingRefresh ? onChanged : onClose}
-          >
-            Отмена
-          </Button>
-          <Button type="button" disabled={pending} onClick={() => submitCreate()}>
-            Сохранить
-          </Button>
-        </DoctorModalFooter>
+        {createContinuation ? (
+          <DoctorModalFooter>
+            <Button type="button" variant="outline" disabled={pending} onClick={() => submitCreate({ onCreated: createContinuation.onOffline })}>Очный приём</Button>
+            <Button type="button" disabled={pending} onClick={() => submitCreate({ onCreated: createContinuation.onOnline })}>Онлайн-приём</Button>
+          </DoctorModalFooter>
+        ) : (
+          <DoctorModalFooter>
+            <Button type="button" variant="outline" disabled={pending} onClick={pendingRefresh ? onChanged : onClose}>Отмена</Button>
+            <Button type="button" disabled={pending} onClick={() => submitCreate()}>Сохранить</Button>
+          </DoctorModalFooter>
+        )}
 
         <DoctorModal
           open={overlapConfirmOpen}
@@ -652,14 +657,19 @@ function DoctorCalendarEventPanelInner({
               type="button"
               variant="outline"
               disabled={pending}
-              onClick={() => setOverlapConfirmOpen(false)}
+              onClick={() => {
+                setOverlapContinuation(null);
+                setOverlapConfirmOpen(false);
+              }}
             >
               Отмена
             </Button>
             <Button
               type="button"
               disabled={pending}
-              onClick={() => submitCreate({ allowOverlap: true })}
+              onClick={() =>
+                submitCreate({ allowOverlap: true, onCreated: overlapContinuation?.onCreated })
+              }
             >
               Создать наложение
             </Button>

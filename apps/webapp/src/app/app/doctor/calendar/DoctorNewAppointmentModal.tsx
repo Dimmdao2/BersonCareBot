@@ -70,6 +70,7 @@ type CreatePanelProps = {
   onClose: () => void;
   onChanged?: () => void;
   onCreated?: (appointmentId: string) => void;
+  createContinuation?: { onOffline: (appointmentId: string) => void; onOnline: (appointmentId: string) => void };
   appointmentsManageOwn?: boolean;
 };
 
@@ -82,6 +83,7 @@ export function DoctorAppointmentCreatePanel({
   onClose,
   onChanged,
   onCreated,
+  createContinuation,
   appointmentsManageOwn = true,
 }: CreatePanelProps) {
   const router = useRouter();
@@ -152,6 +154,7 @@ export function DoctorAppointmentCreatePanel({
       hideCreatePatient={Boolean(patient)}
       onClose={onClose}
       onCreated={onCreated}
+      createContinuation={createContinuation}
       onChanged={handleChanged}
     />
   );

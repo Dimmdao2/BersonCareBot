@@ -93,9 +93,19 @@ export function createVideoMeetingsService(deps: {
         specialistId: input.specialistId, actorPlatformUserId: input.specialistPlatformUserId,
       });
       if (!inviteIssued) throw new Error('video_meeting_invite_issue_failed');
+      let guestUrl: string | null = null;
+      try {
+        guestUrl = deps.resolvePatientPublicOrigin
+          ? buildGuestUrl(await deps.resolvePatientPublicOrigin(input.organizationId), inviteSecret)
+          : null;
+      } catch {
+        // A missing branded patient origin may withhold a copyable link and notification, never
+        // the already-issued meeting or specialist session.
+        guestUrl = null;
+      }
       let notification: VideoMeetingInvitationNotificationResult | undefined;
       if (result.created) {
-        if (!deps.invitationNotification || !deps.resolvePatientPublicOrigin) {
+        if (!deps.invitationNotification || !guestUrl) {
           notification = notificationUnavailable();
         } else {
           try {
@@ -103,10 +113,7 @@ export function createVideoMeetingsService(deps: {
               organizationId: input.organizationId,
               patientUserId: input.patientUserId,
               meetingId: result.meeting.id,
-              guestUrl: buildGuestUrl(
-                await deps.resolvePatientPublicOrigin(input.organizationId),
-                inviteSecret,
-              ),
+              guestUrl,
             });
           } catch {
             // Meeting and invite have already been issued. Delivery availability must not change
@@ -120,7 +127,10 @@ export function createVideoMeetingsService(deps: {
       return {
         ...joined,
         resumed: !result.created,
+        // Raw material remains inside the application service for the notification pipeline;
+        // the doctor HTTP route deliberately serializes only the branded fragment URL.
         inviteFragment: inviteSecret,
+        ...(guestUrl ? { guestUrl } : {}),
         ...(notification ? { notification } : {}),
       };
     },
@@ -132,7 +142,16 @@ export function createVideoMeetingsService(deps: {
         secretHash: hashVideoMeetingInvite(secret), expiresAt: new Date(Date.now() + INVITE_TTL_MS).toISOString(),
         specialistId: input.specialistId, actorPlatformUserId: input.actorPlatformUserId,
       });
-      return ok ? { ok: true as const, inviteFragment: secret } : { ok: false as const, error: 'meeting_unavailable' as const };
+      if (!ok) return { ok: false as const, error: 'meeting_unavailable' as const };
+      let guestUrl: string | undefined;
+      try {
+        guestUrl = deps.resolvePatientPublicOrigin
+          ? buildGuestUrl(await deps.resolvePatientPublicOrigin(input.organizationId), secret)
+          : undefined;
+      } catch {
+        guestUrl = undefined;
+      }
+      return { ok: true as const, inviteFragment: secret, ...(guestUrl ? { guestUrl } : {}) };
     },
 
     revokeInvite: (input: { meetingId: string; organizationId: string; specialistId: string; actorPlatformUserId: string }) => deps.store.revokeInvite(input),

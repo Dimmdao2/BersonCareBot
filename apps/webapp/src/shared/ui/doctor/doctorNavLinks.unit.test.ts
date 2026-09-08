@@ -13,6 +13,7 @@ const ALL_MODULES_OFF = {
   mailings: false,
   analytics: false,
   client_portal: false,
+  video_meetings: false,
 } satisfies WorkspaceModuleEffective;
 
 describe('doctor navigation schedule access', () => {

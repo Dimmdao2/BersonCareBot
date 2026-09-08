@@ -28,6 +28,11 @@ export const SURFACE_ROUTE_RULES: readonly SurfaceRouteRule[] = [
     why: 'The Host chooses staff landing, patient entry or branded clinic root.',
   },
   {
+    match: { kind: 'exact', path: '/live' },
+    audience: 'patient',
+    why: 'Guest meeting joins use a fragment capability on the branded patient host.',
+  },
+  {
     match: { kind: 'exact', path: '/app' },
     audience: 'shared',
     why: 'The common login/registration shell is branded by Host, never by intent/query.',

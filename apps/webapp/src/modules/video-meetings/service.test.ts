@@ -178,4 +178,32 @@ describe('video meeting invitation notification dedup (ACC-05)', () => {
     expect(result.ok && result.inviteFragment).toEqual(expect.any(String));
     expect(result.ok && result.notification?.status).toBe('unavailable');
   });
+
+  it('keeps the meeting startable when the branded patient origin cannot be resolved', async () => {
+    // Failure: resolving the clinic's patient origin rejects (an organization with no public
+    // directory projection on a deployment with distinct patient/staff hosts), and the rejection
+    // escapes createOrResume — after the meeting row and its invite have already been written.
+    // Impact: such a clinic can never start a video call at all; every retry writes another
+    // invite and fails again. Before the branded-link change this same condition only degraded
+    // the notification (ACC-05 / GATE-04 bounded best-effort), which is the oracle here and the
+    // contract the neighbouring delivery-failure test already claims for an "origin failure".
+    const service = createVideoMeetingsService({
+      store: storeReturning(true),
+      provider: healthyProvider(),
+      invitationNotification: { enqueue: vi.fn() },
+      resolvePatientPublicOrigin: vi
+        .fn()
+        .mockRejectedValue(new Error('patient_public_origin_unresolved')),
+    });
+
+    const result = await service.createOrResume({
+      organizationId: ids.organization,
+      patientUserId: ids.patient,
+      specialistId: ids.specialist,
+      specialistPlatformUserId: ids.specialist,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.session).toBeTruthy();
+  });
 });
