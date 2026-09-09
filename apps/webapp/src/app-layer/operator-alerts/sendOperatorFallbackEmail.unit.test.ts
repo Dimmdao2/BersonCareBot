@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * Fallback-письмо (design D-b) идёт мимо `dispatchOperatorAlert` своим отдельным путём —
  * поэтому у него отдельный тест на ту же метку в теме, а не переиспользование чужого.
+ * Owner oracle TPB-13a additionally requires this staff email to retain its audience at the
+ * signed webapp → integrator boundary; otherwise it silently selects TherapyGo downstream.
  */
 
 vi.mock('@/config/env', () => ({
@@ -36,6 +38,7 @@ describe('sendOperatorFallbackEmail — env label on the fallback subject', () =
       'fallback@example.com',
       '[PROD] Therapysto: некому доставить служебное уведомление',
       'Служебное уведомление не имело ни одного адресата.',
+      'staff',
     );
   });
 });
