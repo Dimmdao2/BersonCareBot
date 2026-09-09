@@ -460,4 +460,6 @@ security/audit gates идут без этих входов. Отсутствую
 | M2-00a | open | System image/AVD are installed, but `id dev` lacks group `kvm`; `/dev/kvm` is `root:kvm 0660`, and passwordless sudo is unavailable. Requires `sudo usermod -aG kvm dev` plus new login/`sg kvm`. |
 | M2-01, M2-03…M2-08 | done | Product `533bb29b1`, independent blind audit/tests `49f584040`, accepted correction `a0dfd6576`, port landing `d7f99340c`; exact evidence is in `.lead/runs/mobile-shell-foundation-audit-20260909/`. |
 | M2-02 | open | Workspace wiring/typecheck/lint/build are proven; the root `pnpm run ci` clause remains for final integrated M7-06 and is not claimed early. |
-| M1-01…M1-07, M3-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
+| M1-01…M1-03, M1-05, M1-06 | done | Двухбрендовые PWA manifests/icons/surfaces реализованы, поведенчески проверены и посажены в `feat/doctor-ui-rebuild` через port: product `ae14e0f16`, audit `fd04fbc27`, confirmation `041abf541`, landing `66ef65468`. |
+| M1-04 | open | Два независимых HTTP live-прохода на named DEV (`f98bf53d6`, `cd984159e`, landing `0a5d184fb`) дошли до фактического bootstrap и зафиксировали один blocker: HTTP 500 `native_push_token_keyring_unavailable`; повторить после посадки M6-11 native push correction. |
+| M1-07, M3-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
