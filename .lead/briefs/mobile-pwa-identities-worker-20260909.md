@@ -25,25 +25,34 @@ surfaces and the existing `/app/doctor/install` compatibility redirect; do not c
 - Change the single default patient product-name literal to `Therapy Go`; keep the existing `PATIENT_APP_NAME`
   override and installed-PWA `id`, `scope`, `start_url=/app/patient` stable.
 - The default patient PWA/metadata uses the supplied source with sphere; staff/Therapysto uses the supplied source
-  without sphere. Produce distinct 192, 512, maskable 512 and Apple-touch 180 assets. Center the transparent,
+  without sphere. Produce NEW explicitly named `therapygo-*` and `therapysto-*` 192, 512, maskable 512 and
+  Apple-touch 180 assets. Never overwrite/delete `/pwa-icon-*` or `/apple-touch-icon.png` (retained blue future-
+  clinic identity) and never overwrite/delete `/staff-pwa-*` (retained black platform-admin identity). Center the transparent,
   non-square source on a square canvas and keep the mark within the maskable safe zone. Manifest entries must use
   separate `purpose: 'any'` and `purpose: 'maskable'` files.
 - Reuse/parameterize the deterministic brand-asset generator landed by the Android shell foundation. If its target
-  model cannot emit web assets, extend that one generator and its package command; do not copy its crop/safe-zone
+  model cannot emit web assets, rename `derive-android-icons.mjs` to an honest shared `derive-brand-assets.mjs` in
+  the same change, extend that one generator and update its one package command; do not copy its crop/safe-zone
   algorithm into a second script. The worker may change only the generator/command wiring needed for that reuse,
   not other native shell source. Record the exact generation command and verify dimensions/alpha.
 - Staff manifest and metadata say `Therapysto`, keep `start_url=/app/doctor`, and never reference patient icon
   files. Default patient and staff manifest builders never reference one another's files.
 - Preserve branded patient identity exactly: `patient_branded` keeps `effectivePatientBrand.patientAppName` and
-  its pre-existing clinic-brand/default branded icon behavior. Do not silently point tenant/custom-domain metadata
-  at Therapy Go icons. Use one parameterized metadata/manifest path; no duplicate branded manifest builder.
+  the legacy blue `/pwa-icon-*`/`apple-touch-icon.png` icon paths until per-clinic icons exist. Do not silently point
+  tenant/custom-domain metadata at Therapy Go icons. Use one parameterized metadata/manifest path; no duplicate
+  branded manifest builder.
 - Platform admin is completely outside patient/staff PWA: admin metadata has no manifest/apple-web-app/PWA icons;
   both manifest routes return 404 for `platform_admin`; `DoctorWorkspaceShell` does not mount
-  `StaffPwaBootstrap`; account/install UI is impossible for admin for every tab/redirect path. Preserve the
+  `StaffPwaBootstrap` OR `StaffWebPushBootstrap`; account/install UI is impossible for admin for every tab/redirect
+  path. Prefer the existing `canSurfaceEnterRoute` manifest eligibility chokepoint and return the browser-only
+  `platformAdminLayoutMetadata` with `manifest:null`, `appleWebApp:null`, `icons:null`; do not add a second admin
+  classifier. Preserve the
   existing black admin asset; do not replace/delete clinic/admin legacy source assets.
 - Keep `/app/patient/install` on existing `PwaInstallSection`; keep staff install at `/app/account?tab=install` on
-  existing `StaffPwaInstallSection`; `/app/doctor/install` redirects a specialist there and cannot expose UI to
-  platform admin. Keep short, accurate iOS Safari add-to-home-screen and Android browser installation instructions
+  existing `StaffPwaInstallSection`; consolidate the patient page's duplicate static guide into the existing
+  component while retaining its existing `WebPushOptInControls`. `/app/doctor/install` is redirects only:
+  specialist goes to account install, platform admin goes to the existing admin home/not-found and never renders
+  staff install UI. Keep short, accurate iOS Safari add-to-home-screen and Android browser installation instructions
   by editing existing components only. No speculative help copy or new modal/page.
 
 M1-07 stays open and must not be emulated with a local `window.Capacitor` check. Do not alter service-worker
@@ -58,6 +67,10 @@ config, existing manifest route handlers, current install/account/shell entrypoi
 single shared asset generator/command. Before adding any function/component, apply AGENTS §5: extend the existing
 manifest/metadata/install source. Do not create parallel PWA builders, install panels, admin-specific fallback PWA,
 or a second branding source.
+
+The branch must start only after any concurrent favicon/metadata work in the integration checkout is committed and
+reconciled. Preserve its `therapygo-favicon-32.png`/`therapysto-favicon-32.png` work if present; do not overwrite or
+silently absorb an uncommitted neighbor diff.
 
 ## Validation and delivery
 
