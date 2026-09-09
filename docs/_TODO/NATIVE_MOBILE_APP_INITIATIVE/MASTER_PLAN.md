@@ -487,9 +487,16 @@ authority нельзя: он частично отменён владельце�
       затем push и TEST deploy; до результата строка не закрывается. Доказательство: `TEST_CPUSET=0-7 VITEST_MAX_WORKERS=8
       /home/dev/brain/host-orch/run-tests.sh "pnpm install --frozen-lockfile && pnpm run ci"` на `c77af9e666001100a0719608c91cfa720fc32f2c` — PASS, 5/5 фаз,
       `stepsExit=0`, `exitCode=0`, `movedDuringRun=false`, 2026-09-09 18:26 MSK.
-- [ ] **M7-07.** Интегрированный `feat/doctor-ui-rebuild` содержит plan evidence по каждому чекбоксу, taskdb `#915`
+- [x] **M7-07.** Интегрированный `feat/doctor-ui-rebuild` содержит plan evidence по каждому чекбоксу, taskdb `#915`
       соответствует факту, коммиты запушены через проверенный wrapper (`pnpm push:checked`), ни один worker
-      clone/process не остался живым.
+      clone/process не остался живым. Доказательство: `pnpm run push:checked` подтвердил remote SHA
+      `b5bc7e396a2172c4150b88d9cfae52267c1185c2` и зелёный GitHub run `34370560492`; штатный
+      `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild --reapply ...` завершился `PASS` и развернул тот же
+      SHA в `/opt/projects/bersoncarebot-test` (transcript
+      `/var/log/bersoncarebot/deploy-test/deploy-test.20260909T153234Z.qAKn4g.log`). Четыре TEST-сервиса активны,
+      integrator и обе web-поверхности отвечают `{"ok":true,"db":"up"}`; `git worktree list --porcelain` показал
+      только основной checkout, поиск процессов по путям/именам mobile workstream не нашёл живых worker-процессов.
+      `#915` оставлен `doing` ровно из-за открытых M1-04/M7-03/M7-04/M7-05, а не из-за незавершённой интеграции.
 
 ## 5. Parallel workstreams
 
@@ -580,4 +587,4 @@ security/audit gates идут без этих входов. Отсутствую
 | M7-04 | open | KVM and guest NAT PASS; `com.android.systemui` ANR prevents stable WebView acceptance (`7bf5613eb`, landing `e94465518`). |
 | M7-05 | open | External RuStore application credentials, signing and a physical delivery target are not available. |
 | M7-06 | done | `TEST_CPUSET=0-7 VITEST_MAX_WORKERS=8 /home/dev/brain/host-orch/run-tests.sh "pnpm install --frozen-lockfile && pnpm run ci"` PASS on `c77af9e666001100a0719608c91cfa720fc32f2c`; `runs/ci-last.json` records stable HEAD and exit 0. |
-| M7-07 | open | Checked push, named TEST deploy evidence, taskdb synchronization and final clone/process cleanup remain. |
+| M7-07 | done | Checked push/GitHub run `34370560492` and named TEST deploy both proved executable SHA `b5bc7e396a2172c4150b88d9cfae52267c1185c2`; four services and both TEST origins are healthy. Taskdb `#915` matches the remaining acceptance blockers; only the main worktree exists and no mobile worker process remains. |
