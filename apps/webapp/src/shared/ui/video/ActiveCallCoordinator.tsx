@@ -1,6 +1,14 @@
 'use client';
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { usePathname } from 'next/navigation';
 import type { VideoMeetingRenderSession } from '@/modules/video-meetings/ports';
 import { usePlatform } from '@/shared/hooks/usePlatform';
@@ -50,9 +58,15 @@ function routePath(url: string): string {
  * The one authenticated owner for a mobile call. It remains mounted inside each product shell, so a
  * route transition only changes presentation; it never replaces the browser iframe or native Activity.
  */
-export function ActiveCallCoordinator({ children, floatingIndicator }: {
+export function ActiveCallCoordinator({
+  children,
+  floatingIndicator,
+  activeRouteClassName,
+}: {
   children: ReactNode;
   floatingIndicator?: ReactNode;
+  /** Shell-owned mobile geometry for the persistent active-route meeting surface. */
+  activeRouteClassName?: string;
 }) {
   const pathname = usePathname();
   const platform = usePlatform();
@@ -83,14 +97,17 @@ export function ActiveCallCoordinator({ children, floatingIndicator }: {
     activeRef.current?.onDiagnostic?.(diagnostic);
   }, []);
 
-  const value = useMemo<ActiveCallContextValue>(() => ({
-    activeCall,
-    isMobile,
-    isActiveRoute,
-    activate,
-    completeFromRenderer,
-    reportDiagnostic,
-  }), [activate, activeCall, completeFromRenderer, isActiveRoute, isMobile, reportDiagnostic]);
+  const value = useMemo<ActiveCallContextValue>(
+    () => ({
+      activeCall,
+      isMobile,
+      isActiveRoute,
+      activate,
+      completeFromRenderer,
+      reportDiagnostic,
+    }),
+    [activate, activeCall, completeFromRenderer, isActiveRoute, isMobile, reportDiagnostic],
+  );
 
   return (
     <ActiveCallContext.Provider value={value}>
@@ -103,7 +120,7 @@ export function ActiveCallCoordinator({ children, floatingIndicator }: {
             onDiagnostic={reportDiagnostic}
             className={
               isActiveRoute
-                ? 'fixed inset-0 z-50 bg-black'
+                ? (activeRouteClassName ?? 'fixed inset-0 z-50 bg-black')
                 : 'fixed bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] right-3 z-40 h-44 w-60 overflow-hidden rounded-lg bg-black shadow-lg'
             }
           />

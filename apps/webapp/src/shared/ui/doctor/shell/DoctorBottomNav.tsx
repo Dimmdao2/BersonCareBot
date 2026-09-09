@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useRef } from 'react';
 import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
 import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/doctor/navChrome';
@@ -15,6 +16,9 @@ import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
 import { resolveSpecialistTaskAttentionTone } from '@/modules/specialist-tasks/taskPriority';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { useReportShellChromeHeight } from '@/shared/hooks/useReportShellChromeHeight';
+
+export const DOCTOR_BOTTOM_NAV_HEIGHT_VAR = '--doctor-bottom-nav-height';
 
 const items = [
   { id: 'today', label: 'Сегодня', href: routePaths.doctor },
@@ -36,6 +40,7 @@ export function DoctorBottomNav({
   menuAccess: DoctorMenuAccess;
   patientLabel?: string;
 }) {
+  const navRef = useRef<HTMLElement>(null);
   const terms = useDoctorPatientTerms();
   const { patientPluralLabel } = terms;
   const pathname = usePathname() ?? routePaths.doctor;
@@ -48,8 +53,11 @@ export function DoctorBottomNav({
     visibleHrefs.has('accessHref' in item ? item.accessHref : item.href),
   );
 
+  useReportShellChromeHeight(navRef, DOCTOR_BOTTOM_NAV_HEIGHT_VAR);
+
   return (
     <nav
+      ref={navRef}
       aria-label="Основные разделы"
       className="relative z-40 shrink-0 border-t border-border/70 bg-background/95 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-2px_6px_rgba(15,23,42,0.08)] backdrop-blur-md md:hidden"
     >

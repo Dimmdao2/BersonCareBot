@@ -51,21 +51,24 @@ export function PatientClientLayout({
     children
   );
   return (
-    <ActiveCallCoordinator floatingIndicator={<PatientActiveCallIndicator />}>
-    <PatientPhonePromptChromeProvider>
-      <MiniAppShareContactGate channelPolicy={authChannelPolicy}>
-        <PatientWebPushProvider>
-          <PatientRuntimeFeaturesProvider materialRatingsEnabled={materialRatingsEnabled}>
-            <Suspense fallback={null}>
-              <PatientCalendarTimezoneBootstrap />
-              <PatientWebPushBootstrap />
-              <PatientAnalyticsReporter />
-              {content}
-            </Suspense>
-          </PatientRuntimeFeaturesProvider>
-        </PatientWebPushProvider>
-      </MiniAppShareContactGate>
-    </PatientPhonePromptChromeProvider>
+    <ActiveCallCoordinator
+      floatingIndicator={<PatientActiveCallIndicator />}
+      activeRouteClassName="fixed inset-x-0 top-[var(--patient-header-bar-height,0px)] bottom-[var(--patient-bottom-nav-height,0px)] z-40 bg-black"
+    >
+      <PatientPhonePromptChromeProvider>
+        <MiniAppShareContactGate channelPolicy={authChannelPolicy}>
+          <PatientWebPushProvider>
+            <PatientRuntimeFeaturesProvider materialRatingsEnabled={materialRatingsEnabled}>
+              <Suspense fallback={null}>
+                <PatientCalendarTimezoneBootstrap />
+                <PatientWebPushBootstrap />
+                <PatientAnalyticsReporter />
+                {content}
+              </Suspense>
+            </PatientRuntimeFeaturesProvider>
+          </PatientWebPushProvider>
+        </MiniAppShareContactGate>
+      </PatientPhonePromptChromeProvider>
     </ActiveCallCoordinator>
   );
 }
