@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DateTime } from 'luxon';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import {
@@ -10,6 +10,7 @@ import {
   ComposedChart,
   LabelList,
   Line,
+  ReferenceDot,
   ReferenceLine,
   Tooltip,
   XAxis,
@@ -25,7 +26,6 @@ import { cn } from '@/lib/utils';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
-import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   doctorMetaTextClass,
   doctorSectionTitleClass,
@@ -49,8 +49,6 @@ type HistoryState =
       iana: string;
     };
 
-type Period = '14' | '30' | 'all';
-
 type JournalDay = {
   date: string;
   completions: ExerciseMetricPoint[];
@@ -60,16 +58,12 @@ type JournalDay = {
 type ChartDay = JournalDay & {
   volume: number | null;
   pain010: number | null;
+  painLine010: number | null;
   difficulty: LfkPostSessionDifficulty | null;
   lastWeightKg: number | null;
   weightChangeLabel: string | null;
+  painScale: number;
 };
-
-const periodOptions: Array<{ value: Period; label: string }> = [
-  { value: '14', label: '2 нед.' },
-  { value: '30', label: 'Месяц' },
-  { value: 'all', label: 'Всё' },
-];
 
 const difficultyLabel: Record<LfkPostSessionDifficulty, string> = {
   easy: 'Легко',
@@ -164,13 +158,13 @@ function journalDaysFromHistory(
     }));
 }
 
-function calendarDaysFromJournal(days: JournalDay[], iana: string): JournalDay[] {
+function calendarDaysFromJournal(days: JournalDay[]): JournalDay[] {
   const firstDate = days[0]?.date;
-  if (!firstDate) return [];
+  const lastDate = days[days.length - 1]?.date;
+  if (!firstDate || !lastDate) return [];
   const byDate = new Map(days.map((day) => [day.date, day]));
-  const today = localDateKey(new Date().toISOString(), iana) ?? firstDate;
   const calendarDays: JournalDay[] = [];
-  for (let date = firstDate; date <= today; date = addDays(date, 1)) {
+  for (let date = firstDate; date <= lastDate; date = addDays(date, 1)) {
     calendarDays.push(byDate.get(date) ?? { date, completions: [], comments: [] });
   }
   return calendarDays;
@@ -178,7 +172,7 @@ function calendarDaysFromJournal(days: JournalDay[], iana: string): JournalDay[]
 
 function chartDaysFromJournal(days: JournalDay[]): ChartDay[] {
   let previousWeight: number | null = null;
-  return days.map((day) => {
+  const chartDays = days.map((day) => {
     const lastCompletion = day.completions[day.completions.length - 1] ?? null;
     const volumeValues = day.completions.flatMap((point) =>
       point.reps !== null && point.sets !== null ? [point.reps * point.sets] : [],
@@ -191,33 +185,118 @@ function chartDaysFromJournal(days: JournalDay[]): ChartDay[] {
       ...day,
       volume: volumeValues.length > 0 ? volumeValues.reduce((sum, value) => sum + value, 0) : null,
       pain010: lastCompletion?.pain010 ?? null,
+      painLine010: lastCompletion?.pain010 ?? null,
       difficulty: lastCompletion?.difficulty ?? null,
       lastWeightKg,
       weightChangeLabel: delta && delta !== 0 ? `${delta > 0 ? '+' : ''}${delta} кг` : null,
+      // Keeps the fixed clinical 0–10 axis and its guides visible even before pain is entered.
+      painScale: 0,
     };
   });
-}
-
-function chartPeriod(days: ChartDay[], period: Period): ChartDay[] {
-  if (period === 'all') return days;
-  return days.slice(period === '14' ? -14 : -30);
-}
-
-function painSegments(days: ChartDay[]): ChartDay[][] {
-  const segments: ChartDay[][] = [];
-  let active: ChartDay[] = [];
-  let previousPainDate: string | null = null;
-  for (const day of days) {
-    if (day.pain010 === null) continue;
-    if (previousPainDate && DateTime.fromISO(day.date).diff(DateTime.fromISO(previousPainDate), 'days').days > 4) {
-      if (active.length > 0) segments.push(active);
-      active = [];
+  let previousPainIndex: number | null = null;
+  for (let index = 0; index < chartDays.length; index += 1) {
+    const currentPain = chartDays[index]?.pain010;
+    if (currentPain === null || currentPain === undefined) continue;
+    if (previousPainIndex !== null && index - previousPainIndex <= 4) {
+      const previousPain = chartDays[previousPainIndex]?.pain010;
+      if (previousPain !== null && previousPain !== undefined) {
+        for (let bridgeIndex = previousPainIndex + 1; bridgeIndex < index; bridgeIndex += 1) {
+          const ratio = (bridgeIndex - previousPainIndex) / (index - previousPainIndex);
+          chartDays[bridgeIndex]!.painLine010 = previousPain + (currentPain - previousPain) * ratio;
+        }
+      }
     }
-    active.push(day);
-    previousPainDate = day.date;
+    previousPainIndex = index;
   }
-  if (active.length > 0) segments.push(active);
-  return segments;
+  return chartDays;
+}
+
+function volumeAxisTicks(days: ChartDay[]): number[] {
+  const largestVolume = Math.max(0, ...days.flatMap((day) => day.volume === null ? [] : [day.volume]));
+  const targetStep = Math.max(1, largestVolume / 3);
+  const exponent = 10 ** Math.floor(Math.log10(targetStep));
+  const normalized = targetStep / exponent;
+  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * exponent;
+  return [0, step, step * 2, step * 3];
+}
+
+function ChartSideAxis({
+  values,
+  side,
+  color,
+}: {
+  values: number[];
+  side: 'left' | 'right';
+  color: string;
+}) {
+  const isLeft = side === 'left';
+  return (
+    <div className={cn('relative h-[252px] shrink-0', isLeft ? 'w-[34px]' : 'w-[28px]')} aria-hidden="true">
+      <span
+        className={cn('absolute top-[22px] bottom-[62px] w-px', isLeft ? 'right-0' : 'left-0')}
+        style={{ backgroundColor: color }}
+      />
+      {values.map((value, index) => (
+        <span
+          key={value}
+          className={cn(
+            'absolute z-10 -translate-y-1/2 text-[11px] leading-none tabular-nums',
+            isLeft ? 'right-2 text-right' : 'left-2 text-left',
+          )}
+          style={{ top: `${22 + (index / (values.length - 1)) * 168}px`, color }}
+        >
+          {value}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ChartDateTick({
+  x = 0,
+  y = 0,
+  payload,
+  completedDates,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value?: string | number };
+  completedDates: Set<string>;
+}) {
+  const date = typeof payload?.value === 'string' ? payload.value : null;
+  if (!date) return null;
+  const complete = completedDates.has(date);
+  return (
+    <g transform={`translate(${x},${y})`}>
+      {complete ? (
+        <rect
+          x={-15}
+          y={-13}
+          width={30}
+          height={27}
+          rx={7}
+          fill="var(--doctor-exercise-completion-bg)"
+        />
+      ) : null}
+      <text
+        y={3}
+        textAnchor="middle"
+        fill={complete ? 'var(--doctor-exercise-completion-text)' : 'var(--doctor-exercise-date-inactive)'}
+        fontSize={12}
+        fontWeight={complete ? 600 : 400}
+      >
+        {dateDayLabel(date)}
+      </text>
+      <text
+        y={19}
+        textAnchor="middle"
+        fill="var(--doctor-exercise-date-inactive)"
+        fontSize={10}
+      >
+        {weekdayLabel(date)}
+      </text>
+    </g>
+  );
 }
 
 function ExerciseChartTooltip({
@@ -245,35 +324,21 @@ function ExerciseChartTooltip({
   );
 }
 
-function ExerciseDynamicsChart({ days, period, onPeriodChange }: {
-  days: ChartDay[];
-  period: Period;
-  onPeriodChange: (period: Period) => void;
-}) {
-  const visibleDays = chartPeriod(days, period);
-  const width = Math.max(640, visibleDays.length * 52);
-  const segments = painSegments(visibleDays);
-  const hasValues = visibleDays.some((day) => day.volume !== null || day.pain010 !== null);
+function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const width = Math.max(298, days.length * 40);
+  const completedDates = new Set(days.filter((day) => day.completions.length > 0).map((day) => day.date));
+  const hasValues = days.some((day) => day.volume !== null || day.pain010 !== null);
+  const volumeTicks = volumeAxisTicks(days);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (container) container.scrollLeft = container.scrollWidth;
+  }, [days.length]);
 
   return (
     <section className="space-y-3" aria-label="Динамика">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className={doctorSectionTitleClass}>Динамика</h2>
-        <div className="flex shrink-0 gap-1" aria-label="Период динамики">
-          {periodOptions.map((option) => (
-            <Button
-              key={option.value}
-              type="button"
-              size="sm"
-              variant={period === option.value ? 'default' : 'secondary'}
-              className="h-8 px-2.5 text-xs"
-              onClick={() => onPeriodChange(option.value)}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <h2 className={doctorSectionTitleClass}>Динамика</h2>
 
       {hasValues ? (
         <div className="rounded-lg border border-border/60 bg-white p-2.5">
@@ -287,9 +352,15 @@ function ExerciseDynamicsChart({ days, period, onPeriodChange }: {
               <p className={doctorMetaTextClass}>(0–10)</p>
             </div>
           </div>
-          <div className="doctor-weekly-chart-scroll mt-1 overflow-x-auto overscroll-x-contain pb-1">
-            <div style={{ width }}>
-              <ComposedChart width={width} height={230} data={visibleDays} margin={{ top: 26, right: 28, bottom: 8, left: 4 }}>
+          <div className="mt-1 flex">
+            <ChartSideAxis values={[...volumeTicks].reverse()} side="left" color="var(--doctor-exercise-chart-label)" />
+            <div
+              ref={scrollRef}
+              className="doctor-weekly-chart-scroll min-w-0 flex-1 overflow-x-auto overscroll-x-contain"
+              aria-label="График динамики: прокрутите влево для более ранних дат"
+            >
+              <div style={{ width }}>
+                <ComposedChart width={width} height={252} data={days} margin={{ top: 22, right: 0, bottom: 12, left: 0 }}>
                 <CartesianGrid vertical stroke="var(--doctor-exercise-chart-guide)" horizontal={false} />
                 {[0, 2, 4, 6, 8, 10].map((pain) => (
                   <ReferenceLine
@@ -297,75 +368,70 @@ function ExerciseDynamicsChart({ days, period, onPeriodChange }: {
                     yAxisId="pain"
                     y={pain}
                     stroke="var(--doctor-exercise-chart-grid)"
-                    strokeDasharray="3 3"
+                    strokeDasharray="2 3"
                   />
                 ))}
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={false} height={10} />
-                <YAxis
-                  yAxisId="volume"
+                <XAxis
+                  dataKey="date"
                   axisLine={{ stroke: 'var(--doctor-exercise-chart-axis)' }}
                   tickLine={false}
-                  tick={{ fill: 'var(--doctor-exercise-chart-label)', fontSize: 11 }}
-                  width={34}
-                  allowDecimals={false}
+                  tick={<ChartDateTick completedDates={completedDates} />}
+                  height={50}
+                  interval={0}
+                />
+                <YAxis
+                  yAxisId="volume"
+                  hide
+                  domain={[0, volumeTicks[volumeTicks.length - 1] ?? 0]}
                 />
                 <YAxis
                   yAxisId="pain"
-                  orientation="right"
+                  hide
                   domain={[0, 10]}
-                  ticks={[0, 2, 4, 6, 8, 10]}
-                  axisLine={{ stroke: 'var(--doctor-exercise-pain-chart)' }}
-                  tickLine={false}
-                  tick={{ fill: 'var(--doctor-exercise-pain-chart)', fontSize: 11 }}
-                  width={26}
                 />
                 <Tooltip trigger="click" cursor={{ fill: 'var(--doctor-exercise-completion-bg)' }} content={<ExerciseChartTooltip />} />
-                <Bar yAxisId="volume" dataKey="volume" radius={[4, 4, 0, 0]} maxBarSize={24} fill="var(--doctor-exercise-difficulty-none)" fillOpacity={0.8}>
-                  {visibleDays.map((day) => (
+                <Bar yAxisId="volume" dataKey="volume" radius={[4, 4, 0, 0]} maxBarSize={23} fill="var(--doctor-exercise-difficulty-none)" fillOpacity={0.8}>
+                  {days.map((day) => (
                     <Cell key={day.date} fill={difficultyColor[day.difficulty ?? 'none']} fillOpacity={0.8} />
                   ))}
                   <LabelList dataKey="weightChangeLabel" position="top" fill="var(--doctor-exercise-completion-text)" fontSize={10} />
                 </Bar>
-                {segments.map((segment, index) => (
-                  <Line
-                    key={segment[0]?.date ?? index}
-                    data={segment}
+                <Line
+                  yAxisId="pain"
+                  dataKey="painScale"
+                  stroke="transparent"
+                  strokeOpacity={0}
+                  dot={false}
+                  activeDot={false}
+                  legendType="none"
+                  isAnimationActive={false}
+                />
+                <Line
+                  yAxisId="pain"
+                  dataKey="painLine010"
+                  stroke="var(--doctor-exercise-pain-chart)"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={false}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                />
+                {days.flatMap((day) => day.pain010 === null ? [] : [
+                  <ReferenceDot
+                    key={day.date}
+                    x={day.date}
                     yAxisId="pain"
-                    dataKey="pain010"
-                    stroke="var(--doctor-exercise-pain-chart)"
-                    strokeWidth={2}
-                    dot={{ r: 4, fill: 'var(--doctor-exercise-pain-chart)', stroke: '#fff', strokeWidth: 1 }}
-                    activeDot={{ r: 5 }}
-                    isAnimationActive={false}
-                  />
-                ))}
+                    y={day.pain010}
+                    r={4}
+                    fill="var(--doctor-exercise-pain-chart)"
+                    stroke="#fff"
+                    strokeWidth={1}
+                  />,
+                ])}
               </ComposedChart>
-              <div
-                className="grid pt-1"
-                style={{ gridTemplateColumns: `repeat(${visibleDays.length}, minmax(0, 1fr))` }}
-              >
-                {visibleDays.map((day) => {
-                  const complete = day.completions.length > 0;
-                  return (
-                    <div key={day.date} className="flex min-w-0 flex-col items-center gap-0.5 text-center">
-                      <span
-                        className={cn(
-                          'inline-flex min-w-7 justify-center rounded-md px-1 py-0.5 text-xs font-semibold tabular-nums',
-                          complete
-                            ? 'bg-[var(--doctor-exercise-completion-bg)] text-[var(--doctor-exercise-completion-text)]'
-                            : 'text-[var(--doctor-exercise-date-inactive)]',
-                        )}
-                      >
-                        {dateDayLabel(day.date)}
-                      </span>
-                      <span className="text-[10px] text-[var(--doctor-exercise-date-inactive)]">
-                        {weekdayLabel(day.date)}
-                      </span>
-                    </div>
-                  );
-                })}
               </div>
             </div>
+            <ChartSideAxis values={[10, 8, 6, 4, 2, 0]} side="right" color="var(--doctor-exercise-pain-chart)" />
           </div>
           <div className={cn(doctorMetaTextClass, 'mt-3 flex flex-wrap gap-x-3 gap-y-1')}>
             {(['none', 'easy', 'medium', 'hard'] as const).map((difficulty) => (
@@ -402,14 +468,14 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
   return (
     <section className="border-t border-border/60 pt-4" aria-label="Журнал выполнений">
       <h2 className={doctorSectionTitleClass}>Журнал выполнений</h2>
-      <div className="mt-3 overflow-x-auto">
-        <div className="min-w-[640px]">
-          <div className="grid grid-cols-[7.25rem_minmax(7.5rem,1fr)_5rem_4.75rem_6.5rem_1.5rem] border-b border-border/70 px-2 py-2 text-xs text-muted-foreground">
+      <div className="mt-3">
+        <div>
+          <div className="grid grid-cols-[3.65rem_minmax(4.85rem,1fr)_2.45rem_2.65rem_4.85rem_1.25rem] border-b border-border/70 px-1.5 py-2 text-[10px] text-muted-foreground">
             <span>Дата</span>
-            <span>Повторы × подходы</span>
+            <span>Повт. × подх.</span>
             <span>Вес</span>
             <span>Боль</span>
-            <span>Сложность</span>
+            <span>Сложн.</span>
             <span aria-label="Комментарии" />
           </div>
           {days.flatMap((day) => {
@@ -422,7 +488,7 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
             return [
               ...(monthHeader
                 ? [
-                    <div key={`month-${monthHeader}`} className="mt-3 rounded-md bg-muted/60 px-3 py-2 text-sm font-medium text-muted-foreground">
+                    <div key={`month-${monthHeader}`} className="mt-3 rounded-md bg-muted/60 px-2.5 py-2 text-sm font-medium text-muted-foreground">
                       {monthLabel(day.date)}
                     </div>,
                   ]
@@ -433,12 +499,12 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                 return (
                   <div
                     key={point?.completionId ?? `${day.date}-empty`}
-                    className="grid grid-cols-[7.25rem_minmax(7.5rem,1fr)_5rem_4.75rem_6.5rem_1.5rem] items-center border-b border-border/60 px-2 py-2 text-sm text-foreground"
+                    className="grid grid-cols-[3.65rem_minmax(4.85rem,1fr)_2.45rem_2.65rem_4.85rem_1.25rem] items-center border-b border-border/60 px-1.5 py-2 text-xs text-foreground"
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <span
                         className={cn(
-                          'inline-flex min-w-8 justify-center rounded-md px-1.5 py-1 text-sm font-semibold tabular-nums',
+                          'inline-flex min-w-8 justify-center rounded-md px-1.5 py-1 text-xs font-semibold tabular-nums',
                           complete
                             ? 'bg-[var(--doctor-exercise-completion-bg)] text-[var(--doctor-exercise-completion-text)]'
                             : 'text-[var(--doctor-exercise-date-inactive)]',
@@ -446,13 +512,13 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                       >
                         {dateDayLabel(day.date)}
                       </span>
-                      <span className="text-xs text-muted-foreground">{weekdayLabel(day.date)}</span>
+                      <span className="text-[10px] text-muted-foreground">{weekdayLabel(day.date)}</span>
                     </div>
                     <span>{point ? formatRepsSets(point) : '—'}</span>
                     <span>{point?.weightKg !== null && point?.weightKg !== undefined ? formatWeight(point.weightKg) : '—'}</span>
                     <span>
                       {point?.pain010 !== null && point?.pain010 !== undefined ? (
-                        <span className={cn('inline-flex min-w-9 justify-center rounded-md px-2 py-1 font-semibold', painClass(point.pain010))}>
+                        <span className={cn('inline-flex min-w-7 justify-center rounded-md px-1.5 py-1 font-semibold', painClass(point.pain010))}>
                           {point.pain010}
                         </span>
                       ) : '—'}
@@ -461,7 +527,7 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                       {point?.difficulty ? (
                         <span
                           className={cn(
-                            'inline-flex min-w-20 justify-center rounded-md px-2 py-1 font-medium',
+                            'inline-flex w-full justify-center rounded-md px-1 py-1 text-[10px] font-medium whitespace-nowrap',
                             point.difficulty === 'easy' && 'bg-[color:color-mix(in_srgb,var(--doctor-exercise-difficulty-easy)_35%,white)] text-primary',
                             point.difficulty === 'medium' && 'bg-[color:color-mix(in_srgb,var(--doctor-exercise-difficulty-medium)_24%,white)] text-primary',
                             point.difficulty === 'hard' && 'bg-[var(--doctor-exercise-difficulty-hard)] text-white',
@@ -474,7 +540,7 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                     {isToggleRow ? (
                       <button
                         type="button"
-                        className="inline-flex size-7 items-center justify-center rounded-md text-[var(--doctor-exercise-completion-text)] hover:bg-[var(--doctor-exercise-comment-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        className="inline-flex size-6 items-center justify-center rounded-md text-[var(--doctor-exercise-completion-text)] hover:bg-[var(--doctor-exercise-comment-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         aria-label={`Комментарии за ${day.date}`}
                         aria-expanded={expanded}
                         onClick={() => setExpandedDate(expanded ? null : day.date)}
@@ -487,7 +553,7 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
               }),
               ...(expanded
                 ? [
-                    <div key={`comments-${day.date}`} className="border-b border-border/60 bg-[var(--doctor-exercise-comment-bg)] px-4 py-3">
+                    <div key={`comments-${day.date}`} className="border-b border-border/60 bg-[var(--doctor-exercise-comment-bg)] px-3 py-3">
                       <div className="space-y-2 text-sm text-foreground">
                         {day.comments.map((comment) => <p key={comment.id}>{comment.body}</p>)}
                       </div>
@@ -531,7 +597,6 @@ export function DoctorExerciseStatisticsModal({
     comments: [],
     iana: null,
   });
-  const [period, setPeriod] = useState<Period>('14');
 
   useEffect(() => {
     if (!open) return;
@@ -563,7 +628,7 @@ export function DoctorExerciseStatisticsModal({
     [history],
   );
   const chartDays = useMemo(
-    () => history.state === 'ready' ? chartDaysFromJournal(calendarDaysFromJournal(journalDays, history.iana)) : [],
+    () => history.state === 'ready' ? chartDaysFromJournal(calendarDaysFromJournal(journalDays)) : [],
     [history, journalDays],
   );
 
@@ -588,7 +653,7 @@ export function DoctorExerciseStatisticsModal({
       {history.key !== requestKey || history.state === 'loading' ? <DoctorPanelLoading className="min-h-48" /> : null}
       {history.key === requestKey && history.state === 'error' ? <p className="text-sm text-destructive">Не удалось загрузить статистику</p> : null}
       {history.key === requestKey && history.state === 'ready' ? <>
-        <ExerciseDynamicsChart days={chartDays} period={period} onPeriodChange={setPeriod} />
+        <ExerciseDynamicsChart days={chartDays} />
         <ExerciseJournal days={journalDays} />
       </> : null}
     </DoctorModal>
