@@ -109,11 +109,18 @@ describe('installed PWA contract survives the surface rename', () => {
   });
 
   it('uses the branded Host resolve for the patient manifest identity', () => {
-    expect(buildPatientPwaManifest(BRANDED_RESOLVED)).toMatchObject({
+    const branded = buildPatientPwaManifest(BRANDED_RESOLVED);
+    expect(branded).toMatchObject({
       name: 'Clinic A Care — забота о твоём здоровье',
       short_name: 'Clinic A Care',
+      id: '/app',
+      scope: '/app',
       start_url: '/app/patient',
     });
+    expect(branded.icons).toEqual([
+      { src: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/pwa-icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    ]);
     expect(surfaceLayoutMetadata(BRANDED_RESOLVED)).toMatchObject({
       title: 'Clinic A Care',
       manifest: '/manifest.webmanifest',
