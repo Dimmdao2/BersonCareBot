@@ -65,6 +65,14 @@ Execution authority/status: subordinate artifact of
 - [ ] **P-guard — приёмочные тесты:** отдельно разрешённый живой прогон на TEST (подсунуть битый SMTP-логин → убедиться, что
       прилетело в web_push+TG+MAX(+SMS), с красным «стоп»; через 1ч — повтор; утром — красный отчёт).
       Только заранее разрешённые TEST-получатели; DEV реальные отправки запрещены. (owner-gated: needs live-TEST authorization)
+- [ ] **P5 — регулярная end-to-end проверка двух платформенных SMTP (уточнение владельца 09.09.2026).**
+      Therapysto и TherapyGo отправляют отдельные uniquely tagged контрольные письма на выделенный owner mailbox;
+      существующий `operator_health_imap` подтверждает фактическое получение каждого письма до
+      `roundTripDeadlineMs`, различает два sender profile, очищает только свои старые probe-сообщения по retention
+      и поднимает существующий красный delivery incident при отсутствии любого из двух. DEV не отправляет реально;
+      TEST использует только разрешённый owner mailbox. Адрес и credentials задаются restricted настройками, не
+      попадают в plan/log/env. Текущий комментарий в `operatorHealthProbeConfig.ts` честно говорит, что IMAP
+      round-trip runner ещё не реализован: одна сохранённая форма выполнением этой строки не считается.
 
 ## Риски / принципы
 
