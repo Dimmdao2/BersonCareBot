@@ -84,3 +84,6 @@ ccf96854fb62740c95b05dc0fe7ff50ca91de2de:docs/_TODO/runs/FINAL_SYSTEMIC_COMPLETI
 # scan keeps the introducing commits, so baseline only those two exact fingerprints.
 e6ff3c17c469d1c63d6a6b5e9436d1dec5dd4b04:apps/media-worker/src/main.ts:generic-api-key:55
 448492bd28c8a5d3541cf05cae4865a114c3b6e1:apps/webapp/src/infra/s3/client.ts:generic-api-key:65
+
+# 2026-09-09 mobile-push audit brief: ordinary English test-scope prose, not a credential.
+969d097b511829076487ebbcf1b49d8cdfaba436:.lead/briefs/mobile-web-runtime-push-audit-correction-20260909.md:generic-api-key:3

@@ -39,8 +39,8 @@ export function createNativePushTokenCipherFromEnv(raw = process.env.NATIVE_PUSH
     return key;
   };
   return {
-    encrypt(token, context) { const iv = randomBytes(12); const cipher = createCipheriv('aes-256-gcm', keyFor(activeKeyId), iv); cipher.setAAD(aad(context)); const body = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]); return { keyId: activeKeyId, ciphertext: Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64url') }; },
-    decrypt(ciphertext, keyId, context) { const data = Buffer.from(ciphertext, 'base64url'); if (data.length < 29) throw new Error('native_push_token_ciphertext_invalid'); const decipher = createDecipheriv('aes-256-gcm', keyFor(keyId), data.subarray(0, 12)); decipher.setAAD(aad(context)); decipher.setAuthTag(data.subarray(12, 28)); return Buffer.concat([decipher.update(data.subarray(28)), decipher.final()]).toString('utf8'); },
+    encrypt(token, context) { const iv = randomBytes(12); const cipher = createCipheriv('aes-256-gcm', keyFor(activeKeyId), iv, { authTagLength: 16 }); cipher.setAAD(aad(context)); const body = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]); return { keyId: activeKeyId, ciphertext: Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64url') }; },
+    decrypt(ciphertext, keyId, context) { const data = Buffer.from(ciphertext, 'base64url'); if (data.length < 29) throw new Error('native_push_token_ciphertext_invalid'); const decipher = createDecipheriv('aes-256-gcm', keyFor(keyId), data.subarray(0, 12), { authTagLength: 16 }); decipher.setAAD(aad(context)); decipher.setAuthTag(data.subarray(12, 28)); return Buffer.concat([decipher.update(data.subarray(28)), decipher.final()]).toString('utf8'); },
   };
 }
 
