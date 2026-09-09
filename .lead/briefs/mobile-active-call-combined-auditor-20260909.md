@@ -1,4 +1,4 @@
-# Independent behavior audit — #915 mobile active-call lifecycle
+# Тест или взгляд — independent behavior audit #915 mobile active-call lifecycle
 
 Источник оракула — `docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md`: «Пока звонок активен, начало другого звонка через обычный UI недоступно».
 
@@ -34,4 +34,3 @@ Audit is a gate, not a source of scope. A finding exists only for a reachable ow
 - Report one line per M4-01…M4-06: `PASS|FAIL|BLOCKED` with exact evidence.
 - Include candidate/base SHA, files inspected, exact commands/results, retained/new tests, fault-injection tally `убито N / непойманных M`, and real external blockers (KVM/physical device/RuStore) separately from repository failures.
 - Commit only tests/report with explicit staging; message includes `#915`, evidence, M4 IDs, and what remains unverified. Do not push, update taskdb, plan checkboxes, or product code.
-
