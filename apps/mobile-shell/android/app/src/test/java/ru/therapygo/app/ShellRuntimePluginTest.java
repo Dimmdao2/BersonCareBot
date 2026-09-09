@@ -1,7 +1,7 @@
 package ru.therapygo.app;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -82,9 +82,16 @@ public class ShellRuntimePluginTest {
         verify(call, never()).resolve(any(JSObject.class));
     }
 
-    // Kill: resolved payload leaks a true capability, or the wrong brand for this build variant.
+    // Kill: resolved payload reports a stale/missing capability, or the wrong brand for this build variant.
+    //
+    // The expected `true`s below are not this test's own invention: #915 (M4/M5/M6, `fafa7dcf0`) intentionally
+    // flips ShellRuntimePlugin's placeholder `false`s to `true` now that NativeJitsi/DeviceMedia/UniversalPush are
+    // actually built — see `apps/mobile-shell/README.md` ("ShellRuntime.getRuntimeInfo() reports the three
+    // compiled capabilities as true") and `src/runtime-info.ts`'s matching `SHELL_RUNTIME_CAPABILITIES`. Before
+    // #915 this test asserted `false` for the same baseline reason (no plugin existed yet); the oracle moves with
+    // the owner-approved plan, not with this candidate's implementation.
     @Test
-    public void resolvesTrustedOriginWithFalseCapabilitiesAndVariantBrand() throws Exception {
+    public void resolvesTrustedOriginWithTrueCapabilitiesAndVariantBrand() throws Exception {
         when(webView.getUrl()).thenReturn(ShellVariant.startUrl());
         PluginCall call = mock(PluginCall.class);
 
@@ -99,8 +106,8 @@ public class ShellRuntimePluginTest {
         assertEquals(BuildConfig.SHELL_BRAND, result.getString("brand"));
 
         JSObject capabilities = result.getJSObject("capabilities");
-        assertFalse(capabilities.getBool("jitsi"));
-        assertFalse(capabilities.getBool("media"));
-        assertFalse(capabilities.getBool("push"));
+        assertTrue(capabilities.getBool("jitsi"));
+        assertTrue(capabilities.getBool("media"));
+        assertTrue(capabilities.getBool("push"));
     }
 }
