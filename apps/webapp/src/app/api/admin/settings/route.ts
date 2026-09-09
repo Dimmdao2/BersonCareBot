@@ -124,9 +124,13 @@ const ADMIN_SCOPE_KEYS = [
   'telegram_login_bot_username',
   'max_login_bot_nickname',
   'max_bot_api_key',
+  'therapygo_max_bot_api_key',
+  'therapysto_max_bot_api_key',
   'max_webhook_secret',
   'max_api_base_url',
   'telegram_bot_token',
+  'therapygo_telegram_bot_token',
+  'therapysto_telegram_bot_token',
   'telegram_webhook_secret',
   'telegram_send_menu_on_button_press',
   'vk_web_login_url',
@@ -167,6 +171,8 @@ const ADMIN_SCOPE_KEYS = [
   'jitsi_jwt_signing_secret',
   'jitsi_xmpp_domain',
   'smtp_outbound',
+  'therapygo_smtp_outbound',
+  'therapysto_smtp_outbound',
   'clinic_smtp_outbound',
   'clinic_smsc_api_key',
   'clinic_telegram_bot_token',
@@ -803,10 +809,7 @@ export async function PATCH(request: Request) {
     );
   }
 
-  if (
-    parsed.data.key === ORG_CUSTOM_DOMAIN_HOSTNAME_KEY &&
-    parsed.data.action === 'recheck'
-  ) {
+  if (parsed.data.key === ORG_CUSTOM_DOMAIN_HOSTNAME_KEY && parsed.data.action === 'recheck') {
     if (gate.ctx.kind !== 'clinic' || !deps.customDomainBinding) {
       return NextResponse.json(
         { ok: false, error: 'organization_context_required' },
@@ -1100,7 +1103,12 @@ export async function PATCH(request: Request) {
     normalizedValue = { value: checked.value };
   }
 
-  if (parsed.data.key === 'smtp_outbound' || parsed.data.key === 'clinic_smtp_outbound') {
+  if (
+    parsed.data.key === 'smtp_outbound' ||
+    parsed.data.key === 'therapygo_smtp_outbound' ||
+    parsed.data.key === 'therapysto_smtp_outbound' ||
+    parsed.data.key === 'clinic_smtp_outbound'
+  ) {
     const checked = parseSmtpOutboundPatchValue(normalizedValue);
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
@@ -1200,29 +1208,34 @@ export async function PATCH(request: Request) {
       updatedAt: new Date().toISOString(),
       updatedBy: session.user.userId,
     };
-  } else try {
-    setting = await deps.systemSettings.updateSetting(
-      parsed.data.key,
-      settingScope,
-      normalizedValue,
-      session.user.userId,
-      {
-        organizationId,
-        ...(allowGlobalSettings ? { allowPlatformGlobalFallbackWrite: true as const } : {}),
-      },
-    );
-  } catch (error) {
-    const errResponse = systemSettingsOrgContextErrorResponse(error);
-    if (errResponse) return errResponse;
-    // Only this module's own authored refusal may be named to the admin; a PostgreSQL failure or a
-    // runtime bug keeps re-throwing to `onRequestError` instead of describing itself in the body.
-    if (error instanceof OperatorHealthProbeConfigInvalidError)
-      return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
-    throw error;
-  }
+  } else
+    try {
+      setting = await deps.systemSettings.updateSetting(
+        parsed.data.key,
+        settingScope,
+        normalizedValue,
+        session.user.userId,
+        {
+          organizationId,
+          ...(allowGlobalSettings ? { allowPlatformGlobalFallbackWrite: true as const } : {}),
+        },
+      );
+    } catch (error) {
+      const errResponse = systemSettingsOrgContextErrorResponse(error);
+      if (errResponse) return errResponse;
+      // Only this module's own authored refusal may be named to the admin; a PostgreSQL failure or a
+      // runtime bug keeps re-throwing to `onRequestError` instead of describing itself in the body.
+      if (error instanceof OperatorHealthProbeConfigInvalidError)
+        return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+      throw error;
+    }
 
   const clientSetting = redactAdminSettingsForClient([setting])[0]!;
-  return NextResponse.json({ ok: true, setting: clientSetting, ...(domainBinding !== undefined ? { domainBinding } : {}) });
+  return NextResponse.json({
+    ok: true,
+    setting: clientSetting,
+    ...(domainBinding !== undefined ? { domainBinding } : {}),
+  });
 }
 
 export async function DELETE(request: Request) {

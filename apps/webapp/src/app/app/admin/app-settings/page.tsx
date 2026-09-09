@@ -5,6 +5,7 @@ import { EmailSmtpSection } from '@/app/app/settings/EmailSmtpSection';
 import { VideoSystemSettingsSection } from '@/app/app/settings/VideoSystemSettingsSection';
 import { WebPushVapidSection } from '@/app/app/settings/WebPushVapidSection';
 import { NotificationsTopicsSection } from '@/app/app/settings/NotificationsTopicsSection';
+import { PlatformDeliveryBotsSection } from '@/app/app/settings/PlatformDeliveryBotsSection';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 
@@ -16,7 +17,9 @@ export default async function DoctorAdminAppSettingsPage() {
     <DoctorAppShell title="Настройки приложения">
       <DoctorPageHeader title="Настройки приложения" />
       <AppParametersSection {...data.appParametersConfig} />
-      <EmailSmtpSection {...data.smtpOutboundUi} />
+      <EmailSmtpSection {...data.platformSmtpUi.therapyGo} title="TherapyGo — исходящая почта" />
+      <EmailSmtpSection {...data.platformSmtpUi.therapysto} title="Therapysto — исходящая почта" />
+      <PlatformDeliveryBotsSection />
       <VideoSystemSettingsSection {...data.videoSystemSettingsProps} />
       <WebPushVapidSection
         initialPublicKey={data.webPushVapidUi.publicKey}

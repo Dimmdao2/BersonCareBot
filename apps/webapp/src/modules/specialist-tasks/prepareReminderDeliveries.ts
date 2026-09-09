@@ -85,7 +85,7 @@ export async function prepareSpecialistTaskReminderDeliveries(
           recipient: { chatId: bindings.telegramId.trim() },
           message: { text },
           replyMarkup: { inline_keyboard: [[{ text: 'Открыть задачи', url }]] },
-          delivery: { channels: ['telegram'] },
+          delivery: { channels: ['telegram'], audience: 'staff' },
         },
       });
     } else if (channel === 'max' && bindings.maxId?.trim()) {
@@ -100,7 +100,7 @@ export async function prepareSpecialistTaskReminderDeliveries(
           recipient: { userId: bindings.maxId.trim() },
           message: { text },
           replyMarkup: { inline_keyboard: [[{ text: 'Открыть задачи', url }]] },
-          delivery: { channels: ['max'] },
+          delivery: { channels: ['max'], audience: 'staff' },
         },
       });
     } else if (channel === 'email' && email?.trim()) {
@@ -115,7 +115,7 @@ export async function prepareSpecialistTaskReminderDeliveries(
           recipient: { email: email.trim() },
           subject: 'Напоминание о задачах',
           message: { text },
-          delivery: { channels: ['email'] },
+          delivery: { channels: ['email'], audience: 'staff' },
         },
       });
     } else if (channel === 'web_push') {

@@ -89,7 +89,11 @@ async function mergeWebPushVapidPrivateRetain(
 
 async function mergeSmtpOutboundPasswordRetain(
   port: SystemSettingsPort,
-  key: 'smtp_outbound' | 'clinic_smtp_outbound',
+  key:
+    | 'smtp_outbound'
+    | 'therapygo_smtp_outbound'
+    | 'therapysto_smtp_outbound'
+    | 'clinic_smtp_outbound',
   incoming: unknown,
   options: SystemSettingsReadOptions,
 ): Promise<{ value: unknown; deliveryReadiness?: unknown }> {
@@ -260,7 +264,11 @@ export function createSystemSettingsService(
       }
       return env;
     }
-    return (key === 'smtp_outbound' || key === 'clinic_smtp_outbound') && scope === 'admin'
+    return (key === 'smtp_outbound' ||
+      key === 'therapygo_smtp_outbound' ||
+      key === 'therapysto_smtp_outbound' ||
+      key === 'clinic_smtp_outbound') &&
+      scope === 'admin'
       ? mergeSmtpOutboundPasswordRetain(port, key, value, options)
       : key === 'web_push_vapid' && scope === 'admin'
         ? mergeWebPushVapidPrivateRetain(port, value, options)

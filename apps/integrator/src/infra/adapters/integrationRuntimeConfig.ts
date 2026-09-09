@@ -9,6 +9,10 @@ import {
   parseSystemSettingTrueLiteral,
 } from '../db/publicSystemSettings.js';
 import { runWithBootstrapPrincipal } from '../principal/organizationPrincipal.js';
+import {
+  platformCredentialKey,
+  type PlatformDeliveryAudience,
+} from './platformDeliveryAudience.js';
 
 export type TelegramRuntimeConfig = {
   enabled: boolean;
@@ -46,19 +50,24 @@ export const isTelegramRuntimeConfigEnabled = (
 ): boolean => Boolean(botToken && (mode === 'long_polling' || webhookSecret));
 
 /** The single DB-backed runtime accessor for platform provider configuration. */
-export async function readTelegramRuntimeConfig(db: DbPort): Promise<TelegramRuntimeConfig> {
+export async function readTelegramRuntimeConfig(
+  db: DbPort,
+  audience: PlatformDeliveryAudience = 'patient',
+): Promise<TelegramRuntimeConfig> {
   try {
     const [botToken, webhookSecret, menu, rawMode] = await runWithBootstrapPrincipal(
       { source: 'integrator-server-runtime-config' },
       () =>
         Promise.all([
-          value(db, 'telegram_bot_token'),
+          value(db, platformCredentialKey(audience, 'telegram')),
           value(db, 'telegram_webhook_secret'),
           fetchIntegratorProviderRuntimeSettingValueJson(db, 'telegram_send_menu_on_button_press'),
           fetchIntegratorRuntimeSettingValueJson(db, 'telegram_mode'),
         ]),
     );
-    const mode = telegramRuntimeModeSchema.safeParse(parseSystemSettingStringValue(rawMode)).data ?? 'long_polling';
+    const mode =
+      telegramRuntimeModeSchema.safeParse(parseSystemSettingStringValue(rawMode)).data ??
+      'long_polling';
     return {
       enabled: isTelegramRuntimeConfigEnabled(mode, botToken, webhookSecret),
       mode,
@@ -76,17 +85,22 @@ export async function readTelegramRuntimeConfig(db: DbPort): Promise<TelegramRun
     };
   }
 }
-export function getTelegramRuntimeConfig(): Promise<TelegramRuntimeConfig> {
-  return readTelegramRuntimeConfig(createDbPort());
+export function getTelegramRuntimeConfig(
+  audience: PlatformDeliveryAudience = 'patient',
+): Promise<TelegramRuntimeConfig> {
+  return readTelegramRuntimeConfig(createDbPort(), audience);
 }
 
-export async function readMaxRuntimeConfig(db: DbPort): Promise<MaxRuntimeConfig> {
+export async function readMaxRuntimeConfig(
+  db: DbPort,
+  audience: PlatformDeliveryAudience = 'patient',
+): Promise<MaxRuntimeConfig> {
   try {
     const [apiKey, webhookSecret, baseUrlRaw] = await runWithBootstrapPrincipal(
       { source: 'integrator-server-runtime-config' },
       () =>
         Promise.all([
-          value(db, 'max_bot_api_key'),
+          value(db, platformCredentialKey(audience, 'max')),
           value(db, 'max_webhook_secret'),
           value(db, 'max_api_base_url'),
         ]),
@@ -97,20 +111,22 @@ export async function readMaxRuntimeConfig(db: DbPort): Promise<MaxRuntimeConfig
     return { enabled: false, apiKey: '', webhookSecret: '', baseUrl: '' };
   }
 }
-export function getMaxRuntimeConfig(): Promise<MaxRuntimeConfig> {
-  return readMaxRuntimeConfig(createDbPort());
+export function getMaxRuntimeConfig(
+  audience: PlatformDeliveryAudience = 'patient',
+): Promise<MaxRuntimeConfig> {
+  return readMaxRuntimeConfig(createDbPort(), audience);
 }
 
 export async function readVkRuntimeConfig(db: DbPort): Promise<VkRuntimeConfig> {
   try {
-    const [communityAccessToken, callbackSecret, confirmationToken] = await runWithBootstrapPrincipal(
-      { source: 'integrator-server-runtime-config' },
-      () => Promise.all([
-        value(db, 'vk_community_access_token'),
-        value(db, 'vk_callback_secret'),
-        value(db, 'vk_callback_confirmation_token'),
-      ]),
-    );
+    const [communityAccessToken, callbackSecret, confirmationToken] =
+      await runWithBootstrapPrincipal({ source: 'integrator-server-runtime-config' }, () =>
+        Promise.all([
+          value(db, 'vk_community_access_token'),
+          value(db, 'vk_callback_secret'),
+          value(db, 'vk_callback_confirmation_token'),
+        ]),
+      );
     return {
       enabled: Boolean(communityAccessToken && callbackSecret && confirmationToken),
       communityAccessToken,
@@ -121,7 +137,9 @@ export async function readVkRuntimeConfig(db: DbPort): Promise<VkRuntimeConfig> 
     return { enabled: false, communityAccessToken: '', callbackSecret: '', confirmationToken: '' };
   }
 }
-export function getVkRuntimeConfig(): Promise<VkRuntimeConfig> { return readVkRuntimeConfig(createDbPort()); }
+export function getVkRuntimeConfig(): Promise<VkRuntimeConfig> {
+  return readVkRuntimeConfig(createDbPort());
+}
 
 export async function readSmscRuntimeConfig(db: DbPort): Promise<SmscRuntimeConfig> {
   try {

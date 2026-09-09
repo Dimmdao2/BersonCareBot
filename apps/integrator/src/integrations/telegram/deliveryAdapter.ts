@@ -6,6 +6,8 @@ import type {
 import { classifyTelegramRecipientBlockedError } from '../../infra/delivery/recipientBotBlocked.js';
 import { createMessagingPort } from './client.js';
 import { readChannelWithDefault } from '../../infra/adapters/channelRouting.js';
+import { getTelegramRuntimeConfig } from '../../infra/adapters/integrationRuntimeConfig.js';
+import type { PlatformDeliveryAudience } from '../../infra/adapters/platformDeliveryAudience.js';
 
 type RequestLoggerLike = {
   error: (obj: Record<string, unknown>, message: string) => void;
@@ -21,7 +23,11 @@ type DeliveryPayload = {
   replyMarkup?: unknown;
   parse_mode?: 'HTML' | 'Markdown';
   imageUrl?: unknown;
-  delivery?: { channels?: unknown; clinicCredential?: { channel?: unknown; botToken?: unknown } };
+  delivery?: {
+    channels?: unknown;
+    clinicCredential?: { channel?: unknown; botToken?: unknown };
+    platformAudience?: PlatformDeliveryAudience;
+  };
 } & Record<string, unknown>;
 
 function asNonEmptyString(value: unknown): string | null {
@@ -94,13 +100,6 @@ async function withTelegramBlockedDetection<T>(fn: () => Promise<T>): Promise<T>
 }
 
 export function createTelegramDeliveryAdapter(): DeliveryAdapter {
-  let messagingPort: ReturnType<typeof createMessagingPort> | null = null;
-  const getMessagingPort = (botToken?: string): ReturnType<typeof createMessagingPort> => {
-    if (botToken) return createMessagingPort(botToken);
-    if (!messagingPort) messagingPort = createMessagingPort();
-    return messagingPort;
-  };
-
   return {
     canHandle(intent: OutgoingIntent): boolean {
       if (
@@ -129,6 +128,17 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
         payload.delivery.clinicCredential.botToken.trim()
           ? payload.delivery.clinicCredential.botToken.trim()
           : undefined;
+      const audience = payload.delivery?.platformAudience ?? 'patient';
+      const messagingPort = clinicBotToken
+        ? createMessagingPort(clinicBotToken)
+        : (() => {
+            return getTelegramRuntimeConfig(audience).then((runtime) => {
+              if (!runtime.enabled) throw new Error('TELEGRAM_RUNTIME_CONFIG_UNAVAILABLE');
+              return createMessagingPort(runtime.botToken);
+            });
+          })();
+      const getMessagingPort = async (): Promise<ReturnType<typeof createMessagingPort>> =>
+        messagingPort instanceof Promise ? messagingPort : messagingPort;
       const rawChatId = payload.recipient?.chatId;
       const messageId = payload.messageId;
       const text = asNonEmptyString(payload.message?.text);
@@ -153,7 +163,9 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           return typeof midRaw === 'number' && Number.isFinite(midRaw) ? midRaw : undefined;
         };
         const sendPlainText = async (): Promise<DeliverySendResult> => {
-          const sent = await getMessagingPort(clinicBotToken).sendMessage({
+          const sent = await (
+            await getMessagingPort()
+          ).sendMessage({
             chat_id: chatId,
             text,
             reply_markup: replyMarkup as never,
@@ -168,7 +180,9 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           const TELEGRAM_CAPTION_MAX = 1024;
           return withTelegramBlockedDetection(async () => {
             try {
-              const sentPhoto = await getMessagingPort(clinicBotToken).sendPhoto({
+              const sentPhoto = await (
+                await getMessagingPort()
+              ).sendPhoto({
                 chat_id: chatId,
                 photo: imageUrl,
                 ...(text.length <= TELEGRAM_CAPTION_MAX ? { caption: text } : {}),
@@ -176,7 +190,9 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
                 ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
               });
               if (text.length > TELEGRAM_CAPTION_MAX) {
-                await getMessagingPort(clinicBotToken).sendMessage({
+                await (
+                  await getMessagingPort()
+                ).sendMessage({
                   chat_id: chatId,
                   text,
                   ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
@@ -212,11 +228,13 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           throw err;
         }
         await withTelegramBlockedDetection(() =>
-          getMessagingPort(clinicBotToken).copyMessage({
-            chat_id: chatId,
-            from_chat_id: fromChatId,
-            message_id: msgId,
-          }),
+          getMessagingPort().then((port) =>
+            port.copyMessage({
+              chat_id: chatId,
+              from_chat_id: fromChatId,
+              message_id: msgId,
+            }),
+          ),
         );
         return {};
       }
@@ -236,13 +254,15 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           throw err;
         }
         await withTelegramBlockedDetection(() =>
-          getMessagingPort(clinicBotToken).editMessageText({
-            chat_id: chatId,
-            message_id: numMessageId,
-            text,
-            reply_markup: replyMarkup as never,
-            ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
-          }),
+          getMessagingPort().then((port) =>
+            port.editMessageText({
+              chat_id: chatId,
+              message_id: numMessageId,
+              text,
+              reply_markup: replyMarkup as never,
+              ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
+            }),
+          ),
         );
         return {};
       }
@@ -262,11 +282,13 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           throw err;
         }
         await withTelegramBlockedDetection(() =>
-          getMessagingPort(clinicBotToken).editMessageReplyMarkup({
-            chat_id: chatId,
-            message_id: numMessageId,
-            reply_markup: replyMarkup as never,
-          }),
+          getMessagingPort().then((port) =>
+            port.editMessageReplyMarkup({
+              chat_id: chatId,
+              message_id: numMessageId,
+              reply_markup: replyMarkup as never,
+            }),
+          ),
         );
         return {};
       }
@@ -285,10 +307,12 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           throw err;
         }
         await withTelegramBlockedDetection(() =>
-          getMessagingPort(clinicBotToken).deleteMessage({
-            chat_id: chatId,
-            message_id: numMessageId,
-          }),
+          getMessagingPort().then((port) =>
+            port.deleteMessage({
+              chat_id: chatId,
+              message_id: numMessageId,
+            }),
+          ),
         );
         return {};
       }
@@ -301,11 +325,13 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
       }
       const toast = asNonEmptyString(payload.text);
       await withTelegramBlockedDetection(() =>
-        getMessagingPort(clinicBotToken).answerCallbackQuery({
-          callback_query_id: callbackQueryId,
-          ...(toast ? { text: toast } : {}),
-          ...(payload.show_alert === true ? { show_alert: true } : {}),
-        }),
+        getMessagingPort().then((port) =>
+          port.answerCallbackQuery({
+            callback_query_id: callbackQueryId,
+            ...(toast ? { text: toast } : {}),
+            ...(payload.show_alert === true ? { show_alert: true } : {}),
+          }),
+        ),
       );
       return {};
     },

@@ -141,6 +141,7 @@ export async function notifyDoctorPatientMessageToStaff(
       {
         event: 'doctor_staff_notify.channels',
         userId,
+        audience: 'staff',
         topicCode: input.topicCode,
         messageId: input.messageId,
         selectedChannels: channels,
@@ -158,6 +159,7 @@ export async function notifyDoctorPatientMessageToStaff(
         recipient,
         text: messengerText,
         userId,
+        audience: 'staff',
         ...(replyMarkup ? { replyMarkup } : {}),
       }).catch((err: unknown) => {
         logger.warn({ err, userId, topicCode: input.topicCode }, 'doctor staff telegram failed');

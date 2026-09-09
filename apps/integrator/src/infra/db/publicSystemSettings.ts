@@ -16,9 +16,15 @@ import { runIntegratorNamedRoot, runIntegratorSql } from './runIntegratorSql.js'
 
 export type IntegratorProviderRuntimeSettingKey =
   | 'telegram_bot_token'
+  | 'therapygo_smtp_outbound'
+  | 'therapysto_smtp_outbound'
+  | 'therapygo_telegram_bot_token'
+  | 'therapysto_telegram_bot_token'
   | 'telegram_webhook_secret'
   | 'telegram_send_menu_on_button_press'
   | 'max_bot_api_key'
+  | 'therapygo_max_bot_api_key'
+  | 'therapysto_max_bot_api_key'
   | 'max_webhook_secret'
   | 'max_api_base_url'
   | 'vk_community_access_token'
@@ -88,9 +94,12 @@ export async function fetchIntegratorProviderRuntimeSettingValueJson(
 ): Promise<unknown | null> {
   const result = await runWithDbInfraPrincipal({ source: 'integrator-server-runtime-config' }, () =>
     runIntegratorNamedRoot<{ value_json: unknown }>(
-      db, 'app.read_integrator_provider_runtime_setting(text)', [key],
+      db,
+      'app.read_integrator_provider_runtime_setting(text)',
+      [key],
       sql`SELECT app.read_integrator_provider_runtime_setting(${key}) AS value_json`,
-    ));
+    ),
+  );
   const row = result.rows[0];
   return row?.value_json ?? null;
 }
@@ -107,14 +116,10 @@ export type IntegratorRuntimeSettingKey =
   | `notif_template:${'created' | 'cancelled' | 'rescheduled'}:${'patient' | 'doctor'}`;
 
 export type IntegratorGoogleCalendarGlobalSettingKey =
-  | 'google_client_id'
-  | 'google_client_secret'
-  | 'google_redirect_uri';
+  'google_client_id' | 'google_client_secret' | 'google_redirect_uri';
 
 export type IntegratorGoogleCalendarOrganizationSettingKey =
-  | 'google_calendar_enabled'
-  | 'google_calendar_id'
-  | 'google_refresh_token';
+  'google_calendar_enabled' | 'google_calendar_id' | 'google_refresh_token';
 
 export type IntegratorClinicDeliveryCredentialKey =
   | 'clinic_smtp_outbound'
@@ -156,9 +161,12 @@ export async function fetchIntegratorRuntimeSettingValueJson(
 ): Promise<unknown | null> {
   const result = await runWithDbInfraPrincipal({ source: 'integrator-server-runtime-config' }, () =>
     runIntegratorNamedRoot<{ value_json: unknown }>(
-      db, 'app.read_integrator_runtime_setting(text)', [key],
+      db,
+      'app.read_integrator_runtime_setting(text)',
+      [key],
       sql`SELECT app.read_integrator_runtime_setting(${key}) AS value_json`,
-    ));
+    ),
+  );
   return result.rows[0]?.value_json ?? null;
 }
 
