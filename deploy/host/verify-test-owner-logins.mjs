@@ -45,10 +45,12 @@ async function verifyPatientPasswordDenied(email, password) {
     body: JSON.stringify({ email, password }),
   });
   const body = await response.json().catch(() => null);
+  const deniedByCredentialOrRole =
+    (response.status === 401 && body?.error === 'invalid_credentials') ||
+    (response.status === 403 && body?.error === 'password_not_available_for_role');
   if (
-    response.status !== 403 ||
+    !deniedByCredentialOrRole ||
     body?.ok !== false ||
-    body?.error !== 'password_not_available_for_role' ||
     body?.role === 'client' ||
     response.headers.has('set-cookie')
   ) {

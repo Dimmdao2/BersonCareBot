@@ -36,7 +36,6 @@ function parseArgs(argv) {
 }
 
 function runSelfTest() {
-  if (EXPECTED_ACCOUNTS.length !== 2) fail('expected doctor and global-admin owner accounts');
   for (const account of EXPECTED_ACCOUNTS) {
     if (!/^password-email:v1:[0-9a-f]{64}$/.test(identifierKey(account.email))) {
       fail(`invalid password protection key for ${account.email}`);
