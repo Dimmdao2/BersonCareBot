@@ -26,6 +26,10 @@ scope). Открытые owner-развилки собраны одним лис
 7. Worker продуктового этапа тесты не пишет. Первый независимый `auditor-live` составляет blind kill-set до чтения
    тестов, добавляет только оправданные поведенческие acceptance-тесты и проводит fault injection по `AGENTS.md`
    §10a/§10b/§24.4–§24.5.
+8. Владелец уточнил 2026-09-09 lifecycle нативного звонка: уход со страницы и сворачивание приложения не завершают
+   звонок, а переводят активный Jitsi-звонок в системный Picture-in-Picture/плавающий режим. Звонок завершается
+   только явной кнопкой «Завершить звонок» внутри нативного Jitsi UI. Размонтирование web-экрана снимает только
+   JS-listener и не посылает hangup; запуск действительно другой консультации остаётся отдельной replacement-операцией.
 
 ## 2. Superseded direction
 
@@ -274,15 +278,19 @@ VM-10, VM-11, VM-12, UI-08, UI-09, UI-10. `M4-01` по определению т
       том же `endpoint`, `roomReference` и `accessToken`. Серверный `VideoMeetingRenderSession.renderer`
       (`'embedded_conference' | 'peer_connection'`) новых значений НЕ получает: выбор нативного пути делает клиент
       по `NativeRuntime`, иначе сервер начал бы утверждать клиентскую возможность вопреки `M3-02`.
-- [x] **M4-02.** Jitsi runs in a native full-screen Activity, returns joined/terminated/error events, honors explicit
-      user start, microphone/camera permissions, hangup and retry, and never prints room/JWT/guest secret in logs.
-      Доказательство: native product/corrections through `f156170e9`, independent lifecycle tests/fault injection
-      through `d1c983a3c`, 83 tests × 4 variants plus assemble/lint matrix; landing `a722d9bf8`.
+- [ ] **M4-02.** Jitsi runs in a native full-screen Activity and automatically continues in Android
+      Picture-in-Picture when the user leaves the call screen or backgrounds the app. Web-page unmount/navigation
+      never sends hangup; only the explicit native «Завершить звонок» action ends the call. The plugin returns
+      joined/terminated/error events, honors explicit user start, microphone/camera permissions and retry, and never
+      prints room/JWT/guest secret in logs. Базовая Activity/permission/event реализация принята через
+      `f156170e9`/`d1c983a3c`/`a722d9bf8`; owner-коррекция PiP + explicit-end-only от 2026-09-09 открыта до нового
+      product SHA и независимой acceptance.
 - [ ] **M4-03.** TherapyGo and Therapysto both reach the same self-hosted `meet.therapysto.ru`/TEST counterpart;
       `meet.jit.si`, JaaS and other external media/telemetry endpoints are absent. Jitsi JWT/issuer/secret
       по-прежнему читаются только из restricted `system_settings` (`jitsi_*` ключи) и в bundle не попадают.
-- [ ] **M4-04.** Specialist can return from native call to the unchanged notes/encounter page; no separate mobile
-      notes implementation is created. Browser/PWA video behavior remains operational.
+- [ ] **M4-04.** Specialist can return to the unchanged notes/encounter page while the native call continues in
+      Picture-in-Picture, then the existing web hangup/encounter callback runs only after explicit native termination;
+      no separate mobile notes implementation is created. Browser/PWA video behavior remains operational.
 - [ ] **M4-05.** Нативный adapter подключён к тому же нейтральному шву, что и будущий PeerJS/native-WebRTC provider
       (`#1100` VM-08), и не закрывает смену провайдера: замена рендера не требует правки product-страниц.
 
@@ -516,7 +524,7 @@ security/audit gates идут без этих входов. Отсутствую
 | M1-01 | done | PWA identity wiring доказан `ae14e0f16`/`fd04fbc27`/`041abf541`/`66ef65468`; owner-коррекция display name `TherapyGo` — product `bc221c4a2`, independent manifest/fault audit `941607a78`, port landing `5a2107450`. |
 | M1-04 | open | Финальный named-DEV HTTP проход `ee0c91fc8` (landing `0f7a8374e`) подтвердил, что HTTP 500 `native_push_token_keyring_unavailable` устранён, а TherapyGo/Therapysto metadata/manifests/install routes и исключение platform-admin работают. В DEV сейчас `count(*) = 0` и для `org_custom_domain_bindings`, и для `clinic_public_directory_entries`, поэтому живого branded-patient host для проверки нет; authenticated doctor redirect и полный browser/PWA fallback остаются в M7-03. |
 | M1-07, M3-01…M3-03 | done | Product/corrections `d54b34775`, `4e6a5b188`, `312ef14e3`; independent continuation/tests `44b494331` после отклонённого первичного PASS; retained `5 files / 71 tests`, PWA native-shell `6/6`, typecheck/scoped ESLint; port landing `4d84fb260`. |
-| M4-02 | done | Native Jitsi lifecycle/permission/hangup/retry through `d1c983a3c`; four-variant Android matrix; port landing `a722d9bf8`. Web selection seam remains M4-01/M4-04/M4-05. |
+| M4-02 | open | Базовая native Jitsi Activity/permission/event реализация принята через `d1c983a3c` и landing `a722d9bf8`, но owner-коррекция 2026-09-09 требует PiP при уходе/сворачивании и запрещает auto-hangup на web unmount. Кандидат `770b5e750` этому противоречит; продолжение аудита `93d954360` дополнительно сохранило красный behavioral oracle для late A → replacement B. |
 | M5-02, M5-03 | done | Corrected CameraX result handoff/document MIME validation `bfe25db0b`; independent confirmation `d1c983a3c`; port landing `a722d9bf8`. |
 | M6-01…M6-07, M6-09…M6-11 | done | Backend/rights/routes through `c6fb028d1`, landing `bd897e9f7`; official Universal provider contract `60cfa976e`, landing `46c9d4728`; Android end-to-end wire/tap through `1dd140d64`, landing `a722d9bf8`; authenticated lifecycle `44b494331`, landing `4d84fb260`. |
 | M6-08 | done | Restricted DB-backed registry/config/accessor path accepted in `88e9240df`, landing `bd897e9f7`; lead re-inspected the final registry, integrator config route and production-only key inventory. The obsolete source-text gate was deliberately removed by owner decision #1074 in `c5b061696` and is not restored. |

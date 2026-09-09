@@ -9,9 +9,11 @@
 - `docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md`: актуальные §M1, §M4, §M5 и §M7.
 - Точный критерий §M7-03: «Оба TEST APK variants собираются на Linux (зависит от `M2-00`). Browser/PWA live acceptance покрывает install metadata обеих поверхностей, брендированную поверхность §M1-04, file fallback и iframe Jitsi — это выполнимо в репозитории и на именованном DEV/TEST без внешних гейтов».
 - Owner-коррекция §1.1: patient display name — `TherapyGo`, одним словом с заглавной `G`; технические идентификаторы `therapygo` не меняются.
+- Owner-коррекция §1.8/M4-02/M4-04: уход со страницы или сворачивание приложения не завершает нативный звонок;
+  Android продолжает его в Picture-in-Picture, и только явная кнопка «Завершить звонок» завершает конференцию.
 - Принятый PWA live-отчёт `.lead/runs/mobile-pwa-live-bootstrap-recheck-20260909/90-final-audit-report.md` (report commit `ee0c91fc8`).
 - Принятый browser Jitsi live-отчёт `docs/audit/video-live-ui-final-verification-2026-09-08.md`.
-- Принятые итоговые отчёты и evidence DeviceMedia correction и NativeJitsi web-seam на проверяемом integrated SHA.
+- Принятые итоговые отчёты и evidence DeviceMedia correction и исправленного NativeJitsi web-seam на проверяемом integrated SHA.
 
 ## Предмет
 
