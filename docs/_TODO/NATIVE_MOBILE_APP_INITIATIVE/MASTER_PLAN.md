@@ -402,17 +402,21 @@ authority нельзя: он частично отменён владельце�
 |---|---|---|---|---|
 | 1 | Shell/native foundation | `apps/mobile-shell/**`, `pnpm-workspace.yaml`, root build docs | M2 | `M2-00` (toolchain) |
 | 2 | Native capabilities | только `apps/mobile-shell/**` | M4 (native половина), M5-02/03, M6-04, M6-10 | 1; для M4 — приземление `#1100` |
-| 3 | Web/PWA adapters | `apps/webapp/src/shared/lib/pwa/**`, `shared/lib/surface/**`, `config/productSurfaceNames.ts`, `public/**`, install-страницы, `shared/ui/video/**`, медиа-UI и `app-layer/media/**` | M1, M3, M4-01/04/05, M5-01/04/05/06 | 1; `#1100` для `shared/ui/video/**` |
-| 4 | Push backend | `apps/webapp/db/schema/**` + migration, `modules/**` native-push target/cipher port, `app/api/**` registration/M2M access, `modules/system-settings/**`, `apps/integrator/src/**` composite app-push/provider delivery | M6-01/02/03/05/06/07/08/09/11 | 1 — frozen `app_id`/`provider`/`installation_id_hash` и token-event contract; не зависит от `NativeRuntime` landing |
+| 3 | Web NativeRuntime + Push lifecycle | platform provider/lib/hook, PWA/service-worker/install chokepoints, patient/staff web-push contexts/actions, single logout door; без `shared/ui/video/**` и media UI | M1-07, M3, authenticated web-client half M6-03/M6-09 | audited native-capability + push-backend candidates; не зависит от `#1100` |
+| 4 | Native Jitsi web seam | `shared/ui/video/VideoMeetingStage.tsx`, максимум один co-located native renderer/controller и узкий public runtime export | M4-01/04/05 | 3 и landing `#1100` |
+| 5 | DeviceMedia web integration | media-source/upload boundary, шесть существующих media UI-точек и `app-layer/media/**`; без video/PWA/push | M5-01/04/05/06 | 3, audited native-capability + multipart-backend candidates |
+| 6 | Push backend | `apps/webapp/db/schema/**` + migration, `modules/**` native-push target/cipher port, `app/api/**` registration/M2M access, `modules/system-settings/**`, `apps/integrator/src/**` composite app-push/provider delivery | M6-01/02/03/05/06/07/08/09/11 | 1 — frozen `app_id`/`provider`/`installation_id_hash` и token-event contract; не зависит от `NativeRuntime` landing |
 
 Пересечения, которые нельзя игнорировать:
 
-- `shared/ui/video/**` принадлежит потоку 3 и одновременно живому `#1100` — сериализуется, не параллелится.
-- `NativeRuntime` (поток 3), Universal Push client bridge (поток 2) и push backend (поток 4) идут параллельно после
-  фиксации общего typed contract. Поток 4 не импортирует и не ждёт `NativeRuntime`: он строит server endpoints,
-  target lifecycle и composite delivery. Единственное пересечение — lead-owned integration M3-03 после landing
-  трёх audited candidates: runtime передаёт token event в готовый register/rotate/revoke API.
-- Поток 4 трогает **оба** приложения (webapp и integrator) — это не «backend без UI», а сквозной канал; общий
+- `shared/ui/video/**` принадлежит потоку 4 и одновременно живому `#1100` — M4 сериализуется после его landing;
+  весь независимый от video M1/M3/M6-client scope не ждёт `#1100`.
+- После принятого потока 3 потоки 4 и 5 идут параллельно: у них разные file-scope, а общая NativeRuntime boundary
+  уже зафиксирована и не переписывается ни одним из них.
+- Поток 6 не импортирует и не ждёт `NativeRuntime`: он строит server endpoints, target lifecycle и composite
+  delivery. Lead-owned integration M3-03 передаёт token event в готовый register/rotate/revoke API только после
+  landing audited native-capability и push-backend candidates.
+- Поток 6 трогает **оба** приложения (webapp и integrator) — это не «backend без UI», а сквозной канал; общий
   dev-сервер и полные прогоны под ним сериализуются.
 
 Lead приземляет проверенные ветки по одной, разбирает интеграционные швы, затем гоняет финальные app-level/full gates.
