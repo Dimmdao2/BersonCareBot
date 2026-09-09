@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import {
   DoctorSection,
@@ -46,6 +47,7 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
 }
 
 export function StaffSecuritySection(props: Props) {
+  const router = useRouter();
   const [status, setStatus] = useState(props.initialStatus);
   const [secret, setSecret] = useState<string | null>(null);
   const [uri, setUri] = useState<string | null>(null);
@@ -117,7 +119,8 @@ export function StaffSecuritySection(props: Props) {
       );
       if (!result.ok) return toast.error(staffSecurityErrorText(result.error, 'confirm_recovery'));
       setRecoveryCodes([]);
-      window.location.assign('/app/account?tab=security');
+      router.replace('/app/account?tab=security');
+      router.refresh();
     } catch {
       toast.error(staffSecurityNetworkErrorText('confirm_recovery'));
     }

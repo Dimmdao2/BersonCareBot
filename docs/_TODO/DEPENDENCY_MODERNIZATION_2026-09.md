@@ -594,6 +594,12 @@ pnpm --dir apps/integrator exec vitest run \
 #   последующий audit обнаружил устаревшую Phase 0 сверку имени с tiers-218.tsv
 /home/dev/brain/host-orch/run-tests.sh "pnpm run audit"
 # → rc=0 после удаления устаревшей сверки; действующие security-гейты прошли
+/home/dev/brain/host-orch/run-tests.sh "pnpm install --frozen-lockfile && pnpm run ci"
+# → rc=0 на 5ef737306: lint/typecheck, integrator 666 passed, webapp 3136 passed,
+#   scripts/DB gates, media-worker/error-tracking, оба production build и audit прошли
+/home/dev/brain/host-orch/run-tests.sh \
+  "pnpm --dir apps/webapp exec eslint src/app/app/account/StaffSecuritySection.tsx && pnpm --dir apps/webapp exec tsc --noEmit"
+# → rc=0 после замены полной перезагрузки внутренней страницы на router.replace() + router.refresh()
 ```
 
 ## Lead acceptance
