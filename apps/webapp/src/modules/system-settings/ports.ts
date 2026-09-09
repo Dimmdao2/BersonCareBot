@@ -42,6 +42,8 @@ export type SystemSettingsPort = {
    * (which also holds admin allowlists/secrets). `null` if unset.
    */
   getWebPushVapidPublicKeyOnly(): Promise<string | null>;
+  /** Patient-safe projection; never exposes the Universal Push auth token or endpoint. */
+  getNativePushProjectId(appId: 'therapygo' | 'therapysto'): Promise<string | null>;
   upsert(
     key: SystemSettingKey,
     scope: SystemSettingScope,

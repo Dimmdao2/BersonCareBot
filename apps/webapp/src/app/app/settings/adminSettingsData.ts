@@ -54,6 +54,8 @@ const ADMIN_SETTINGS_PAGE_REQUIRED_KEYS = [
   'apple_oauth_redirect_uri', 'google_refresh_token', 'google_calendar_id',
   'google_calendar_enabled', 'google_connected_email', 'notifications_topics', 'smtp_outbound',
   'web_push_vapid',
+  'rustore_universal_push_therapygo',
+  'rustore_universal_push_therapysto',
 ] as const;
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {

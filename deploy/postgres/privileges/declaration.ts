@@ -3688,6 +3688,44 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
+  "app.get_native_push_project_id(text)": {
+    "owner": "app_seam_settings_preauth_owner",
+    "security": "DEFINER",
+    "returns": "text",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "native-push.client-project-id.read",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
   "app.integrator_event_idempotency_read(text)": {
     "owner": "app_seam_delivery_scope_owner",
     "security": "DEFINER",
@@ -24349,6 +24387,8 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.user_web_push_subscriptions', cls: 'P', why: 'push-подписки браузера — без неё нет web-push',
     pol: 'D20: у app_patient полный arwd (в том числе DELETE) при инертной политике — пациент удаляет чужие '
     + 'push-подписки', defect: ['D20-notification-tables'] },
+  { t: 'public.native_push_targets', cls: 'P', why: 'native Push transport targets; users own installations and tenant service reads only the matching product surface',
+    pol: 'same self/attested-membership wall as browser Push, with FORCE RLS and no table bypass' },
   { t: 'public.webapp_schema_migrations', cls: 'T', wall: 'pending-removal', rls: 'n/a', disp: 'REMOVED',
     why: 'УДАЛЕНО B0: аварийный исторический ledger больше не участвует в применении миграций',
     wallWhy: 'Физически удалённый legacy-ledger остаётся именованным только для двусторонней проверки каталога' },
@@ -25283,6 +25323,10 @@ const PATIENT_CHANNEL_CORE_SURFACES = [
   patientSurface('public.user_web_push_subscriptions', [
     'id', 'user_id', 'endpoint', 'p256dh', 'auth', 'user_agent', 'created_at', 'updated_at',
   ], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+  patientSurface('public.native_push_targets', [
+    'id', 'user_id', 'app_id', 'provider', 'installation_id_hash', 'token_hash', 'token_ciphertext',
+    'token_key_id', 'deactivated_at', 'created_at', 'updated_at',
+  ], ['SELECT', 'INSERT', 'UPDATE']),
 ] as const;
 
 const PATIENT_PROGRAM_CORE_SURFACES = [
@@ -26606,6 +26650,9 @@ const REV10_CONTEXT = {
     get_web_push_vapid_public_key: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'patient.web-push.vapid-public-key.read',
       functionIdentity: 'app.get_web_push_vapid_public_key()' },
+    get_native_push_project_id: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'native-push.client-project-id.read',
+      functionIdentity: 'app.get_native_push_project_id(text)' },
     resolve_outgoing_delivery_scope: { port: 'integrator', sessionRole: 'app_integrator_request',
       targetRole: 'app_operational_delivery_worker', contextClass: 'service', purpose: 'delivery.resolve-scope',
       functionIdentity: 'app.resolve_outgoing_delivery_scope(uuid)' },
@@ -28222,6 +28269,12 @@ const REV10_CONTEXT = {
       owner: 'app_seam_settings_preauth_owner', execute: ['app_patient'],
       purpose: 'patient.web-push.vapid-public-key.read', typedArgs: [], volatility: 'STABLE',
       parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.get_native_push_project_id(text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.get_native_push_project_id(text)'],
+      owner: 'app_seam_settings_preauth_owner', execute: ['app_patient'],
+      purpose: 'native-push.client-project-id.read', typedArgs: ['text'], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
     }),
     'app.resolve_saas_billing_invoice_for_webhook(text,text)': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.resolve_saas_billing_invoice_for_webhook(text,text)'],
@@ -31814,6 +31867,20 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
     ],
   },
+  'public.native_push_targets': {
+    kind: 'direct',
+    purpose: 'native Push transport targets; direct access is constrained by self and attested-organization RLS walls',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgNativePushTargets.ts',
+      'apps/webapp/src/infra/repos/pgIntegratorWebPushDelivery.ts',
+      'apps/webapp/src/infra/platformUserFullPurge.ts',
+      'packages/platform-merge/src/pgPlatformUserMerge.ts',
+    ],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT', 'INSERT', 'UPDATE'], columns: 'table' },
+      { role: 'app_staff', operations: ['SELECT', 'INSERT', 'UPDATE'], columns: 'table' },
+    ],
+  },
   'public.user_channel_preferences': {
     kind: 'direct',
     purpose: 'patient reads and changes only its own channel preferences',
@@ -32292,6 +32359,7 @@ const REV10_PLATFORM_USER_COLUMN: Record<string, string> = {
   'public.user_notification_topic_channels': 'user_id',
   'public.user_notification_topics': 'user_id',
   'public.user_web_push_subscriptions': 'user_id',
+  'public.native_push_targets': 'user_id',
 };
 
 /**
@@ -32884,6 +32952,7 @@ const REV10_PATIENT_SELF_MANAGED_COLUMN: Record<string, string> = {
   'public.user_notification_topics': 'user_id',
   'public.user_phone_history': 'platform_user_id',
   'public.user_web_push_subscriptions': 'user_id',
+  'public.native_push_targets': 'user_id',
 };
 
 function revision10PatientSelfManagedPolicies(tableKey: string, index: number): PolicyDecl[] {

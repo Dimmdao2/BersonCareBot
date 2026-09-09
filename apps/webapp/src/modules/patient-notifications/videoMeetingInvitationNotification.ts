@@ -41,7 +41,12 @@ function contentFor(channel: DeliveryChannel, guestUrl: string): OutboundMessage
     return { text, subject: 'Приглашение на видеовстречу' };
   }
   if (channel === 'web_push') {
-    return { text: INVITATION_TEXT, title: 'Приглашение на видеовстречу', url: guestUrl };
+    return {
+      text: INVITATION_TEXT,
+      title: 'Приглашение на видеовстречу',
+      url: guestUrl,
+      pushExtras: { pushSurface: 'therapygo' },
+    };
   }
   return { text };
 }

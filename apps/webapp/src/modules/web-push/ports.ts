@@ -37,6 +37,20 @@ export type IntegratorWebPushDeliverySettings = {
   vapidSubject: string | null;
 };
 
+export type NativePushAppId = 'therapygo' | 'therapysto';
+export type NativePushProvider = 'rustore' | 'fcm' | 'hms';
+export type NativePushTokenCipher = import('./nativePush').NativePushTokenCipher;
+export type NativePushTarget = { id: string; appId: NativePushAppId; provider: NativePushProvider; token: string };
+export type NativePushTargetLifecyclePort = {
+  register(input: { userId: string; appId: NativePushAppId; provider: NativePushProvider; installationId: string; token: string }): Promise<void>;
+  revoke(userId: string, appId: NativePushAppId, provider: NativePushProvider, installationId: string): Promise<void>;
+  listActive(userId: string, appId: NativePushAppId): Promise<NativePushTarget[]>;
+  deactivateById(targetId: string): Promise<void>;
+  activeOwnerId(targetId: string): Promise<string | null>;
+  activeTarget(targetId: string): Promise<{ userId: string; appId: NativePushAppId } | null>;
+  status(userId: string, appId: NativePushAppId): Promise<{ active: boolean; providers: NativePushProvider[] }>;
+};
+
 /** Narrow M2M reads used only after an integrator organization principal is installed. */
 export type IntegratorWebPushDeliveryPort = {
   /** `null` means the target user is not active in the attested organization. */
@@ -45,4 +59,6 @@ export type IntegratorWebPushDeliveryPort = {
     userId: string,
   ): Promise<WebPushSubscriptionPayloadV1[] | null>;
   readDeliverySettings(organizationId: string): Promise<IntegratorWebPushDeliverySettings | null>;
+  listAuthorizedNativeTargets(organizationId: string, userId: string, appId: NativePushAppId): Promise<NativePushTarget[] | null>;
+  deactivateAuthorizedNativeTarget(organizationId: string, targetId: string): Promise<boolean | null>;
 };
