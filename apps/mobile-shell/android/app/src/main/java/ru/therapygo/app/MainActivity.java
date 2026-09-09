@@ -1,6 +1,7 @@
 package ru.therapygo.app;
 
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -31,6 +32,7 @@ public final class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        TrustedOriginGate.clearCommittedMainFrameUrl();
         startUrl = ShellVariant.startUrl();
         config = new CapConfig.Builder(this)
             .setServerUrl(ShellVariant.origin())
@@ -102,6 +104,7 @@ public final class MainActivity extends BridgeActivity {
     private final class ShellWebViewListener extends WebViewListener {
         @Override
         public void onPageCommitVisible(WebView view, String url) {
+            TrustedOriginGate.recordCommittedMainFrameUrl(url);
             if (TrustedOriginGate.isTrusted(url) && statusOverlay != null) {
                 statusOverlay.setVisibility(View.GONE);
             }
@@ -113,6 +116,12 @@ public final class MainActivity extends BridgeActivity {
     private final class MainFrameAwareWebViewClient extends BridgeWebViewClient {
         MainFrameAwareWebViewClient() {
             super(bridge);
+        }
+
+        @Override
+        public void onPageStarted(WebView view, String url, Bitmap favicon) {
+            TrustedOriginGate.clearCommittedMainFrameUrl();
+            super.onPageStarted(view, url, favicon);
         }
 
         @Override
