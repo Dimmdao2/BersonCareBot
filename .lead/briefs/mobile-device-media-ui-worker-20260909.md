@@ -42,6 +42,10 @@ Consolidate the existing browser multipart lifecycle instead of copying it: init
 `File.slice` PUT or native `DeviceMedia.upload({handle,offset,length,presignedUrl,headers})` → ordered ETags →
 complete, with the same retry/progress/abort rules. A terminal success/abort/cancel releases the native handle once;
 a recoverable part retry reuses the same handle/range. Keep browser single-PUT where it remains the accepted path.
+The accepted Android plugin permits exactly one native range upload at a time: parameterize the shared scheduler to
+use concurrency `1` for a native handle while preserving the existing bounded browser `File` concurrency. Do not
+let parallel workers turn the plugin's intentional `upload already in progress` rejection into retry churn, and do
+not fork a second native multipart engine to obtain serialization.
 
 ## Existing UI points, no redesign
 
@@ -73,4 +77,3 @@ Do not run full root CI, live uploads, DB writes or shared dev services. Commit 
 never `git add -A`; do not push. Commit message references `#915`, M5-01/M5-04…06, evidence and remaining native
 device/RuStore/live gates. Report exact SHA, public TS contracts, caller matrix, commands/results and factual
 blockers. Do not finish while a foreground check is running.
-

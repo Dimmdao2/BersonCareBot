@@ -30,7 +30,9 @@ storage-аргумент и не зовёт `presignPutUrl`/`s3*` в обход 
 4. The four destinations call only their authorized accepted begin/confirm path and preserve existing result shape,
    cache/list refresh, discussion attachment, quota/finalization and progress behavior.
 5. Multipart sends exact bounded offsets/lengths, ordered ETags and complete once. Recoverable part failure retries
-   the same range; exhaustion aborts once; success/abort/cancel releases the native handle exactly once.
+   the same range; exhaustion aborts once; success/abort/cancel releases the native handle exactly once. The shared
+   scheduler never overlaps two native `DeviceMedia.upload` calls (accepted plugin concurrency is one), while the
+   existing bounded browser `File` parallelism remains operational.
 6. A cancellation starts no upload. Session/selection replacement cannot complete the previous destination or leak
    a handle. Browser single-PUT/CMS multipart remains compatible.
 7. Existing patient source dialog is the only source dialog; no duplicate multipart engine/native upload route,
@@ -40,7 +42,7 @@ Use the cheapest public adapter/component seams and shared fakes. Prefer one des
 suites. Assert outputs, HTTP bodies/order, progress and durable UI callbacks, not implementation call counts,
 source text, labels or button counts. Temporarily inject and restore: native descriptor with missing duration;
 caller-selected policy/storage; wrong part offsets; duplicate complete/release; abort omitted; browser gesture lost
-behind an await; one caller bypassing the adapter. Each repeatable fault must go red or remain a failing acceptance
+behind an await; parallel native range uploads; one caller bypassing the adapter. Each repeatable fault must go red or remain a failing acceptance
 test on the untouched candidate.
 
 Inspect exact caller inventory and diff. Run retained/new targeted tests, webapp typecheck, scoped ESLint,
