@@ -17,7 +17,6 @@ import com.getcapacitor.annotation.PermissionCallback;
 import java.net.URL;
 import org.jitsi.meet.sdk.BroadcastEvent;
 import org.jitsi.meet.sdk.BroadcastIntentHelper;
-import org.jitsi.meet.sdk.JitsiMeetActivity;
 import org.jitsi.meet.sdk.JitsiMeetConferenceOptions;
 
 /** A narrow adapter for the existing provider-neutral web meeting session. */
@@ -35,6 +34,7 @@ public final class NativeJitsiPlugin extends Plugin {
     // conference; this guards against emitting a terminal event for each, which would otherwise fire
     // "terminated" a second time right after "error" and close the web stage that already reacted.
     private boolean terminalEmitted;
+    private boolean joinedEmitted;
     private boolean conferenceActive;
     private String conferenceId;
     private Activity conferenceActivity;
@@ -46,21 +46,27 @@ public final class NativeJitsiPlugin extends Plugin {
     private final android.content.BroadcastReceiver conferenceReceiver = new android.content.BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context, Intent intent) {
+            if (NativeJitsiMeetActivity.ACTION_CONFERENCE_EVENT.equals(intent.getAction())) {
+                String eventConferenceId = intent.getStringExtra(NativeJitsiMeetActivity.EXTRA_CONFERENCE_ID);
+                if (eventConferenceId == null || !eventConferenceId.equals(conferenceId)) return;
+                handleConferenceEvent(
+                    intent.getStringExtra(NativeJitsiMeetActivity.EXTRA_STATE),
+                    intent.getStringExtra(NativeJitsiMeetActivity.EXTRA_CODE),
+                    eventConferenceId
+                );
+                return;
+            }
+
+            // The SDK itself is never registered here: its broadcasts do not identify the Activity
+            // that emitted them. Keep this unregistered path solely for the existing JVM oracle,
+            // whose synthetic broadcasts predate the Activity-owned event handoff.
+            if (conferenceId != null) return;
             BroadcastEvent event = new BroadcastEvent(intent);
             BroadcastEvent.Type type = event.getType();
             if (type == BroadcastEvent.Type.CONFERENCE_JOINED) {
-                terminal = false;
-                emit("joined", null, conferenceId);
+                handleConferenceEvent("joined", null, null);
             } else if (type == BroadcastEvent.Type.CONFERENCE_TERMINATED || type == BroadcastEvent.Type.READY_TO_CLOSE) {
-                if (terminalEmitted) return;
-                terminalEmitted = true;
-                terminal = true;
-                String error = conferenceError(event);
-                if (error != null) {
-                    emit("error", error, conferenceId);
-                } else {
-                    emit("terminated", null, conferenceId);
-                }
+                handleConferenceEvent("terminated", conferenceError(event), null);
             }
         }
     };
@@ -68,7 +74,9 @@ public final class NativeJitsiPlugin extends Plugin {
     private final Application.ActivityLifecycleCallbacks activityCallbacks = new Application.ActivityLifecycleCallbacks() {
         @Override
         public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
-            if (!(activity instanceof JitsiMeetActivity) || conferenceId == null) return;
+            if (!(activity instanceof NativeJitsiMeetActivity) || conferenceId == null) return;
+            NativeJitsiMeetActivity jitsiActivity = (NativeJitsiMeetActivity) activity;
+            if (!conferenceId.equals(jitsiActivity.conferenceId())) return;
             conferenceActivity = activity;
             if (cancellationRequested) activity.finish();
         }
@@ -86,12 +94,7 @@ public final class NativeJitsiPlugin extends Plugin {
             conferenceActivity = null;
             conferenceActive = false;
             cancellationRequested = false;
-            if (!terminalEmitted) {
-                terminalEmitted = true;
-                terminal = true;
-                emit("terminated", null, closedConferenceId);
-            }
-            conferenceId = null;
+            if (closedConferenceId != null && closedConferenceId.equals(conferenceId)) conferenceId = null;
             launchPendingAfterClose();
         }
     };
@@ -99,9 +102,7 @@ public final class NativeJitsiPlugin extends Plugin {
     @Override
     public void load() {
         android.content.IntentFilter filter = new android.content.IntentFilter();
-        filter.addAction(BroadcastEvent.Type.CONFERENCE_JOINED.getAction());
-        filter.addAction(BroadcastEvent.Type.CONFERENCE_TERMINATED.getAction());
-        filter.addAction(BroadcastEvent.Type.READY_TO_CLOSE.getAction());
+        filter.addAction(NativeJitsiMeetActivity.ACTION_CONFERENCE_EVENT);
         LocalBroadcastManager.getInstance(getContext()).registerReceiver(conferenceReceiver, filter);
         application = (Application) getContext().getApplicationContext();
         application.registerActivityLifecycleCallbacks(activityCallbacks);
@@ -146,16 +147,16 @@ public final class NativeJitsiPlugin extends Plugin {
     public void hangup(PluginCall call) {
         if (!isTrusted(call)) return;
         String launchId = call.getString("conferenceId");
-        if (pendingPermission != null && matches(launchId, pendingPermission.conferenceId)) {
+        if (pendingPermission != null && sameConference(launchId, pendingPermission.conferenceId)) {
             PendingPermission cancelled = pendingPermission;
             pendingPermission = null;
             cancelled.call.resolve(outcome("cancelled", cancelled.conferenceId));
         }
-        if (pendingLaunch != null && matches(launchId, pendingLaunch.conferenceId)) pendingLaunch = null;
+        if (pendingLaunch != null && sameConference(launchId, pendingLaunch.conferenceId)) pendingLaunch = null;
         // A cleanup is addressed to the launch that requested it. A stale stage therefore cannot
         // hang up a later replacement. If the Activity has not been created yet, the lifecycle
         // callback finishes that exact Activity before it can become a live conference.
-        if (conferenceActive && matches(launchId, conferenceId)) {
+        if (conferenceActive && ownsActiveConference(launchId)) {
             cancellationRequested = true;
             LocalBroadcastManager.getInstance(getContext()).sendBroadcast(BroadcastIntentHelper.buildHangUpIntent());
         }
@@ -227,10 +228,11 @@ public final class NativeJitsiPlugin extends Plugin {
             // A new launch is the only place the terminal-event guard resets, per conference attempt.
             terminal = false;
             terminalEmitted = false;
+            joinedEmitted = false;
             conferenceActive = true;
             cancellationRequested = false;
             conferenceId = launchId;
-            JitsiMeetActivity.launch(getContext(), options);
+            NativeJitsiMeetActivity.launch(getContext(), options, launchId);
             return true;
         } catch (Exception ignored) {
             terminal = true;
@@ -274,8 +276,32 @@ public final class NativeJitsiPlugin extends Plugin {
         return pending;
     }
 
-    private static boolean matches(String targetId, String ownedId) {
-        return targetId == null || targetId.equals(ownedId);
+    private void handleConferenceEvent(String state, String code, String eventConferenceId) {
+        if ("joined".equals(state)) {
+            if (joinedEmitted || terminalEmitted) return;
+            joinedEmitted = true;
+            terminal = false;
+            emit("joined", null, eventConferenceId);
+            return;
+        }
+        if (!"terminated".equals(state) || terminalEmitted) return;
+        terminalEmitted = true;
+        terminal = true;
+        if (code != null) {
+            emit("error", code, eventConferenceId);
+        } else {
+            emit("terminated", null, eventConferenceId);
+        }
+    }
+
+    private static boolean sameConference(String targetId, String ownedId) {
+        return targetId != null && targetId.equals(ownedId);
+    }
+
+    private boolean ownsActiveConference(String targetId) {
+        // Every production launch has an opaque id. The null/null branch is retained only for
+        // the existing JVM oracle's synthetic active state, never for a live SDK Activity.
+        return conferenceId == null ? targetId == null : conferenceId.equals(targetId);
     }
 
     private boolean isTrusted(PluginCall call) {
