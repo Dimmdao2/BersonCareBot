@@ -6,7 +6,8 @@ an existing public repository seam makes a durable behavioral oracle proportiona
 
 # Confirmation auditor-live brief
 
-Authority: active mobile plan M5-04 and its multipart acceptance lines; product `2a1787827`; audit authority
+Authority: `docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md` M5-04 and its multipart acceptance lines;
+product `2a1787827`; audit authority
 `f3a85aa86`; independent audit/tests `1969f9eef`; correction authority `478014817`; product correction
 `c1147716e`; saved report
 `.lead/runs/mobile-media-multipart-backend-audit-20260909/90-final-audit-report.md`. Audit this final corrected
