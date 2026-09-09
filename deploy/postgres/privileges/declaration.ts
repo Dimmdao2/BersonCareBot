@@ -17321,7 +17321,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
   },
   "public.org_custom_domain_bindings": {
     "kind": "direct",
-    "purpose": "привязка личного домена клиники — без неё клиника не может задать/снять свой домен (B2/B8)",
+    "purpose": "персонал читает состояние привязки домена своей клиники; set/retry/supersede/clear идут только через named intent door (B2/B8/C5a)",
     "codePaths": [
       "apps/webapp/src/infra/repos/pgCustomDomainBinding.ts"
     ],
@@ -17333,32 +17333,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": "table"
       },
-      {
-        "role": "app_staff",
-        "operations": [
-          "INSERT"
-        ],
-        "columns": [
-          "organization_id",
-          "base_domain",
-          "placement",
-          "subdomain_label",
-          "hostname",
-          "status",
-          "created_by_platform_user_id"
-        ]
-      },
-      {
-        "role": "app_staff",
-        "operations": [
-          "UPDATE"
-        ],
-        "columns": [
-          "status",
-          "status_reason",
-          "updated_at"
-        ]
-      }
     ]
   },
   "public.patient_bookings": {
@@ -26592,6 +26566,10 @@ const REV10_CONTEXT = {
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'branding.anonymous-surface.read',
       functionIdentity: 'app.read_anonymous_patient_surface_projection(uuid)' },
+    custom_domain_staff_intent_save: { port: 'webapp', runtimeName: 'custom_domain_staff_intent_save',
+      sessionRole: 'app_staff', targetRole: 'app_staff', contextClass: 'staff',
+      purpose: 'branding.custom-domain.intent.save',
+      functionIdentity: 'app.save_custom_domain_binding_intent(text,uuid,text,text)' },
     custom_domain_ask_authorized: { port: 'webapp', runtimeName: 'custom_domain_ask_authorized',
       sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
       purpose: 'branding.custom-domain.ask',
@@ -28226,6 +28204,26 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.org_custom_domain_bindings', columns: ['organization_id', 'status', 'hostname'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    }),
+    'app.save_custom_domain_binding_intent(text,uuid,text,text)': rev10Function({
+      owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_staff'],
+      purpose: 'staff sets, retries, supersedes, or clears only its own custom-domain intent',
+      typedArgs: ['text', 'uuid', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_custom_domain_bindings',
+          columns: ['id', 'organization_id', 'base_domain', 'placement', 'subdomain_label', 'hostname',
+            'status', 'status_reason', 'created_by_platform_user_id', 'activated_at', 'created_at', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          operationColumns: {
+            INSERT: ['organization_id', 'base_domain', 'placement', 'subdomain_label', 'hostname',
+              'status', 'created_by_platform_user_id'],
+            UPDATE: ['status', 'status_reason', 'updated_at'],
+          },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
       databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
     }),

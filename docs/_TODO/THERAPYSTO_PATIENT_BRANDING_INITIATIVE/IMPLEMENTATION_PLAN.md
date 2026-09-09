@@ -1,11 +1,11 @@
 # Therapysto + универсальное patient-branding — implementation plan
 
-**Дата:** 2026-08-21. **Актуализировано:** 2026-09-08 после owner-authorized TEST domain cutover.
+**Дата:** 2026-08-21. **Актуализировано:** 2026-09-09 после owner-authorized TEST domain cutover.
 
 **Текущее состояние.** На именованном TEST активированы отдельные origins `test.therapysto.ru`,
 `admin.test.therapysto.ru` и `test.therapygo.ru`; DNS wildcard `*.test.therapygo.ru` направлен на TEST.
-Host resolver и live staff/patient surfaces работают через один webapp, legacy `test.bersoncare.ru` оставлен
-переходным редиректом. Для произвольных tenant-host остаётся внешний TLS-gate: wildcard-сертификат требует
+Host resolver и live staff/patient surfaces работают через один webapp; `test.bersoncare.ru` — branded TEST patient
+custom domain Berson Care с exact apex binding. Для произвольных tenant-host остаётся внешний TLS-gate: wildcard-сертификат требует
 DNS-01; временный exact-сертификат покрывает только перечисленные имена. Новый PROD этим cutover не затрагивался.
 
 Реально остались: production-композиция Host→tenant, self-service подключение собственного домена с
@@ -367,8 +367,8 @@ Jane, Cliniko, Fresha считают цвета и логотип космети
 Актуальное решение владельца: Codex принимает ветку, доводит план до конца и может сводить ветки и исправлять
 пересечения. При сведении обе семантики должны сохраниться: данные и выбор отправителя из брендирования, журнал
 попыток Track D и доступ к delivery-root только узкой роли `app_integrator_tenant_service`; широкая
-`app_tenant_service` должна получать отказ. Доменные значения и инфраструктуру пока не переключать:
-`test.bersoncare.ru` продолжает работать на прежнем адресе.
+`app_tenant_service` должна получать отказ. На TEST `test.bersoncare.ru` работает как branded Berson Care patient
+custom domain с exact apex binding; боевой адрес Berson Care остаётся `app.bersoncare.ru` и этим этапом не меняется.
 
 ### 1.3 Поверхности и маршруты
 
