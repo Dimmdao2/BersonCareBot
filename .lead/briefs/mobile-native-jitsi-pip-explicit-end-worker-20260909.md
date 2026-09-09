@@ -1,9 +1,7 @@
 # Worker brief — #915 NativeJitsi PiP and explicit-end lifecycle
 
-## Источник оракула
-
-`docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md`: «Размонтирование web-экрана снимает только
-JS-listener и не посылает hangup».
+Источник оракула — `docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md`: «Размонтирование web-экрана снимает
+только JS-listener и не посылает hangup».
 
 ## Authority and scope
 
