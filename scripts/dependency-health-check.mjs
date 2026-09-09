@@ -46,6 +46,19 @@ export function classifyOutdatedPackages(report) {
   return significant.sort((left, right) => left.name.localeCompare(right.name));
 }
 
+export function parseOutdatedReport(output) {
+  const start = output.indexOf('{');
+  const end = output.lastIndexOf('}');
+  if (start === -1 || end < start) {
+    throw new Error('JSON object not found');
+  }
+  const report = JSON.parse(output.slice(start, end + 1));
+  if (!report || typeof report !== 'object' || Array.isArray(report)) {
+    throw new Error('expected a JSON object');
+  }
+  return report;
+}
+
 export function shouldNotify({ previous, currentKind, fingerprint, nowMs }) {
   if (!previous) return currentKind !== 'clean';
   if (currentKind === 'clean') return previous.kind !== 'clean';
@@ -88,7 +101,7 @@ function inspectOutdated() {
     return { kind: 'error', output: commandFailure(result, 'pnpm outdated'), significant: [] };
   }
   try {
-    const report = JSON.parse(result.stdout || '{}');
+    const report = parseOutdatedReport(result.stdout || '{}');
     return { kind: 'ok', output: '', significant: classifyOutdatedPackages(report) };
   } catch (error) {
     return {

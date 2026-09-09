@@ -87,13 +87,13 @@ describe('staff PWA identity', () => {
 describe('installed PWA contract survives the surface rename', () => {
   it('keeps the patient installation identity and only renames it', () => {
     const patient = buildPatientPwaManifest(PATIENT_RESOLVED);
-    expect(PATIENT_DEFAULT_SURFACE.name).toBe('Therapy Go');
+    expect(PATIENT_DEFAULT_SURFACE.name).toBe('TherapyGo');
     expect(patient).toMatchObject({
       id: '/app',
       scope: '/app',
       start_url: '/app/patient',
-      name: 'Therapy Go — забота о твоём здоровье',
-      short_name: 'Therapy Go',
+      name: 'TherapyGo — забота о твоём здоровье',
+      short_name: 'TherapyGo',
     });
     expect(patient.icons).toEqual([
       { src: PATIENT_PWA_ICON_192, sizes: '192x192', type: 'image/png', purpose: 'any' },

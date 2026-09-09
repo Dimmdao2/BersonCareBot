@@ -2,11 +2,12 @@
 
 Дата решения владельца: **2026-09-08**.
 Taskdb: **#1100**.
-Статус: **основной контур выполнен и проверен на DEV/TEST; выполняется owner-correction live-интерфейса и
-восстановления после отказа загрузки. Интеграционная ветка и TEST содержат базовый код
-`5f97267db79d4404dc75c699f9d4863780fbddbd`; app deploy, Jitsi/coturn health, обычный direct-P2P звонок,
-принудительный TURN fallback и серверный отказ третьему участнику прошли. Итоговое evidence базового контура:
-`docs/audit/video-meetings-test-acceptance-2026-09-08.md`**.
+Статус: **все owner-checkbox реализованы и приняты на DEV; TEST содержит базовый код
+`5f97267db79d4404dc75c699f9d4863780fbddbd`, но финальная live-interface correction через `f70e8db21` после DEV
+PASS ещё требует штатного TEST rollout и пользовательской device-приёмки. Базовый app deploy, Jitsi/coturn health,
+обычный direct-P2P звонок, принудительный TURN fallback и серверный отказ третьему участнику прошли; evidence:
+`docs/audit/video-meetings-test-acceptance-2026-09-08.md` и
+`docs/audit/video-live-ui-final-verification-2026-09-08.md`**.
 Интеграционная ветка лида: `feat/doctor-ui-rebuild`; исходная база исполнения:
 `b0eb1e45a56deee9f6cb6b0e9948e831f429b5c6`.
 PROD вне scope. Разрешены реализация, независимая приёмка и выкладка на именованный TEST.
@@ -74,17 +75,20 @@ page-scoped Jitsi instance. Сохранение звонка между мар�
 
 ### Встреча и трафик
 
-- [ ] **VM-09.** Каноническая подсеть owner VPN `awg1` — `172.31.9.0/24`. Её используют все штатные источники,
+- [x] **VM-09.** Каноническая подсеть owner VPN `awg1` — `172.31.9.0/24`. Её используют все штатные источники,
       способные переписать доступ: `deploy/host/apply-test-nginx-webapp.sh` (оба allow-блока),
       `deploy/host/apply-test-vpn-dns.sh` (gateway, listen/address, DNAT и fatal-проверка), Jitsi nginx template и
       network policy, а также раздел «Доступы / VPN» в `SERVER CONVENTIONS.md`. Устаревшая `10.9.1.*` в этих активных
       источниках не остаётся; dry-run обоих apply-скриптов показывает новый адрес и не показывает старый.
-- [ ] **VM-10.** Ошибка загрузки Jitsi bundle сразу переводит stage из «Подключение…» в понятное состояние отказа с
+      Доказательство: независимый audit/dry-run всех пяти источников `docs/audit/video-vpn-reconciler-2026-09-08.md`.
+- [x] **VM-10.** Ошибка загрузки Jitsi bundle сразу переводит stage из «Подключение…» в понятное состояние отказа с
       действием «Повторить». Ни ошибка bundle, ни отказ create/join не оставляют stage в «Подключение…»; обе ветки
       дают retryable отказ. Перед каждой bundle-попыткой ранее добавленный loader-script удаляется и создаётся заново,
       если глобального конструктора ещё нет, поэтому retry/remount не ждёт события уже отработавшего `<script>`.
       Произвольный общий deadline не объявляет рабочую медленную загрузку ошибкой: таймер, если используется, только
       показывает нефатальное сообщение о долгой загрузке и доступный retry. Навигация оболочки остаётся доступной.
+      Доказательство: correction `3e32f6d4f`, retained suite `5 files / 29 tests` и forced first-script failure/retry
+      на DEV в `docs/audit/video-live-ui-final-verification-2026-09-08.md`.
 
 - [x] **VM-01.** Первый провайдер — полностью self-hosted Jitsi Meet; JaaS, `meet.jit.si`, 8x8 и другие внешние
       сервисы не используются в runtime. Доказательство: итоговый TEST health и browser host census в
@@ -101,7 +105,7 @@ page-scoped Jitsi instance. Сохранение звонка между мар�
       census в итоговом TEST evidence.
 - [x] **VM-05.** Записи и транскрибации нет: Jibri, Jigasi и соответствующие UI/маршруты не поднимаются.
       Доказательство: состав из пяти runtime-контейнеров и package audit `a710e68c2`.
-- [ ] **VM-06.** Интерфейс звонка не содержит брендинг Jitsi и техническое имя комнаты. Главная нижняя панель даёт
+- [x] **VM-06.** Интерфейс звонка не содержит брендинг Jitsi и техническое имя комнаты. Главная нижняя панель даёт
       mute/unmute микрофона и камеры, завершение, desktop screen share и на мобильном отдельную прямую смену
       фронтальной/задней камеры; компактное меню даёт fullscreen, поддерживаемый браузером выбор устройств,
       hide/show self-view, раскладку/главного участника, качество видео и виртуальный фон. Недоступная браузеру
@@ -110,18 +114,24 @@ page-scoped Jitsi instance. Сохранение звонка между мар�
       iframe `configOverwrite` только сужает его под возможности конкретного browser/device. Product-owned toolbar,
       доступ к DOM iframe и второй `getUserMedia` не создаются. До реализации фактические commands/events/config-
       ключи пинованной `stable-11146-2` фиксируются capability census в `docs/audit/`; отсутствующая либо требующая
-      remount функция не имитируется и выносится как owner question.
-- [ ] **VM-11.** Jitsi chat, participants pane, Jitsi invite, raise hand, subtitles, stats UI, recording,
+      remount функция не имитируется и выносится как owner question. Доказательство: capability census и correction
+      `3e32f6d4f`/`f70e8db21`; desktop/mobile DEV render подтвердил нижнюю панель, один self-view, нейтральный subject
+      и отсутствие room token в `docs/audit/video-live-ui-final-verification-2026-09-08.md`.
+- [x] **VM-11.** Jitsi chat, participants pane, Jitsi invite, raise hand, subtitles, stats UI, recording,
       livestream, whiteboard/Etherpad, shared video и отдельный share-computer-audio не показываются и не включаются
-      ни из toolbar/overflow, ни через доступные в пинованной сборке hotkeys/context-menu входы.
-- [ ] **VM-12.** Provider-neutral техническая диагностика фиксирует только необходимые operational events звонка
+      ни из toolbar/overflow, ни через доступные в пинованной сборке hotkeys/context-menu входы. Доказательство:
+      allowlist/hotkey inspection `docs/audit/video-live-ui-postfix-2026-09-08.md` и final DEV PASS после
+      `3e32f6d4f`/`f70e8db21`.
+- [x] **VM-12.** Provider-neutral техническая диагностика фиксирует только необходимые operational events звонка
       (как минимум join/error, длительность и P2P/fallback status), доступна системе, а не участникам, не содержит
       клинических данных/raw secret/JWT/TURN credential и не отправляется в Jitsi/8x8/другие внешние telemetry.
       Текущий этап пишет структурированные server logs через существующий `logger`/`logServerRuntimeError` с закрытым
       набором полей: meeting/organization ID, роль, `join|error|end`, длительность, `p2p|relay` и класс ошибки.
       Browser-факты принимает одно аутентифицированное doctor-only действие существующего маршрута встречи; новая
       таблица, миграция, retention job, admin UI и расширение `PRODUCT_ANALYTICS_EVENT_TYPES` запрещены. Guest ingest
-      и постоянное хранилище аналитики требуют отдельного owner-решения.
+      и постоянное хранилище аналитики требуют отдельного owner-решения. Доказательство: findings по закрытому
+      payload/event vocabulary исправлены `3e32f6d4f`; retained diagnostic tests и final DEV two-context call зелёные
+      в `docs/audit/video-live-ui-final-verification-2026-09-08.md`.
 - [x] **VM-07.** Приложение работает через provider-neutral контракт. Страницы, права, приглашения, тарифы и заметки
       не знают о Jitsi room/JWT API; Jitsi — сменный adapter/renderer. Доказательство: core `e0bac698b`, UI
       `8ca8cc17b` + audit fix `623ce4fc4`, full CI `71ea8a3ca`.
@@ -149,18 +159,21 @@ page-scoped Jitsi instance. Сохранение звонка между мар�
       зашиваются в сценарий, а выбираются общим правилом `доступное ∩ разрешённое получателем`. Содержание — факт
       приглашения и ссылка без клинического текста. На экране встречи специалист может скопировать ссылку.
       Доказательство: notification `b0c1085d6` + auditor acceptance `b60563a6a`, full CI.
-- [ ] **ACC-07.** Подготовка новой doctor live-встречи ставит приглашение ровно один раз в существующий pipeline;
+- [x] **ACC-07.** Подготовка новой doctor live-встречи ставит приглашение ровно один раз в существующий pipeline;
       выбираются доступные и разрешённые клиентом web push/email/Telegram/MAX. Doctor UI получает безопасный итог
       `queued/partially queued/skipped/unavailable`: показывает факт постановки хотя бы в один канал либо честно
       предлагает ручное копирование, но не раскрывает адреса получателей и внутренние ошибки. Idempotency привязан к
       конкретному invite ID, а не meeting ID: новая явная ротация физически может поставить новое приглашение.
       `queued`/`partially queued` означает, что реально вставлена хотя бы одна строка очереди; полный dedup даёт
-      `skipped`. Doctor HTTP route сериализует только безопасный статус и виды каналов без адресов.
-- [ ] **ACC-08.** Invite выпускается ровно один раз при создании встречи. Resume никогда не вызывает `rotateInvite`,
+      `skipped`. Doctor HTTP route сериализует только безопасный статус и виды каналов без адресов. Доказательство:
+      invite-scoped idempotency, safe route result и full-dedup `skipped` приняты в
+      `docs/audit/video-live-ui-postfix-2026-09-08.md`, corrections through `3e32f6d4f`.
+- [x] **ACC-08.** Invite выпускается ровно один раз при создании встречи. Resume никогда не вызывает `rotateInvite`,
       не инвалидирует доставленную ссылку и не отправляет повторное уведомление. Так как raw secret не хранится, на
       resume `guestUrl = null`, а UI вместо мёртвого копирования предлагает явное «Выпустить новую ссылку» через
       существующий `rotate_invite`; только это пользовательское действие заменяет capability и проходит тот же
-      notification/feedback contract ACC-07.
+      notification/feedback contract ACC-07. Доказательство: retained resume-no-rotate и explicit-rotate-notifies
+      acceptance в `docs/audit/video-live-ui-postfix-2026-09-08.md`, corrections through `3e32f6d4f`.
 - [x] **ACC-06.** Истёкшая, отозванная, подменённая, чужая tenant-ссылка и попытка занять третье место получают отказ
       без раскрытия существования клиента или комнаты. Доказательство: core route tests/full-surface audit и live
       server-side refusal третьего context в итоговом TEST evidence.
@@ -194,7 +207,7 @@ calendar date`; звонок, повторное открытие панели �
 
 ### Экран встречи и разрешённые изменения UI
 
-- [ ] **UI-08.** Открытие doctor live-страницы может один раз подготовить app-session/ссылку/уведомление, но не
+- [x] **UI-08.** Открытие doctor live-страницы может один раз подготовить app-session/ссылку/уведомление, но не
       монтирует Jitsi iframe и не запрашивает камеру/микрофон. Только на doctor live-странице поверх video-stage до
       подключения показывается большая кнопка Play «Начать звонок»; общий `VideoMeetingStage` и guest/patient live-
       страницы этой кнопки не получают и продолжают присоединяться по ссылке автоматически. `prepare` означает только
@@ -202,11 +215,17 @@ calendar date`; звонок, повторное открытие панели �
       выдаёт свежий join-material на момент старта, после чего монтируется единственный adapter. Отдельный specialist
       join endpoint/lifecycle/provider path не создаётся. Повторные быстрые нажатия не создают несколько Jitsi
       instances или app-sessions; Play после паузы дольше прежнего TTL join-material продолжает работать.
-- [ ] **UI-09.** Doctor live-страница переиспользует канонические desktop/mobile вкладки карточки пациента; вкладки
+      Доказательство: race/retry/fresh-material corrections through `3e32f6d4f`, retained tests и DEV desktop/mobile
+      pre-Play/Play acceptance в `docs/audit/video-live-ui-final-verification-2026-09-08.md`.
+- [x] **UI-09.** Doctor live-страница переиспользует канонические desktop/mobile вкладки карточки пациента; вкладки
       видны и маршрутизируют так же, как на существующих подстраницах пациента, без второго набора навигации.
-- [ ] **UI-10.** Панель управления находится у нижнего края video-stage на мобильном и desktop. Пока специалист в
+      Доказательство: shared `PatientEncounterPageShell` reuse принят в
+      `docs/audit/video-live-ui-postfix-2026-09-08.md` и виден на обоих DEV viewport в final verification.
+- [x] **UI-10.** Панель управления находится у нижнего края video-stage на мобильном и desktop. Пока специалист в
       комнате один, его локальное видео показывается ровно один раз, без второго self-thumbnail и без пустой второй
-      плитки; приход клиента переводит stage в обычную 1:1-композицию.
+      плитки; приход клиента переводит stage в обычную 1:1-композицию. Доказательство: DEV mobile `366x396` iframe,
+      нижние controls, один idle self-view и успешный two-context call в
+      `docs/audit/video-live-ui-final-verification-2026-09-08.md`.
 
 - [x] **UI-01.** Создан отдельный экран специалиста: видео слева, справа вкладки «Заметка» и «Приём»; заметка
       переиспользует дневную историю, «Приём» — существующий канонический протокол и его write-path, без второго формата.

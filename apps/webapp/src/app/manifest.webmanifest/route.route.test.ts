@@ -83,7 +83,7 @@ describe('public PWA manifest handlers', () => {
     const patient = await GET();
     expect(patient.status).toBe(200);
     await expect(patient.json()).resolves.toMatchObject({
-      short_name: 'Therapy Go',
+      short_name: 'TherapyGo',
       id: '/app',
     });
 

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { classifyOutdatedPackages, shouldNotify } from './dependency-health-check.mjs';
+import {
+  classifyOutdatedPackages,
+  parseOutdatedReport,
+  shouldNotify,
+} from './dependency-health-check.mjs';
 
 test('reports only deprecated, major, and pre-1.0 minor dependency drift', () => {
   const result = classifyOutdatedPackages({
@@ -16,6 +20,13 @@ test('reports only deprecated, major, and pre-1.0 minor dependency drift', () =>
     { name: 'major', current: '2.1.0', latest: '3.0.0', reason: 'major' },
     { name: 'preOne', current: '0.4.0', latest: '0.5.0', reason: 'pre-1.0 minor' },
   ]);
+});
+
+test('parses pnpm outdated JSON when pnpm prefixes a registry warning', () => {
+  assert.deepEqual(
+    parseOutdatedReport('WARN Request took 10098ms\n{"eslint":{"current":"9.0.0"}}\n'),
+    { eslint: { current: '9.0.0' } },
+  );
 });
 
 test('deduplicates findings, repeats them weekly, and reports recovery', () => {
