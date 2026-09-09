@@ -530,15 +530,17 @@ _Канон: [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECT
 
 ### Обычный вход на DEV/TEST
 
-Ролевые проверки проходят штатным email/password, OAuth или messenger-входом уже зарегистрированных owner-учёток и клиник. Persistent fixture-учётки, token/preset-входы и чтение паролей из env запрещены.
+Ролевые проверки проходят штатным входом уже зарегистрированных owner-учёток и клиник: врач и глобальный администратор — email/password, пациент — код, OAuth, мессенджер или passkey. Persistent fixture-учётки, token/preset-входы и чтение паролей из env запрещены.
 
 **Постоянный контракт owner-входа на DEV и TEST.** В именованных DEV (`127.0.0.1:5200`) и TEST
-(`https://test.bersoncare.ru`) три существующие живые учётки Дмитрия Берсона используют один пароль
-`123456testTEST`: врач `dimmdao@yandex.ru`, глобальный администратор `dimmdao@gmail.com`, пациент
-`kinesiospace@gmail.com`. Это намеренно опубликованный владельцем пароль тестовых сред, а не PROD-секрет и не
-fixture/bypass. Агент обязан входить этими учётками штатным email/password-путём при проверке соответствующей
-роли; если вход не проходит — штатно восстановить этот пароль в соответствующей DEV/TEST среде до продолжения
-проверки. На PROD и для любых других пользователей этот контракт не распространяется.
+(`https://test.bersoncare.ru`) врач `dimmdao@yandex.ru` и глобальный администратор `dimmdao@gmail.com` используют
+опубликованный пароль `123456testTEST`. Это пароль тестовых сред, не PROD-секрет и не fixture/bypass. Пациент
+`kinesiospace@gmail.com` passwordless: для live QA используйте существующий email-code/OTP flow, не пароль. Для
+изолированной проверки DEV-кандидата `DEV_EMAIL_OTP_DEBUG=true` при `NODE_ENV=development` выводит в лог локального
+development-сервера только что сгенерированный OTP; это не authenticated bypass и не может включиться на TEST или
+production. Если password-вход врача или глобального администратора не проходит, штатно восстановите этот пароль в
+соответствующей DEV/TEST среде до продолжения проверки. На PROD и для любых других пользователей этот контракт не
+распространяется.
 
 Чистый public/login без сессии: `/api/auth/dev-public`; явная регистрация кабинета:
 `/api/auth/dev-public?view=registration`. Это dev-only clear-session helper, не отдельная authenticated role.

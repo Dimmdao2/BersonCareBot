@@ -1,24 +1,10 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserPasswordCredentialsPort } from '@/infra/repos/pgUserPasswordCredentials';
 import type { PasswordAltchaService } from '@/modules/auth/passwordAltcha';
 import type { PasswordChangeService } from '@/modules/auth/passwordChange';
 import type { StaffSecurityService } from '@/modules/staff-security/service';
 import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
 import type { AppSession, SessionUser } from '@/shared/types/session';
-
-const previousTestAccountPhones = vi.hoisted(() => {
-  const previous = process.env.TEST_ACCOUNT_PHONES;
-  process.env.TEST_ACCOUNT_PHONES = '+12025550101';
-  return previous;
-});
-
-afterAll(() => {
-  if (previousTestAccountPhones === undefined) {
-    delete process.env.TEST_ACCOUNT_PHONES;
-  } else {
-    process.env.TEST_ACCOUNT_PHONES = previousTestAccountPhones;
-  }
-});
 
 type CheckRateLimit =
   typeof import('@/modules/auth/authConfirmRateLimit').checkAuthConfirmRateLimit;
@@ -477,27 +463,6 @@ describe('email/password login HTTP boundary', () => {
       error: 'password_not_available_for_role',
     });
     expect(fakes.setSession).not.toHaveBeenCalled();
-  });
-
-  it('allows the env-configured TEST patient password without entering staff-factor handling', async () => {
-    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
-    fakes.findUser.mockResolvedValue({ ...user, role: 'client', phone: '+12025550101' });
-
-    const response = await login(request());
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      ok: true,
-      redirectTo: '/app/patient',
-      role: 'client',
-    });
-    expect(fakes.setSession).toHaveBeenCalledOnce();
-    expect(fakes.getSecurityStatus).not.toHaveBeenCalled();
-    expect(fakes.getStructuredSetting).not.toHaveBeenCalled();
-    expect(fakes.enterSelfPrincipal).toHaveBeenCalledWith(
-      userId,
-      'api/auth/email-password/login:primary-verified',
-    );
   });
 
   it('returns a typed our-side failure instead of an empty body when an unhandled exception hits the DB', async () => {

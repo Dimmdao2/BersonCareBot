@@ -44,7 +44,6 @@ async function main() {
     ...packet,
     SAAS_SMOKE_DOCTOR_PASSWORD: password,
     SAAS_SMOKE_GLOBAL_ADMIN_PASSWORD: password,
-    SAAS_SMOKE_PATIENT_PASSWORD: password,
   };
   const temporaryPath = `${packetPath}.tmp-${process.pid}-${randomBytes(8).toString('hex')}`;
   let renamed = false;
@@ -62,7 +61,7 @@ async function main() {
   } finally {
     if (!renamed) rmSync(temporaryPath, { force: true });
   }
-  process.stdout.write('smoke-login packet passwords updated for doctor, global_admin, patient\n');
+  process.stdout.write('smoke-login packet passwords updated for doctor and global_admin; patient value retained\n');
 }
 
 main().catch(() => {
