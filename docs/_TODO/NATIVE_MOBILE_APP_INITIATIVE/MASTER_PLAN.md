@@ -30,6 +30,13 @@ scope). Открытые owner-развилки собраны одним лис
    звонок, а переводят активный Jitsi-звонок в системный Picture-in-Picture/плавающий режим. Звонок завершается
    только явной кнопкой «Завершить звонок» внутри нативного Jitsi UI. Размонтирование web-экрана снимает только
    JS-listener и не посылает hangup; запуск действительно другой консультации остаётся отдельной replacement-операцией.
+9. Владелец уточнил 2026-09-09 единый lifecycle звонка при внутренних переходах: и нативный Android, и browser/PWA
+   звонок продолжаются при переходе со страницы звонка в карточку пациента, программу или другой раздел приложения.
+   На телефоне Android native использует системный PiP; browser/PWA использует доступный браузерный PiP, а при его
+   отсутствии сохраняет тот же звонок в компактном in-app окне. На остальных мобильных страницах поверх нижней
+   навигации справа показан компактный индикатор активного звонка с камерой и мягко пульсирующей точкой; нажатие
+   возвращает на точный URL текущего звонка. Пока звонок активен, начало другого звонка через обычный UI недоступно.
+   Десктопный layout этим этапом не перерабатывается.
 
 ## 2. Superseded direction
 
@@ -290,9 +297,16 @@ VM-10, VM-11, VM-12, UI-08, UI-09, UI-10. `M4-01` по определению т
       по-прежнему читаются только из restricted `system_settings` (`jitsi_*` ключи) и в bundle не попадают.
 - [ ] **M4-04.** Specialist can return to the unchanged notes/encounter page while the native call continues in
       Picture-in-Picture, then the existing web hangup/encounter callback runs only after explicit native termination;
-      no separate mobile notes implementation is created. Browser/PWA video behavior remains operational.
+      no separate mobile notes implementation is created. Browser/PWA mobile navigation also preserves the same
+      active conference; browser PiP is used when available and a compact in-app video window is the fallback.
 - [ ] **M4-05.** Нативный adapter подключён к тому же нейтральному шву, что и будущий PeerJS/native-WebRTC provider
       (`#1100` VM-08), и не закрывает смену провайдера: замена рендера не требует правки product-страниц.
+- [ ] **M4-06.** Один persistent active-call coordinator выше route boundary владеет текущей render-session,
+      terminal callback и точным return URL. На остальных мобильных patient/doctor страницах зонально раздельные
+      UI-компоненты показывают компактный индикатор справа снизу над нижней навигацией (камера + мягко пульсирующая
+      точка), возвращают в текущий звонок и не позволяют обычным start-call controls начать второй звонок. Переход
+      внутри приложения не размонтирует conference; explicit end очищает coordinator ровно один раз. Guest `/live`
+      сохраняет действующий standalone путь. Десктопная раскладка остаётся без нового floating UI.
 
 ### M5 — camera, gallery, documents and streaming upload
 
@@ -458,7 +472,8 @@ authority нельзя: он частично отменён владельце�
 | 1 | Shell/native foundation | `apps/mobile-shell/**`, `pnpm-workspace.yaml`, root build docs | M2 | `M2-00` (toolchain) |
 | 2 | Native capabilities | только `apps/mobile-shell/**` | M4 (native половина), M5-02/03, M6-04, M6-10 | 1; для M4 — приземление `#1100` |
 | 3 | Web NativeRuntime + Push lifecycle | platform provider/lib/hook, PWA/service-worker/install chokepoints, patient/staff web-push contexts/actions, single logout door; без `shared/ui/video/**` и media UI | M1-07, M3, authenticated web-client half M6-03/M6-09 | audited native-capability + push-backend candidates; не зависит от `#1100` |
-| 4 | Native Jitsi web seam | `shared/ui/video/VideoMeetingStage.tsx`, максимум один co-located native renderer/controller и узкий public runtime export | M4-01/04/05 | 3 и landing `#1100` |
+| 4 | Native Jitsi Android lifecycle | `apps/mobile-shell/**`; без webapp/tests | M4-02/03 (native половина) | 3 и landing `#1100` |
+| 4a | Persistent web call lifecycle | `shared/ui/video/**`, три live entrypoints, persistent app shell boundary и физически раздельные patient/doctor call indicators; без `apps/mobile-shell/**` и tests | M4-01/04/05/06 | 3, landing `#1100`, native event contract потока 4 |
 | 5 | DeviceMedia web integration | media-source/upload boundary, шесть существующих media UI-точек и `app-layer/media/**`; без video/PWA/push | M5-01/04/05/06 | 3, audited native-capability + multipart-backend candidates |
 | 6 | Push backend | `apps/webapp/db/schema/**` + migration, `modules/**` native-push target/cipher port, `app/api/**` registration/M2M access, `modules/system-settings/**`, `apps/integrator/src/**` composite app-push/provider delivery | M6-01/02/03/05/06/07/08/09/11 | 1 — frozen `app_id`/`provider`/`installation_id_hash` и token-event contract; не зависит от `NativeRuntime` landing |
 
@@ -529,4 +544,4 @@ security/audit gates идут без этих входов. Отсутствую
 | M6-01…M6-07, M6-09…M6-11 | done | Backend/rights/routes through `c6fb028d1`, landing `bd897e9f7`; official Universal provider contract `60cfa976e`, landing `46c9d4728`; Android end-to-end wire/tap through `1dd140d64`, landing `a722d9bf8`; authenticated lifecycle `44b494331`, landing `4d84fb260`. |
 | M6-08 | done | Restricted DB-backed registry/config/accessor path accepted in `88e9240df`, landing `bd897e9f7`; lead re-inspected the final registry, integrator config route and production-only key inventory. The obsolete source-text gate was deliberately removed by owner decision #1074 in `c5b061696` and is not restored. |
 | M5-01, M5-04…M5-06 | done | Product `ba92a6623`; independent audit/tests `eca72e42b`, report `61c71a436`; accepted correction `ac8998f37`; port landing `bfcb4afba`. Original fault ledger: убито 10, непойманных 0; retained oracle and targeted media gates green. |
-| M4-01, M4-03…M4-05, M7-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
+| M4-01, M4-03…M4-06, M7-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
