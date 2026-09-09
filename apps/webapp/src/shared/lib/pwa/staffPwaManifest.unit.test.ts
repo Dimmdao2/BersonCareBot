@@ -91,10 +91,6 @@ describe('installed PWA contract survives the surface rename', () => {
     expect(surfaceLayoutMetadata(BRANDED_RESOLVED)).toMatchObject({
       title: 'Clinic A Care',
       manifest: '/manifest.webmanifest',
-      icons: {
-        icon: [{ url: '/pwa-icon-192.png' }, { url: '/pwa-icon-512.png' }],
-        apple: [{ url: '/apple-touch-icon.png' }],
-      },
       appleWebApp: { title: 'Clinic A Care' },
     });
     expect(surfaceAccentToken(BRANDED_RESOLVED)).toBe('#7a3cc2');

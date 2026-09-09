@@ -730,23 +730,6 @@ describe('B5: one patient tree with resolved context', () => {
     expect(middlewareRequestSurface(root)).toEqual(middlewareRequestSurface(canonicalCard));
   });
 
-  it('uses the internal HTTP listener when nginx exposes a branded root over HTTPS', async () => {
-    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
-    const response = await runtime.proxy(
-      new NextRequest('https://localhost:6300/', {
-        headers: {
-          host: `clinic-a.${runtime.patientOrigin.hostname}`,
-          'x-forwarded-proto': 'https',
-        },
-      }),
-      activeTenantSurface(),
-    );
-
-    expect(response.headers.get('x-middleware-rewrite')).toBe(
-      'http://localhost:6300/clinic-a',
-    );
-  });
-
   it('keeps Therapysto home and its specialist directory unreachable on patient origins', async () => {
     const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
     const brandedOrigin = new URL(`https://clinic-a.${runtime.patientOrigin.hostname}`);

@@ -181,32 +181,39 @@ Scope: `apps/mobile-shell/**`, `pnpm-workspace.yaml`, root workspace wiring, bui
       группу `kvm` (сегодня он в неё не входит — §3a). Без KVM эмулятор запускается программной эмуляцией и как
       приёмочный инструмент непригоден. Это привилегированное host-действие: выполняется порт-агентом по решению
       `G-1`, не из рабочего хода.
-- [ ] **M2-01.** Создан один workspace package на pin-compatible Capacitor 8 с Android source artifacts, двумя
+- [x] **M2-01.** Создан один workspace package на pin-compatible Capacitor 8 с Android source artifacts, двумя
       product flavors `therapygo`/`therapysto` и environment dimension `test`/`production`. Четыре логические
       brand×environment комбинации воспроизводимы: debug APK честно отмечены как debug-key signed, release APK/AAB
       собираются unsigned без внешнего release keystore; стандартные debug/release build types не удаляются.
+      Доказательство: product `533bb29b1`, audit `49f584040`, all-variant build `a0dfd6576`, landing `d7f99340c`.
 - [ ] **M2-02.** Пакет корректно встроен в monorepo: добавлен в `pnpm-workspace.yaml`, и корневые
       `pnpm -r --parallel run typecheck`, `eslint .` и `pnpm run ci` проходят с ним — либо потому, что пакет
       несёт реальные скрипты, либо потому, что их отсутствие объявлено явно. Gradle/Android артефакты и локальные
       SDK-пути не попадают в git (`git status --porcelain` чист после сборки).
-- [ ] **M2-03.** Flavors имеют отдельные application IDs, names, supplied icons/adaptive icons, splash resources,
+- [x] **M2-03.** Flavors имеют отдельные application IDs, names, supplied icons/adaptive icons, splash resources,
       theme colors, start URLs and allowed origins. Signing credentials/service tokens отсутствуют в git и bundle.
-- [ ] **M2-04.** Shell показывает startup/loading/offline/server-unavailable state, корректно обрабатывает Android
+      Доказательство: `49f584040` сверил четыре APK через `aapt` и secret/artifact scan; landing `d7f99340c`.
+- [x] **M2-04.** Shell показывает startup/loading/offline/server-unavailable state, корректно обрабатывает Android
       back/navigation и не обещает offline business data. HTTP/WebView cache используется штатно, video cache не
-      добавляется.
-- [ ] **M2-05.** Один navigation policy является chokepoint: first-party surface остаётся в WebView; `http(s)` на
+      добавляется. Доказательство: `49f584040` нашёл main-frame defect, `a0dfd6576` исправил его; тот же retained
+      4-variant oracle и APK/AAB builds зелёные, landing `d7f99340c`.
+- [x] **M2-05.** Один navigation policy является chokepoint: first-party surface остаётся в WebView; `http(s)` на
       другой origin, cleartext `http`, `mailto` и `tel` уходят в системный browser/app; другие custom schemes,
       `intent`, `file`, `content`, `javascript` и userinfo без отдельного owner-approved exact allowlist отклоняются.
-      Правило одно и параметризуется build config — второй проверки «а ещё здесь» не заводится.
-- [ ] **M2-06.** Первый Android-релиз разрешает внутри привилегированного WebView только один platform bootstrap
+      Правило одно и параметризуется build config — второй проверки «а ещё здесь» не заводится. Доказательство:
+      blind kill-set/fault injection `49f584040` (28 тестов × 4 variants), landing `d7f99340c`.
+- [x] **M2-06.** Первый Android-релиз разрешает внутри привилегированного WebView только один platform bootstrap
       origin конкретного build variant: Therapy Go — patient platform origin, Therapysto — staff platform origin;
       TEST и production раздельны. Runtime/server-discovered расширения allowlist и custom-domain origin нет. 308
       или навигация на custom-domain проходит через M2-05 во внешний браузер; bridge/plugins там недоступны.
-      Неизвестный, cross-surface или неподтверждённый origin fail-closed считается внешним.
-- [ ] **M2-07.** Bridge и каждый plugin fail closed для недоверенного origin. Cleartext traffic запрещён release-
+      Неизвестный, cross-surface или неподтверждённый origin fail-closed считается внешним. Доказательство:
+      cross-brand/environment/origin injections и exact variant artifact inspection `49f584040`, landing `d7f99340c`.
+- [x] **M2-07.** Bridge и каждый plugin fail closed для недоверенного origin. Cleartext traffic запрещён release-
       конфигурацией; logs не содержат cookies, fragment secrets, Jitsi JWT, push tokens или media presigned URLs.
-- [ ] **M2-08.** README содержит точные команды sync/build, расположение APK, требования JDK/Android SDK и процесс
-      создания RuStore signing artifact без приватного ключа в repository.
+      Доказательство: runtime gate injections, release manifest/aapt и secret scans `49f584040`, landing `d7f99340c`.
+- [x] **M2-08.** README содержит точные команды sync/build, расположение APK, требования JDK/Android SDK и процесс
+      создания RuStore signing artifact без приватного ключа в repository. Доказательство: audited README и
+      reproduced commands/artifacts `49f584040`, landing `d7f99340c`.
 
 ### M3 — one typed NativeRuntime boundary in webapp
 
@@ -434,4 +441,6 @@ security/audit gates идут без этих входов. Отсутствую
 | M0-03 | done | Independent high-Opus plan candidate `0864df016`, landed by port as `229a243e7`; lead corrected two contradictions exposed by read-only architecture mapping before product launch. |
 | M2-00 | done | Port ops run `mobile-android-toolchain-ops-20260909`: `/home/dev/.local/share/bcb-android/env.sh`; `javac 21.0.12.1`, cmdline-tools `23.0.0`, build-tools `36.0.0`, platform 36, adb `37.0.1`, emulator `37.1.11`, API 36 Google APIs x86_64 image and `bcb-api36` AVD. Exact `df -B1 /`: before `18180792320`, after run `9359036416`, consumed `8821755904` bytes. Lead repeated all version/list checks. |
 | M2-00a | open | System image/AVD are installed, but `id dev` lacks group `kvm`; `/dev/kvm` is `root:kvm 0660`, and passwordless sudo is unavailable. Requires `sudo usermod -aG kvm dev` plus new login/`sg kvm`. |
-| M1-01…M2-08, M3-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
+| M2-01, M2-03…M2-08 | done | Product `533bb29b1`, independent blind audit/tests `49f584040`, accepted correction `a0dfd6576`, port landing `d7f99340c`; exact evidence is in `.lead/runs/mobile-shell-foundation-audit-20260909/`. |
+| M2-02 | open | Workspace wiring/typecheck/lint/build are proven; the root `pnpm run ci` clause remains for final integrated M7-06 and is not claimed early. |
+| M1-01…M1-07, M3-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |

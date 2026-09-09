@@ -46,23 +46,6 @@ function rebaseRedirectToPublicOrigin(response: NextResponse, publicOrigin: stri
   );
 }
 
-function internalRewriteTarget(request: NextRequest, pathname: string): URL {
-  const target = request.nextUrl.clone();
-  target.pathname = pathname;
-
-  // Behind the host nginx, Next reconstructs the public HTTPS scheme while retaining its
-  // loopback listener address. A rewrite to that reconstructed URL would make Next speak TLS to
-  // its own plain-HTTP port and fail before the routed page can render.
-  if (
-    target.protocol === 'https:' &&
-    ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname.toLowerCase())
-  ) {
-    target.protocol = 'http:';
-  }
-
-  return target;
-}
-
 export async function proxy(
   request: NextRequest,
   // Next always supplies a `NextFetchEvent` here in production. It is deliberately typed `unknown`
@@ -222,7 +205,11 @@ export async function proxy(
   requestHeaders.set('x-bc-search', request.nextUrl.search);
   const response = patientRewritePath
     ? NextResponse.rewrite(
-        internalRewriteTarget(request, patientRewritePath),
+        (() => {
+          const target = request.nextUrl.clone();
+          target.pathname = patientRewritePath;
+          return target;
+        })(),
         { request: { headers: requestHeaders } },
       )
     : NextResponse.next({

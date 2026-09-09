@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
 import { PATIENT_DEFAULT_SURFACE, PLATFORM_NAME } from '@/config/productSurfaces';
 import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
-import { PATIENT_PWA_MANIFEST_PATH } from '@/shared/lib/pwa/patientPwaManifest';
+import {
+  PATIENT_BROWSER_ICON_32,
+  PATIENT_PWA_MANIFEST_PATH,
+} from '@/shared/lib/pwa/patientPwaManifest';
 import { surfaceDisplayName, type ResolvedSurface } from './requestSurface';
 
 /**
@@ -23,10 +26,11 @@ export const patientLayoutMetadata: Metadata = {
   description: `Patient web application for ${PATIENT_DEFAULT_SURFACE.name}.`,
   icons: {
     icon: [
+      { url: PATIENT_BROWSER_ICON_32, sizes: '32x32', type: 'image/png' },
       { url: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/pwa-icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
-    shortcut: [{ url: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png' }],
+    shortcut: [{ url: PATIENT_BROWSER_ICON_32, sizes: '32x32', type: 'image/png' }],
     apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
   },
   appleWebApp: {
