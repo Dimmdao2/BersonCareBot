@@ -217,7 +217,12 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
               metadata: {
                 title: pushCopy.title,
                 url: openUrl,
-                pushExtras: { tag, pushSurface: 'therapygo' },
+                pushExtras: {
+                  tag,
+                  pushSurface: 'therapygo',
+                  nativeRoute: routePaths.patientMessages,
+                  notificationKind: 'message',
+                },
               },
             },
             deps,

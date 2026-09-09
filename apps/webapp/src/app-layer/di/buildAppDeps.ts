@@ -176,7 +176,7 @@ import { pgChannelPreferencesPort } from '@/infra/repos/pgChannelPreferences';
 import { createPgWebPushSubscriptionsPort } from '@/infra/repos/pgWebPushSubscriptions';
 import { createPgIntegratorWebPushDeliveryPort } from '@/infra/repos/pgIntegratorWebPushDelivery';
 import { createPgNativePushTargetsPort } from '@/infra/repos/pgNativePushTargets';
-import { createNativePushTokenCipherFromEnv } from '@/modules/web-push/nativePush';
+import { createOptionalNativePushTokenCipherFromEnv } from '@/modules/web-push/nativePush';
 import { createNativePushTargetsService } from '@/modules/web-push/nativePushTargets';
 import {
   createPgPatientNotificationTopicsPort,
@@ -543,8 +543,9 @@ const channelPreferencesPort = !inMemoryRepos
 const webPushSubscriptionsPort = !inMemoryRepos
   ? createPgWebPushSubscriptionsPort()
   : inMemoryWebPushSubscriptionsPort;
-const nativePushTargetsPort = !inMemoryRepos
-  ? createPgNativePushTargetsPort(createNativePushTokenCipherFromEnv())
+const nativePushTokenCipher = !inMemoryRepos ? createOptionalNativePushTokenCipherFromEnv() : null;
+const nativePushTargetsPort = nativePushTokenCipher
+  ? createPgNativePushTargetsPort(nativePushTokenCipher)
   : undefined;
 const nativePushTargets = nativePushTargetsPort
   ? createNativePushTargetsService(nativePushTargetsPort)

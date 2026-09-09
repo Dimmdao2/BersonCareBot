@@ -1,5 +1,6 @@
 ext {
-    minSdkVersion = 24
+    // Jitsi Meet SDK 13.1.1 declares API 26; do not override its runtime floor.
+    minSdkVersion = 26
     compileSdkVersion = 36
     targetSdkVersion = 36
     androidxActivityVersion = '1.11.0'
@@ -9,6 +10,8 @@ ext {
     androidxFragmentVersion = '1.8.9'
     coreSplashScreenVersion = '1.2.0'
     androidxWebkitVersion = '1.14.0'
+    // One pinned CameraX family; CameraX does not publish a BOM artifact.
+    cameraXVersion = '1.6.2'
     junitVersion = '4.13.2'
     androidxJunitVersion = '1.3.0'
     androidxEspressoCoreVersion = '3.7.0'

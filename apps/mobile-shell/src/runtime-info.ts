@@ -1,7 +1,7 @@
 export const SHELL_RUNTIME_CAPABILITIES = {
-  jitsi: false,
-  media: false,
-  push: false,
+  jitsi: true,
+  media: true,
+  push: true,
 } as const;
 
 export type ShellRuntimeCapabilities = typeof SHELL_RUNTIME_CAPABILITIES;

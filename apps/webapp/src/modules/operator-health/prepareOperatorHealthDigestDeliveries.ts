@@ -67,7 +67,10 @@ function intentPayload(
         title,
         url,
         message: { text: linesFirst(text) },
-        pushExtras: { tag: eventId, pushSurface: 'therapysto' },
+        // `url` targets the global-admin health surface, outside the Therapysto mobile shell's
+        // route allowlist — no nativeRoute exists here, so the composite adapter only skips the
+        // native leg; the browser push is unaffected.
+        pushExtras: { tag: eventId, pushSurface: 'therapysto', notificationKind: 'message' },
         delivery: { channels: [channel] },
       };
   }

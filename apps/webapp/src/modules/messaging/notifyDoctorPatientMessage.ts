@@ -61,6 +61,7 @@ export async function notifyDoctorPatientMessage(
         messageId: `patient-msg-notify:${input.messageId}`,
         senderDisplayName: input.patientLabel,
         notificationUrl: deepLink,
+        nativeRoute: buildDoctorMessagesOpenPath(input.conversationId),
       },
       opts.staffDeps,
     ).catch((err: unknown) => {

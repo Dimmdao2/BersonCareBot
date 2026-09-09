@@ -283,6 +283,13 @@ export async function runPatientWebPushNotify(
         ? 'custom'
         : 'custom';
 
+  // Native routing is independent of pushOpenUrl (which may carry the clinic's custom-domain
+  // origin, M6-05/M6-09): appointment_lifecycle and news both resolve to the same patient home
+  // buildPatientNotificationsOpenUrl already targets; appointment_reminder opens the booking tab.
+  const notificationKind: 'message' | 'reminder' = body.intentType === 'news' ? 'message' : 'reminder';
+  const nativeRoute =
+    body.intentType === 'appointment_reminder' ? routePaths.patientBooking : routePaths.patient;
+
   // Register product analytics + obtain trackingId for delivery attribution.
   // The integrator adapter carries the full payload and will attach trackingId
   // to the actual notification via pushExtras.
@@ -314,6 +321,8 @@ export async function runPatientWebPushNotify(
       url: trackedPayload.url,
       pushExtras: {
         pushSurface: 'therapygo',
+        nativeRoute,
+        notificationKind,
         tag,
         trackingId: trackedPayload.trackingId ?? undefined,
         topicCode: body.topicCode,

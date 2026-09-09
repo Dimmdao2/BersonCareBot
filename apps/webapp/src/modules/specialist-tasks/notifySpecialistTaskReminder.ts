@@ -168,6 +168,10 @@ export async function notifySpecialistTaskReminder(
         const openUrl = task.patientUserId
           ? `/app/doctor/clients/${task.patientUserId}#doctor-client-section-tasks`
           : '/app/doctor#doctor-today-global-tasks';
+        // The fragment is a browser-only in-page anchor; the native route is the bounded page itself.
+        const nativeRoute = task.patientUserId
+          ? `/app/doctor/clients/${task.patientUserId}`
+          : '/app/doctor';
         const tag = `specialist_task:${task.id}`;
         const pushResult = await relayOutbound({
           messageId: `specialist-task:${task.id}:web_push:${ownerId}`,
@@ -178,7 +182,7 @@ export async function notifySpecialistTaskReminder(
           metadata: {
             title: 'Задача',
             url: openUrl,
-            pushExtras: { tag, pushSurface: 'therapysto' },
+            pushExtras: { tag, pushSurface: 'therapysto', nativeRoute, notificationKind: 'reminder' },
           },
         }).catch((err: unknown) => {
           logger.warn({ err, taskId: task.id }, 'specialist task reminder web push relay failed');

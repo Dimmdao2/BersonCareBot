@@ -12,8 +12,14 @@ const registration = z.object({
 
 function services() {
   const deps = buildAppDeps();
-  if (!deps.nativePushTargets) throw new Error('native_push_unavailable');
   return { targets: deps.nativePushTargets, settings: deps.systemSettings };
+}
+
+function unavailableResponse() {
+  return NextResponse.json(
+    { ok: false, error: 'native_push_unavailable' },
+    { status: 503 },
+  );
 }
 
 /** Patient route fixes Therapy Go; the client cannot select a surface. */
@@ -21,6 +27,15 @@ export async function GET() {
   const gate = await requirePatientApiBusinessAccess();
   if (!gate.ok) return gate.response;
   const { targets, settings } = services();
+  if (!targets) {
+    return NextResponse.json({
+      ok: true,
+      active: false,
+      providers: [],
+      projectId: null,
+      runtime: 'unavailable',
+    });
+  }
   const [status, projectId] = await Promise.all([
     targets.status(gate.session.user.userId, 'therapygo'),
     settings.getNativePushProjectId('therapygo'),
@@ -40,8 +55,10 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
+  const { targets } = services();
+  if (!targets) return unavailableResponse();
   try {
-    await services().targets.register({
+    await targets.register({
       userId: gate.session.user.userId,
       appId: 'therapygo',
       ...parsed.data,
@@ -66,7 +83,9 @@ export async function DELETE(request: Request) {
   ) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
-  await services().targets.revoke(
+  const { targets } = services();
+  if (!targets) return unavailableResponse();
+  await targets.revoke(
     gate.session.user.userId,
     'therapygo',
     body.provider,

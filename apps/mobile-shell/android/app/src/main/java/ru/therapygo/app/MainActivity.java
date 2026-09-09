@@ -42,6 +42,9 @@ public final class MainActivity extends BridgeActivity {
             .create();
         registerPlugin(NavigationPolicyPlugin.class);
         registerPlugin(ShellRuntimePlugin.class);
+        registerPlugin(NativeJitsiPlugin.class);
+        registerPlugin(DeviceMediaPlugin.class);
+        registerPlugin(UniversalPushPlugin.class);
         bridgeBuilder.addWebViewListener(new ShellWebViewListener());
         super.onCreate(savedInstanceState);
         bridge.setWebViewClient(new MainFrameAwareWebViewClient());

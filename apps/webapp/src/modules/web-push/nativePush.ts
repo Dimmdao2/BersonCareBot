@@ -43,3 +43,10 @@ export function createNativePushTokenCipherFromEnv(raw = process.env.NATIVE_PUSH
     decrypt(ciphertext, keyId, context) { const data = Buffer.from(ciphertext, 'base64url'); if (data.length < 29) throw new Error('native_push_token_ciphertext_invalid'); const decipher = createDecipheriv('aes-256-gcm', keyFor(keyId), data.subarray(0, 12)); decipher.setAAD(aad(context)); decipher.setAuthTag(data.subarray(12, 28)); return Buffer.concat([decipher.update(data.subarray(28)), decipher.final()]).toString('utf8'); },
   };
 }
+
+/** Missing transport bootstrap config disables native Push without breaking unrelated web surfaces. */
+export function createOptionalNativePushTokenCipherFromEnv(
+  raw = process.env.NATIVE_PUSH_TOKEN_KEYRING_JSON,
+): NativePushTokenCipher | null {
+  return raw ? createNativePushTokenCipherFromEnv(raw) : null;
+}

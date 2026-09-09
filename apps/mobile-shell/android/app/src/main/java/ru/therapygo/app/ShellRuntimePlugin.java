@@ -16,9 +16,9 @@ public final class ShellRuntimePlugin extends Plugin {
             return;
         }
         JSObject capabilities = new JSObject();
-        capabilities.put("jitsi", false);
-        capabilities.put("media", false);
-        capabilities.put("push", false);
+        capabilities.put("jitsi", true);
+        capabilities.put("media", true);
+        capabilities.put("push", true);
         JSObject result = new JSObject();
         result.put("kind", "capacitor-android");
         result.put("version", BuildConfig.VERSION_NAME);

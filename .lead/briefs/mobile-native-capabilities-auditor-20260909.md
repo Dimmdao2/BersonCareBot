@@ -10,6 +10,11 @@ Independently audit the exact committed Android native-capabilities candidate. P
 add/commit only stable behavioral acceptance tests and audit artifacts. Never fix product code, change webapp/
 integrator/plan, use real provider credentials, send real push, deploy, sign a release or expose secrets.
 
+Authority/checklist: `docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md`, stages M4, M5, M6 and M7. Audit the
+candidate against every checkbox in those stages that belongs to `apps/mobile-shell/**`; do not close plan items or
+expand into the web integration, backend, PWA, signing, store publication or physical-device stages owned by later
+passes.
+
 ## Mandatory reading and blind order
 
 1. Run `grep -n "^## \|^### " AGENTS.md`; read the global decision method, §1/§1b, §5, §9–§12 and §24 fully.

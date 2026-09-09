@@ -4,11 +4,14 @@ buildscript {
     repositories {
         google()
         mavenCentral()
+        // Official, release-only Jitsi SDK repository. This is intentionally
+        // scoped to the self-hosted SDK dependency rather than JitPack.
+        maven { url 'https://raw.githubusercontent.com/jitsi/jitsi-maven-repository/master/releases/' }
+        // Official RuStore SDK repository; it supplies Universal Push only.
+        maven { url 'https://nexus-external.vkteam.ru/repository/maven/' }
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:8.13.0'
-        classpath 'com.google.gms:google-services:4.4.4'
-
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
     }
@@ -20,6 +23,8 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        maven { url 'https://raw.githubusercontent.com/jitsi/jitsi-maven-repository/master/releases/' }
+        maven { url 'https://nexus-external.vkteam.ru/repository/maven/' }
     }
 }
 

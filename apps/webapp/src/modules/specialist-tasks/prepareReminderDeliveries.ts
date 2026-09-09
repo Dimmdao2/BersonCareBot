@@ -131,7 +131,13 @@ export async function prepareSpecialistTaskReminderDeliveries(
           title: 'Напоминание о задачах',
           url: '/app/doctor#doctor-today-global-tasks',
           message: { text: 'Проверьте задачи в кабинете.' },
-          pushExtras: { tag: `specialist_task:${task.id}`, pushSurface: 'therapysto' },
+          pushExtras: {
+            tag: `specialist_task:${task.id}`,
+            pushSurface: 'therapysto',
+            // The fragment is a browser-only in-page anchor; the native route is the bounded page itself.
+            nativeRoute: '/app/doctor',
+            notificationKind: 'reminder',
+          },
           delivery: { channels: ['web_push'] },
         },
       });

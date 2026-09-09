@@ -74,6 +74,10 @@ export async function notifyDoctorPatientProgramNote(
         messageId,
         senderDisplayName: input.patientLabel,
         notificationUrl: deepLink,
+        nativeRoute: buildDoctorPatientProgramOpenPath({
+          patientUserId: input.patientUserId,
+          instanceId: input.instanceId,
+        }),
       },
       opts.staffDeps,
     ).catch((err: unknown) => {

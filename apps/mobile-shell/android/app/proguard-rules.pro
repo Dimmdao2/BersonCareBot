@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Jitsi's transitive Giphy model retains this compile-time Kotlin annotation;
+# it is not loaded by the shell at runtime.
+-dontwarn kotlinx.parcelize.Parcelize
