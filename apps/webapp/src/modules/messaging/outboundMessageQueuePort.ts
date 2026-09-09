@@ -38,7 +38,13 @@ export type OutboundMessageContent = {
   /** Ссылка перехода push-уведомления (web_push). */
   url?: string;
   /** Нативное приложение-получатель того же логического web_push сообщения. */
-  pushExtras?: { pushSurface: 'therapygo' | 'therapysto' };
+  pushExtras?: {
+    pushSurface: 'therapygo' | 'therapysto';
+    /** Ограниченный относительный маршрут кабинета для native-транспорта; браузерный `url` сюда не годится. */
+    nativeRoute?: string;
+    /** Селектор звукового канала Android — самостоятельный от аналитического `pushKind`. */
+    notificationKind?: 'message' | 'reminder' | 'call';
+  };
   /** Контекст пациента: свой канал клиники обязателен только когда он реально включён. */
   senderScope?: 'clinic_required' | 'clinic_if_configured';
 };

@@ -101,7 +101,7 @@ public final class UniversalPushPlugin extends Plugin {
         String route = intent.getStringExtra("nativePushRoute");
         if (validSurface(surface) && validRoute(surface, route)) {
             JSObject pendingTap = state("tap");
-            pendingTap.put("surface", surface);
+            pendingTap.put("pushSurface", surface);
             pendingTap.put("route", route);
             intent.removeExtra("nativePushSurface");
             intent.removeExtra("nativePushRoute");
@@ -149,16 +149,38 @@ public final class UniversalPushPlugin extends Plugin {
     /**
      * Rejects any literal {@code .}/{@code ..} path segment (MUST FIX-2: a textual
      * {@code startsWith} check alone lets {@code ..} normalize outside the allowed prefix) and
-     * requires the route to equal the allowed surface prefix or continue with a {@code /} boundary,
-     * so a route like {@code /app/patientized} can no longer pass by sharing a string prefix without
-     * sharing a path segment.
+     * requires the route to equal one of the allowed surface prefixes or continue with a
+     * {@code /} boundary, so a route like {@code /app/patientized} can no longer pass by sharing a
+     * string prefix without sharing a path segment. Therapysto's staff surface spans three roots
+     * (`/app/doctor`, `/app/settings`, `/app/account`) so this stays the observable mirror of the
+     * server-side allowlist (`deliveryAdapter.ts:surfaceForPathname`) instead of drifting to a
+     * single-prefix subset of it.
      */
     static boolean validRoute(String surface, String route) {
         if (route == null || route.length() > 256 || !route.matches("/[A-Za-z0-9/_?=&.-]*")) return false;
         for (String segment : route.split("/", -1)) {
             if (".".equals(segment) || "..".equals(segment)) return false;
         }
-        String prefix = "therapygo".equals(surface) ? "/app/patient" : "/app/doctor";
-        return route.equals(prefix) || route.startsWith(prefix + "/");
+        if ("therapygo".equals(surface)) {
+            return route.equals("/app/patient") || route.startsWith("/app/patient/");
+        }
+        for (String prefix : THERAPYSTO_ROUTE_PREFIXES) {
+            if (route.equals(prefix) || route.startsWith(prefix + "/")) return true;
+        }
+        return false;
+    }
+
+    private static final String[] THERAPYSTO_ROUTE_PREFIXES = { "/app/doctor", "/app/settings", "/app/account" };
+
+    /**
+     * Bounded, non-blank native notification copy (MASTER_PLAN M6-09/M6-10): Android independently
+     * enforces the same limits the server already trims to (title 120, body 240 Unicode code
+     * points) rather than trusting the wire, and never falls back to placeholder text.
+     */
+    static boolean validCopy(String title, String body) {
+        if (title == null || title.trim().isEmpty() || title.codePointCount(0, title.length()) > 120) {
+            return false;
+        }
+        return body != null && body.codePointCount(0, body.length()) <= 240;
     }
 }

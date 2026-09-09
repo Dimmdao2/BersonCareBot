@@ -41,6 +41,64 @@ function isWarmupsSectionDeepLink(
 }
 
 /**
+ * Same routing decision as {@link buildReminderDeepLink}, without the deployment base URL — the
+ * one relative path both the browser deep link and the native (RuStore) route are derived from
+ * (M6-05/M6-09). Reused, not duplicated, by `buildReminderDeepLink` below so the two can never
+ * disagree about which screen a reminder opens.
+ */
+export function buildReminderDeepLinkPath(
+  params: {
+    linkedObjectType: ReminderLinkedObjectType | string | null;
+    linkedObjectId: string | null;
+    reminderIntent?: string | null;
+    organizationId?: string | null;
+  },
+  opts?: BuildReminderDeepLinkOptions,
+): string {
+  const intentRaw = typeof params.reminderIntent === 'string' ? params.reminderIntent.trim() : '';
+  if (intentRaw === 'warmup') {
+    return buildReminderGoPath(routePaths.patientGoDailyWarmup, params.organizationId);
+  }
+  if (intentRaw === 'exercises' || intentRaw === 'stretch') {
+    return buildReminderGoPath(routePaths.patientGoPlanStartLesson, params.organizationId);
+  }
+  const linkedObjectType = narrowLinkedType(
+    typeof params.linkedObjectType === 'string' ? params.linkedObjectType : null,
+  );
+  const { linkedObjectId } = params;
+  if (!linkedObjectType || !linkedObjectId?.trim()) {
+    return '/app/patient/reminders?from=reminder';
+  }
+  const id = encodeURIComponent(linkedObjectId.trim());
+  if (linkedObjectType === 'content_section' && isWarmupsSectionDeepLink(linkedObjectId, opts)) {
+    return buildReminderGoPath(routePaths.patientGoDailyWarmup, params.organizationId);
+  }
+  switch (linkedObjectType) {
+    case 'lfk_complex':
+      return `/app/patient/diary/lfk/journal?complexId=${id}&from=reminder`;
+    case 'content_section':
+      return `/app/patient/sections/${id}?from=reminder`;
+    case 'content_page':
+      return `/app/patient/content/${id}?from=reminder`;
+    case 'rehab_program':
+      return `/app/patient/treatment/${id}?from=reminder`;
+    case 'treatment_program_item': {
+      const raw = linkedObjectId.trim();
+      const colon = raw.indexOf(':');
+      if (colon <= 0 || colon >= raw.length - 1) {
+        return '/app/patient/reminders?from=reminder';
+      }
+      const instanceId = encodeURIComponent(raw.slice(0, colon));
+      const itemId = encodeURIComponent(raw.slice(colon + 1));
+      return `/app/patient/treatment/${instanceId}/item/${itemId}?nav=exec&from=reminder`;
+    }
+    case 'custom':
+    default:
+      return '/app/patient/reminders?from=reminder';
+  }
+}
+
+/**
  * Patient deep links for integrator reminder payloads (STAGE_1_CONTRACTS S1.T07).
  * The deployment base URL is resolved by the composition layer and passed explicitly.
  */
@@ -55,47 +113,7 @@ export function buildReminderDeepLink(
   opts?: BuildReminderDeepLinkOptions,
 ): string {
   const base = params.appBaseUrl.replace(/\/$/, '');
-  const intentRaw = typeof params.reminderIntent === 'string' ? params.reminderIntent.trim() : '';
-  if (intentRaw === 'warmup') {
-    return `${base}${buildReminderGoPath(routePaths.patientGoDailyWarmup, params.organizationId)}`;
-  }
-  if (intentRaw === 'exercises' || intentRaw === 'stretch') {
-    return `${base}${buildReminderGoPath(routePaths.patientGoPlanStartLesson, params.organizationId)}`;
-  }
-  const linkedObjectType = narrowLinkedType(
-    typeof params.linkedObjectType === 'string' ? params.linkedObjectType : null,
-  );
-  const { linkedObjectId } = params;
-  if (!linkedObjectType || !linkedObjectId?.trim()) {
-    return `${base}/app/patient/reminders?from=reminder`;
-  }
-  const id = encodeURIComponent(linkedObjectId.trim());
-  if (linkedObjectType === 'content_section' && isWarmupsSectionDeepLink(linkedObjectId, opts)) {
-    return `${base}${buildReminderGoPath(routePaths.patientGoDailyWarmup, params.organizationId)}`;
-  }
-  switch (linkedObjectType) {
-    case 'lfk_complex':
-      return `${base}/app/patient/diary/lfk/journal?complexId=${id}&from=reminder`;
-    case 'content_section':
-      return `${base}/app/patient/sections/${id}?from=reminder`;
-    case 'content_page':
-      return `${base}/app/patient/content/${id}?from=reminder`;
-    case 'rehab_program':
-      return `${base}/app/patient/treatment/${id}?from=reminder`;
-    case 'treatment_program_item': {
-      const raw = linkedObjectId.trim();
-      const colon = raw.indexOf(':');
-      if (colon <= 0 || colon >= raw.length - 1) {
-        return `${base}/app/patient/reminders?from=reminder`;
-      }
-      const instanceId = encodeURIComponent(raw.slice(0, colon));
-      const itemId = encodeURIComponent(raw.slice(colon + 1));
-      return `${base}/app/patient/treatment/${instanceId}/item/${itemId}?nav=exec&from=reminder`;
-    }
-    case 'custom':
-    default:
-      return `${base}/app/patient/reminders?from=reminder`;
-  }
+  return `${base}${buildReminderDeepLinkPath(params, opts)}`;
 }
 
 /** Async fallback: warmups cluster по `system_parent_code`, если intent ещё `generic`. */

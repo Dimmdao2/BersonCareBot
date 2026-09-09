@@ -57,7 +57,10 @@ export async function sendAdminIncidentStaffWebPush(
         metadata: {
           title: input.pushTitle,
           url: input.pushUrl,
-          pushExtras: { tag, pushSurface: 'therapysto' },
+          // pushUrl targets the global-admin surface (`/app/admin/...`), which is outside the
+          // Therapysto mobile shell's route allowlist — no nativeRoute exists here, so the
+          // composite adapter skips only the native leg while the browser push is unaffected.
+          pushExtras: { tag, pushSurface: 'therapysto', notificationKind: 'message' },
         },
       }).catch((err: unknown) => {
         logger.warn(

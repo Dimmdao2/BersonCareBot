@@ -49,6 +49,11 @@ export type NotifyDoctorStaffTopicInput = {
   messageId: string;
   senderDisplayName: string;
   notificationUrl: string;
+  /**
+   * Bounded relative `/app/doctor...` cabinet route for the native transport — the caller knows
+   * the intended destination, `notificationUrl` may carry an absolute origin (M6-05/M6-09).
+   */
+  nativeRoute?: string;
   replyMarkup?: { inline_keyboard: RelayInlineButton[][] };
 };
 
@@ -191,7 +196,12 @@ export async function notifyDoctorPatientMessageToStaff(
         metadata: {
           title: 'Новое сообщение',
           url: input.notificationUrl,
-          pushExtras: { tag, pushSurface: 'therapysto' },
+          pushExtras: {
+            tag,
+            pushSurface: 'therapysto',
+            notificationKind: 'message',
+            ...(input.nativeRoute ? { nativeRoute: input.nativeRoute } : {}),
+          },
         },
       }).catch((err: unknown) => {
         logger.warn(

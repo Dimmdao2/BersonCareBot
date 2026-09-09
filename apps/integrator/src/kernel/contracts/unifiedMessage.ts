@@ -76,6 +76,14 @@ export type UnifiedContent = {
   pushExtras?: {
     /** Product surface chosen by the producer, never a provider selector. */
     pushSurface?: 'therapygo' | 'therapysto';
+    /**
+     * Bounded relative cabinet route for the native (RuStore) transport, independent of the
+     * browser `url` (MASTER_PLAN M6-05/M6-09). A custom-domain/guest browser `url` is never a
+     * trusted Android route; only this field is.
+     */
+    nativeRoute?: string;
+    /** Android notification sound-channel selector — distinct from the analytics `pushKind` below. */
+    notificationKind?: 'message' | 'reminder' | 'call';
     tag?: string;
     trackingId?: string;
     /** Matches WebPushClientPayload.topicCode?: string | null */

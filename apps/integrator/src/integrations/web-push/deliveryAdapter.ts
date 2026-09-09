@@ -21,6 +21,7 @@
 import type {
   DeliveryAdapter,
   DeliverySendResult,
+  NativePushAppId,
   OutgoingIntent,
   WebPushAccessPort,
 } from '../../kernel/contracts/index.js';
@@ -44,9 +45,15 @@ type WebPushDeliveryPayload = {
     warmupSloganKey?: string | null;
     occurrenceId?: string | null;
     pushSurface?: 'therapygo' | 'therapysto';
+    nativeRoute?: string;
+    notificationKind?: 'message' | 'reminder' | 'call';
   };
   delivery?: { channels?: unknown };
 } & Record<string, unknown>;
+
+type NativeRouting = { surface: NativePushAppId; kind: 'message' | 'reminder' | 'call'; route: string };
+
+const NOTIFICATION_KINDS = ['message', 'reminder', 'call'] as const;
 
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
@@ -62,32 +69,25 @@ function isRouteAtOrBelow(pathname: string, root: string): boolean {
   return pathname === root || pathname.startsWith(`${root}/`);
 }
 
-/** Legacy rows predate typed pushSurface; infer only canonical relative cabinet routes. */
-function resolveNativeSurface(
-  rawPushExtras: unknown,
-  rawUrl: string,
-): 'therapygo' | 'therapysto' | null {
-  // Keep the backend route grammar identical to the native tap gate. In particular, do not let
-  // encoded separators or traversal-shaped legacy URLs reach a provider and acquire a different
-  // meaning when a downstream URI parser decodes them.
+/**
+ * Parses a route/url string that must be a same-origin relative path: rejects oversized,
+ * malformed-grammar, protocol-relative, traversal-shaped or absolute/userinfo-bearing values
+ * before a downstream URI parser gets a chance to decode a different meaning into it. Shared by
+ * both the typed `pushExtras.nativeRoute` and the legacy browser `url` fallback so the two never
+ * drift into different grammars.
+ */
+function parseBoundedRoute(raw: string): URL | null {
   if (
-    rawUrl.length > 256 ||
-    !/^\/[A-Za-z0-9/_?=&.-]*$/.test(rawUrl) ||
-    rawUrl.startsWith('//') ||
-    (rawUrl.split('?', 1)[0] ?? '')
-      .split('/')
-      .some((segment) => segment === '.' || segment === '..')
+    raw.length > 256 ||
+    !/^\/[A-Za-z0-9/_?=&.-]*$/.test(raw) ||
+    raw.startsWith('//') ||
+    (raw.split('?', 1)[0] ?? '').split('/').some((segment) => segment === '.' || segment === '..')
   ) {
     return null;
   }
-  const pushExtras = asRecord(rawPushExtras);
-  if (pushExtras && Object.hasOwn(pushExtras, 'pushSurface')) {
-    const value = pushExtras.pushSurface;
-    return value === 'therapygo' || value === 'therapysto' ? value : null;
-  }
   let parsed: URL;
   try {
-    parsed = new URL(rawUrl, 'https://native-route.invalid');
+    parsed = new URL(raw, 'https://native-route.invalid');
   } catch {
     return null;
   }
@@ -98,15 +98,75 @@ function resolveNativeSurface(
   ) {
     return null;
   }
-  if (isRouteAtOrBelow(parsed.pathname, '/app/patient')) return 'therapygo';
+  return parsed;
+}
+
+function surfaceForPathname(pathname: string): NativePushAppId | null {
+  if (isRouteAtOrBelow(pathname, '/app/patient')) return 'therapygo';
   if (
-    isRouteAtOrBelow(parsed.pathname, '/app/doctor') ||
-    isRouteAtOrBelow(parsed.pathname, '/app/settings') ||
-    isRouteAtOrBelow(parsed.pathname, '/app/account')
+    isRouteAtOrBelow(pathname, '/app/doctor') ||
+    isRouteAtOrBelow(pathname, '/app/settings') ||
+    isRouteAtOrBelow(pathname, '/app/account')
   ) {
     return 'therapysto';
   }
   return null;
+}
+
+/**
+ * Resolves the one native (surface, kind, route) triple this send is allowed to reach, or `null`
+ * to skip the native leg entirely (the browser leg is unaffected either way).
+ *
+ * A present `pushExtras.pushSurface` — valid or not — always short-circuits: it is a producer's
+ * explicit typed claim, so an invalid value never falls back to inferring a surface from `url`
+ * (that fallback is legacy-rows-only, see below).
+ *   1. Typed contract (M6-05/M6-09): surface + nativeRoute + notificationKind all present and
+ *      mutually consistent (route belongs to the claimed surface).
+ *   2. Backward compatibility for already-queued rows: surface present alone — `url` must itself
+ *      be a strict relative same-surface cabinet route; kind defaults to `message`. Never infers
+ *      from an absolute, protocol-relative, custom-domain or guest URL.
+ *   3. Fully legacy rows with no typed pushExtras at all: surface is inferred from `url` the same
+ *      strict way; kind defaults to `message`.
+ */
+function resolveNativeRouting(rawPushExtras: unknown, rawUrl: string): NativeRouting | null {
+  const extras = asRecord(rawPushExtras);
+  const hasExplicitSurface = extras !== null && Object.hasOwn(extras, 'pushSurface');
+
+  if (hasExplicitSurface) {
+    const surfaceValue = extras!.pushSurface;
+    if (surfaceValue !== 'therapygo' && surfaceValue !== 'therapysto') return null;
+
+    const rawRoute = typeof extras!.nativeRoute === 'string' ? extras!.nativeRoute : null;
+    const rawKind = typeof extras!.notificationKind === 'string' ? extras!.notificationKind : null;
+    if (rawRoute !== null || rawKind !== null) {
+      if (
+        rawRoute === null ||
+        rawKind === null ||
+        !(NOTIFICATION_KINDS as readonly string[]).includes(rawKind)
+      ) {
+        return null;
+      }
+      const parsedRoute = parseBoundedRoute(rawRoute);
+      if (!parsedRoute || surfaceForPathname(parsedRoute.pathname) !== surfaceValue) return null;
+      return { surface: surfaceValue, kind: rawKind as NativeRouting['kind'], route: rawRoute };
+    }
+
+    const parsedUrl = parseBoundedRoute(rawUrl);
+    if (!parsedUrl || surfaceForPathname(parsedUrl.pathname) !== surfaceValue) return null;
+    return { surface: surfaceValue, kind: 'message', route: rawUrl };
+  }
+
+  const parsedUrl = parseBoundedRoute(rawUrl);
+  if (!parsedUrl) return null;
+  const surface = surfaceForPathname(parsedUrl.pathname);
+  if (!surface) return null;
+  return { surface, kind: 'message', route: rawUrl };
+}
+
+/** Trims to at most `max` Unicode code points (not UTF-16 code units) for the bounded native wire. */
+function truncateCodePoints(value: string, max: number): string {
+  const codePoints = Array.from(value);
+  return codePoints.length > max ? codePoints.slice(0, max).join('') : value;
 }
 
 export function createWebPushDeliveryAdapter(deps: {
@@ -144,7 +204,7 @@ export function createWebPushDeliveryAdapter(deps: {
 
       const extras = payload.pushExtras ?? {};
       const url = asString(payload.url) ?? '/';
-      const nativeSurface = resolveNativeSurface(payload.pushExtras, url);
+      const routing = resolveNativeRouting(payload.pushExtras, url);
       const getNativeTargetsForUser = webPushAccessPort.getNativeTargetsForUser;
       const getRuStoreConfig = webPushAccessPort.getRuStoreConfig;
       const nativeAccessConfigured = getNativeTargetsForUser && getRuStoreConfig;
@@ -152,8 +212,8 @@ export function createWebPushDeliveryAdapter(deps: {
       const [subscriptions, vapidResult, nativeTargets] = await Promise.all([
         webPushAccessPort.getSubscriptionsForUser(pushUserId, organizationId),
         webPushAccessPort.getVapidCredentials(organizationId).catch(() => null),
-        nativeSurface && nativeAccessConfigured
-          ? getNativeTargetsForUser(pushUserId, organizationId, nativeSurface).catch(() => [])
+        routing && nativeAccessConfigured
+          ? getNativeTargetsForUser(pushUserId, organizationId, routing.surface).catch(() => [])
           : Promise.resolve([]),
       ]);
 
@@ -227,20 +287,34 @@ export function createWebPushDeliveryAdapter(deps: {
       }) : { delivered: 0, errors: 0, deactivated: 0 };
 
       let nativeDelivered = 0; let nativeErrors = 0; let nativeDeactivated = 0;
-      for (const target of nativeTargets) {
-        if (
-          target.provider !== 'rustore' ||
-          (target.appId !== 'therapygo' && target.appId !== 'therapysto') ||
-          target.appId !== nativeSurface ||
-          !getRuStoreConfig
-        ) {
-          continue;
+      if (routing) {
+        const nativeTitle = truncateCodePoints(title, 120);
+        const nativeBody = truncateCodePoints(body, 240);
+        for (const target of nativeTargets) {
+          if (
+            target.provider !== 'rustore' ||
+            (target.appId !== 'therapygo' && target.appId !== 'therapysto') ||
+            target.appId !== routing.surface ||
+            !getRuStoreConfig
+          ) {
+            continue;
+          }
+          const config = await getRuStoreConfig(target.appId, organizationId).catch(() => null);
+          if (!config) continue;
+          const result = await sendRuStoreUniversalPush({
+            config,
+            token: target.token,
+            data: {
+              pushSurface: routing.surface,
+              notificationKind: routing.kind,
+              route: routing.route,
+              title: nativeTitle,
+              body: nativeBody,
+            },
+          });
+          if (result.ok) nativeDelivered += 1;
+          else { nativeErrors += 1; if (result.invalidToken && webPushAccessPort.deactivateNativeTarget && await webPushAccessPort.deactivateNativeTarget(target.id, organizationId)) nativeDeactivated += 1; }
         }
-        const config = await getRuStoreConfig(target.appId, organizationId).catch(() => null);
-        if (!config) continue;
-        const result = await sendRuStoreUniversalPush({ config, token: target.token, data: { route: url, title, body, pushSurface: target.appId } });
-        if (result.ok) nativeDelivered += 1;
-        else { nativeErrors += 1; if (result.invalidToken && webPushAccessPort.deactivateNativeTarget && await webPushAccessPort.deactivateNativeTarget(target.id, organizationId)) nativeDeactivated += 1; }
       }
       const delivered = browserResult.delivered + nativeDelivered;
       const errors = browserResult.errors + nativeErrors;

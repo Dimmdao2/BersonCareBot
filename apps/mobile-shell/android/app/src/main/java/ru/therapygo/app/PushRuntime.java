@@ -155,27 +155,32 @@ final class PushRuntime {
 
     private void handleMessage(UniversalRemoteMessage message) {
         Map<String, String> data = message.getData();
-        String surface = data.get("surface");
-        String kind = data.get("kind");
+        // Wire keys are fixed as {pushSurface,notificationKind,route,title,body} — the exact data-
+        // only shape the integrator's composite web_push adapter serializes (MASTER_PLAN M6-09).
+        String surface = data.get("pushSurface");
+        String kind = data.get("notificationKind");
         String route = data.get("route");
-        if (!UniversalPushPlugin.validSurface(surface) || !UniversalPushPlugin.validKind(kind) || !UniversalPushPlugin.validRoute(surface, route)) {
+        String title = data.get("title");
+        String body = data.get("body");
+        if (!UniversalPushPlugin.validSurface(surface) || !UniversalPushPlugin.validKind(kind)
+            || !UniversalPushPlugin.validRoute(surface, route) || !UniversalPushPlugin.validCopy(title, body)) {
             emit("message_rejected", "invalid_payload");
             return;
         }
         // Rendered here so a data-only message still notifies with no trusted JS/plugin listener
         // attached yet (cold process start, or the WebView not loaded).
-        showNotification(surface, kind, route);
+        showNotification(surface, kind, route, title, body);
         Listener target = listener;
         if (target != null) {
             JSObject event = state("message");
-            event.put("surface", surface);
-            event.put("kind", kind);
+            event.put("pushSurface", surface);
+            event.put("notificationKind", kind);
             event.put("route", route);
             target.onPushEvent("push", event);
         }
     }
 
-    private void showNotification(String surface, String kind, String route) {
+    private void showNotification(String surface, String kind, String route, String title, String body) {
         Context context = appContext;
         if (context == null) return;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
@@ -194,8 +199,8 @@ final class PushRuntime {
         String channel = "call".equals(kind) ? CHANNEL_CALL : "reminder".equals(kind) ? CHANNEL_REMINDER : CHANNEL_MESSAGE;
         Notification notification = new Notification.Builder(context, channel)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle(context.getString(R.string.app_name))
-            .setContentText("New notification")
+            .setContentTitle(title)
+            .setContentText(body)
             .setContentIntent(tap)
             .setAutoCancel(true)
             .build();

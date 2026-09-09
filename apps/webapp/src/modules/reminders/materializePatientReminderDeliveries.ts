@@ -2,7 +2,7 @@ import type {
   OutgoingIntent,
   PatientReminderReadyOutgoingDelivery,
 } from '@/modules/messaging/outgoingDeliveryQueuePort';
-import { buildReminderDeepLink } from './buildReminderDeepLink';
+import { buildReminderDeepLink, buildReminderDeepLinkPath } from './buildReminderDeepLink';
 import { reminderOccurrenceTopicCode } from './reminderOccurrenceTopicCode';
 import { buildCustomReminderPushCopy } from '@/modules/web-push/pushNotificationCopy';
 
@@ -139,6 +139,14 @@ export function materializePatientReminderDeliveries(input: {
     reminderIntent: rule.reminderIntent,
     organizationId: rule.organizationId,
   });
+  // Same routing decision as openUrl, without appBaseUrl: appBaseUrl may be the clinic's custom
+  // domain, which a native route must never trust or copy (M6-05/M6-09).
+  const nativeRoute = buildReminderDeepLinkPath({
+    linkedObjectType: rule.linkedObjectType,
+    linkedObjectId: rule.linkedObjectId,
+    reminderIntent: rule.reminderIntent,
+    organizationId: rule.organizationId,
+  });
   const scheduleUrl = `${input.appBaseUrl.replace(/\/$/, '')}/app/patient/reminders?from=reminder`;
   const keyboard = reminderKeyboard({
     occurrenceId: occurrence.id,
@@ -222,6 +230,8 @@ export function materializePatientReminderDeliveries(input: {
         url: openUrl,
         pushExtras: {
           pushSurface: 'therapygo',
+          nativeRoute,
+          notificationKind: 'reminder',
           tag: `reminder:${occurrence.id}:g${occurrence.deliveryGeneration}`,
           topicCode,
           intentType: 'patient_reminder',

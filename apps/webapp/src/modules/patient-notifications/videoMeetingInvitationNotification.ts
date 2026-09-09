@@ -35,7 +35,11 @@ function unavailable(): VideoMeetingInvitationNotificationResult {
   };
 }
 
-function contentFor(channel: DeliveryChannel, guestUrl: string): OutboundMessageContent {
+function contentFor(
+  channel: DeliveryChannel,
+  guestUrl: string,
+  meetingId: string,
+): OutboundMessageContent {
   const text = `${INVITATION_TEXT}\n\n${guestUrl}`;
   if (channel === 'email') {
     return { text, subject: 'Приглашение на видеовстречу' };
@@ -45,7 +49,13 @@ function contentFor(channel: DeliveryChannel, guestUrl: string): OutboundMessage
       text: INVITATION_TEXT,
       title: 'Приглашение на видеовстречу',
       url: guestUrl,
-      pushExtras: { pushSurface: 'therapygo' },
+      // The browser leg keeps the patient's guest link unchanged; the native leg never trusts
+      // that guest URL as a route, it gets its own bounded authenticated live surface (M6-05/M6-09).
+      pushExtras: {
+        pushSurface: 'therapygo',
+        nativeRoute: `/app/patient/live/${meetingId}`,
+        notificationKind: 'call',
+      },
     };
   }
   return { text };
@@ -58,6 +68,7 @@ function queueTargets(input: {
   maxId?: string | null;
   emailRecipient?: string | null;
   guestUrl: string;
+  meetingId: string;
 }): QueueTarget[] {
   const selected = new Set(input.selectedChannels);
   const targets: QueueTarget[] = [];
@@ -65,28 +76,28 @@ function queueTargets(input: {
     targets.push({
       channel: 'telegram',
       recipient: input.telegramId.trim(),
-      content: contentFor('telegram', input.guestUrl),
+      content: contentFor('telegram', input.guestUrl, input.meetingId),
     });
   }
   if (selected.has('max') && input.maxId?.trim()) {
     targets.push({
       channel: 'max',
       recipient: input.maxId.trim(),
-      content: contentFor('max', input.guestUrl),
+      content: contentFor('max', input.guestUrl, input.meetingId),
     });
   }
   if (selected.has('email') && input.emailRecipient?.trim()) {
     targets.push({
       channel: 'email',
       recipient: input.emailRecipient.trim(),
-      content: contentFor('email', input.guestUrl),
+      content: contentFor('email', input.guestUrl, input.meetingId),
     });
   }
   if (selected.has('web_push')) {
     targets.push({
       channel: 'web_push',
       recipient: input.patientUserId,
-      content: contentFor('web_push', input.guestUrl),
+      content: contentFor('web_push', input.guestUrl, input.meetingId),
     });
   }
   return targets;
@@ -155,6 +166,7 @@ export function createVideoMeetingInvitationNotification(deps: {
           maxId: bindings.maxId,
           emailRecipient: emailFields.email,
           guestUrl: input.guestUrl,
+          meetingId: input.meetingId,
         });
         if (targets.length === 0) {
           return {
