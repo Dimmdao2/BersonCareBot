@@ -71,8 +71,8 @@ describe('native web_push composite fan-out — kill-set §6/§7/§10', () => {
       globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 })) as never;
       const sentTo: string[] = [];
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (_url, init) => {
-        const body = JSON.parse(String((init as RequestInit).body));
-        sentTo.push(body.data.pushSurface);
+        const body = JSON.parse(String((init as { body?: unknown } | undefined)?.body));
+        sentTo.push(body.message.data.pushSurface);
         return new Response(JSON.stringify({}), { status: 200 });
       });
 
@@ -93,8 +93,12 @@ describe('native web_push composite fan-out — kill-set §6/§7/§10', () => {
     },
   );
 
-  it('M6-11/§7: generic provider 400 (no invalid-token vocabulary) never deactivates the target', async () => {
-    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ error: 'bad_request' }), { status: 400 })) as never;
+  it('M6-11/§7: official invalid-auth provider error never deactivates the target', async () => {
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({
+      status: 'PROVIDER_ERROR',
+      code: 400,
+      errors: ['rustore: invalid auth token'],
+    }), { status: 400 })) as never;
     const deactivateNativeTarget = vi.fn(async () => true);
     const port = basePort({
       getNativeTargetsForUser: vi.fn(async () => [
@@ -112,9 +116,13 @@ describe('native web_push composite fan-out — kill-set §6/§7/§10', () => {
     expect((result.webPushOutcome as { transports: { native: { errors: number } } }).transports.native.errors).toBe(1);
   });
 
-  it('M6-11: an exact typed invalid-token provider response deactivates only that target, idempotently', async () => {
+  it('M6-03/M6-11: official invalid-token provider response deactivates only that target, idempotently', async () => {
     globalThis.fetch = vi.fn(async () =>
-      new Response(JSON.stringify({ code: 'INVALID_TOKEN' }), { status: 400 }),
+      new Response(JSON.stringify({
+        status: 'PROVIDER_ERROR',
+        code: 400,
+        errors: ['rustore: invalid tokens tok-1'],
+      }), { status: 400 }),
     ) as never;
     const deactivateNativeTarget = vi.fn(async () => true);
     const port = basePort({
