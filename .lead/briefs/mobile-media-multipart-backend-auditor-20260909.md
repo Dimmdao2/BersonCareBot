@@ -13,7 +13,8 @@ NativeRuntime/Jitsi/push, apply privileges/migrations, write DEV/TEST data, acce
 ## Mandatory reading and blind order
 
 Run the AGENTS.md heading map; read the global decision method, §1/§1b, §4a, §5, §9–§12, §15–§17, §20–§22 and
-§24 fully, with §10a/§10b before opening tests. Read the complete M5/M7 authority, media authorization, patient-file
+§24 fully, with §10a/§10b before opening tests. Read the complete M5/M7 authority in
+`docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md`, media authorization, patient-file
 plans, module docs, existing upload-door checker and exact base→candidate diff. Persist the kill-set below before
 reading tests in `.lead/runs/mobile-media-multipart-backend-audit-20260909/00-blind-killset.md`.
 

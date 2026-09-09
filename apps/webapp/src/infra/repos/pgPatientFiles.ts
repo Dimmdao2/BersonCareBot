@@ -128,6 +128,7 @@ export function createPgPatientFilesPort(): PatientFilesPort {
           const [mf] = await tx
             .insert(mediaFiles)
             .values({
+              id: params.mediaFileId,
               organizationId,
               displayName: params.fileName,
               originalName: params.fileName,

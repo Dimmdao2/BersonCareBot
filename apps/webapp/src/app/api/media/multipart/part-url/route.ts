@@ -7,7 +7,7 @@ import {
 } from '@/app-layer/media/mediaUploadSessionsRepo';
 import { presignPreparedUploadPart } from '@/app-layer/media/mediaUploadAdapter';
 import { multipartMaxPartNumber } from '@/modules/media/multipartConstants';
-import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireMediaMultipartApiContext } from '@/app-layer/guards/mediaMultipartApiContext';
 
 const bodySchema = z.object({
   sessionId: z.string().uuid(),
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 's3_not_configured' }, { status: 501 });
   }
 
-  const gate = await requireDoctorWorkspaceApiContext();
+  const gate = await requireMediaMultipartApiContext();
   if (!gate.ok) return gate.response;
 
   let json: unknown;
@@ -36,8 +36,8 @@ export async function POST(request: Request) {
 
   const gated = await gateUploadSessionForPartUrl(
     parsed.data.sessionId,
-    gate.ctx.session.user.userId,
-    gate.ctx.organizationId,
+    gate.ctx.userId,
+    gate.ctx.kind === 'doctor' ? gate.ctx.organizationId : null,
   );
   if (!gated.ok) {
     const status = gated.error === 'session_not_found' ? 404 : 409;

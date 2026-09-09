@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
 import '../../styles/doctor.css';
 import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceShell';
 import { loadStaffAccountPageContext } from './accountContext';
@@ -6,6 +7,7 @@ import { loadStaffAccountPageContext } from './accountContext';
 export default async function AccountLayout({ children }: { children: ReactNode }) {
   const { session, workspaceContext } = await loadStaffAccountPageContext();
   const isPlatformConsole = session.user.role === 'admin';
+  if (isPlatformConsole) redirect('/app/admin');
 
   return (
     <DoctorWorkspaceShell

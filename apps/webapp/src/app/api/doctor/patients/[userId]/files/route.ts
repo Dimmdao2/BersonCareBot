@@ -18,7 +18,15 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolveFileStorageLimit } from '@/modules/org-entitlements/service';
 import { env, isS3MediaEnabled } from '@/config/env';
 import { presignGetUrl } from '@/app-layer/media/s3Client';
-import { prepareMediaUpload, presignPreparedUpload } from '@/app-layer/media/mediaUploadAdapter';
+import {
+  abortPendingMediaUpload,
+  beginAuthorizedMultipartUpload,
+  prepareMediaUpload,
+  presignPreparedUpload,
+} from '@/app-layer/media/mediaUploadAdapter';
+import { insertUploadSessionTx } from '@/app-layer/media/mediaUploadSessionsRepo';
+import { withUserLifecycleLock } from '@/app-layer/locks/userLifecycleLock';
+import { getPool } from '@/app-layer/db/client';
 import { uploadValidationResponse } from '@/modules/media/uploadValidation';
 import type { PatientFileCategory } from '@/modules/patient-files/ports';
 import { PATIENT_FILE_CATEGORIES } from '@/modules/patient-files/ports';
@@ -38,6 +46,7 @@ const createBodySchema = z.object({
   fileName: z.string().min(1).max(255),
   mimeType: z.string().min(1).max(127),
   sizeBytes: z.number().int().positive(),
+  uploadMode: z.enum(['single-put', 'multipart']).optional(),
 });
 
 export async function GET(request: Request, { params }: { params: Promise<{ userId: string }> }) {
@@ -184,17 +193,84 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     return NextResponse.json({ ok: false, error: 's3_not_configured' }, { status: 501 });
   }
 
+  // Get/create the patient's «Пациенты»/<ФИО> media library folder after all no-side-effect gates.
+  const patientFolder = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    pgEnsureClientPatientFolder(patientUserId),
+  );
+
+  if (parsed.data.uploadMode === 'multipart') {
+    try {
+      const begun = await beginAuthorizedMultipartUpload({
+        upload,
+        ownerUserId: gate.ctx.session.user.userId,
+        createPendingAndSession: ({ mediaId, sessionId, uploadId, partSizeBytes, expiresAt }) =>
+          withDoctorWorkspacePrincipal(gate.ctx, () =>
+            withUserLifecycleLock(
+              getPool(),
+              gate.ctx.session.user.userId,
+              'shared',
+              async (client) => {
+                // Keep the existing patient-files quota transaction as the pending creator; the
+                // session attaches to the same media_files row it creates.
+                const file = await deps.patientFiles.createFile({
+                  patientUserId,
+                  category,
+                  fileName,
+                  s3Key: upload.key,
+                  s3Bucket: upload.bucket,
+                  mimeType: upload.intent.mimeType,
+                  sizeBytes: upload.intent.sizeBytes,
+                  uploadedByUserId: gate.ctx.session.user.userId,
+                  folderId: patientFolder.id,
+                  mediaFileId: mediaId,
+                });
+                await insertUploadSessionTx(client, {
+                  sessionId,
+                  mediaId,
+                  s3Key: upload.key,
+                  uploadId,
+                  ownerUserId: gate.ctx.session.user.userId,
+                  expectedSizeBytes: upload.intent.sizeBytes,
+                  mimeType: upload.intent.mimeType,
+                  partSizeBytes,
+                  expiresAt,
+                });
+              },
+            ),
+          ),
+        abortPending: (mediaId) =>
+          withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(mediaId)),
+      });
+      return NextResponse.json(
+        {
+          ok: true as const,
+          mediaId: begun.mediaId,
+          sessionId: begun.sessionId,
+          uploadId: begun.uploadId,
+          partSizeBytes: begun.partSizeBytes,
+          maxParts: begun.maxParts,
+          expiresAt: begun.expiresAt.toISOString(),
+          readUrl: `/api/media/${begun.mediaId}`,
+        },
+        { status: 201 },
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === FILES_QUOTA_REACHED_MESSAGE) {
+        return NextResponse.json(
+          { ok: false, error: 'file_storage_limit_reached' },
+          { status: 403 },
+        );
+      }
+      return NextResponse.json({ ok: false, error: 'multipart_init_failed' }, { status: 500 });
+    }
+  }
+
   let uploadUrl: string;
   try {
     uploadUrl = await presignPreparedUpload(upload);
   } catch {
     return NextResponse.json({ ok: false, error: 'presign_failed' }, { status: 500 });
   }
-
-  // Get/create the patient's «Пациенты»/<ФИО> media library folder after all no-side-effect gates.
-  const patientFolder = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    pgEnsureClientPatientFolder(patientUserId),
-  );
 
   let file;
   try {

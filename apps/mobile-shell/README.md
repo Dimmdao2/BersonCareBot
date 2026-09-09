@@ -59,7 +59,7 @@ pnpm --dir apps/mobile-shell run bundle:release
 `sync` deterministically derives launcher/adaptive and splash PNGs from the two checked-in source marks before invoking `cap sync android`:
 
 ```bash
-pnpm --dir apps/mobile-shell run derive:icons
+pnpm --dir apps/mobile-shell run derive:brand-assets
 ```
 
 The marks are centred on a 1024px transparent square and constrained to a 66% safe zone. Therapy Go uses the supplied mark with the sphere; Therapysto uses the supplied mark without it.

@@ -6,9 +6,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint . --max-warnings=0",
-    "derive:icons": "node scripts/derive-android-icons.mjs",
+    "derive:brand-assets": "node scripts/derive-brand-assets.mjs",
     "derive:tones": "node scripts/generate-notification-tones.mjs",
-    "sync": "pnpm run derive:icons && pnpm run derive:tones && cap sync android",
+    "sync": "pnpm run derive:brand-assets && pnpm run derive:tones && cap sync android",
     "build": "pnpm run typecheck && pnpm run lint && pnpm run sync",
     "assemble:debug": "bash scripts/gradle.sh assembleTherapygoTestDebug assembleTherapygoProductionDebug assembleTherapystoTestDebug assembleTherapystoProductionDebug",
     "assemble:release": "bash scripts/gradle.sh assembleTherapygoTestRelease assembleTherapygoProductionRelease assembleTherapystoTestRelease assembleTherapystoProductionRelease",

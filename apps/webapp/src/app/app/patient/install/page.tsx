@@ -1,12 +1,7 @@
 import { routePaths } from '@/app-layer/routes/paths';
 import { requirePatientAccess } from '@/app-layer/guards/requireRole';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
-import { cn } from '@/lib/utils';
-import {
-  patientMutedTextClass,
-  patientSectionTitleClass,
-  patientSectionSurfaceClass,
-} from '@/shared/ui/patient/patientVisual';
+import { PwaInstallSection } from '@/shared/ui/patient/marketing/PwaInstallSection';
 import { WebPushOptInControls } from './WebPushOptInControls';
 
 export default async function PatientInstallPage() {
@@ -18,29 +13,7 @@ export default async function PatientInstallPage() {
       backHref={routePaths.patient}
       backLabel="Меню"
     >
-      <section
-        id="patient-install-guide"
-        className={cn(patientSectionSurfaceClass, '!gap-4 !p-6')}
-      >
-        <h2 className={patientSectionTitleClass}>Установка на устройство</h2>
-        <p className={patientMutedTextClass}>
-          Чтобы открывать кабинет как приложение, добавьте страницу на главный экран (PWA /
-          «Добавить на экран Домой») в меню браузера.
-        </p>
-        <ul className={cn(patientMutedTextClass, 'm-0 list-disc space-y-2 pl-5')}>
-          <li>
-            Chrome / Edge / Android: меню «⋯» → «Установить приложение» или «Добавить на главный
-            экран».
-          </li>
-          <li>Safari на Mac: меню «Файл» → «Добавить в Dock».</li>
-          <li>Safari на iPhone / iPad: «Поделиться» → «На экран «Домой»».</li>
-        </ul>
-        <p className={patientMutedTextClass}>
-          После установки можно входить через Telegram (мини-приложение) или через браузер — тот же
-          аккаунт.
-        </p>
-        <WebPushOptInControls />
-      </section>
+      <PwaInstallSection notificationControls={<WebPushOptInControls />} />
     </PatientAppShell>
   );
 }
