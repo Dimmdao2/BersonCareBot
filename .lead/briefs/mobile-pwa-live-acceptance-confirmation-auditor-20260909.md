@@ -6,8 +6,9 @@ Repeat only the one-time HTTP/HTML/manifest live inspection from
 env. This is an execution-environment correction, not a second product audit and not authority for product fixes.
 
 Read the AGENTS.md heading map and complete §1/§1a/§1b, §7, §9–§12 and §24; read
-`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`, especially candidate ports §3b, the complete active plan M1/M7,
-the original brief and its BLOCKED report. Product code and tests are read-only.
+`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`, especially candidate ports §3b, the complete active plan
+`docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md` M1/M7, the original brief and its BLOCKED report.
+Product code and tests are read-only.
 
 Use the canonical named-DEV webapp env at
 `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` without reading or printing its contents. Confirm only
