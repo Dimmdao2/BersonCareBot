@@ -1,10 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { metadata as legalLayoutMetadata } from '@/app/legal/layout';
-import { buildPatientPwaManifest } from './patientPwaManifest';
+import {
+  buildPatientPwaManifest,
+  PATIENT_PWA_APPLE_TOUCH,
+  PATIENT_PWA_ICON_192,
+  PATIENT_PWA_ICON_512,
+  PATIENT_PWA_ICON_MASKABLE_512,
+} from './patientPwaManifest';
 import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
 import { LEGAL_DOCUMENT_OPERATOR, legalDocumentMetadata } from '@/config/legalDocumentOperator';
 import { staffPwaLayoutMetadata } from './staffPwaLayoutMetadata';
-import { buildStaffPwaManifest, STAFF_PWA_MANIFEST_PATH } from './staffPwaManifest';
+import {
+  buildStaffPwaManifest,
+  STAFF_PWA_APPLE_TOUCH,
+  STAFF_PWA_ICON_192,
+  STAFF_PWA_ICON_512,
+  STAFF_PWA_ICON_MASKABLE_512,
+  STAFF_PWA_MANIFEST_PATH,
+} from './staffPwaManifest';
 import {
   DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
   surfaceDisplayName,
@@ -73,13 +86,26 @@ describe('staff PWA identity', () => {
  */
 describe('installed PWA contract survives the surface rename', () => {
   it('keeps the patient installation identity and only renames it', () => {
-    expect(buildPatientPwaManifest(PATIENT_RESOLVED)).toMatchObject({
+    const patient = buildPatientPwaManifest(PATIENT_RESOLVED);
+    expect(PATIENT_DEFAULT_SURFACE.name).toBe('Therapy Go');
+    expect(patient).toMatchObject({
       id: '/app',
       scope: '/app',
       start_url: '/app/patient',
-      name: `${PATIENT_DEFAULT_SURFACE.name} — забота о твоём здоровье`,
-      short_name: PATIENT_DEFAULT_SURFACE.name,
+      name: 'Therapy Go — забота о твоём здоровье',
+      short_name: 'Therapy Go',
     });
+    expect(patient.icons).toEqual([
+      { src: PATIENT_PWA_ICON_192, sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: PATIENT_PWA_ICON_512, sizes: '512x512', type: 'image/png', purpose: 'any' },
+      {
+        src: PATIENT_PWA_ICON_MASKABLE_512,
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+    ]);
+    expect(JSON.stringify(surfaceLayoutMetadata(PATIENT_RESOLVED))).toContain(PATIENT_PWA_APPLE_TOUCH);
   });
 
   it('uses the branded Host resolve for the patient manifest identity', () => {
@@ -93,6 +119,10 @@ describe('installed PWA contract survives the surface rename', () => {
       manifest: '/manifest.webmanifest',
       appleWebApp: { title: 'Clinic A Care' },
     });
+    const brandedMetadata = JSON.stringify(surfaceLayoutMetadata(BRANDED_RESOLVED));
+    expect(brandedMetadata).toContain('/pwa-icon-192.png');
+    expect(brandedMetadata).toContain('/apple-touch-icon.png');
+    expect(brandedMetadata).not.toContain(PATIENT_PWA_ICON_192);
     expect(surfaceAccentToken(BRANDED_RESOLVED)).toBe('#7a3cc2');
     expect(surfaceAccentToken(PATIENT_RESOLVED)).toBe('#284da0');
   });
@@ -107,6 +137,18 @@ describe('installed PWA contract survives the surface rename', () => {
       short_name: STAFF_SURFACE.name,
     });
     expect(staff.id).not.toBe(buildPatientPwaManifest(PATIENT_RESOLVED).id);
+    expect(staff.icons).toEqual([
+      { src: STAFF_PWA_ICON_192, sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: STAFF_PWA_ICON_512, sizes: '512x512', type: 'image/png', purpose: 'any' },
+      {
+        src: STAFF_PWA_ICON_MASKABLE_512,
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+    ]);
+    expect(JSON.stringify(staffPwaLayoutMetadata)).toContain(STAFF_PWA_APPLE_TOUCH);
+    expect(JSON.stringify(staff)).not.toContain(PATIENT_PWA_ICON_192);
   });
 });
 
@@ -132,7 +174,6 @@ describe('TPB-08: бренд арендатора не пересекает гр
 
   it.each([
     ['staff', STAFF_RESOLVED],
-    ['platform_admin', PLATFORM_ADMIN_RESOLVED],
     ['staff с брендом арендатора в запросе', STAFF_WITH_TENANT_BRAND],
   ])('%s видит Therapysto в метаданных документа и в имени поверхности', (_label, resolved) => {
     expect(surfaceDisplayName(resolved)).toBe(STAFF_SURFACE.name);
@@ -144,6 +185,16 @@ describe('TPB-08: бренд арендатора не пересекает гр
     const serialized = JSON.stringify(surfaceLayoutMetadata(resolved));
     expect(serialized).not.toContain(PATIENT_DEFAULT_SURFACE.name);
     expect(serialized).not.toContain('Clinic A Care');
+  });
+
+  it('removes every patient/staff PWA declaration from platform-admin metadata', () => {
+    expect(surfaceDisplayName(PLATFORM_ADMIN_RESOLVED)).toBe(STAFF_SURFACE.name);
+    expect(surfaceLayoutMetadata(PLATFORM_ADMIN_RESOLVED)).toMatchObject({
+      title: STAFF_SURFACE.name,
+      manifest: null,
+      appleWebApp: null,
+      icons: null,
+    });
   });
 
   it('пациентские поверхности при этом НЕ показывают имя staff-платформы', () => {

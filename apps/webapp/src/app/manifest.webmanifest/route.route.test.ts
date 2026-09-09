@@ -12,6 +12,7 @@ vi.mock('@/shared/lib/surface/requestSurface.server', () => ({
 }));
 
 import { GET } from './route';
+import { GET as getStaffManifest } from '../manifest-staff.webmanifest/route';
 
 describe('GET /manifest.webmanifest on the transitional shared Host', () => {
   it('returns 404 instead of throwing on the platform-admin surface', async () => {
@@ -57,5 +58,45 @@ describe('GET /manifest.webmanifest on the transitional shared Host', () => {
     } finally {
       Object.defineProperty(PATIENT_DEFAULT_SURFACE, 'origin', patientOriginDescriptor);
     }
+  });
+});
+
+describe('public PWA manifest handlers', () => {
+  it('returns 404 from both handlers on the platform-admin surface', async () => {
+    const resolved: ResolvedSurface = {
+      surface: 'platform_admin',
+      publicOrigin: 'https://admin.staff.example.test',
+      authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.platform_admin,
+    };
+    fakes.getResolvedSurface.mockResolvedValue(resolved);
+
+    await expect(GET()).resolves.toMatchObject({ status: 404 });
+    await expect(getStaffManifest()).resolves.toMatchObject({ status: 404 });
+  });
+
+  it('keeps each valid public surface on its own manifest handler', async () => {
+    fakes.getResolvedSurface.mockResolvedValue({
+      surface: 'patient_default',
+      publicOrigin: PATIENT_DEFAULT_SURFACE.origin,
+      authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
+    } satisfies ResolvedSurface);
+    const patient = await GET();
+    expect(patient.status).toBe(200);
+    await expect(patient.json()).resolves.toMatchObject({
+      short_name: 'Therapy Go',
+      id: '/app',
+    });
+
+    fakes.getResolvedSurface.mockResolvedValue({
+      surface: 'staff',
+      publicOrigin: STAFF_SURFACE.origin,
+      authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.staff,
+    } satisfies ResolvedSurface);
+    const staff = await getStaffManifest();
+    expect(staff.status).toBe(200);
+    await expect(staff.json()).resolves.toMatchObject({
+      short_name: 'Therapysto',
+      id: '/app-staff',
+    });
   });
 });
