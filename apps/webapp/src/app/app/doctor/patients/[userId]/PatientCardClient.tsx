@@ -71,6 +71,7 @@ import { PatientEncounterStartModal } from './PatientEncounterStartModal';
 import { EncounterHistoryModal } from './tabs/karta/EncounterHistoryModal';
 import { EncounterViewModal } from './tabs/karta/EncounterViewModal';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { useActiveCall } from '@/shared/ui/video/ActiveCallCoordinator';
 
 function formatSupportStartedAt(value: string): string {
   const date = new Date(value);
@@ -363,6 +364,7 @@ export function PatientCardClient({
   workspaceModules,
   appointmentsManageOwn = true,
 }: Props) {
+  const { activeCall } = useActiveCall();
   const { patientPluralLabel, patientSingularLabel, supportGroupLabel } = useDoctorPatientTerms();
   const header = shellMeta.cardHeader;
   const availableTabs = useMemo(
@@ -633,7 +635,14 @@ export function PatientCardClient({
                     </>
                   ) : null}
                   {workspaceModules?.video_meetings ? (
-                    <Link className={buttonVariants({ size: 'sm', className: 'size-9 p-0' })} href={`/app/doctor/patients/${encodeURIComponent(identity.userId)}/live`} title="Начать видеозвонок" aria-label="Начать видеозвонок"><Video className="size-4" /></Link>
+                    <Link
+                      className={buttonVariants({ size: 'sm', className: 'size-9 p-0' })}
+                      href={activeCall?.returnUrl ?? `/app/doctor/patients/${encodeURIComponent(identity.userId)}/live`}
+                      title={activeCall ? 'Вернуться к звонку' : 'Начать видеозвонок'}
+                      aria-label={activeCall ? 'Вернуться к звонку' : 'Начать видеозвонок'}
+                    >
+                      <Video className="size-4" />
+                    </Link>
                   ) : null}
                 </div>
               ) : null}

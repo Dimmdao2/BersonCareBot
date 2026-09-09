@@ -28,6 +28,7 @@ import {
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorAppointmentCreatePanel } from '@/app/app/doctor/calendar/DoctorNewAppointmentModal';
+import { useActiveCall } from '@/shared/ui/video/ActiveCallCoordinator';
 
 type StartMode = 'select' | 'create' | 'without';
 
@@ -80,6 +81,7 @@ export function PatientEncounterStartModal({
 }) {
   const { patientGenitive } = useDoctorPatientTerms();
   const router = useRouter();
+  const { activeCall } = useActiveCall();
   const [mode, setMode] = useState<StartMode>('select');
   const [appointments, setAppointments] = useState<PatientAppointmentItem[]>([]);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(
@@ -178,8 +180,12 @@ export function PatientEncounterStartModal({
     router.push(`/app/doctor/patients/${encodeURIComponent(userId)}/visits/new?${params}`);
   };
   const openOnline = (appointmentId?: string) => {
-    const params = appointmentId ? `?${new URLSearchParams({ appointmentId })}` : '';
     onClose();
+    if (activeCall) {
+      router.push(activeCall.returnUrl);
+      return;
+    }
+    const params = appointmentId ? `?${new URLSearchParams({ appointmentId })}` : '';
     router.push(`/app/doctor/patients/${encodeURIComponent(userId)}/live${params}`);
   };
 
@@ -205,7 +211,7 @@ export function PatientEncounterStartModal({
                 openOnline(mode === 'select' ? (selectedAppointmentId ?? undefined) : undefined)
               }
             >
-              Онлайн-приём
+              {activeCall ? 'Вернуться к звонку' : 'Онлайн-приём'}
             </Button>
           </>
         ) : (

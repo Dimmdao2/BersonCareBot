@@ -117,7 +117,6 @@ function NativeJitsiMeetingRenderer({ session, onHangup, onDiagnostic, className
       listenerActiveRef.current = false;
       removeListener();
       ownsConferenceRef.current = false;
-      if (conferenceIdRef.current) void hangupNativeJitsi(conferenceIdRef.current);
     };
   }, [session.accessToken, session.endpoint, session.roomReference]);
 

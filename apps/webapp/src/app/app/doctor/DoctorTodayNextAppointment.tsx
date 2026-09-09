@@ -14,6 +14,7 @@ import {
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { formatDoctorFioShortLabel } from '@/shared/lib/fio';
 import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
+import { useActiveCall } from '@/shared/ui/video/ActiveCallCoordinator';
 
 type Props = {
   appointment: TodayNextAppointmentItem | null;
@@ -23,6 +24,7 @@ type Props = {
 
 export function DoctorTodayNextAppointment({ appointment, displayIana, videoMeetingsEnabled = false }: Props) {
   const router = useRouter();
+  const { activeCall } = useActiveCall();
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   const patientHref = appointment?.clientUserId ? patientCardHref(appointment.clientUserId) : null;
@@ -98,9 +100,9 @@ export function DoctorTodayNextAppointment({ appointment, displayIana, videoMeet
             {videoCallHref ? (
               <Link
                 className={buttonVariants({ size: 'sm', className: 'w-full min-w-0' })}
-                href={videoCallHref}
+                href={activeCall?.returnUrl ?? videoCallHref}
               >
-                Начать созвон
+                {activeCall ? 'Вернуться к звонку' : 'Начать созвон'}
               </Link>
             ) : createVisitHref ? (
               <Link

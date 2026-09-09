@@ -16,6 +16,8 @@ import type { UserRole } from '@/shared/types/session';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 import type { DoctorWorkspaceComposition } from '@/modules/doctor-workspace/composition';
 import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
+import { ActiveCallCoordinator } from '@/shared/ui/video/ActiveCallCoordinator';
+import { DoctorActiveCallIndicator } from '@/shared/ui/doctor/calls/DoctorActiveCallIndicator';
 
 type DoctorWorkspaceShellProps = {
   isPlatformOperator: boolean;
@@ -119,6 +121,7 @@ export function DoctorWorkspaceShell({
     workspaceContext.canAccessClinicalWorkspace;
 
   return (
+    <ActiveCallCoordinator floatingIndicator={<DoctorActiveCallIndicator />}>
     <DoctorSupportUnreadProvider
       enabled={clinicalRuntimeEnabled}
       directChatEnabled={workspaceModules?.direct_chat ?? clinicalRuntimeEnabled}
@@ -174,5 +177,6 @@ export function DoctorWorkspaceShell({
         </DoctorPatientTermsProvider>
       </DoctorShellChromeProvider>
     </DoctorSupportUnreadProvider>
+    </ActiveCallCoordinator>
   );
 }
