@@ -490,35 +490,41 @@ authority нельзя: он частично отменён владельце�
       Доказательство: lead прошёл все добавленные mobile test paths по §10a, удалил два UI source-shape/internal-
       mount теста и сузил оставшиеся до конечного поведения; targeted web `6 files / 17 tests`, webapp/mobile-shell
       typecheck и scoped lint, NativeJitsi/UniversalPush tests во всех четырёх Android variants — PASS.
-- [ ] **M7-03.** Оба TEST APK variants собираются на Linux (зависит от `M2-00`). Browser/PWA live acceptance
+- [x] **M7-03.** Оба TEST APK variants собираются на Linux (зависит от `M2-00`). Browser/PWA live acceptance
       покрывает install metadata и `portrait-primary` обеих поверхностей, file fallback и iframe
       Jitsi — это выполнимо в репозитории и на именованном DEV/TEST без внешних гейтов. Свежий проход `e40904b37`
       доказал обе TEST APK, обычный вход пациента кодом и врача паролем, browser media fallback и один self-hosted Jitsi iframe.
       Clinic-brand identity на стандартном TEST tenant-поддомене принята отдельно в M1-04; это не custom-domain acceptance.
-      Строка остаётся открытой только потому, что прежний
-      headless-проход не отдал OS chooser/internal navigation/terminal callback.
-- [ ] **M7-04.** Первичная Android acceptance на эмуляторе покрывает origins/внешние ссылки, камеру, документы,
+      Финальный headed-проход на одном shared DEV Turbopack подтвердил OS chooser, сохранение одного iframe при
+      внутреннем переходе, явный индикатор возврата и terminal callback на desktop/mobile; corrections
+      `1bf42ece9`/`d83179820`, отчёт `.lead/runs/mobile-browser-jitsi-explicit-end-live-recheck-20260910/90-final-audit-report.md`.
+- [-] ~~**M7-04.** Первичная Android acceptance на эмуляторе покрывает origins/внешние ссылки, камеру, документы,
       запрет landscape для основного WebView/камеры/native Jitsi, состояния разрешений и tap уведомления с
-      подставным провайдером. Проверка на физическом
+      подставным провайдером.~~ **ПЕРЕНЕСЕНО ВЛАДЕЛЬЦЕМ В ОТДЕЛЬНУЮ DEVICE-ACCEPTANCE ПОСЛЕ ИНТЕРФЕЙСА.** Проверка на физическом
       устройстве относится к отдельному owner release-stage после завершения интерфейса и не блокирует эту строку
       или готовность текущего плана. KVM/NAT подняты и гость достигает оба TEST host, но API 36 image стабильно
       падает в `com.android.systemui` ANR; отчёт `7bf5613eb`, landing `e94465518`. Найденный до ANR отдельный
       crash `WebView.getUrl()` из фонового Capacitor-потока закрыт fail-closed main-frame cache `8dff11a6b`;
       независимые прогоны `cb795c760` и `b890edb56` не смогли войти в обычную M7-04 матрицу: первый снова получил
       System UI ANR, две последующие API 35 KVM-конфигурации остались `adb offline`. Product fix и честные
-      blocker-отчёты сведены landing `164d71f9c`; строка остаётся открытой до пригодного emulator runtime.
+      blocker-отчёты сведены landing `164d71f9c`. Свежий API 34 KVM guest достиг `adb device`, завершил boot и
+      установил TherapyGo TEST APK, но собственный `com.android.systemui` снова вошёл в ANR до app acceptance;
+      report `8858dc830`, landing `495446474`. Все run-owned процессы остановлены. Повтор того же серверного
+      метода и физическое устройство больше не блокируют текущий план по прямому решению владельца.
 - [-] ~~**M7-05.** Реальная доставка Universal Push подтверждена на TEST после закрытия внешних гейтов §6.~~ —
       **ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-09-09 ИЗ ТЕКУЩЕГО ПЛАНА:** RuStore пока не публикуется; подключение реальных
       project credentials, доставка и проверка на физическом устройстве выполняются владельцем отдельным
       release-stage после завершения интерфейса и не являются блокером этой инициативы.
-- [x] **M7-06.** Targeted/phase проверки зелёные на candidate SHAs. Поскольку изменение затрагивает root
+- [ ] **M7-06.** Targeted/phase проверки зелёные на candidate SHAs. Поскольку изменение затрагивает root
       dependencies, lockfile, webapp, integrator и Android package, один полный CI гоняется под общим замком хоста
       (`/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"`) только на финальной интеграции. Более позднее прямое
       решение владельца 2026-09-09: текущий workstream сам запускает этот один прогон после landing всех изменений,
       затем push и TEST deploy; до результата строка не закрывается. Доказательство: `TEST_CPUSET=0-7 VITEST_MAX_WORKERS=8
       /home/dev/brain/host-orch/run-tests.sh "pnpm install --frozen-lockfile && pnpm run ci"` на `c77af9e666001100a0719608c91cfa720fc32f2c` — PASS, 5/5 фаз,
-      `stepsExit=0`, `exitCode=0`, `movedDuringRun=false`, 2026-09-09 18:26 MSK.
-- [x] **M7-07.** Интегрированный `feat/doctor-ui-rebuild` содержит plan evidence по каждому чекбоксу, taskdb `#915`
+      `stepsExit=0`, `exitCode=0`, `movedDuringRun=false`, 2026-09-09 18:26 MSK. Этот evidence предшествует более
+      поздним Jitsi/UI-коммитам и потому не закрывает финальный gate: один новый full CI запускается после сообщения
+      о завершении соседней интерфейсной работы.
+- [ ] **M7-07.** Интегрированный `feat/doctor-ui-rebuild` содержит plan evidence по каждому чекбоксу, taskdb `#915`
       соответствует факту, коммиты запушены через проверенный wrapper (`pnpm push:checked`), ни один worker
       clone/process не остался живым. Доказательство: `pnpm run push:checked` подтвердил remote SHA
       `b5bc7e396a2172c4150b88d9cfae52267c1185c2` и зелёный GitHub run `34370560492`; штатный
@@ -527,8 +533,9 @@ authority нельзя: он частично отменён владельце�
       `/var/log/bersoncarebot/deploy-test/deploy-test.20260909T153234Z.qAKn4g.log`). Четыре TEST-сервиса активны,
       integrator и обе web-поверхности отвечают `{"ok":true,"db":"up"}`; `git worktree list --porcelain` показал
       только основной checkout, поиск процессов по путям/именам mobile workstream не нашёл живых worker-процессов.
-      `#915` оставлен `doing` ровно из-за открытых M7-03/M7-04, а не из-за незавершённой интеграции;
-      M7-05 удалён владельцем из текущего плана и к `doing` больше не относится.
+      Этот push/deploy evidence предшествует новым интегрированным изменениям и больше не доказывает текущий HEAD.
+      Строка остаётся открытой до одного финального full CI, checked push, TEST deploy, live acceptance и уборки;
+      M7-04/M7-05 перенесены владельцем из текущего completion gate.
 
 ## 5. Parallel workstreams
 
@@ -619,8 +626,8 @@ security/audit gates идут без этих входов.
 | M4-01, M4-03…M4-06 | done | Product `0d54836a5` + Android `037f473ee`, combined candidate `3ab89ae15`, independent report `7d519dc80`, accepted continuity correction/test `6b1b3d736`/`535089a53`, landing `474e98fbe`. |
 | M7-02 | done | Lead test-policy gate: harmful mobile UI/source-shape checks removed; retained web behavior `6 files / 17 tests`, both package typecheck/lint gates and four-variant NativeJitsi/UniversalPush tests PASS. |
 | M7-01 | done | Independent shell/navigation, PWA/native runtime, Jitsi/media and native-push target/provider audit chains are recorded above; final patient passwordless injection `f0e639897`, accepted landing `3bbc5d86c`. |
-| M7-03 | open | Report `e40904b37`, landing `6741fbba8`: both fresh TEST APKs, ordinary patient OTP/doctor password login, browser media fallback and one self-hosted Jitsi iframe PASS. M1-04 clinic-brand behavior on the standard TEST tenant subdomain is proven separately; this is not custom-domain acceptance. Only OS chooser and post-iframe internal navigation/terminal callbacks remain under live recheck. |
-| M7-04 | open | KVM and guest NAT PASS; `com.android.systemui` ANR prevents stable emulator WebView acceptance (`7bf5613eb`, landing `e94465518`). Physical-device acceptance is a later owner release-stage and does not block this row. |
+| M7-03 | done | Prior report `e40904b37` + final shared-`:5200` report `.lead/runs/mobile-browser-jitsi-explicit-end-live-recheck-20260910/90-final-audit-report.md`: both TEST APK builds, ordinary auth, browser media/OS choosers, one self-hosted Jitsi iframe, internal navigation/return and visible terminal cleanup PASS after `1bf42ece9`/`d83179820`. |
+| M7-04 | deferred by owner | API 34 KVM boot/install evidence `8858dc830` ended in Android System UI ANR before app acceptance; all run-owned processes were stopped. Reliable emulator/physical-device acceptance moved to the owner's later release stage and no longer blocks this plan. |
 | M7-05 | cancelled by owner | Removed from this plan on 2026-09-09: real RuStore credentials/delivery, signing and physical-device release acceptance happen after the interface is complete and do not block #915. |
-| M7-06 | done | `TEST_CPUSET=0-7 VITEST_MAX_WORKERS=8 /home/dev/brain/host-orch/run-tests.sh "pnpm install --frozen-lockfile && pnpm run ci"` PASS on `c77af9e666001100a0719608c91cfa720fc32f2c`; `runs/ci-last.json` records stable HEAD and exit 0. |
-| M7-07 | done | Checked push/GitHub run `34370560492` and named TEST deploy both proved executable SHA `b5bc7e396a2172c4150b88d9cfae52267c1185c2`; four services and both TEST origins are healthy. Taskdb `#915` matches the remaining acceptance blockers; only the main worktree exists and no mobile worker process remains. |
+| M7-06 | open | The earlier green full CI on `c77af9e6` predates later integrated work. One final run on the stable post-neighbor HEAD is pending by owner decision. |
+| M7-07 | open | The earlier checked push/TEST deploy predates later integrated work. Final checked push, TEST deploy/live acceptance, taskdb synchronization and worktree cleanup are pending. |

@@ -1,18 +1,18 @@
-# Browser/PWA Jitsi explicit-end live recheck (#915)
+# Browser/PWA Jitsi explicit-end final live acceptance (#915)
 
-Shared runtime: `http://127.0.0.1:5200`, already-running Turbopack from
-`/home/dev/dev-projects/BersonCareBot/apps/webapp`, HEAD
-`49544647435d92a21fc58a14d1f3c18f5744e70e`. The required correction
-`5d677d378f697896e45d9f5b0852aa9dd196abf7` is an ancestor of that HEAD
-(`git -C /home/dev/dev-projects/BersonCareBot merge-base --is-ancestor
-5d677d378f697896e45d9f5b0852aa9dd196abf7 HEAD` exited `0`). No server,
-database, product code, tests, routes, credentials, or deployment state was changed.
+The first shared-Turbopack pass on `495446474` found two reachable failures: the desktop renderer retained a
+finished iframe through its local activation-session fallback, and the mobile Jitsi leave control was covered by
+the shell's docked tabs. Corrections `1bf42ece9` and `d83179820` address those same observed failures; no automated
+UI test was added.
 
-| Viewport | Verdict | Visible evidence |
+## Final result on the one shared DEV Turbopack `:5200`
+
+| Surface | Verdict | Final observable evidence |
 | --- | --- | --- |
-| Mobile `390×844` | BLOCKED | Ordinary doctor login and normal call start reached exactly one self-hosted Jitsi iframe. The conference surface was visible, but no Jitsi leave/end control became visibly available before the conference returned to the outer page's `Начать звонок` state; a direct callback/injection is prohibited, so this does not prove explicit-end behavior. |
-| Desktop `1440×900` | FAIL | Ordinary doctor login and normal start reached exactly one self-hosted Jitsi iframe. Moving the pointer over the visible conference exposed its toolbar; the red leave control and then visible `Leave meeting` confirmation were clicked. Jitsi showed `Thank you for using Video`, but after 6.5 s and again after 30 s the outer page still contained one iframe, had no `Начать звонок` control, and had no return indicator. The active-call coordinator is stuck; the required terminal `onHangup` outcome did not occur. |
+| Desktop `1440×900` | **PASS** | Ordinary doctor login and visible start returned HTTP 200 and mounted one self-hosted `meet.test.therapysto.ru` iframe. The visible Jitsi leave control and its confirmation removed the iframe and restored `Начать звонок` after 1.5 seconds; the same cleared state remained after 6.5 and 30 seconds. |
+| Mobile `390×844` | **PASS** | One real Jitsi iframe survived visible internal navigation to `Клиенты`; the pulsing `Вернуться к звонку` control returned to the exact call route without replacing the iframe. The docked patient tabs measured 45 px and were included in the active-stage bottom boundary. The visible leave control became clickable, then cleared the iframe and return indicator and restored `Начать звонок`. |
+| Browser media chooser | **PASS** | Visible doctor file controls emitted real Chromium file-chooser events: photo `image/*` + `capture=environment`, video `video/*` + `capture=environment`, gallery `image/*,video/*`, and unrestricted document input. |
 
-The desktop FAIL is a reachable violation of the required explicit-end consequence. A later terminal signal did not clear or duplicate-clean up the retained active state within the observed 30-second interval.
-
-The temporary headed browser, virtual display, profile, screenshots, and logs used for this visible pass were explicitly closed and removed before reporting.
+Scoped ESLint, webapp typecheck and diff-check passed. The temporary headed browsers and virtual displays were
+closed after every pass. No second Next server, synthetic Jitsi callback, direct iframe injection, fixture,
+database mutation, provider send or persistent UI test was used.
