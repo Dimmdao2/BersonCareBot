@@ -15,6 +15,21 @@ export type UploadPolicyId =
   | 'patient-program-submission'
   | 'patient-file';
 
+const UPLOAD_POLICY_IDS = new Set<UploadPolicyId>([
+  'cms',
+  'proxy',
+  'individual-exercise-video',
+  'patient-program-submission',
+  'patient-file',
+]);
+
+/** Parses only a server-owned policy identifier; callers never construct policy objects. */
+export function parseUploadPolicyId(value: unknown): UploadPolicyId | null {
+  return typeof value === 'string' && UPLOAD_POLICY_IDS.has(value as UploadPolicyId)
+    ? (value as UploadPolicyId)
+    : null;
+}
+
 type UploadPolicy = {
   readonly allowedMime: ReadonlySet<string>;
   readonly maxBytes: number;

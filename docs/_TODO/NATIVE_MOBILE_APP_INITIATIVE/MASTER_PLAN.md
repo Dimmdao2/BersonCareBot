@@ -321,8 +321,11 @@ authority нельзя: он частично отменён владельце�
       UI. Существующий `DeliveryAdapter` для `web_push` становится composite app-push adapter и внутри одного
       `createDefaultDispatchPort` fan-out'ит browser Web Push и native RuStore transport по targets/config.
       `rustore_universal_push` не появляется как второй logical channel. Intent получает typed
-      `pushSurface=therapygo|therapysto`; event-producer называет тип/получателя, не provider, и transport не
-      вызывается в обход chokepoint (`OWNER_PRODUCT_RULES` §21, `AGENTS.md` §5).
+      `pushSurface=therapygo|therapysto`, отдельный allowlisted `nativeRoute` и
+      `notificationKind=message|reminder|call`; event-producer называет тип/получателя, не provider, и transport
+      не вызывается в обход chokepoint (`OWNER_PRODUCT_RULES` §21, `AGENTS.md` §5). Browser `url` и
+      `nativeRoute` — разные поля: custom-domain/guest browser URL никогда не передаётся Android как доверенный
+      маршрут; для приглашения на звонок нативный маршрут ведёт на authenticated patient/doctor live surface.
 - [ ] **M6-06.** 🔴 Оба транспорта logical `web_push` проходят неизменённые `assertOutboundMessagePolicy` и
       единственный `applyPreForkEnvironmentDeliveryPolicy` ДО composite provider fork; второго `readChannel` или
       TEST-gate для RuStore нет. Текущий `TEST_ACCOUNT_WEB_PUSH_USER_IDS` применяется к browser/native одинаково.
@@ -341,11 +344,15 @@ authority нельзя: он частично отменён владельце�
 - [ ] **M6-09.** Payload несёт только факт, дату-время и ссылку в кабинет плюс allowlisted внутренний маршрут —
       без текста сообщения/переписки, клинических деталей, имени файла, presigned URL, cookie, токена и
       организационного секрета (`OWNER_PRODUCT_RULES` §22 и §15). Тексты берутся из существующих builder'ов
-      (`modules/web-push/pushNotificationCopy.ts`), новая копирайтинг-ветка не заводится. Tap ведёт внутрь
-      правильной поверхности приложения; внешние и обманные маршруты отклоняются.
+      (`modules/web-push/pushNotificationCopy.ts`), новая копирайтинг-ветка не заводится. Data-only RuStore wire
+      фиксирован как `{pushSurface,notificationKind,route,title,body}`: `route` берётся только из
+      `nativeRoute`, а аналитический `pushKind` (`custom|warmup|training|news`) не переиспользуется как Android
+      notification channel. Backend и Android независимо проверяют surface/kind/route и ограничивают длину
+      title/body. Tap ведёт внутрь правильной поверхности приложения; внешние и обманные маршруты отклоняются.
 - [ ] **M6-10.** Android notification permission и стабильные каналы реализованы. Напоминания, звонки и сообщения
       могут использовать отдельно настроенные bundled sounds; пользовательские настройки каналов Android остаются
-      главнее.
+      главнее. Android отображает прошедшие server-side copy/policy `title`/`body`, а не hardcoded placeholder;
+      staff-маршруты имеют тот же allowlist на обеих сторонах: `/app/doctor`, `/app/settings`, `/app/account`.
 - [ ] **M6-11.** Denied Android permission, отсутствующая transport-конфигурация или active browser/native target
       дают typed non-secret skipped/no-active-target outcome и метрику logical `web_push`; provider не вызывается,
       raw token не логируется, unauthorized messenger fallback не включается. Существующий canonical domain/in-app

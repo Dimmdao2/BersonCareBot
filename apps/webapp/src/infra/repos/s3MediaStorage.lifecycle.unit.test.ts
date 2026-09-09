@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { type SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { validateReceivedUpload, validateUploadIntent } from '@/modules/media/uploadValidation';
 
@@ -7,6 +8,7 @@ const fakes = vi.hoisted(() => ({
   readyReturning: vi.fn(),
   abortReturning: vi.fn(),
   deleteWhere: vi.fn(),
+  getSqlFromClient: vi.fn(),
   runSql: vi.fn(),
   runNamedRoot: vi.fn(),
   runMutation: vi.fn(),
@@ -31,7 +33,7 @@ vi.mock('@/infra/db/runWebappSql', () => ({
       }),
     }),
   }),
-  getWebappSqlFromPgClient: vi.fn(),
+  getWebappSqlFromPgClient: fakes.getSqlFromClient,
   runWebappNamedRoot: fakes.runNamedRoot,
   runWebappSql: fakes.runSql,
 }));
@@ -56,7 +58,10 @@ import {
   purgePendingMediaDeleteBatch,
   stagePendingMediaAbort,
 } from './s3MediaStorage';
-import { stageExpiredMultipartSessionForPurgeTx } from './mediaUploadSessionsRepo';
+import {
+  abortMultipartPendingTx,
+  stageExpiredMultipartSessionForPurgeTx,
+} from './mediaUploadSessionsRepo';
 
 const lifecycleTx = {
   delete: () => ({ where: fakes.deleteWhere }),
@@ -453,6 +458,54 @@ describe('pending upload abort lifecycle', () => {
     );
 
     expect(fakes.deleteWhere).not.toHaveBeenCalled();
+  });
+
+  it('removes linked patient-file metadata before deleting its multipart media row', async () => {
+    const db = {};
+    const linkedFile = { mediaFileId: MEDIA_ID, visibleInLegacyList: true };
+    fakes.getSqlFromClient.mockReturnValue(db);
+    fakes.runSql.mockImplementation(async (receivedDb: unknown, query: unknown) => {
+      expect(receivedDb).toBe(db);
+      const statement = new PgDialect().sqlToQuery(query as SQL).sql;
+      if (/SELECT s\.id AS session_id/u.test(statement)) {
+        return {
+          rows: [
+            {
+              session_id: '66666666-6666-4666-8666-666666666666',
+              media_id: MEDIA_ID,
+              s3_key: MEDIA_KEY,
+              upload_id: 'upload-1',
+              session_status: 'initiated',
+              media_status: 'pending',
+              storage_target: 'patient',
+            },
+          ],
+        };
+      }
+      if (/DELETE FROM patient_files/u.test(statement)) {
+        const removed = linkedFile.mediaFileId === MEDIA_ID;
+        if (removed) linkedFile.visibleInLegacyList = false;
+        return { rowCount: removed ? 1 : 0, rows: [] };
+      }
+      if (/DELETE FROM media_files/u.test(statement)) {
+        // The real FK is ON DELETE SET NULL. A patient-file row still linked when its media is
+        // deleted becomes legacy-visible and cannot be found by a later media_file_id predicate.
+        if (linkedFile.mediaFileId === MEDIA_ID) linkedFile.mediaFileId = '';
+        return { rowCount: 1, rows: [] };
+      }
+      throw new Error(`unexpected_sql:${statement}`);
+    });
+
+    await expect(
+      abortMultipartPendingTx(
+        {} as never,
+        '66666666-6666-4666-8666-666666666666',
+        '77777777-7777-4777-8777-777777777777',
+        '88888888-8888-4888-8888-888888888888',
+      ),
+    ).resolves.toMatchObject({ ok: 'aborted', s3Key: MEDIA_KEY, uploadId: 'upload-1' });
+
+    expect(linkedFile.visibleInLegacyList).toBe(false);
   });
 
   it('stages all purge inputs through the same named root and rejects a malformed stage result', async () => {

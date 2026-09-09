@@ -11,9 +11,11 @@ import { insertPendingMediaFileTx } from '@/app-layer/media/s3MediaStorage';
 import { env, isS3MediaEnabled } from '@/config/env';
 import {
   abortPendingMediaUpload,
+  beginAuthorizedMultipartUpload,
   prepareMediaUpload,
   presignPreparedUpload,
 } from '@/app-layer/media/mediaUploadAdapter';
+import { insertUploadSessionTx } from '@/app-layer/media/mediaUploadSessionsRepo';
 import { uploadValidationResponse } from '@/modules/media/uploadValidation';
 import { resolveDoctorInstanceInWorkspace } from '../../_doctorInstanceWorkspace';
 
@@ -21,6 +23,7 @@ const bodySchema = z.object({
   filename: z.string().min(1).max(255),
   mimeType: z.string().min(1),
   size: z.number().int().positive(),
+  uploadMode: z.enum(['single-put', 'multipart']).optional(),
 });
 
 export async function POST(request: Request, context: { params: Promise<{ instanceId: string }> }) {
@@ -57,9 +60,59 @@ export async function POST(request: Request, context: { params: Promise<{ instan
   );
   if (!resolved.ok) return resolved.response;
 
-  const mediaId = upload.id;
-  const key = upload.key;
   try {
+    if (parsed.data.uploadMode === 'multipart') {
+      const begun = await beginAuthorizedMultipartUpload({
+        upload,
+        ownerUserId: gate.ctx.session.user.userId,
+        createPendingAndSession: ({ mediaId, sessionId, uploadId, partSizeBytes, expiresAt }) =>
+          withDoctorWorkspacePrincipal(gate.ctx, async () => {
+            const folder = await pgEnsureClientPatientFolder(resolved.instance.patientUserId);
+            await withUserLifecycleLock(
+              getPool(),
+              gate.ctx.session.user.userId,
+              'shared',
+              async (client) => {
+                await insertPendingMediaFileTx(client, {
+                  id: mediaId,
+                  filename: parsed.data.filename,
+                  key: upload.key,
+                  mimeType: upload.intent.mimeType,
+                  sizeBytes: upload.intent.sizeBytes,
+                  userId: gate.ctx.session.user.userId,
+                  folderId: folder.id,
+                  storageTarget: upload.target,
+                });
+                await insertUploadSessionTx(client, {
+                  sessionId,
+                  mediaId,
+                  s3Key: upload.key,
+                  uploadId,
+                  ownerUserId: gate.ctx.session.user.userId,
+                  expectedSizeBytes: upload.intent.sizeBytes,
+                  mimeType: upload.intent.mimeType,
+                  partSizeBytes,
+                  expiresAt,
+                });
+              },
+            );
+          }),
+        abortPending: (mediaId) =>
+          withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(mediaId)),
+      });
+      return NextResponse.json({
+        ok: true as const,
+        mediaId: begun.mediaId,
+        sessionId: begun.sessionId,
+        uploadId: begun.uploadId,
+        partSizeBytes: begun.partSizeBytes,
+        maxParts: begun.maxParts,
+        expiresAt: begun.expiresAt.toISOString(),
+        readUrl: `/api/media/${begun.mediaId}`,
+      });
+    }
+    const mediaId = upload.id;
+    const key = upload.key;
     await withDoctorWorkspacePrincipal(gate.ctx, async () => {
       const folder = await pgEnsureClientPatientFolder(resolved.instance.patientUserId);
       await withUserLifecycleLock(
@@ -88,7 +141,7 @@ export async function POST(request: Request, context: { params: Promise<{ instan
       readUrl: `/api/media/${mediaId}`,
     });
   } catch (error) {
-    await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(mediaId)).catch(
+    await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(upload.id)).catch(
       () => undefined,
     );
     logger.error({ err: error }, '[doctor/individual-exercise/media-presign] presign_failed');

@@ -46,6 +46,8 @@ export type CreatePatientFileParams = {
   uploadedByUserId: string;
   /** When provided, a media_files row is co-created in this folder and linked via mediaFileId. */
   folderId?: string | null;
+  /** Server-issued id from the common media upload door for multipart sessions. */
+  mediaFileId?: string;
 };
 
 export type DeletePatientFileResult =
