@@ -8,6 +8,40 @@ export const PATIENT_PWA_ICON_512 = '/therapygo-pwa-icon-512.png';
 export const PATIENT_PWA_ICON_MASKABLE_512 = '/therapygo-pwa-icon-maskable-512.png';
 export const PATIENT_PWA_APPLE_TOUCH = '/therapygo-apple-touch-icon.png';
 
+export type PatientPwaIconSet = Readonly<{
+  browserIcon: string;
+  browserIconSize: string;
+  icon192: string;
+  icon512: string;
+  appleTouch: string;
+  maskableIcon512?: string;
+}>;
+
+export const PATIENT_DEFAULT_PWA_ICON_SET: PatientPwaIconSet = {
+  browserIcon: PATIENT_BROWSER_ICON_32,
+  browserIconSize: '32x32',
+  icon192: PATIENT_PWA_ICON_192,
+  icon512: PATIENT_PWA_ICON_512,
+  maskableIcon512: PATIENT_PWA_ICON_MASKABLE_512,
+  appleTouch: PATIENT_PWA_APPLE_TOUCH,
+};
+
+/** Legacy blue clinic identity remains until individual clinic PWA artwork exists. */
+const brandedPatientPwaIcons: PatientPwaIconSet = {
+  browserIcon: '/pwa-icon-192.png',
+  browserIconSize: '192x192',
+  icon192: '/pwa-icon-192.png',
+  icon512: '/pwa-icon-512.png',
+  appleTouch: '/apple-touch-icon.png',
+};
+
+/** The one patient icon-set boundary for both the manifest and document metadata. */
+export function patientPwaIconSet(resolved: ResolvedSurface): PatientPwaIconSet {
+  if (resolved.surface === 'patient_default') return PATIENT_DEFAULT_PWA_ICON_SET;
+  if (resolved.surface === 'patient_branded') return brandedPatientPwaIcons;
+  throw new Error('patient_icon_set_requires_patient_surface');
+}
+
 /**
  * Манифест установленного пациентского приложения.
  *
@@ -27,6 +61,7 @@ export function buildPatientPwaManifest(resolved: ResolvedSurface): MetadataRout
     throw new Error('patient_manifest_requires_patient_surface');
   }
   const displayName = surfaceDisplayName(resolved);
+  const icons = patientPwaIconSet(resolved);
   return {
     id: '/app',
     name: `${displayName} — забота о твоём здоровье`,
@@ -41,23 +76,27 @@ export function buildPatientPwaManifest(resolved: ResolvedSurface): MetadataRout
     lang: 'ru',
     icons: [
       {
-        src: PATIENT_PWA_ICON_192,
+        src: icons.icon192,
         sizes: '192x192',
         type: 'image/png',
         purpose: 'any',
       },
       {
-        src: PATIENT_PWA_ICON_512,
+        src: icons.icon512,
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any',
       },
-      {
-        src: PATIENT_PWA_ICON_MASKABLE_512,
-        sizes: '512x512',
-        type: 'image/png',
-        purpose: 'maskable',
-      },
+      ...(icons.maskableIcon512
+        ? [
+            {
+              src: icons.maskableIcon512,
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable' as const,
+            },
+          ]
+        : []),
     ],
   };
 }

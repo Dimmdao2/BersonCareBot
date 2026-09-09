@@ -2,11 +2,10 @@ import type { Metadata } from 'next';
 import { PATIENT_DEFAULT_SURFACE, PLATFORM_NAME } from '@/config/productSurfaces';
 import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
 import {
-  PATIENT_BROWSER_ICON_32,
-  PATIENT_PWA_APPLE_TOUCH,
-  PATIENT_PWA_ICON_192,
-  PATIENT_PWA_ICON_512,
+  PATIENT_DEFAULT_PWA_ICON_SET,
   PATIENT_PWA_MANIFEST_PATH,
+  patientPwaIconSet,
+  type PatientPwaIconSet,
 } from '@/shared/lib/pwa/patientPwaManifest';
 import { surfaceDisplayName, type ResolvedSurface } from './requestSurface';
 
@@ -23,37 +22,18 @@ import { surfaceDisplayName, type ResolvedSurface } from './requestSurface';
  * Пациентская идентичность. `manifest` объявлен явно и указывает на тот же URL, что и раньше:
  * контракт установленного пациентского приложения (`id`/`scope`/`start_url`) не меняется.
  */
-type PatientIconSet = Readonly<{
-  icon192: string;
-  icon512: string;
-  appleTouch: string;
-}>;
-
-const therapyGoPatientIcons: PatientIconSet = {
-  icon192: PATIENT_PWA_ICON_192,
-  icon512: PATIENT_PWA_ICON_512,
-  appleTouch: PATIENT_PWA_APPLE_TOUCH,
-};
-
-/** Legacy blue clinic identity remains until individual clinic PWA artwork exists. */
-const brandedPatientIcons: PatientIconSet = {
-  icon192: '/pwa-icon-192.png',
-  icon512: '/pwa-icon-512.png',
-  appleTouch: '/apple-touch-icon.png',
-};
-
-function buildPatientLayoutMetadata(name: string, icons: PatientIconSet): Metadata {
+function buildPatientLayoutMetadata(name: string, icons: PatientPwaIconSet): Metadata {
   return {
     title: name,
     manifest: PATIENT_PWA_MANIFEST_PATH,
     description: `Patient web application for ${name}.`,
     icons: {
       icon: [
-        { url: PATIENT_BROWSER_ICON_32, sizes: '32x32', type: 'image/png' },
+        { url: icons.browserIcon, sizes: icons.browserIconSize, type: 'image/png' },
         { url: icons.icon192, sizes: '192x192', type: 'image/png' },
         { url: icons.icon512, sizes: '512x512', type: 'image/png' },
       ],
-      shortcut: [{ url: PATIENT_BROWSER_ICON_32, sizes: '32x32', type: 'image/png' }],
+      shortcut: [{ url: icons.browserIcon, sizes: icons.browserIconSize, type: 'image/png' }],
       apple: [{ url: icons.appleTouch, sizes: '180x180' }],
     },
     appleWebApp: {
@@ -66,7 +46,7 @@ function buildPatientLayoutMetadata(name: string, icons: PatientIconSet): Metada
 
 export const patientLayoutMetadata = buildPatientLayoutMetadata(
   PATIENT_DEFAULT_SURFACE.name,
-  therapyGoPatientIcons,
+  PATIENT_DEFAULT_PWA_ICON_SET,
 );
 
 /**
@@ -87,5 +67,5 @@ export function surfaceLayoutMetadata(resolved: ResolvedSurface): Metadata {
   if (resolved.surface === 'platform_admin') return platformAdminLayoutMetadata;
   const displayName = surfaceDisplayName(resolved);
   if (resolved.surface === 'patient_default') return patientLayoutMetadata;
-  return buildPatientLayoutMetadata(displayName, brandedPatientIcons);
+  return buildPatientLayoutMetadata(displayName, patientPwaIconSet(resolved));
 }
