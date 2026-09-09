@@ -28,6 +28,11 @@ import org.jitsi.meet.sdk.JitsiMeetConferenceOptions;
 public final class NativeJitsiPlugin extends Plugin {
     private JitsiSession retrySession;
     private boolean terminal;
+    // CONFERENCE_TERMINATED and READY_TO_CLOSE are two possible signals for the same one terminal
+    // conference; this guards against emitting a terminal event for each, which would otherwise fire
+    // "terminated" a second time right after "error" and close the web stage that already reacted.
+    private boolean terminalEmitted;
+    private boolean conferenceActive;
 
     private final android.content.BroadcastReceiver conferenceReceiver = new android.content.BroadcastReceiver() {
         @Override
@@ -38,10 +43,16 @@ public final class NativeJitsiPlugin extends Plugin {
                 terminal = false;
                 emit("joined", null);
             } else if (type == BroadcastEvent.Type.CONFERENCE_TERMINATED || type == BroadcastEvent.Type.READY_TO_CLOSE) {
+                conferenceActive = false;
+                if (terminalEmitted) return;
+                terminalEmitted = true;
                 terminal = true;
                 String error = conferenceError(event);
-                if (error != null) emit("error", error);
-                emit("terminated", null);
+                if (error != null) {
+                    emit("error", error);
+                } else {
+                    emit("terminated", null);
+                }
             }
         }
     };
@@ -90,13 +101,38 @@ public final class NativeJitsiPlugin extends Plugin {
     @PluginMethod
     public void hangup(PluginCall call) {
         if (!isTrusted(call)) return;
-        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(BroadcastIntentHelper.buildHangUpIntent());
+        // Idempotent: only send the hang-up broadcast while this plugin owns an active conference, so
+        // a repeated/late hangup() call is a no-op instead of a stray broadcast with nothing to hear it.
+        if (conferenceActive) {
+            LocalBroadcastManager.getInstance(getContext()).sendBroadcast(BroadcastIntentHelper.buildHangUpIntent());
+        }
         call.resolve(outcome("requested"));
     }
 
     @PluginMethod
     public void retry(PluginCall call) {
         if (!isTrusted(call)) return;
+        if (!terminal || retrySession == null) {
+            call.reject("No terminal native conference is available to retry");
+            return;
+        }
+        if (getPermissionState("camera") != PermissionState.GRANTED
+            || getPermissionState("microphone") != PermissionState.GRANTED) {
+            requestPermissionForAliases(new String[] { "camera", "microphone" }, call, "onRetryPermissions");
+            return;
+        }
+        launch(call, retrySession);
+    }
+
+    @PermissionCallback
+    private void onRetryPermissions(PluginCall call) {
+        if (!isTrusted(call)) return;
+        if (getPermissionState("camera") != PermissionState.GRANTED
+            || getPermissionState("microphone") != PermissionState.GRANTED) {
+            emit("error", "permission_denied");
+            call.resolve(outcome("permission_denied"));
+            return;
+        }
         if (!terminal || retrySession == null) {
             call.reject("No terminal native conference is available to retry");
             return;
@@ -118,11 +154,16 @@ public final class NativeJitsiPlugin extends Plugin {
                 .setFeatureFlag("add-people.enabled", false)
                 .setFeatureFlag("analytics.enabled", false)
                 .build();
+            // A new launch is the only place the terminal-event guard resets, per conference attempt.
             terminal = false;
+            terminalEmitted = false;
+            conferenceActive = true;
             JitsiMeetActivity.launch(getContext(), options);
             call.resolve(outcome("started"));
         } catch (Exception ignored) {
             terminal = true;
+            terminalEmitted = true;
+            conferenceActive = false;
             emit("error", "launch_failed");
             call.resolve(outcome("launch_failed"));
         }

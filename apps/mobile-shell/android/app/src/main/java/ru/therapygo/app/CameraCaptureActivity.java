@@ -186,8 +186,10 @@ public final class CameraCaptureActivity extends ComponentActivity {
         deliveredResult = true;
         Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", output);
         Intent data = new Intent();
-        data.setData(uri);
-        data.setType("video".equals(kind) ? "video/mp4" : "image/jpeg");
+        // #setData(Uri) and #setType(String) each clear whatever the other previously set (Intent's
+        // documented contract); only #setDataAndType keeps both, which DeviceMediaPlugin.onCaptureResult
+        // (reads data.getData()) needs to see a successful capture instead of a null-URI cancellation.
+        data.setDataAndType(uri, "video".equals(kind) ? "video/mp4" : "image/jpeg");
         data.putExtra(EXTRA_RESULT_KIND, kind);
         data.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         setResult(RESULT_OK, data);

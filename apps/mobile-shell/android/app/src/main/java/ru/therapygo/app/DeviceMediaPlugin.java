@@ -46,8 +46,11 @@ import org.json.JSONException;
 )
 public final class DeviceMediaPlugin extends Plugin {
     private static final int MAX_MIME_TYPES = 12;
+    private static final String DOCUMENT_MIME_PATTERN =
+        "application/(pdf|msword|vnd\\.openxmlformats-officedocument\\.wordprocessingml\\.document|vnd\\.ms-excel|vnd\\.openxmlformats-officedocument\\.spreadsheetml\\.sheet)|text/plain";
     private final Map<String, MediaHandle> handles = Collections.synchronizedMap(new LinkedHashMap<>());
     private volatile HttpsURLConnection activeUpload;
+    private final java.util.concurrent.atomic.AtomicBoolean uploading = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     @PluginMethod
     public void captureMedia(PluginCall call) {
@@ -159,6 +162,12 @@ public final class DeviceMediaPlugin extends Plugin {
             call.reject("Invalid signed upload headers");
             return;
         }
+        // One upload at a time: a second call while one is in flight must never replace the shared
+        // `activeUpload` connection out from under `cancelUpload()`, nor race its own `finally` clear.
+        if (!uploading.compareAndSet(false, true)) {
+            call.reject("An upload is already in progress");
+            return;
+        }
         new Thread(() -> streamRange(call, media, offset, length, presignedUrl, headers), "device-media-upload").start();
     }
 
@@ -199,16 +208,24 @@ public final class DeviceMediaPlugin extends Plugin {
                 }
             }
             int status = connection.getResponseCode();
-            JSObject result = outcome("uploaded");
-            result.put("status", status);
             String etag = connection.getHeaderField("ETag");
-            if (etag != null && etag.length() <= 256) result.put("etag", etag);
-            call.resolve(result);
+            // Only an HTTP 2xx with the ETag this range's future complete/finalize call requires counts
+            // as uploaded; a followed-through redirect, 401/403/404/409/429, 5xx, or a 2xx missing its
+            // required multipart ETag must never be handed to the caller as a successful part.
+            if (status < 200 || status >= 300 || etag == null || etag.length() > 256) {
+                call.resolve(uploadFailed(status));
+            } else {
+                JSObject result = outcome("uploaded");
+                result.put("status", status);
+                result.put("etag", etag);
+                call.resolve(result);
+            }
         } catch (IOException ignored) {
             call.resolve(outcome("upload_failed"));
         } finally {
             if (connection != null) connection.disconnect();
             activeUpload = null;
+            uploading.set(false);
         }
     }
 
@@ -228,7 +245,8 @@ public final class DeviceMediaPlugin extends Plugin {
 
     private MediaHandle prepare(Uri uri, String source, String requestedKind, boolean requiresDuration) throws IOException {
         String mime = getContext().getContentResolver().getType(uri);
-        if (mime == null || !(mime.startsWith("image/") || mime.startsWith("video/") || "document".equals(requestedKind))) {
+        boolean allowedDocument = "document".equals(requestedKind) && isAllowedDocumentMime(mime);
+        if (mime == null || !(mime.startsWith("image/") || mime.startsWith("video/") || allowedDocument)) {
             throw new IOException("Unsupported selected type");
         }
         Metadata metadata = metadata(uri);
@@ -310,13 +328,23 @@ public final class DeviceMediaPlugin extends Plugin {
         for (int index = 0; index < values.length(); index++) {
             try {
                 String mime = values.getString(index);
-                if (mime == null || !mime.matches("(application/(pdf|msword|vnd\\.openxmlformats-officedocument\\.wordprocessingml\\.document|vnd\\.ms-excel|vnd\\.openxmlformats-officedocument\\.spreadsheetml\\.sheet)|text/plain)")) return null;
+                if (!isAllowedDocumentMime(mime)) return null;
                 result.add(mime);
             } catch (JSONException ignored) {
                 return null;
             }
         }
         return result.toArray(new String[0]);
+    }
+
+    /**
+     * The one narrow document-MIME allowlist, shared by the *request* filter ({@link #pickDocument})
+     * and the *result* re-check ({@link #prepare}, MUST FIX-3): narrowing only the picker's request
+     * filter never bound what a rogue/spoofed {@code DocumentsProvider} may hand back for the actual
+     * pick, so both sides must agree on the same closed set.
+     */
+    private static boolean isAllowedDocumentMime(String mime) {
+        return mime != null && mime.matches(DOCUMENT_MIME_PATTERN);
     }
 
     private boolean allowedUploadUrl(String rawUrl) {
@@ -359,6 +387,12 @@ public final class DeviceMediaPlugin extends Plugin {
     private static JSObject cancelled(String reason) {
         JSObject result = outcome("cancelled");
         result.put("reason", reason);
+        return result;
+    }
+
+    private static JSObject uploadFailed(int status) {
+        JSObject result = outcome("upload_failed");
+        result.put("status", status);
         return result;
     }
 
