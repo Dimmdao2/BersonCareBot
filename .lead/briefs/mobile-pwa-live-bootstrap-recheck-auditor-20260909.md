@@ -7,7 +7,8 @@ was blocked by `native_push_token_keyring_unavailable`; this recheck proves that
 completes the still-open M1-04/M7-03 PWA-metadata slice. Product code and tests are read-only.
 
 Read the AGENTS.md heading map and complete §1/§1a/§1b, §7, §9–§12 and §24; read
-`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`, especially candidate ports §3b, the complete active plan M1/M7,
+`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`, especially candidate ports §3b, the complete active plan
+`docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md` M1/M7,
 both prior PWA live reports, and the accepted native-push audit report. Do not infer success from unit tests or
 direct builder calls.
 
