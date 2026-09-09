@@ -212,7 +212,7 @@ public final class DeviceMediaPlugin extends Plugin {
             // Only an HTTP 2xx with the ETag this range's future complete/finalize call requires counts
             // as uploaded; a followed-through redirect, 401/403/404/409/429, 5xx, or a 2xx missing its
             // required multipart ETag must never be handed to the caller as a successful part.
-            if (status < 200 || status >= 300 || etag == null || etag.length() > 256) {
+            if (status < 200 || status >= 300 || etag == null || etag.trim().isEmpty() || etag.length() > 256) {
                 call.resolve(uploadFailed(status));
             } else {
                 JSObject result = outcome("uploaded");
