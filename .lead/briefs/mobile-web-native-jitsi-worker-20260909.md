@@ -15,9 +15,11 @@ Run `grep -n "^## \|^### " AGENTS.md`; read the global decision method, §1/§1b
 final landed evidence, `apps/mobile-shell/README.md`, accepted native/runtime audits, video module docs and every
 touched implementation before changing code. Use code-search before exact `rg`.
 
-Authority boundary: `#1100` owns the browser video session and product pages. M4 adds one client renderer choice
-inside the existing provider-neutral `VideoMeetingStage`; it cannot reopen `#1100`, change server authorization or
-extend `VideoMeetingRenderSession.renderer`.
+Источник оракула — `docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md` M4-01: «Browser использует
+существующий iframe renderer; доверенный Android runtime открывает Jitsi Android SDK на том же `endpoint`,
+`roomReference` и `accessToken`.» Task `#1100` owns the browser video session and product pages. M4 adds one client
+renderer choice inside the existing provider-neutral `VideoMeetingStage`; it cannot reopen `#1100`, change server
+authorization or extend `VideoMeetingRenderSession.renderer`.
 
 ## One native renderer at the existing stage
 
