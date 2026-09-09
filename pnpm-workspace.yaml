@@ -1,4 +1,5 @@
 packages:
+  - apps/mobile-shell
   - apps/webapp
   - apps/media-worker
   - apps/integrator
