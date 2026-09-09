@@ -8,6 +8,7 @@ import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import type { PatientPackageSessionRow } from '@/modules/memberships/types';
+import { appointmentStatusLabel } from '@/modules/booking-calendar/appointmentStatusLabels';
 
 const LINKAGE_LABELS: Record<string, string> = {
   reserved: 'Резерв',
@@ -32,6 +33,8 @@ type Props = {
   onError?: (code: string) => void;
   onChanged?: () => void;
   mutationsAllowed?: boolean;
+  /** Confirmation dialogs opened from an existing modal must join its modal stack. */
+  nestedModals?: boolean;
 };
 
 export function PatientPackageSessionsList({
@@ -40,6 +43,7 @@ export function PatientPackageSessionsList({
   onError,
   onChanged,
   mutationsAllowed = true,
+  nestedModals = false,
 }: Props) {
   // Default to true so doctors immediately see past visits available for manual consume.
   const [includePast, setIncludePast] = useState(true);
@@ -193,6 +197,9 @@ export function PatientPackageSessionsList({
                 <Badge variant="secondary" className="text-xs">
                   {LINKAGE_LABELS[s.linkage] ?? s.linkage}
                 </Badge>
+                <Badge variant="outline" className="text-xs">
+                  {appointmentStatusLabel(s.status)}
+                </Badge>
                 {s.mappingStatus === 'mapping_missing' ? (
                   <Badge variant="destructive" className="text-xs">
                     нет связи услуги
@@ -233,12 +240,18 @@ export function PatientPackageSessionsList({
                   </Button>
                 ) : null}
                 {s.actions.canOpenInCalendar ? (
-                  <Link
-                    href={`/app/doctor/calendar?appointmentId=${encodeURIComponent(s.appointmentId)}`}
-                    className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-muted"
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    render={
+                      <Link
+                        href={`/app/doctor/calendar?appointmentId=${encodeURIComponent(s.appointmentId)}`}
+                      />
+                    }
+                    nativeButton={false}
                   >
                     Календарь
-                  </Link>
+                  </Button>
                 ) : null}
               </div>
             </li>
@@ -251,6 +264,7 @@ export function PatientPackageSessionsList({
         onClose={() => setConfirmStep(0)}
         title="Подтверждение"
         size="sm"
+        nested={nestedModals}
         footer={
           <>
             <Button type="button" variant="outline" onClick={() => setConfirmStep(0)}>
@@ -272,6 +286,7 @@ export function PatientPackageSessionsList({
         onClose={() => setConfirmStep(0)}
         title="Прошедшая запись"
         size="sm"
+        nested={nestedModals}
         footer={
           <>
             <Button type="button" variant="outline" onClick={() => setConfirmStep(0)}>
@@ -291,6 +306,7 @@ export function PatientPackageSessionsList({
         onClose={() => setLateChoice(null)}
         title="Поздняя отвязка"
         size="sm"
+        nested={nestedModals}
       >
         <p className="text-sm text-muted-foreground">
           Выберите исход для записи вне бесплатного окна отмены.

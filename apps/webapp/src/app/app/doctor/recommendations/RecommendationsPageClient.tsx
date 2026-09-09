@@ -24,6 +24,7 @@ import { recommendationMediaItemToPreviewUi } from '@/shared/ui/doctor/media/med
 import { VirtualizedItemGrid } from '@/shared/ui/doctor/catalog/VirtualizedItemGrid';
 import { DoctorCatalogMasterListHeader } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
@@ -51,8 +52,6 @@ import {
 import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
 import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
 import {
-  doctorCatalogListEmptyClass,
-  doctorCatalogListEmptyTilesClass,
   doctorInteractiveSurfaceButtonClass,
   doctorCatalogRowActiveClass,
   doctorCatalogRowClass,
@@ -336,7 +335,7 @@ function RecommendationsContent({
     opts: { activeId: string | null; onRowSelect: (id: string) => void },
   ) =>
     list.length === 0 ? (
-      <p className={doctorCatalogListEmptyClass}>Нет рекомендаций по заданным фильтрам.</p>
+      <DoctorEmptyState>Нет рекомендаций по заданным фильтрам.</DoctorEmptyState>
     ) : (
       <ul className="flex h-full min-h-0 flex-col gap-1 overflow-y-auto">
         {list.map((r) => {
@@ -370,7 +369,7 @@ function RecommendationsContent({
     opts: { activeId: string | null; onTileSelect: (id: string) => void; columns: number },
   ) =>
     list.length === 0 ? (
-      <p className={doctorCatalogListEmptyTilesClass}>Нет рекомендаций по заданным фильтрам.</p>
+      <DoctorEmptyState>Нет рекомендаций по заданным фильтрам.</DoctorEmptyState>
     ) : (
       <VirtualizedItemGrid
         items={list}

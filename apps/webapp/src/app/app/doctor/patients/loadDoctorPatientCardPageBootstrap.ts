@@ -391,7 +391,7 @@ export async function loadDoctorPatientCardTabBootstrap(
       Promise.allSettled([
         deps.doctorNotes.listForUser(patientUserId, session.user.userId),
         specialistTasksReadable
-          ? deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false)
+          ? deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, true)
           : Promise.resolve([]),
         workspaceModules?.rehabilitation === false || workspaceModules?.program_comments === false
           ? Promise.resolve({ unreadCount: 0, unreadByStageItemId: {}, lastMark: null })

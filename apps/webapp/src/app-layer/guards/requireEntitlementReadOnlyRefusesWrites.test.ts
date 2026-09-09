@@ -47,7 +47,6 @@ import type { MechanicAccessState, OrgMechanic } from '@/modules/org-entitlement
 
 /**
  * The product sentence a tariff-blocked action already shows everywhere else in the cabinet
- * (`tariffMechanicsRefusals.ui.test.tsx` pins the same wording for the Server Action refusals).
  * Spelled out here on purpose: the oracle must not be the implementation under test.
  */
 const TARIFF_REFUSAL_SENTENCE =

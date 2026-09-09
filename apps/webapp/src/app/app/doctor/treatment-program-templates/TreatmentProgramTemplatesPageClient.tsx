@@ -13,7 +13,7 @@ import type {
 import { cn } from '@/lib/utils';
 import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
 import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
-import { doctorCatalogListEmptyClass } from '@/shared/ui/doctor/doctorVisual';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { useDoctorCatalogMasterSelectionSync } from '@/shared/hooks/useDoctorCatalogMasterSelectionSync';
 import type { CatalogMasterTitleSort } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
 import { DoctorCatalogFiltersForm } from '@/shared/ui/doctor/DoctorCatalogFiltersForm';
@@ -272,7 +272,7 @@ function TreatmentProgramTemplatesContent({
 
   const renderRows = (onPick: (t: TreatmentProgramTemplate) => void, activeId: string | null) =>
     displayList.length === 0 ? (
-      <p className={doctorCatalogListEmptyClass}>Нет шаблонов по заданным условиям.</p>
+      <DoctorEmptyState>Нет шаблонов по заданным условиям.</DoctorEmptyState>
     ) : (
       <VirtualizedItemGrid
         items={displayList}

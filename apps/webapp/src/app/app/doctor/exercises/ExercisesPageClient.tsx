@@ -32,8 +32,6 @@ import {
   DoctorCatalogToolbarFiltersSlot,
 } from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
 import {
-  doctorCatalogListEmptyClass,
-  doctorCatalogListEmptyTilesClass,
   doctorCatalogRowActiveClass,
   doctorCatalogRowClass,
 } from '@/shared/ui/doctor/doctorVisual';
@@ -55,6 +53,7 @@ import {
   unarchiveExerciseInline,
 } from './actionsInline';
 import { ExerciseTileCard } from './ExerciseTileCard';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
 import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
 import type { ReferenceItemDto } from '@/modules/references/referenceCache';
@@ -250,7 +249,7 @@ function ExercisesContent({
     opts: { activeId: string | null; onRowSelect: (id: string) => void },
   ) =>
     list.length === 0 ? (
-      <p className={doctorCatalogListEmptyClass}>Нет упражнений по заданным фильтрам.</p>
+      <DoctorEmptyState>Нет упражнений по заданным фильтрам.</DoctorEmptyState>
     ) : (
       <ul className="flex h-full min-h-0 flex-col gap-1 overflow-y-auto">
         {list.map((ex) => {
@@ -286,7 +285,7 @@ function ExercisesContent({
     opts: { activeId: string | null; onTileSelect: (id: string) => void; columns: number },
   ) =>
     list.length === 0 ? (
-      <p className={doctorCatalogListEmptyTilesClass}>Нет упражнений по заданным фильтрам.</p>
+      <DoctorEmptyState>Нет упражнений по заданным фильтрам.</DoctorEmptyState>
     ) : (
       <VirtualizedItemGrid
         items={list}

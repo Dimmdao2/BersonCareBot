@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils';
 import { isDoctorCatalogMissingFilter } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
 import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
 import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
-import { doctorCatalogListEmptyClass } from '@/shared/ui/doctor/doctorVisual';
 import { useDoctorCatalogMasterSelectionSync } from '@/shared/hooks/useDoctorCatalogMasterSelectionSync';
 import {
   DoctorCatalogFiltersForm,
@@ -44,13 +43,10 @@ import {
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 
 /** @dnd-kit editor — только при create/select, не на cold first paint списка. */
-const TemplateEditor = dynamic(
-  () => import('./TemplateEditor').then((mod) => mod.TemplateEditor),
-  {
-    ssr: false,
-    loading: () => <DoctorPanelLoading className="min-h-48" />,
-  },
-);
+const TemplateEditor = dynamic(() => import('./TemplateEditor').then((mod) => mod.TemplateEditor), {
+  ssr: false,
+  loading: () => <DoctorPanelLoading className="min-h-48" />,
+});
 
 type ExerciseCatalogBundle = {
   exerciseCatalog: Array<{ id: string; title: string; firstMedia: ExerciseMedia | null }>;
@@ -207,7 +203,7 @@ function LfkTemplatesContent({
 
   const renderRows = (onPick: (t: Template) => void, activeId: string | null) =>
     displayList.length === 0 ? (
-      <p className={doctorCatalogListEmptyClass}>Нет комплексов по заданным условиям.</p>
+      <DoctorEmptyState>Нет комплексов по заданным условиям.</DoctorEmptyState>
     ) : (
       <VirtualizedItemGrid
         items={displayList}
@@ -361,9 +357,7 @@ function LfkTemplatesContent({
             headerSlot={
               <DoctorCatalogListSortHeader
                 summaryLine={
-                  displayList.length === 0
-                    ? 'Нет комплексов'
-                    : `Комплексов: ${displayList.length}`
+                  displayList.length === 0 ? 'Нет комплексов' : `Комплексов: ${displayList.length}`
                 }
                 titleSort={titleSortForHeader}
                 onTitleSortChange={changeTitleSort}

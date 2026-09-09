@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { Archive, BadgePlus, ChevronRight, ShoppingBag } from 'lucide-react';
 import { BookingPublicWidgetSection } from '@/app/app/settings/BookingPublicWidgetSection';
 import { BookingSoloAvailabilitySection } from '@/app/app/settings/BookingSoloAvailabilitySection';
 import { BookingSoloFormFieldsSection } from '@/app/app/settings/BookingSoloFormFieldsSection';
@@ -11,10 +12,12 @@ import { BookingRulesPageClient } from '@/app/app/doctor/admin/booking/BookingRu
 import { ScheduleNotificationsSection } from './notifications/ScheduleNotificationsSection';
 import {
   DoctorSection,
+  DoctorSectionActions,
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import { DoctorShellMobileSubsectionTabsRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -24,13 +27,35 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { apiJson } from '@/shared/lib/apiJson';
 import toast from 'react-hot-toast';
 import type { ScheduleTabProps } from '../scheduleTabRegistry';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import {
+  DoctorModal,
+  DoctorModalCompositeTitle,
+  DoctorModalStackedTitle,
+} from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModalSummaryBar } from '@/shared/ui/doctor/DoctorModalSummaryBar';
+import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
+import {
+  DoctorDnaFlatList,
+  doctorDnaFlatListClickableClass,
+  doctorDnaFlatListRowClass,
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { SYSTEM_SETTING_REGISTRY } from '@/modules/system-settings/registry';
+import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
+import type {
+  PackageItemInput,
+  PatientPackageListItem,
+  PatientPackageStatus,
+  SubscriptionPackageRecord,
+} from '@/modules/memberships/types';
+import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
+import { PatientPackageSessionsList } from '@/app/app/doctor/clients/PatientPackageSessionsList';
+import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
 // Sub-nav section definition
@@ -154,20 +179,12 @@ function BookingRulesLoader() {
 }
 
 // ---------------------------------------------------------------------------
-// Packages (catalog templates) section
+// Membership catalog section
 // ---------------------------------------------------------------------------
 
-type CatalogPackageItem = { serviceId: string; quantity: number; sortOrder?: number };
+type CatalogPackageItem = PackageItemInput;
 
-type CatalogPackage = {
-  id: string;
-  title: string;
-  priceMinor: number;
-  validityDays: number | null;
-  deductionMode: 'auto_on_visit_confirmed' | 'manual';
-  isActive: boolean;
-  items: Array<{ id?: string; serviceId: string; quantity: number; sortOrder?: number }>;
-};
+type CatalogPackage = SubscriptionPackageRecord;
 
 type PackageService = { id: string; title: string; isActive: boolean; usableInPackages: boolean };
 
@@ -176,9 +193,97 @@ type PackagesState =
   | { phase: 'error'; message: string }
   | { phase: 'ready'; packages: CatalogPackage[]; services: PackageService[] };
 
+type SoldPackage = PatientPackageListItem & {
+  patientDisplayName: string;
+};
+
+type SoldPackagesState =
+  | { phase: 'idle' }
+  | { phase: 'loading' }
+  | { phase: 'error' }
+  | { phase: 'ready'; packages: SoldPackage[] };
+
+function formatPackageMoney(priceMinor: number, currency = 'RUB'): string {
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(priceMinor / 100);
+}
+
+function formatPackageDate(value: string | null): string {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleDateString('ru-RU');
+}
+
+function soldPackageStatusLabel(status: PatientPackageStatus): string {
+  switch (status) {
+    case 'active':
+      return 'Активен';
+    case 'expired':
+      return 'Истёк';
+    case 'cancelled':
+      return 'Закрыт';
+    case 'awaiting_payment':
+      return 'Ожидает оплаты';
+    case 'offered':
+      return 'Не активирован';
+    default:
+      return status;
+  }
+}
+
+function pluralizeSessions(value: number): string {
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  if (mod100 >= 11 && mod100 <= 19) return 'сеансов';
+  if (mod10 === 1) return 'сеанс';
+  if (mod10 >= 2 && mod10 <= 4) return 'сеанса';
+  return 'сеансов';
+}
+
+function pluralizeServices(value: number): string {
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  if (mod100 >= 11 && mod100 <= 19) return 'услуг';
+  if (mod10 === 1) return 'услуга';
+  if (mod10 >= 2 && mod10 <= 4) return 'услуги';
+  return 'услуг';
+}
+
+function formatValidityDays(value: number | null): string {
+  if (value === null) return 'Без срока';
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  const suffix =
+    mod100 >= 11 && mod100 <= 19 ? 'дней' : mod10 === 1 ? 'день' : mod10 < 5 ? 'дня' : 'дней';
+  return `${value} ${suffix}`;
+}
+
+function soldPackageTotalSessions(pkg: SoldPackage): number {
+  return pkg.balance.items.reduce((sum, item) => sum + item.quantityInitial, 0);
+}
+
+function soldPackagePaymentLabel(pkg: SoldPackage): string {
+  if (pkg.status === 'awaiting_payment') return 'Ожидает оплаты';
+  if (pkg.paidAmountMinor === 0) return 'Без оплаты';
+  if (pkg.paymentIntentId) return 'Онлайн';
+  if (pkg.paidAmountMinor !== null) return 'В клинике';
+  return '—';
+}
+
 function SectionPackages({ readOnly }: { readOnly: boolean }) {
   const [state, setState] = useState<PackagesState>({ phase: 'loading' });
   const [, startTransition] = useTransition();
+  const [packageView, setPackageView] = useState<'active' | 'archived'>('active');
+  const [selectedCatalogPackage, setSelectedCatalogPackage] = useState<CatalogPackage | null>(null);
+  const [packageFormOpen, setPackageFormOpen] = useState(false);
+  const [editingPackage, setEditingPackage] = useState<CatalogPackage | null>(null);
+  const [soldOpen, setSoldOpen] = useState(false);
+  const [soldState, setSoldState] = useState<SoldPackagesState>({ phase: 'idle' });
+  const [selectedSoldPackage, setSelectedSoldPackage] = useState<SoldPackage | null>(null);
 
   // Create form state
   const [title, setTitle] = useState('');
@@ -205,9 +310,21 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
         ]);
         setState({ phase: 'ready', packages: pkgJson.packages, services: svcJson.services });
       } catch {
-        setState({ phase: 'error', message: 'Не удалось загрузить шаблоны абонементов' });
+        setState({ phase: 'error', message: 'Не удалось загрузить абонементы' });
       }
     });
+  }, []);
+
+  const loadSoldPackages = useCallback(async () => {
+    setSoldState({ phase: 'loading' });
+    try {
+      const json = await apiJson<{ ok: boolean; packages: SoldPackage[] }>(
+        '/api/doctor/booking-engine/patient-packages/sold',
+      );
+      setSoldState({ phase: 'ready', packages: json.packages });
+    } catch {
+      setSoldState({ phase: 'error' });
+    }
   }, []);
 
   useEffect(() => {
@@ -240,7 +357,37 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
     setItemQuantity('1');
   }
 
-  function createPackage() {
+  function openCreateForm() {
+    resetForm();
+    setEditingPackage(null);
+    setPackageFormOpen(true);
+  }
+
+  function openEditForm(pkg: CatalogPackage) {
+    setTitle(pkg.title);
+    setPriceRub(String(pkg.priceMinor / 100));
+    setValidityDays(pkg.validityDays ? String(pkg.validityDays) : '');
+    setDeductionMode(pkg.deductionMode);
+    setFormItems(
+      pkg.items.map((item, index) => ({
+        serviceId: item.serviceId,
+        quantity: item.quantity,
+        sortOrder: item.sortOrder ?? index,
+      })),
+    );
+    setItemServiceId('');
+    setItemQuantity('1');
+    setEditingPackage(pkg);
+    setPackageFormOpen(true);
+  }
+
+  function closePackageForm() {
+    setPackageFormOpen(false);
+    setEditingPackage(null);
+    resetForm();
+  }
+
+  function savePackage() {
     const priceMinor = Math.round(Number.parseFloat(priceRub.replace(',', '.')) * 100);
     const days = validityDays ? Number.parseInt(validityDays, 10) : null;
     if (!title.trim() || !Number.isFinite(priceMinor) || priceMinor < 0 || formItems.length === 0) {
@@ -253,23 +400,31 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
     }
     startFormTransition(async () => {
       try {
-        await apiJson('/api/doctor/booking-engine/packages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: title.trim(),
-            priceMinor,
-            validityDays: days,
-            deductionMode,
-            isActive: true,
-            items: formItems,
-          }),
-        });
-        toast.success('Шаблон создан');
-        resetForm();
+        const json = await apiJson<{ ok: boolean; package: CatalogPackage }>(
+          editingPackage
+            ? `/api/doctor/booking-engine/packages/${editingPackage.id}`
+            : '/api/doctor/booking-engine/packages',
+          {
+            method: editingPackage ? 'PATCH' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: title.trim(),
+              priceMinor,
+              validityDays: days,
+              deductionMode,
+              ...(!editingPackage ? { isActive: true } : null),
+              items: formItems,
+            }),
+          },
+        );
+        toast.success(editingPackage ? 'Абонемент изменён' : 'Абонемент добавлен');
+        if (editingPackage) setSelectedCatalogPackage(json.package);
+        closePackageForm();
         load();
       } catch {
-        toast.error('Не удалось создать шаблон');
+        toast.error(
+          editingPackage ? 'Не удалось изменить абонемент' : 'Не удалось добавить абонемент',
+        );
       }
     });
   }
@@ -282,10 +437,11 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ isActive: !pkg.isActive }),
         });
-        toast.success(pkg.isActive ? 'Шаблон деактивирован' : 'Шаблон активирован');
+        toast.success(pkg.isActive ? 'Абонемент отправлен в архив' : 'Абонемент восстановлен');
+        setSelectedCatalogPackage(null);
         load();
       } catch {
-        toast.error('Не удалось обновить шаблон');
+        toast.error('Не удалось обновить абонемент');
       }
     });
   }
@@ -304,144 +460,206 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
     );
   }
 
-  const activeServices = state.services.filter((s) => s.isActive);
+  const activeServices = state.services.filter(
+    (service) => service.isActive && service.usableInPackages,
+  );
+  const visiblePackages = state.packages.filter((pkg) =>
+    packageView === 'active' ? pkg.isActive : !pkg.isActive,
+  );
+  const selectedCatalogSoldCount =
+    selectedCatalogPackage && soldState.phase === 'ready'
+      ? soldState.packages.filter((pkg) => pkg.subscriptionPackageId === selectedCatalogPackage.id)
+          .length
+      : null;
+  const selectedSoldTotal = selectedSoldPackage ? soldPackageTotalSessions(selectedSoldPackage) : 0;
+  const selectedSoldRemaining = selectedSoldPackage
+    ? selectedSoldPackage.balance.items.reduce((sum, item) => sum + item.displayRemaining, 0)
+    : 0;
+  const selectedSoldReserved = selectedSoldPackage
+    ? selectedSoldPackage.balance.items.reduce((sum, item) => sum + item.reserved, 0)
+    : 0;
 
   return (
-    <div className="flex flex-col gap-4">
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Шаблоны абонементов</DoctorSectionTitle>
+    <>
+      <DoctorSection className="overflow-hidden p-0">
+        <DoctorSectionHeader className="flex-row items-center justify-between gap-3 px-[var(--doctor-block-padding,18px)] pt-[var(--doctor-block-padding,18px)]">
+          <DoctorSectionTitle>Абонементы</DoctorSectionTitle>
+          {!readOnly ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="text-primary hover:text-primary"
+              aria-label="Новый абонемент"
+              title="Новый абонемент"
+              onClick={openCreateForm}
+            >
+              <BadgePlus className="size-6" aria-hidden />
+            </Button>
+          ) : null}
         </DoctorSectionHeader>
 
-        {state.packages.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Шаблонов нет. Создайте первый ниже.</p>
-        ) : (
-          <ul className="m-0 list-none space-y-2 p-0" data-testid="catalog-packages-list">
-            {state.packages.map((pkg) => (
-              <li
-                key={pkg.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2"
-              >
-                <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{pkg.title}</span>
-                    <span
-                      className={
-                        pkg.isActive
-                          ? 'rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700'
-                          : 'rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'
-                      }
-                    >
-                      {pkg.isActive ? 'Активен' : 'Неактивен'}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {(pkg.priceMinor / 100).toLocaleString('ru-RU')} ₽
-                      {pkg.validityDays ? ` · ${pkg.validityDays} дн.` : ''}
-                      {' · '}
-                      {pkg.deductionMode === 'auto_on_visit_confirmed' ? 'Авто' : 'Вручную'}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {pkg.items.map((it, idx) => {
-                      const svc = state.services.find((s) => s.id === it.serviceId);
-                      return (
-                        <span key={idx} className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                          {svc?.title ?? it.serviceId} × {it.quantity}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-                {!readOnly && (
-                  <Button
+        <div className="mt-3 flex items-center justify-between gap-3 border-y border-border/60 bg-muted/30 px-[var(--doctor-block-padding,18px)] py-2">
+          <DoctorResultCount
+            className="min-w-0 py-0"
+            label={packageView === 'active' ? 'Активных' : 'В архиве'}
+            value={visiblePackages.length}
+          />
+          <DoctorSectionActions className="shrink-0 flex-nowrap gap-1">
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className={cn(
+                packageView === 'archived' &&
+                  'border-primary bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary',
+              )}
+              aria-label={packageView === 'active' ? 'Показать архивные' : 'Показать активные'}
+              aria-pressed={packageView === 'archived'}
+              title="Архив"
+              onClick={() => setPackageView((view) => (view === 'active' ? 'archived' : 'active'))}
+            >
+              <Archive className="size-4" aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSoldOpen(true);
+                if (soldState.phase === 'idle' || soldState.phase === 'error') {
+                  void loadSoldPackages();
+                }
+              }}
+            >
+              <ShoppingBag className="size-4" aria-hidden />
+              Проданные
+            </Button>
+          </DoctorSectionActions>
+        </div>
+
+        {visiblePackages.length > 0 ? (
+          <DoctorDnaFlatList>
+            {visiblePackages.map((pkg) => {
+              const totalSessions = pkg.items.reduce((sum, item) => sum + item.quantity, 0);
+              return (
+                <li key={pkg.id}>
+                  <button
                     type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => toggleActive(pkg)}
+                    className={cn(
+                      doctorDnaFlatListRowClass,
+                      doctorDnaFlatListClickableClass,
+                      'grid w-full grid-cols-[minmax(0,1fr)_auto] text-left',
+                    )}
+                    onClick={() => {
+                      setSelectedCatalogPackage(pkg);
+                      if (soldState.phase === 'idle' || soldState.phase === 'error') {
+                        void loadSoldPackages();
+                      }
+                    }}
                   >
-                    {pkg.isActive ? 'Деактивировать' : 'Активировать'}
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="truncate text-base font-normal text-foreground">
+                        {pkg.title}
+                      </span>
+                      <span className="truncate text-sm text-muted-foreground">
+                        {pkg.items.length} {pluralizeServices(pkg.items.length)} · {totalSessions}{' '}
+                        {pluralizeSessions(totalSessions)}
+                      </span>
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span className="flex flex-col items-end gap-0.5 text-sm">
+                        <span>{formatPackageMoney(pkg.priceMinor, pkg.currency)}</span>
+                        <span className="text-muted-foreground">
+                          {formatValidityDays(pkg.validityDays)}
+                        </span>
+                      </span>
+                      <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </DoctorDnaFlatList>
+        ) : (
+          <DoctorEmptyState>
+            {packageView === 'active' ? 'Активных абонементов нет' : 'Архивных абонементов нет'}
+          </DoctorEmptyState>
         )}
       </DoctorSection>
 
-      {!readOnly && (
-        <DoctorSection>
-          <DoctorSectionHeader>
-            <DoctorSectionTitle>Создать шаблон</DoctorSectionTitle>
-          </DoctorSectionHeader>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="pkg-tpl-title">Название</Label>
+      <DoctorModal
+        open={packageFormOpen}
+        onClose={closePackageForm}
+        title={editingPackage ? 'Изменить абонемент' : 'Новый абонемент'}
+        nested={editingPackage != null}
+        desktopPresentation="right-sheet"
+        footer={
+          <>
+            <Button type="button" size="sm" variant="outline" onClick={closePackageForm}>
+              Отмена
+            </Button>
+            <Button type="button" size="sm" disabled={formPending} onClick={savePackage}>
+              {editingPackage ? 'Сохранить' : 'Добавить'}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="pkg-title">Название</Label>
+            <Input
+              id="pkg-title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Курс 10 занятий"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="pkg-price">Стоимость, ₽</Label>
               <Input
-                id="pkg-tpl-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Например: Курс 10 занятий"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="pkg-tpl-price">Цена, ₽</Label>
-              <Input
-                id="pkg-tpl-price"
+                id="pkg-price"
+                inputMode="decimal"
                 value={priceRub}
-                onChange={(e) => setPriceRub(e.target.value)}
+                onChange={(event) => setPriceRub(event.target.value)}
                 placeholder="5000"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="pkg-tpl-days">Срок действия, дней (необязательно)</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="pkg-days">Срок, дней</Label>
               <Input
-                id="pkg-tpl-days"
+                id="pkg-days"
+                inputMode="numeric"
                 value={validityDays}
-                onChange={(e) => setValidityDays(e.target.value)}
+                onChange={(event) => setValidityDays(event.target.value)}
                 placeholder="30"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Режим списания</Label>
-              <Select
-                value={deductionMode}
-                onValueChange={(v) => setDeductionMode(v as 'auto_on_visit_confirmed' | 'manual')}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem
-                    value="auto_on_visit_confirmed"
-                    label="Автоматически при подтверждении"
-                  >
-                    Автоматически при подтверждении
-                  </SelectItem>
-                  <SelectItem value="manual" label="Вручную">
-                    Вручную
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
-          <div className="mt-4 space-y-2">
-            <Label>Позиции (услуга × количество)</Label>
-            {formItems.length > 0 && (
-              <ul className="m-0 list-none space-y-1 p-0">
-                {formItems.map((it, idx) => {
-                  const svc = activeServices.find((s) => s.id === it.serviceId);
+          <div className="space-y-2">
+            <Label>Состав</Label>
+            {formItems.length > 0 ? (
+              <ul className="m-0 list-none space-y-1.5 p-0">
+                {formItems.map((item, index) => {
+                  const service = activeServices.find(
+                    (candidate) => candidate.id === item.serviceId,
+                  );
                   return (
-                    <li key={idx} className="flex items-center justify-between gap-2 text-sm">
+                    <li
+                      key={`${item.serviceId}:${index}`}
+                      className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 text-sm"
+                    >
                       <span>
-                        {svc?.title ?? it.serviceId} × {it.quantity}
+                        {service?.title ?? item.serviceId} × {item.quantity}
                       </span>
                       <Button
                         type="button"
-                        variant="link"
+                        variant="ghost"
                         size="sm"
-                        className="text-destructive text-xs h-auto p-0"
-                        onClick={() => removeFormItem(idx)}
+                        className="text-destructive"
+                        onClick={() => removeFormItem(index)}
                       >
                         Убрать
                       </Button>
@@ -449,51 +667,268 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
                   );
                 })}
               </ul>
-            )}
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="min-w-[10rem] flex-1">
-                <Select value={itemServiceId} onValueChange={(v) => setItemServiceId(v ?? '')}>
+            ) : null}
+            <div className="grid grid-cols-[minmax(0,1fr)_5rem] gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="pkg-service">Услуга</Label>
+                <Select
+                  value={itemServiceId}
+                  onValueChange={(value) => setItemServiceId(value ?? '')}
+                >
                   <SelectTrigger
+                    id="pkg-service"
                     displayLabel={
-                      activeServices.find((s) => s.id === itemServiceId)?.title ?? 'Выберите услугу'
+                      activeServices.find((service) => service.id === itemServiceId)?.title ??
+                      'Выберите услугу'
                     }
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
+                  />
                   <SelectContent>
-                    {activeServices.map((s) => (
-                      <SelectItem key={s.id} value={s.id} label={s.title}>
-                        {s.title}
+                    {activeServices.map((service) => (
+                      <SelectItem key={service.id} value={service.id} label={service.title}>
+                        {service.title}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="w-20">
-                <Label htmlFor="pkg-tpl-qty" className="sr-only">
-                  Количество
-                </Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="pkg-quantity">Сеансов</Label>
                 <Input
-                  id="pkg-tpl-qty"
+                  id="pkg-quantity"
+                  inputMode="numeric"
                   value={itemQuantity}
-                  onChange={(e) => setItemQuantity(e.target.value)}
+                  onChange={(event) => setItemQuantity(event.target.value)}
                   placeholder="1"
                 />
               </div>
-              <Button type="button" variant="secondary" size="sm" onClick={addFormItem}>
-                Добавить позицию
-              </Button>
             </div>
-          </div>
-
-          <div className="mt-4">
-            <Button type="button" size="sm" disabled={formPending} onClick={createPackage}>
-              Создать шаблон
+            <Button type="button" variant="secondary" size="sm" onClick={addFormItem}>
+              Добавить услугу
             </Button>
           </div>
-        </DoctorSection>
-      )}
-    </div>
+        </div>
+      </DoctorModal>
+
+      <DoctorModal
+        open={selectedCatalogPackage != null}
+        onClose={() => setSelectedCatalogPackage(null)}
+        title={
+          <DoctorModalCompositeTitle label="Абонемент" entity={selectedCatalogPackage?.title} />
+        }
+        desktopPresentation="right-sheet"
+        footer={
+          selectedCatalogPackage && !readOnly ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => toggleActive(selectedCatalogPackage)}
+              >
+                {selectedCatalogPackage.isActive ? 'В архив' : 'Вернуть'}
+              </Button>
+              <Button type="button" size="sm" onClick={() => openEditForm(selectedCatalogPackage)}>
+                Изменить
+              </Button>
+            </>
+          ) : null
+        }
+      >
+        {selectedCatalogPackage ? (
+          <div className="flex flex-col gap-4">
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">Стоимость</dt>
+              <dd>
+                {formatPackageMoney(
+                  selectedCatalogPackage.priceMinor,
+                  selectedCatalogPackage.currency,
+                )}
+              </dd>
+              <dt className="text-muted-foreground">Срок действия</dt>
+              <dd>{formatValidityDays(selectedCatalogPackage.validityDays)}</dd>
+              <dt className="text-muted-foreground">Продано</dt>
+              <dd>{selectedCatalogSoldCount ?? 'Загрузка…'}</dd>
+            </dl>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Состав</p>
+              <ul className="m-0 list-none space-y-1 p-0">
+                {selectedCatalogPackage.items.map((item) => {
+                  const service = state.services.find(
+                    (candidate) => candidate.id === item.serviceId,
+                  );
+                  return (
+                    <li
+                      key={item.id}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2 text-sm"
+                    >
+                      <span>{service?.title ?? 'Услуга'}</span>
+                      <span className="text-muted-foreground">
+                        {item.quantity} {pluralizeSessions(item.quantity)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+        ) : null}
+      </DoctorModal>
+
+      <DoctorModal
+        open={soldOpen}
+        onClose={() => {
+          setSoldOpen(false);
+          setSelectedSoldPackage(null);
+        }}
+        title="Проданные абонементы"
+        bodyVariant="list"
+        desktopPresentation="right-sheet"
+        bodyHeader={
+          soldState.phase === 'ready' ? (
+            <DoctorModalSummaryBar>Всего {soldState.packages.length}</DoctorModalSummaryBar>
+          ) : undefined
+        }
+      >
+        {soldState.phase === 'loading' || soldState.phase === 'idle' ? (
+          <DoctorPanelLoading className="py-8" />
+        ) : soldState.phase === 'error' ? (
+          <div className="flex items-center gap-2 px-4 py-4">
+            <p className="text-sm text-destructive">Не удалось загрузить абонементы</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void loadSoldPackages()}
+            >
+              Повторить
+            </Button>
+          </div>
+        ) : soldState.packages.length > 0 ? (
+          <DoctorDnaFlatList>
+            {soldState.packages.map((pkg) => {
+              const totalSessions = soldPackageTotalSessions(pkg);
+              return (
+                <li key={pkg.id}>
+                  <button
+                    type="button"
+                    className={cn(
+                      doctorDnaFlatListRowClass,
+                      doctorDnaFlatListClickableClass,
+                      'grid w-full grid-cols-[minmax(0,1fr)_auto] text-left',
+                    )}
+                    onClick={() => setSelectedSoldPackage(pkg)}
+                  >
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="truncate text-base font-normal text-foreground">
+                        {pkg.patientDisplayName}
+                      </span>
+                      <span className="truncate text-sm text-foreground/80">{pkg.title}</span>
+                      <span className="text-sm text-foreground/80">
+                        Продан {formatPackageDate(pkg.soldAt ?? pkg.createdAt)} · до{' '}
+                        {formatPackageDate(pkg.validUntil)}
+                      </span>
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span className="flex flex-col items-end gap-0.5 text-sm">
+                        <span>{formatPackageMoney(pkg.priceMinor, pkg.currency)}</span>
+                        <span className="text-muted-foreground">
+                          {totalSessions} {pluralizeSessions(totalSessions)}
+                        </span>
+                      </span>
+                      <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </DoctorDnaFlatList>
+        ) : (
+          <DoctorEmptyState>Проданных абонементов нет</DoctorEmptyState>
+        )}
+      </DoctorModal>
+
+      <DoctorModal
+        open={selectedSoldPackage != null}
+        onClose={() => setSelectedSoldPackage(null)}
+        title={
+          <DoctorModalStackedTitle
+            label="Абонемент"
+            patientName={selectedSoldPackage?.patientDisplayName}
+            patientHref={
+              selectedSoldPackage ? patientCardHref(selectedSoldPackage.platformUserId) : null
+            }
+          />
+        }
+        nested
+        desktopPresentation="right-sheet"
+      >
+        {selectedSoldPackage ? (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-base font-medium text-foreground">{selectedSoldPackage.title}</p>
+              <Badge variant="outline">{soldPackageStatusLabel(selectedSoldPackage.status)}</Badge>
+              <Badge variant="secondary">
+                {formatPatientPackageShortLabel(selectedSoldPackage.displayNumber)}
+              </Badge>
+            </div>
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">Продан</dt>
+              <dd>
+                {formatPackageDate(selectedSoldPackage.soldAt ?? selectedSoldPackage.createdAt)}
+              </dd>
+              <dt className="text-muted-foreground">Стоимость</dt>
+              <dd>
+                {formatPackageMoney(selectedSoldPackage.priceMinor, selectedSoldPackage.currency)}
+              </dd>
+              <dt className="text-muted-foreground">Оплата</dt>
+              <dd>{soldPackagePaymentLabel(selectedSoldPackage)}</dd>
+              <dt className="text-muted-foreground">Действует до</dt>
+              <dd>{formatPackageDate(selectedSoldPackage.validUntil)}</dd>
+              <dt className="text-muted-foreground">Использовано</dt>
+              <dd>
+                {selectedSoldTotal - selectedSoldRemaining} из {selectedSoldTotal}
+              </dd>
+              <dt className="text-muted-foreground">Зарезервировано</dt>
+              <dd>{selectedSoldReserved}</dd>
+            </dl>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Состав</p>
+              <ul className="m-0 list-none space-y-1 p-0">
+                {selectedSoldPackage.balance.items.map((item) => (
+                  <li
+                    key={item.patientPackageItemId}
+                    className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2 text-sm"
+                  >
+                    <span>{item.serviceTitle ?? 'Услуга'}</span>
+                    <span className="text-muted-foreground">
+                      осталось {item.displayRemaining} из {item.quantityInitial}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {selectedSoldPackage.notes?.trim() ? (
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Комментарий</p>
+                <p className="whitespace-pre-wrap text-sm text-foreground/80">
+                  {selectedSoldPackage.notes.trim()}
+                </p>
+              </div>
+            ) : null}
+            <div className="border-t border-border/60 pt-4">
+              <PatientPackageSessionsList
+                packageId={selectedSoldPackage.id}
+                apiBase="/api/doctor/booking-engine/patient-packages"
+                mutationsAllowed={!readOnly}
+                nestedModals
+                onChanged={() => void loadSoldPackages()}
+                onError={() => toast.error('Не удалось обновить абонемент')}
+              />
+            </div>
+          </div>
+        ) : null}
+      </DoctorModal>
+    </>
   );
 }
 
@@ -573,7 +1008,9 @@ export function ScheduleSetupTab({
     ? 'packages'
     : resolveSectionId(deepLinkParams.section, sectionVisibility);
   useEffect(() => {
-    setActiveSectionState((prev) => (prev === resolvedExternalSection ? prev : resolvedExternalSection));
+    setActiveSectionState((prev) =>
+      prev === resolvedExternalSection ? prev : resolvedExternalSection,
+    );
   }, [resolvedExternalSection]);
 
   const visibleSections = useMemo(
@@ -599,7 +1036,7 @@ export function ScheduleSetupTab({
   // registration stores the node — a new element every render would re-register forever.
   const mobileSubsectionTabs = useMemo(
     () =>
-      isActive === false ? null : (
+      isActive === false || setupPackagesOnly ? null : (
         <DoctorMobileSectionTabs
           tabs={visibleSections}
           activeTab={activeSection}
@@ -608,50 +1045,50 @@ export function ScheduleSetupTab({
           scrollable
         />
       ),
-    [activeSection, isActive, setActiveSection, visibleSections],
+    [activeSection, isActive, setActiveSection, setupPackagesOnly, visibleSections],
   );
 
   return (
     <div
-      className="-mx-3 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pt-3 pb-3 md:mx-0 md:px-0 md:pt-0"
+      className="-mx-3 min-h-0 flex-1 overflow-y-auto px-3 md:mx-0 md:px-0 [scrollbar-width:thin]"
       data-testid="schedule-setup-tab"
     >
       <DoctorShellMobileSubsectionTabsRegistration content={mobileSubsectionTabs} />
-      {/* Sub-navigation */}
-      {!setupPackagesOnly ? (
-        <nav
-          className="hidden flex-wrap gap-1 md:flex"
-          aria-label="Разделы настройки записи"
-          data-testid="setup-subnav"
-        >
-          {visibleSections.map((sec) => (
-            <Button
-              key={sec.id}
-              type="button"
-              size="sm"
-              variant={activeSection === sec.id ? 'default' : 'outline'}
-              onClick={() => setActiveSection(sec.id)}
-              data-testid={`setup-nav-${sec.id}`}
-            >
-              {sec.label}
-            </Button>
-          ))}
-        </nav>
-      ) : null}
+      <div className="flex flex-col gap-3 py-3">
+        {!setupPackagesOnly ? (
+          <nav
+            className="hidden flex-wrap gap-1 md:flex"
+            aria-label="Разделы настройки записи"
+            data-testid="setup-subnav"
+          >
+            {visibleSections.map((sec) => (
+              <Button
+                key={sec.id}
+                type="button"
+                size="sm"
+                variant={activeSection === sec.id ? 'default' : 'outline'}
+                onClick={() => setActiveSection(sec.id)}
+                data-testid={`setup-nav-${sec.id}`}
+              >
+                {sec.label}
+              </Button>
+            ))}
+          </nav>
+        ) : null}
 
-      {/* Active section content */}
-      <div data-testid={`setup-section-${activeSection}`}>
-        {activeSection === 'locations' && <SectionLocations />}
-        {activeSection === 'services' && <SectionServices />}
-        {activeSection === 'specialists' && <SectionSpecialists />}
-        {activeSection === 'form' && <SectionForm />}
-        {activeSection === 'rules' && <SectionRules />}
-        {activeSection === 'notifications' && notificationTemplatesVisible && (
-          <SectionNotifications />
-        )}
-        {activeSection === 'packages' && packagesVisible && (
-          <SectionPackages readOnly={packagesReadOnly} />
-        )}
+        <div data-testid={`setup-section-${activeSection}`}>
+          {activeSection === 'locations' && <SectionLocations />}
+          {activeSection === 'services' && <SectionServices />}
+          {activeSection === 'specialists' && <SectionSpecialists />}
+          {activeSection === 'form' && <SectionForm />}
+          {activeSection === 'rules' && <SectionRules />}
+          {activeSection === 'notifications' && notificationTemplatesVisible && (
+            <SectionNotifications />
+          )}
+          {activeSection === 'packages' && packagesVisible && (
+            <SectionPackages readOnly={packagesReadOnly} />
+          )}
+        </div>
       </div>
     </div>
   );

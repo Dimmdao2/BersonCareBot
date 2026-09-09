@@ -3,12 +3,10 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import {
   getMechanicMutationAvailability,
   getMechanicSurfaceVisibility,
-  requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getDoctorEffectiveCalendarIana } from '@/modules/doctor-calendar-timezone/doctorCalendarTimezone';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
-import { resolveDoctorWorkspaceComposition } from '@/modules/doctor-workspace/composition';
 import { resolveActiveOwnSpecialistId } from '@/modules/doctor-schedule/scope';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { scheduleTabFromQuery, type ScheduleTabId } from './doctorScheduleTabs';
@@ -54,8 +52,6 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     notificationTemplatesVisibility,
     packagesVisibility,
     packagesMutation,
-    clinicTeamEntitlement,
-    seats,
   ] = await Promise.all([
     getMechanicSurfaceVisibility(workspace, 'payments'),
     getAppDisplayTimeZone(),
@@ -63,14 +59,7 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     getMechanicSurfaceVisibility(workspace, 'branding'),
     getMechanicSurfaceVisibility(workspace, 'subscriptions'),
     getMechanicMutationAvailability(workspace, 'subscriptions'),
-    requireEntitlementForReadAction(workspace, 'clinic_team'),
-    deps.clinicSeats.getSeatStatus(workspace.organizationId, workspace.session.user.userId),
   ]);
-
-  const composition = resolveDoctorWorkspaceComposition({
-    clinicTeamEntitled: clinicTeamEntitlement.ok,
-    seats,
-  });
 
   const initialTimeZone = await getDoctorEffectiveCalendarIana(
     workspace.session.user.userId,
@@ -128,9 +117,9 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
       canManageOrganization={workspace.canManageOrganization}
       paymentsVisible={paymentsVisibility.specialistNavigation}
       notificationTemplatesVisible={notificationTemplatesVisibility.specialistNavigation}
-      packagesVisible={packagesVisibility.specialistNavigation && composition === 'solo'}
-      packagesReadOnly={!packagesMutation.available}
-      showPackagesTab={packagesVisibility.specialistNavigation && composition === 'solo'}
+      packagesVisible={packagesVisibility.specialistNavigation && workspace.canManageOrganization}
+      packagesReadOnly={!packagesMutation.available || !workspace.canManageOrganization}
+      showPackagesTab={packagesVisibility.specialistNavigation && workspace.canManageOrganization}
       scheduleScopeBootstrap={scheduleScopeBootstrap}
       appointmentsManageOwn={workspace.appointmentsManageOwn}
       availabilityManageOwn={workspace.availabilityManageOwn}

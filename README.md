@@ -64,7 +64,7 @@ pnpm run scheduler:dev
 pnpm run typecheck
 pnpm run lint
 pnpm test                 # integrator
-pnpm test:webapp          # webapp (все vitest-project: fast + unit + route + ui)
+pnpm test:webapp          # webapp (все vitest-project: fast + unit + route)
 pnpm run build && pnpm run build:webapp
 ```
 
@@ -81,7 +81,7 @@ cronport-job `bcb-dependency-health`; одинаковые находки пов
 
 В GitHub Actions на **pull request и push** webapp гоняется двумя независимыми job: быстрый шардированный набор
 (`pnpm test:webapp:fast`, project `fast`) и поведенческий набор (`pnpm test:webapp:behavior` — projects `unit` +
-`route` + `ui`); ни один из них не называется `inprocess` — этот project был удалён вместе с disposable-PostgreSQL
+`route`); ни один из них не называется `inprocess` — этот project был удалён вместе с disposable-PostgreSQL
 инфраструктурой (`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`). Локальный полный `pnpm run ci`
 выбирается по непокрытому repo-level риску, а не по названию следующего действия. Политика «не раздувать»
 webapp-тесты: [`AGENTS.md` §11](AGENTS.md#11-webapp-тесты-компактность), подробности —
@@ -127,9 +127,9 @@ webapp-тесты: [`AGENTS.md` §11](AGENTS.md#11-webapp-тесты-компа�
 | `pnpm run typecheck`                        | Typecheck всех workspace-пакетов           |
 | `pnpm run lint`                             | ESLint (integrator + webapp)               |
 | `pnpm test`                                 | Тесты integrator                           |
-| `pnpm test:webapp`                          | Тесты webapp (все project: fast/unit/route/ui) |
+| `pnpm test:webapp`                          | Тесты webapp (все project: fast/unit/route) |
 | `pnpm test:webapp:fast`                     | Webapp, project `fast` (шардируется в CI)  |
-| `pnpm test:webapp:behavior`                 | Webapp, project `unit`+`route`+`ui`        |
+| `pnpm test:webapp:behavior`                 | Webapp, project `unit`+`route`             |
 | `pnpm test:media-worker`                    | Тесты media-worker                         |
 | `pnpm test:error-tracking`                  | Тесты packages/error-tracking              |
 | `pnpm run ci` / `pnpm check`                | Полный пайплайн CI                         |

@@ -71,6 +71,7 @@ export function buildPatientPwaManifest(resolved: ResolvedSurface): MetadataRout
     start_url: '/app/patient',
     scope: '/app',
     display: 'standalone',
+    orientation: 'portrait-primary',
     background_color: '#ffffff',
     theme_color: '#ffffff',
     lang: 'ru',

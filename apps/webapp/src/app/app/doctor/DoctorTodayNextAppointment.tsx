@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { Video } from 'lucide-react';
 import type { TodayNextAppointmentItem } from './loadDoctorTodayDashboard';
 import { patientCardHref } from './patients/patientCardHref';
 import { TodayAppointmentFullModal } from './TodayAppointmentFullModal';
@@ -11,7 +12,7 @@ import {
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
-import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import { formatDoctorFioShortLabel } from '@/shared/lib/fio';
 import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
 import { useActiveCall } from '@/shared/ui/video/ActiveCallCoordinator';
@@ -98,22 +99,24 @@ export function DoctorTodayNextAppointment({ appointment, displayIana, videoMeet
               Детали записи
             </Button>
             {videoCallHref ? (
-              <Link
-                className={buttonVariants({ size: 'sm', className: 'w-full min-w-0' })}
-                href={activeCall?.returnUrl ?? videoCallHref}
+              <Button
+                size="sm"
+                className="min-w-0 flex-1 gap-2"
+                render={<Link href={activeCall?.returnUrl ?? videoCallHref} />}
+                nativeButton={false}
               >
                 {activeCall ? 'Вернуться к звонку' : 'Начать созвон'}
-              </Link>
+                <Video className="size-4 shrink-0" aria-hidden />
+              </Button>
             ) : createVisitHref ? (
-              <Link
-                className={buttonVariants({
-                  size: 'sm',
-                  className: 'w-full min-w-0',
-                })}
-                href={createVisitHref}
+              <Button
+                size="sm"
+                className="min-w-0 flex-1"
+                render={<Link href={createVisitHref} />}
+                nativeButton={false}
               >
                 Начать приём
-              </Link>
+              </Button>
             ) : (
               <Button size="sm" className="min-w-0 flex-1" disabled>
                 Начать приём

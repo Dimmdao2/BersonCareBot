@@ -18,6 +18,7 @@
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:screenOrientation="portrait"
             android:exported="true">
 
             <intent-filter>
@@ -38,6 +39,7 @@
             android:exported="false"
             android:launchMode="singleTask"
             android:resizeableActivity="true"
+            android:screenOrientation="portrait"
             android:supportsPictureInPicture="true"
             android:theme="@style/JitsiMeetActivityStyle"
             android:windowSoftInputMode="adjustResize" />

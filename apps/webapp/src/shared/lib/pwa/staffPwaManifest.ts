@@ -22,6 +22,7 @@ export function buildStaffPwaManifest(resolved: ResolvedSurface): MetadataRoute.
     start_url: '/app/doctor',
     scope: '/app',
     display: 'standalone',
+    orientation: 'portrait-primary',
     background_color: '#ffffff',
     theme_color: '#ffffff',
     lang: 'ru',

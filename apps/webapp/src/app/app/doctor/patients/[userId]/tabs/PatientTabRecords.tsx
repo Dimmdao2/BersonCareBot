@@ -511,12 +511,12 @@ export function PatientTabRecords({
           bodyVariant="list"
           desktopPresentation="right-sheet"
         >
-          <DoctorModalSummaryBar className="flex items-center justify-between gap-3">
+          <DoctorModalSummaryBar className="flex items-start justify-between gap-3">
             <span className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-1">
-              <span className="col-span-2">Будущих {upcomingList.length}</span>
-              <span>Переносов {reschedulesCount}</span>
+              <span className="col-span-2">Будущих записей {upcomingList.length}</span>
               <span>Отмен {cancelsCount}</span>
-              <span className="col-span-2">Поздних отмен {lateCancellationsCount}</span>
+              <span>Поздних {lateCancellationsCount}</span>
+              <span className="col-span-2">Переносов {reschedulesCount}</span>
             </span>
             <span className="flex shrink-0 items-center gap-1">
               <Button
@@ -546,7 +546,7 @@ export function PatientTabRecords({
                   aria-label="Добавить запись"
                   onClick={() => setNewAppointmentModalOpen(true)}
                 >
-                  <CalendarPlus className="size-5" aria-hidden />
+                  <CalendarPlus className="size-6" aria-hidden />
                 </Button>
               ) : null}
             </span>

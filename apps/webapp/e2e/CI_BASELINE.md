@@ -16,7 +16,7 @@ pnpm test:webapp:fast -- --reporter=verbose 2>&1 | tee /tmp/webapp-fast-verbose.
 VITEST_SHARD=1/3 pnpm test:webapp:fast -- --reporter=verbose 2>&1 | tee /tmp/webapp-fast-shard1.log
 ```
 
-Поведенческий набор (projects `unit`+`route`+`ui`, job `test-webapp-behavior` в GHA — гоняется на каждом push и PR,
+Поведенческий набор (projects `unit`+`route`, job `test-webapp-behavior` в GHA — гоняется на каждом push и PR,
 не только на `main`):
 
 ```bash

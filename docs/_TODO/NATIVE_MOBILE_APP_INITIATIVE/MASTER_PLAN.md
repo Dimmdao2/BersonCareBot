@@ -37,6 +37,9 @@ scope). Открытые owner-развилки собраны одним лис
    навигации справа показан компактный индикатор активного звонка с камерой и мягко пульсирующей точкой; нажатие
    возвращает на точный URL текущего звонка. Пока звонок активен, начало другого звонка через обычный UI недоступно.
    Десктопный layout этим этапом не перерабатывается.
+10. Владелец уточнил 2026-09-09 ориентацию: оба Android Capacitor-приложения всегда остаются в портретном режиме;
+    обе PWA объявляют `portrait-primary` как предпочтительную ориентацию. Для PWA это browser/OS preference, а не
+    обещание жёсткой блокировки на каждом браузере.
 
 ## 2. Superseded direction
 
@@ -201,6 +204,10 @@ Scope: `apps/webapp/src/shared/lib/pwa/**`, `shared/lib/surface/surfaceLayoutMet
       Доказательство: product/corrections `d54b34775`, `4e6a5b188`, `312ef14e3`; независимые acceptance-тесты
       `44b494331` после отклонённого первичного PASS `2a49acab0`; retained PWA native-shell `6/6`, общий набор
       `5 files / 71 tests`, typecheck и scoped ESLint PASS; port landing `4d84fb260`.
+- [x] **M1-08.** Patient-default, patient-branded и staff manifest объявляют `orientation=portrait-primary`,
+      сохраняя прежние `id`, `scope`, `start_url`, имена и наборы иконок. Доказательство 09.09.2026: targeted
+      manifest suites — `2 files / 6 tests PASS`; живые patient/staff manifest на общем DEV `:5200` вернули
+      `portrait-primary` вместе с прежними `/app` id/scope и `/app/patient` / `/app/doctor` start URL.
 
 ### M2 — reproducible shared Android/Capacitor shell
 
@@ -251,6 +258,12 @@ Scope: `apps/mobile-shell/**`, `pnpm-workspace.yaml`, root workspace wiring, bui
 - [x] **M2-08.** README содержит точные команды sync/build, расположение APK, требования JDK/Android SDK и процесс
       создания RuStore signing artifact без приватного ключа в repository. Доказательство: audited README и
       reproduced commands/artifacts `49f584040`, landing `d7f99340c`.
+- [x] **M2-09.** `MainActivity`, нативный Jitsi и экран съёмки в обоих brand×environment variants зафиксированы
+      в портретной ориентации. Доказательство 09.09.2026: Gradle-задачи
+      `processTherapygoEnvironmentTestDebugMainManifest`, `processTherapygoProductionDebugMainManifest`,
+      `processTherapystoEnvironmentTestDebugMainManifest`, `processTherapystoProductionDebugMainManifest`
+      завершились `BUILD SUCCESSFUL`; все четыре merged manifest содержат `screenOrientation=portrait` для трёх
+      activity. Mobile-shell typecheck и scoped ESLint — PASS.
 
 ### M3 — one typed NativeRuntime boundary in webapp
 
@@ -478,14 +491,15 @@ authority нельзя: он частично отменён владельце�
       mount теста и сузил оставшиеся до конечного поведения; targeted web `6 files / 17 tests`, webapp/mobile-shell
       typecheck и scoped lint, NativeJitsi/UniversalPush tests во всех четырёх Android variants — PASS.
 - [ ] **M7-03.** Оба TEST APK variants собираются на Linux (зависит от `M2-00`). Browser/PWA live acceptance
-      покрывает install metadata обеих поверхностей, file fallback и iframe
+      покрывает install metadata и `portrait-primary` обеих поверхностей, file fallback и iframe
       Jitsi — это выполнимо в репозитории и на именованном DEV/TEST без внешних гейтов. Свежий проход `e40904b37`
       доказал обе TEST APK, обычный вход пациента кодом и врача паролем, browser media fallback и один self-hosted Jitsi iframe.
       Clinic-brand identity на стандартном TEST tenant-поддомене принята отдельно в M1-04; это не custom-domain acceptance.
       Строка остаётся открытой только потому, что прежний
       headless-проход не отдал OS chooser/internal navigation/terminal callback.
 - [ ] **M7-04.** Первичная Android acceptance на эмуляторе покрывает origins/внешние ссылки, камеру, документы,
-      native Jitsi, состояния разрешений и tap уведомления с подставным провайдером. Проверка на физическом
+      запрет landscape для основного WebView/камеры/native Jitsi, состояния разрешений и tap уведомления с
+      подставным провайдером. Проверка на физическом
       устройстве относится к отдельному owner release-stage после завершения интерфейса и не блокирует эту строку
       или готовность текущего плана. KVM/NAT подняты и гость достигает оба TEST host, но API 36 image стабильно
       падает в `com.android.systemui` ANR; отчёт `7bf5613eb`, landing `e94465518`. Найденный до ANR отдельный

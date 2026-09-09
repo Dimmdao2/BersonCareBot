@@ -25,7 +25,10 @@ import {
   doctorSecondaryListTextClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { SpecialistTaskFormDialog } from './SpecialistTaskFormDialog';
-import { formatSpecialistTaskWhen } from './SpecialistTaskRow';
+import {
+  formatSpecialistTaskWhen,
+  getSpecialistTaskPatientContextContent,
+} from './SpecialistTaskRow';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Props = {
@@ -34,6 +37,7 @@ type Props = {
   task: SpecialistTaskRow | null;
   patientDisplayName?: string;
   patientOnSupport?: boolean;
+  patientVariant?: 'link' | 'context';
   displayIana?: string;
   canMutate: boolean;
   busy?: boolean;
@@ -91,6 +95,11 @@ export function SpecialistTaskDetailsContent({
   const reminderPassed = !Number.isNaN(reminderAtMs) && reminderAtMs < nowMs;
   const overdueDays = overdue ? getOverdueDays(task.dueAt, nowMs, displayIana) : null;
   const overdueLabel = `Просрочено${overdueDays == null ? '' : ` ${formatDaysRu(overdueDays)}`}`;
+  const patientContextContent = getSpecialistTaskPatientContextContent(task, patientDisplayName);
+  const visibleTitle = showPatient ? task.title : patientContextContent.title;
+  const visibleDescription = showPatient
+    ? task.description?.trim() || null
+    : patientContextContent.description;
 
   return (
     <div className="flex flex-col gap-3">
@@ -107,28 +116,19 @@ export function SpecialistTaskDetailsContent({
       ) : null}
       <div>
         <p className={doctorSecondaryListTextClass}>Задача</p>
-        <p className={cn(doctorBodyTextClass, 'font-medium')}>{task.title}</p>
+        <p className={cn(doctorBodyTextClass, 'font-medium')}>{visibleTitle}</p>
       </div>
-      {task.description?.trim() ? (
+      {visibleDescription ? (
         <div>
           <p className={doctorSecondaryListTextClass}>Описание</p>
-          <p className={cn(doctorBodyTextClass, 'whitespace-pre-wrap')}>
-            {task.description.trim()}
-          </p>
+          <p className={cn(doctorBodyTextClass, 'whitespace-pre-wrap')}>{visibleDescription}</p>
         </div>
       ) : null}
       {dueLabel ? (
         <div>
           <p className={doctorSecondaryListTextClass}>Срок</p>
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            <p
-              className={cn(
-                doctorBodyTextClass,
-                overdue && 'text-destructive',
-              )}
-            >
-              {dueLabel}
-            </p>
+            <p className={cn(doctorBodyTextClass, overdue && 'text-destructive')}>{dueLabel}</p>
             {overdue ? (
               <p className={cn(doctorBodyTextClass, 'font-medium text-destructive')}>
                 {overdueLabel}
@@ -138,9 +138,7 @@ export function SpecialistTaskDetailsContent({
             ) : null}
           </div>
           {task.isImportant ? (
-            <p className={cn(doctorBodyTextClass, 'mt-0.5 font-medium text-destructive')}>
-              Важно!
-            </p>
+            <p className={cn(doctorBodyTextClass, 'mt-0.5 font-medium text-destructive')}>Важно!</p>
           ) : null}
         </div>
       ) : task.isImportant ? (
@@ -166,6 +164,7 @@ export function SpecialistTaskDetailsDialog({
   task,
   patientDisplayName,
   patientOnSupport = false,
+  patientVariant = 'link',
   displayIana,
   canMutate,
   busy = false,
@@ -208,6 +207,7 @@ export function SpecialistTaskDetailsDialog({
           }
           patientHref={task?.patientUserId ? patientCardHref(task.patientUserId) : null}
           patientOnSupport={patientOnSupport}
+          patientVariant={patientVariant}
         />
       }
       size="sm"
@@ -235,6 +235,7 @@ export function SpecialistTaskDetailsDialog({
       {task ? (
         <SpecialistTaskDetailsContent
           task={task}
+          patientDisplayName={patientDisplayName}
           showPatient={false}
           displayIana={displayIana}
           error={error}
@@ -248,6 +249,7 @@ export function SpecialistTaskDetailsDialog({
           editing={task}
           patientDisplayName={patientDisplayName}
           patientOnSupport={patientOnSupport}
+          patientVariant={patientVariant}
           onSaved={(savedTask, savedPatientDisplayName) => {
             onTaskSaved(savedTask, savedPatientDisplayName ?? patientDisplayName);
             setEditOpen(false);

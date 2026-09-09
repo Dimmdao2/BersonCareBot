@@ -16,6 +16,7 @@ import type { AnalyticsPeriodValue } from '@/app/app/doctor/analytics/clients/an
 import { buildAdminStatsQuery } from '@/app/app/doctor/analytics/clients/analyticsPeriodUi';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 
 type Props = {
   open: boolean;
@@ -142,7 +143,7 @@ export function MetricAccountsDialog({
         <div className="max-h-[65vh] overflow-y-auto pr-1">
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           {!error && items.length === 0 && !loading ? (
-            <p className="text-sm text-muted-foreground">Нет данных по метрике.</p>
+            <DoctorEmptyState>Нет данных по метрике.</DoctorEmptyState>
           ) : null}
           <ul className="space-y-2">
             {items.map((item, idx) => (

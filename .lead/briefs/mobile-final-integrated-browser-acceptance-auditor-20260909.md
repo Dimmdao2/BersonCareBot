@@ -31,7 +31,10 @@
 
 ## Live browser acceptance
 
-Запустить candidate по канону на свободном изолированном порту из диапазона `5210–5219`. Допустима только ссылка на штатный `.env` по канону; секреты не читать и не печатать. Входить обычными owner DEV-учётками. Не занимать общий `5200`, не трогать PROD, не запускать provider delivery, миграции или реальные upload side effects.
+Не запускать candidate Next или production Next. После независимой кодовой приёмки и landing exact candidate в
+`feat/doctor-ui-rebuild` выполнить live-проверку на единственном общем Turbopack `127.0.0.1:5200` в выделенное
+окно. Секреты не читать и не печатать; входить обычными owner DEV-учётками. Не перезапускать общий server, не
+трогать PROD, не запускать provider delivery, миграции или реальные upload side effects.
 
 ### File fallback
 

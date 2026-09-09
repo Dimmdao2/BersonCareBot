@@ -50,7 +50,6 @@ const APPS = [
       { suffix: '.unit.test.ts', project: 'unit' },
       { suffix: '.unit.test.tsx', project: 'unit' },
       { suffix: '.route.test.ts', project: 'route' },
-      { suffix: '.ui.test.tsx', project: 'ui' },
       // Legacy read-only DEV-DB smoke files (§10 «Dev-DB opt-in smoke-тесты») are opt-in and not
       // wired into any named project by design; routing does not apply to them.
       { suffix: '.devDb.integration.test.ts', project: null },

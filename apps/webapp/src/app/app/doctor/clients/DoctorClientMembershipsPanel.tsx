@@ -60,7 +60,9 @@ type SaleResult = {
  * handing it the wrong question.
  */
 function newSaleIdempotencyKey(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `sale-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return (
+    globalThis.crypto?.randomUUID?.() ?? `sale-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
 }
 
 function notifyPackagesChanged() {
@@ -107,8 +109,8 @@ const ERROR_LABELS: Record<string, string> = {
   payment_provider_unavailable: 'Платёжный провайдер не настроен.',
   payments_unavailable: 'Платёжный модуль недоступен.',
   memberships_unavailable: 'Модуль абонементов недоступен.',
-  catalog_package_not_found: 'Шаблон абонемента не найден.',
-  catalog_not_found: 'Шаблон абонемента не найден.',
+  catalog_package_not_found: 'Абонемент не найден.',
+  catalog_not_found: 'Абонемент не найден.',
   sale_link_requires_price: 'Ссылку на оплату нельзя выставить на нулевую цену.',
   sale_cash_requires_price: 'Для наличной продажи нужна цена больше нуля.',
   sale_free_requires_zero_price: 'Бесплатная выдача возможна только при нулевой цене.',
@@ -209,17 +211,20 @@ export function DoctorClientMembershipsPanel({
   const catalogApi = '/api/doctor/booking-engine/packages';
   const today = DateTime.now().toFormat('yyyy-MM-dd');
 
-  const showError = useCallback((code: string | null) => {
-    if (!code) {
-      setError(null);
-      return;
-    }
-    setError(
-      code === 'chat_send_failed'
-        ? `Не удалось отправить ссылку в чат ${patientGenitive}.`
-        : (ERROR_LABELS[code] ?? code),
-    );
-  }, [patientGenitive]);
+  const showError = useCallback(
+    (code: string | null) => {
+      if (!code) {
+        setError(null);
+        return;
+      }
+      setError(
+        code === 'chat_send_failed'
+          ? `Не удалось отправить ссылку в чат ${patientGenitive}.`
+          : (ERROR_LABELS[code] ?? code),
+      );
+    },
+    [patientGenitive],
+  );
 
   const loadPackages = useCallback(async () => {
     try {
@@ -377,9 +382,7 @@ export function DoctorClientMembershipsPanel({
       ...(method === 'link'
         ? {}
         : {
-            soldAt: soldAtDate
-              ? new Date(soldAtDate).toISOString()
-              : new Date().toISOString(),
+            soldAt: soldAtDate ? new Date(soldAtDate).toISOString() : new Date().toISOString(),
           }),
     };
   }
@@ -571,12 +574,12 @@ export function DoctorClientMembershipsPanel({
             <div className="mt-3 flex flex-col gap-2">
               {catalog.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Нет шаблонов — создайте в{' '}
-                  <span className="font-medium">Расписание → Настройки → Абонементы (шаблоны)</span>
+                  Нет абонементов — создайте в{' '}
+                  <span className="font-medium">Календарь → Абонементы</span>
                 </p>
               ) : (
                 <>
-                  <Label htmlFor="pkg-catalog">Шаблон</Label>
+                  <Label htmlFor="pkg-catalog">Абонемент</Label>
                   <Select value={catalogId} onValueChange={(v) => setCatalogId(v ?? '')}>
                     <SelectTrigger
                       id="pkg-catalog"
