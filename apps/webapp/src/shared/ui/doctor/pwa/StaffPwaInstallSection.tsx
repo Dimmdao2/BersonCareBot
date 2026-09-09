@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { isNativeShellActive } from '@/shared/lib/nativeShellRuntime';
 import {
   isStaffPwaInstallComplete,
   markStaffPwaInstalled,
@@ -46,8 +47,10 @@ export function StaffPwaInstallSection() {
       setDeferredPrompt(null);
     };
 
-    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
-    window.addEventListener('appinstalled', onAppInstalled);
+    if (!isNativeShellActive()) {
+      window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+      window.addEventListener('appinstalled', onAppInstalled);
+    }
 
     const t = window.setTimeout(() => {
       setMounted(true);
@@ -69,7 +72,7 @@ export function StaffPwaInstallSection() {
     setDeferredPrompt(null);
   }, [deferredPrompt]);
 
-  const done = isStaffPwaInstallComplete(installedAck);
+  const done = isStaffPwaInstallComplete(installedAck) || isNativeShellActive();
 
   if (!mounted) return <div className="min-h-[5.5rem]" aria-hidden />;
 

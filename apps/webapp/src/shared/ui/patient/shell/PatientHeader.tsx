@@ -13,6 +13,7 @@ import { patientNavByPlatform, type HeaderIconId } from '@/app-layer/routes/navi
 import { cn } from '@/lib/utils';
 import { PATIENT_OVERLAY_PANEL_WIDTH_CLASS } from '@/shared/ui/patient/pwaLayoutClasses';
 import { usePlatform } from '@/shared/hooks/usePlatform';
+import { LogoutForm } from '@/shared/ui/LogoutForm';
 import { usePatientSupportUnreadCount } from '@/modules/messaging/hooks/useSupportUnreadPolling';
 import { PatientNavCountBadge } from '@/shared/ui/patient/PatientNavCountBadge';
 import { PatientNotificationInboxButton } from '@/shared/ui/patient/shell/PatientNotificationInboxButton';
@@ -301,7 +302,7 @@ export function PatientHeader({
               {nav.showLogout ? (
                 <>
                   <Separator className="my-2" />
-                  <form action="/api/auth/logout" method="post" className="w-full">
+                  <LogoutForm className="w-full">
                     <Button
                       type="submit"
                       variant="ghost"
@@ -311,7 +312,7 @@ export function PatientHeader({
                     >
                       Выйти
                     </Button>
-                  </form>
+                  </LogoutForm>
                 </>
               ) : null}
             </nav>

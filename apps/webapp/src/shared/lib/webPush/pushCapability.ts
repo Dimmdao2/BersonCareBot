@@ -1,4 +1,5 @@
 import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
+import { isNativeShellActive } from '@/shared/lib/nativeShellRuntime';
 import { isStandalonePwa } from '@/shared/lib/webPush/pwaDisplay';
 import { isAndroidDevice, isIosTouchDevice } from '@/shared/lib/webPush/pushPlatform';
 import { registerPatientServiceWorker } from '@/shared/lib/webPush/registerPatientServiceWorker';
@@ -36,9 +37,12 @@ function registrationHasPushManager(reg: ServiceWorkerRegistration): boolean {
   return 'pushManager' in reg && reg.pushManager != null;
 }
 
-/** Регистрация SW + probe pushManager (iOS PWA, Android). */
+/**
+ * Registration + pushManager probe (iOS PWA, Android). Native shell never has browser PushManager/VAPID —
+ * it uses the separate native-push client (`shared/lib/nativePush/`) instead, so this stays `false` there.
+ */
 export async function probePushSupported(): Promise<boolean> {
-  if (isMessengerMiniAppHost()) return false;
+  if (isMessengerMiniAppHost() || isNativeShellActive()) return false;
   if (!hasNotificationAndServiceWorker()) return false;
   if ('PushManager' in window) return true;
   const reg = await getServiceWorkerRegistration();
@@ -46,7 +50,7 @@ export async function probePushSupported(): Promise<boolean> {
 }
 
 export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
-  if (isMessengerMiniAppHost()) return null;
+  if (isMessengerMiniAppHost() || isNativeShellActive()) return null;
   if (!('serviceWorker' in navigator)) return null;
 
   try {
@@ -72,7 +76,7 @@ export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegis
 }
 
 export async function getExistingPushSubscription(): Promise<PushSubscription | null> {
-  if (isMessengerMiniAppHost()) return null;
+  if (isMessengerMiniAppHost() || isNativeShellActive()) return null;
   if (!hasNotificationAndServiceWorker()) return null;
   try {
     const reg = await getServiceWorkerRegistration();
