@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Therapy Go</string>
-    <string name="title_activity_main">Therapy Go</string>
+    <string name="app_name">TherapyGo</string>
+    <string name="title_activity_main">TherapyGo</string>
     <string name="package_name">ru.therapygo.app</string>
     <string name="custom_url_scheme">ru.therapygo.app</string>
 </resources>

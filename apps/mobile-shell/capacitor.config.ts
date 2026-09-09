@@ -7,7 +7,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  */
 const config: CapacitorConfig = {
   appId: 'ru.therapygo.app',
-  appName: 'Therapy Go',
+  appName: 'TherapyGo',
   webDir: 'www',
   loggingBehavior: 'debug',
   server: {
