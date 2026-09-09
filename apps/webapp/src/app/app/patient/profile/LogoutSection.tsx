@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/shared/ui/patient/primitives/button';
+import { LogoutForm } from '@/shared/ui/LogoutForm';
 import { cn } from '@/lib/utils';
 import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
 
@@ -22,7 +23,7 @@ export function LogoutSection() {
 
   return (
     <section className="mt-4 flex flex-col gap-4">
-      <form action="/api/auth/logout" method="post">
+      <LogoutForm>
         <Button
           type="submit"
           variant="outline"
@@ -32,7 +33,7 @@ export function LogoutSection() {
         >
           Выйти из профиля
         </Button>
-      </form>
+      </LogoutForm>
     </section>
   );
 }

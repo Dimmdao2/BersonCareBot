@@ -6,12 +6,20 @@
  */
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { PlatformEntry, PlatformMode } from '@/shared/lib/platform';
-import { DESKTOP_BREAKPOINT, serializePlatformCookie } from '@/shared/lib/platform';
+import type { PlatformEntry, PlatformMode, NativeRuntimeSnapshot } from '@/shared/lib/platform';
+import { BROWSER_NATIVE_RUNTIME, DESKTOP_BREAKPOINT, serializePlatformCookie } from '@/shared/lib/platform';
 import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
+import { detectNativeRuntimeSnapshot, isNativeShellActive } from '@/shared/lib/nativeShellRuntime';
 import { PATIENT_DEFAULT_SURFACE_NAME } from '@/config/productSurfaceNames';
 
 export const PlatformContext = createContext<PlatformMode>('mobile');
+
+/**
+ * NativeRuntime (M3-01/M3-02) rides the same, single `PlatformProvider` mount point as `PlatformMode`
+ * instead of a parallel global provider — `PlatformMode` (bot|mobile|desktop) stays orthogonal to native
+ * kind (`AGENTS.md` §5 "один общий проход"). Safe default until the async adapter confirms native.
+ */
+export const NativeRuntimeContext = createContext<NativeRuntimeSnapshot>(BROWSER_NATIVE_RUNTIME);
 
 /**
  * Видимое имя продукта для ТЕКУЩЕЙ поверхности запроса (TPB-08/TPB-09), протянутое в
@@ -46,7 +54,19 @@ function initialModeFromHint(hint: PlatformEntry): PlatformMode {
 
 export function PlatformProvider({ serverHint, surfaceName, children }: Props) {
   const [mode, setMode] = useState<PlatformMode>(() => initialModeFromHint(serverHint));
+  const [nativeRuntime, setNativeRuntime] = useState<NativeRuntimeSnapshot>(BROWSER_NATIVE_RUNTIME);
   const syncedEntryRef = useRef<PlatformEntry | null>(null);
+
+  useEffect(() => {
+    if (!isNativeShellActive()) return;
+    let cancelled = false;
+    void detectNativeRuntimeSnapshot().then((snapshot) => {
+      if (!cancelled) setNativeRuntime(snapshot);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,7 +103,9 @@ export function PlatformProvider({ serverHint, surfaceName, children }: Props) {
 
   return (
     <SurfaceNameContext.Provider value={surfaceName}>
-      <PlatformContext.Provider value={mode}>{children}</PlatformContext.Provider>
+      <PlatformContext.Provider value={mode}>
+        <NativeRuntimeContext.Provider value={nativeRuntime}>{children}</NativeRuntimeContext.Provider>
+      </PlatformContext.Provider>
     </SurfaceNameContext.Provider>
   );
 }

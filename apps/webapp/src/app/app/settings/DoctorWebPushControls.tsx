@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { useNativeRuntime } from '@/shared/hooks/useNativeRuntime';
 import { fetchStaffWebPushStatus } from '@/shared/lib/webPush/staffWebPushApi';
 import {
   restoreStaffWebPushSubscription,
@@ -12,6 +13,11 @@ import {
 import { unsubscribeAllStaffWebPush } from '@/shared/lib/webPush/staffWebPushApi';
 import { probePushSupported } from '@/shared/lib/webPush/pushCapability';
 import { webPushSubscribeFailureMessage } from '@/shared/lib/webPush/webPushSubscribeFeedback';
+import { fetchNativePushStatus } from '@/shared/lib/nativePush/nativePushApi';
+import {
+  disableNativePushSubscription,
+  enableNativePushSubscription,
+} from '@/shared/lib/nativePush/nativePushClient';
 
 type Props = {
   initialHasSubscription: boolean;
@@ -20,6 +26,8 @@ type Props = {
 
 export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEnabled }: Props) {
   const router = useRouter();
+  const runtime = useNativeRuntime();
+  const isNative = runtime.kind === 'therapysto_android';
   const [hasSubscription, setHasSubscription] = useState(initialHasSubscription);
   const [globalEnabled, setGlobalEnabled] = useState(initialGlobalEnabled);
   const [busy, setBusy] = useState(false);
@@ -30,12 +38,41 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
   }, [initialHasSubscription, initialGlobalEnabled]);
 
   const refreshStatus = useCallback(async () => {
+    if (isNative) {
+      const status = await fetchNativePushStatus('therapysto_android');
+      setHasSubscription(Boolean(status?.active));
+      setGlobalEnabled(status?.runtime !== 'unavailable');
+      return;
+    }
     const status = await fetchStaffWebPushStatus();
     setHasSubscription(Boolean(status.hasSubscription));
     setGlobalEnabled(status.globalWebPushEnabled !== false);
-  }, []);
+  }, [isNative]);
+
+  // Native runtime resolves asynchronously; re-check once confirmed instead of trusting server-rendered browser props.
+  useEffect(() => {
+    if (isNative) void refreshStatus();
+  }, [isNative, refreshStatus]);
 
   const onEnable = useCallback(async () => {
+    if (isNative) {
+      setBusy(true);
+      try {
+        const result = await enableNativePushSubscription('therapysto_android');
+        if (result.ok) {
+          await refreshStatus();
+          router.refresh();
+          toast.success('Push включён');
+          return;
+        }
+        toast.error(webPushSubscribeFailureMessage(result.reason));
+      } catch {
+        toast.error('Ошибка');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (!(await probePushSupported())) {
       toast.error('Уведомления не поддерживаются');
       return;
@@ -55,9 +92,13 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
     } finally {
       setBusy(false);
     }
-  }, [refreshStatus, router]);
+  }, [isNative, refreshStatus, router]);
 
   const onRestore = useCallback(async () => {
+    if (isNative) {
+      // Native token is already tracked by the resume/token listener (M3-03); re-run the same enable flow.
+      return onEnable();
+    }
     setBusy(true);
     try {
       const result = await restoreStaffWebPushSubscription();
@@ -71,12 +112,14 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
     } finally {
       setBusy(false);
     }
-  }, [refreshStatus, router]);
+  }, [isNative, onEnable, refreshStatus, router]);
 
   const onDisable = useCallback(async () => {
     setBusy(true);
     try {
-      const ok = await unsubscribeAllStaffWebPush();
+      const ok = isNative
+        ? await disableNativePushSubscription('therapysto_android')
+        : await unsubscribeAllStaffWebPush();
       if (ok) {
         await refreshStatus();
         router.refresh();
@@ -85,7 +128,7 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
     } finally {
       setBusy(false);
     }
-  }, [refreshStatus, router]);
+  }, [isNative, refreshStatus, router]);
 
   const pushActive = hasSubscription && globalEnabled;
 

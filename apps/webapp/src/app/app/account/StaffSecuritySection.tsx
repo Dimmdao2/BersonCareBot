@@ -9,6 +9,7 @@ import {
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { LogoutForm } from '@/shared/ui/LogoutForm';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
@@ -233,7 +234,7 @@ export function StaffSecuritySection(props: Props) {
           </div>
           {/* Desktop hides DoctorHeader/DoctorAdminSidebar (no clinical/org capability yet) while this
             checklist is incomplete, so a stuck first-run account otherwise has no way to sign out. */}
-          <form action="/api/auth/logout" method="post" className="mt-2">
+          <LogoutForm className="mt-2">
             <Button
               type="submit"
               size="sm"
@@ -242,7 +243,7 @@ export function StaffSecuritySection(props: Props) {
             >
               Выйти
             </Button>
-          </form>
+          </LogoutForm>
         </DoctorSection>
       ) : null}
 

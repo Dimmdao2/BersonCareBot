@@ -16,6 +16,23 @@
 - В production cookie: `SameSite=None; Secure` (iframe Mini App). В dev на http: `Lax` без `Secure`.
 - **Клиентский fallback**: если Mini App открылся без предварительной cookie бота, [PlatformProvider.tsx](../ui/PlatformProvider.tsx) может записать её через `serializePlatformBotCookie()` ([platform.ts](platform.ts)) после детекта хоста/SDK.
 
+## NativeRuntime (M3)
+
+Отдельный, ортогональный `PlatformMode` факт: `browser` | `therapygo_android` | `therapysto_android` +
+`version` + `capabilities {jitsi,media,push}`. Едет тем же единственным `PlatformProvider`
+(`NativeRuntimeContext`, хук `useNativeRuntime()` в [useNativeRuntime.ts](../hooks/useNativeRuntime.ts)) —
+второго глобального provider нет. Единственный адаптер, читающий `window.Capacitor`/`ShellRuntime`/
+`UniversalPush`, — [nativeShellRuntime.ts](nativeShellRuntime.ts); он валидирует JSON рантайма и
+маппит shell `brand` в закрытый `kind`, откатываясь в `browser` без белого экрана при отсутствующем
+plugin, отклонении или недоверенной странице. Runtime-факты — только presentation/capability, они
+никогда не авторизуют роль/организацию/доступ (`AGENTS.md` §5, `MASTER_PLAN.md` M3-02).
+
+`isNativeShellActive()` (синхронный, не gated trust-origin) используется PWA/service-worker/install
+шлюзами (M1-07) — `registerPatientServiceWorker`, `LandingPwaClientBootstrap`, `StaffPwaBootstrap`,
+`PwaInstallSection`, `StaffPwaInstallSection`, `pushCapability.ts` — чтобы не регистрировать `/sw.js`,
+не подписываться на `beforeinstallprompt` и не создавать browser `PushManager`/VAPID подписки внутри
+Capacitor. Native Universal Push client — `shared/lib/nativePush/`.
+
 ## Навигация пациента
 
 Декларативные конфиги по `PlatformMode`: [app-layer/routes/navigation.ts](../../app-layer/routes/navigation.ts) (`patientNavByPlatform`, primary nav). Состав блоков главной «Сегодня» задаётся в БД (`patient_home_blocks`), не в этом файле.

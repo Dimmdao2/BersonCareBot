@@ -1,11 +1,37 @@
 /**
- * Платформенный контекст: типы и константы для cookie и breakpoints.
+ * Платформенный контекст: типы и константы для cookie, breakpoints и NativeRuntime.
  * См. platform.md.
  */
 
 export type PlatformEntry = 'bot' | 'standalone';
 
 export type PlatformMode = 'bot' | 'mobile' | 'desktop';
+
+/**
+ * NativeRuntime (M3-01/M3-02): закрытый набор фактов о среде выполнения — presentation/capability
+ * факты, НИКОГДА не источник роли/организации/доступа (проверки авторизации им не доверяют).
+ * `PlatformMode` выше остаётся ортогональным: bot/mobile/desktop не смешивается с native kind.
+ */
+export type NativeRuntimeKind = 'browser' | 'therapygo_android' | 'therapysto_android';
+
+export type NativeRuntimeCapabilities = {
+  jitsi: boolean;
+  media: boolean;
+  push: boolean;
+};
+
+export type NativeRuntimeSnapshot = {
+  kind: NativeRuntimeKind;
+  version: string | null;
+  capabilities: NativeRuntimeCapabilities;
+};
+
+/** Safe default: до подтверждения из `nativeShellRuntime.ts` и когда plugin/origin недоверенный. */
+export const BROWSER_NATIVE_RUNTIME: NativeRuntimeSnapshot = {
+  kind: 'browser',
+  version: null,
+  capabilities: { jitsi: false, media: false, push: false },
+};
 
 export const PLATFORM_COOKIE_NAME = 'bersoncare_platform';
 

@@ -6,6 +6,7 @@ import { DoctorScreensToggleSection } from '@/app/app/settings/DoctorScreensTogg
 import { SettingsForm } from '@/app/app/settings/SettingsForm';
 import { loadStaffNotificationsSection } from '@/app/app/account/staffNotificationsSection';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { LogoutForm } from '@/shared/ui/LogoutForm';
 import { StaffPwaInstallSection } from '@/shared/ui/doctor/pwa/StaffPwaInstallSection';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -55,11 +56,11 @@ function LogoutSection() {
       <DoctorSectionHeader>
         <DoctorSectionTitle>Сеанс</DoctorSectionTitle>
       </DoctorSectionHeader>
-      <form action="/api/auth/logout" method="post">
+      <LogoutForm>
         <Button type="submit" variant="destructive">
           Выйти
         </Button>
-      </form>
+      </LogoutForm>
     </DoctorSection>
   );
 }

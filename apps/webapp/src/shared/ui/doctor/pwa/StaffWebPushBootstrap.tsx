@@ -4,12 +4,17 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchStaffWebPushStatus } from '@/shared/lib/webPush/staffWebPushApi';
 import { restoreStaffWebPushSubscription } from '@/shared/lib/webPush/subscribeStaffWebPush';
+import { useNativePushLifecycle } from '@/shared/lib/nativePush/useNativePushLifecycle';
 
 const SW_MESSAGE_TYPE = 'WEB_PUSH_SUBSCRIPTION_CHANGE';
 
-/** Auto-restore staff push subscription after pushsubscriptionchange (same SW as patient). */
+/**
+ * Auto-restore staff push subscription after pushsubscriptionchange (same SW as patient) — inert in
+ * Capacitor since the native shell never registers that SW. Native-push lifecycle runs in parallel (M3-03).
+ */
 export function StaffWebPushBootstrap() {
   const router = useRouter();
+  useNativePushLifecycle();
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;

@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { routePaths } from '@/app-layer/routes/paths';
 import { Button } from '@/shared/ui/patient/primitives/button';
+import { useNativeRuntime } from '@/shared/hooks/useNativeRuntime';
 import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
+import { isNativeShellActive } from '@/shared/lib/nativeShellRuntime';
 import { isStandalonePwa } from '@/shared/lib/webPush/pwaDisplay';
+import { registerPatientServiceWorker } from '@/shared/lib/webPush/registerPatientServiceWorker';
 import { useSurfaceName } from '@/shared/ui/PlatformProvider';
 import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 
@@ -34,6 +36,9 @@ function isLikelySafariNotChromium(): boolean {
 export function PwaInstallSection({ notificationControls }: { notificationControls?: ReactNode }) {
   const surfaceName = useSurfaceName();
   const { patientGenitive } = usePatientTerms();
+  const nativeRuntime = useNativeRuntime();
+  // Sync check avoids a one-frame race with the async ShellRuntime-confirmed context value.
+  const isNative = nativeRuntime.kind !== 'browser' || isNativeShellActive();
   const [mounted, setMounted] = useState(false);
   const [isIos, setIsIos] = useState(false);
   const [isSafari, setIsSafari] = useState(false);
@@ -42,6 +47,8 @@ export function PwaInstallSection({ notificationControls }: { notificationContro
   const [installedAck, setInstalledAck] = useState(false);
 
   useEffect(() => {
+    const native = isNativeShellActive();
+
     const onBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEventLike);
@@ -52,8 +59,10 @@ export function PwaInstallSection({ notificationControls }: { notificationContro
       setDeferredPrompt(null);
     };
 
-    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
-    window.addEventListener('appinstalled', onAppInstalled);
+    if (!native) {
+      window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+      window.addEventListener('appinstalled', onAppInstalled);
+    }
 
     // Defer setState out of the effect body (react-hooks/set-state-in-effect).
     const t = window.setTimeout(() => {
@@ -61,8 +70,8 @@ export function PwaInstallSection({ notificationControls }: { notificationContro
       setIsIos(isIosTouchDevice());
       setIsSafari(isLikelySafariNotChromium());
       setStandalone(isStandalonePwa());
-      if (!isMessengerMiniAppHost() && 'serviceWorker' in navigator) {
-        void navigator.serviceWorker.register('/sw.js', { scope: routePaths.root }).catch(() => {});
+      if (!isMessengerMiniAppHost() && !native) {
+        void registerPatientServiceWorker();
       }
     }, 0);
 
@@ -80,7 +89,7 @@ export function PwaInstallSection({ notificationControls }: { notificationContro
     setDeferredPrompt(null);
   }, [deferredPrompt]);
 
-  const done = standalone || installedAck;
+  const done = standalone || installedAck || isNative;
 
   return (
     <section

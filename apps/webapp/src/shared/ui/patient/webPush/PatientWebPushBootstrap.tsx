@@ -9,14 +9,16 @@ import {
 import { useWebPushClientState } from '@/shared/lib/webPush/PatientWebPushContext';
 import { isStandalonePwa } from '@/shared/lib/webPush/pwaDisplay';
 import { restorePatientWebPushSubscription } from '@/shared/lib/webPush/subscribePatientWebPush';
+import { useNativePushLifecycle } from '@/shared/lib/nativePush/useNativePushLifecycle';
 import { PatientWebPushFreshLoginDeniedDialog } from '@/shared/ui/patient/webPush/PatientWebPushFreshLoginDeniedDialog';
 import { PatientWebPushOnboardingCard } from '@/shared/ui/patient/webPush/PatientWebPushOnboardingCard';
 
 const SW_MESSAGE_TYPE = 'WEB_PUSH_SUBSCRIPTION_CHANGE';
 
-/** Registers SW, launch analytics, onboarding card, pushsubscriptionchange relay. */
+/** Registers SW, launch analytics, onboarding card, pushsubscriptionchange relay; native-push in Capacitor (M3-03). */
 export function PatientWebPushBootstrap() {
   const state = useWebPushClientState();
+  useNativePushLifecycle();
 
   useEffect(() => {
     if (!state.mounted) return;
