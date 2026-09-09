@@ -46,20 +46,6 @@ function rebaseRedirectToPublicOrigin(response: NextResponse, publicOrigin: stri
   );
 }
 
-function internalRewriteTarget(request: NextRequest, pathname: string): URL {
-  const target = request.nextUrl.clone();
-  target.pathname = pathname;
-
-  // Next relativizes middleware rewrites only when their origin exactly matches its own init URL.
-  // Every supported webapp runtime binds Next to 127.0.0.1. The URL presented to the proxy can
-  // contain either the public Host or Next's `localhost` alias, so an internal rewrite must not
-  // derive its origin from that URL. Keeping the reconstructed scheme and listener port while
-  // canonicalizing the hostname makes Next relativize the route instead of proxying to itself.
-  target.hostname = '127.0.0.1';
-
-  return target;
-}
-
 export async function proxy(
   request: NextRequest,
   // Next always supplies a `NextFetchEvent` here in production. It is deliberately typed `unknown`
@@ -219,7 +205,11 @@ export async function proxy(
   requestHeaders.set('x-bc-search', request.nextUrl.search);
   const response = patientRewritePath
     ? NextResponse.rewrite(
-        internalRewriteTarget(request, patientRewritePath),
+        (() => {
+          const target = request.nextUrl.clone();
+          target.pathname = patientRewritePath;
+          return target;
+        })(),
         { request: { headers: requestHeaders } },
       )
     : NextResponse.next({
