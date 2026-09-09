@@ -259,8 +259,9 @@ owner_state="$(postgres_scalar \
 
 if [[ "$MODE" == "--preflight" ]]; then
   # A candidate may introduce a declared seam owner. Install the existing declaration-generated
-  # shared-role baseline before owner-marked DDL, exactly as --execute already does; migrations
-  # never create roles or grants themselves.
+  # shared-role baseline before owner-marked DDL. The owner-ordered runner obtains its
+  # declaration-derived temporary schema access inside its transaction; migrations never create
+  # roles or grants and the candidate validation never commits a reconcile.
   run_tracked bash -c '
     set -Eeuo pipefail
     node --experimental-strip-types "$1" --shared-role-baseline |

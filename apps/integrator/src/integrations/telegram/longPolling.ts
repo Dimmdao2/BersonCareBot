@@ -17,6 +17,7 @@ import { env } from '../../config/env.js';
 import { parseWebhookBody } from './schema.js';
 import { processTelegramUpdate, type TelegramWebhookDeps } from './webhook.js';
 import { setupTelegramMenuButton } from './setupMenuButton.js';
+import type { PlatformDeliveryAudience } from '../../infra/adapters/platformDeliveryAudience.js';
 import {
   getRequestLogger,
   logger,
@@ -28,9 +29,10 @@ import {
 const GET_UPDATES_TIMEOUT_SEC = 30;
 const ERROR_BACKOFF_MS = 5_000;
 
-let running = false;
-let loopController: AbortController | null = null;
-let loopPromise: Promise<void> | null = null;
+const loops = new Map<
+  PlatformDeliveryAudience,
+  { controller: AbortController; promise: Promise<void> }
+>();
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   if (signal.aborted) return Promise.resolve();
@@ -51,42 +53,49 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
  * Returns immediately and never throws — the loop owns its error handling so a
  * Telegram outage cannot crash startup.
  */
-export function startTelegramLongPolling(deps: TelegramWebhookDeps): void {
-  if (running) return;
-  running = true;
+export function startTelegramLongPolling(
+  deps: TelegramWebhookDeps,
+  audience: PlatformDeliveryAudience = 'patient',
+): void {
+  if (loops.has(audience)) return;
   const controller = new AbortController();
-  loopController = controller;
-  loopPromise = runLoop(deps, controller.signal)
+  const promise = runLoop(deps, audience, controller.signal)
     .catch((err) => {
       logger.error({ err }, 'Telegram long-polling: runner crashed unexpectedly (non-fatal guard)');
     })
     .finally(() => {
-      if (loopController === controller) {
-        running = false;
-        loopController = null;
-        loopPromise = null;
-      }
+      if (loops.get(audience)?.controller === controller) loops.delete(audience);
     });
+  loops.set(audience, { controller, promise });
 }
 
-export async function stopTelegramLongPolling(): Promise<void> {
-  const activeLoop = loopPromise;
-  if (!activeLoop) return;
-  loopController?.abort();
-  await activeLoop;
+export async function stopTelegramLongPolling(
+  audience: PlatformDeliveryAudience = 'patient',
+): Promise<void> {
+  const active = loops.get(audience);
+  if (!active) return;
+  active.controller.abort();
+  await active.promise;
 }
 
-async function runLoop(deps: TelegramWebhookDeps, signal: AbortSignal): Promise<void> {
+async function runLoop(
+  deps: TelegramWebhookDeps,
+  audience: PlatformDeliveryAudience,
+  signal: AbortSignal,
+): Promise<void> {
   logger.info('Telegram: starting long-polling runner (getUpdates)');
 
   // Menu button / commands — best-effort, non-blocking (already non-fatal internally).
-  void setupTelegramMenuButton();
+  void setupTelegramMenuButton(audience);
 
   let bot;
   try {
-    bot = await getBotInstance();
+    bot = await getBotInstance(audience);
   } catch (err) {
-    logger.warn({ err }, 'Telegram long-polling: runtime configuration unavailable; runner stopped');
+    logger.warn(
+      { err },
+      'Telegram long-polling: runtime configuration unavailable; runner stopped',
+    );
     return;
   }
 
@@ -103,11 +112,14 @@ async function runLoop(deps: TelegramWebhookDeps, signal: AbortSignal): Promise<
   while (!signal.aborted) {
     let updates: Awaited<ReturnType<typeof bot.api.getUpdates>>;
     try {
-      updates = await bot.api.getUpdates({
-        ...(offset !== undefined ? { offset } : {}),
-        timeout: GET_UPDATES_TIMEOUT_SEC,
-        allowed_updates: ['message', 'callback_query'],
-      }, signal as Parameters<typeof bot.api.getUpdates>[1]);
+      updates = await bot.api.getUpdates(
+        {
+          ...(offset !== undefined ? { offset } : {}),
+          timeout: GET_UPDATES_TIMEOUT_SEC,
+          allowed_updates: ['message', 'callback_query'],
+        },
+        signal as Parameters<typeof bot.api.getUpdates>[1],
+      );
     } catch (err) {
       if (signal.aborted) return;
       const msg = err instanceof Error ? err.message : String(err);
@@ -141,6 +153,7 @@ async function runLoop(deps: TelegramWebhookDeps, signal: AbortSignal): Promise<
             correlationId,
             eventId,
             logger: reqLogger,
+            platformAudience: audience,
           });
         });
         offset = update.update_id + 1;

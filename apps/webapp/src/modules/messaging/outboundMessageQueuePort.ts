@@ -47,6 +47,8 @@ export type OutboundMessageContent = {
   };
   /** Контекст пациента: свой канал клиники обязателен только когда он реально включён. */
   senderScope?: 'clinic_required' | 'clinic_if_configured';
+  /** Platform brand for the existing integrator dispatch selector. */
+  audience?: 'staff' | 'patient';
 };
 
 export type OutboundMessageContext = {

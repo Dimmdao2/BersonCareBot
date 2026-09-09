@@ -985,6 +985,15 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
   `clinic_transactional_mail_template`, которое должен написать владелец; без него доставка намеренно не подменяет
   клинику платформенным именем. Доказательства 24.08 по display/template/clinic override сохраняются, но не закрывают
   добавленный 09.09 выбор физического SMTP/From по аудитории.
+  **Фактическое состояние кандидата #787 (09.09.2026):** общий dispatch/runtime/inbound путь несёт typed
+  `staff|patient`; platform Telegram/MAX credentials, webhook secrets и Telegram modes разведены по identity;
+  legacy shared settings остаются только patient-facing TherapyGo fallback на время cutover; staff/Therapysto
+  никогда их не читает и требует собственные credential/secret/mode. Staff Telegram/MAX update после
+  собственной аутентификации проходит общий gateway как `accepted_noop`, пока staff command/link UX не утверждён,
+  и не создаёт patient surface. Immediate staff email передаёт `staff` через signed boundary до SMTP readiness/send;
+  patient auth явно передаёт `patient`, а clinic SMTP остаётся patient override. Targeted 85 integrator и 66 webapp
+  tests, privilege generator и rollback-only DEV preflight зелёные. `C3`/`C4`, `TPB-12a`/`TPB-12b`/`TPB-13a` остаются
+  открытыми: credentials не вводились, provider API/real delivery и TEST gates не запускались.
 - `C5` **Переписан по решению владельца 23.08.2026 (§1.2h).** Гейт готовности встаёт ровно в двух местах, а не
   на пути по умолчанию:
   - [ ] `C5a` **Свой домен клиники не включается**, пока ожидаемая A- или CNAME-запись не ведёт на наш edge,

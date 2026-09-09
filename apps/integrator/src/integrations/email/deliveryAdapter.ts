@@ -29,6 +29,7 @@ import { logger } from '../../infra/observability/logger.js';
 import { sendMail } from './mailer.js';
 import type { MailAttachment } from './mailer.js';
 import { resolveAndRenderAuthCodeMailProfile } from './mailProfile.js';
+import type { PlatformDeliveryAudience } from '../../infra/adapters/platformDeliveryAudience.js';
 
 type EmailDeliveryPayload = {
   recipient?: { email?: unknown };
@@ -44,6 +45,7 @@ type EmailDeliveryPayload = {
   delivery?: {
     channels?: unknown;
     clinicCredential?: { channel?: unknown; smtp?: ResolvedSmtpOutboundConfig };
+    platformAudience?: PlatformDeliveryAudience;
   };
   /**
    * Base64-encoded .ics file content for booking confirmation emails.
@@ -119,7 +121,8 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
         payload.delivery?.clinicCredential?.channel === 'email'
           ? payload.delivery.clinicCredential.smtp
           : undefined;
-      const smtpConfig = clinicSmtp ?? (await resolveSmtpOutboundConfig(db));
+      const smtpConfig =
+        clinicSmtp ?? (await resolveSmtpOutboundConfig(db, payload.delivery?.platformAudience));
 
       if (!smtpConfig.configured) {
         throw new Error('EMAIL_NOT_CONFIGURED');

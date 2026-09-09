@@ -392,7 +392,7 @@ async function sendDoctorMessage(
       payload: {
         recipient: { chatId },
         message: { text },
-        delivery: { channels: ['telegram'], maxAttempts: 3 },
+        delivery: { channels: ['telegram'], maxAttempts: 3, audience: 'staff' },
       },
     });
   }
@@ -409,7 +409,7 @@ async function sendDoctorMessage(
       payload: {
         recipient: maxUserRecipient(userId),
         message: { text },
-        delivery: { channels: ['max'], maxAttempts: 3 },
+        delivery: { channels: ['max'], maxAttempts: 3, audience: 'staff' },
       },
     });
   }

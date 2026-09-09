@@ -50,6 +50,7 @@ const relayPayloadSchema = z
     idempotencyKey: z.string().min(1),
     metadata: z.record(z.string(), z.unknown()).optional(),
     senderScope: z.enum(['clinic_required', 'clinic_if_configured']).optional(),
+    audience: z.enum(['staff', 'patient']).optional(),
     clinicCredentialProbe: z.literal(true).optional(),
     purpose: z.never().optional(),
   })
@@ -151,6 +152,7 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
         delivery: {
           channels: [parsed.channel],
           ...(parsed.senderScope ? { senderScope: parsed.senderScope } : {}),
+          ...(parsed.audience ? { audience: parsed.audience } : {}),
           ...(parsed.clinicCredentialProbe ? { clinicCredentialProbe: true } : {}),
         },
       },
@@ -167,6 +169,7 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
         delivery: {
           channels: ['smsc'],
           ...(parsed.senderScope ? { senderScope: parsed.senderScope } : {}),
+          ...(parsed.audience ? { audience: parsed.audience } : {}),
         },
       },
     };

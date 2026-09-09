@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { EventGateway } from '../../kernel/contracts/index.js';
+import type { EventGateway, IncomingEvent } from '../../kernel/contracts/index.js';
 import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organizationPrincipal.js';
 import type { DedicatedBotInboundForwardDeps } from '../common/clinicBotInboundForward.js';
 import { registerTelegramWebhookRoutes } from './webhook.js';
@@ -204,6 +204,56 @@ describe('dedicated Telegram inbound ownership', () => {
 });
 
 describe('platform Telegram webhook authentication', () => {
+  it('keeps the Therapysto webhook on its own credential and staff event context', async () => {
+    const handled: IncomingEvent[] = [];
+    const handleIncomingEvent = async (event: IncomingEvent) => {
+      handled.push(event);
+      return { status: 'accepted_noop' as const };
+    };
+    const app = Fastify({ logger: false });
+    apps.push(app);
+    await registerTelegramWebhookRoutes(app, {
+      eventGateway: { handleIncomingEvent } as unknown as EventGateway,
+      setupProviderSurface: false,
+      getRuntimeConfig: async (audience = 'patient') => ({
+        enabled: true,
+        mode: 'webhook' as const,
+        botToken: audience === 'staff' ? 'therapysto-token' : 'therapygo-token',
+        webhookSecret: audience === 'staff' ? 'therapysto-secret' : 'therapygo-secret',
+        sendMenuOnButtonPress: false,
+      }),
+    });
+    const payload = {
+      update_id: 71,
+      message: { message_id: 1, text: 'help', from: { id: 42 }, chat: { id: 42 } },
+    };
+
+    const [accepted, rejected] = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: '/webhook/telegram/staff',
+        headers: { 'x-telegram-bot-api-secret-token': 'therapysto-secret' },
+        payload,
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/webhook/telegram/staff',
+        headers: { 'x-telegram-bot-api-secret-token': 'therapygo-secret' },
+        payload,
+      }),
+    ]);
+
+    expect(accepted.statusCode).toBe(200);
+    expect(rejected.json()).toEqual({ ok: false, error: 'Forbidden' });
+    expect(handled).toHaveLength(1);
+    const event = handled[0];
+    if (!event) throw new Error('staff webhook was not dispatched');
+    // Owner oracle: staff input cannot be parsed as a patient command/link surface.
+    const facts = event.payload.facts as Record<string, unknown>;
+    expect(facts.platformAudience).toBe('staff');
+    expect(facts.links).toBeUndefined();
+  });
+
   it('rejects missing and mismatched secret headers with the established response', async () => {
     const handleIncomingEvent = vi.fn(async () => ({ status: 'accepted' as const }));
     const app = Fastify({ logger: false });
