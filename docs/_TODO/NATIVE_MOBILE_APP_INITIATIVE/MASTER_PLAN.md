@@ -373,12 +373,13 @@ authority нельзя: он частично отменён владельце�
       даёт typed no-active-target. UI-label меняется с «Web Push» на «Push», persisted code не меняется.
       Доказательство: platform catalog and topic models expose `Push`; availability/fan-out independence passed
       in `88e9240df`; landing `bd897e9f7`.
-- [ ] **M6-08.** Project ID / auth token / endpoint живут только в restricted DB-backed `system_settings`:
+- [x] **M6-08.** Project ID / auth token / endpoint живут только в restricted DB-backed `system_settings`:
       объявлены в `modules/system-settings/registry.ts` как `restricted('admin','global',…)`, секрет — типом
-      `secret_envelope` с `redacted`, ключи добавлены в `ALLOWED_KEYS` (`types.ts`), чтение — только через
-      санкционированные accessors (`apps/webapp/scripts/check-system-settings-accessors.mjs` зелёный). Ни env, ни
-      app bundle их не несут. Backend/registry/secret части приняты в `88e9240df` и посажены `bd897e9f7`, но
-      declared accessor-gate отсутствует в checkout — пункт остаётся открыт до восстановления и проверки gate.
+      `secret_envelope` с `redacted`, ключи входят в единый registry-export `ALLOWED_KEYS`, чтение идёт через
+      `SystemSettingsPort`/DB-owned capabilities. Ни env, ни app bundle их не несут. Текстовый
+      `check-system-settings-accessors.mjs` не восстанавливается: он намеренно удалён owner-решением #1074 в
+      `c5b061696` как вредный source-text gate (`AGENTS.md` §10a). Backend/registry/secret/accessor части приняты в
+      `88e9240df` и посажены `bd897e9f7`; lead повторно проверил итоговый registry, route и production-only key inventory.
 - [x] **M6-09.** Payload несёт только факт, дату-время и ссылку в кабинет плюс allowlisted внутренний маршрут —
       без текста сообщения/переписки, клинических деталей, имени файла, presigned URL, cookie, токена и
       организационного секрета (`OWNER_PRODUCT_RULES` §22 и §15). Тексты берутся из существующих builder'ов
@@ -505,5 +506,5 @@ security/audit gates идут без этих входов. Отсутствую
 | M4-02 | done | Native Jitsi lifecycle/permission/hangup/retry through `d1c983a3c`; four-variant Android matrix; port landing `a722d9bf8`. Web selection seam remains M4-01/M4-04/M4-05. |
 | M5-02, M5-03 | done | Corrected CameraX result handoff/document MIME validation `bfe25db0b`; independent confirmation `d1c983a3c`; port landing `a722d9bf8`. |
 | M6-01…M6-07, M6-09…M6-11 | done | Backend/rights/routes through `c6fb028d1`, landing `bd897e9f7`; official Universal provider contract `60cfa976e`, landing `46c9d4728`; Android end-to-end wire/tap through `1dd140d64`, landing `a722d9bf8`; authenticated lifecycle `44b494331`, landing `4d84fb260`. |
-| M6-08 | open | Restricted DB-backed registry/config and secret scan are accepted in `88e9240df`, but the plan-declared `apps/webapp/scripts/check-system-settings-accessors.mjs` is absent and has not passed. |
+| M6-08 | done | Restricted DB-backed registry/config/accessor path accepted in `88e9240df`, landing `bd897e9f7`; lead re-inspected the final registry, integrator config route and production-only key inventory. The obsolete source-text gate was deliberately removed by owner decision #1074 in `c5b061696` and is not restored. |
 | M4-01, M4-03…M5-01, M5-04…M5-06, M7-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |

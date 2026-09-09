@@ -694,8 +694,9 @@ webhook URL интеграций в env. Источник правды — `syst
 
 Integrator и webapp читают ключи/URI интеграций только через DB-backed accessors: webapp —
 `apps/webapp/src/infra/repos/pgSystemSettings.ts`, integrator — `apps/integrator/src/infra/db/publicSystemSettings.ts`
-(если нет документированного процесс-специфичного accessor'а). CI проверяет прямые чтения в обход accessor'а
-через `apps/webapp/scripts/check-system-settings-accessors.mjs`. Env остаётся только для process
+(если нет документированного процесс-специфичного accessor'а). Границу доказывают типизированные
+ports/capabilities и поведенческие проверки ролей/прав; текстовые CI-сканеры исходников запрещены §10a.
+Env остаётся только для process
 bootstrap/infra (`DATABASE_URL`, `NODE_ENV`, `HOST`, `PORT`, `LOG_LEVEL`) и как временный compat-fallback на
 время миграции. Любая новая интеграция, предлагающая
 env-переменные для ключей/URI, невалидна и требует редизайна на DB config.
