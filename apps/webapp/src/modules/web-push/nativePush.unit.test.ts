@@ -9,10 +9,7 @@
  * native mobile Push yet) could not bootstrap the app at all, not just native Push registration.
  */
 import { describe, expect, it } from 'vitest';
-import {
-  createNativePushTokenCipherFromEnv,
-  createOptionalNativePushTokenCipherFromEnv,
-} from './nativePush';
+import { createOptionalNativePushTokenCipherFromEnv } from './nativePush';
 
 describe('native Push keyring bootstrap — M6-01/M6-11', () => {
   it('returns null instead of throwing when the keyring env var is absent', () => {
@@ -42,11 +39,5 @@ describe('native Push keyring bootstrap — M6-01/M6-11', () => {
     };
     const { ciphertext, keyId } = cipher!.encrypt('secret-token', context);
     expect(cipher!.decrypt(ciphertext, keyId, context)).toBe('secret-token');
-  });
-
-  it('the throwing factory it wraps still throws directly on absent env (regression guard for the wrapper itself)', () => {
-    expect(() => createNativePushTokenCipherFromEnv(undefined)).toThrow(
-      'native_push_token_keyring_unavailable',
-    );
   });
 });

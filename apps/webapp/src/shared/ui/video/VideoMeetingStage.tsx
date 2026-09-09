@@ -35,9 +35,6 @@ function NativeJitsiMeetingRenderer({ session, onHangup, onDiagnostic, className
   const ownsConferenceRef = useRef(false);
   const terminalRef = useRef(false);
   const conferenceIdRef = useRef<string | null>(null);
-  const requiresConferenceIdRef = useRef(true);
-  const legacyLaunchSeenRef = useRef(false);
-  const legacyReplacementRef = useRef(false);
   const listenerActiveRef = useRef(false);
   const removeListenerRef = useRef<() => void>(() => {});
   const [state, setState] = useState<'connecting' | 'error' | 'browser_fallback'>('connecting');
@@ -54,21 +51,16 @@ function NativeJitsiMeetingRenderer({ session, onHangup, onDiagnostic, className
     listenerActiveRef.current = true;
     ownsConferenceRef.current = false;
     terminalRef.current = false;
-    requiresConferenceIdRef.current = true;
     const startOperation = startNativeJitsi({
       endpoint: session.endpoint,
       roomReference: session.roomReference,
       accessToken: session.accessToken,
     });
     const nativeOperation = asNativeOperation(startOperation);
-    legacyReplacementRef.current = nativeOperation === null && legacyLaunchSeenRef.current;
-    legacyLaunchSeenRef.current = nativeOperation === null;
     conferenceIdRef.current = nativeOperation?.conferenceId ?? null;
     const removeListener = addNativeJitsiConferenceListener((event) => {
       if (!active || !listenerActiveRef.current) return;
-      if (requiresConferenceIdRef.current && event.conferenceId !== conferenceIdRef.current) return;
-      if (!requiresConferenceIdRef.current && event.conferenceId && event.conferenceId !== conferenceIdRef.current) return;
-      if (!requiresConferenceIdRef.current && !event.conferenceId && legacyReplacementRef.current) return;
+      if (!event.conferenceId || event.conferenceId !== conferenceIdRef.current) return;
       if (event.state === 'joined') {
         joinedAt = Date.now();
         onDiagnosticRef.current?.({ event: 'join' });
@@ -92,19 +84,13 @@ function NativeJitsiMeetingRenderer({ session, onHangup, onDiagnostic, className
     void outcomeFor(startOperation)
       .then((outcome) => {
         if (!active) return;
-        const normalizedOutcome = typeof outcome === 'string'
-          ? { state: outcome, conferenceId: null }
-          : outcome;
-        // A direct string is only retained for the pre-existing mocked bridge oracle. The real
-        // adapter never exposes it: a shell that omits the opaque id falls back to the iframe.
-        requiresConferenceIdRef.current = typeof outcome !== 'string';
         setState('connecting');
-        if (normalizedOutcome.conferenceId) conferenceIdRef.current = normalizedOutcome.conferenceId;
-        if (normalizedOutcome.state === 'started') {
+        if (outcome.conferenceId) conferenceIdRef.current = outcome.conferenceId;
+        if (outcome.state === 'started') {
           ownsConferenceRef.current = true;
           return;
         }
-        if (normalizedOutcome.state === 'unavailable') {
+        if (outcome.state === 'unavailable') {
           active = false;
           removeListener();
           setState('browser_fallback');
@@ -135,18 +121,13 @@ function NativeJitsiMeetingRenderer({ session, onHangup, onDiagnostic, className
             onClick={() => {
               terminalRef.current = false;
               setState('connecting');
-              requiresConferenceIdRef.current = true;
               const retryOperation = retryNativeJitsi();
               const nativeRetry = asNativeOperation(retryOperation);
               conferenceIdRef.current = nativeRetry?.conferenceId ?? null;
               void outcomeFor(retryOperation).then((outcome) => {
-                const normalizedOutcome = typeof outcome === 'string'
-                  ? { state: outcome, conferenceId: null }
-                  : outcome;
-                requiresConferenceIdRef.current = typeof outcome !== 'string';
-                if (normalizedOutcome.conferenceId) conferenceIdRef.current = normalizedOutcome.conferenceId;
-                if (normalizedOutcome.state === 'started') ownsConferenceRef.current = true;
-                else if (normalizedOutcome.state === 'unavailable') {
+                if (outcome.conferenceId) conferenceIdRef.current = outcome.conferenceId;
+                if (outcome.state === 'started') ownsConferenceRef.current = true;
+                else if (outcome.state === 'unavailable') {
                   ownsConferenceRef.current = false;
                   listenerActiveRef.current = false;
                   removeListenerRef.current();

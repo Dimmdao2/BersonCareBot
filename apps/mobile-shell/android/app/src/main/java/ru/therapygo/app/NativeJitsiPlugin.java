@@ -15,7 +15,6 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 import java.net.URL;
-import org.jitsi.meet.sdk.BroadcastEvent;
 import org.jitsi.meet.sdk.BroadcastIntentHelper;
 import org.jitsi.meet.sdk.JitsiMeetConferenceOptions;
 
@@ -54,19 +53,6 @@ public final class NativeJitsiPlugin extends Plugin {
                     intent.getStringExtra(NativeJitsiMeetActivity.EXTRA_CODE),
                     eventConferenceId
                 );
-                return;
-            }
-
-            // The SDK itself is never registered here: its broadcasts do not identify the Activity
-            // that emitted them. Keep this unregistered path solely for the existing JVM oracle,
-            // whose synthetic broadcasts predate the Activity-owned event handoff.
-            if (conferenceId != null) return;
-            BroadcastEvent event = new BroadcastEvent(intent);
-            BroadcastEvent.Type type = event.getType();
-            if (type == BroadcastEvent.Type.CONFERENCE_JOINED) {
-                handleConferenceEvent("joined", null, null);
-            } else if (type == BroadcastEvent.Type.CONFERENCE_TERMINATED || type == BroadcastEvent.Type.READY_TO_CLOSE) {
-                handleConferenceEvent("terminated", conferenceError(event), null);
             }
         }
     };
@@ -299,9 +285,7 @@ public final class NativeJitsiPlugin extends Plugin {
     }
 
     private boolean ownsActiveConference(String targetId) {
-        // Every production launch has an opaque id. The null/null branch is retained only for
-        // the existing JVM oracle's synthetic active state, never for a live SDK Activity.
-        return conferenceId == null ? targetId == null : conferenceId.equals(targetId);
+        return sameConference(targetId, conferenceId);
     }
 
     private boolean isTrusted(PluginCall call) {
@@ -315,13 +299,6 @@ public final class NativeJitsiPlugin extends Plugin {
         if (code != null) event.put("code", code);
         if (eventConferenceId != null) event.put("conferenceId", eventConferenceId);
         notifyListeners("conference", event);
-    }
-
-    private static String conferenceError(BroadcastEvent event) {
-        Object value = event.getData().get("error");
-        if (!(value instanceof String)) return null;
-        String code = (String) value;
-        return code.matches("[A-Za-z0-9._-]{1,80}") ? code : "conference_error";
     }
 
     private JSObject outcome(String state, String eventConferenceId) {

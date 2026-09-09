@@ -137,9 +137,8 @@ public final class UniversalPushPlugin extends Plugin {
 
     /**
      * A data push surface is valid only when it names this process's own compiled brand — never the
-     * sibling brand (MUST FIX-1). Package-private (not private) so {@link PushRuntime} shares this
-     * exact validator instead of duplicating it; the auditor's reflection-based test still finds and
-     * invokes it as a declared member of this class.
+     * sibling brand (MUST FIX-1). Package-private so {@link PushRuntime} shares this exact validator
+     * instead of duplicating it.
      */
     static boolean validSurface(String surface) {
         return BuildConfig.SHELL_BRAND.equals(surface);

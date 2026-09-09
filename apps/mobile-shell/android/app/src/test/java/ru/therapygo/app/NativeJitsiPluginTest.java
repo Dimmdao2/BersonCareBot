@@ -17,7 +17,6 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import androidx.test.core.app.ApplicationProvider;
 import java.lang.reflect.Field;
-import org.jitsi.meet.sdk.BroadcastEvent;
 import org.jitsi.meet.sdk.BroadcastIntentHelper;
 import org.junit.Before;
 import org.junit.Test;
@@ -50,17 +49,19 @@ public class NativeJitsiPluginTest {
         bridgeField.set(plugin, bridge);
     }
 
-    // Delivers a synthetic Jitsi SDK broadcast straight to the plugin's own receiver, bypassing
-    // LocalBroadcastManager delivery entirely (load()/registerReceiver() is never called by these
-    // reflection-based unit tests, matching the rest of this file's pattern of exercising the real
-    // validator/gate code without starting the SDK).
-    private void deliverConferenceBroadcast(BroadcastEvent.Type type, String errorCode) throws Exception {
-        Intent intent = new Intent(type.getAction());
-        // BroadcastEvent#getData() is null (not an empty map) when the intent carries no extras at
-        // all, and the production conferenceError() dereferences it unconditionally; the real SDK
-        // always attaches an extras bundle, so this harmless marker extra reproduces that shape for
-        // the no-error path instead of exercising a null-extras case the SDK itself never produces.
-        intent.putExtra(errorCode != null ? "error" : "_probe", errorCode != null ? errorCode : "1");
+    private void ownConference(String conferenceId) throws Exception {
+        Field conferenceIdField = NativeJitsiPlugin.class.getDeclaredField("conferenceId");
+        conferenceIdField.setAccessible(true);
+        conferenceIdField.set(plugin, conferenceId);
+    }
+
+    // Delivers the same Activity-owned event contract used in production. The event carries the
+    // opaque launch id, so a late Activity can never be relabelled as the current conference.
+    private void deliverConferenceBroadcast(String state, String errorCode, String conferenceId) throws Exception {
+        Intent intent = new Intent(NativeJitsiMeetActivity.ACTION_CONFERENCE_EVENT)
+            .putExtra(NativeJitsiMeetActivity.EXTRA_CONFERENCE_ID, conferenceId)
+            .putExtra(NativeJitsiMeetActivity.EXTRA_STATE, state);
+        if (errorCode != null) intent.putExtra(NativeJitsiMeetActivity.EXTRA_CODE, errorCode);
         Field receiverField = NativeJitsiPlugin.class.getDeclaredField("conferenceReceiver");
         receiverField.setAccessible(true);
         android.content.BroadcastReceiver receiver = (android.content.BroadcastReceiver) receiverField.get(plugin);
@@ -246,10 +247,12 @@ public class NativeJitsiPluginTest {
     // "conference" event, not two.
     @Test
     public void bothTerminationBroadcastsForOneConferenceEmitExactlyOneTerminalEvent() throws Exception {
+        String conferenceId = "conference-terminal-0001";
+        ownConference(conferenceId);
         PluginCall listener = registerConferenceListener();
 
-        deliverConferenceBroadcast(BroadcastEvent.Type.CONFERENCE_TERMINATED, null);
-        deliverConferenceBroadcast(BroadcastEvent.Type.READY_TO_CLOSE, null);
+        deliverConferenceBroadcast("terminated", null, conferenceId);
+        deliverConferenceBroadcast("terminated", null, conferenceId);
 
         org.mockito.ArgumentCaptor<JSObject> captor = org.mockito.ArgumentCaptor.forClass(JSObject.class);
         verify(listener, org.mockito.Mockito.times(1)).resolve(captor.capture());
@@ -259,10 +262,12 @@ public class NativeJitsiPluginTest {
     // Kill: a duplicate CONFERENCE_TERMINATED (SDK redelivery) emits a second terminal event.
     @Test
     public void duplicateConferenceTerminatedEmitsExactlyOneTerminalEvent() throws Exception {
+        String conferenceId = "conference-terminal-0002";
+        ownConference(conferenceId);
         PluginCall listener = registerConferenceListener();
 
-        deliverConferenceBroadcast(BroadcastEvent.Type.CONFERENCE_TERMINATED, null);
-        deliverConferenceBroadcast(BroadcastEvent.Type.CONFERENCE_TERMINATED, null);
+        deliverConferenceBroadcast("terminated", null, conferenceId);
+        deliverConferenceBroadcast("terminated", null, conferenceId);
 
         verify(listener, org.mockito.Mockito.times(1)).resolve(any(JSObject.class));
     }
@@ -271,10 +276,12 @@ public class NativeJitsiPluginTest {
     // signal for the same launch must not overwrite/duplicate the already-emitted terminal event.
     @Test
     public void errorTerminalEventIsNotFollowedByASecondTerminatedEvent() throws Exception {
+        String conferenceId = "conference-terminal-0003";
+        ownConference(conferenceId);
         PluginCall listener = registerConferenceListener();
 
-        deliverConferenceBroadcast(BroadcastEvent.Type.CONFERENCE_TERMINATED, "conference.connectionError.membersOnly");
-        deliverConferenceBroadcast(BroadcastEvent.Type.READY_TO_CLOSE, null);
+        deliverConferenceBroadcast("terminated", "conference.connectionError.membersOnly", conferenceId);
+        deliverConferenceBroadcast("terminated", null, conferenceId);
 
         org.mockito.ArgumentCaptor<JSObject> captor = org.mockito.ArgumentCaptor.forClass(JSObject.class);
         verify(listener, org.mockito.Mockito.times(1)).resolve(captor.capture());
@@ -288,11 +295,9 @@ public class NativeJitsiPluginTest {
     @Test
     public void latePriorConferenceTerminationCannotBeEmittedAsTheReplacementLaunch() throws Exception {
         PluginCall listener = registerConferenceListener();
-        Field conferenceIdField = NativeJitsiPlugin.class.getDeclaredField("conferenceId");
-        conferenceIdField.setAccessible(true);
-        conferenceIdField.set(plugin, "replacement-launch-0001");
+        ownConference("replacement-launch-0001");
 
-        deliverConferenceBroadcast(BroadcastEvent.Type.CONFERENCE_TERMINATED, null);
+        deliverConferenceBroadcast("terminated", null, "prior-conference-0001");
 
         verify(listener, never()).resolve(any(JSObject.class));
     }
@@ -300,9 +305,11 @@ public class NativeJitsiPluginTest {
     // A fresh CONFERENCE_JOINED still notifies normally (dedup only guards the terminal side).
     @Test
     public void conferenceJoinedStillEmitsNormally() throws Exception {
+        String conferenceId = "conference-joined-0001";
+        ownConference(conferenceId);
         PluginCall listener = registerConferenceListener();
 
-        deliverConferenceBroadcast(BroadcastEvent.Type.CONFERENCE_JOINED, null);
+        deliverConferenceBroadcast("joined", null, conferenceId);
 
         org.mockito.ArgumentCaptor<JSObject> captor = org.mockito.ArgumentCaptor.forClass(JSObject.class);
         verify(listener, org.mockito.Mockito.times(1)).resolve(captor.capture());
@@ -362,8 +369,11 @@ public class NativeJitsiPluginTest {
             Field activeField = NativeJitsiPlugin.class.getDeclaredField("conferenceActive");
             activeField.setAccessible(true);
             activeField.setBoolean(plugin, true);
+            String conferenceId = "conference-hangup-0001";
+            ownConference(conferenceId);
 
             PluginCall call = mock(PluginCall.class);
+            when(call.getString("conferenceId")).thenReturn(conferenceId);
             plugin.hangup(call);
             org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle();
 

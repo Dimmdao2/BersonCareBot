@@ -54,27 +54,19 @@ public class UniversalPushPluginTest {
     }
 
     private static boolean invokeValidSurface(String surface) throws Exception {
-        Method method = UniversalPushPlugin.class.getDeclaredMethod("validSurface", String.class);
-        method.setAccessible(true);
-        return (Boolean) method.invoke(null, surface);
+        return UniversalPushPlugin.validSurface(surface);
     }
 
     private static boolean invokeValidRoute(String surface, String route) throws Exception {
-        Method method = UniversalPushPlugin.class.getDeclaredMethod("validRoute", String.class, String.class);
-        method.setAccessible(true);
-        return (Boolean) method.invoke(null, surface, route);
+        return UniversalPushPlugin.validRoute(surface, route);
     }
 
     private static boolean invokeValidKind(String kind) throws Exception {
-        Method method = UniversalPushPlugin.class.getDeclaredMethod("validKind", String.class);
-        method.setAccessible(true);
-        return (Boolean) method.invoke(null, kind);
+        return UniversalPushPlugin.validKind(kind);
     }
 
     private static boolean invokeValidCopy(String title, String body) throws Exception {
-        Method method = UniversalPushPlugin.class.getDeclaredMethod("validCopy", String.class, String.class);
-        method.setAccessible(true);
-        return (Boolean) method.invoke(null, title, body);
+        return UniversalPushPlugin.validCopy(title, body);
     }
 
     // Kill: configure() reaches RuStore init/token fetch from an untrusted/foreign current page.

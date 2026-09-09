@@ -459,9 +459,12 @@ authority нельзя: он частично отменён владельце�
       security, web/native bridge + PWA, Jitsi/media, native-target lifecycle/provider delivery. Аудитор начинает
       с «тест или взгляд» (§24.4), строит blind kill-set до чтения тестов и фиксирует fault-injection evidence.
       Аудитор не слабее автора; его находка вне owner scope — вопрос владельцу, а не работа (§24.6).
-- [ ] **M7-02.** Workers тестов не писали. Тесты аудитора защищают только устойчивое поведение и security-контракты;
+- [x] **M7-02.** Workers тестов не писали. Тесты аудитора защищают только устойчивое поведение и security-контракты;
       тестов на текст исходника, формулировки/количество/раскладку UI и на факт вызова реализации нет, а
       встреченные в затронутом scope — удалены, кроме incident-backed с названным наблюдаемым отказом.
+      Доказательство: lead прошёл все добавленные mobile test paths по §10a, удалил два UI source-shape/internal-
+      mount теста и сузил оставшиеся до конечного поведения; targeted web `6 files / 17 tests`, webapp/mobile-shell
+      typecheck и scoped lint, NativeJitsi/UniversalPush tests во всех четырёх Android variants — PASS.
 - [ ] **M7-03.** Оба TEST APK variants собираются на Linux (зависит от `M2-00`). Browser/PWA live acceptance
       покрывает install metadata обеих поверхностей, брендированную поверхность §M1-04, file fallback и iframe
       Jitsi — это выполнимо в репозитории и на именованном DEV/TEST без внешних гейтов.
@@ -471,9 +474,9 @@ authority нельзя: он частично отменён владельце�
 - [ ] **M7-05.** Реальная доставка Universal Push подтверждена на TEST после закрытия внешних гейтов §6.
 - [ ] **M7-06.** Targeted/phase проверки зелёные на candidate SHAs. Поскольку изменение затрагивает root
       dependencies, lockfile, webapp, integrator и Android package, один полный CI гоняется под общим замком хоста
-      (`/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"`) только на финальной интеграции. По прямому решению
-      владельца 2026-09-09 этот прогон выполняется им после завершения параллельного обновления пакетов; текущий
-      workstream его не запускает и до полученного результата строку не закрывает.
+      (`/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"`) только на финальной интеграции. Более позднее прямое
+      решение владельца 2026-09-09: текущий workstream сам запускает этот один прогон после landing всех изменений,
+      затем push и TEST deploy; до результата строка не закрывается.
 - [ ] **M7-07.** Интегрированный `feat/doctor-ui-rebuild` содержит plan evidence по каждому чекбоксу, taskdb `#915`
       соответствует факту, коммиты запушены через проверенный wrapper (`pnpm push:checked`), ни один worker
       clone/process не остался живым.
@@ -555,9 +558,11 @@ security/audit gates идут без этих входов. Отсутствую
 | M1-01 | done | PWA identity wiring доказан `ae14e0f16`/`fd04fbc27`/`041abf541`/`66ef65468`; owner-коррекция display name `TherapyGo` — product `bc221c4a2`, independent manifest/fault audit `941607a78`, port landing `5a2107450`. |
 | M1-04 | open | Финальный named-DEV HTTP проход `ee0c91fc8` (landing `0f7a8374e`) подтвердил, что HTTP 500 `native_push_token_keyring_unavailable` устранён, а TherapyGo/Therapysto metadata/manifests/install routes и исключение platform-admin работают. В DEV сейчас `count(*) = 0` и для `org_custom_domain_bindings`, и для `clinic_public_directory_entries`, поэтому живого branded-patient host для проверки нет; authenticated doctor redirect и полный browser/PWA fallback остаются в M7-03. |
 | M1-07, M3-01…M3-03 | done | Product/corrections `d54b34775`, `4e6a5b188`, `312ef14e3`; independent continuation/tests `44b494331` после отклонённого первичного PASS; retained `5 files / 71 tests`, PWA native-shell `6/6`, typecheck/scoped ESLint; port landing `4d84fb260`. |
-| M4-02 | open | Базовая native Jitsi Activity/permission/event реализация принята через `d1c983a3c` и landing `a722d9bf8`, но owner-коррекция 2026-09-09 требует PiP при уходе/сворачивании и запрещает auto-hangup на web unmount. Кандидат `770b5e750` этому противоречит; продолжение аудита `93d954360` дополнительно сохранило красный behavioral oracle для late A → replacement B. |
+| M4-02 | done | Базовая native Jitsi Activity/permission/event реализация принята через `d1c983a3c` и landing `a722d9bf8`; owner-коррекция PiP + explicit-end-only закрыта product `037f473ee`, combined candidate `3ab89ae15` и independent report `7d519dc80`. Финальная web continuity correction/test landed как `474e98fbe`/`535089a53`. |
 | M5-02, M5-03 | done | Corrected CameraX result handoff/document MIME validation `bfe25db0b`; independent confirmation `d1c983a3c`; port landing `a722d9bf8`. |
 | M6-01…M6-07, M6-09…M6-11 | done | Backend/rights/routes through `c6fb028d1`, landing `bd897e9f7`; official Universal provider contract `60cfa976e`, landing `46c9d4728`; Android end-to-end wire/tap through `1dd140d64`, landing `a722d9bf8`; authenticated lifecycle `44b494331`, landing `4d84fb260`. |
 | M6-08 | done | Restricted DB-backed registry/config/accessor path accepted in `88e9240df`, landing `bd897e9f7`; lead re-inspected the final registry, integrator config route and production-only key inventory. The obsolete source-text gate was deliberately removed by owner decision #1074 in `c5b061696` and is not restored. |
 | M5-01, M5-04…M5-06 | done | Product `ba92a6623`; independent audit/tests `eca72e42b`, report `61c71a436`; accepted correction `ac8998f37`; port landing `bfcb4afba`. Original fault ledger: убито 10, непойманных 0; retained oracle and targeted media gates green. |
-| M4-01, M4-03…M4-06, M7-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
+| M4-01, M4-03…M4-06 | done | Product `0d54836a5` + Android `037f473ee`, combined candidate `3ab89ae15`, independent report `7d519dc80`, accepted continuity correction/test `6b1b3d736`/`535089a53`, landing `474e98fbe`. |
+| M7-02 | done | Lead test-policy gate: harmful mobile UI/source-shape checks removed; retained web behavior `6 files / 17 tests`, both package typecheck/lint gates and four-variant NativeJitsi/UniversalPush tests PASS. |
+| M7-01, M7-03…M7-07 | open | Закрывает lead только после applicable independent/live, full-CI, push/deploy и внешних device/provider gates. |

@@ -4,7 +4,10 @@ import type { VideoMeetingRenderSession } from '@/modules/video-meetings/ports';
 import type { NativeRuntimeSnapshot } from '@/shared/lib/platform';
 import { VideoMeetingStage } from './VideoMeetingStage';
 
-type NativeConferenceEvent = { state: 'joined' } | { state: 'terminated' } | { state: 'error'; code: string | null };
+type NativeConferenceEvent =
+  | { state: 'joined'; conferenceId: string }
+  | { state: 'terminated'; conferenceId: string }
+  | { state: 'error'; code: string | null; conferenceId: string };
 
 const runtime = vi.hoisted(() => ({
   value: {
@@ -42,16 +45,29 @@ const session = (roomReference = 'room-one'): VideoMeetingRenderSession => ({
 
 describe('VideoMeetingStage native Jitsi seam (M4-01/M4-04/M4-05)', () => {
   let listeners: Array<(event: NativeConferenceEvent) => void>;
+  let launchIds: string[];
+  let nextLaunch: number;
+
+  function startedOperation() {
+    const conferenceId = `conference-${String(nextLaunch++).padStart(6, '0')}`;
+    launchIds.push(conferenceId);
+    return {
+      conferenceId,
+      outcome: Promise.resolve({ state: 'started' as const, conferenceId }),
+    };
+  }
 
   beforeEach(() => {
     listeners = [];
+    launchIds = [];
+    nextLaunch = 1;
     runtime.value = {
       kind: 'therapygo_android',
       version: '1.0.0',
       capabilities: { jitsi: true, media: true, push: true },
     } satisfies NativeRuntimeSnapshot;
-    nativeBridge.start.mockResolvedValue('started');
-    nativeBridge.retry.mockResolvedValue('started');
+    nativeBridge.start.mockImplementation(startedOperation);
+    nativeBridge.retry.mockImplementation(startedOperation);
     nativeBridge.hangup.mockResolvedValue(undefined);
     nativeBridge.addListener.mockImplementation((listener: (event: NativeConferenceEvent) => void) => {
       listeners.push(listener);
@@ -83,7 +99,9 @@ describe('VideoMeetingStage native Jitsi seam (M4-01/M4-04/M4-05)', () => {
   it('falls back to the retained browser renderer when native open is unavailable', async () => {
     // Failure: a stale/missing/rejecting native bridge leaves a capable-looking Android shell on
     // a blank stage instead of preserving the browser/PWA conference behavior.
-    nativeBridge.start.mockResolvedValueOnce('unavailable');
+    nativeBridge.start.mockReturnValueOnce(
+      Promise.resolve({ state: 'unavailable' as const, conferenceId: null }),
+    );
     const construct = vi.fn();
     class FakeJitsiApi {
       dispose = vi.fn();
@@ -135,9 +153,10 @@ describe('VideoMeetingStage native Jitsi seam (M4-01/M4-04/M4-05)', () => {
     render(<VideoMeetingStage session={session()} onHangup={onHangup} onDiagnostic={onDiagnostic} />);
     await waitFor(() => expect(listeners).toHaveLength(1));
 
-    listeners[0]?.({ state: 'joined' });
-    listeners[0]?.({ state: 'terminated' });
-    listeners[0]?.({ state: 'terminated' });
+    const conferenceId = launchIds[0]!;
+    listeners[0]?.({ state: 'joined', conferenceId });
+    listeners[0]?.({ state: 'terminated', conferenceId });
+    listeners[0]?.({ state: 'terminated', conferenceId });
 
     await waitFor(() => expect(onHangup).toHaveBeenCalledTimes(1));
     expect(onDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ event: 'end' }));
@@ -150,8 +169,9 @@ describe('VideoMeetingStage native Jitsi seam (M4-01/M4-04/M4-05)', () => {
     render(<VideoMeetingStage session={session()} onDiagnostic={onDiagnostic} />);
     await waitFor(() => expect(listeners).toHaveLength(1));
 
-    listeners[0]?.({ state: 'error', code: 'permission_denied' });
-    listeners[0]?.({ state: 'error', code: 'permission_denied' });
+    const conferenceId = launchIds[0]!;
+    listeners[0]?.({ state: 'error', code: 'permission_denied', conferenceId });
+    listeners[0]?.({ state: 'error', code: 'permission_denied', conferenceId });
 
     await waitFor(() => expect(onDiagnostic).toHaveBeenCalledTimes(1));
     expect(onDiagnostic).toHaveBeenCalledWith({ event: 'error', errorClass: 'media' });
@@ -170,9 +190,8 @@ describe('VideoMeetingStage native Jitsi seam (M4-01/M4-04/M4-05)', () => {
     view.rerender(<VideoMeetingStage session={secondSession} onHangup={onHangup} />);
     await waitFor(() => expect(listeners).toHaveLength(2));
 
-    // The Android conference broadcast has no room reference, so this models Activity A's late
-    // terminal broadcast arriving after B has installed its listener.
-    listeners[1]?.({ state: 'terminated' });
+    // Activity A's late terminal broadcast carries A's opaque launch id and must not own B.
+    listeners[1]?.({ state: 'terminated', conferenceId: launchIds[0]! });
 
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(onHangup).not.toHaveBeenCalled();

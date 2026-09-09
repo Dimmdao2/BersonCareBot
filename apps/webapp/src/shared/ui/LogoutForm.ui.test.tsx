@@ -31,7 +31,7 @@ function renderForm() {
       <button type="submit">Выйти</button>
     </LogoutForm>,
   );
-  return screen.getByRole('button', { name: 'Выйти' }).closest('form') as HTMLFormElement;
+  return screen.getByRole('button').closest('form') as HTMLFormElement;
 }
 
 describe('LogoutForm — browser runtime stays an unmodified plain POST', () => {
