@@ -98,6 +98,8 @@ export function createBookingEngineService(
 
     async createAppointment(input: CreateAppointmentInput) {
       assertUuid(input.organizationId, 'organizationId');
+      if (!input.branchId) throw new UserFacingError('Укажите филиал');
+      assertUuid(input.branchId, 'branchId');
       const status = input.status ?? 'created';
       assertAppointmentStatus(status);
       if (new Date(input.endAt).getTime() <= new Date(input.startAt).getTime()) {
@@ -170,6 +172,8 @@ export function createBookingEngineService(
         if (visitedAtMs > Date.now() + 2 * 60_000) throw new Error('visit_in_future');
         return port.createManualPatientVisit(input);
       }
+      if (!input.appointment.branchId) throw new UserFacingError('Укажите филиал');
+      assertUuid(input.appointment.branchId, 'branchId');
       const status = input.appointment.status ?? 'confirmed';
       assertAppointmentStatus(status);
       if (
@@ -187,6 +191,8 @@ export function createBookingEngineService(
       if (inputs.length < 1) throw new Error('appointment_chain_required');
       for (const input of inputs) {
         assertUuid(input.organizationId, 'organizationId');
+        if (!input.branchId) throw new UserFacingError('Укажите филиал');
+        assertUuid(input.branchId, 'branchId');
         const status = input.status ?? 'created';
         assertAppointmentStatus(status);
         if (new Date(input.endAt).getTime() <= new Date(input.startAt).getTime()) {

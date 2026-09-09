@@ -20,7 +20,7 @@ export function SelectTrigger({ className, ...props }: ComponentProps<typeof Sha
   return (
     <SharedSelectTrigger
       className={cn(
-        'rounded-[var(--doctor-button-radius,8px)] bg-white text-base md:text-sm',
+        'w-full rounded-[var(--doctor-button-radius,8px)] bg-white text-base md:text-sm',
         className,
       )}
       {...props}

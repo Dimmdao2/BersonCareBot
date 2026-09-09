@@ -365,7 +365,7 @@ export function PatientCardClient({
   appointmentsManageOwn = true,
 }: Props) {
   const { activeCall } = useActiveCall();
-  const { patientPluralLabel, patientSingularLabel, supportGroupLabel } = useDoctorPatientTerms();
+  const { patientGenitive, patientSingularLabel, supportGroupLabel } = useDoctorPatientTerms();
   const header = shellMeta.cardHeader;
   const availableTabs = useMemo(
     () => getEffectivePatientCardTabs(workspaceModules),
@@ -472,26 +472,8 @@ export function PatientCardClient({
 
   if (!header) {
     return (
-      <DoctorAppShell
-        title={`Карточка ${patientSingularLabel.toLocaleLowerCase('ru-RU')}`}
-        backHref={patientListHref}
-        mobileBottomGutter
-      >
-        <DoctorPageHeader
-          id="doctor-patient-card-header"
-          title={`Карточка ${patientSingularLabel.toLocaleLowerCase('ru-RU')}`}
-          tabs={
-            <Link
-              href={patientListHref}
-              className={cn(
-                buttonVariants({ size: 'sm', variant: 'outline' }),
-                'h-8 rounded-[var(--doctor-control-radius,24px)] px-3',
-              )}
-            >
-              К {patientPluralLabel.toLocaleLowerCase('ru-RU')}
-            </Link>
-          }
-        />
+      <DoctorAppShell title={`Карточка ${patientGenitive}`} mobileBottomGutter>
+        <DoctorPageHeader id="doctor-patient-card-header" title={`Карточка ${patientGenitive}`} />
         <section className={doctorPageStackClass}>
           <div className={doctorSectionCardClass}>
             <p className="text-sm text-muted-foreground">{patientSingularLabel} не найден.</p>
@@ -528,27 +510,17 @@ export function PatientCardClient({
 
   return (
     <DoctorAppShell
-      title={`Карточка ${patientSingularLabel.toLocaleLowerCase('ru-RU')}`}
-      backHref={patientListHref}
+      title={`Карточка ${patientGenitive}`}
       mobileBottomGutter={!isFilesTabActive}
       layout={isFilesTabActive ? 'full-height' : 'default'}
     >
       <DoctorShellMobileBottomTabsRegistration content={mobileBottomTabs} />
       <DoctorPageHeader
         id="doctor-patient-card-header"
-        title={`Карточка ${patientSingularLabel.toLocaleLowerCase('ru-RU')}`}
+        title={`Карточка ${patientGenitive}`}
         className="hidden md:flex"
         tabs={
           <div className="flex min-w-0 items-center gap-2">
-            <Link
-              href={patientListHref}
-              className={cn(
-                buttonVariants({ size: 'sm', variant: 'outline' }),
-                'hidden h-8 shrink-0 rounded-[var(--doctor-control-radius,24px)] px-3 md:inline-flex',
-              )}
-            >
-              К {patientPluralLabel.toLocaleLowerCase('ru-RU')}
-            </Link>
             <PatientCardDesktopTabs
               activeTab={activeTab}
               onTabChange={selectTab}

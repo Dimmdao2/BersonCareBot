@@ -829,7 +829,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         .select({
           appointmentId: patientPayment.appointmentId,
           amountMinor: sql<number>`COALESCE(SUM(${patientPayment.amountMinor}), 0)::integer`.as(
-            'amount_minor',
+            'manual_paid_minor',
           ),
         })
         .from(patientPayment)

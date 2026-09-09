@@ -17,7 +17,7 @@
  *  - Платежи       → PatientTabRecords
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
 import { Check, Mail, Pencil, Phone, Send } from 'lucide-react';
@@ -45,6 +45,12 @@ import { AdminMergeAccountsPanel } from '@/app/app/doctor/clients/AdminMergeAcco
 import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientSupportPanel';
 import { AdminClientAuditHistorySection } from '@/app/app/doctor/clients/AdminClientAuditHistorySection';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import {
+  DoctorSupplementaryContactsList,
+  DoctorSupplementaryContactsPanel,
+} from '@/app/app/doctor/clients/DoctorSupplementaryContactsPanel';
+import { phoneToTelHref } from '@/shared/lib/phoneLinks';
+import type { DoctorSupplementaryContact } from '@/modules/platform-user-contacts/bookingContactUpsert';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -88,11 +94,20 @@ function todayInputDate(): string {
   return `${year}-${month}-${day}`;
 }
 
+function publicMessengerHref(
+  provider: 'telegram' | 'max',
+  value: string | null | undefined,
+): string | null {
+  const handle = value?.trim().replace(/^@/, '') ?? '';
+  if (!/^(?=.*[A-Za-z_])[A-Za-z0-9_-]{3,64}$/.test(handle)) return null;
+  return provider === 'telegram' ? `https://t.me/${handle}` : `https://max.ru/${handle}`;
+}
+
 async function copyText(text: string) {
   try {
     await navigator.clipboard.writeText(text);
   } catch {
-    /* silent */
+    // UUID copy is an admin convenience; the account screen remains usable if the API is blocked.
   }
 }
 
@@ -148,8 +163,8 @@ function ChannelRow({
   confirmedLabel = 'подтверждён',
   unconfirmedLabel = 'не подтверждён',
   blocked,
-  actionLabel,
-  onAction,
+  href,
+  external = false,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -160,15 +175,21 @@ function ChannelRow({
   unconfirmedLabel?: string;
   /** CONTACTS-07: shown only when the caller passes an already-known true/false from the shared contract. */
   blocked?: boolean;
-  actionLabel?: string;
-  onAction?: () => void;
+  href?: string | null;
+  external?: boolean;
 }) {
   const { patientInstrumental } = useDoctorPatientTerms();
-  return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-border bg-background px-2.5 py-2">
-      <span className="w-5 flex-none flex items-center justify-center text-muted-foreground">
-        {icon}
-      </span>
+  const hasProblem = confirmed === false || blocked === true;
+  const className = cn(
+    'flex items-center gap-2.5 rounded-lg border px-2.5 py-2',
+    hasProblem
+      ? 'border-destructive/40 bg-destructive/5 text-destructive'
+      : 'border-primary/40 bg-primary/5 text-primary',
+    href && (hasProblem ? 'hover:bg-destructive/10' : 'hover:bg-primary/10'),
+  );
+  const content = (
+    <>
+      <span className="w-5 flex-none flex items-center justify-center text-current">{icon}</span>
       <div className="flex-1 min-w-0">
         <div className={cn(doctorBodyTextClass, 'truncate leading-tight')}>{value}</div>
         <div className={cn(doctorMetaTextClass, 'flex items-center gap-1')}>
@@ -179,22 +200,26 @@ function ChannelRow({
               {confirmedLabel}
             </span>
           ) : confirmed === false ? (
-            <span className="text-muted-foreground">{unconfirmedLabel}</span>
+            <span className="text-destructive">{unconfirmedLabel}</span>
           ) : null}
-          {blocked ? <span className="text-destructive">· бот заблокирован {patientInstrumental}</span> : null}
+          {blocked ? (
+            <span className="text-destructive">· бот заблокирован {patientInstrumental}</span>
+          ) : null}
         </div>
       </div>
-      {actionLabel && (
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={onAction}
-          className="inline-flex h-6 items-center justify-center px-1.5 text-xs text-muted-foreground"
-        >
-          {actionLabel}
-        </Button>
-      )}
-    </div>
+    </>
+  );
+  return href ? (
+    <a
+      href={href}
+      target={external ? '_blank' : undefined}
+      rel={external ? 'noreferrer' : undefined}
+      className={className}
+    >
+      {content}
+    </a>
+  ) : (
+    <div className={className}>{content}</div>
   );
 }
 
@@ -207,189 +232,10 @@ function MaxMonogram() {
   );
 }
 
-/**
- * Доп. телефоны пациента (платформенные доп. контакты, contact_type='phone').
- * Основной телефон не редактируется ни врачом, ни админом — здесь только ДОБАВЛЕНИЕ
- * вторичных номеров (owner-правило). Бэкенд: /api/doctor/clients/:id/supplementary-contacts.
- */
-type SupplementaryContact = { id: string; contactType: string; value: string; source: string };
+/** Дополнительные контакты врача: не являются логинами или привязками каналов пациента. */
+type SupplementaryContact = DoctorSupplementaryContact;
 
 export type { SupplementaryContact };
-
-function SecondaryPhones({
-  userId,
-  initialContacts,
-}: {
-  userId: string;
-  /** SSR-provided contacts (all types). When present, skips the initial client fetch. */
-  initialContacts?: SupplementaryContact[];
-}) {
-  // Filter to phones on init; client re-fetch returns all types so filter is applied there too.
-  const [phones, setPhones] = useState<SupplementaryContact[] | null>(() =>
-    initialContacts != null ? initialContacts.filter((c) => c.contactType === 'phone') : null,
-  );
-  const [error, setError] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [input, setInput] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
-
-  const load = () => {
-    fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/supplementary-contacts`, {
-      credentials: 'include',
-    })
-      .then((r) => (r.ok ? (r.json() as Promise<{ contacts: SupplementaryContact[] }>) : null))
-      .then((d) => {
-        if (!d) {
-          setError(true);
-          setPhones([]);
-          return;
-        }
-        setError(false);
-        setPhones((d.contacts ?? []).filter((c) => c.contactType === 'phone'));
-      })
-      .catch(() => {
-        setError(true);
-        setPhones([]);
-      });
-  };
-
-  useEffect(() => {
-    // Skip initial fetch when SSR data provided; load() is still called after add/remove.
-    if (initialContacts != null) return;
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const add = async () => {
-    const value = input.trim();
-    if (!value) {
-      setAddError('Введите номер');
-      return;
-    }
-    setSaving(true);
-    setAddError(null);
-    try {
-      const res = await fetch(
-        `/api/doctor/clients/${encodeURIComponent(userId)}/supplementary-contacts`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contactType: 'phone', value }),
-        },
-      );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        setAddError(
-          body?.error === 'matches_identity'
-            ? 'Совпадает с основным телефоном'
-            : body?.error === 'invalid_value'
-              ? 'Некорректный номер'
-              : 'Не удалось добавить',
-        );
-        return;
-      }
-      setInput('');
-      setAdding(false);
-      load();
-    } catch {
-      setAddError('Не удалось добавить');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const remove = async (id: string) => {
-    const prev = phones;
-    setPhones((list) => (list ? list.filter((p) => p.id !== id) : list));
-    try {
-      const res = await fetch(
-        `/api/doctor/clients/${encodeURIComponent(userId)}/supplementary-contacts/${encodeURIComponent(id)}`,
-        { method: 'DELETE', credentials: 'include' },
-      );
-      if (!res.ok) setPhones(prev ?? null);
-    } catch {
-      setPhones(prev ?? null);
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      {phones?.map((p) => (
-        <div
-          key={p.id}
-          className="flex items-center gap-2.5 rounded-lg border border-border bg-muted/10 px-2.5 py-2"
-        >
-          <span className="w-5 flex-none flex items-center justify-center text-muted-foreground">
-            <Phone className="size-3.5" aria-hidden />
-          </span>
-          <span className={cn(doctorBodyTextClass, 'flex-1 min-w-0 truncate')}>{p.value}</span>
-          <span className={doctorMetaTextClass}>доп. телефон</span>
-          <Button
-            type="button"
-            variant="ghost"
-            title="Удалить"
-            onClick={() => remove(p.id)}
-            className="h-6 w-6 p-0 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-          >
-            ×
-          </Button>
-        </div>
-      ))}
-
-      {error && phones?.length === 0 && (
-        <span className={cn(doctorMetaTextClass, 'text-destructive')}>
-          Не удалось загрузить доп. телефоны.
-        </span>
-      )}
-
-      {adding ? (
-        <div className="flex items-center gap-1.5">
-          <Input
-            autoFocus
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                void add();
-              } else if (e.key === 'Escape') {
-                setAdding(false);
-              }
-            }}
-            placeholder="+7 999 000-00-00"
-            className="flex-1 text-sm"
-          />
-          <Button type="button" variant="default" onClick={() => void add()} disabled={saving}>
-            {saving ? '…' : 'Добавить'}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setAdding(false)}
-            disabled={saving}
-            className="text-muted-foreground"
-          >
-            Отмена
-          </Button>
-        </div>
-      ) : (
-        <Button
-          type="button"
-          variant="link"
-          onClick={() => setAdding(true)}
-          className="self-start h-auto p-0 text-sm"
-        >
-          + доп. телефон
-        </Button>
-      )}
-      {addError && (
-        <span className={cn(doctorMetaTextClass, 'text-destructive')}>{addError}</span>
-      )}
-    </div>
-  );
-}
 
 /**
  * Смена email пациента. Врач НЕ может менять email (owner-правило) — эндпоинт admin-only.
@@ -466,10 +312,13 @@ function EmailChange({ userId }: { userId: string }) {
           <div className={cn(doctorBodyTextClass, 'leading-tight')}>Смена email (админ)</div>
           {pending ? (
             <div className={doctorMetaTextClass}>
-              ожидает подтверждения {patientInstrumental}: <span className="font-mono">{pending.email}</span>
+              ожидает подтверждения {patientInstrumental}:{' '}
+              <span className="font-mono">{pending.email}</span>
             </div>
           ) : (
-            <div className={doctorMetaTextClass}>применится после подтверждения кодом {patientInstrumental}</div>
+            <div className={doctorMetaTextClass}>
+              применится после подтверждения кодом {patientInstrumental}
+            </div>
           )}
         </div>
         {!editing && (
@@ -581,9 +430,10 @@ function PersonalDataEditModal({
         }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as
-          | { error?: string; message?: string }
-          | null;
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+          message?: string;
+        } | null;
         setError(body?.message ?? body?.error ?? 'Ошибка сохранения');
         return;
       }
@@ -715,7 +565,18 @@ export function PatientTabAccount({
   const emailConfirmed = Boolean(identity?.emailVerifiedAt);
 
   const [personalDataModalOpen, setPersonalDataModalOpen] = useState(false);
+  const [contactsModalOpen, setContactsModalOpen] = useState(false);
+  const [supplementaryContacts, setSupplementaryContacts] = useState<SupplementaryContact[]>(
+    initialSupplementaryContacts ?? [],
+  );
   const [supportModalOpen, setSupportModalOpen] = useState(false);
+  useEffect(() => {
+    setSupplementaryContacts(initialSupplementaryContacts ?? []);
+  }, [initialSupplementaryContacts]);
+  const handleSupplementaryContactsChange = useCallback(
+    (contacts: SupplementaryContact[]) => setSupplementaryContacts(contacts),
+    [],
+  );
 
   // ---------------------------------------------------------------------------
   // Block state (optimistic from header; confirmed by POST)
@@ -840,22 +701,16 @@ export function PatientTabAccount({
           </table>
         </SectionCard>
 
-        {/* ── 2. Контакты и каналы ─────────────────────────────────── */}
-        <SectionCard title="Контакты и каналы">
+        {/* Account identities and verified channel bindings are separate from doctor notes. */}
+        <SectionCard title="Каналы учётной записи">
           <div className="flex flex-col gap-1.5">
             {/* Основной телефон — всегда есть (это identity), не редактируется. */}
             <ChannelRow
               icon={<Phone className="size-3.5" aria-hidden />}
               label="Основной телефон"
               value={identity?.phone ?? '—'}
-              actionLabel="⧉"
-              onAction={() => void copyText(identity?.phone ?? '')}
-            />
-
-            {/* Доп. телефоны (основной не меняется; только добавление вторичных) */}
-            <SecondaryPhones
-              userId={userId}
-              initialContacts={initialSupplementaryContacts ?? undefined}
+              confirmed={Boolean(identity?.phone)}
+              href={identity?.phone ? phoneToTelHref(identity.phone) : null}
             />
 
             {/* Telegram — только если реально привязан (CONTACTS-02) */}
@@ -864,7 +719,10 @@ export function PatientTabAccount({
                 icon={<Send className="size-3.5" aria-hidden />}
                 label="Telegram"
                 value={telegramMention ?? 'привязан'}
+                confirmed={!telegramBotBlocked}
                 blocked={telegramBotBlocked}
+                href={publicMessengerHref('telegram', identity?.telegramUsername)}
+                external
               />
             ) : null}
 
@@ -874,7 +732,10 @@ export function PatientTabAccount({
                 icon={<MaxMonogram />}
                 label="MAX"
                 value="привязан"
+                confirmed={!maxBotBlocked}
                 blocked={maxBotBlocked}
+                href={publicMessengerHref('max', identity?.maxUsername)}
+                external
               />
             ) : null}
 
@@ -885,6 +746,7 @@ export function PatientTabAccount({
                 label="Email"
                 value={identity?.email ?? '—'}
                 confirmed={emailConfirmed}
+                href={identity?.email ? `mailto:${identity.email}` : null}
               />
             ) : null}
 
@@ -898,11 +760,34 @@ export function PatientTabAccount({
           RIGHT COLUMN
       ==================================================================== */}
       <div className="flex flex-col gap-3">
+        <SectionCard
+          title="Контакты"
+          titleRight={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title="Редактировать контакты"
+              onClick={() => setContactsModalOpen(true)}
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            >
+              <Pencil className="size-3.5" aria-hidden />
+            </Button>
+          }
+        >
+          <DoctorSupplementaryContactsList contacts={supplementaryContacts} />
+        </SectionCard>
+
         {/* ── 2.5. Сопровождение (owner live TEST 08.09: только модалка отсюда) ─ */}
         <SectionCard
           title={supportGroupLabel}
           titleRight={
-            <Button type="button" variant="outline" size="sm" onClick={() => setSupportModalOpen(true)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSupportModalOpen(true)}
+            >
               Настроить
             </Button>
           }
@@ -966,9 +851,7 @@ export function PatientTabAccount({
           )}
 
           {blockError && (
-            <p className={cn(doctorMetaTextClass, 'text-destructive')}>
-              Блокировка: {blockError}
-            </p>
+            <p className={cn(doctorMetaTextClass, 'text-destructive')}>Блокировка: {blockError}</p>
           )}
           {archiveError && (
             <p className={cn(doctorMetaTextClass, 'text-destructive')}>Архив: {archiveError}</p>
@@ -1040,6 +923,18 @@ export function PatientTabAccount({
         gender={gender}
         onSaved={() => router.refresh()}
       />
+      <DoctorModal
+        open={contactsModalOpen}
+        onClose={() => setContactsModalOpen(false)}
+        title="Контакты"
+        size="sm"
+      >
+        <DoctorSupplementaryContactsPanel
+          userId={userId}
+          initialContacts={supplementaryContacts}
+          onContactsChange={handleSupplementaryContactsChange}
+        />
+      </DoctorModal>
 
       <DoctorModal
         open={supportModalOpen}

@@ -122,8 +122,7 @@ function context(canManageAllSpecialists: boolean): DoctorBookingEngineContext {
     service: {
       getAppointment: mocks.getAppointment,
       createAppointment: mocks.createAppointment,
-      getSpecialistAppointmentReminderSettings:
-        mocks.getSpecialistAppointmentReminderSettings,
+      getSpecialistAppointmentReminderSettings: mocks.getSpecialistAppointmentReminderSettings,
       // PAY-APPT-03: ручное создание считает финансовый снимок и берёт цену услуги из каталога.
       services: { getService: vi.fn(async () => ({ priceMinor: 250_000 })) },
       catalog: {
@@ -215,6 +214,7 @@ describe('doctor appointment mutation scope', () => {
         newStartAt: '2026-07-30T11:00:00.000Z',
         newEndAt: '2026-07-30T11:30:00.000Z',
         durationMinutes: 30,
+        branchId: BRANCH_ID,
         specialistId: OTHER_ID,
       }),
       routeContext,
@@ -239,6 +239,7 @@ describe('doctor appointment mutation scope', () => {
         newStartAt: '2026-07-30T11:00:00.000Z',
         newEndAt: '2026-07-30T11:30:00.000Z',
         durationMinutes: 30,
+        branchId: BRANCH_ID,
         specialistId: OTHER_ID,
       }),
       { params: Promise.resolve({ id: APPOINTMENT_ID }) },

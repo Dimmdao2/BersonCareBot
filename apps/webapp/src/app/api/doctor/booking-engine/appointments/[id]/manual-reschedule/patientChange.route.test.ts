@@ -56,6 +56,7 @@ import { POST } from './route';
 const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222';
 const APPOINTMENT_ID = '11111111-1111-4111-8111-111111111111';
 const SPECIALIST_ID = '33333333-3333-4333-8333-333333333333';
+const BRANCH_ID = '66666666-6666-4666-8666-666666666666';
 const CURRENT_PATIENT_ID = '44444444-4444-4444-8444-444444444444';
 const NEXT_PATIENT_ID = '55555555-5555-4555-8555-555555555555';
 
@@ -69,6 +70,7 @@ function request(body: Record<string, unknown>) {
         newStartAt: '2027-03-10T09:00:00.000Z',
         newEndAt: '2027-03-10T09:45:00.000Z',
         durationMinutes: 45,
+        branchId: BRANCH_ID,
         ...body,
       }),
     },

@@ -28,7 +28,7 @@ const bodySchema = z.object({
   durationMinutes: z.number().int().positive(),
   reason: z.string().trim().max(400).optional(),
   staffComment: z.string().trim().max(1000).optional(),
-  branchId: z.string().uuid().nullable().optional(),
+  branchId: z.string().uuid(),
   specialistId: z.string().uuid().nullable().optional(),
   serviceId: z.string().uuid().nullable().optional(),
   /** APPT-FORM-13: правка записи меняет пациента через этот же контракт, без второго endpoint. */

@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { patientCardHref } from '../patients/patientCardHref';
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { DateTime } from 'luxon';
+import { Video } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
@@ -361,6 +363,7 @@ function DoctorCalendarEventPanelInner({
   });
   const [pending, startTransition] = useTransition();
   const [lifecycle, setLifecycle] = useState<LifecycleResponse | null>(null);
+  const [lifecycleRefreshToken, setLifecycleRefreshToken] = useState(0);
   // APPT-DETAIL-11: комментарий приезжает вместе с деталями записи. Отдельная загрузка рисовала
   // пустое поле первым кадром, и открытое сразу «Изменить» уносило в форму пустой черновик
   // поверх существующего текста.
@@ -391,7 +394,7 @@ function DoctorCalendarEventPanelInner({
     return () => {
       cancelled = true;
     };
-  }, [apiBase, selectedId]);
+  }, [apiBase, lifecycleRefreshToken, selectedId]);
 
   /**
    * Основной комментарий записи (APPT-DETAIL-07): один и тот же контракт и пишет текст, и
@@ -943,6 +946,7 @@ function DoctorCalendarEventPanelInner({
       };
       setPrimaryComment(draft.comment.trim());
       setPendingRefresh(false);
+      if (startChanged) setLifecycleRefreshToken((current) => current + 1);
       toast.success('Изменения сохранены');
       setMode('view');
       if (onUpdated) onUpdated(updatedAppointment);
@@ -1020,6 +1024,17 @@ function DoctorCalendarEventPanelInner({
     canUseOwnSpecialistAppointmentActions(ownSpecialistId, selected.specialistId);
   const canDeleteAppointment =
     canMutateAppointment && isStaffDeletableCancelledStatus(selected.status);
+  const appointmentEnd = parseEventDateTime(selected.endAt, timeZone);
+  const appointmentActionHref =
+    !cancelled &&
+    canMutateAppointment &&
+    selected.platformUserId &&
+    appointmentEnd.isValid &&
+    appointmentEnd.toMillis() > Date.now()
+      ? selected.deliveryFormat === 'online'
+        ? `/app/doctor/patients/${encodeURIComponent(selected.platformUserId)}/live?${new URLSearchParams({ appointmentId: selected.id })}`
+        : `/app/doctor/patients/${encodeURIComponent(selected.platformUserId)}/visits/new?${new URLSearchParams({ appointmentId: selected.id })}`
+      : null;
 
   return (
     <div
@@ -1192,7 +1207,7 @@ function DoctorCalendarEventPanelInner({
         ))}
       </div>
 
-      {canDeleteAppointment || (!cancelled && canMutateAppointment) ? (
+      {canDeleteAppointment || (!cancelled && canMutateAppointment) || appointmentActionHref ? (
         <DoctorModalFooter>
           {canDeleteAppointment ? (
             <Button
@@ -1208,6 +1223,19 @@ function DoctorCalendarEventPanelInner({
           {!cancelled && canMutateAppointment ? (
             <Button type="button" variant="outline" disabled={pending} onClick={openEditForm}>
               Изменить
+            </Button>
+          ) : null}
+          {appointmentActionHref ? (
+            <Button
+              size="sm"
+              className="gap-2"
+              render={<Link href={appointmentActionHref} />}
+              nativeButton={false}
+            >
+              {selected.deliveryFormat === 'online' ? 'Начать видеозвонок' : 'Начать приём'}
+              {selected.deliveryFormat === 'online' ? (
+                <Video className="size-4 shrink-0" aria-hidden />
+              ) : null}
             </Button>
           ) : null}
         </DoctorModalFooter>
