@@ -1461,6 +1461,9 @@ async function mergeExtendedUserOwnedData(
     sql`UPDATE user_web_push_subscriptions SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
   );
 
+  await runMergeSql(client, sql`DELETE FROM native_push_targets d WHERE d.user_id = ${duplicateId}::uuid AND EXISTS (SELECT 1 FROM native_push_targets t WHERE t.user_id = ${targetId}::uuid AND t.app_id = d.app_id AND t.provider = d.provider AND t.installation_id_hash = d.installation_id_hash)`);
+  await runMergeSql(client, sql`UPDATE native_push_targets SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`);
+
   await runMergeSql(
     client,
     sql`DELETE FROM broadcast_audit_recipients

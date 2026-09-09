@@ -100,6 +100,7 @@ export type DeliverySendResult = {
     delivered: number;
     errors: number;
     deactivated: number;
+    transports?: { browser: { delivered: number; errors: number; deactivated: number }; native: { delivered: number; errors: number; deactivated: number } };
     /** Safe provider HTTP status for an all-failed provider outcome. */
     providerStatusCode?: number;
     /** Bounded provider reason token, never a raw response body. */
@@ -597,7 +598,16 @@ export type VapidCredentials = {
  * Used by `WebPushDeliveryAdapter` (S14) to retrieve subscriptions and VAPID details
  * before sending, and to clean up dead subscriptions after 410/404 provider responses.
  */
-export type WebPushAccessPort = {
+export type NativePushAppId = 'therapygo' | 'therapysto';
+export type NativePushProvider = 'rustore' | 'fcm' | 'hms';
+export type NativePushTarget = {
+  id: string;
+  appId: NativePushAppId;
+  provider: NativePushProvider;
+  token: string;
+};
+
+export type BrowserWebPushAccessPort = {
   /**
    * Fetch active web-push subscriptions for a platform user.
    * Returns an empty array when the user has no subscriptions; infrastructure/auth failures throw.
@@ -624,3 +634,32 @@ export type WebPushAccessPort = {
     organizationId: string,
   ): Promise<boolean>;
 };
+
+export type NativePushAccessMethods = {
+  getNativeTargetsForUser(
+    pushUserId: string,
+    organizationId: string,
+    appId: NativePushAppId,
+  ): Promise<NativePushTarget[]>;
+  getRuStoreConfig(
+    appId: NativePushAppId,
+    organizationId: string,
+  ): Promise<{ endpoint: string; projectId: string; authToken: string } | null>;
+  deactivateNativeTarget(targetId: string, organizationId: string): Promise<boolean>;
+};
+
+type CompatibleNativePushAccessMethods = Omit<
+  NativePushAccessMethods,
+  'getNativeTargetsForUser'
+> & {
+  getNativeTargetsForUser(
+    pushUserId: string,
+    organizationId: string,
+    appId: NativePushAppId,
+  ): Promise<Array<{ id: string; appId: string; provider: string; token: string }>>;
+};
+
+/** Browser-only and legacy test doubles remain valid; production wiring uses the exact type below. */
+export type WebPushAccessPort = BrowserWebPushAccessPort &
+  Partial<CompatibleNativePushAccessMethods>;
+export type ConfiguredWebPushAccessPort = BrowserWebPushAccessPort & NativePushAccessMethods;

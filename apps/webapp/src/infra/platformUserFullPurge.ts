@@ -40,6 +40,7 @@ export const CONTENT_TABLES: { table: string; column: string }[] = [
   { table: 'content_access_grants_webapp', column: 'platform_user_id' },
   { table: 'user_notification_topic_channels', column: 'user_id' },
   { table: 'user_web_push_subscriptions', column: 'user_id' },
+  { table: 'native_push_targets', column: 'user_id' },
   { table: 'online_intake_requests', column: 'user_id' },
   // Final systemic lifecycle audit 2026-08-28, F1: `manual_patient_commands` references
   // `org_enrollments` (organization_id, platform_user_id) with the default ON DELETE NO ACTION.

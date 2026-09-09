@@ -37,6 +37,8 @@ export type OutboundMessageContent = {
   title?: string;
   /** Ссылка перехода push-уведомления (web_push). */
   url?: string;
+  /** Нативное приложение-получатель того же логического web_push сообщения. */
+  pushExtras?: { pushSurface: 'therapygo' | 'therapysto' };
   /** Контекст пациента: свой канал клиники обязателен только когда он реально включён. */
   senderScope?: 'clinic_required' | 'clinic_if_configured';
 };
