@@ -14,6 +14,10 @@ oracle; run it and preserve it. Do not clean historical tests. Do not read, prin
 touch TEST/PROD, provider APIs, env or live delivery. No full CI. Use explicit `git -C`; never `git add -A`; do not
 push. Commit all allowed product/doc changes before ending the single turn.
 
+Источник оракула: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md` `TPB-12b` —
+«Patient intent не уходит через Therapysto credential, а staff intent не уходит через TherapyGo credential»;
+`TPB-13a` — «специалисту — Therapysto, стандартному пациенту — TherapyGo».
+
 ## Owner outcome
 
 There are two separately configurable platform delivery identities across the same provider-independent mechanism:
