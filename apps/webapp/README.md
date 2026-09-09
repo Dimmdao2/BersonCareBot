@@ -1,7 +1,7 @@
 # Webapp
 
 `webapp/` is a standalone fullstack `Next.js` service serving the Therapysto staff surface and the
-Therapygo patient surface (`src/config/productSurfaces.ts`).
+TherapyGo patient surface (`src/config/productSurfaces.ts`).
 
 It is intentionally separated from the current `tgcarebot` integrator **as a process**:
 

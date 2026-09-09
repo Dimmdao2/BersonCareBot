@@ -61,7 +61,7 @@ self.addEventListener('push', (event) => {
     // `sendAdminIncidentStaffWebPush.ts`, `notifySpecialistTaskReminder.ts`) always sets a
     // non-empty literal title, so this fallback is unreachable for staff — patient name, not
     // platform name. Next rename must update this literal by hand.
-    self.registration.showNotification(title || 'Therapygo', {
+    self.registration.showNotification(title || 'TherapyGo', {
       body,
       tag,
       data: notificationData,

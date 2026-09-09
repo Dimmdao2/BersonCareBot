@@ -1,6 +1,6 @@
 # auth
 
-Авторизация и сессии веб-приложения (Therapysto у персонала, Therapygo у пациентов — см.
+Авторизация и сесии веб-приложения (Therapysto у персонала, TherapyGo у пациентов — см.
 `config/productSurfaces.ts`).
 
 ## Сессия

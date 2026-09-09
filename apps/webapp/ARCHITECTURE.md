@@ -2,7 +2,7 @@
 
 ## Service Purpose
 
-`webapp` is the main product service, serving the Therapysto staff surface and the Therapygo
+`webapp` is the main product service, serving the Therapysto staff surface and the TherapyGo
 patient surface (`src/config/productSurfaces.ts`; `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md`).
 
 It provides:

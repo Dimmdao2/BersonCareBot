@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Atomically switch the existing named TEST runtime to split Therapysto/Therapygo origins.
+# Atomically switch the existing named TEST runtime to split Therapysto/TherapyGo origins.
 # Default is read-only; --apply changes only api.test and webapp.test.
 set -euo pipefail
 umask 077

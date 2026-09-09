@@ -1,7 +1,7 @@
 # BersonCareBot
 
 Монорепозиторий платформы **Therapysto** — приложения специалистов, админов клиники и платформенных
-админов (`therapysto.ru`); общий вход пациентов называется **Therapygo** (`therapygo.ru`); пациенты
+админов (`therapysto.ru`); общий вход пациентов называется **TherapyGo** (`therapygo.ru`); пациенты
 конкретной клиники видят бренд своей клиники. `BersonCare` — имя первой клиники-арендатора, а не имя
 продукта; в идентификаторах (репозиторий, npm-пакеты, таблицы, роли, переменные окружения) оно остаётся
 как есть. Состав: PWA webapp (кабинеты пациента и врача, CMS, программы лечения, запись), integrator
@@ -149,4 +149,4 @@ webapp-тесты: [`AGENTS.md` §11](AGENTS.md#11-webapp-тесты-компа�
 
 Workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) выполняет проверки (`pnpm run ci`) и не деплоит автоматически. Legacy BersonCare production workflow технически остаётся ручным [`.github/workflows/deploy-prod.yml`](.github/workflows/deploy-prod.yml) (`workflow_dispatch` + environment approval) и принимает только `DEPLOY_HOST=135.106.162.170`; этот legacy host продолжает обслуживать `bersoncare.ru`.
 
-Новый trial PROD `135.106.187.95` (Therapysto / Therapygo) — отдельный docker blue/green pipeline, запускаемый с dev-box через `tools/deploy-prod-from-dev.sh`; его split-surface copy-source и границы legacy state описаны в [`deploy/env/README.md`](deploy/env/README.md). Текущий `151.241.228.122` остаётся DEV/RELAY/TEST; production-службы там запускать нельзя. Runbook: [`deploy/HOST_DEPLOY_README.md`](deploy/HOST_DEPLOY_README.md).
+Новый trial PROD `135.106.187.95` (Therapysto / TherapyGo) — отдельный docker blue/green pipeline, запускаемый с dev-box через `tools/deploy-prod-from-dev.sh`; его split-surface copy-source и границы legacy state описаны в [`deploy/env/README.md`](deploy/env/README.md). Текущий `151.241.228.122` остаётся DEV/RELAY/TEST; production-службы там запускать нельзя. Runbook: [`deploy/HOST_DEPLOY_README.md`](deploy/HOST_DEPLOY_README.md).

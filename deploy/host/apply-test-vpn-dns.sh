@@ -4,7 +4,7 @@
 # Scope is deliberately narrow:
 #   - current DEV/RELAY/TEST host 151.241.228.122 only
 #   - awg1 / 172.31.9.1 only
-#   - legacy TEST plus the Therapysto/Therapygo TEST suffixes
+#   - legacy TEST plus the Therapysto/TherapyGo TEST suffixes
 #   - default action is dry-run; --apply is required to touch /etc or systemd
 set -euo pipefail
 

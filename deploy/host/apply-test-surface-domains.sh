@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Apply the split Therapysto/Therapygo TEST nginx surfaces on 151.241.228.122.
+# Apply the split Therapysto/TherapyGo TEST nginx surfaces on 151.241.228.122.
 # Default is a read-only render/check; --apply changes only the two named TEST vhosts.
 set -euo pipefail
 
@@ -73,7 +73,7 @@ assert_cert_covers() {
 render_surface_vhost() {
   local output="$1"
   cat >"$output" <<'NGINX'
-# Split TEST product surfaces: Therapysto staff/admin + Therapygo patient/known tenant.
+# Split TEST product surfaces: Therapysto staff/admin + TherapyGo patient/known tenant.
 # Source: deploy/host/apply-test-surface-domains.sh
 server {
     listen 80;
