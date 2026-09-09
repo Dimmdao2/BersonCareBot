@@ -12,7 +12,7 @@ import {
   MessageSquare,
   Plus,
 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
@@ -33,7 +33,18 @@ import { DoctorDifficulty1to10Slider } from '@/shared/ui/doctor/DoctorDifficulty
 import { ReferenceMultiSelect } from '@/shared/ui/doctor/ReferenceMultiSelect';
 import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
 import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from '@/modules/lfk-exercises/exerciseLoadTypeReference';
-import { putWithProgress } from '@/shared/ui/doctor/media/uploadWithProgress';
+import { putWithProgress } from '@/shared/lib/media/uploadTransport';
+import { deviceMediaMultipartUploadToDestination } from '@/shared/lib/media/deviceMediaMultipartUpload';
+import { useNativeRuntime } from '@/shared/hooks/useNativeRuntime';
+import {
+  browserDeviceMediaSelection,
+  deviceMediaSelectionFilename,
+  disposeDeviceMediaSelection,
+  isNativeDeviceMediaAvailable,
+  pickDeviceMediaFromGallery,
+  type DeviceMediaPickResult,
+  type DeviceMediaSelection,
+} from '@/shared/lib/deviceMedia';
 import type { TreatmentProgramLibraryPickType } from '@/modules/treatment-program/types';
 import type { TreatmentProgramInstanceStageItemView } from '@/modules/treatment-program/types';
 import {
@@ -188,6 +199,8 @@ export function InstanceAddLibraryItemDialog(props: {
   editLocked: boolean;
 }) {
   const { patientGenitive } = useDoctorPatientTerms();
+  const nativeRuntime = useNativeRuntime();
+  const nativeMediaAvailable = isNativeDeviceMediaAvailable(nativeRuntime);
   const { open, onOpenChange, spec, library, editLocked } = props;
   const { addItemCreate, deleteItem, displayDetail } = useInstanceEditorDraft();
   const [itemSearch, setItemSearch] = useState('');
@@ -207,14 +220,32 @@ export function InstanceAddLibraryItemDialog(props: {
   const [individualDifficulty, setIndividualDifficulty] = useState(5);
   const [individualContraindications, setIndividualContraindications] = useState('');
   const [individualTags, setIndividualTags] = useState('');
-  const [individualVideo, setIndividualVideo] = useState<File | null>(null);
+  const [individualVideo, setIndividualVideo] = useState<DeviceMediaSelection | null>(null);
   const [individualSaveToCatalog, setIndividualSaveToCatalog] = useState(false);
   const [individualReps, setIndividualReps] = useState('');
   const [individualSets, setIndividualSets] = useState('');
   const [individualMaxPain, setIndividualMaxPain] = useState('');
   const [individualBusy, setIndividualBusy] = useState(false);
+  const individualVideoFallbackInputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * `individualVideo` is a device-storage-owning resource once native (audit MUST FIX 1): a ref
+   * mirror lets the reset callback (stable identity, `[]` deps) and the unmount cleanup below
+   * release whatever is currently picked without becoming stale. `disposeDeviceMediaSelection` is
+   * idempotent, so releasing here after the upload already transferred/released it is a no-op.
+   */
+  const individualVideoRef = useRef<DeviceMediaSelection | null>(null);
+  useEffect(() => {
+    individualVideoRef.current = individualVideo;
+  }, [individualVideo]);
+  useEffect(() => {
+    return () => {
+      if (individualVideoRef.current) void disposeDeviceMediaSelection(individualVideoRef.current);
+    };
+  }, []);
 
   const resetDialogForm = useCallback(() => {
+    if (individualVideoRef.current) void disposeDeviceMediaSelection(individualVideoRef.current);
     setItemSearch('');
     setSelectedRegionCode(null);
     setSelectedLoadType(null);
@@ -426,7 +457,19 @@ export function InstanceAddLibraryItemDialog(props: {
     return parsed;
   }
 
-  async function uploadIndividualVideo(file: File): Promise<string> {
+  async function uploadIndividualVideo(selection: DeviceMediaSelection): Promise<string> {
+    if (selection.origin === 'native') {
+      // M5-04: large media stays a native content URI, streamed through the same
+      // already-authorized multipart door this destination already exposes (`uploadMode`).
+      const { mediaId } = await deviceMediaMultipartUploadToDestination({
+        selection,
+        destination: { kind: 'individual_exercise_video', instanceId: displayDetail.id },
+        signal: new AbortController().signal,
+        onProgress: () => {},
+      });
+      return mediaId;
+    }
+    const file = selection.file;
     const presign = await fetch(
       `/api/doctor/treatment-program-instances/${encodeURIComponent(displayDetail.id)}/media-presign`,
       {
@@ -462,6 +505,28 @@ export function InstanceAddLibraryItemDialog(props: {
       throw new Error(confirmData?.error ?? 'Не удалось подтвердить загрузку видео');
     }
     return presignData.mediaId;
+  }
+
+  async function handleIndividualVideoPick(pick: DeviceMediaPickResult) {
+    // MUST FIX 2 (audit): an absent/rejected native plugin must fall back to the mounted browser
+    // input, never dead-end the button — the same contract the other four surfaces already honour.
+    if (pick.outcome === 'unavailable') {
+      individualVideoFallbackInputRef.current?.click();
+      return;
+    }
+    if (pick.outcome !== 'selected') return;
+    if (pick.selection.kind !== 'video') {
+      setError('Выберите видео');
+      await disposeDeviceMediaSelection(pick.selection);
+      return;
+    }
+    // Replacement (audit MUST FIX 1): release whatever was previously picked before overwriting it.
+    if (individualVideo) await disposeDeviceMediaSelection(individualVideo);
+    setIndividualVideo(pick.selection);
+  }
+
+  async function onPickIndividualVideoNative() {
+    await handleIndividualVideoPick(await pickDeviceMediaFromGallery());
   }
 
   async function submitIndividualExercise() {
@@ -697,13 +762,42 @@ export function InstanceAddLibraryItemDialog(props: {
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="tp-individual-video">Видео</Label>
+                {/* M5-06: the browser input stays mounted even in the native branch — the natural
+                    fallback target when `DeviceMedia` is absent/rejected (MUST FIX 2), never removed
+                    from the DOM just because the native picker is normally available. */}
                 <Input
+                  ref={individualVideoFallbackInputRef}
                   id="tp-individual-video"
                   type="file"
                   accept="video/*"
+                  className={nativeMediaAvailable ? 'sr-only' : undefined}
+                  tabIndex={nativeMediaAvailable ? -1 : undefined}
+                  aria-hidden={nativeMediaAvailable || undefined}
                   disabled={editLocked || individualBusy}
-                  onChange={(event) => setIndividualVideo(event.target.files?.[0] ?? null)}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    if (individualVideo) void disposeDeviceMediaSelection(individualVideo);
+                    setIndividualVideo(browserDeviceMediaSelection(file, 'gallery'));
+                  }}
                 />
+                {nativeMediaAvailable ? (
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={editLocked || individualBusy}
+                      onClick={() => void onPickIndividualVideoNative()}
+                    >
+                      {individualVideo ? 'Заменить видео…' : 'Выбрать видео…'}
+                    </Button>
+                    {individualVideo ? (
+                      <span className="text-xs text-muted-foreground">
+                        {deviceMediaSelectionFilename(individualVideo)}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
                 <p className="text-xs text-muted-foreground">
                   После сохранения программы видео нельзя заменить.
                 </p>

@@ -40,7 +40,9 @@ export function isNativeShellActive(): boolean {
   }
 }
 
-function plugin(name: 'ShellRuntime' | 'UniversalPush' | 'App'): CapacitorPluginCallable | null {
+function plugin(
+  name: 'ShellRuntime' | 'UniversalPush' | 'App' | 'DeviceMedia',
+): CapacitorPluginCallable | null {
   const cap = capacitorGlobal();
   if (!cap?.isNativePlatform?.()) return null;
   return cap.Plugins?.[name] ?? null;
@@ -201,6 +203,166 @@ export function addUniversalPushListener(onEvent: (event: NativePushListenerEven
     removed = true;
     handle?.remove?.();
   };
+}
+
+// ---------------------------------------------------------------------------
+// DeviceMedia (M5-01): camera/gallery/document capture + streamed native upload.
+// Contract source: `apps/mobile-shell/README.md` (`DeviceMedia` row) — the plugin never hands a
+// content URI or raw bytes to JS, only an opaque `handle` plus non-secret descriptor fields.
+// ---------------------------------------------------------------------------
+
+export type NativeDeviceMediaKind = 'photo' | 'video' | 'document';
+export type NativeDeviceMediaSource = 'camera' | 'gallery' | 'document';
+
+export type NativeDeviceMediaSelection = {
+  outcome: 'selected';
+  handle: string;
+  mimeType: string;
+  displayName: string;
+  sizeBytes: number;
+  durationSeconds: number | null;
+  source: NativeDeviceMediaSource;
+  kind: NativeDeviceMediaKind;
+};
+
+export type NativeDeviceMediaCancelled = { outcome: 'cancelled' };
+
+/** `null` means the call itself could not reach the plugin (absent/rejected/malformed) — the
+ * caller falls back to the browser picker exactly like an absent `ShellRuntime` falls back to
+ * `BROWSER_NATIVE_RUNTIME`. A user-visible cancel is `{outcome:'cancelled'}`, never `null`. */
+export type NativeDeviceMediaOutcome = NativeDeviceMediaSelection | NativeDeviceMediaCancelled;
+
+function isNativeDeviceMediaKind(value: unknown): value is NativeDeviceMediaKind {
+  return value === 'photo' || value === 'video' || value === 'document';
+}
+
+function isNativeDeviceMediaSource(value: unknown): value is NativeDeviceMediaSource {
+  return value === 'camera' || value === 'gallery' || value === 'document';
+}
+
+function validateDeviceMediaOutcome(raw: unknown): NativeDeviceMediaOutcome | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (r.outcome === 'cancelled') return { outcome: 'cancelled' };
+  if (r.outcome !== 'selected') return null;
+  if (
+    typeof r.handle !== 'string' ||
+    r.handle.length === 0 ||
+    typeof r.mimeType !== 'string' ||
+    typeof r.displayName !== 'string' ||
+    typeof r.sizeBytes !== 'number' ||
+    !Number.isFinite(r.sizeBytes) ||
+    r.sizeBytes < 0 ||
+    !isNativeDeviceMediaSource(r.source) ||
+    !isNativeDeviceMediaKind(r.kind)
+  ) {
+    return null;
+  }
+  const durationSeconds =
+    typeof r.durationSeconds === 'number' && Number.isFinite(r.durationSeconds) && r.durationSeconds > 0
+      ? r.durationSeconds
+      : null;
+  return {
+    outcome: 'selected',
+    handle: r.handle,
+    mimeType: r.mimeType,
+    displayName: r.displayName,
+    sizeBytes: r.sizeBytes,
+    durationSeconds,
+    source: r.source,
+    kind: r.kind,
+  };
+}
+
+async function callDeviceMedia(
+  method: 'captureMedia' | 'pickMedia' | 'pickDocument',
+  args: Record<string, unknown>,
+): Promise<NativeDeviceMediaOutcome | null> {
+  const deviceMedia = plugin('DeviceMedia');
+  if (!deviceMedia || typeof deviceMedia[method] !== 'function') return null;
+  try {
+    const raw = await deviceMedia[method](args);
+    return validateDeviceMediaOutcome(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** Opens the native CameraX screen; the user can still switch Photo/Video inside it (M5-02). */
+export function captureNativeDeviceMedia(kind: 'photo' | 'video'): Promise<NativeDeviceMediaOutcome | null> {
+  return callDeviceMedia('captureMedia', { kind });
+}
+
+/** System gallery picker (images and videos together, M5-03). */
+export function pickNativeDeviceMedia(opts?: {
+  requiresDuration?: boolean;
+}): Promise<NativeDeviceMediaOutcome | null> {
+  return callDeviceMedia('pickMedia', opts?.requiresDuration ? { requiresDuration: true } : {});
+}
+
+/** System document picker with a narrow, natively-enforced MIME allowlist (M5-03). */
+export function pickNativeDeviceDocument(mimeTypes: string[]): Promise<NativeDeviceMediaOutcome | null> {
+  return callDeviceMedia('pickDocument', { mimeTypes });
+}
+
+export type NativeDeviceMediaUploadResult =
+  | { outcome: 'uploaded'; status: number; etag: string }
+  | { outcome: 'upload_failed'; status: number };
+
+function validateDeviceMediaUploadResult(raw: unknown): NativeDeviceMediaUploadResult | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (r.outcome === 'uploaded' && typeof r.status === 'number' && typeof r.etag === 'string' && r.etag) {
+    return { outcome: 'uploaded', status: r.status, etag: r.etag };
+  }
+  if (r.outcome === 'upload_failed' && typeof r.status === 'number') {
+    return { outcome: 'upload_failed', status: r.status };
+  }
+  return null;
+}
+
+/**
+ * Streams one exact byte range of an already-picked native handle to an already-authorized
+ * presigned URL (M5-04). The plugin permits exactly one call in flight at a time — callers must
+ * serialize (never call this concurrently for the same or a different handle).
+ */
+export async function uploadNativeDeviceMediaRange(input: {
+  handle: string;
+  offset: number;
+  length: number;
+  presignedUrl: string;
+  headers: Record<string, string>;
+}): Promise<NativeDeviceMediaUploadResult | null> {
+  const deviceMedia = plugin('DeviceMedia');
+  if (!deviceMedia || typeof deviceMedia.upload !== 'function') return null;
+  try {
+    const raw = await deviceMedia.upload(input);
+    return validateDeviceMediaUploadResult(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** Best-effort: asks the plugin to abort whatever range upload is currently in flight. */
+export async function cancelNativeDeviceMediaUpload(): Promise<void> {
+  const deviceMedia = plugin('DeviceMedia');
+  if (!deviceMedia || typeof deviceMedia.cancelUpload !== 'function') return;
+  try {
+    await deviceMedia.cancelUpload();
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** Releases the native handle exactly once a terminal (success/abort/cancel) outcome is reached. */
+export async function releaseNativeDeviceMediaHandle(handle: string): Promise<void> {
+  const deviceMedia = plugin('DeviceMedia');
+  if (!deviceMedia || typeof deviceMedia.release !== 'function') return;
+  try {
+    await deviceMedia.release({ handle });
+  } catch {
+    /* best-effort */
+  }
 }
 
 /**
