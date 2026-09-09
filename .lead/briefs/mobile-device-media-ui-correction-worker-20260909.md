@@ -14,9 +14,11 @@ Run `grep -n "^## \|^### " AGENTS.md`; read the global decision method, §1/§1b
 worker brief, both independent audit artifacts, both retained acceptance files and every changed production caller
 before editing. Use code-search before exact `rg`.
 
-Authority is `docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md` M5-01/M5-03…M5-06 plus the accepted
-`DeviceMedia` contract in `apps/mobile-shell/README.md`. Preserve the existing browser behavior and every existing
-destination's server authorization/finalization semantics.
+Источник оракула — `docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md` M5-01: «Один контракт
+`DeviceMedia` (`captureMedia`, `pickMedia`, `pickDocument`, `upload`) обслуживает все 6 существующих UI-точек
+выбора файла (§3a); каждая из них параметризует этот шов вместо собственного определения среды.» M5-03…M5-06 и
+принятый `DeviceMedia`-контракт в `apps/mobile-shell/README.md` дополняют этот атомарный correction scope. Preserve
+the existing browser behavior and every existing destination's server authorization/finalization semantics.
 
 ## One ownership lifecycle — close all handle leaks
 
