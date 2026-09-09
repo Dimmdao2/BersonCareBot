@@ -1,4 +1,4 @@
-# Independent audit — platform delivery audience split (#787)
+# Тест или взгляд — platform delivery audience split (#787)
 
 Audit exact product candidate `87e7cb0ac40658d9a13af467d0b47f64f209d33e`. This is an acceptance gate,
 not a source of new scope. Do not fix production code.
@@ -74,4 +74,3 @@ do not push. The report must contain candidate/base SHAs, kill-set, inspection e
 each command/result, fault injections, migration/rights verdict, exact new/changed/deleted tests with §10a rationale,
 and binary `PASS` or `FAIL` with only reachable findings. `PASS` does not claim live provider delivery, credentials
 or TEST rollout; those remain separate runtime gates.
-
